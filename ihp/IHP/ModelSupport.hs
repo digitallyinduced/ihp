@@ -21,7 +21,7 @@ import Data.Text (Text)
 import qualified Data.Text as Text
 import Data.Int (Int64)
 import Data.IORef (IORef, newIORef, modifyIORef')
-import Control.Exception (bracket, finally, throwIO, Exception, SomeException, try, mask)
+import Control.Exception (bracket, finally, throwIO, SomeException, try, mask)
 import Data.Maybe (fromMaybe, isNothing, isJust)
 import Data.String (IsString(..))
 import Database.PostgreSQL.Simple.Types (Query(..))
@@ -71,7 +71,7 @@ import Control.Monad.IO.Class (liftIO)
 import Control.Monad.Error.Class (catchError)
 import IHP.Hasql.FromRow (FromRowHasql(..), HasqlDecodeColumn(..))
 import IHP.Hasql.Encoders (ToSnippetParams(..), sqlToSnippet)
-import IHP.Hasql.Pool (usePoolWithRetry, isCachedPlanError, isCachedPlanSessionError)
+import IHP.Hasql.Pool (usePoolWithRetry)
 import IHP.PGSimpleCompat ()
 
 -- | Provides a mock ModelContext to be used when a database connection is not available
