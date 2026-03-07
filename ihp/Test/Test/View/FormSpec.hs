@@ -2,6 +2,9 @@
 Module: Test.View.FormSpec
 Copyright: (c) digitally induced GmbH, 2022
 -}
+{-# LANGUAGE DerivingStrategies #-}
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
+
 module Test.View.FormSpec where
 
 import Test.Hspec
@@ -16,6 +19,7 @@ import qualified Data.Text.Lazy as LT
 import qualified Data.Vault.Lazy as Vault
 import qualified IHP.RequestVault
 import qualified Data.TMap as TypeMap
+import qualified IHP.HSX.Attribute as HSX
 
 
 tests = do
@@ -93,7 +97,26 @@ createControllerContext = do
     let customFields = TypeMap.insert request TypeMap.empty
     pure FrozenControllerContext { customFields }
 
-data Project'  = Project {id :: (Id' "projects"), title :: Text, meta :: MetaBag} deriving (Eq, Show)
+newtype ProjectId = ProjectId UUID
+    deriving newtype (Eq, Ord, Show)
+type instance Id' "projects" = ProjectId
+instance IdNewtype ProjectId UUID where
+    toId = ProjectId
+    fromId (ProjectId x) = x
+instance Default ProjectId where def = ProjectId def
+instance InputValue ProjectId where inputValue (ProjectId x) = inputValue x
+instance HSX.ApplyAttribute ProjectId where
+    applyAttribute attr attr' (ProjectId x) h = HSX.applyAttribute attr attr' (inputValue x) h
+
+newtype EventId = EventId UUID
+    deriving newtype (Eq, Ord, Show)
+type instance Id' "events" = EventId
+instance IdNewtype EventId UUID where
+    toId = EventId
+    fromId (EventId x) = x
+instance Default EventId where def = EventId def
+
+data Project'  = Project {id :: (ProjectId), title :: Text, meta :: MetaBag} deriving (Eq, Show)
 instance InputValue Project where inputValue = IHP.ModelSupport.recordToInputValue
 type Project = Project'
 
@@ -106,9 +129,8 @@ type instance PrimaryKey "projects" = UUID
 instance Record Project where
     {-# INLINE newRecord #-}
     newRecord = Project def def  def
-instance Default (Id' "projects") where def = Id def
 
-instance SetField "id" (Project' ) (Id' "projects") where
+instance SetField "id" (Project' ) (ProjectId) where
     {-# INLINE setField #-}
     setField newValue (Project id title meta) =
         Project newValue title (meta { touchedFields = touchedFields meta .|. 1 })
@@ -120,7 +142,7 @@ instance SetField "meta" (Project' ) MetaBag where
     {-# INLINE setField #-}
     setField newValue (Project id title meta) =
         Project id title newValue
-instance UpdateField "id" (Project' ) (Project' ) (Id' "projects") (Id' "projects") where
+instance UpdateField "id" (Project' ) (Project' ) (ProjectId) (ProjectId) where
     {-# INLINE updateField #-}
     updateField newValue (Project id title meta) = Project newValue title (meta { touchedFields = touchedFields meta .|. 1 })
 instance UpdateField "title" (Project' ) (Project' ) Text Text where
@@ -134,7 +156,7 @@ instance FieldBit "title" (Project' ) where fieldBit = 2
 
 -- Event model for testing date fields
 data Event' = Event 
-    { id :: (Id' "events")
+    { id :: (EventId)
     , date :: Maybe Day
     , createdAt :: Maybe UTCTime
     , meta :: MetaBag
@@ -152,9 +174,8 @@ type instance PrimaryKey "events" = UUID
 instance Record Event where
     {-# INLINE newRecord #-}
     newRecord = Event def def def def
-instance Default (Id' "events") where def = Id def
 
-instance SetField "id" (Event' ) (Id' "events") where
+instance SetField "id" (Event' ) (EventId) where
     {-# INLINE setField #-}
     setField newValue (Event id date createdAt meta) =
         Event newValue date createdAt (meta { touchedFields = touchedFields meta .|. 1 })
@@ -171,7 +192,7 @@ instance SetField "meta" (Event' ) MetaBag where
     setField newValue (Event id date createdAt meta) =
         Event id date createdAt newValue
 
-instance UpdateField "id" (Event' ) (Event' ) (Id' "events") (Id' "events") where
+instance UpdateField "id" (Event' ) (Event' ) (EventId) (EventId) where
     {-# INLINE updateField #-}
     updateField newValue (Event id date createdAt meta) = Event newValue date createdAt (meta { touchedFields = touchedFields meta .|. 1 })
 instance UpdateField "date" (Event' ) (Event' ) (Maybe Day) (Maybe Day) where

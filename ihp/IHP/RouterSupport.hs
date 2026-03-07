@@ -961,7 +961,7 @@ parseUUID = do
 {-# INLINABLE parseUUID #-}
 
 -- | Parses an UUID, afterwards wraps it in an Id
-parseId :: ((ModelSupport.PrimaryKey table) ~ UUID) => Parser (ModelSupport.Id' table)
+parseId :: ((ModelSupport.PrimaryKey table) ~ UUID, ModelSupport.IdNewtype (ModelSupport.Id' table) UUID) => Parser (ModelSupport.Id' table)
 parseId = ModelSupport.Id <$> parseUUID
 {-# INLINABLE parseId #-}
 

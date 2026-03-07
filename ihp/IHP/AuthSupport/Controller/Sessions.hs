@@ -68,6 +68,7 @@ createSessionAction :: forall record action.
     , SetField "failedLoginAttempts" record Int
     , CanUpdate record
     , Show (PrimaryKey (GetTableName record))
+    , Show (Id record)
     , record ~ GetModelByTableName (GetTableName record)
     , Table record
     , FromRowHasql record

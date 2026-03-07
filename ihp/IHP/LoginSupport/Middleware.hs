@@ -11,6 +11,7 @@ import IHP.ControllerSupport
 import IHP.ModelSupport
 import IHP.Controller.Context
 import IHP.Hasql.FromRow (FromRowHasql)
+import Data.Serialize (Serialize)
 
 {-# INLINE initAuthentication #-}
 initAuthentication :: forall user normalizedModel.
@@ -22,6 +23,8 @@ initAuthentication :: forall user normalizedModel.
         , Table normalizedModel
         , FromRowHasql normalizedModel
         , PrimaryKey (GetTableName normalizedModel) ~ UUID
+        , Serialize (Id user)
+        , Fetchable (Maybe (Id user)) normalizedModel
         , GetTableName normalizedModel ~ GetTableName user
         , FilterPrimaryKey (GetTableName normalizedModel)
         , KnownSymbol (GetModelName user)

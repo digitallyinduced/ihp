@@ -268,7 +268,7 @@ instance {-# OVERLAPPABLE #-} (DisplayableJob job, JobsDashboard rest) => JobsDa
     -- | View the detail page for the job with a given uuid.
     viewJob _ uuid = do
         let id :: Id job = unsafeCoerce uuid
-        j <- fetch id
+        j <- genericFetchIdOne @(GetTableName job) id
         view <- makeDetailView @job j
         render view
 

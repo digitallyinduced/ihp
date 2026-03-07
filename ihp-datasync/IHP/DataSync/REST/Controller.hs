@@ -25,7 +25,7 @@ import qualified Data.Aeson.Key as Aeson
 import qualified Hasql.Decoders as Decoders
 
 instance (
-    Show (PrimaryKey (GetTableName CurrentUserRecord))
+    Show (Id' (GetTableName CurrentUserRecord))
     , HasNewSessionUrl CurrentUserRecord
     , Typeable CurrentUserRecord
     , HasField "id" CurrentUserRecord (Id' (GetTableName CurrentUserRecord))

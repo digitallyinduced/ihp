@@ -22,8 +22,7 @@ import Prelude
 import qualified Hasql.Decoders as Decoders
 import qualified Hasql.Mapping.IsScalar as Mapping
 import qualified Database.PostgreSQL.Simple.Types as PG
-import Data.Functor.Contravariant (contramap)
-import IHP.ModelSupport.Types (LabeledData(..), Id'(..), PrimaryKey)
+import IHP.ModelSupport.Types (LabeledData(..))
 
 -- | Typeclass for types that can be decoded from a hasql result row
 --
@@ -43,20 +42,6 @@ instance {-# OVERLAPPABLE #-} Mapping.IsScalar a => HasqlDecodeColumn a where
     hasqlColumnDecoder = Decoders.column (Decoders.nonNullable Mapping.decoder)
 
 instance {-# OVERLAPPING #-} Mapping.IsScalar a => HasqlDecodeColumn (Maybe a) where
-    hasqlColumnDecoder = Decoders.column (Decoders.nullable Mapping.decoder)
-
--- | 'IsScalar' instance for 'Id'' so that Id columns can use 'Mapping.encoder' and 'Mapping.decoder'
--- directly in generated code, without manual wrapping/unwrapping.
-instance Mapping.IsScalar (PrimaryKey table) => Mapping.IsScalar (Id' table) where
-    encoder = contramap (\(Id pk) -> pk) Mapping.encoder
-    decoder = Id <$> Mapping.decoder
-
--- | Decode 'Id' table' by decoding the primary key type and wrapping with 'Id'
-instance {-# OVERLAPPING #-} Mapping.IsScalar (PrimaryKey table) => HasqlDecodeColumn (Id' table) where
-    hasqlColumnDecoder = Decoders.column (Decoders.nonNullable Mapping.decoder)
-
--- | Decode 'Maybe (Id' table)' for nullable foreign keys
-instance {-# OVERLAPPING #-} Mapping.IsScalar (PrimaryKey table) => HasqlDecodeColumn (Maybe (Id' table)) where
     hasqlColumnDecoder = Decoders.column (Decoders.nullable Mapping.decoder)
 
 -- FromRowHasql instances for PG.Only and tuples (used by sqlQuery callers like fetchCount, fetchExists)
