@@ -11,15 +11,28 @@ import IHP.ModelSupport.Types (HasqlError(..))
 --
 -- After schema changes (e.g. @make db@), pooled connections have stale caches.
 -- hasql-pool auto-discards these connections, so retrying cycles through the
--- pool until a fresh connection is created.
+-- pool until a fresh connection is created. Retries are bounded to avoid
+-- infinite loops if the error is persistent rather than transient.
 usePoolWithRetry :: HasqlPool.Pool -> Hasql.Session a -> IO a
-usePoolWithRetry pool session = do
-    result <- HasqlPool.use pool session
-    case result of
-        Left err
-            | isCachedPlanError err -> usePoolWithRetry pool session
-            | otherwise -> throwIO (HasqlError err)
-        Right a -> pure a
+usePoolWithRetry pool session = go maxRetries
+    where
+        -- Generous upper bound. In practice the pool has far fewer connections,
+        -- so a fresh connection is reached well before this limit.
+        maxRetries :: Int
+        maxRetries = 32
+
+        go 0 = do
+            result <- HasqlPool.use pool session
+            case result of
+                Left err -> throwIO (HasqlError err)
+                Right a -> pure a
+        go !n = do
+            result <- HasqlPool.use pool session
+            case result of
+                Left err
+                    | isCachedPlanError err -> go (n - 1)
+                    | otherwise -> throwIO (HasqlError err)
+                Right a -> pure a
 
 isCachedPlanError :: HasqlPool.UsageError -> Bool
 isCachedPlanError (HasqlPool.SessionUsageError sessionError) = isCachedPlanSessionError sessionError
