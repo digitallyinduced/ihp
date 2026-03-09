@@ -352,6 +352,7 @@ ihpFlake:
                 # Can be re-enabled once postgres is provided by devenv instead of IHP
                 env.IHP_DEVENV = "1";
                 env.DATABASE_URL = "postgres:///app?host=${config.devenv.shells.default.env.PGHOST}";
+                env.PGDATABASE = "app";
 
                 # Disabled for now
                 # As the devenv postgres uses a different location for the socket
