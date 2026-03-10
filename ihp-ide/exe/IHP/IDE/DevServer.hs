@@ -5,8 +5,6 @@ import qualified System.Process as Process
 import IHP.HaskellSupport
 import qualified Data.ByteString.Char8 as ByteString
 import Control.Concurrent (threadDelay)
-import System.Exit
-
 import IHP.IDE.Types
 import IHP.IDE.Postgres
 import IHP.IDE.StatusServer
@@ -77,7 +75,6 @@ mainWithOptions wrapWithDirenv = withUtf8 do
 
     databaseNeedsMigration <- newIORef False
     portConfig <- findAvailablePortConfig
-    ensureUserIsNotRoot
 
     -- Start the dev server in Debug mode by setting the env var DEBUG=1
     -- Like: $ DEBUG=1 devenv up
@@ -100,44 +97,38 @@ mainWithOptions wrapWithDirenv = withUtf8 do
         ghciIsLoadingVar <- newIORef False
         reloadGhciVar :: MVar () <- newEmptyMVar
 
-        withBuiltinOrDevenvPostgres \databaseIsReady postgresStandardOutput postgresErrorOutput -> do
-            withStatusServer ghciIsLoadingVar \startStatusServer stopStatusServer statusServerStandardOutput statusServerErrorOutput statusServerClients -> do
-                -- Compile Schema before loading the app
-                tryCompileSchema reloadGhciVar startStatusServer
-                
-                let toolServerApplication = ToolServerApplication
-                        { postgresStandardOutput
-                        , postgresErrorOutput
-                        , appStandardOutput = statusServerStandardOutput
-                        , appErrorOutput = statusServerErrorOutput
-                        , appPort = portConfig.appPort
-                        , databaseNeedsMigration
-                        }
+        waitPostgres
+
+        withStatusServer ghciIsLoadingVar \startStatusServer stopStatusServer statusServerStandardOutput statusServerErrorOutput statusServerClients -> do
+            -- Compile Schema before loading the app
+            tryCompileSchema reloadGhciVar startStatusServer
+
+            let toolServerApplication = ToolServerApplication
+                    { appStandardOutput = statusServerStandardOutput
+                    , appErrorOutput = statusServerErrorOutput
+                    , appPort = portConfig.appPort
+                    , databaseNeedsMigration
+                    }
 
 
-                void $ runConcurrently $ (,,,,,,)
-                        <$> Concurrently (updateDatabaseIsOutdated databaseNeedsMigration databaseIsReady)
-                        <*> Concurrently (runToolServer toolServerApplication liveReloadClients)
-                        <*> Concurrently (consumeGhciOutput statusServerStandardOutput statusServerErrorOutput statusServerClients)
-                        <*> Concurrently Telemetry.reportTelemetry
-                        <*> Concurrently (runFileWatcherWithDebounce (fileWatcherParams liveReloadClients databaseNeedsMigration databaseIsReady reloadGhciVar startStatusServer))
-                        <*> Concurrently (runAppGhci ghciIsLoadingVar startStatusServer stopStatusServer statusServerStandardOutput statusServerErrorOutput statusServerClients reloadGhciVar)
+            void $ runConcurrently $ (,,,,,)
+                    <$> Concurrently (updateDatabaseIsOutdated databaseNeedsMigration)
+                    <*> Concurrently (runToolServer toolServerApplication liveReloadClients)
+                    <*> Concurrently (consumeGhciOutput statusServerStandardOutput statusServerErrorOutput statusServerClients)
+                    <*> Concurrently Telemetry.reportTelemetry
+                    <*> Concurrently (runFileWatcherWithDebounce (fileWatcherParams liveReloadClients databaseNeedsMigration reloadGhciVar startStatusServer))
+                    <*> Concurrently (runAppGhci ghciIsLoadingVar startStatusServer stopStatusServer statusServerStandardOutput statusServerErrorOutput statusServerClients reloadGhciVar)
 
-            pure ()
-
-fileWatcherParams liveReloadClients databaseNeedsMigration databaseIsReady reloadGhciVar startStatusServer =
+fileWatcherParams liveReloadClients databaseNeedsMigration reloadGhciVar startStatusServer =
     FileWatcherParams
         { onHaskellFileChanged = do
             -- Use tryPutMVar to avoid blocking if a reload is already pending.
             -- This handles the case where multiple file changes happen in quick succession.
             void $ tryPutMVar reloadGhciVar ()
         , onSchemaChanged = do
-            concurrently_ (tryCompileSchema reloadGhciVar startStatusServer) (updateDatabaseIsOutdated databaseNeedsMigration databaseIsReady)
+            concurrently_ (tryCompileSchema reloadGhciVar startStatusServer) (updateDatabaseIsOutdated databaseNeedsMigration)
         , onAssetChanged = notifyAssetChange liveReloadClients
         }
-
-isUsingDevenv :: IO Bool
-isUsingDevenv = EnvVar.envOrDefault "IHP_DEVENV" False
 
 ghciArguments :: [String]
 ghciArguments =
@@ -162,21 +153,6 @@ withGHCI callback = do
             }
 
     Process.withCreateProcess params \(Just input) (Just output) (Just error) processHandle -> callback input output error processHandle
-
--- | Exit with an error if running as the root user
---
--- When the dev server starts the postgres server, it will fail if run as root:
---
--- > initdb: cannot be run as root
---
--- This is a bit hard to debug, therefore we proactively fail early when run as root
---
-ensureUserIsNotRoot :: IO ()
-ensureUserIsNotRoot = do
-    username <- EnvVar.envOrDefault "USERNAME" ("" :: ByteString)
-    when (username == "root") do
-        ByteString.hPutStrLn stderr "Cannot be run as root: The IHP dev server cannot be run with the root user because we cannot start the postgres server with a root user.\n\nPlease run this with a normal user.\nIf you need help, join the IHP Slack: https://ihp.digitallyinduced.com/Slack"
-        exitFailure
 
 initGHCICommands = 
     [ -- The app is loaded by loading .ghci, which then loads applicationGhciConfig, which triggers a ':l Main.hs'
@@ -383,10 +359,9 @@ checkDatabaseIsOutdated = do
     diff <- MigrationGenerator.diffAppDatabase True databaseUrl
     pure (not (isEmpty diff))
 
-updateDatabaseIsOutdated :: (?context :: Context) => IORef Bool -> MVar () -> IO ()
-updateDatabaseIsOutdated databaseNeedsMigrationRef databaseIsReady = do
+updateDatabaseIsOutdated :: (?context :: Context) => IORef Bool -> IO ()
+updateDatabaseIsOutdated databaseNeedsMigrationRef = do
     result <- Exception.tryAny do
-            readMVar databaseIsReady
             databaseNeedsMigration <- checkDatabaseIsOutdated
             writeIORef databaseNeedsMigrationRef databaseNeedsMigration
 
