@@ -380,6 +380,11 @@ ihpFlake:
                     }
                 ];
 
+                # Explicit shutdown command to work around devenv-tasks v2 not
+                # propagating signals to child processes (#2481)
+                processes.postgres.process-compose.shutdown.command = "pg_ctl stop -D \"$PGDATA\" -m fast";
+                processes.postgres.process-compose.shutdown.timeout_seconds = 15;
+
                 # Used in the Makefile https://github.com/digitallyinduced/ihp-boilerplate/blob/master/Makefile
                 env.IHP = ihpFlake.inputs.self.packages.${system}.ihp-env-var-backwards-compat;
 
