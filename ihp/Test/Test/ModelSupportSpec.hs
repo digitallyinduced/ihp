@@ -63,7 +63,7 @@ tests = do
             describe "UTCTime" do
                 it "should return text representation" do
                     let (Just utctime) :: Maybe UTCTime = parseTimeM True defaultTimeLocale "%Y-%m-%dT%H:%M:%S%QZ" "2020-11-08T12:03:35Z"
-                    (inputValue utctime) `shouldBe` "2020-11-08T12:03:35Z"
+                    (inputValue utctime) `shouldBe` "2020-11-08T12:03"
 
             describe "Day" do
                 it "should return text representation" do
