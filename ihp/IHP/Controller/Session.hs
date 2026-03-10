@@ -1,5 +1,7 @@
 {-# LANGUAGE AllowAmbiguousTypes  #-}
 {-# LANGUAGE UndecidableInstances #-}
+{-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE PatternSynonyms #-}
 {-|
 Module: IHP.Controller.Session
 Description: Functions to work with session cookies, provides 'setSession', 'getSession' and friends
@@ -32,7 +34,7 @@ import Prelude
 import Data.ByteString (ByteString)
 import Data.Maybe (isJust)
 import Control.Monad (when)
-import IHP.ModelSupport.Types (PrimaryKey, Id'(..))
+import IHP.ModelSupport.Types (IdNewtype(..))
 import Data.UUID (UUID)
 import qualified Data.UUID as UUID
 import qualified Data.Vault.Lazy as Vault
@@ -148,13 +150,13 @@ getSessionAndClear name = do
     pure value
 {-# INLINABLE getSessionAndClear #-}
 
-instance (PrimaryKey table ~ UUID) => Serialize (Id' table) where
-    put (Id value) = Serialize.put (UUID.toASCIIBytes value)
+instance {-# OVERLAPPABLE #-} (IdNewtype id UUID) => Serialize id where
+    put id = Serialize.put (UUID.toASCIIBytes (fromId id))
     get = do
         maybeUUID <- UUID.fromASCIIBytes <$> Serialize.get
         case maybeUUID of
             Nothing -> fail "Failed to parse UUID"
-            Just uuid -> pure (Id uuid)
+            Just uuid -> pure (toId uuid)
 
 sessionInsert :: (?request :: Request) => ByteString -> ByteString -> IO ()
 sessionInsert = snd sessionVault

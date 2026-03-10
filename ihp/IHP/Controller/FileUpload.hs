@@ -147,7 +147,7 @@ uploadImageWithOptions :: forall (fieldName :: Symbol) record (tableName :: Symb
         , SetField fieldName record (Maybe Text)
         , KnownSymbol fieldName
         , HasField "id" record (ModelSupport.Id (ModelSupport.NormalizeModel record))
-        , Show (ModelSupport.PrimaryKey (ModelSupport.GetTableName (ModelSupport.NormalizeModel record)))
+        , Show (ModelSupport.Id (ModelSupport.NormalizeModel record))
         , tableName ~ ModelSupport.GetTableName record
         , KnownSymbol tableName
     ) => ImageUploadOptions -> Proxy fieldName -> record -> IO record
@@ -197,7 +197,7 @@ uploadImageFile :: forall (fieldName :: Symbol) record (tableName :: Symbol). (
         , SetField fieldName record (Maybe Text)
         , KnownSymbol fieldName
         , HasField "id" record (ModelSupport.Id (ModelSupport.NormalizeModel record))
-        , Show (ModelSupport.PrimaryKey (ModelSupport.GetTableName (ModelSupport.NormalizeModel record)))
+        , Show (ModelSupport.Id (ModelSupport.NormalizeModel record))
         , tableName ~ ModelSupport.GetTableName record
         , KnownSymbol tableName
     ) => Text -> Proxy fieldName -> record -> IO record
@@ -222,7 +222,7 @@ uploadPng ::
     ( ?request :: Request
     , SetField fieldName record (Maybe Text)
     , HasField "id" record (ModelSupport.Id' (GetTableName (ModelSupport.GetModelByTableName (GetTableName record))))
-    , Show (ModelSupport.PrimaryKey (GetTableName (ModelSupport.GetModelByTableName (GetTableName record))))
+    , Show (ModelSupport.Id' (GetTableName (ModelSupport.GetModelByTableName (GetTableName record))))
     , KnownSymbol fieldName
     , KnownSymbol (GetTableName record)
     ) => Proxy fieldName -> record -> IO record
@@ -234,7 +234,7 @@ uploadSVG ::
     ( ?request :: Request
     , SetField fieldName record (Maybe Text)
     , HasField "id" record (ModelSupport.Id' (GetTableName (ModelSupport.GetModelByTableName (GetTableName record))))
-    , Show (ModelSupport.PrimaryKey (GetTableName (ModelSupport.GetModelByTableName (GetTableName record))))
+    , Show (ModelSupport.Id' (GetTableName (ModelSupport.GetModelByTableName (GetTableName record))))
     , KnownSymbol fieldName
     , KnownSymbol (GetTableName record)
     ) => Proxy fieldName -> record -> IO record

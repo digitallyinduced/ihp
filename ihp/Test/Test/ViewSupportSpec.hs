@@ -18,6 +18,7 @@ import IHP.ControllerPrelude hiding (get, request)
 import Network.Wai.Test
 import Network.HTTP.Types
 import Data.Text as Text
+import Test.ModelFixtures ()
 
 data WebApplication = WebApplication deriving (Eq, Show, Data)
 

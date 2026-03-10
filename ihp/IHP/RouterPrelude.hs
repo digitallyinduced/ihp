@@ -1,3 +1,4 @@
+{-# LANGUAGE PatternSynonyms #-}
 {-# OPTIONS_HADDOCK not-home, hide #-}
 {-|
 Module: IHP.RouterPrelude
@@ -18,5 +19,5 @@ import Data.Attoparsec.ByteString.Char8
 import IHP.RouterSupport
 import ClassyPrelude hiding (index, delete, show, take, takeWhile, try)
 import Data.String.Conversions (cs)
-import IHP.ModelSupport (Id, Id' (..))
+import IHP.ModelSupport (Id, Id', pattern Id, IdNewtype(..))
 import Network.HTTP.Types.Method (StdMethod (..))

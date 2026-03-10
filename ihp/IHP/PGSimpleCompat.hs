@@ -17,28 +17,12 @@ import Database.PostgreSQL.Simple.FromField (FromField(..))
 import Database.PostgreSQL.Simple.ToField (ToField(..), Action(..))
 import qualified Database.PostgreSQL.Simple.FromRow as PGFR
 import qualified Database.PostgreSQL.Simple.Types as PG
-import IHP.ModelSupport.Types (Id'(..), PrimaryKey, LabeledData(..), FieldWithDefault(..), FieldWithUpdate(..))
+import IHP.ModelSupport.Types (LabeledData(..), FieldWithDefault(..), FieldWithUpdate(..))
 import IHP.NameSupport (fieldNameToColumnName)
 
 -- Import postgresql-simple-postgresql-types for FromField/ToField instances
 -- of all postgresql-types types (Point, Polygon, Inet, Interval, etc.)
-import Database.PostgreSQL.Simple.PostgresqlTypes ()
-
--- Id instances
-
-instance FromField (PrimaryKey model) => FromField (Id' model) where
-    {-# INLINE fromField #-}
-    fromField value metaData = do
-        fieldValue <- fromField value metaData
-        pure (Id fieldValue)
-
-instance ToField (PrimaryKey model) => ToField (Id' model) where
-    {-# INLINE toField #-}
-    toField (Id pk) = toField pk
-
-instance (ToField (Id' a), ToField (Id' b)) => ToField (Id' a, Id' b) where
-    {-# INLINE toField #-}
-    toField (a, b) = Many [Plain "(", toField a, Plain ",", toField b, Plain ")"]
+-- import Database.PostgreSQL.Simple.PostgresqlTypes () -- TODO: re-enable when package is available in nix env
 
 -- LabeledData instance
 

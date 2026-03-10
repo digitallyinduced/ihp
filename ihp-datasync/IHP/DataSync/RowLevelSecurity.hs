@@ -58,7 +58,7 @@ ensureRLSEnabledSession table = do
 -- (e.g. after a manual @BEGIN@).
 setRLSConfigSession ::
     ( ?context :: ControllerContext
-    , Show (PrimaryKey (GetTableName CurrentUserRecord))
+    , Show (Id' (GetTableName CurrentUserRecord))
     , HasNewSessionUrl CurrentUserRecord
     , Typeable CurrentUserRecord
     , HasField "id" CurrentUserRecord (Id' (GetTableName CurrentUserRecord))
@@ -71,7 +71,7 @@ setRLSConfigSession = Session.statement (Role.authenticatedRole, encodedUserId) 
 
 sqlQueryWithRLSSession ::
     ( ?context :: ControllerContext
-    , Show (PrimaryKey (GetTableName CurrentUserRecord))
+    , Show (Id' (GetTableName CurrentUserRecord))
     , HasNewSessionUrl CurrentUserRecord
     , Typeable CurrentUserRecord
     , HasField "id" CurrentUserRecord (Id' (GetTableName CurrentUserRecord))
@@ -92,7 +92,7 @@ sqlQueryWithRLSSession statement =
 -- to return results (e.g. wrapped with 'wrapDynamicQuery').
 sqlQueryWriteWithRLSSession ::
     ( ?context :: ControllerContext
-    , Show (PrimaryKey (GetTableName CurrentUserRecord))
+    , Show (Id' (GetTableName CurrentUserRecord))
     , HasNewSessionUrl CurrentUserRecord
     , Typeable CurrentUserRecord
     , HasField "id" CurrentUserRecord (Id' (GetTableName CurrentUserRecord))
@@ -109,7 +109,7 @@ sqlQueryWriteWithRLSSession statement =
 
 sqlExecWithRLSSession ::
     ( ?context :: ControllerContext
-    , Show (PrimaryKey (GetTableName CurrentUserRecord))
+    , Show (Id' (GetTableName CurrentUserRecord))
     , HasNewSessionUrl CurrentUserRecord
     , Typeable CurrentUserRecord
     , HasField "id" CurrentUserRecord (Id' (GetTableName CurrentUserRecord))
@@ -126,7 +126,7 @@ sqlExecWithRLSSession statement =
 
 sqlQueryScalarWithRLSSession ::
     ( ?context :: ControllerContext
-    , Show (PrimaryKey (GetTableName CurrentUserRecord))
+    , Show (Id' (GetTableName CurrentUserRecord))
     , HasNewSessionUrl CurrentUserRecord
     , Typeable CurrentUserRecord
     , HasField "id" CurrentUserRecord (Id' (GetTableName CurrentUserRecord))
@@ -145,7 +145,7 @@ sqlQueryScalarWithRLSSession statement =
 
 sqlQueryWithRLS ::
     ( ?context :: ControllerContext
-    , Show (PrimaryKey (GetTableName CurrentUserRecord))
+    , Show (Id' (GetTableName CurrentUserRecord))
     , HasNewSessionUrl CurrentUserRecord
     , Typeable CurrentUserRecord
     , HasField "id" CurrentUserRecord (Id' (GetTableName CurrentUserRecord))
@@ -159,7 +159,7 @@ sqlQueryWithRLS pool statement = runSession pool (sqlQueryWithRLSSession stateme
 -- to return results (e.g. wrapped with 'wrapDynamicQuery').
 sqlQueryWriteWithRLS ::
     ( ?context :: ControllerContext
-    , Show (PrimaryKey (GetTableName CurrentUserRecord))
+    , Show (Id' (GetTableName CurrentUserRecord))
     , HasNewSessionUrl CurrentUserRecord
     , Typeable CurrentUserRecord
     , HasField "id" CurrentUserRecord (Id' (GetTableName CurrentUserRecord))
@@ -169,7 +169,7 @@ sqlQueryWriteWithRLS pool statement = runSession pool (sqlQueryWriteWithRLSSessi
 
 sqlExecWithRLS ::
     ( ?context :: ControllerContext
-    , Show (PrimaryKey (GetTableName CurrentUserRecord))
+    , Show (Id' (GetTableName CurrentUserRecord))
     , HasNewSessionUrl CurrentUserRecord
     , Typeable CurrentUserRecord
     , HasField "id" CurrentUserRecord (Id' (GetTableName CurrentUserRecord))
@@ -179,7 +179,7 @@ sqlExecWithRLS pool statement = runSession pool (sqlExecWithRLSSession statement
 
 sqlQueryScalarWithRLS ::
     ( ?context :: ControllerContext
-    , Show (PrimaryKey (GetTableName CurrentUserRecord))
+    , Show (Id' (GetTableName CurrentUserRecord))
     , HasNewSessionUrl CurrentUserRecord
     , Typeable CurrentUserRecord
     , HasField "id" CurrentUserRecord (Id' (GetTableName CurrentUserRecord))

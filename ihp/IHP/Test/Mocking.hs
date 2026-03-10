@@ -1,3 +1,4 @@
+{-# LANGUAGE AllowAmbiguousTypes   #-}
 {-# LANGUAGE ConstraintKinds       #-}
 {-# LANGUAGE ImplicitParams        #-}
 {-# LANGUAGE QuantifiedConstraints #-}
@@ -18,7 +19,7 @@ import           Wai.Request.Params.Middleware                 (Respond)
 import           IHP.ControllerSupport                     (InitControllerContext, Controller, runActionWithNewContext)
 import           IHP.FrameworkConfig                       (ConfigBuilder (..), FrameworkConfig (..), RootApplication (..))
 import qualified IHP.FrameworkConfig                       as FrameworkConfig
-import           IHP.ModelSupport                          (createModelContext, withModelContext, Id')
+import           IHP.ModelSupport                          (createModelContext, withModelContext)
 import           IHP.Prelude
 import           IHP.Log.Types
 import           IHP.Job.Types

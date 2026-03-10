@@ -12,7 +12,7 @@ import IHP.Job.Types
 import IHP.Job.Queue.Pool (runPool)
 import IHP.Job.Queue.StatusInstances ()
 import IHP.ModelSupport (Table (..), InputValue (..))
-import IHP.ModelSupport.Types (Id' (..), PrimaryKey)
+import IHP.ModelSupport.Types (PrimaryKey)
 import qualified IHP.Log as Log
 import qualified Hasql.Pool as HasqlPool
 import qualified Hasql.Session as HasqlSession
@@ -26,6 +26,7 @@ jobDidFail :: forall job context.
     ( Table job
     , HasField "id" job (Id' (GetTableName job))
     , PrimaryKey (GetTableName job) ~ UUID
+    , IdNewtype (Id' (GetTableName job)) UUID
     , HasField "attemptsCount" job Int
     , HasField "runAt" job UTCTime
     , Job job
@@ -60,6 +61,7 @@ jobDidTimeout :: forall job context.
     ( Table job
     , HasField "id" job (Id' (GetTableName job))
     , PrimaryKey (GetTableName job) ~ UUID
+    , IdNewtype (Id' (GetTableName job)) UUID
     , HasField "attemptsCount" job Int
     , HasField "runAt" job UTCTime
     , Job job
@@ -96,6 +98,7 @@ jobDidSucceed :: forall job context.
     ( Table job
     , HasField "id" job (Id' (GetTableName job))
     , PrimaryKey (GetTableName job) ~ UUID
+    , IdNewtype (Id' (GetTableName job)) UUID
     , ?context :: context
     , HasField "logger" context Log.Logger
     ) => HasqlPool.Pool -> job -> IO ()
