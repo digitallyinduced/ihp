@@ -340,7 +340,7 @@ instance ParamReader UUID where
             Nothing -> Left "Invalid UUID"
     readParameterJSON _ = Left "Expected String with an UUID"
 
--- | Accepts values such as @2020-11-08T12:03:35Z@ or @2020-11-08@
+-- | Accepts values such as @2020-11-08T12:03:35Z@, @2020-11-08T12:03@ (datetime-local), or @2020-11-08@
 instance ParamReader UTCTime where
     {-# INLINABLE readParameter #-}
     readParameter "" = Left "This field cannot be empty"
@@ -348,17 +348,20 @@ instance ParamReader UTCTime where
         let
             input = (cs byteString)
             dateTime = parseTimeM True defaultTimeLocale "%Y-%m-%dT%H:%M:%S%QZ" input
+            dateTimeLocal = parseTimeM True defaultTimeLocale "%Y-%m-%dT%H:%M" input
             date = parseTimeM True defaultTimeLocale "%Y-%-m-%-d" input
         in case dateTime of
-            Nothing -> case date of
-                Just value -> Right value
-                Nothing -> Left "has to be a valid date and time, e.g. 2020-11-08T12:03:35Z"
             Just value -> Right value
+            Nothing -> case dateTimeLocal of
+                Just value -> Right value
+                Nothing -> case date of
+                    Just value -> Right value
+                    Nothing -> Left "has to be a valid date and time, e.g. 2020-11-08T12:03:35Z"
 
     readParameterJSON (Aeson.String string) = readParameter (cs string)
     readParameterJSON _ = Left "Expected String"
 
--- | Accepts values such as @2020-11-08T12:03:35Z@ or @2020-11-08@
+-- | Accepts values such as @2020-11-08T12:03:35Z@, @2020-11-08T12:03@ (datetime-local), or @2020-11-08@
 instance ParamReader LocalTime where
     {-# INLINABLE readParameter #-}
     readParameter "" = Left "This field cannot be empty"
@@ -366,12 +369,15 @@ instance ParamReader LocalTime where
         let
             input = (cs byteString)
             dateTime = parseTimeM True defaultTimeLocale "%Y-%m-%dT%H:%M:%S%QZ" input
+            dateTimeLocal = parseTimeM True defaultTimeLocale "%Y-%m-%dT%H:%M" input
             date = parseTimeM True defaultTimeLocale "%Y-%-m-%-d" input
         in case dateTime of
-            Nothing -> case date of
-                Just value -> Right value
-                Nothing -> Left "has to be a valid date and time, e.g. 2020-11-08T12:03:35Z"
             Just value -> Right value
+            Nothing -> case dateTimeLocal of
+                Just value -> Right value
+                Nothing -> case date of
+                    Just value -> Right value
+                    Nothing -> Left "has to be a valid date and time, e.g. 2020-11-08T12:03:35Z"
 
     readParameterJSON (Aeson.String string) = readParameter (cs string)
     readParameterJSON _ = Left "Expected String"
