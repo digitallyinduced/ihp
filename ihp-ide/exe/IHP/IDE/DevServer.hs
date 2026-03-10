@@ -97,8 +97,6 @@ mainWithOptions wrapWithDirenv = withUtf8 do
         ghciIsLoadingVar <- newIORef False
         reloadGhciVar :: MVar () <- newEmptyMVar
 
-        waitPostgres
-
         withStatusServer ghciIsLoadingVar \startStatusServer stopStatusServer statusServerStandardOutput statusServerErrorOutput statusServerClients -> do
             -- Compile Schema before loading the app
             tryCompileSchema reloadGhciVar startStatusServer
@@ -362,6 +360,7 @@ checkDatabaseIsOutdated = do
 updateDatabaseIsOutdated :: (?context :: Context) => IORef Bool -> IO ()
 updateDatabaseIsOutdated databaseNeedsMigrationRef = do
     result <- Exception.tryAny do
+            waitPostgres
             databaseNeedsMigration <- checkDatabaseIsOutdated
             writeIORef databaseNeedsMigrationRef databaseNeedsMigration
 
