@@ -1,15 +1,12 @@
 module IHP.IDE.ToolServer.Types where
 
 import IHP.Prelude
-import qualified Data.ByteString.Builder as ByteString
 import Network.Socket (PortNumber)
 import qualified Data.Vault.Lazy as Vault
 import System.IO.Unsafe (unsafePerformIO)
 
 data ToolServerApplication = ToolServerApplication
-        { postgresStandardOutput :: !(IORef ByteString.Builder)
-        , postgresErrorOutput :: !(IORef ByteString.Builder)
-        , appStandardOutput :: !(IORef [ByteString])
+        { appStandardOutput :: !(IORef [ByteString])
         , appErrorOutput :: !(IORef [ByteString])
         , appPort :: !PortNumber
         , databaseNeedsMigration :: !(IORef Bool)

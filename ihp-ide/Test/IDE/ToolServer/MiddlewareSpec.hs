@@ -27,8 +27,6 @@ import qualified Data.Map as Map
 -- | Create a new ToolServerApplication with empty IORefs
 newToolServerApplication :: PortNumber -> IO ToolServerApplication
 newToolServerApplication appPort = do
-    postgresStandardOutput <- newIORef mempty
-    postgresErrorOutput <- newIORef mempty
     appStandardOutput <- newIORef []
     appErrorOutput <- newIORef []
     databaseNeedsMigration <- newIORef False
