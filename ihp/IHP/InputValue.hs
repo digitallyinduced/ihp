@@ -10,7 +10,6 @@ import qualified Data.UUID as UUID
 import Data.Time.Clock (UTCTime)
 import Data.Time.LocalTime (LocalTime, TimeOfDay)
 import Data.Time.Calendar (Day)
-import Data.Time.Format (defaultTimeLocale, formatTime)
 import Data.Time.Format.ISO8601 (iso8601Show)
 import Data.Aeson (Value)
 import qualified Data.Aeson as Aeson
@@ -62,7 +61,7 @@ instance InputValue () where
     inputValue () = "error: inputValue(()) not supported"
 
 instance InputValue UTCTime where
-    inputValue time = Text.pack (formatTime defaultTimeLocale "%Y-%m-%dT%H:%M" time)
+    inputValue time = cs (iso8601Show time)
 
 instance InputValue LocalTime where
     inputValue time = cs (iso8601Show time)

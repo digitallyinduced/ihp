@@ -356,7 +356,7 @@ instance ParamReader UTCTime where
                 Just value -> Right value
                 Nothing -> case date of
                     Just value -> Right value
-                    Nothing -> Left "has to be a valid date and time, e.g. 2020-11-08T12:03:35Z"
+                    Nothing -> Left "has to be a valid date and time, e.g. 2020-11-08T12:03:35Z or 2020-11-08T12:03"
 
     readParameterJSON (Aeson.String string) = readParameter (cs string)
     readParameterJSON _ = Left "Expected String"
@@ -377,7 +377,7 @@ instance ParamReader LocalTime where
                 Just value -> Right value
                 Nothing -> case date of
                     Just value -> Right value
-                    Nothing -> Left "has to be a valid date and time, e.g. 2020-11-08T12:03:35Z"
+                    Nothing -> Left "has to be a valid date and time, e.g. 2020-11-08T12:03:35Z or 2020-11-08T12:03"
 
     readParameterJSON (Aeson.String string) = readParameter (cs string)
     readParameterJSON _ = Left "Expected String"

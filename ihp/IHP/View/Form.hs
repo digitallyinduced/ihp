@@ -665,7 +665,17 @@ dateTimeField :: forall fieldName model value.
     , InputValue value
     , KnownSymbol (GetModelName model)
     ) => Proxy fieldName -> FormField
-dateTimeField alpha = (textField alpha) { fieldType = DateTimeInput }
+dateTimeField alpha =
+    let formField = (textField alpha) { fieldType = DateTimeInput }
+    in formField { fieldValue = toDatetimeLocalValue (fieldValue formField) }
+  where
+    -- Convert ISO 8601 (e.g. "2020-11-08T12:03:35Z") to datetime-local format ("2020-11-08T12:03")
+    -- by taking only the first 16 characters (YYYY-MM-DDTHH:MM).
+    -- If the value is already in datetime-local format or empty, it passes through unchanged.
+    toDatetimeLocalValue :: Text -> Text
+    toDatetimeLocalValue value
+        | length value > 16 && "T" `isInfixOf` value = take 16 value
+        | otherwise = value
 {-# INLINE dateTimeField #-}
 
 -- | Renders a hidden field
