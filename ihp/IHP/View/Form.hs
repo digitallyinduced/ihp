@@ -26,6 +26,7 @@ import           IHP.View.Classes ()
 import           IHP.View.Types
 import           IHP.ViewSupport
 import           Network.Wai (Request, pathInfo)
+import qualified Data.Text as Text
 import qualified Text.Blaze.Html5 as Html5
 
 -- | Forms usually begin with a 'formFor' expression.
@@ -674,7 +675,7 @@ dateTimeField alpha =
     -- If the value is already in datetime-local format or empty, it passes through unchanged.
     toDatetimeLocalValue :: Text -> Text
     toDatetimeLocalValue value
-        | length value > 16 && "T" `isInfixOf` value = take 16 value
+        | Text.length value > 16 && "T" `Text.isInfixOf` value = Text.take 16 value
         | otherwise = value
 {-# INLINE dateTimeField #-}
 
