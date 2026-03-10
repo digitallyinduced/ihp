@@ -5,7 +5,8 @@ import IHP.IDE.ToolServer.Helper.Controller
 import IHP.IDE.ToolServer.Types
 import IHP.IDE.Logs.View.Logs
 import qualified Data.ByteString.Char8 as ByteString
-import qualified Data.ByteString.Builder as ByteString
+import qualified IHP.EnvVar as EnvVar
+import qualified System.Directory as Directory
 
 instance Controller LogsController where
     action AppLogsAction = do
@@ -17,10 +18,14 @@ instance Controller LogsController where
         render LogsView { .. }
 
     action PostgresLogsAction = do
-        toolServerApp <- fromContext @ToolServerApplication
+        pgdata <- EnvVar.env @String "PGDATA"
+        let logFile = pgdata <> "/log/postgresql.log"
 
-        standardOutput <- cs . ByteString.toLazyByteString <$> readIORef toolServerApp.postgresStandardOutput
-        errorOutput <- cs . ByteString.toLazyByteString <$> readIORef toolServerApp.postgresErrorOutput
+        logExists <- Directory.doesFileExist logFile
+        standardOutput <- if logExists
+            then cs <$> ByteString.readFile logFile
+            else pure ("Postgres log file not found" :: ByteString)
+        let errorOutput = "" :: ByteString
 
         render LogsView { .. }
 

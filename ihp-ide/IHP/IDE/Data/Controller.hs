@@ -16,6 +16,7 @@ import qualified Hasql.Decoders as Decoders
 import qualified Hasql.DynamicStatements.Snippet as Snippet
 import Hasql.DynamicStatements.Snippet (Snippet)
 import qualified Hasql.Pool as HasqlPool
+import IHP.Hasql.Pool (usePoolWithRetry)
 import qualified Data.Text as T
 import qualified Data.Aeson as Aeson
 import qualified Data.Aeson.KeyMap as Aeson
@@ -54,14 +55,14 @@ instance Controller DataController where
             let pool = ?modelContext.hasqlPool
             Just <$> if isQuery queryText then do
                     let snippet = wrapDynamicQuery (Snippet.sql (cs queryText))
-                    let statement = Snippet.toPreparedStatement snippet dynamicFieldDecoder
+                    let statement = Snippet.toStatement snippet dynamicFieldDecoder
                     let session = Session.statement () statement
                     result <- HasqlPool.use pool session
                     case result of
                         Right rows -> pure (Right (SelectQueryResult rows))
                         Left err -> pure (Left (usageErrorToConsoleError err))
                 else do
-                    let statement = Snippet.toPreparedStatement (Snippet.sql (cs queryText)) Decoders.rowsAffected
+                    let statement = Snippet.toStatement (Snippet.sql (cs queryText)) Decoders.rowsAffected
                     let session = Session.statement () statement
                     result <- HasqlPool.use pool session
                     case result of
@@ -191,24 +192,16 @@ instance Controller DataController where
 runSnippetQuery :: (?modelContext :: ModelContext) => Snippet -> Decoders.Result a -> IO a
 runSnippetQuery snippet decoder = do
     let pool = ?modelContext.hasqlPool
-    let statement = Snippet.toStatement snippet decoder
+    let statement = Snippet.toPreparedStatement snippet decoder
     let session = Session.statement () statement
-    result <- HasqlPool.use pool session
-    case result of
-        Right a -> pure a
-        Left (HasqlPool.SessionUsageError err) -> error (cs (HasqlErrors.toDetailedText err))
-        Left err -> error (show err)
+    usePoolWithRetry pool session
 
 runSnippetExec :: (?modelContext :: ModelContext) => Snippet -> IO ()
 runSnippetExec snippet = do
     let pool = ?modelContext.hasqlPool
-    let statement = Snippet.toStatement snippet Decoders.noResult
+    let statement = Snippet.toPreparedStatement snippet Decoders.noResult
     let session = Session.statement () statement
-    result <- HasqlPool.use pool session
-    case result of
-        Right () -> pure ()
-        Left (HasqlPool.SessionUsageError err) -> error (cs (HasqlErrors.toDetailedText err))
-        Left err -> error (show err)
+    usePoolWithRetry pool session
 
 fetchTableNames :: (?modelContext :: ModelContext) => IO [Text]
 fetchTableNames =

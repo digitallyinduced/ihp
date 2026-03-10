@@ -360,14 +360,20 @@ function initDataEditorForeignKeyAutocomplete() {
         var options = {
             ajax: {
                 url: element.dataset.selectUrl,
-                processResults: data => ({ results: data }),
+                processResults: data => ({
+                    results: data.map(row => {
+                        row._originalKeys = Object.keys(row);
+                        return row;
+                    })
+                }),
                 cache: true
             },
             templateResult: row => {
                 const result = document.createElement('div');
                 result.classList.add('record');
 
-                for (const key in row) {
+                const keys = row._originalKeys || Object.keys(row);
+                for (const key of keys) {
                     const keyValueContainer = document.createElement('span');
                     keyValueContainer.classList.add('key-value-container');
 

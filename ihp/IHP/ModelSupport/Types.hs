@@ -42,6 +42,7 @@ module IHP.ModelSupport.Types
 , EnhancedSqlError (..)
 , enhancedSqlErrorMessage
 , HasqlSessionError (..)
+, HasqlError (..)
   -- * Type Classes
 , CanCreate (..)
 , CanUpdate (..)
@@ -76,6 +77,12 @@ data HasqlSessionError = HasqlSessionError HasqlErrors.SessionError
     deriving (Show)
 
 instance Exception HasqlSessionError
+
+-- | Exception type for hasql pool usage errors
+data HasqlError = HasqlError Hasql.UsageError
+    deriving (Show)
+
+instance Exception HasqlError
 
 -- | Provides the db connection and some IHP-specific db configuration
 data ModelContext = ModelContext

@@ -269,6 +269,7 @@ library
         , IHP.EnvVar
         , IHP.Hasql.FromRow
         , IHP.Hasql.Encoders
+        , IHP.Hasql.Pool
         -- IHP PRO
         , IHP.AuthSupport.Types
         , IHP.AuthSupport.View.PasswordResets.New

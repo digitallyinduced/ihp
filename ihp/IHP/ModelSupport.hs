@@ -21,7 +21,7 @@ import Data.Text (Text)
 import qualified Data.Text as Text
 import Data.Int (Int64)
 import Data.IORef (IORef, newIORef, modifyIORef')
-import Control.Exception (bracket, finally, throwIO, Exception, SomeException, try, mask)
+import Control.Exception (bracket, finally, throwIO, SomeException, try, mask)
 import Data.Maybe (fromMaybe, isNothing, isJust)
 import Data.String (IsString(..))
 import Database.PostgreSQL.Simple.Types (Query(..))
@@ -71,6 +71,7 @@ import Control.Monad.IO.Class (liftIO)
 import Control.Monad.Error.Class (catchError)
 import IHP.Hasql.FromRow (FromRowHasql(..), HasqlDecodeColumn(..))
 import IHP.Hasql.Encoders (ToSnippetParams(..), sqlToSnippet)
+import IHP.Hasql.Pool (usePoolWithRetry)
 import IHP.PGSimpleCompat ()
 
 -- | Provides a mock ModelContext to be used when a database connection is not available
@@ -345,19 +346,7 @@ sqlStatementHasql pool input statement = do
                 Hasql.statement input statement
     let runQuery = case ?modelContext.transactionRunner of
             Just (TransactionRunner runner) -> runner session
-            Nothing -> do
-                result <- HasqlPool.use pool session
-                case result of
-                    Left err
-                        | isCachedPlanError err -> do
-                            Log.info ("Resetting hasql connection pool due to stale prepared statements (e.g. after 'make db')" :: Text)
-                            HasqlPool.release pool
-                            retryResult <- HasqlPool.use pool session
-                            case retryResult of
-                                Left retryErr -> throwIO (HasqlError retryErr)
-                                Right a -> pure a
-                        | otherwise -> throwIO (HasqlError err)
-                    Right a -> pure a
+            Nothing -> usePoolWithRetry pool session
     logQueryTiming currentLogLevel ("🔍 " <> truncateQuery (cs (Hasql.toSql statement))) runQuery
 {-# INLINABLE sqlStatementHasql #-}
 
@@ -371,7 +360,7 @@ sqlStatementHasql pool input statement = do
 --
 sqlQueryHasql :: (?modelContext :: ModelContext) => HasqlPool.Pool -> Snippet.Snippet -> Decoders.Result a -> IO a
 sqlQueryHasql pool snippet decoder =
-    sqlStatementHasql pool () (Snippet.toStatement snippet decoder)
+    sqlStatementHasql pool () (Snippet.toPreparedStatement snippet decoder)
 {-# INLINABLE sqlQueryHasql #-}
 
 -- | Like 'sqlStatementHasql' but for write operations (DELETE, UPDATE, INSERT without results).
@@ -399,19 +388,7 @@ sqlExecStatement pool input statement = do
                 Hasql.statement input statement
     let runQuery = case ?modelContext.transactionRunner of
             Just (TransactionRunner runner) -> runner session
-            Nothing -> do
-                result <- HasqlPool.use pool session
-                case result of
-                    Left err
-                        | isCachedPlanError err -> do
-                            Log.info ("Resetting hasql connection pool due to stale prepared statements (e.g. after 'make db')" :: Text)
-                            HasqlPool.release pool
-                            retryResult <- HasqlPool.use pool session
-                            case retryResult of
-                                Left retryErr -> throwIO (HasqlError retryErr)
-                                Right () -> pure ()
-                        | otherwise -> throwIO (HasqlError err)
-                    Right () -> pure ()
+            Nothing -> usePoolWithRetry pool session
     logQueryTiming currentLogLevel ("💾 " <> truncateQuery (cs (Hasql.toSql statement))) runQuery
 {-# INLINABLE sqlExecStatement #-}
 
@@ -420,7 +397,7 @@ sqlExecStatement pool input statement = do
 -- When RLS is enabled, the statement is wrapped in a transaction that first sets the
 -- role and user id via 'setRLSConfigStatement'.
 sqlExecHasql :: (?modelContext :: ModelContext) => HasqlPool.Pool -> Snippet.Snippet -> IO ()
-sqlExecHasql pool snippet = sqlExecStatement pool () (Snippet.toStatement snippet Decoders.noResult)
+sqlExecHasql pool snippet = sqlExecStatement pool () (Snippet.toPreparedStatement snippet Decoders.noResult)
 {-# INLINABLE sqlExecHasql #-}
 
 -- | Like 'sqlExecHasql' but returns the number of affected rows
@@ -431,7 +408,7 @@ sqlExecHasqlCount :: (?modelContext :: ModelContext) => HasqlPool.Pool -> Snippe
 sqlExecHasqlCount pool snippet = do
     let ?context = ?modelContext
     let currentLogLevel = ?modelContext.logger.level
-    let statement = Snippet.toStatement snippet Decoders.rowsAffected
+    let statement = Snippet.toPreparedStatement snippet Decoders.rowsAffected
     let session = case (?modelContext.transactionRunner, ?modelContext.rowLevelSecurity) of
             (Nothing, Just RowLevelSecurityContext { rlsAuthenticatedRole, rlsUserId }) ->
                 Tx.transaction Tx.ReadCommitted Tx.Write $ do
@@ -441,11 +418,7 @@ sqlExecHasqlCount pool snippet = do
                 Hasql.statement () statement
     let runQuery = case ?modelContext.transactionRunner of
             Just (TransactionRunner runner) -> runner session
-            Nothing -> do
-                result <- HasqlPool.use pool session
-                case result of
-                    Left err -> throwIO (HasqlError err)
-                    Right count -> pure count
+            Nothing -> usePoolWithRetry pool session
     logQueryTiming currentLogLevel ("💾 " <> cs (Hasql.toSql statement)) runQuery
 {-# INLINABLE sqlExecHasqlCount #-}
 
@@ -464,19 +437,7 @@ runSessionHasql pool session = do
     let currentLogLevel = ?modelContext.logger.level
     let runQuery = case ?modelContext.transactionRunner of
             Just (TransactionRunner runner) -> runner session
-            Nothing -> do
-                result <- HasqlPool.use pool session
-                case result of
-                    Left err
-                        | isCachedPlanError err -> do
-                            Log.info ("Resetting hasql connection pool due to stale prepared statements (e.g. after 'make db')" :: Text)
-                            HasqlPool.release pool
-                            retryResult <- HasqlPool.use pool session
-                            case retryResult of
-                                Left retryErr -> throwIO (HasqlError retryErr)
-                                Right () -> pure ()
-                        | otherwise -> throwIO (HasqlError err)
-                    Right () -> pure ()
+            Nothing -> usePoolWithRetry pool session
     logQueryTiming currentLogLevel "💾 runSessionHasql" runQuery
 {-# INLINABLE runSessionHasql #-}
 
@@ -495,12 +456,6 @@ logQueryTiming currentLogLevel label runQuery =
                 Log.debug (label <> " (" <> Text.pack (show queryTimeInMs) <> "ms)")
         else runQuery
 
--- | Exception type for hasql errors
-data HasqlError = HasqlError HasqlPool.UsageError
-    deriving (Show)
-
-instance Exception HasqlError
-
 -- | Existential wrapper for sub-session requests in a transaction
 data SessionRequest where
     SessionRequest :: Hasql.Session a -> MVar (Either HasqlErrors.SessionError a) -> SessionRequest
@@ -516,35 +471,6 @@ processRequests requestMVar = do
             liftIO (putMVar responseVar result)
             processRequests requestMVar
         Nothing -> pure ()
-
--- | Detects errors caused by stale schema after @make db@ recreates the database.
---
--- Matches four categories:
---
--- 1. PostgreSQL \"cached plan must not change result type\" (error code 0A000) —
---    the server rejects a prepared statement whose result columns changed.
---
--- 2. PostgreSQL \"cache lookup failed for type\" (error code XX000) —
---    a prepared statement references a type OID that no longer exists after
---    schema recreation (types get new OIDs).
---
--- 3. Hasql 'MissingTypesSessionError' — custom enum types (e.g. @JOB_STATUS@)
---    get new OIDs after schema recreation, and hasql's type registry can't find them.
---
--- 4. Hasql 'UnexpectedColumnTypeStatementError' — the column's type OID no longer
---    matches the OID cached in the prepared statement / decoder.
-isCachedPlanError :: HasqlPool.UsageError -> Bool
-isCachedPlanError (HasqlPool.SessionUsageError sessionError) = isCachedPlanSessionError sessionError
-isCachedPlanError _ = False
-
-isCachedPlanSessionError :: HasqlErrors.SessionError -> Bool
-isCachedPlanSessionError (HasqlErrors.StatementSessionError _ _ _ _ _ (HasqlErrors.ServerStatementError (HasqlErrors.ServerError "0A000" _ _ _ _))) = True
-isCachedPlanSessionError (HasqlErrors.StatementSessionError _ _ _ _ _ (HasqlErrors.ServerStatementError (HasqlErrors.ServerError "XX000" _ _ _ _))) = True
-isCachedPlanSessionError (HasqlErrors.ScriptSessionError _ (HasqlErrors.ServerError "0A000" _ _ _ _)) = True
-isCachedPlanSessionError (HasqlErrors.ScriptSessionError _ (HasqlErrors.ServerError "XX000" _ _ _ _)) = True
-isCachedPlanSessionError (HasqlErrors.MissingTypesSessionError _) = True
-isCachedPlanSessionError (HasqlErrors.StatementSessionError _ _ _ _ _ (HasqlErrors.UnexpectedColumnTypeStatementError _ _ _)) = True
-isCachedPlanSessionError _ = False
 
 -- | Runs a raw sql query which results in a single scalar value such as an integer or string
 --
@@ -640,10 +566,7 @@ withTransaction block
                     Hasql.script "COMMIT"
                     pure a
 
-    result <- HasqlPool.use pool transactionSession
-    case result of
-        Left err -> throwIO (HasqlError err)
-        Right a -> pure a
+    usePoolWithRetry pool transactionSession
 {-# INLINABLE withTransaction #-}
 
 -- | Executes the given block with the main database role and temporarly sidesteps the row level security policies.
