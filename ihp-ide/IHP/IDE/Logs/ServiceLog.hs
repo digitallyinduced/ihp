@@ -15,7 +15,7 @@ module IHP.IDE.Logs.ServiceLog
 import IHP.Prelude
 import qualified IHP.EnvVar as EnvVar
 import qualified System.Directory as Directory
-import Control.Exception (SomeException, try)
+import qualified Control.Exception.Safe as Exception
 import qualified Data.Text as Text
 import qualified Data.Text.IO as Text.IO
 
@@ -23,7 +23,7 @@ import qualified Data.Text.IO as Text.IO
 -- Returns service names excluding "ihp" and "postgres" (which have dedicated tabs).
 discoverServices :: IO [Text]
 discoverServices = do
-    result <- tryAny discoverServices'
+    result <- Exception.tryAny discoverServices'
     case result of
         Right services -> pure services
         Left _ -> pure []
@@ -42,7 +42,7 @@ discoverServices = do
 -- Filters lines by the @"serviceName |"@ prefix pattern and returns the last 10 000 lines.
 getServiceLogs :: Text -> IO ByteString
 getServiceLogs serviceName = do
-    result <- tryAny do
+    result <- Exception.tryAny do
         logFile <- findProcessManagerLogFile
         case logFile of
             Just path -> do
@@ -165,7 +165,3 @@ filterBuiltinServices = filter (\name -> Text.toLower name /= "ihp" && Text.toLo
 
 takeLast :: Int -> [a] -> [a]
 takeLast n xs = drop (max 0 (length xs - n)) xs
-
-tryAny :: IO a -> IO (Either SomeException a)
-tryAny = try
-{-# INLINE tryAny #-}
