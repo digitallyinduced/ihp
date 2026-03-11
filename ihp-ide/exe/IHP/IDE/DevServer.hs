@@ -92,12 +92,11 @@ mainWithOptions wrapWithDirenv = withUtf8 do
         lastSchemaCompilerError <- newIORef Nothing
         let ?context = Context { portConfig, isDebugMode, logger, ghciInChan, ghciOutChan, wrapWithDirenv, liveReloadClients, lastSchemaCompilerError, appSocket }
 
-        -- Print IHP Version when in debug mode
-        when isDebugMode (Log.debug ("IHP Version: " <> Version.ihpVersion))
-
-        -- Always log IHP source info
-        sourceInfo <- SourceInfo.getSourceInfo
-        Log.info (SourceInfo.formatSourceInfo sourceInfo)
+        -- Print IHP source and version info when in debug mode
+        when isDebugMode do
+            sourceInfo <- SourceInfo.getSourceInfo
+            Log.debug (SourceInfo.formatSourceInfo sourceInfo)
+            Log.debug ("IHP Version: " <> Version.ihpVersion)
 
         ghciIsLoadingVar <- newIORef False
         reloadGhciVar :: MVar () <- newEmptyMVar
