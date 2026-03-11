@@ -27,7 +27,6 @@ import           IHP.View.Classes ()
 import           IHP.View.Types
 import           IHP.ViewSupport
 import           Network.Wai (Request, pathInfo)
-import qualified Data.Text as Text
 import qualified Text.Blaze.Html5 as Html5
 
 -- | Forms usually begin with a 'formFor' expression.
