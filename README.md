@@ -20,6 +20,8 @@ IHP is a batteries-included web framework optimized for longterm productivity an
 
 In production since 2017. Used by teams building serious web applications.
 
+[![Watch the IHP introduction](https://img.youtube.com/vi/MiMwZCRCIhk/maxresdefault.jpg)](https://www.youtube.com/watch?v=MiMwZCRCIhk)
+
 ## What IHP Code Looks Like
 
 ```haskell
