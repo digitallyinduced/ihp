@@ -26,8 +26,7 @@ getSourceInfo = do
     case ihpLib of
         Just lib
             | "/nix/store/" `List.isPrefixOf` lib -> do
-                let ihpRoot = FilePath.takeDirectory (FilePath.takeDirectory (FilePath.takeDirectory lib))
-                pure (NixStore (cs ihpRoot))
+                pure (NixStore (cs lib))
             | otherwise -> do
                 let ihpRoot = FilePath.takeDirectory (FilePath.takeDirectory (FilePath.takeDirectory lib))
                 gitBranch <- getGitInfo ihpRoot "rev-parse" ["--abbrev-ref", "HEAD"]
