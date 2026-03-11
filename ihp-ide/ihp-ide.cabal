@@ -344,6 +344,6 @@ test-suite tests
         Test.IDE.CodeGeneration.JobGenerator
         Test.IDE.SchemaDesigner.SchemaOperationsSpec
         Test.IDE.CodeGeneration.MigrationGenerator
+        Test.IDE.SourceInfoSpec
         Test.SchemaCompilerSpec
         Test.ServerSpec
-        Test.IDE.SourceInfoSpec
