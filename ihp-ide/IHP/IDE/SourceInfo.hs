@@ -26,33 +26,26 @@ getSourceInfo = do
     -- IHP_LIB is set in both nix store and local checkout scenarios,
     -- so we check whether the path is inside /nix/store/ to distinguish.
     ihpLib <- Env.lookupEnv "IHP_LIB"
-    case ihpLib of
-        Just lib
-            | isNixStorePath lib -> do
-                (branch, rev) <- getFlakeLockInfo
-                pure (NixStore (cs lib) branch rev)
-            | otherwise -> do
-                branch <- getGitInfo ihpRoot "rev-parse" ["--abbrev-ref", "HEAD"]
-                commit <- getGitInfo ihpRoot "rev-parse" ["--short", "HEAD"]
-                pure (LocalCheckout (cs ihpRoot) branch commit)
-              where
-                ihpRoot = FilePath.takeDirectory (FilePath.takeDirectory (FilePath.takeDirectory lib))
-        Nothing -> do
-            exePath <- Env.getExecutablePath
-            makeSourceInfo exePath
+    dir <- case ihpLib of
+        Just lib | not (isNixStorePath lib) ->
+            -- Local checkout: IHP_LIB points to ihp-ide/lib/IHP, navigate up 3 levels
+            pure (FilePath.takeDirectory (FilePath.takeDirectory (FilePath.takeDirectory lib)))
+        Just lib ->
+            pure lib
+        Nothing ->
+            Env.getExecutablePath
+    makeSourceInfo dir
 
--- | Build SourceInfo from an executable path when IHP_LIB is not set.
+-- | Build SourceInfo from a resolved path.
 makeSourceInfo :: FilePath -> IO SourceInfo
-makeSourceInfo exePath
-    | isNixStorePath exePath = do
+makeSourceInfo dir
+    | isNixStorePath dir = do
         (branch, rev) <- getFlakeLockInfo
-        pure (NixStore (cs (FilePath.takeDirectory exePath)) branch rev)
+        pure (NixStore (cs dir) branch rev)
     | otherwise = do
         branch <- getGitInfo dir "rev-parse" ["--abbrev-ref", "HEAD"]
         commit <- getGitInfo dir "rev-parse" ["--short", "HEAD"]
         pure (LocalCheckout (cs dir) branch commit)
-  where
-    dir = FilePath.takeDirectory exePath
 
 isNixStorePath :: FilePath -> Bool
 isNixStorePath = List.isPrefixOf "/nix/store/"
@@ -61,12 +54,8 @@ isNixStorePath = List.isPrefixOf "/nix/store/"
 -- Assumes the process is running from the project root.
 getFlakeLockInfo :: IO (Maybe Text, Maybe Text)
 getFlakeLockInfo = do
-    result <- Exception.tryAny do
-        contents <- LBS.readFile "flake.lock"
-        pure (parseFlakeLockJson contents)
-    case result of
-        Right val -> pure val
-        Left _ -> pure (Nothing, Nothing)
+    result <- tryAnyNothing (parseFlakeLockJson <$> LBS.readFile "flake.lock")
+    pure (fromMaybe (Nothing, Nothing) result)
 
 -- | Extract ihp branch and revision from a parsed flake.lock JSON.
 parseFlakeLockJson :: LBS.ByteString -> (Maybe Text, Maybe Text)
@@ -90,16 +79,21 @@ parseFlakeLockJson contents =
         _ -> (Nothing, Nothing)
 
 getGitInfo :: FilePath -> String -> [String] -> IO (Maybe Text)
-getGitInfo dir subcommand args = do
-    result <- Exception.tryAny do
+getGitInfo dir subcommand args =
+    tryAnyNothing do
         output <- Process.readCreateProcess process ""
         pure (Text.strip (cs output))
-    case result of
-        Right val -> pure (Just val)
-        Left _ -> pure Nothing
   where
     process = (Process.proc "git" (["-C", dir, subcommand] <> args))
         { Process.std_err = Process.NoStream }
+
+-- | Run an IO action, returning Nothing on any exception.
+tryAnyNothing :: IO a -> IO (Maybe a)
+tryAnyNothing action = do
+    result <- Exception.tryAny action
+    case result of
+        Right val -> pure (Just val)
+        Left _ -> pure Nothing
 
 formatSourceInfo :: SourceInfo -> Text
 formatSourceInfo (NixStore storePath branch rev) =
