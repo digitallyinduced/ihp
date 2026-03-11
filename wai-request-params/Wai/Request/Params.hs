@@ -359,7 +359,7 @@ instance ParamReader LocalTime where
 
 -- | Shared parser for 'UTCTime' and 'LocalTime'. Tries ISO 8601 with Z,
 -- seconds without Z, datetime-local (no seconds), and date-only formats.
-readDateTimeParameter :: ParseTime a => ByteString -> Either Text a
+readDateTimeParameter :: ParseTime a => ByteString -> Either ByteString a
 readDateTimeParameter "" = Left "This field cannot be empty"
 readDateTimeParameter byteString =
     case parseTimeM True defaultTimeLocale "%Y-%m-%dT%H:%M:%S%QZ" input
