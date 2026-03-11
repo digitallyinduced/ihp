@@ -464,6 +464,8 @@ that is defined in flake-module.nix
                         for f in ${config.packages.ihp-static}/vendor/*; do
                             ln -sf "$f" "$out/static/vendor/$(basename "$f")" 2>/dev/null || true
                         done
+                        # Backwards compat: old Makefiles reference popper.min.js
+                        ln -sf "$out/static/vendor/popper-2.11.6.min.js" "$out/static/vendor/popper.min.js" 2>/dev/null || true
                     '';
                 };
         };
