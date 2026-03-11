@@ -262,6 +262,198 @@ imports = [
 
 For non-AWS deployments, run `nixos-generate-config` on your server and copy the generated hardware configuration into this file.
 
+#### Choosing the Right NixOS Module
+
+IHP provides two main NixOS modules:
+
+- **`ihp.nixosModules.appWithPostgres`** — All-in-one: sets up your app, worker, migrations, nginx, PostgreSQL, Let's Encrypt, firewall, swap, and nix GC. Use this when deploying to a single server with a local database.
+- **`ihp.nixosModules.app`** — Just the app services (app, worker, migrations, keygen) without PostgreSQL or nginx. Use this when you manage PostgreSQL separately (e.g. AWS RDS) or configure nginx yourself.
+
+You can also import individual service modules (`ihp.nixosModules.services_app`, `services_worker`, `services_migrate`, `services_appKeygen`) for full control.
+
+#### Security Hardening
+
+Add these settings to your `configuration.nix` for a hardened production server:
+
+```nix
+# Firewall — allow HTTP, HTTPS, and SSH
+networking.firewall.enable = true;
+networking.firewall.allowedTCPPorts = [ 80 443 22 ];
+
+# SSH — key-only authentication
+services.openssh.enable = true;
+services.openssh.settings.PasswordAuthentication = false;
+
+# Brute-force protection
+services.fail2ban.enable = true;
+```
+
+You can also harden the app and worker systemd services:
+
+```nix
+# Private /tmp for the app (prevents temp file attacks)
+systemd.services.app.serviceConfig.PrivateTmp = true;
+systemd.services.worker.serviceConfig.PrivateTmp = true;
+
+# If your app writes files (uploads, exports), use StateDirectory
+# Files will be stored under /var/lib/mydata/
+systemd.services.app.serviceConfig.StateDirectory = "mydata";
+systemd.services.worker.serviceConfig.StateDirectory = "mydata";
+
+# DynamicUser runs the service as an ephemeral system user
+# Combined with StateDirectory, the app can only write to its own directory
+systemd.services.app.serviceConfig.DynamicUser = true;
+```
+
+When using `StateDirectory` with IHP's file storage, set `IHP_STORAGE_DIR` to point at the directory using the systemd `%S` specifier (which expands to `/var/lib`):
+
+```nix
+systemd.services.app.environment.IHP_STORAGE_DIR = "%S/mydata/";
+```
+
+#### Nginx Configuration Patterns
+
+The `appWithPostgres` module sets up a basic nginx proxy with WebSocket support. Here are additional patterns you can add to your `configuration.nix`:
+
+**Domain redirects:**
+
+```nix
+# Redirect www to apex domain (or vice versa)
+services.nginx.virtualHosts."www.example.com" = {
+    enableACME = true;
+    forceSSL = true;
+    globalRedirect = "example.com";
+};
+```
+
+**502 retry during deploys** — when the app restarts, nginx briefly gets 502 errors. This retry pattern makes deploys transparent to users:
+
+```nix
+services.nginx.virtualHosts."example.com" = {
+    enableACME = true;
+    forceSSL = true;
+    locations."/" = {
+        proxyPass = "http://localhost:8000";
+        proxyWebsockets = true;
+        extraConfig = ''
+            recursive_error_pages on;
+            proxy_intercept_errors on;
+            error_page 502 = @retry;
+        '';
+    };
+    locations."@retry" = {
+        proxyPass = "http://localhost:8000";
+        extraConfig = ''
+            proxy_connect_timeout 2s;
+        '';
+    };
+};
+```
+
+**File upload size limit:**
+
+```nix
+services.nginx.clientMaxBodySize = "100m";
+```
+
+**High-performance tuning** — for servers handling many concurrent connections, increase worker limits and enable modern compression:
+
+```nix
+services.nginx = {
+    recommendedZstdSettings = true;
+    recommendedBrotliSettings = true;
+    eventsConfig = ''
+        worker_connections 81920;
+        multi_accept on;
+    '';
+    appendConfig = ''
+        worker_processes auto;
+        worker_rlimit_nofile 262144;
+    '';
+};
+
+# Also raise systemd limits for the nginx process
+systemd.services.nginx.serviceConfig.LimitNOFILE = 262144;
+systemd.services.nginx.serviceConfig.LimitNPROC = 65536;
+```
+
+**IP blocking** — block abusive IPs at the nginx level:
+
+```nix
+services.nginx.commonHttpConfig = ''
+    deny 1.2.3.4;
+    deny 5.6.7.8;
+'';
+```
+
+**Wildcard SSL certificates** (for SaaS apps with customer subdomains):
+
+```nix
+# Wildcard cert via DNS validation (example using INWX provider)
+security.acme.certs."example.com" = {
+    domain = "*.example.com";
+    dnsProvider = "inwx";  # or cloudflare, route53, etc.
+    group = config.services.nginx.group;
+    credentialFiles = {
+        INWX_USERNAME_FILE = "/root/inwx.user";
+        INWX_PASSWORD_FILE = "/root/inwx.pass";
+    };
+};
+
+services.nginx.virtualHosts."*.example.com" = {
+    useACMEHost = "example.com";
+    forceSSL = true;
+    locations."/" = {
+        proxyPass = "http://localhost:8000";
+        proxyWebsockets = true;
+    };
+};
+```
+
+See the [ACME NixOS documentation](https://nixos.org/manual/nixos/stable/#module-security-acme) for supported DNS providers.
+
+#### PostgreSQL Production Tuning
+
+The `appWithPostgres` module sets up PostgreSQL with sensible defaults. For production workloads, you may want to tune these settings in your `configuration.nix`:
+
+```nix
+# Increase connection limit (default is 100)
+services.postgresql.settings.max_connections = 1000;
+
+# Add extensions
+services.postgresql.extensions = plugins: [ plugins.pg_uuidv7 ];
+
+# Automated daily backups
+services.postgresqlBackup.enable = true;
+```
+
+For tighter security on the database, configure authentication rules:
+
+```nix
+services.postgresql.authentication = ''
+    local all all trust
+    host all all 127.0.0.1/32 trust
+    host all all ::1/128 trust
+    host all all 0.0.0.0/0 reject
+'';
+```
+
+This trusts local connections (from the app on the same server) and rejects all remote connections.
+
+If you're hosting multiple apps (see [Multi-App Hosting](#hosting-multiple-ihp-apps-on-one-server)), use `ensureDatabases` and `ensureUsers` for declarative database provisioning instead of creating databases manually:
+
+```nix
+services.postgresql = {
+    ensureDatabases = [ "myapp" "secondapp" ];
+    ensureUsers = [
+        { name = "myapp"; ensureDBOwnership = true; }
+        { name = "secondapp"; ensureDBOwnership = true; }
+    ];
+};
+```
+
+NixOS will create these databases and users automatically on first boot. Each user gets ownership of its matching database via `ensureDBOwnership`.
+
 ### Deploying the App
 
 Now you can deploy the app using `deploy-to-nixos` (which is just a small wrapper around nixos-rebuild):
@@ -306,6 +498,309 @@ After you logged in, you can:
  - `iptables -L` to see firewall rules, in case of network connectivity issues.
 
 Keep in mind that changes should be always done declaratively, via the `nix` files, for example changing the firewall rules temporarily via `iptables` will be lost at the next deployment, so `ssh` into the instance is merely for debugging, locating the root cause. The solution almost always involves a change in the NixOS configuration files (under `Config/nix/hosts/production/`) for the sake of idempotence.
+
+## Hosting Multiple IHP Apps on One Server
+
+You can deploy multiple IHP applications on a single NixOS server. The primary app uses `ihp.nixosModules.appWithPostgres` as usual, and additional apps are added as flake inputs with their own systemd services, sockets, and nginx virtual hosts.
+
+### Adding a Second App as a Flake Input
+
+In your main project's `flake.nix`, add the second app as an input:
+
+```nix
+{
+    inputs = {
+        ihp.url = "...";
+        # Add additional IHP apps:
+        secondapp.url = "git+ssh://git@github.com/your-org/second-app";
+    };
+    # ...
+}
+```
+
+### Systemd Services for the Secondary App
+
+Create a new nix file (e.g. `Config/nix/hosts/production/secondapp.nix`) and import it from your `configuration.nix`:
+
+```nix
+{ config, pkgs, lib, self, ... }:
+let
+    ihpEnv = {
+        PORT = "8090";
+        IHP_REQUEST_LOGGER_IP_ADDR_SOURCE = "FromHeader";
+        IHP_BASEURL = "https://secondapp.example.com";
+        IHP_ENV = "Production";
+        DATABASE_URL = "host=127.0.0.1 port=5432 dbname=secondapp user=secondapp";
+        IHP_SESSION_SECRET = "generate-a-unique-secret-for-this-app";
+        GHCRTS = "-A64m -N4 -H32m";
+        IHP_SYSTEMD = "1";
+    };
+    package = self.inputs.secondapp.packages."${pkgs.system}".optimized-prod-server;
+in
+{
+    # Web server
+    systemd.services.secondapp = {
+        enable = true;
+        description = "secondapp web server";
+        after = [ "network.target" "secondapp.socket" ];
+        serviceConfig = {
+            Type = "notify";
+            ExecStart = "${package}/bin/RunProdServer";
+            Restart = "always";
+            KillSignal = "SIGINT";
+            WatchdogSec = "60";
+            Sockets = "secondapp.socket";
+            TimeoutStopSec = "30s";
+        };
+        environment = ihpEnv;
+        wantedBy = [ "multi-user.target" ];
+    };
+
+    # Socket activation on port 8090
+    systemd.sockets.secondapp = {
+        wantedBy = [ "sockets.target" ];
+        socketConfig = {
+            ListenStream = "8090";
+            Accept = "no";
+        };
+    };
+
+    # Background worker (inherits env from app, overrides GHCRTS)
+    systemd.services.secondapp-worker = {
+        enable = true;
+        description = "secondapp background worker";
+        serviceConfig = {
+            Type = "simple";
+            ExecStart = "${package}/bin/RunJobs";
+            Restart = "on-failure";
+        };
+        environment = ihpEnv // { GHCRTS = "-A1M -N1 -qn1"; };
+        wantedBy = [ "multi-user.target" ];
+    };
+
+    # Database migrations
+    systemd.services.secondapp-migrate =
+        let
+            filter = self.inputs.secondapp.inputs.ihp.inputs.nix-filter.lib;
+        in {
+        serviceConfig = {
+            Type = "oneshot";
+            ExecStart = self.inputs.secondapp.inputs.ihp.apps."${pkgs.system}".migrate.program;
+        };
+        environment = {
+            DATABASE_URL = ihpEnv.DATABASE_URL;
+            MINIMUM_REVISION = "0";
+            IHP_MIGRATION_DIR =
+                let migrationFiles = filter {
+                    root = self.inputs.secondapp;
+                    include = [ "Application/Migration" (filter.matchExt "sql") ];
+                    exclude = [ "Application/Schema.sql" "Application/Fixtures.sql" ];
+                    name = "secondapp-migrations";
+                };
+                in "${migrationFiles}/Application/Migration/";
+        };
+        wantedBy = [ "multi-user.target" ];
+        after = [ "postgresql.service" ];
+    };
+
+    # Nginx virtual host
+    services.nginx.virtualHosts."secondapp.example.com" = {
+        enableACME = true;
+        forceSSL = true;
+        locations."/" = {
+            proxyPass = "http://127.0.0.1:8090";
+            proxyWebsockets = true;
+        };
+    };
+}
+```
+
+Import this file from your main `configuration.nix`:
+
+```nix
+imports = [ ./hardware-configuration.nix ./secondapp.nix ];
+```
+
+### Multiple Databases
+
+Each app typically gets its own database. The preferred approach is declarative provisioning via `ensureDatabases` and `ensureUsers` in your `postgres.nix` or `configuration.nix`:
+
+```nix
+services.postgresql = {
+    ensureDatabases = [ "myapp" "secondapp" ];
+    ensureUsers = [
+        { name = "myapp"; ensureDBOwnership = true; }
+        { name = "secondapp"; ensureDBOwnership = true; }
+    ];
+};
+```
+
+NixOS creates these on first boot. For the initial schema, SSH in and run:
+
+```bash
+sudo -u postgres psql secondapp < /path/to/Application/Schema.sql
+```
+
+Alternatively, create databases manually:
+
+```bash
+ssh production
+sudo -u postgres createuser secondapp
+sudo -u postgres createdb -O secondapp secondapp
+```
+
+### Multi-Tenant Pattern
+
+If you run the same app against multiple databases (e.g. one per customer tenant), use `let` functions to avoid duplicating service definitions:
+
+```nix
+let
+    migrate-service = databaseUrl: minimumRevision: {
+        serviceConfig = {
+            Type = "oneshot";
+            ExecStart = self.inputs.myapp.inputs.ihp.apps."${pkgs.system}".migrate.program;
+        };
+        environment = {
+            DATABASE_URL = databaseUrl;
+            MINIMUM_REVISION = minimumRevision;
+            IHP_MIGRATION_DIR = "${migrationFiles}/Application/Migration/";
+        };
+        wantedBy = [ "multi-user.target" ];
+        after = [ "postgresql.service" ];
+    };
+
+    worker-service = databaseUrl: {
+        enable = true;
+        serviceConfig = {
+            Type = "simple";
+            ExecStart = "${package}/bin/RunJobs";
+            Restart = "on-failure";
+        };
+        environment = ihpEnv // { GHCRTS = "-A1M -N1 -qn1"; DATABASE_URL = databaseUrl; };
+        wantedBy = [ "multi-user.target" ];
+    };
+in
+{
+    # Main tenant
+    systemd.services.myapp-migrate = migrate-service "postgres://myapp:@127.0.0.1/myapp" "0";
+    systemd.services.myapp-worker = worker-service "postgres://myapp:@127.0.0.1/myapp";
+
+    # Additional tenants — just one line each
+    systemd.services.myapp-migrate-acme = migrate-service "postgres://myapp:@127.0.0.1/myapp_acme" "0";
+    systemd.services.myapp-worker-acme = worker-service "postgres://myapp:@127.0.0.1/myapp_acme";
+}
+```
+
+## CI/CD with GitHub Actions
+
+You can automate testing and deployment with GitHub Actions. Here's a minimal workflow:
+
+```yaml
+name: Test and Deploy
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  tests:
+    name: Test
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+    - uses: cachix/install-nix-action@v27
+    - uses: cachix/cachix-action@v15
+      with:
+        name: digitallyinduced
+        skipPush: true
+    - name: Run checks
+      run: nix flake check --impure
+
+  deploy:
+    name: Deploy
+    needs: tests
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+    - name: Setup SSH
+      run: |
+        mkdir -p ~/.ssh
+        echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_rsa
+        chmod 600 ~/.ssh/id_rsa
+        ssh-keyscan -H ${{ secrets.SSH_HOST }} >> ~/.ssh/known_hosts
+        echo -e "Host production\n  HostName ${{ secrets.SSH_HOST }}\n  User root\n  IdentityFile ~/.ssh/id_rsa" > ~/.ssh/config
+        chmod 600 ~/.ssh/config
+    - uses: cachix/install-nix-action@v27
+    - uses: cachix/cachix-action@v15
+      with:
+        name: digitallyinduced
+        skipPush: true
+    - name: Deploy
+      run: nix develop --command deploy-to-nixos production
+```
+
+The SSH host name in `~/.ssh/config` must match the `nixosConfigurations` key in your `flake.nix`. Store `SSH_PRIVATE_KEY` and `SSH_HOST` as GitHub repository secrets.
+
+### Deploy Script as a Flake App
+
+For multi-app server setups where you manage the NixOS configuration in a separate repository (not inside the IHP app), you can define a deploy command as a flake app:
+
+```nix
+# In your server flake.nix:
+{
+    outputs = { self, nixpkgs, ... }: {
+        nixosConfigurations.production = nixpkgs.lib.nixosSystem {
+            system = "aarch64-linux";
+            specialArgs = { inherit self; };
+            modules = [
+                ./hardware-configuration.nix
+                ./configuration.nix
+                ./postgres.nix
+                ./myapp.nix
+                ./secondapp.nix
+            ];
+        };
+
+        apps.aarch64-darwin.default = {
+            type = "app";
+            program = let pkgs = nixpkgs.legacyPackages.aarch64-darwin; in
+                "${pkgs.writeShellApplication {
+                    name = "deploy";
+                    text = ''
+                        set -euo pipefail
+                        exec ${pkgs.nixos-rebuild}/bin/nixos-rebuild switch \
+                            --use-substitutes \
+                            --fast \
+                            --flake ${self}#production \
+                            --target-host root@production \
+                            --build-host root@production
+                    '';
+                }}/bin/deploy";
+        };
+    };
+}
+```
+
+Then deploy with `nix run` from the server repo:
+
+```bash
+nix flake update  # Pull latest app versions
+nix run           # Deploy to production
+```
+
+The `--use-substitutes` flag lets the server pull pre-built packages from binary caches, and `--build-host` builds on the server itself (useful when deploying from a different architecture, e.g. macOS to Linux).
+
+### Off-Site Backup Sync
+
+With `services.postgresqlBackup.enable = true`, NixOS saves daily database dumps to `/var/backup/postgresql/` on the server. To sync these off-site, set up a cron job or script on your local machine:
+
+```bash
+#!/bin/bash
+rsync -avz --delete root@production:/var/backup/postgresql/ ./backups/
+```
 
 ## Deploying with Docker
 
@@ -746,6 +1241,62 @@ config = do
 
 Now sentry is set up.
 
+### Failure Notifications via Webhook
+
+Sentry catches application-level exceptions, but if the `app` or `worker` systemd service crashes entirely, you won't get a Sentry report. You can use systemd's `onFailure` mechanism to send a webhook notification (e.g. to Slack, Discord, or PagerDuty) when a service fails.
+
+Add a template service and attach it to your app and worker in `configuration.nix`:
+
+```nix
+# Generic webhook notification service (template)
+systemd.services."FailureNotification@" = {
+    enable = true;
+    description = "Notifies about %I failure";
+    serviceConfig = {
+        Type = "oneshot";
+        ExecStart = "/bin/sh -c 'curl -X POST -H \"Content-type: application/json\" --data \"{\\\"text\\\":\\\"Service failed: %I\\\"}\" https://hooks.slack.com/services/YOUR/WEBHOOK/URL'";
+    };
+    path = with pkgs; [ curl ];
+};
+
+# Attach to app and worker services
+systemd.services.app.onFailure = [ "FailureNotification@%n.service" ];
+systemd.services.worker.onFailure = [ "FailureNotification@%n.service" ];
+```
+
+The `%I` in the template service is replaced with the name of the failed service (e.g. `app.service`). Adapt the `curl` command for your webhook provider.
+
+### Scheduled Jobs with systemd Timers
+
+For periodic tasks like cleanup scripts or report generation, use systemd timers. This is useful for IHP scripts defined in `Application/Script/`.
+
+Define a oneshot service for the script and a timer to trigger it:
+
+```nix
+# The script to run (built from Application/Script/CleanupExpired.hs)
+systemd.services.cleanup-expired = {
+    serviceConfig = {
+        Type = "oneshot";
+        ExecStart = "${config.services.ihp.package}/bin/CleanupExpired";
+    };
+    environment = {
+        DATABASE_URL = config.services.ihp.databaseUrl;
+        IHP_ENV = "Production";
+    };
+};
+
+# Run daily at 1:00 AM
+systemd.timers.cleanup-expired = {
+    wantedBy = [ "timers.target" ];
+    timerConfig = {
+        OnCalendar = "*-*-* 1:00:00";
+        Unit = "cleanup-expired.service";
+    };
+};
+```
+
+The script binary is available at `${config.services.ihp.package}/bin/ScriptName` after building with `nix build`. Check the timer status with `systemctl list-timers`.
+
 ## Building with Nix
 
 You can use `nix build` to make a full build of your IHP app:
@@ -885,6 +1436,21 @@ IHP by default sets some default values for the GHC/Haskell Runtime System (RTS)
 
 For explanations of these values, see GHC's [manual on the RTS](https://downloads.haskell.org/ghc/latest/docs/users_guide/runtime_control.html) and on [RTS options for concurrency]( https://downloads.haskell.org/ghc/latest/docs/users_guide/using-concurrent.html#rts-options-for-smp-parallelism). In short, `-A` is the allocation area, `-G` is number of generations, `-qn` is number of threads to use for parallel GC, `-N` is number of threads and `-n` is the memory chunk area.
 
+##### Per-Service RTS Tuning
+
+The app server and the job worker have very different workload profiles and benefit from different RTS settings. The `services.ihp.rtsFlags` option sets the flags for both the `app` and `worker` services, but you can override the worker independently:
+
+- **App server** (many concurrent requests): use a larger allocation area and multiple capabilities, e.g. `-A64m -N4 -H32m`
+- **Job worker** (processes one job at a time): use minimal allocation and a single capability, e.g. `-A1M -N1 -qn1`
+
+```nix
+# In your configuration.nix:
+services.ihp.rtsFlags = "-A64m -N4 -H32m"; # App server flags
+
+# Override just the worker:
+systemd.services.worker.environment.GHCRTS = "-A1M -N1 -qn1";
+```
+
 #### `IHP_IDE_BASEURL`
 
 Only relevant in dev mode. This defaults to `IHP_IDE_BASEURL=http://localhost:8001`.
@@ -920,4 +1486,22 @@ Key Features:
 3. **Automatic Configuration**:
 
    - The `IHP_SYSTEMD` environment variable is set to `"1"` automatically when deploying with `deploy-to-nixos`. If you are deploying differently, you are responsible for setting the variable yourself.
+
+### Managed Services
+
+When using `ihp.nixosModules.appWithPostgres`, the following systemd services are managed automatically:
+
+- **`app.service`** — The main web server (`RunProdServer`)
+- **`worker.service`** — The background job runner (`RunJobs`)
+- **`migrate.service`** — Database migrations (runs once on deploy, if `services.ihp.migrations` is set)
+- **`app-keygen.service`** — Generates the session secret key file on first boot
+
+Check their status after a deployment:
+
+```bash
+systemctl status app
+systemctl status worker
+systemctl status migrate
+journalctl -u app -n 50 --no-pager
+```
 
