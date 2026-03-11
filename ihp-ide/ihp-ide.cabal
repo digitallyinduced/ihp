@@ -232,6 +232,7 @@ library
         , IHP.IDE.SchemaDesigner.Types
         , IHP.Telemetry
         , IHP.Version
+        , IHP.IDE.SourceInfo
     autogen-modules: Paths_ihp_ide
     other-modules: Paths_ihp_ide
 
@@ -345,3 +346,4 @@ test-suite tests
         Test.IDE.CodeGeneration.MigrationGenerator
         Test.SchemaCompilerSpec
         Test.ServerSpec
+        Test.IDE.SourceInfoSpec

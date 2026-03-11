@@ -18,6 +18,7 @@ import qualified Test.SchemaCompilerSpec
 import qualified Test.IDE.ToolServer.MiddlewareSpec
 import qualified Test.IDE.Logs.ControllerSpec
 import qualified Test.ServerSpec
+import qualified Test.IDE.SourceInfoSpec
 
 main :: IO ()
 main = hspec do
@@ -36,3 +37,4 @@ main = hspec do
     Test.IDE.ToolServer.MiddlewareSpec.tests
     Test.IDE.Logs.ControllerSpec.tests
     Test.ServerSpec.tests
+    Test.IDE.SourceInfoSpec.tests

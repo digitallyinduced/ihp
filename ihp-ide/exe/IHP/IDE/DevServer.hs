@@ -17,6 +17,7 @@ import qualified IHP.EnvVar as EnvVar
 import Data.String.Conversions (cs)
 import qualified IHP.Telemetry as Telemetry
 import qualified IHP.Version as Version
+import qualified IHP.IDE.SourceInfo as SourceInfo
 
 import qualified IHP.Log.Types as Log
 import qualified IHP.Log as Log
@@ -93,6 +94,10 @@ mainWithOptions wrapWithDirenv = withUtf8 do
 
         -- Print IHP Version when in debug mode
         when isDebugMode (Log.debug ("IHP Version: " <> Version.ihpVersion))
+
+        -- Always log IHP source info
+        sourceInfo <- SourceInfo.getSourceInfo
+        Log.info (SourceInfo.formatSourceInfo sourceInfo)
 
         ghciIsLoadingVar <- newIORef False
         reloadGhciVar :: MVar () <- newEmptyMVar
