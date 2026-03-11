@@ -165,7 +165,7 @@ ihpFlake:
                     in
                         "${shareRoot}/${sys}/${package.name}";
         in lib.mkIf cfg.enable {
-            _module.args.pkgs = import inputs.nixpkgs { inherit system; overlays = config.devenv.shells.default.overlays; config = { }; };
+            _module.args.pkgs = lib.mkDefault (import inputs.nixpkgs { inherit system; overlays = config.devenv.shells.default.overlays; config = { }; });
 
             # release build package
             packages = {

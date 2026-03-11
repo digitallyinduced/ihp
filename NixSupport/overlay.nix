@@ -104,7 +104,17 @@ let
             postgresql-connection-string = self.callHackageDirect { pkg = "postgresql-connection-string"; ver = "0.1.0.6"; sha256 = "07iykhnjzryqqc1mccnmqf7lkg12rb4dq5azvrpfq6qaf6a6r0r1"; } {};
 
             hasql = final.haskell.lib.dontCheck (final.haskell.lib.doJailbreak (self.callHackageDirect { pkg = "hasql"; ver = "1.10.2.3"; sha256 = "1j52ia75168n88rrraf4g20grdl3qak8r426rav87kjjjqx3717v"; } {}));
-            hasql-pool = final.haskell.lib.dontCheck (self.callHackageDirect { pkg = "hasql-pool"; ver = "1.4.1"; sha256 = "08my6djljjgpkxgk4xc3z314ad0rf6g4yvv470rmm12nbzj2g66a"; } {});
+            # Using git commit for https://github.com/nikita-volkov/hasql-pool/pull/53
+            # (auto-discard pooled connections on stale prepared-statement/type-cache errors).
+            # Switch back to callHackageDirect once a new Hackage release lands.
+            hasql-pool = final.haskell.lib.dontCheck (final.haskell.lib.overrideCabal
+                (self.callHackageDirect { pkg = "hasql-pool"; ver = "1.4.1"; sha256 = "08my6djljjgpkxgk4xc3z314ad0rf6g4yvv470rmm12nbzj2g66a"; } {})
+                (old: {
+                    src = builtins.fetchTarball {
+                        url = "https://github.com/nikita-volkov/hasql-pool/archive/a1e06a7c86b17e1a81345afc9ea37530642ecf47.tar.gz";
+                        sha256 = "0mxxlixm82z4ng8ij7lsikxikyi5yhnkqxiy38ljd4qd2dfly5g6";
+                    };
+                }));
             # Patched to add toPreparedStatement: like toStatement but creates a preparable
             # (cached) statement instead of an unpreparable one. This allows IHP queries to
             # benefit from PostgreSQL's prepared statement plan caching.
