@@ -19,7 +19,7 @@ import IHP.Pagination.Types ( Options(..), Pagination(..) )
 import IHP.QueryBuilder ( HasQueryBuilder, filterWhereILike, limit, offset )
 import IHP.Fetch (fetchCount)
 import IHP.ModelSupport (GetModelByTableName, sqlQueryHasql, Table)
-import IHP.Hasql.FromRow (FromRowHasql(..), HasqlDecodeColumn(..))
+import IHP.Hasql.FromRow (FromRowHasql(..))
 import IHP.Hasql.Encoders (ToSnippetParams(..), sqlToSnippet)
 import Network.Wai (Request)
 import qualified Hasql.Decoders as Decoders
@@ -216,7 +216,7 @@ paginatedSqlQueryWithOptions options sql placeholders = do
     let baseParams = toSnippetParams placeholders
 
     let countSnippet = sqlToSnippet ("SELECT count(subquery.*) FROM (" <> encodeUtf8 sql <> ") as subquery") baseParams
-    count :: Int <- sqlQueryHasql pool countSnippet (Decoders.singleRow hasqlColumnDecoder)
+    count :: Int <- sqlQueryHasql pool countSnippet (Decoders.singleRow (Decoders.column (Decoders.nonNullable (fromIntegral <$> Decoders.int8))))
 
     let pageSize = pageSize' options
         pagination = Pagination

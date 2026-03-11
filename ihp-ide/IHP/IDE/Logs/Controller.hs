@@ -4,6 +4,7 @@ import IHP.ControllerPrelude
 import IHP.IDE.ToolServer.Helper.Controller
 import IHP.IDE.ToolServer.Types
 import IHP.IDE.Logs.View.Logs
+import IHP.IDE.Logs.ServiceLog (discoverServices, getServiceLogs)
 import qualified Data.ByteString.Char8 as ByteString
 import qualified IHP.EnvVar as EnvVar
 import qualified System.Directory as Directory
@@ -14,6 +15,9 @@ instance Controller LogsController where
 
         standardOutput <- cs . ByteString.unlines . reverse <$> readIORef toolServerApp.appStandardOutput
         errorOutput <- cs . ByteString.unlines . reverse <$> readIORef toolServerApp.appErrorOutput
+
+        services <- discoverServices
+        let activeService = "app"
 
         render LogsView { .. }
 
@@ -26,6 +30,18 @@ instance Controller LogsController where
             then cs <$> ByteString.readFile logFile
             else pure ("Postgres log file not found" :: ByteString)
         let errorOutput = "" :: ByteString
+
+        services <- discoverServices
+        let activeService = "postgres"
+
+        render LogsView { .. }
+
+    action ServiceLogsAction { serviceName } = do
+        standardOutput <- cs <$> getServiceLogs serviceName
+        let errorOutput = "" :: ByteString
+
+        services <- discoverServices
+        let activeService = serviceName
 
         render LogsView { .. }
 

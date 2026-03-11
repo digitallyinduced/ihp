@@ -453,9 +453,9 @@ that is defined in flake-module.nix
                 pkgs.symlinkJoin {
                     name = "ihp-env-var-backwards-compat";
                     paths = [
-                        (hsDataDir pkgs.ghc.ihp-ide.data + "/lib/IHP")
-                        (hsDataDir pkgs.ghc.ihp-ide.data)
-                        (hsDataDir pkgs.ghc.ihp.data)
+                        ("${self}/ihp-ide/data/lib/IHP")
+                        ("${self}/ihp-ide/data")
+                        ("${self}/ihp/data")
                     ];
                     # The Makefile references $(IHP)/static/vendor/bootstrap.min.css etc.
                     # These vendor files (bootstrap, jquery, select2) are fetched via Nix
@@ -464,6 +464,8 @@ that is defined in flake-module.nix
                         for f in ${config.packages.ihp-static}/vendor/*; do
                             ln -sf "$f" "$out/static/vendor/$(basename "$f")" 2>/dev/null || true
                         done
+                        # Backwards compat: old Makefiles reference popper.min.js
+                        ln -sf "$out/static/vendor/popper-2.11.6.min.js" "$out/static/vendor/popper.min.js" 2>/dev/null || true
                     '';
                 };
         };
