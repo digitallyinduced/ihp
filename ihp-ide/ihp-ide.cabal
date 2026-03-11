@@ -202,6 +202,7 @@ library
         , IHP.IDE.CodeGen.View.NewMigration
         , IHP.IDE.Logs.View.Logs
         , IHP.IDE.Logs.Controller
+        , IHP.IDE.Logs.ServiceLog
         , IHP.IDE.CodeGen.View.NewMail
         , IHP.IDE.ToolServer
         , IHP.IDE.ToolServer.Helper.Controller

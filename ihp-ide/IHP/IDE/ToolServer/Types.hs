@@ -91,6 +91,7 @@ data DataController
 data LogsController
     = AppLogsAction
     | PostgresLogsAction
+    | ServiceLogsAction { serviceName :: Text }
     | OpenEditorAction
     deriving (Eq, Show, Data)
 

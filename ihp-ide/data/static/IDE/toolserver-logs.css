@@ -1,41 +1,62 @@
 #logs {
-    background-color: hsla(192, 81%, 3%, 1);
+    background-color: #0a1628;
     height: 100%;
     display: flex;
+    flex-direction: column;
+}
+
+#logs .logs-tab-bar {
+    display: flex;
     flex-direction: row;
+    gap: 0;
+    padding: 0 1rem;
+    background-color: #0d1b30;
+    border-bottom: 1px solid #1e2d45;
+    flex-shrink: 0;
 }
 
-#logs pre {
-    color: hsla(196, 13%, 90%, 1);
-    padding-left: 2rem;
-    padding-right: 4rem;
-    padding-top: 80px;
-    padding-bottom: 8rem;
+#logs .logs-tab {
+    padding: 0.6rem 1rem;
+    color: #8899aa;
+    font-weight: 500;
+    font-size: 12px;
+    text-decoration: none;
+    border-bottom: 2px solid transparent;
+    transition: color 0.15s, border-color 0.15s;
+}
+
+#logs .logs-tab:hover {
+    color: #c8d6e5;
+}
+
+#logs .logs-tab.active {
+    color: #e8f0fe;
+    border-bottom-color: #4d9fff;
+}
+
+#logs .logs-output {
+    flex: 1;
+    overflow-y: auto;
+    padding: 1rem 2rem 4rem;
+}
+
+#logs .logs-output pre {
+    color: #c8d6e5;
     margin-bottom: 0;
-    font-size: 11px;
+    font-family: 'SF Mono', Menlo, Monaco, 'Cascadia Code', monospace;
+    font-size: 12px;
+    line-height: 1.5;
+    white-space: pre-wrap;
+    word-wrap: break-word;
+    background: transparent;
+    border: none;
+    padding: 0;
 }
 
-#logs pre:empty {
+#logs .logs-output pre:empty {
     display: none;
 }
 
-#logs .logs-navigation {
-    height: 100%;
-    display: flex;
-    flex-direction: column;;
-    padding-top: 80px;
-}
-
-#logs .logs-navigation a {
-    padding-left: 2rem;
-    padding-right: 1rem;
-    padding-bottom: 1rem;
-    color: #fdf6e3;
-    font-weight: 400;
-    font-size: 11px;
-    opacity: 0.5;
-}
-
-#logs .logs-navigation a.active {
-    opacity: 1;
+#logs .logs-output pre.stderr {
+    color: #f0883e;
 }
