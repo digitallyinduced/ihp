@@ -341,16 +341,16 @@ instance ParamReader UUID where
             Nothing -> Left "Invalid UUID"
     readParameterJSON _ = Left "Expected String with an UUID"
 
--- | Accepts values such as @2020-11-08T12:03:35Z@, @2020-11-08T12:03:35@ (seconds without Z),
--- @2020-11-08T12:03@ (datetime-local), or @2020-11-08@
+-- | Accepts values such as @2020-11-08T12:03:35Z@, @2020-11-08T12:03:35.123@ (fractional seconds without Z),
+-- @2020-11-08T12:03:35@ (seconds without Z), @2020-11-08T12:03@ (datetime-local), or @2020-11-08@
 instance ParamReader UTCTime where
     {-# INLINABLE readParameter #-}
     readParameter = readDateTimeParameter
     readParameterJSON (Aeson.String string) = readParameter (cs string)
     readParameterJSON _ = Left "Expected String"
 
--- | Accepts values such as @2020-11-08T12:03:35Z@, @2020-11-08T12:03:35@ (seconds without Z),
--- @2020-11-08T12:03@ (datetime-local), or @2020-11-08@
+-- | Accepts values such as @2020-11-08T12:03:35Z@, @2020-11-08T12:03:35.123@ (fractional seconds without Z),
+-- @2020-11-08T12:03:35@ (seconds without Z), @2020-11-08T12:03@ (datetime-local), or @2020-11-08@
 instance ParamReader LocalTime where
     {-# INLINABLE readParameter #-}
     readParameter = readDateTimeParameter
@@ -358,11 +358,13 @@ instance ParamReader LocalTime where
     readParameterJSON _ = Left "Expected String"
 
 -- | Shared parser for 'UTCTime' and 'LocalTime'. Tries ISO 8601 with Z,
--- seconds without Z, datetime-local (no seconds), and date-only formats.
+-- fractional seconds with Z, fractional seconds without Z, seconds without Z,
+-- datetime-local (no seconds), and date-only formats.
 readDateTimeParameter :: ParseTime a => ByteString -> Either ByteString a
 readDateTimeParameter "" = Left "This field cannot be empty"
 readDateTimeParameter byteString =
     case parseTimeM True defaultTimeLocale "%Y-%m-%dT%H:%M:%S%QZ" input
+            <|> parseTimeM True defaultTimeLocale "%Y-%m-%dT%H:%M:%S%Q" input
             <|> parseTimeM True defaultTimeLocale "%Y-%m-%dT%H:%M:%S" input
             <|> parseTimeM True defaultTimeLocale "%Y-%m-%dT%H:%M" input
             <|> parseTimeM True defaultTimeLocale "%Y-%-m-%-d" input
