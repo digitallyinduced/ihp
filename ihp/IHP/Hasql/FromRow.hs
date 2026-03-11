@@ -45,6 +45,14 @@ instance {-# OVERLAPPABLE #-} Mapping.IsScalar a => HasqlDecodeColumn a where
 instance {-# OVERLAPPING #-} Mapping.IsScalar a => HasqlDecodeColumn (Maybe a) where
     hasqlColumnDecoder = Decoders.column (Decoders.nullable Mapping.decoder)
 
+-- | IHP's schema maps SQL @INT@ (int4) to Haskell 'Int', but hasql-mapping's
+-- @IsScalar Int@ instance uses @int8@ (bigint). Override to match IHP conventions.
+instance {-# OVERLAPPING #-} HasqlDecodeColumn Int where
+    hasqlColumnDecoder = Decoders.column (Decoders.nonNullable (fromIntegral <$> Decoders.int4))
+
+instance {-# OVERLAPPING #-} HasqlDecodeColumn (Maybe Int) where
+    hasqlColumnDecoder = Decoders.column (Decoders.nullable (fromIntegral <$> Decoders.int4))
+
 -- | 'IsScalar' instance for 'Id'' so that Id columns can use 'Mapping.encoder' and 'Mapping.decoder'
 -- directly in generated code, without manual wrapping/unwrapping.
 instance Mapping.IsScalar (PrimaryKey table) => Mapping.IsScalar (Id' table) where
