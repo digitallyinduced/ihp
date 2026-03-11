@@ -17,7 +17,7 @@ import qualified Data.ByteString.Lazy as LBS
 
 data SourceInfo
     = NixStore { nixStorePath :: Text, flakeBranch :: Maybe Text, flakeRevision :: Maybe Text }
-    | LocalCheckout { path :: Text, gitBranch :: Maybe Text, gitCommit :: Maybe Text }
+    | LocalCheckout { checkoutPath :: Text, gitBranch :: Maybe Text, gitCommit :: Maybe Text }
     deriving (Show, Eq)
 
 getSourceInfo :: IO SourceInfo
@@ -28,61 +28,78 @@ getSourceInfo = do
     ihpLib <- Env.lookupEnv "IHP_LIB"
     case ihpLib of
         Just lib
-            | "/nix/store/" `List.isPrefixOf` lib -> do
+            | isNixStorePath lib -> do
                 (branch, rev) <- getFlakeLockInfo
                 pure (NixStore (cs lib) branch rev)
             | otherwise -> do
-                let ihpRoot = FilePath.takeDirectory (FilePath.takeDirectory (FilePath.takeDirectory lib))
-                gitBranch <- getGitInfo ihpRoot "rev-parse" ["--abbrev-ref", "HEAD"]
-                gitCommit <- getGitInfo ihpRoot "rev-parse" ["--short", "HEAD"]
-                pure (LocalCheckout (cs ihpRoot) gitBranch gitCommit)
+                branch <- getGitInfo ihpRoot "rev-parse" ["--abbrev-ref", "HEAD"]
+                commit <- getGitInfo ihpRoot "rev-parse" ["--short", "HEAD"]
+                pure (LocalCheckout (cs ihpRoot) branch commit)
+              where
+                ihpRoot = FilePath.takeDirectory (FilePath.takeDirectory (FilePath.takeDirectory lib))
         Nothing -> do
             exePath <- Env.getExecutablePath
-            if "/nix/store/" `List.isPrefixOf` exePath
-                then do
-                    (branch, rev) <- getFlakeLockInfo
-                    pure (NixStore (cs (FilePath.takeDirectory exePath)) branch rev)
-                else do
-                    let dir = FilePath.takeDirectory exePath
-                    gitBranch <- getGitInfo dir "rev-parse" ["--abbrev-ref", "HEAD"]
-                    gitCommit <- getGitInfo dir "rev-parse" ["--short", "HEAD"]
-                    pure (LocalCheckout (cs dir) gitBranch gitCommit)
+            makeSourceInfo exePath
+
+-- | Build SourceInfo from an executable path when IHP_LIB is not set.
+makeSourceInfo :: FilePath -> IO SourceInfo
+makeSourceInfo exePath
+    | isNixStorePath exePath = do
+        (branch, rev) <- getFlakeLockInfo
+        pure (NixStore (cs (FilePath.takeDirectory exePath)) branch rev)
+    | otherwise = do
+        branch <- getGitInfo dir "rev-parse" ["--abbrev-ref", "HEAD"]
+        commit <- getGitInfo dir "rev-parse" ["--short", "HEAD"]
+        pure (LocalCheckout (cs dir) branch commit)
+  where
+    dir = FilePath.takeDirectory exePath
+
+isNixStorePath :: FilePath -> Bool
+isNixStorePath = List.isPrefixOf "/nix/store/"
 
 -- | Parse flake.lock in the current directory to extract the ihp input's branch and revision.
+-- Assumes the process is running from the project root.
 getFlakeLockInfo :: IO (Maybe Text, Maybe Text)
 getFlakeLockInfo = do
     result <- Exception.tryAny do
         contents <- LBS.readFile "flake.lock"
-        case Aeson.decode contents of
-            Just (Aeson.Object root) -> do
-                let branch = do
-                        Aeson.Object nodes <- KeyMap.lookup "nodes" root
-                        Aeson.Object ihp <- KeyMap.lookup "ihp" nodes
-                        Aeson.Object original <- KeyMap.lookup "original" ihp
-                        Aeson.String ref <- KeyMap.lookup "ref" original
-                        pure ref
-                let rev = do
-                        Aeson.Object nodes <- KeyMap.lookup "nodes" root
-                        Aeson.Object ihp <- KeyMap.lookup "ihp" nodes
-                        Aeson.Object locked <- KeyMap.lookup "locked" ihp
-                        Aeson.String r <- KeyMap.lookup "rev" locked
-                        pure r
-                pure (branch, rev)
-            _ -> pure (Nothing, Nothing)
+        pure (parseFlakeLockJson contents)
     case result of
         Right val -> pure val
         Left _ -> pure (Nothing, Nothing)
 
+-- | Extract ihp branch and revision from a parsed flake.lock JSON.
+parseFlakeLockJson :: LBS.ByteString -> (Maybe Text, Maybe Text)
+parseFlakeLockJson contents =
+    case Aeson.decode contents of
+        Just (Aeson.Object root) -> (branch, rev)
+          where
+            mIhp = do
+                Aeson.Object nodes <- KeyMap.lookup "nodes" root
+                KeyMap.lookup "ihp" nodes
+            branch = do
+                Aeson.Object ihp <- mIhp
+                Aeson.Object original <- KeyMap.lookup "original" ihp
+                Aeson.String ref <- KeyMap.lookup "ref" original
+                pure ref
+            rev = do
+                Aeson.Object ihp <- mIhp
+                Aeson.Object locked <- KeyMap.lookup "locked" ihp
+                Aeson.String r <- KeyMap.lookup "rev" locked
+                pure r
+        _ -> (Nothing, Nothing)
+
 getGitInfo :: FilePath -> String -> [String] -> IO (Maybe Text)
 getGitInfo dir subcommand args = do
     result <- Exception.tryAny do
-        let process = (Process.proc "git" (["-C", dir, subcommand] <> args))
-                { Process.std_err = Process.CreatePipe }
         output <- Process.readCreateProcess process ""
         pure (Text.strip (cs output))
     case result of
         Right val -> pure (Just val)
         Left _ -> pure Nothing
+  where
+    process = (Process.proc "git" (["-C", dir, subcommand] <> args))
+        { Process.std_err = Process.NoStream }
 
 formatSourceInfo :: SourceInfo -> Text
 formatSourceInfo (NixStore storePath branch rev) =
@@ -94,8 +111,8 @@ formatSourceInfo (NixStore storePath branch rev) =
     revInfo = case rev of
         Just r -> " at revision " <> r
         Nothing -> ""
-formatSourceInfo (LocalCheckout path gitBranch gitCommit) =
-    "IHP Source: Local checkout (" <> path <> ")" <> branchInfo <> commitInfo
+formatSourceInfo (LocalCheckout checkoutPath gitBranch gitCommit) =
+    "IHP Source: Local checkout (" <> checkoutPath <> ")" <> branchInfo <> commitInfo
   where
     branchInfo = case gitBranch of
         Just branch -> " on branch " <> branch
