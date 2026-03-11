@@ -2,7 +2,7 @@ module Test.IDE.Logs.ControllerSpec where
 
 import Test.Hspec
 import IHP.Prelude
-import IHP.IDE.Logs.Controller
+import IHP.IDE.Logs.ServiceLog
 
 tests :: Spec
 tests = do
