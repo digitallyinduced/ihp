@@ -70,7 +70,7 @@ renderPost post = [hsx|
 
 **Forms & Validation** -- Type-safe form handling with built-in validation.
 
-**Managed Environment** -- Nix handles all dependencies including PostgreSQL and GHC.
+**Managed Environment** -- Nix handles all dependencies including PostgreSQL and GHC. You don't need to learn Nix -- IHP uses it behind the scenes so that `devenv up` just works. Every developer on your team gets the exact same environment with zero setup friction.
 
 ## Quick Start
 
@@ -109,7 +109,7 @@ IHP apps deploy to NixOS servers using the built-in `deploy-to-nixos` tool. Your
 deploy-to-nixos production
 ```
 
-This runs `nixos-rebuild` over SSH to apply your configuration. Systemd socket activation queues requests during deploys for zero-downtime restarts, and a watchdog automatically recovers unresponsive processes.
+This runs `nixos-rebuild` over SSH to apply your configuration. No Docker, Kubernetes, or CI pipeline required -- your server matches your dev environment exactly. Systemd socket activation queues requests during deploys for zero-downtime restarts, and a watchdog automatically recovers unresponsive processes.
 
 Docker and bare-metal deployments are also supported. [Full deployment guide](https://ihp.digitallyinduced.com/Guide/deployment.html)
 
