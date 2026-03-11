@@ -99,6 +99,18 @@ IHP is a monorepo with focused packages:
 | `ihp-job-dashboard` | Background job monitoring |
 | `ihp-pglistener` | PostgreSQL LISTEN/NOTIFY |
 
+## Deployment
+
+IHP apps deploy to NixOS servers using the built-in `deploy-to-nixos` tool. Your entire server configuration -- nginx, TLS via Let's Encrypt, PostgreSQL, systemd services -- lives declaratively in your git repository under `Config/nix/hosts/production/`.
+
+```bash
+deploy-to-nixos production
+```
+
+This runs `nixos-rebuild` over SSH to apply your configuration. Systemd socket activation queues requests during deploys for zero-downtime restarts, and a watchdog automatically recovers unresponsive processes.
+
+Docker and bare-metal deployments are also supported. [Full deployment guide](https://ihp.digitallyinduced.com/Guide/deployment.html)
+
 ## Community
 
 - [Slack](https://ihp.digitallyinduced.com/Slack) -- Questions, help with type errors, or just chat
