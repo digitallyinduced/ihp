@@ -274,27 +274,63 @@ spec = do
                 it "should accept timestamps" $ do
                     (tshow (readParameter @UTCTime "2020-11-08T12:03:35Z")) `shouldBe` ("Right 2020-11-08 12:03:35 UTC")
 
+                it "should accept datetime-local format" $ do
+                    (tshow (readParameter @UTCTime "2020-11-08T12:03")) `shouldBe` ("Right 2020-11-08 12:03:00 UTC")
+
+                it "should accept datetime-local format with seconds (no Z)" $ do
+                    (tshow (readParameter @UTCTime "2020-11-08T12:03:35")) `shouldBe` ("Right 2020-11-08 12:03:35 UTC")
+
+                it "should accept fractional seconds without Z" $ do
+                    (tshow (readParameter @UTCTime "2020-11-08T12:03:35.123")) `shouldBe` ("Right 2020-11-08 12:03:35.123 UTC")
+
                 it "should accept dates" $ do
                     (tshow (readParameter @UTCTime "2020-11-08")) `shouldBe` ("Right 2020-11-08 00:00:00 UTC")
 
                 it "should fail on invalid inputs" $ do
-                    (readParameter @UTCTime "not a timestamp") `shouldBe` (Left "has to be a valid date and time, e.g. 2020-11-08T12:03:35Z")
+                    (readParameter @UTCTime "not a timestamp") `shouldBe` (Left "has to be a valid date and time, e.g. 2020-11-08T12:03:35Z or 2020-11-08T12:03")
 
                 it "should accept JSON strings" $ do
                     (tshow (readParameterJSON @UTCTime (json "\"2020-11-08T12:03:35Z\""))) `shouldBe` ("Right 2020-11-08 12:03:35 UTC")
+
+                it "should accept JSON datetime-local strings" $ do
+                    (tshow (readParameterJSON @UTCTime (json "\"2020-11-08T12:03\""))) `shouldBe` ("Right 2020-11-08 12:03:00 UTC")
+
+                it "should accept JSON datetime-local strings with seconds (no Z)" $ do
+                    (tshow (readParameterJSON @UTCTime (json "\"2020-11-08T12:03:35\""))) `shouldBe` ("Right 2020-11-08 12:03:35 UTC")
+
+                it "should accept fractional seconds without Z via JSON" $ do
+                    (tshow (readParameterJSON @UTCTime (json "\"2020-11-08T12:03:35.123\""))) `shouldBe` ("Right 2020-11-08 12:03:35.123 UTC")
 
             describe "LocalTime" $ do
                 it "should accept timestamps" $ do
                     (tshow (readParameter @LocalTime "2020-11-08T12:03:35Z")) `shouldBe` ("Right 2020-11-08 12:03:35")
 
+                it "should accept datetime-local format" $ do
+                    (tshow (readParameter @LocalTime "2020-11-08T12:03")) `shouldBe` ("Right 2020-11-08 12:03:00")
+
+                it "should accept datetime-local format with seconds (no Z)" $ do
+                    (tshow (readParameter @LocalTime "2020-11-08T12:03:35")) `shouldBe` ("Right 2020-11-08 12:03:35")
+
+                it "should accept fractional seconds without Z" $ do
+                    (tshow (readParameter @LocalTime "2020-11-08T12:03:35.123")) `shouldBe` ("Right 2020-11-08 12:03:35.123")
+
                 it "should accept dates" $ do
                     (tshow (readParameter @LocalTime "2020-11-08")) `shouldBe` ("Right 2020-11-08 00:00:00")
 
                 it "should fail on invalid inputs" $ do
-                    (readParameter @LocalTime "not a timestamp") `shouldBe` (Left "has to be a valid date and time, e.g. 2020-11-08T12:03:35Z")
+                    (readParameter @LocalTime "not a timestamp") `shouldBe` (Left "has to be a valid date and time, e.g. 2020-11-08T12:03:35Z or 2020-11-08T12:03")
 
                 it "should accept JSON strings" $ do
                     (tshow (readParameterJSON @LocalTime (json "\"2020-11-08T12:03:35Z\""))) `shouldBe` ("Right 2020-11-08 12:03:35")
+
+                it "should accept JSON datetime-local strings" $ do
+                    (tshow (readParameterJSON @LocalTime (json "\"2020-11-08T12:03\""))) `shouldBe` ("Right 2020-11-08 12:03:00")
+
+                it "should accept JSON datetime-local strings with seconds (no Z)" $ do
+                    (tshow (readParameterJSON @LocalTime (json "\"2020-11-08T12:03:35\""))) `shouldBe` ("Right 2020-11-08 12:03:35")
+
+                it "should accept fractional seconds without Z via JSON" $ do
+                    (tshow (readParameterJSON @LocalTime (json "\"2020-11-08T12:03:35.123\""))) `shouldBe` ("Right 2020-11-08 12:03:35.123")
 
             describe "Day" $ do
                 it "should accept dates" $ do

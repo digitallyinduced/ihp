@@ -1,4 +1,5 @@
 {-# LANGUAGE AllowAmbiguousTypes   #-}
+{-# LANGUAGE DefaultSignatures     #-}
 {-# LANGUAGE FlexibleContexts      #-}
 {-# LANGUAGE FlexibleInstances     #-}
 {-# LANGUAGE IncoherentInstances   #-}
@@ -639,13 +640,25 @@ passwordField :: forall fieldName model.
 passwordField field = (textField field) { fieldType = PasswordInput }
 {-# INLINE passwordField #-}
 
--- | Renders a date-time field
+-- | Renders a @\<input type=\"datetime-local\"\/>@ field.
+--
+-- The field value is automatically formatted as @YYYY-MM-DDTHH:MM@ using
+-- the 'DateTimeValue' typeclass, which ensures only 'UTCTime', 'LocalTime',
+-- and their 'Maybe' variants are accepted. Using this on an incompatible type
+-- (e.g. 'Bool') will produce a compile error.
 --
 -- >>> {dateTimeField #createdAt}
 -- <div class="form-group" id="form-group-user_created_at">
 --     <label for="user_createdAt">Created At</label>
 --     <input type="datetime-local" name="createdAt" id="user_createdAt" class="form-control" />
 -- </div>
+--
+-- The corresponding 'ParamReader' instances accept multiple formats on submission:
+--
+-- * @2020-11-08T12:03:35Z@ (ISO 8601 with seconds and Z)
+-- * @2020-11-08T12:03:35@ (seconds without Z, produced when @step@ is set)
+-- * @2020-11-08T12:03@ (default datetime-local, no seconds)
+-- * @2020-11-08@ (date only)
 --
 -- See 'textField' for examples of possible form control options.
 --
@@ -663,10 +676,35 @@ dateTimeField :: forall fieldName model value.
     , HasField "meta" model MetaBag
     , KnownSymbol fieldName
     , InputValue value
+    , DateTimeValue value
     , KnownSymbol (GetModelName model)
     ) => Proxy fieldName -> FormField
-dateTimeField alpha = (textField alpha) { fieldType = DateTimeInput }
+dateTimeField alpha =
+    (textField alpha)
+        { fieldType = DateTimeInput
+        , fieldValue = dateTimeValue ((getField @fieldName model) :: value)
+        }
+    where
+        FormContext { model } = ?formContext
 {-# INLINE dateTimeField #-}
+
+-- | Provides a way to convert a time value to the format expected by
+-- @\<input type=\"datetime-local\"\/>@, i.e. @YYYY-MM-DDTHH:MM@.
+--
+-- This ensures that 'dateTimeField' only accepts time-like types
+-- ('UTCTime', 'LocalTime', and their 'Maybe' variants), giving a
+-- compile error if used on unrelated types like 'Bool'.
+class DateTimeValue a where
+    dateTimeValue :: a -> Text
+    default dateTimeValue :: FormatTime a => a -> Text
+    dateTimeValue time = cs (formatTime defaultTimeLocale "%Y-%m-%dT%H:%M" time)
+
+instance DateTimeValue UTCTime
+instance DateTimeValue LocalTime
+
+instance DateTimeValue a => DateTimeValue (Maybe a) where
+    dateTimeValue (Just time) = dateTimeValue time
+    dateTimeValue Nothing = ""
 
 -- | Renders a hidden field
 --
