@@ -15,7 +15,7 @@ module IHP.IDE.Logs.ServiceLog
 import IHP.Prelude
 import qualified IHP.EnvVar as EnvVar
 import qualified System.Directory as Directory
-import qualified Control.Exception as Exception
+import Control.Exception (SomeException, try)
 import qualified Data.Text as Text
 import qualified Data.Text.IO as Text.IO
 
@@ -23,24 +23,26 @@ import qualified Data.Text.IO as Text.IO
 -- Returns service names excluding "ihp" and "postgres" (which have dedicated tabs).
 discoverServices :: IO [Text]
 discoverServices = do
-    result <- Exception.try @Exception.SomeException do
-        pcConfig <- EnvVar.envOrNothing "PC_CONFIG_FILES" :: IO (Maybe String)
-        case pcConfig of
-            Just configPath -> discoverFromProcessCompose configPath
-            Nothing -> do
-                procfileExists <- Directory.doesFileExist "Procfile"
-                if procfileExists
-                    then discoverFromProcfile "Procfile"
-                    else pure []
+    result <- tryAny discoverServices'
     case result of
         Right services -> pure services
         Left _ -> pure []
+    where
+        discoverServices' = do
+            pcConfig <- EnvVar.envOrNothing "PC_CONFIG_FILES" :: IO (Maybe String)
+            case pcConfig of
+                Just configPath -> discoverFromProcessCompose configPath
+                Nothing -> do
+                    procfileExists <- Directory.doesFileExist "Procfile"
+                    if procfileExists
+                        then discoverFromProcfile "Procfile"
+                        else pure []
 
 -- | Read logs for a specific devenv service from the process manager log file.
 -- Filters lines by the @"serviceName |"@ prefix pattern and returns the last 10 000 lines.
 getServiceLogs :: Text -> IO ByteString
 getServiceLogs serviceName = do
-    result <- Exception.try @Exception.SomeException do
+    result <- tryAny do
         logFile <- findProcessManagerLogFile
         case logFile of
             Just path -> do
@@ -163,3 +165,7 @@ filterBuiltinServices = filter (\name -> Text.toLower name /= "ihp" && Text.toLo
 
 takeLast :: Int -> [a] -> [a]
 takeLast n xs = drop (max 0 (length xs - n)) xs
+
+tryAny :: IO a -> IO (Either SomeException a)
+tryAny = try
+{-# INLINE tryAny #-}
