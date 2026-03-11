@@ -15,49 +15,39 @@ module IHP.IDE.Logs.ServiceLog
 import IHP.Prelude
 import qualified IHP.EnvVar as EnvVar
 import qualified System.Directory as Directory
-import qualified Control.Exception.Safe as Exception
 import qualified Data.Text as Text
 import qualified Data.Text.IO as Text.IO
 
 -- | Discover devenv services by checking process-compose config or Procfile.
 -- Returns service names excluding "ihp" and "postgres" (which have dedicated tabs).
+-- Returns @[]@ if no config is found or files are unreadable.
 discoverServices :: IO [Text]
 discoverServices = do
-    result <- Exception.tryAny discoverServices'
-    case result of
-        Right services -> pure services
-        Left _ -> pure []
-    where
-        discoverServices' = do
-            pcConfig <- EnvVar.envOrNothing "PC_CONFIG_FILES" :: IO (Maybe String)
-            case pcConfig of
-                Just configPath -> discoverFromProcessCompose configPath
-                Nothing -> do
-                    procfileExists <- Directory.doesFileExist "Procfile"
-                    if procfileExists
-                        then discoverFromProcfile "Procfile"
-                        else pure []
+    pcConfig <- EnvVar.envOrNothing "PC_CONFIG_FILES" :: IO (Maybe String)
+    case pcConfig of
+        Just configPath -> discoverFromProcessCompose configPath
+        Nothing -> do
+            procfileExists <- Directory.doesFileExist "Procfile"
+            if procfileExists
+                then discoverFromProcfile "Procfile"
+                else pure []
 
 -- | Read logs for a specific devenv service from the process manager log file.
 -- Filters lines by the @"serviceName |"@ prefix pattern and returns the last 10 000 lines.
 getServiceLogs :: Text -> IO ByteString
 getServiceLogs serviceName = do
-    result <- Exception.tryAny do
-        logFile <- findProcessManagerLogFile
-        case logFile of
-            Just path -> do
-                exists <- Directory.doesFileExist path
-                if exists
-                    then do
-                        content <- Text.IO.readFile path
-                        let filtered = filterServiceLines serviceName (Text.lines content)
-                        let limited = takeLast 10000 filtered
-                        pure (cs (Text.unlines limited))
-                    else pure ("Log file not found: " <> cs path)
-            Nothing -> pure "No process manager log file found"
-    case result of
-        Right output -> pure output
-        Left e -> pure ("Error reading logs: " <> cs (show e))
+    logFile <- findProcessManagerLogFile
+    case logFile of
+        Just path -> do
+            exists <- Directory.doesFileExist path
+            if exists
+                then do
+                    content <- Text.IO.readFile path
+                    let filtered = filterServiceLines serviceName (Text.lines content)
+                    let limited = takeLast 10000 filtered
+                    pure (cs (Text.unlines limited))
+                else pure ("Log file not found: " <> cs path)
+        Nothing -> pure "No process manager log file found"
 
 ------------------------------------------------------------------------
 -- Service discovery
