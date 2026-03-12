@@ -699,7 +699,7 @@ createTrigger' = do
 
     name <- qualifiedIdentifier
     eventWhen <- (lexeme "AFTER" >> pure After) <|> (lexeme "BEFORE" >> pure Before) <|> (lexeme "INSTEAD OF" >> pure InsteadOf)
-    event <- (lexeme "INSERT" >> pure TriggerOnInsert) <|> (lexeme "UPDATE" >> pure TriggerOnUpdate) <|> (lexeme "DELETE" >> pure TriggerOnDelete) <|> (lexeme "TRUNCATE" >> pure TriggerOnTruncate)
+    event <- triggerEvent `sepBy1` lexeme "OR"
 
     lexeme "ON"
     tableName <- qualifiedIdentifier
@@ -730,6 +730,9 @@ createTrigger' = do
         , functionName
         , arguments
         }
+
+triggerEvent :: Parser TriggerEvent
+triggerEvent = (lexeme "INSERT" >> pure TriggerOnInsert) <|> (lexeme "UPDATE" >> pure TriggerOnUpdate) <|> (lexeme "DELETE" >> pure TriggerOnDelete) <|> (lexeme "TRUNCATE" >> pure TriggerOnTruncate)
 
 alterTable = do
     lexeme "TABLE"

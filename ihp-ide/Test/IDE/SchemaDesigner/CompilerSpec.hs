@@ -862,12 +862,26 @@ tests = do
             let statements = [ CreateTrigger
                     { name = "call_test_function_for_new_users"
                     , eventWhen = After
-                    , event = TriggerOnInsert
+                    , event = [TriggerOnInsert]
                     , tableName = "users"
                     , for = ForEachRow
                     , whenCondition = Nothing
                     , functionName = "call_test_function"
                     , arguments = [TextExpression "hello"]
+                    } ]
+            compileSql statements `shouldBe` sql
+
+        it "should compile 'CREATE TRIGGER .. AFTER INSERT OR UPDATE ON ..' statements" do
+            let sql = "CREATE TRIGGER my_trigger AFTER INSERT OR UPDATE ON posts FOR EACH ROW EXECUTE FUNCTION my_function();\n"
+            let statements = [ CreateTrigger
+                    { name = "my_trigger"
+                    , eventWhen = After
+                    , event = [TriggerOnInsert, TriggerOnUpdate]
+                    , tableName = "posts"
+                    , for = ForEachRow
+                    , whenCondition = Nothing
+                    , functionName = "my_function"
+                    , arguments = []
                     } ]
             compileSql statements `shouldBe` sql
 
