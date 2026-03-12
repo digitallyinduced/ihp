@@ -601,15 +601,13 @@ isRefCol :: (?schema :: Schema) => CreateTable -> Column -> Bool
 isRefCol table column = isJust (findForeignKeyConstraint table column)
 
 -- | Returns the foreign key constraint bound on the given column.
--- For inherited columns, also checks the parent table's constraints.
+-- For inherited columns, recursively checks ancestor table constraints.
 findForeignKeyConstraint :: (?schema :: Schema) => CreateTable -> Column -> Maybe Constraint
 findForeignKeyConstraint table@CreateTable { name, inherits } column =
         case find (isFkConstraint name) statements of
             Just (AddConstraint { constraint }) -> Just constraint
-            _ -> case inherits of
-                Just parentName -> case find (isFkConstraint parentName) statements of
-                    Just (AddConstraint { constraint }) -> Just constraint
-                    _ -> Nothing
+            _ -> case inherits >>= findTableByName of
+                Just parentTable -> findForeignKeyConstraint parentTable column
                 Nothing -> Nothing
     where
         isFkConstraint tableName (AddConstraint { tableName = tName, constraint = ForeignKeyConstraint { columnName }}) = tName == tableName && columnName == column.name
@@ -628,7 +626,7 @@ findTableByName tableName =
         |> headMay
 
 -- | Returns all columns including inherited columns from parent tables.
--- Inherited columns (except 'id') that are not overridden in the child table are appended.
+-- Inherited columns that are not overridden in the child table are appended.
 allColumnsIncludingInherited :: (?schema :: Schema) => CreateTable -> [Column]
 allColumnsIncludingInherited CreateTable { columns, inherits = Nothing } = columns
 allColumnsIncludingInherited CreateTable { columns, inherits = Just parentName } =
@@ -637,7 +635,7 @@ allColumnsIncludingInherited CreateTable { columns, inherits = Just parentName }
         Just parentTable ->
             let parentCols = allColumnsIncludingInherited parentTable
                 childNames = map (.name) columns
-                inherited = filter (\pc -> pc.name `notElem` ("id" : childNames)) parentCols
+                inherited = filter (\pc -> pc.name `notElem` childNames) parentCols
             in columns <> inherited
 
 compileEnumDataDefinitions :: (?schema :: Schema) => Statement -> Text
