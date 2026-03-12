@@ -123,10 +123,15 @@ withToolServerApplication toolServerApplication port liveReloadClients action = 
                 let defaultAppUrl = "http://localhost:" <> tshow toolServerApplication.appPort
                 appUrl <- AppUrl <$> EnvVar.envOrDefault "IHP_BASEURL" defaultAppUrl
                 databaseNeedsMigration <- DatabaseNeedsMigration <$> readIORef toolServerApplication.databaseNeedsMigration
+                hooglePort <- EnvVar.envOrNothing "IHP_HOOGLE_PORT"
+                let hoogleUrl = HoogleUrl $ case hooglePort of
+                        Just port | port /= "" -> Just ("http://localhost:" <> port)
+                        _ -> Nothing
                 let req' = req { Wai.vault = Vault.insert availableAppsVaultKey availableApps
                                        . Vault.insert webControllersVaultKey webControllers
                                        . Vault.insert appUrlVaultKey appUrl
                                        . Vault.insert databaseNeedsMigrationVaultKey databaseNeedsMigration
+                                       . Vault.insert hoogleUrlVaultKey hoogleUrl
                                        $ req.vault }
                 app req' respond
 
