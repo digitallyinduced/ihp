@@ -200,7 +200,8 @@ table name = CreateTable
     , columns = []
     , primaryKeyConstraint = PrimaryKeyConstraint []
     , constraints = []
-    , unlogged = False, inherits = Nothing
+    , unlogged = False
+    , inherits = Nothing
     }
 
 parseSql :: Text -> Statement

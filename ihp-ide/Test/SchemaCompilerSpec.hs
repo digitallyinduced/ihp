@@ -493,7 +493,8 @@ tests = do
                             ]
                         , primaryKeyConstraint = PrimaryKeyConstraint ["id"]
                         , constraints = []
-                        , unlogged = False, inherits = Nothing
+                        , unlogged = False
+                        , inherits = Nothing
                         }
                 let compileOutput = compileStatementPreview [statement] statement |> Text.strip
 
@@ -921,7 +922,8 @@ tests = do
                             ]
                         , primaryKeyConstraint = PrimaryKeyConstraint ["id"]
                         , constraints = []
-                        , unlogged = False, inherits = Nothing
+                        , unlogged = False
+                        , inherits = Nothing
                         }
                     ]
             let [StatementCreateTable theTable] = statements
@@ -1058,7 +1060,8 @@ tests = do
                                 ]
                             , primaryKeyConstraint = PrimaryKeyConstraint ["id"]
                             , constraints = []
-                            , unlogged = False, inherits = Nothing
+                            , unlogged = False
+                            , inherits = Nothing
                             }
                         ]
                 let [StatementCreateTable snakeTable] = snakeStatements
@@ -1078,7 +1081,8 @@ tests = do
                                 ]
                             , primaryKeyConstraint = PrimaryKeyConstraint ["id"]
                             , constraints = []
-                            , unlogged = False, inherits = Nothing
+                            , unlogged = False
+                            , inherits = Nothing
                             }
                         ]
                 let [StatementCreateTable defaultTable] = defaultStatements

@@ -55,7 +55,8 @@ tests = do
                         ]
                     , primaryKeyConstraint = PrimaryKeyConstraint ["id"]
                     , constraints = []
-                    , unlogged = False, inherits = Nothing
+                    , unlogged = False
+                    , inherits = Nothing
                     }
 
         it "should parse a CREATE TABLE with a generated column" do
@@ -489,7 +490,8 @@ tests = do
                         ]
                     , primaryKeyConstraint = PrimaryKeyConstraint ["id"]
                     , constraints = [ UniqueConstraint { name = Nothing, columnNames = [ "user_id", "follower_id" ] } ]
-                    , unlogged = False, inherits = Nothing
+                    , unlogged = False
+                    , inherits = Nothing
                     }
 
         it "should fail to parse a CREATE TABLE statement with an empty UNIQUE () constraint" do
@@ -1077,7 +1079,8 @@ table name = CreateTable
     , columns = []
     , primaryKeyConstraint = PrimaryKeyConstraint []
     , constraints = []
-    , unlogged = False, inherits = Nothing
+    , unlogged = False
+    , inherits = Nothing
     }
 
 parseSql :: Text -> Statement

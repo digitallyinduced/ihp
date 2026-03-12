@@ -47,7 +47,8 @@ spec = do
                         ]
                     , primaryKeyConstraint = PrimaryKeyConstraint ["id"]
                     , constraints = []
-                    , unlogged = False, inherits = Nothing
+                    , unlogged = False
+                    , inherits = Nothing
                     }
 
         it "should parse a CREATE TABLE with quoted identifiers" do
@@ -193,7 +194,8 @@ table name = CreateTable
     , columns = []
     , primaryKeyConstraint = PrimaryKeyConstraint []
     , constraints = []
-    , unlogged = False, inherits = Nothing
+    , unlogged = False
+    , inherits = Nothing
     }
 
 parseSql :: Text -> Statement

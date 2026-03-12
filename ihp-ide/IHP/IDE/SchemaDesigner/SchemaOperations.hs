@@ -32,7 +32,8 @@ addTable tableName uuidFunction list = list <> [StatementCreateTable CreateTable
             }]
     , primaryKeyConstraint = PrimaryKeyConstraint ["id"]
     , constraints = []
-    , unlogged = False, inherits = Nothing
+    , unlogged = False
+    , inherits = Nothing
     }]
 
 
