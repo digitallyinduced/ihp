@@ -97,7 +97,7 @@ toPat (ParPat xP _ lP _) = (toPat . unLoc) lP
 toPat (ConPat pat_con_ext ((unLoc -> name)) pat_args) = TH.ConP (toName name) (map toType []) (map (toPat . unLoc) (Pat.hsConPatArgs pat_args))
 toPat (ViewPat pat_con pat_args pat_con_ext) = error "TH.ViewPattern not implemented"
 toPat (SumPat _ _ _ _) = error "TH.SumPat not implemented"
-toPat (WildPat _ ) = error "TH.WildPat not implemented"
+toPat (WildPat _) = TH.WildP
 toPat (NPat _ _ _ _ ) = error "TH.NPat not implemented"
 toPat p = todo "toPat" p
 
