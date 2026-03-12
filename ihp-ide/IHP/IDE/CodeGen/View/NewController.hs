@@ -54,7 +54,7 @@ instance View NewControllerView where
                 <div class="generator-options">
                     <form method="POST" action={NewControllerAction}>
                         <input type="hidden" name="name" value={controllerName}/>
-                        <input type="hidden" name="applicationName" value={applicationName}/>
+                        {renderApplicationNameSelector}
                         <input
                             type="checkbox"
                             name="pagination"
@@ -66,12 +66,16 @@ instance View NewControllerView where
                     </form>
                 </div>
             |]
+            renderApplicationNameSelector = if length applications /= 1
+                then renderApplicationSelector
+                else [hsx|<input type="hidden" name="applicationName" value={applicationName}/>|]
             renderApplicationOptions = forM_ applications (\x -> [hsx|<option selected={x == applicationName}>{x}</option>|])
             renderApplicationSelector = [hsx|
                 <select
                     name="applicationName"
                     class="form-control select2-simple"
                     size="1"
+                    onchange="this.form.submit()"
                 >
                     {renderApplicationOptions}
                 </select>|]
