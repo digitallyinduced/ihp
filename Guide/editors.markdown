@@ -281,25 +281,23 @@ Next time you use the dev server via `devenv up` all links will use the right `I
 
 ### Hoogle
 
-Hoogle is enabled by default in IHP projects, giving you instant type-signature search across all project dependencies.
+To quickly look up function type signatures you can use the built-in Hoogle support.
 
-When you run `devenv up`, a Hoogle server automatically starts on port 8002. You can access it via:
-
-- The **HOOGLE** link in the IHP IDE sidebar
-- Directly at `http://localhost:8002`
-
-#### Disabling Hoogle
-
-If you want faster `nix develop` times and don't need Hoogle, you can opt out by adding `withHoogle = false;` to your `flake.nix`:
+To enable it, add `withHoogle = true;` to your `flake.nix`:
 
 ```nix
 perSystem = { pkgs, ... }: {
     ihp = {
         enable = true;
         projectPath = ./.;
-        withHoogle = false; # Disable Hoogle for faster nix develop
+        withHoogle = true;
     };
 };
 ```
 
-After changing this setting, run `devenv up` to remake your dev environment.
+Run `devenv up` to remake your dev environment. A Hoogle server will automatically start on port 8002. You can access it via:
+
+- The **HOOGLE** link in the IHP IDE sidebar
+- Directly at `http://localhost:8002`
+
+Note: Enabling Hoogle adds time to the initial `nix develop` (for Hoogle database generation). Set `withHoogle = false;` to disable it again.

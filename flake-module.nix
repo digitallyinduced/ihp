@@ -70,10 +70,11 @@ ihpFlake:
 
                 withHoogle = lib.mkOption {
                     description = ''
-                        Enable Hoogle support. Adds `hoogle` command to PATH.
+                        Enable Hoogle support. Adds `hoogle` command to PATH
+                        and auto-starts a Hoogle server on port 8002.
                     '';
                     type = lib.types.bool;
-                    default = true;
+                    default = false;
                 };
 
                 dontCheckPackages = lib.mkOption {
