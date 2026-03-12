@@ -11,6 +11,13 @@ data NewControllerView = NewControllerView
     , applicationName :: Text
     , applications :: [Text]
     , pagination :: Bool
+    , indexAction :: Bool
+    , newAction :: Bool
+    , showAction :: Bool
+    , createAction :: Bool
+    , editAction :: Bool
+    , updateAction :: Bool
+    , deleteAction :: Bool
     }
 
 instance View NewControllerView where
@@ -47,6 +54,13 @@ instance View NewControllerView where
                     <input type="hidden" name="name" value={controllerName}/>
                     <input type="hidden" name="applicationName" value={applicationName}/>
                     <input type="hidden" name="pagination" value={inputValue pagination}/>
+                    <input type="hidden" name="indexAction" value={inputValue indexAction}/>
+                    <input type="hidden" name="newAction" value={inputValue newAction}/>
+                    <input type="hidden" name="showAction" value={inputValue showAction}/>
+                    <input type="hidden" name="createAction" value={inputValue createAction}/>
+                    <input type="hidden" name="editAction" value={inputValue editAction}/>
+                    <input type="hidden" name="updateAction" value={inputValue updateAction}/>
+                    <input type="hidden" name="deleteAction" value={inputValue deleteAction}/>
 
                     <button class="btn btn-primary" type="submit">Generate</button>
                 </form>
@@ -55,16 +69,25 @@ instance View NewControllerView where
                     <form method="POST" action={NewControllerAction}>
                         <input type="hidden" name="name" value={controllerName}/>
                         {renderApplicationNameSelector}
-                        <input
-                            type="checkbox"
-                            name="pagination"
-                            id="pagination"
-                            checked={pagination}
-                            onchange="this.form.submit()"
-                            />
+                        <input type="checkbox" name="pagination" id="pagination" checked={pagination} onchange="this.form.submit()"/>
                         <label class="ps-1" for="pagination">Pagination</label>
+
+                        <span class="ms-3">Actions:</span>
+                        {renderActionCheckbox "indexAction" "Index" indexAction}
+                        {renderActionCheckbox "newAction" "New" newAction}
+                        {renderActionCheckbox "showAction" "Show" showAction}
+                        {renderActionCheckbox "createAction" "Create" createAction}
+                        {renderActionCheckbox "editAction" "Edit" editAction}
+                        {renderActionCheckbox "updateAction" "Update" updateAction}
+                        {renderActionCheckbox "deleteAction" "Delete" deleteAction}
                     </form>
                 </div>
+            |]
+            renderActionCheckbox :: Text -> Text -> Bool -> Html
+            renderActionCheckbox name label checked = [hsx|
+                <input type="checkbox" name={name} id={name} checked={checked} onchange="this.form.submit()"/>
+                <input type="hidden" name={name} value={inputValue False}/>
+                <label class="ps-1 me-2" for={name}>{label}</label>
             |]
             renderApplicationNameSelector = if length applications /= 1
                 then renderApplicationSelector
