@@ -13,7 +13,7 @@ module IHP.Postgres.Parser
 ) where
 
 import Prelude
-import IHP.Postgres.Types
+import IHP.Postgres.Types hiding (table)
 import Data.Text (Text)
 import qualified Data.Text as Text
 import qualified Data.Text.IO as Text

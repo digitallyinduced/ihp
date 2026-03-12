@@ -9,7 +9,7 @@ import IHP.Prelude
 import qualified IHP.IDE.CodeGen.ControllerGenerator as ControllerGenerator
 import IHP.IDE.CodeGen.Types
 import IHP.Postgres.Types
-import Test.IDE.SchemaDesigner.ParserSpec (col, table)
+
 
 tests = do
     describe "Controller Generator Tests:" do
