@@ -82,11 +82,11 @@
         ]
       },
       "locked": {
-        "lastModified": 1773047639,
-        "narHash": "sha256-oDI15sdTRjP9/Sd9jc2DkKmNYx/vCDHh2jDHWjw+iFg=",
+        "lastModified": 1773308164,
+        "narHash": "sha256-SuRvH0gg3UwdV2+QWSY7TK1Memusb6IAGbf24tprwcY=",
         "owner": "digitallyinduced",
         "repo": "devenv",
-        "rev": "fd9a84972c4fabeedbbdf070596fcc1942999556",
+        "rev": "2fdc7583c6a7aaaf32e2666c6b1e8532698d597a",
         "type": "github"
       },
       "original": {
