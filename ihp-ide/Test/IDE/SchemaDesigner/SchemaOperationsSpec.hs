@@ -113,6 +113,7 @@ tests = do
                                 , primaryKeyConstraint = PrimaryKeyConstraint []
                                 , constraints = []
                                 , unlogged = False
+                                , inherits = Nothing
                                 }
                 let schema = [table]
                 let expectedPolicy = CreatePolicy
@@ -135,6 +136,7 @@ tests = do
                                 , primaryKeyConstraint = PrimaryKeyConstraint []
                                 , constraints = []
                                 , unlogged = False
+                                , inherits = Nothing
                                 }
                 let schema = [table]
                 let expectedPolicy = CreatePolicy
@@ -156,6 +158,7 @@ tests = do
                                 , primaryKeyConstraint = PrimaryKeyConstraint []
                                 , constraints = []
                                 , unlogged = False
+                                , inherits = Nothing
                                 }
                 let taskListsTable = StatementCreateTable CreateTable
                                 { name = "task_lists"
@@ -165,6 +168,7 @@ tests = do
                                 , primaryKeyConstraint = PrimaryKeyConstraint []
                                 , constraints = []
                                 , unlogged = False
+                                , inherits = Nothing
                                 }
                 let schema =
                             [ tasksTable
@@ -199,6 +203,7 @@ tests = do
                             , primaryKeyConstraint = PrimaryKeyConstraint []
                             , constraints = []
                             , unlogged = False
+                            , inherits = Nothing
                             }
                 let index = CreateIndex { indexName = "a_created_at_index", unique = False, tableName = "a", columns = [IndexColumn { column =  VarExpression "created_at", columnOrder = [] }], whereClause = Nothing, indexType = Nothing }
 
@@ -239,6 +244,7 @@ tests = do
                             , primaryKeyConstraint = PrimaryKeyConstraint []
                             , constraints = []
                             , unlogged = False
+                            , inherits = Nothing
                             }
 
                 let function = CreateFunction
@@ -298,6 +304,7 @@ tests = do
                             , primaryKeyConstraint = PrimaryKeyConstraint []
                             , constraints = []
                             , unlogged = False
+                            , inherits = Nothing
                             }
 
                 let index = CreateIndex
@@ -359,6 +366,7 @@ tests = do
                             , primaryKeyConstraint = PrimaryKeyConstraint []
                             , constraints = []
                             , unlogged = False
+                            , inherits = Nothing
                             }
                 let index = CreateIndex { indexName = "a_created_at_index", unique = False, tableName = "a", columns = [IndexColumn { column =  VarExpression "created_at", columnOrder = [] }], whereClause = Nothing, indexType = Nothing }
 
@@ -389,6 +397,7 @@ tests = do
                             , primaryKeyConstraint = PrimaryKeyConstraint []
                             , constraints = []
                             , unlogged = False
+                            , inherits = Nothing
                             }
 
                 let function = CreateFunction
@@ -438,6 +447,7 @@ tests = do
                             , primaryKeyConstraint = PrimaryKeyConstraint []
                             , constraints = []
                             , unlogged = False
+                            , inherits = Nothing
                             }
                 let policy = CreatePolicy { name = "a_policy", tableName = "a", action = Nothing, using = Just (EqExpression (VarExpression "user_id") (CallExpression "ihp_user_id" [])), check = Nothing }
 
@@ -468,6 +478,7 @@ tests = do
                             , primaryKeyConstraint = PrimaryKeyConstraint []
                             , constraints = []
                             , unlogged = False
+                            , inherits = Nothing
                             }
 
                 let tableAWithUpdatedColumn = StatementCreateTable CreateTable
@@ -485,6 +496,7 @@ tests = do
                             , primaryKeyConstraint = PrimaryKeyConstraint []
                             , constraints = []
                             , unlogged = False
+                            , inherits = Nothing
                             }
 
                 let inputSchema = [tableAWithCreatedAt]
@@ -519,6 +531,7 @@ tests = do
                             , primaryKeyConstraint = PrimaryKeyConstraint ["id"]
                             , constraints = []
                             , unlogged = False
+                            , inherits = Nothing
                             }
 
                 let tableWithoutPK = StatementCreateTable CreateTable
@@ -536,6 +549,7 @@ tests = do
                             , primaryKeyConstraint = PrimaryKeyConstraint []
                             , constraints = []
                             , unlogged = False
+                            , inherits = Nothing
                             }
 
                 let inputSchema = [tableWithoutPK]
@@ -563,6 +577,7 @@ tests = do
                                 , primaryKeyConstraint = PrimaryKeyConstraint []
                                 , constraints = []
                                 , unlogged = False
+                                , inherits = Nothing
                                 }
                 let taskListsTable = StatementCreateTable CreateTable
                                 { name = "task_lists"
@@ -572,6 +587,7 @@ tests = do
                                 , primaryKeyConstraint = PrimaryKeyConstraint []
                                 , constraints = []
                                 , unlogged = False
+                                , inherits = Nothing
                                 }
                 let inputSchema =
                             [ tasksTable
@@ -587,6 +603,7 @@ tests = do
                                 , primaryKeyConstraint = PrimaryKeyConstraint []
                                 , constraints = []
                                 , unlogged = False
+                                , inherits = Nothing
                                 }
                 let expectedSchema =
                             [ tasksTable'
@@ -623,6 +640,7 @@ tests = do
                             , primaryKeyConstraint = PrimaryKeyConstraint []
                             , constraints = []
                             , unlogged = False
+                            , inherits = Nothing
                             }
                 let index = CreateIndex { indexName = "a_updated_at_index", unique = False, tableName = "a", columns = [IndexColumn { column = VarExpression "updated_at", columnOrder = [] }], whereClause = Nothing, indexType = Nothing }
 
@@ -641,6 +659,7 @@ tests = do
                             , primaryKeyConstraint = PrimaryKeyConstraint []
                             , constraints = []
                             , unlogged = False
+                            , inherits = Nothing
                             }
                 let indexUpdated = CreateIndex { indexName = "a_created_at_index", unique = False, tableName = "a", columns = [IndexColumn { column = VarExpression "created_at", columnOrder = [] }], whereClause = Nothing, indexType = Nothing }
 

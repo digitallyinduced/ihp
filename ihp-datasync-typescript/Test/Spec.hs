@@ -398,6 +398,7 @@ tests = do
                         , primaryKeyConstraint = PrimaryKeyConstraint ["id"]
                         , constraints = []
                         , unlogged = False
+                        , inherits = Nothing
                         }
                 let expected = [trimming|
                     interface Task {
@@ -418,6 +419,7 @@ tests = do
                         , primaryKeyConstraint = PrimaryKeyConstraint ["id"]
                         , constraints = []
                         , unlogged = False
+                        , inherits = Nothing
                         }
                 let expected = [trimming|
                     /**
@@ -438,6 +440,7 @@ tests = do
                         , primaryKeyConstraint = PrimaryKeyConstraint ["id"]
                         , constraints = []
                         , unlogged = False
+                        , inherits = Nothing
                         }
                 let users = (tasks :: CreateTable) { name = "users" }
                 let projects = (tasks :: CreateTable) { name = "projects" }

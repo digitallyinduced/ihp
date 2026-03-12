@@ -14,14 +14,14 @@ tests = do
                 getAllObjectNames [ CreateExtension { name ="a", ifNotExists = True } ] `shouldBe` []
                 getAllObjectNames [ CreateEnumType { name = "first_enum", values=["a", "b", "c"] }] `shouldBe` ["first_enum"]
                 getAllObjectNames [ StatementCreateTable CreateTable
-                                        { name = "table_name", columns = [], primaryKeyConstraint = PrimaryKeyConstraint [], constraints=[], unlogged = False }
+                                        { name = "table_name", columns = [], primaryKeyConstraint = PrimaryKeyConstraint [], constraints=[], unlogged = False, inherits = Nothing }
                                   ]
                     `shouldBe` ["table_name"]
                 getAllObjectNames
                     [ CreateEnumType {name = "first_enum", values = ["a", "b"]}
                     , CreateExtension {name = "extension", ifNotExists = True}
                     , StatementCreateTable CreateTable
-                        { name = "table_name", columns = [], primaryKeyConstraint = PrimaryKeyConstraint [], constraints=[], unlogged = False }
+                        { name = "table_name", columns = [], primaryKeyConstraint = PrimaryKeyConstraint [], constraints=[], unlogged = False, inherits = Nothing }
                     , CreateEnumType {name = "second_enum", values = []}
                     ]
                     `shouldBe` ["first_enum","table_name","second_enum"]
