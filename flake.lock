@@ -82,16 +82,16 @@
         ]
       },
       "locked": {
-        "lastModified": 1772722245,
-        "narHash": "sha256-38crLoAfEOdnEDDZD2NyAEDVlBSFn+MlZyLwztAsC8Q=",
-        "owner": "cachix",
+        "lastModified": 1773308164,
+        "narHash": "sha256-SuRvH0gg3UwdV2+QWSY7TK1Memusb6IAGbf24tprwcY=",
+        "owner": "digitallyinduced",
         "repo": "devenv",
-        "rev": "6ec181f01a8b69400fd787c44fbc6b37c95f5bac",
+        "rev": "2fdc7583c6a7aaaf32e2666c6b1e8532698d597a",
         "type": "github"
       },
       "original": {
-        "owner": "cachix",
-        "ref": "v2.0.2",
+        "owner": "digitallyinduced",
+        "ref": "flake-native-process-manager",
         "repo": "devenv",
         "type": "github"
       }
