@@ -98,7 +98,7 @@ spec = do
                     { indexName = "users_index"
                     , unique = False
                     , tableName = "users"
-                    , columns = [IndexColumn { column = VarExpression "user_name", columnOrder = [] }]
+                    , columns = [indexCol (VarExpression "user_name")]
                     , whereClause = Nothing
                     , indexType = Nothing
                     }
@@ -110,7 +110,7 @@ spec = do
                     { indexName = "users_index"
                     , unique = True
                     , tableName = "users"
-                    , columns = [IndexColumn { column = VarExpression "user_name", columnOrder = []}]
+                    , columns = [indexCol (VarExpression "user_name")]
                     , whereClause = Nothing
                     , indexType = Nothing
                     }
@@ -123,11 +123,8 @@ spec = do
 
         it "should compile 'CREATE POLICY' statements" do
             let sql = "CREATE POLICY \"Users can manage their tasks\" ON tasks USING (user_id = ihp_user_id()) WITH CHECK (user_id = ihp_user_id());\n"
-            let policy = CreatePolicy
-                    { name = "Users can manage their tasks"
-                    , action = Nothing
-                    , tableName = "tasks"
-                    , using = Just (
+            let p = (policy "Users can manage their tasks" "tasks")
+                    { using = Just (
                         EqExpression
                             (VarExpression "user_id")
                             (CallExpression "ihp_user_id" [])
@@ -138,7 +135,7 @@ spec = do
                             (CallExpression "ihp_user_id" [])
                         )
                     }
-            compileSql [policy] `shouldBe` sql
+            compileSql [p] `shouldBe` sql
 
         it "should compile 'DROP TABLE ..' statements" do
             let sql = "DROP TABLE tasks;\n"
@@ -183,26 +180,6 @@ spec = do
                             }
                         ]
             compileSql statements `shouldBe` sql
-
-col :: Text -> PostgresType -> Column
-col columnName columnType = Column
-    { name = columnName
-    , columnType = columnType
-    , defaultValue = Nothing
-    , notNull = False
-    , isUnique = False
-    , generator = Nothing
-    }
-
-table :: Text -> CreateTable
-table name = CreateTable
-    { name = name
-    , columns = []
-    , primaryKeyConstraint = PrimaryKeyConstraint []
-    , constraints = []
-    , unlogged = False
-    , inherits = Nothing
-    }
 
 parseSql :: Text -> Statement
 parseSql sql =

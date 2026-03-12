@@ -389,16 +389,12 @@ tests = do
 
         describe "recordInterface" do
             it "should generate required fields for fields with default values" do
-                let table = CreateTable
-                        { name = "tasks"
-                        , columns =
-                            [ Column { name = "id", columnType = PUUID, defaultValue = Nothing, notNull = True, isUnique = False, generator = Nothing }
-                            , Column { name = "title", columnType = PText, defaultValue = Just (TextExpression "untitled"), notNull = True, isUnique = False, generator = Nothing }
+                let t = (table "tasks")
+                        { columns =
+                            [ (col "id" PUUID) { notNull = True }
+                            , (col "title" PText) { defaultValue = Just (TextExpression "untitled"), notNull = True }
                             ]
                         , primaryKeyConstraint = PrimaryKeyConstraint ["id"]
-                        , constraints = []
-                        , unlogged = False
-                        , inherits = Nothing
                         }
                 let expected = [trimming|
                     interface Task {
@@ -406,20 +402,16 @@ tests = do
                         title: string;
                     }
                 |]
-                (recordInterface table) `shouldBe` expected
+                (recordInterface t) `shouldBe` expected
 
         describe "newRcordInterface" do
             it "should generate optional fields for fields with default values" do
-                let table = CreateTable
-                        { name = "tasks"
-                        , columns =
-                            [ Column { name = "id", columnType = PUUID, defaultValue = Just (CallExpression "uuid_generate_v4" []), notNull = True, isUnique = False, generator = Nothing }
-                            , Column { name = "title", columnType = PText, defaultValue = Just (TextExpression "untitled"), notNull = True, isUnique = False, generator = Nothing }
+                let t = (table "tasks")
+                        { columns =
+                            [ (col "id" PUUID) { defaultValue = Just (CallExpression "uuid_generate_v4" []), notNull = True }
+                            , (col "title" PText) { defaultValue = Just (TextExpression "untitled"), notNull = True }
                             ]
                         , primaryKeyConstraint = PrimaryKeyConstraint ["id"]
-                        , constraints = []
-                        , unlogged = False
-                        , inherits = Nothing
                         }
                 let expected = [trimming|
                     /**
@@ -430,20 +422,13 @@ tests = do
                         title?: string;
                     }
                 |]
-                (newRecordInterface table) `shouldBe` expected
+                (newRecordInterface t) `shouldBe` expected
 
         describe "newRecordType" do
             it "should generate a type that maps record types to their New variant" do
-                let tasks = CreateTable
-                        { name = "tasks"
-                        , columns = []
-                        , primaryKeyConstraint = PrimaryKeyConstraint ["id"]
-                        , constraints = []
-                        , unlogged = False
-                        , inherits = Nothing
-                        }
-                let users = (tasks :: CreateTable) { name = "users" }
-                let projects = (tasks :: CreateTable) { name = "projects" }
+                let tasks = (table "tasks") { primaryKeyConstraint = PrimaryKeyConstraint ["id"] } :: CreateTable
+                let users = (table "users") { primaryKeyConstraint = PrimaryKeyConstraint ["id"] } :: CreateTable
+                let projects = (table "projects") { primaryKeyConstraint = PrimaryKeyConstraint ["id"] } :: CreateTable
 
                 let expected = [trimming|
                     type NewRecord<Type> = Type extends User ? NewUser : (Type extends Task ? NewTask : (Type extends Project ? NewProject : (never)));
