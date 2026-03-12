@@ -1,0 +1,482 @@
+# Internationalization (i18n)
+
+```toc
+
+```
+
+## Introduction
+
+IHP doesn't ship a built-in i18n framework. Instead, it leverages Haskell's type system to give you a simple, type-safe approach to translations using sum types and pattern matching. This means:
+
+- **Compile-time checked**: If you forget a translation for a locale, GHC will warn you about a non-exhaustive pattern match.
+- **No external files**: Translations live in a single Haskell module, so refactoring and searching is easy.
+- **Full Haskell power**: Translations can contain parameters, HTML markup, or any other Haskell expression.
+
+The approach uses URL-prefix-based locale detection (e.g. `/en/posts` for English, `/posts` for the default language) and stores the current locale in the WAI request vault so it's available everywhere.
+
+## Defining Locales
+
+Create a module `Application/Localization.hs` and define a `Locale` type with one constructor per supported language:
+
+```haskell
+-- Application/Localization.hs
+module Application.Localization where
+
+import IHP.Prelude
+
+data Locale
+    = DE -- ^ German (default)
+    | EN -- ^ English
+    deriving (Eq, Show)
+
+defaultLocale :: Locale
+defaultLocale = DE
+```
+
+## Storing the Current Locale in the Request Vault
+
+To make the current locale available in controllers and views, store it in the WAI request vault using a global key:
+
+```haskell
+-- Application/Localization.hs (continued)
+
+import qualified Data.Vault.Lazy as Vault
+import System.IO.Unsafe (unsafePerformIO)
+import Network.Wai
+
+localeVaultKey :: Vault.Key Locale
+localeVaultKey = unsafePerformIO Vault.newKey
+{-# NOINLINE localeVaultKey #-}
+
+currentLocale :: (?request :: Request) => Locale
+currentLocale =
+    Vault.lookup localeVaultKey request.vault
+    |> fromMaybe defaultLocale
+```
+
+The `localeVaultKey` uses `unsafePerformIO` to create a single global vault key at startup. The `{-# NOINLINE #-}` pragma ensures it's only created once.
+
+`currentLocale` can be called from any controller or view since `?request` is always in scope there.
+
+## Locale Middleware
+
+Create a WAI middleware that reads the locale from the URL path and stores it in the request vault:
+
+```haskell
+-- Application/Localization.hs (continued)
+
+localeMiddleware :: Middleware
+localeMiddleware app request respond =
+    let
+        locale = localeFromPathInfo request.pathInfo
+        vault' = Vault.insert localeVaultKey locale request.vault
+        request' = request { vault = vault' }
+    in
+        app request' respond
+
+localeFromPathInfo :: [Text] -> Locale
+localeFromPathInfo ("en":_) = EN
+localeFromPathInfo _        = DE
+```
+
+This middleware inspects the first URL path segment. If it's `"en"`, the locale is set to `EN`; otherwise it defaults to `DE`.
+
+### Wiring Up the Middleware
+
+Register the middleware in `Config/Config.hs`:
+
+```haskell
+-- Config/Config.hs
+module Config where
+
+import IHP.Prelude
+import IHP.FrameworkConfig
+import Application.Localization (localeMiddleware)
+
+config :: ConfigBuilder
+config = do
+    option (CustomMiddleware localeMiddleware)
+    -- ... other options
+```
+
+## Localized Routing
+
+The locale middleware handles detecting the locale, but the IHP router also needs to accept the `/en` prefix. Override the `router` method in your `FrontController` instance to optionally consume the prefix:
+
+```haskell
+-- Web/FrontController.hs
+module Web.FrontController where
+
+import IHP.RouterPrelude
+import Data.Attoparsec.ByteString.Char8 (string)
+import Control.Applicative (optional)
+
+instance FrontController WebApplication where
+    controllers =
+        [ startPage WelcomeAction
+        , parseRoute @PostsController
+        -- ...
+        ]
+
+    router additionalControllers = do
+        -- Optionally consume the "/en" prefix before normal routing
+        optional do
+            string "/"
+            string "en"
+
+        defaultRouter additionalControllers
+```
+
+With this in place, both `/posts` and `/en/posts` route to the same controller. The middleware has already stored the correct locale before routing runs.
+
+## Defining Translations
+
+Define a `Localizable` sum type with one constructor per translatable string. Then write translation functions using pattern matching:
+
+```haskell
+-- Application/Localization.hs (continued)
+
+import IHP.ViewPrelude
+
+data Localizable
+    = LWelcome
+    | LSearch
+    | LLogin
+    | LLogout
+    | LPrevious
+    | LNext
+    | LReadMore
+    | LSwitchLanguage
+```
+
+### Plain Text Translations
+
+`l10nText` returns a `Text` value, useful for attributes, form labels, and non-HTML contexts:
+
+```haskell
+l10nText :: (?request :: Request) => Localizable -> Text
+l10nText l = l10nText' l currentLocale
+
+l10nText' :: Localizable -> Locale -> Text
+l10nText' LWelcome       DE = "Willkommen"
+l10nText' LWelcome       EN = "Welcome"
+l10nText' LSearch        DE = "Suchen"
+l10nText' LSearch        EN = "Search"
+l10nText' LLogin         DE = "Anmelden"
+l10nText' LLogin         EN = "Login"
+l10nText' LLogout        DE = "Abmelden"
+l10nText' LLogout        EN = "Logout"
+l10nText' LPrevious      DE = "Zurück"
+l10nText' LPrevious      EN = "Previous"
+l10nText' LNext          DE = "Weiter"
+l10nText' LNext          EN = "Next"
+l10nText' LReadMore      DE = "Weiterlesen"
+l10nText' LReadMore      EN = "Read More"
+l10nText' LSwitchLanguage DE = "Switch to English"
+l10nText' LSwitchLanguage EN = "Zu Deutsch wechseln"
+```
+
+### HTML Translations
+
+Some translations need HTML markup. `l10n` returns `Html` and falls back to `l10nText` for simple strings:
+
+```haskell
+l10n :: (?request :: Request) => Localizable -> Html
+l10n l = l10n' l currentLocale
+
+l10n' :: Localizable -> Locale -> Html
+l10n' LWelcome DE = [hsx|<span>Willkommen</span> auf unserer Seite|]
+l10n' LWelcome EN = [hsx|<span>Welcome</span> to our site|]
+-- Fall back to l10nText for all other cases
+l10n' other locale = [hsx|{l10nText' other locale}|]
+```
+
+If you add `-Wincomplete-patterns` to your GHC options (it's on by default in GHC2021), the compiler will warn you whenever you add a new `Localizable` constructor but forget to add translations for it.
+
+## Using Translations in Views
+
+### In HSX Templates
+
+Use `l10n` for HTML content and `l10nText` for attributes or plain text:
+
+```haskell
+renderPost :: Post -> Html
+renderPost post = [hsx|
+    <article>
+        <h2>{post.title}</h2>
+        <p>{post.body}</p>
+        <a href={pathTo ShowPostAction { postId = post.id }}>
+            {l10n LReadMore}
+        </a>
+    </article>
+|]
+```
+
+### In Form Labels
+
+```haskell
+renderForm :: Post -> Html
+renderForm post = formFor post [hsx|
+    {textField #title |> fieldLabel (l10nText LTitle)}
+    {submitButton { label = l10nText LSubmit }}
+|]
+```
+
+## Translations with Parameters
+
+Use constructors with fields for dynamic content:
+
+```haskell
+data Localizable
+    = ...
+    | LFoundResults { count :: Int, query :: Text }
+    | LGreeting Text
+
+l10nText' LFoundResults { count, query } DE =
+    show count <> " Ergebnisse für \"" <> query <> "\""
+l10nText' LFoundResults { count, query } EN =
+    show count <> " results for \"" <> query <> "\""
+
+l10nText' (LGreeting name) DE = "Hallo, " <> name <> "!"
+l10nText' (LGreeting name) EN = "Hello, " <> name <> "!"
+```
+
+Usage:
+
+```haskell
+renderSearchResults :: Int -> Text -> Html
+renderSearchResults count query = [hsx|
+    <h1>{l10n (LFoundResults { count, query })}</h1>
+|]
+```
+
+## Localized Path Helpers
+
+Standard IHP `pathTo` links don't include the locale prefix. Create localized variants:
+
+```haskell
+-- Application/Localization.hs (continued)
+
+import IHP.ControllerPrelude
+
+localizedPath :: (?request :: Request) => Text -> Text
+localizedPath path = case currentLocale of
+    DE -> path
+    EN -> "/en" <> path
+
+localizedPathTo :: (HasPath controller, ?request :: Request) => controller -> Text
+localizedPathTo action = case currentLocale of
+    DE -> pathTo action
+    EN -> "/en" <> pathTo action
+
+localizedRedirectTo :: (HasPath action, ?context :: ControllerContext, ?request :: Request) => action -> IO ()
+localizedRedirectTo action = redirectToPath (localizedPathTo action)
+```
+
+Use these instead of `pathTo` whenever you need locale-aware URLs:
+
+```haskell
+renderNav :: Html
+renderNav = [hsx|
+    <nav>
+        <a href={localizedPathTo PostsAction}>Posts</a>
+        <a href={localizedPathTo AboutAction}>About</a>
+    </nav>
+|]
+```
+
+## Language Switcher
+
+Build a toggle link that switches between locales by adding or removing the `/en` prefix from the current URL:
+
+```haskell
+renderLanguageSwitcher :: Html
+renderLanguageSwitcher = [hsx|
+    <a href={switchedUrl}>{l10n LSwitchLanguage}</a>
+|]
+    where
+        currentPath = request.rawPathInfo |> cs @_ @Text
+
+        switchedUrl :: Text
+        switchedUrl = case currentLocale of
+            -- Currently German, link to English version
+            DE -> "/en" <> currentPath
+            -- Currently English, strip the /en prefix
+            EN -> fromMaybe currentPath (Text.stripPrefix "/en" currentPath)
+```
+
+## HTML Lang Attribute
+
+Set the `<html lang="...">` attribute based on the current locale:
+
+```haskell
+-- Application/Localization.hs
+htmlLang :: (?request :: Request) => Text
+htmlLang = case currentLocale of
+    DE -> "de"
+    EN -> "en"
+```
+
+Use it in your layout:
+
+```haskell
+-- Web/View/Layout.hs
+import Application.Localization
+
+defaultLayout :: Html -> Html
+defaultLayout inner = [hsx|
+<!DOCTYPE html>
+<html lang={htmlLang}>
+    <head>
+        <title>My App</title>
+    </head>
+    <body>
+        {inner}
+    </body>
+</html>
+|]
+```
+
+## Adding a New Language
+
+To add a third language (e.g. French):
+
+1. **Add a constructor** to `Locale`:
+   ```haskell
+   data Locale = DE | EN | FR
+   ```
+
+2. **Update `localeFromPathInfo`** to detect the new prefix:
+   ```haskell
+   localeFromPathInfo ("en":_) = EN
+   localeFromPathInfo ("fr":_) = FR
+   localeFromPathInfo _        = DE
+   ```
+
+3. **Update the router** in `Web/FrontController.hs`:
+   ```haskell
+   optional do
+       string "/"
+       string "en" <|> string "fr"
+   ```
+
+4. **Add translations** for every `Localizable` constructor. GHC's incomplete pattern warnings will guide you — the compiler will tell you exactly which translations are missing.
+
+5. **Update `localizedPath`** and related helpers:
+   ```haskell
+   localizedPath path = case currentLocale of
+       DE -> path
+       EN -> "/en" <> path
+       FR -> "/fr" <> path
+   ```
+
+6. **Update `htmlLang`** and the language switcher.
+
+## Complete Module
+
+Here's the minimal complete `Application/Localization.hs` for a German/English app:
+
+```haskell
+module Application.Localization
+    ( Locale(..)
+    , Localizable(..)
+    , defaultLocale
+    , currentLocale
+    , l10n
+    , l10nText
+    , htmlLang
+    , localizedPath
+    , localizedPathTo
+    , localizedRedirectTo
+    , localeMiddleware
+    ) where
+
+import IHP.ViewPrelude
+import IHP.ControllerPrelude
+import qualified Data.Vault.Lazy as Vault
+import System.IO.Unsafe (unsafePerformIO)
+import Network.Wai
+
+-- Locales
+
+data Locale = DE | EN
+    deriving (Eq, Show)
+
+defaultLocale :: Locale
+defaultLocale = DE
+
+-- Vault key for storing locale in WAI request
+
+localeVaultKey :: Vault.Key Locale
+localeVaultKey = unsafePerformIO Vault.newKey
+{-# NOINLINE localeVaultKey #-}
+
+currentLocale :: (?request :: Request) => Locale
+currentLocale =
+    Vault.lookup localeVaultKey request.vault
+    |> fromMaybe defaultLocale
+
+-- Middleware
+
+localeMiddleware :: Middleware
+localeMiddleware app request respond =
+    let
+        locale = localeFromPathInfo request.pathInfo
+        vault' = Vault.insert localeVaultKey locale request.vault
+        request' = request { vault = vault' }
+    in
+        app request' respond
+
+localeFromPathInfo :: [Text] -> Locale
+localeFromPathInfo ("en":_) = EN
+localeFromPathInfo _        = DE
+
+-- Translations
+
+data Localizable
+    = LWelcome
+    | LSearch
+    | LLogin
+    | LLogout
+
+l10nText :: (?request :: Request) => Localizable -> Text
+l10nText l = l10nText' l currentLocale
+
+l10n :: (?request :: Request) => Localizable -> Html
+l10n l = l10n' l currentLocale
+
+l10n' :: Localizable -> Locale -> Html
+l10n' other locale = [hsx|{l10nText' other locale}|]
+
+l10nText' :: Localizable -> Locale -> Text
+l10nText' LWelcome DE = "Willkommen"
+l10nText' LWelcome EN = "Welcome"
+l10nText' LSearch  DE = "Suchen"
+l10nText' LSearch  EN = "Search"
+l10nText' LLogin   DE = "Anmelden"
+l10nText' LLogin   EN = "Login"
+l10nText' LLogout  DE = "Abmelden"
+l10nText' LLogout  EN = "Logout"
+
+-- HTML lang attribute
+
+htmlLang :: (?request :: Request) => Text
+htmlLang = case currentLocale of
+    DE -> "de"
+    EN -> "en"
+
+-- Localized path helpers
+
+localizedPath :: (?request :: Request) => Text -> Text
+localizedPath path = case currentLocale of
+    DE -> path
+    EN -> "/en" <> path
+
+localizedPathTo :: (HasPath controller, ?request :: Request) => controller -> Text
+localizedPathTo action = case currentLocale of
+    DE -> pathTo action
+    EN -> "/en" <> pathTo action
+
+localizedRedirectTo :: (HasPath action, ?context :: ControllerContext, ?request :: Request) => action -> IO ()
+localizedRedirectTo action = redirectToPath (localizedPathTo action)
+```
