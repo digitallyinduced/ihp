@@ -74,7 +74,7 @@ ihpFlake:
                         and auto-starts a Hoogle server on port 8002.
                     '';
                     type = lib.types.bool;
-                    default = false;
+                    default = true;
                 };
 
                 dontCheckPackages = lib.mkOption {
@@ -306,6 +306,43 @@ ihpFlake:
 
                                 # shellcheck disable=SC2046
                                 runghc $(make -f ${hsDataDir ghcCompiler.ihp-ide.data}/lib/IHP/Makefile.dist print-ghc-extensions) -i. -ibuild -iConfig Test/Main.hs
+                                touch $out
+                            '';
+                        };
+                } else {})
+            // (if builtins.pathExists "${cfg.projectPath}/Test/Integration.hs"
+                then {
+                    "integration-tests" = pkgs.stdenv.mkDerivation {
+                            name = "${config.ihp.appName}-integration-tests";
+                            src = builtins.path { path = config.ihp.projectPath; name = "source"; };
+                            nativeBuildInputs = with pkgs; [
+                                (ghcCompiler.ghcWithPackages (p: cfg.haskellPackages p ++ [p.ihp-ide p.ihp-schema-compiler]))
+                                gnumake
+                                postgresql
+                            ];
+                            buildPhase = ''
+                                export IHP_LIB=${hsDataDir ghcCompiler.ihp-ide.data}
+
+                                # Start temporary PostgreSQL
+                                export PGDATA="$TMPDIR/pgdata"
+                                export PGHOST="$TMPDIR/pghost"
+                                mkdir -p "$PGHOST"
+                                initdb -D "$PGDATA" --no-locale --encoding=UTF8
+                                echo "unix_socket_directories = '$PGHOST'" >> "$PGDATA/postgresql.conf"
+                                echo "listen_addresses = '''" >> "$PGDATA/postgresql.conf"
+                                pg_ctl -D "$PGDATA" -l "$TMPDIR/pg.log" start
+
+                                createdb -h "$PGHOST" app
+                                export DATABASE_URL="postgresql:///app?host=$PGHOST"
+
+                                # Generate types and run integration tests
+                                make -f $IHP_LIB/lib/IHP/Makefile.dist build/Generated/Types.hs
+
+                                # shellcheck disable=SC2046
+                                runghc $(make -f $IHP_LIB/lib/IHP/Makefile.dist print-ghc-extensions) -i. -ibuild -iConfig Test/Integration.hs
+
+                                # Cleanup
+                                pg_ctl -D "$PGDATA" stop || true
                                 touch $out
                             '';
                         };

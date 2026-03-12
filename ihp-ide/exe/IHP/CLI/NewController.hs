@@ -30,15 +30,14 @@ ensureIsInAppDirectory = do
     
 generateController :: Text -> IO ()
 generateController appAndControllerName = do
-    let paginationEnabled = False
     case Text.splitOn "." appAndControllerName of
         [controllerName] -> do
-            planOrError <- buildPlan controllerName "Web" paginationEnabled
+            planOrError <- buildPlan controllerName defaultControllerConfig
             case planOrError of
                 Left error -> putStrLn error
                 Right plan -> executePlan plan
         [applicationName, controllerName] -> do
-            planOrError <- buildPlan controllerName applicationName paginationEnabled
+            planOrError <- buildPlan controllerName defaultControllerConfig { applicationName }
             case planOrError of
                 Left error -> putStrLn error
                 Right plan -> executePlan plan
