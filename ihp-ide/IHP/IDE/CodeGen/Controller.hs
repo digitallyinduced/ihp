@@ -34,12 +34,30 @@ instance Controller CodeGenController where
         let controllerName = paramOrDefault "" "name"
         let applicationName = paramOrDefault "Web" "applicationName"
         let pagination = paramOrDefault False "pagination"
+        let indexAction = paramOrDefault True "indexAction"
+        let newAction = paramOrDefault True "newAction"
+        let showAction = paramOrDefault True "showAction"
+        let createAction = paramOrDefault True "createAction"
+        let editAction = paramOrDefault True "editAction"
+        let updateAction = paramOrDefault True "updateAction"
+        let deleteAction = paramOrDefault True "deleteAction"
         controllerAlreadyExists <- doesControllerExist controllerName applicationName
         applications <- findApplications
         when controllerAlreadyExists do
             setErrorMessage "Controller with this name does already exist."
             redirectTo NewControllerAction
-        plan <- ControllerGenerator.buildPlan controllerName applicationName pagination
+        let config = ControllerGenerator.defaultControllerConfig
+                { ControllerGenerator.applicationName = applicationName
+                , ControllerGenerator.paginationEnabled = pagination
+                , ControllerGenerator.indexActionEnabled = indexAction
+                , ControllerGenerator.newActionEnabled = newAction
+                , ControllerGenerator.showActionEnabled = showAction
+                , ControllerGenerator.createActionEnabled = createAction
+                , ControllerGenerator.editActionEnabled = editAction
+                , ControllerGenerator.updateActionEnabled = updateAction
+                , ControllerGenerator.deleteActionEnabled = deleteAction
+                }
+        plan <- ControllerGenerator.buildPlan controllerName config
         render NewControllerView { .. }
         where
             doesControllerExist controllerName applicationName = Directory.doesFileExist $ textToOsPath $ applicationName <> "/Controller/" <> controllerName <> ".hs"
@@ -48,7 +66,25 @@ instance Controller CodeGenController where
         let controllerName = param "name"
         let applicationName = param "applicationName"
         let pagination = paramOrDefault False "pagination"
-        (Right plan) <- ControllerGenerator.buildPlan controllerName applicationName pagination
+        let indexAction = paramOrDefault True "indexAction"
+        let newAction = paramOrDefault True "newAction"
+        let showAction = paramOrDefault True "showAction"
+        let createAction = paramOrDefault True "createAction"
+        let editAction = paramOrDefault True "editAction"
+        let updateAction = paramOrDefault True "updateAction"
+        let deleteAction = paramOrDefault True "deleteAction"
+        let config = ControllerGenerator.defaultControllerConfig
+                { ControllerGenerator.applicationName = applicationName
+                , ControllerGenerator.paginationEnabled = pagination
+                , ControllerGenerator.indexActionEnabled = indexAction
+                , ControllerGenerator.newActionEnabled = newAction
+                , ControllerGenerator.showActionEnabled = showAction
+                , ControllerGenerator.createActionEnabled = createAction
+                , ControllerGenerator.editActionEnabled = editAction
+                , ControllerGenerator.updateActionEnabled = updateAction
+                , ControllerGenerator.deleteActionEnabled = deleteAction
+                }
+        (Right plan) <- ControllerGenerator.buildPlan controllerName config
         executePlan plan
         setSuccessMessage "Controller generated"
         redirectTo GeneratorsAction
