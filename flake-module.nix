@@ -401,10 +401,10 @@ ihpFlake:
 
                 env.IHP_RELATION_SUPPORT = if cfg.relationSupport then "1" else "0";
 
-                # Set env var so IDE knows Hoogle port (only when withHoogle is enabled)
-                env.IHP_HOOGLE_PORT = lib.mkIf cfg.withHoogle "8002";
+                # Set env var so IDE knows Hoogle port (empty when disabled)
+                env.IHP_HOOGLE_PORT = if cfg.withHoogle then "8002" else "";
 
-                # Auto-start Hoogle search server
+                # Auto-start Hoogle search server when withHoogle is enabled
                 processes.hoogle = lib.mkIf cfg.withHoogle {
                     exec = "hoogle server --local -p 8002";
                 };
