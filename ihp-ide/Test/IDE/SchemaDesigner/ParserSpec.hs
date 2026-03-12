@@ -664,6 +664,7 @@ tests = do
                     , orReplace = True
                     , returns = PTrigger
                     , language = "plpgsql"
+                    , securityDefiner = False
                     }
 
         it "should parse a CREATE FUNCTION ..() RETURNS TRIGGER .." do
@@ -674,6 +675,7 @@ tests = do
                     , orReplace = False
                     , returns = PTrigger
                     , language = "plpgsql"
+                    , securityDefiner = False
                     }
 
         it "should parse a CREATE FUNCTION with parameters ..() RETURNS TRIGGER .." do
@@ -684,6 +686,7 @@ tests = do
                     , orReplace = False
                     , returns = PTrigger
                     , language = "plpgsql"
+                    , securityDefiner = False
                     }
 
         it "should parse CREATE FUNCTION statements that are outputted by pg_dump" do
@@ -702,6 +705,7 @@ $$;
                     , orReplace = False
                     , returns = PTrigger
                     , language = "plpgsql"
+                    , securityDefiner = False
                     }
 
         it "should parse CREATE FUNCTION statements that returns an event_trigger" do
@@ -717,6 +721,18 @@ $$;
                     , orReplace = False
                     , returns = PEventTrigger
                     , language = "plpgsql"
+                    , securityDefiner = False
+                    }
+
+        it "should parse a CREATE FUNCTION with SECURITY DEFINER" do
+            parseSql "CREATE FUNCTION my_func() RETURNS TRIGGER LANGUAGE plpgsql SECURITY DEFINER AS $$ BEGIN RETURN NEW; END; $$ ;" `shouldBe` CreateFunction
+                    { functionName = "my_func"
+                    , functionArguments = []
+                    , functionBody = " BEGIN RETURN NEW; END; "
+                    , orReplace = False
+                    , returns = PTrigger
+                    , language = "plpgsql"
+                    , securityDefiner = True
                     }
 
         it "should parse a decimal default value with a type-cast" do

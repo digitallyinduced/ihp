@@ -920,4 +920,30 @@ console.log(articles);
 
 ### Advanced Policies
 
-TODO
+#### SECURITY DEFINER Functions
+
+When you use Row Level Security with IHP DataSync, queries run as the `ihp_authenticated` role. This role only has limited permissions, so if your RLS policy calls a function that accesses other tables, the policy check may fail with a permission error.
+
+To fix this, mark the function as `SECURITY DEFINER`. A `SECURITY DEFINER` function runs with the permissions of the user who created it (typically the table owner) rather than the calling user. This allows the function to access tables that `ihp_authenticated` cannot.
+
+A common example is a policy that checks whether a user is an admin:
+
+```sql
+CREATE FUNCTION is_admin() RETURNS BOOLEAN SECURITY DEFINER AS $$
+    SELECT EXISTS (SELECT 1 FROM admins WHERE user_id = ihp_user_id())
+$$ language sql;
+
+CREATE POLICY "Admins can manage all projects" ON projects USING (is_admin());
+```
+
+Without `SECURITY DEFINER`, the `is_admin()` function would fail because `ihp_authenticated` doesn't have direct access to the `admins` table.
+
+You can add `SECURITY DEFINER` to a function in the Schema Designer by editing the function's SQL directly, or by writing it in a migration:
+
+```sql
+CREATE OR REPLACE FUNCTION is_admin() RETURNS BOOLEAN SECURITY DEFINER AS $$
+    SELECT EXISTS (SELECT 1 FROM admins WHERE user_id = ihp_user_id())
+$$ language sql;
+```
+
+**Note:** Use `SECURITY DEFINER` only when needed, as it elevates privileges. Keep the function body minimal and ensure it cannot be exploited to bypass intended access controls.

@@ -622,6 +622,7 @@ tests = do
                     , orReplace = True
                     , returns = PTrigger
                     , language = "plpgsql"
+                    , securityDefiner = False
                     }
 
             compileSql [statement] `shouldBe` sql
@@ -635,6 +636,7 @@ tests = do
                     , orReplace = True
                     , returns = PEventTrigger
                     , language = "plpgsql"
+                    , securityDefiner = False
                     }
 
             compileSql [statement] `shouldBe` sql
@@ -648,6 +650,7 @@ tests = do
                     , orReplace = False
                     , returns = PTrigger
                     , language = "plpgsql"
+                    , securityDefiner = False
                     }
 
             compileSql [statement] `shouldBe` sql
@@ -661,10 +664,25 @@ tests = do
                     , orReplace = False
                     , returns = PTrigger
                     , language = "plpgsql"
+                    , securityDefiner = False
                     }
 
             compileSql [statement] `shouldBe` sql
 
+
+        it "should compile a CREATE FUNCTION with SECURITY DEFINER" do
+            let sql = cs [plain|CREATE FUNCTION my_func() RETURNS TRIGGER SECURITY DEFINER AS $$ BEGIN RETURN NEW; END; $$ language plpgsql;\n|]
+            let statement = CreateFunction
+                    { functionName = "my_func"
+                    , functionArguments = []
+                    , functionBody = " BEGIN RETURN NEW; END; "
+                    , orReplace = False
+                    , returns = PTrigger
+                    , language = "plpgsql"
+                    , securityDefiner = True
+                    }
+
+            compileSql [statement] `shouldBe` sql
 
         it "should compile a CREATE TRIGGER .." do
             let sql = cs [plain|CREATE TRIGGER t AFTER INSERT ON x FOR EACH ROW EXECUTE PROCEDURE y();\n|]

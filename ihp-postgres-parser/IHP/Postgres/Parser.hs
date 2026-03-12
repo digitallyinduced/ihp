@@ -642,6 +642,10 @@ createFunction = do
         lexeme "language" <|> lexeme "LANGUAGE"
         symbol' "plpgsql" <|> symbol' "SQL"
 
+    securityDefiner <- isJust <$> optional do
+        lexeme "SECURITY"
+        lexeme "DEFINER"
+
     lexeme "AS"
     space
     functionBody <- cs <$> between (char '$' >> char '$') (char '$' >> char '$') (many (anySingleBut '$'))
@@ -653,7 +657,7 @@ createFunction = do
             lexeme "language" <|> lexeme "LANGUAGE"
             symbol' "plpgsql" <|> symbol' "SQL"
     char ';'
-    pure CreateFunction { functionName, functionArguments, functionBody, orReplace, returns, language }
+    pure CreateFunction { functionName, functionArguments, functionBody, orReplace, returns, language, securityDefiner }
     where
         functionArgument = do
             argumentName <- qualifiedIdentifier
