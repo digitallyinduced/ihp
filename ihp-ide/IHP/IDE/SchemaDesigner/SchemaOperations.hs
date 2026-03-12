@@ -33,6 +33,7 @@ addTable tableName uuidFunction list = list <> [StatementCreateTable CreateTable
     , primaryKeyConstraint = PrimaryKeyConstraint ["id"]
     , constraints = []
     , unlogged = False
+    , inherits = Nothing
     }]
 
 
@@ -496,7 +497,7 @@ addUpdatedAtTrigger tableName schema =
         trigger = CreateTrigger
             { name = updatedAtTriggerName tableName
             , eventWhen = Before
-            , event = TriggerOnUpdate
+            , event = [TriggerOnUpdate]
             , tableName
             , for = ForEachRow
             , whenCondition = Nothing
@@ -531,6 +532,7 @@ addUpdatedAtTrigger tableName schema =
                 , orReplace = False
                 , returns = PTrigger
                 , language = "plpgsql"
+                , securityDefiner = False
                 }
 
 deleteTriggerIfExists :: Text -> [Statement] -> [Statement]

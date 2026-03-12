@@ -47,6 +47,9 @@ tests = do
             let placeData = PlaceId "Punches Cross"
             [hsx|<h1>{(\(PlaceId x) -> x)(placeData)}</h1>|] `shouldBeSameHtml` "<h1>Punches Cross</h1>"
 
+        it "should support wildcard patterns in lambdas" do
+            [hsx|<h1>{(\(_, x) -> x) ("a" :: Text, "b" :: Text)}</h1>|] `shouldBeSameHtml` "<h1>b</h1>"
+
         it "should support infix notation for standard constructors e.g. (:):" do
             [hsx| <h1>{show $ (:) 1  [2,3,42]}</h1> |] `shouldBeSameHtml` "<h1>[1,2,3,42]</h1>"
 

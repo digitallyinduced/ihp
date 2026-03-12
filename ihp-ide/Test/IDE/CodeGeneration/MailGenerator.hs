@@ -9,7 +9,7 @@ import IHP.Prelude
 import qualified IHP.IDE.CodeGen.MailGenerator as MailGenerator
 import IHP.IDE.CodeGen.Types
 import IHP.Postgres.Types
-import Test.IDE.SchemaDesigner.ParserSpec (col, table)
+
 
 
 tests = do

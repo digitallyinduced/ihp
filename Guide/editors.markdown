@@ -281,48 +281,23 @@ Next time you use the dev server via `devenv up` all links will use the right `I
 
 ### Hoogle
 
-To quickly look up function type signatures you can use the built-in hoogle server.
+To quickly look up function type signatures you can use the built-in Hoogle support.
 
-To install it:
-
-1. Open `flake.nix`
-2. Add `withHoogle = true;` to the `ihp` project block, inside `perSystem` function invocation like this:
+To enable it, add `withHoogle = true;` to your `flake.nix`:
 
 ```nix
-...
-outputs = inputs@{ ihp, flake-parts, systems, ... }:
-    flake-parts.lib.mkFlake { inherit inputs; } {
-
-        systems = import systems;
-        imports = [ ihp.flakeModules.default ];
-
-        perSystem = { pkgs, ... }: {
-            ihp = {
-                enable = true;
-                projectPath = ./.;
-                packages = with pkgs; [
-                    # Native dependencies, e.g. imagemagick
-                ];
-                haskellPackages = p: with p; [
-                    # Haskell dependencies go here
-                    p.ihp
-                    cabal-install
-                    base
-                    wai
-                    text
-                    hlint
-                ];
-                withHoogle = true; # <-------
-            };
-        };
-
+perSystem = { pkgs, ... }: {
+    ihp = {
+        enable = true;
+        projectPath = ./.;
+        withHoogle = true;
     };
+};
 ```
 
-Run `devenv up` to remake your dev environment.
+Run `devenv up` to remake your dev environment. A Hoogle server will automatically start on port 8002. You can access it via:
 
-After that you can use the following command to start hoogle at `localhost:8080`:
+- The **HOOGLE** link in the IHP IDE sidebar
+- Directly at `http://localhost:8002`
 
-```bash
-hoogle server --local -p 8080
-```
+Note: Enabling Hoogle adds time to the initial `nix develop` (for Hoogle database generation). Set `withHoogle = false;` to disable it again.

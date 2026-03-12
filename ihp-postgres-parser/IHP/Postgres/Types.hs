@@ -36,7 +36,7 @@ data Statement
     -- | DROP INDEX indexName;
     | DropIndex { indexName :: Text }
     -- | CREATE OR REPLACE FUNCTION functionName(param1 TEXT, param2 INT) RETURNS TRIGGER AS $$functionBody$$ language plpgsql;
-    | CreateFunction { functionName :: Text, functionArguments :: [(Text, PostgresType)], functionBody :: Text, orReplace :: Bool, returns :: PostgresType, language :: Text }
+    | CreateFunction { functionName :: Text, functionArguments :: [(Text, PostgresType)], functionBody :: Text, orReplace :: Bool, returns :: PostgresType, language :: Text, securityDefiner :: Bool }
     -- | ALTER TABLE tableName ENABLE ROW LEVEL SECURITY;
     | EnableRowLevelSecurity { tableName :: Text }
     -- CREATE POLICY name ON tableName USING using WITH CHECK check;
@@ -64,7 +64,7 @@ data Statement
     -- ALTER TABLE tableName ALTER COLUMN columnName DROP DEFAULT;
     | DropDefaultValue { tableName :: Text, columnName :: Text }
     -- | CREATE TRIGGER ..;
-    | CreateTrigger { name :: !Text, eventWhen :: !TriggerEventWhen, event :: !TriggerEvent, tableName :: !Text, for :: !TriggerFor, whenCondition :: Maybe Expression, functionName :: !Text, arguments :: ![Expression] }
+    | CreateTrigger { name :: !Text, eventWhen :: !TriggerEventWhen, event :: ![TriggerEvent], tableName :: !Text, for :: !TriggerFor, whenCondition :: Maybe Expression, functionName :: !Text, arguments :: ![Expression] }
     -- | CREATE EVENT TRIGGER ..;
     | CreateEventTrigger { name :: !Text, eventOn :: !Text, whenCondition :: Maybe Expression, functionName :: !Text, arguments :: ![Expression] }
     -- | DROP TRIGGER .. ON ..;
@@ -90,6 +90,7 @@ data CreateTable
       , primaryKeyConstraint :: PrimaryKeyConstraint
       , constraints :: [Constraint]
       , unlogged :: !Bool
+      , inherits :: !(Maybe Text)
       }
   deriving (Eq, Show)
 
@@ -272,3 +273,66 @@ data IndexColumn
 data IndexColumnOrder
     = Asc | Desc | NullsFirst | NullsLast
     deriving (Eq, Show)
+
+-- | Helper to create a 'CreateTable' with sensible defaults (empty columns, no constraints, logged).
+table :: Text -> CreateTable
+table name = CreateTable
+    { name = name
+    , columns = []
+    , primaryKeyConstraint = PrimaryKeyConstraint []
+    , constraints = []
+    , unlogged = False
+    , inherits = Nothing
+    }
+
+-- | Helper to create a 'Column' with sensible defaults (nullable, no default, not unique, no generator).
+col :: Text -> PostgresType -> Column
+col columnName columnType = Column
+    { name = columnName
+    , columnType = columnType
+    , defaultValue = Nothing
+    , notNull = False
+    , isUnique = False
+    , generator = Nothing
+    }
+
+-- | Helper to create a 'CreateFunction' with sensible defaults (no args, empty body, plpgsql trigger).
+function :: Text -> Statement
+function functionName = CreateFunction
+    { functionName = functionName
+    , functionArguments = []
+    , functionBody = ""
+    , orReplace = False
+    , returns = PTrigger
+    , language = "plpgsql"
+    , securityDefiner = False
+    }
+
+-- | Helper to create an 'IndexColumn' with no column ordering.
+indexCol :: Expression -> IndexColumn
+indexCol column = IndexColumn { column = column, columnOrder = [] }
+
+-- | Helper to create a 'CreatePolicy' with sensible defaults (no action, no using, no check).
+policy :: Text -> Text -> Statement
+policy name tableName = CreatePolicy
+    { name = name
+    , tableName = tableName
+    , action = Nothing
+    , using = Nothing
+    , check = Nothing
+    }
+
+-- | Helper to create an 'AddConstraint' with a foreign key (no name, no onDelete, no deferrable).
+foreignKey :: Text -> Text -> Text -> Statement
+foreignKey tableName columnName referenceTable = AddConstraint
+    { tableName = tableName
+    , constraint = ForeignKeyConstraint
+        { name = Nothing
+        , columnName = columnName
+        , referenceTable = referenceTable
+        , referenceColumn = Nothing
+        , onDelete = Nothing
+        }
+    , deferrable = Nothing
+    , deferrableType = Nothing
+    }

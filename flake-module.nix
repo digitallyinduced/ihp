@@ -70,7 +70,8 @@ ihpFlake:
 
                 withHoogle = lib.mkOption {
                     description = ''
-                        Enable Hoogle support. Adds `hoogle` command to PATH.
+                        Enable Hoogle support. Adds `hoogle` command to PATH
+                        and auto-starts a Hoogle server on port 8002.
                     '';
                     type = lib.types.bool;
                     default = false;
@@ -399,6 +400,14 @@ ihpFlake:
                 env.IHP_LIB = config.devenv.shells.default.env.IHP;
 
                 env.IHP_RELATION_SUPPORT = if cfg.relationSupport then "1" else "0";
+
+                # Set env var so IDE knows Hoogle port (empty when disabled)
+                env.IHP_HOOGLE_PORT = if cfg.withHoogle then "8002" else "";
+
+                # Auto-start Hoogle search server when withHoogle is enabled
+                processes.hoogle = lib.mkIf cfg.withHoogle {
+                    exec = "hoogle server --local -p 8002";
+                };
 
                 scripts.deploy-to-nixos.exec = ''
                     if [[ $# -eq 0 || $1 == "--help" ]]; then

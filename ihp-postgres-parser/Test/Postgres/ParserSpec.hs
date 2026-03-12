@@ -18,7 +18,7 @@ spec :: Spec
 spec = do
     describe "The Schema.sql Parser" do
         it "should parse an empty CREATE TABLE statement" do
-            parseSql "CREATE TABLE users ();"  `shouldBe` StatementCreateTable CreateTable { name = "users", columns = [], primaryKeyConstraint = PrimaryKeyConstraint [], constraints = [], unlogged = False }
+            parseSql "CREATE TABLE users ();"  `shouldBe` StatementCreateTable (table "users")
 
         it "should parse an CREATE EXTENSION for the UUID extension" do
             parseSql "CREATE EXTENSION IF NOT EXISTS \"uuid-ossp\";" `shouldBe` CreateExtension { name = "uuid-ossp", ifNotExists = True }
@@ -48,6 +48,7 @@ spec = do
                     , primaryKeyConstraint = PrimaryKeyConstraint ["id"]
                     , constraints = []
                     , unlogged = False
+                    , inherits = Nothing
                     }
 
         it "should parse a CREATE TABLE with quoted identifiers" do
@@ -109,7 +110,7 @@ spec = do
                     { indexName = "users_index"
                     , unique = False
                     , tableName = "users"
-                    , columns = [IndexColumn { column = VarExpression "user_name", columnOrder = [] }]
+                    , columns = [indexCol (VarExpression "user_name")]
                     , whereClause = Nothing
                     , indexType = Nothing
                     }
@@ -119,7 +120,7 @@ spec = do
                     { indexName = "users_index"
                     , unique = True
                     , tableName = "users"
-                    , columns = [IndexColumn { column = VarExpression "user_name", columnOrder = [] }]
+                    , columns = [indexCol (VarExpression "user_name")]
                     , whereClause = Nothing
                     , indexType = Nothing
                     }
@@ -128,11 +129,9 @@ spec = do
             parseSql "ALTER TABLE tasks ENABLE ROW LEVEL SECURITY;" `shouldBe` EnableRowLevelSecurity { tableName = "tasks" }
 
         it "should parse 'CREATE POLICY' statements" do
-            parseSql "CREATE POLICY \"Users can manage their tasks\" ON tasks USING (user_id = ihp_user_id()) WITH CHECK (user_id = ihp_user_id());" `shouldBe` CreatePolicy
-                    { name = "Users can manage their tasks"
-                    , action = Nothing
-                    , tableName = "tasks"
-                    , using = Just (
+            parseSql "CREATE POLICY \"Users can manage their tasks\" ON tasks USING (user_id = ihp_user_id()) WITH CHECK (user_id = ihp_user_id());" `shouldBe`
+                    (policy "Users can manage their tasks" "tasks")
+                    { using = Just (
                         EqExpression
                             (VarExpression "user_id")
                             (CallExpression "ihp_user_id" [])
@@ -160,7 +159,10 @@ spec = do
             parseSql "COMMIT;" `shouldBe` Commit
 
         it "should parse 'CREATE UNLOGGED TABLE' statement" do
-            parseSql "CREATE UNLOGGED TABLE pg_large_notifications ();"  `shouldBe` StatementCreateTable CreateTable { name = "pg_large_notifications", columns = [], primaryKeyConstraint = PrimaryKeyConstraint [], constraints = [], unlogged = True }
+            parseSql "CREATE UNLOGGED TABLE pg_large_notifications ();"  `shouldBe` StatementCreateTable (table "pg_large_notifications") { unlogged = True }
+
+        it "should parse 'CREATE TABLE .. INHERITS (..)' statement" do
+            parseSql "CREATE TABLE post_revisions (revision_content TEXT NOT NULL) INHERITS (posts);"  `shouldBe` StatementCreateTable (table "post_revisions") { columns = [(col "revision_content" PText) { notNull = True }], inherits = Just "posts" }
 
         it "should parse positive IntExpression's" do
             parseExpression "1" `shouldBe` (IntExpression 1)
@@ -173,25 +175,6 @@ spec = do
 
         it "should parse negative DoubleExpression's" do
             parseExpression "-1.337" `shouldBe` (DoubleExpression (-1.337))
-
-col :: Text -> PostgresType -> Column
-col columnName columnType = Column
-    { name = columnName
-    , columnType = columnType
-    , defaultValue = Nothing
-    , notNull = False
-    , isUnique = False
-    , generator = Nothing
-    }
-
-table :: Text -> CreateTable
-table name = CreateTable
-    { name = name
-    , columns = []
-    , primaryKeyConstraint = PrimaryKeyConstraint []
-    , constraints = []
-    , unlogged = False
-    }
 
 parseSql :: Text -> Statement
 parseSql sql = let [statement] = parseSqlStatements sql in statement

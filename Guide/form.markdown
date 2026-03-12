@@ -79,6 +79,39 @@ Rendering [`{textField #title}`](https://ihp.digitallyinduced.com/api-docs/IHP-V
 <input ... value="Hello World" />
 ```
 
+### Date and DateTime Fields
+
+Use [`dateField`](https://ihp.digitallyinduced.com/api-docs/IHP-View-Form.html#v:dateField) for date-only inputs and [`dateTimeField`](https://ihp.digitallyinduced.com/api-docs/IHP-View-Form.html#v:dateTimeField) for date-and-time inputs:
+
+```haskell
+formFor event [hsx|
+    {dateField #date}
+    {dateTimeField #createdAt}
+    {submitButton}
+|]
+```
+
+`dateTimeField` renders an `<input type="datetime-local">` element. The field value is automatically formatted as `YYYY-MM-DDTHH:MM` for the browser's native date-time picker. It only accepts `UTCTime`, `LocalTime`, and their `Maybe` variants — using it on an incompatible field type (e.g. `Bool`) will produce a compile error.
+
+#### Accepted Submission Formats
+
+When the form is submitted, the `ParamReader` for `UTCTime` and `LocalTime` accepts several formats:
+
+- `2020-11-08T12:03:35Z` — ISO 8601 with seconds and timezone
+- `2020-11-08T12:03:35` — Seconds without `Z` (produced when the input has a `step` attribute, e.g. `step="1"`)
+- `2020-11-08T12:03` — Default `datetime-local` format (no seconds)
+- `2020-11-08` — Date only
+
+#### Enabling Seconds Precision
+
+By default, `<input type="datetime-local">` submits without seconds. To include seconds, set the `step` attribute:
+
+```haskell
+{(dateTimeField #createdAt) { additionalAttributes = [("step", "1")] }}
+```
+
+This tells the browser to include seconds in the submitted value (e.g. `2020-11-08T12:03:35`), which is parsed correctly by the `ParamReader`.
+
 ## Validation
 
 When rendering a record that has failed validation, the validation error message will be rendered automatically.

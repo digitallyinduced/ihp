@@ -495,8 +495,9 @@ dataTypeArguments table
 
 -- | Returns the field names and types for the @data MyRecord = MyRecord { .. }@ for a given table
 dataFields :: (?schema :: Schema, ?compilerOptions :: CompilerOptions) => CreateTable -> [(Text, Text)]
-dataFields table@(CreateTable { name, columns }) = columnFields <> queryBuilderFields <> [("meta", "MetaBag")]
+dataFields table@(CreateTable { name }) = columnFields <> queryBuilderFields <> [("meta", "MetaBag")]
     where
+        columns = allColumnsIncludingInherited table
         columnFields = columns |> map columnField
 
         columnField column =
@@ -513,8 +514,9 @@ dataFields table@(CreateTable { name, columns }) = columnFields <> queryBuilderF
             | otherwise = []
 
 fieldBitPositions :: (?schema :: Schema, ?compilerOptions :: CompilerOptions) => CreateTable -> [(Text, Integer)]
-fieldBitPositions table@(CreateTable { columns }) =
-    zip (map (columnNameToFieldName . (.name)) columns) (map bit [0..])
+fieldBitPositions table =
+    let columns = allColumnsIncludingInherited table
+    in zip (map (columnNameToFieldName . (.name)) columns) (map bit [0..])
 
 columnsWithBitIndices :: [Column] -> [Column] -> [(Column, Int)]
 columnsWithBitIndices allColumns subset =
@@ -586,7 +588,7 @@ columnsReferencingTable theTableName =
             _ -> Nothing
 
 variableAttributes :: (?schema :: Schema, ?compilerOptions :: CompilerOptions) => CreateTable -> [Column]
-variableAttributes table@(CreateTable { columns }) = filter (isVariableAttribute table) columns
+variableAttributes table = filter (isVariableAttribute table) (allColumnsIncludingInherited table)
 
 isVariableAttribute :: (?schema :: Schema, ?compilerOptions :: CompilerOptions) => CreateTable -> Column -> Bool
 isVariableAttribute table column
@@ -598,17 +600,43 @@ isVariableAttribute table column
 isRefCol :: (?schema :: Schema) => CreateTable -> Column -> Bool
 isRefCol table column = isJust (findForeignKeyConstraint table column)
 
--- | Returns the foreign key constraint bound on the given column
+-- | Returns the foreign key constraint bound on the given column.
+-- For inherited columns, recursively checks ancestor table constraints.
 findForeignKeyConstraint :: (?schema :: Schema) => CreateTable -> Column -> Maybe Constraint
-findForeignKeyConstraint CreateTable { name } column =
-        case find isFkConstraint statements of
+findForeignKeyConstraint table@CreateTable { name, inherits } column =
+        case find (isFkConstraint name) statements of
             Just (AddConstraint { constraint }) -> Just constraint
-            _ -> Nothing
+            _ -> case inherits >>= findTableByName of
+                Just parentTable -> findForeignKeyConstraint parentTable column
+                Nothing -> Nothing
     where
-        isFkConstraint (AddConstraint { tableName, constraint = ForeignKeyConstraint { columnName }}) = tableName == name && columnName == column.name
-        isFkConstraint _ = False
+        isFkConstraint tableName (AddConstraint { tableName = tName, constraint = ForeignKeyConstraint { columnName }}) = tName == tableName && columnName == column.name
+        isFkConstraint _ _ = False
 
         (Schema statements) = ?schema
+
+-- | Finds a table by name in the schema
+findTableByName :: (?schema :: Schema) => Text -> Maybe CreateTable
+findTableByName tableName =
+    let (Schema statements) = ?schema
+    in statements
+        |> mapMaybe (\case
+            StatementCreateTable table@CreateTable { name } | name == tableName -> Just table
+            _ -> Nothing)
+        |> headMay
+
+-- | Returns all columns including inherited columns from parent tables.
+-- Inherited columns that are not overridden in the child table are appended.
+allColumnsIncludingInherited :: (?schema :: Schema) => CreateTable -> [Column]
+allColumnsIncludingInherited CreateTable { columns, inherits = Nothing } = columns
+allColumnsIncludingInherited CreateTable { columns, inherits = Just parentName } =
+    case findTableByName parentName of
+        Nothing -> columns
+        Just parentTable ->
+            let parentCols = allColumnsIncludingInherited parentTable
+                childNames = map (.name) columns
+                inherited = filter (\pc -> pc.name `notElem` childNames) parentCols
+            in columns <> inherited
 
 compileEnumDataDefinitions :: (?schema :: Schema) => Statement -> Text
 compileEnumDataDefinitions CreateEnumType { values = [] } = "" -- Ignore enums without any values
@@ -696,9 +724,10 @@ hasqlSupportsColumnType = \case
     (PArray inner) -> hasqlSupportsColumnType inner
     _ -> True
 
-compileCreate :: CreateTable -> Text
-compileCreate table@(CreateTable { name, columns }) =
+compileCreate :: (?schema :: Schema) => CreateTable -> Text
+compileCreate table@(CreateTable { name }) =
     let
+        columns = allColumnsIncludingInherited table
         writableColumns = onlyWritableColumns columns
         modelName = qualifiedConstructorNameFromTableName name
         funcName = tableNameToModelName name
@@ -755,9 +784,10 @@ toBinding modelName Column { name } = "let " <> modelName <> "{" <> columnNameTo
 
 onlyWritableColumns columns = columns |> filter (\Column { generator } -> isNothing generator)
 
-compileUpdate :: CreateTable -> Text
-compileUpdate table@(CreateTable { name, columns }) =
+compileUpdate :: (?schema :: Schema) => CreateTable -> Text
+compileUpdate table@(CreateTable { name }) =
     let
+        columns = allColumnsIncludingInherited table
         modelName = qualifiedConstructorNameFromTableName name
         funcName = tableNameToModelName name
 
@@ -785,7 +815,7 @@ compileUpdate table@(CreateTable { name, columns }) =
         <> "        sqlStatementHasql pool model (" <> stmtModule <> ".discardResultStatement touched)\n"
 
 compileFromRowInstance :: (?schema :: Schema, ?compilerOptions :: CompilerOptions) => CreateTable -> Text
-compileFromRowInstance table@(CreateTable { name, columns }) = cs [i|instance FromRow #{modelName} where
+compileFromRowInstance table@(CreateTable { name }) = cs [i|instance FromRow #{modelName} where
     fromRow = do
 #{unsafeInit . indent . indent . unlines $ map columnBinding columnNames}
         let theRecord = #{modelName} #{intercalate " " (map compileField (dataFields table))}
@@ -793,6 +823,7 @@ compileFromRowInstance table@(CreateTable { name, columns }) = cs [i|instance Fr
 |]
     where
         modelName = qualifiedConstructorNameFromTableName name
+        columns = allColumnsIncludingInherited table
         columnNames = map (columnNameToFieldName . (.name)) columns
         columnBinding columnName = columnName <> " <- field"
 
@@ -899,8 +930,9 @@ hasqlArrayElementDecoder :: PostgresType -> Text
 hasqlArrayElementDecoder innerType = "Decoders.nonNullable " <> hasqlValueDecoder innerType
 
 compileBuild :: (?schema :: Schema, ?compilerOptions :: CompilerOptions) => CreateTable -> Text
-compileBuild table@(CreateTable { name, columns }) =
+compileBuild table@(CreateTable { name }) =
     let
+        columns = allColumnsIncludingInherited table
         constructor = qualifiedConstructorNameFromTableName name
         qbDefaults = if ?compilerOptions.compileRelationSupport
             then columnsReferencingTable name |> map (const "def") |> unwords
@@ -981,7 +1013,7 @@ instance QueryBuilder.FilterPrimaryKey "#{name}" where
         primaryKeyFilter Column {name} = "QueryBuilder.filterWhere (#" <> columnNameToFieldName name <> ", " <> columnNameToFieldName name <> ")"
 
 compileTableInstance :: (?schema :: Schema, ?compilerOptions :: CompilerOptions) => CreateTable -> Text
-compileTableInstance table@(CreateTable { name, columns, constraints }) = cs [i|
+compileTableInstance table@(CreateTable { name, constraints }) = cs [i|
 instance #{instanceHead} where
     tableName = \"#{name}\"
     columnNames = #{columnNames}
@@ -994,7 +1026,7 @@ instance #{instanceHead} where
         primaryKeyColumnNames :: [Text]
         primaryKeyColumnNames = primaryKeyColumns table |> map (.name)
 
-        columnNames = columns
+        columnNames = allColumnsIncludingInherited table
                 |> map (.name)
                 |> tshow
 
@@ -1008,8 +1040,9 @@ compileTypePattern :: (?schema :: Schema, ?compilerOptions :: CompilerOptions) =
 compileTypePattern table@(CreateTable { name }) = tableNameToModelName name <> "'" <> spacePrefix (unwords (dataTypeArguments table))
 
 compileInclude :: (?schema :: Schema, ?compilerOptions :: CompilerOptions) => CreateTable -> Text
-compileInclude table@(CreateTable { name, columns }) = (belongsToIncludes <> hasManyIncludes) |> unlines
+compileInclude table@(CreateTable { name }) = (belongsToIncludes <> hasManyIncludes) |> unlines
     where
+        columns = allColumnsIncludingInherited table
         belongsToIncludes = map compileBelongsTo (filter (isRefCol table) columns)
         hasManyIncludes = columnsReferencingTable name
                 |> (\refs -> zip (map fst refs) (map fst (compileQueryBuilderFields refs)))
@@ -1294,8 +1327,9 @@ hasAnyDefaults :: [Column] -> Bool
 hasAnyDefaults = any hasExplicitOrImplicitDefault
 
 compileRowDecoderModule :: (?schema :: Schema, ?compilerOptions :: CompilerOptions) => CreateTable -> Text
-compileRowDecoderModule table@(CreateTable { name, columns }) =
-    let modelName = tableNameToModelName name
+compileRowDecoderModule table@(CreateTable { name }) =
+    let columns = allColumnsIncludingInherited table
+        modelName = tableNameToModelName name
         moduleName = "Generated.Statements.RowDecoder" <> modelName
         qualifiedModelName = qualifiedConstructorNameFromTableName name
         extraImports = Text.unlines
@@ -1334,8 +1368,9 @@ compileRowDecoderModule table@(CreateTable { name, columns }) =
          ])
 
 compileCreateStatement :: (?schema :: Schema, ?compilerOptions :: CompilerOptions) => CreateTable -> Text
-compileCreateStatement table@(CreateTable { name, columns }) =
-    let modelName = tableNameToModelName name
+compileCreateStatement table@(CreateTable { name }) =
+    let columns = allColumnsIncludingInherited table
+        modelName = tableNameToModelName name
         moduleName = "Generated.Statements.Create" <> modelName
         qualifiedModelName = qualifiedConstructorNameFromTableName name
         writableColumns = onlyWritableColumns columns
@@ -1405,8 +1440,9 @@ compileDynamicCreateStatement moduleName qualifiedModelName tableName writableCo
     in dynamicStatementModule moduleName qualifiedModelName sqlBody encoderBody rowDecoderImport
 
 compileUpdateStatement :: (?schema :: Schema, ?compilerOptions :: CompilerOptions) => CreateTable -> Text
-compileUpdateStatement table@(CreateTable { name, columns }) =
-    let modelName = tableNameToModelName name
+compileUpdateStatement table@(CreateTable { name }) =
+    let columns = allColumnsIncludingInherited table
+        modelName = tableNameToModelName name
         qualifiedModelName = qualifiedConstructorNameFromTableName name
         allWritableColumns = onlyWritableColumns columns
         pkColumns = primaryKeyColumns table
@@ -1484,8 +1520,9 @@ statementModuleHeader moduleName exports extraImports =
     <> extraImports
 
 compileFetchByIdStatement :: (?schema :: Schema, ?compilerOptions :: CompilerOptions) => CreateTable -> Text
-compileFetchByIdStatement table@(CreateTable { name, columns }) =
-    let modelName = tableNameToModelName name
+compileFetchByIdStatement table@(CreateTable { name }) =
+    let columns = allColumnsIncludingInherited table
+        modelName = tableNameToModelName name
         moduleName = "Generated.Statements.Fetch" <> modelName
         qualifiedModelName = qualifiedConstructorNameFromTableName name
         pkColumns = primaryKeyColumns table
@@ -1527,8 +1564,9 @@ fetchByIdEncoder table = case primaryKeyColumns table of
         in "mconcat [" <> intercalate ", " encoders <> "]"
 
 compileCreateManyStatement :: (?schema :: Schema, ?compilerOptions :: CompilerOptions) => CreateTable -> Text
-compileCreateManyStatement table@(CreateTable { name, columns }) =
-    let modelName = tableNameToModelName name
+compileCreateManyStatement table@(CreateTable { name }) =
+    let columns = allColumnsIncludingInherited table
+        modelName = tableNameToModelName name
         moduleName = "Generated.Statements.CreateMany" <> modelName
         qualifiedModelName = qualifiedConstructorNameFromTableName name
         writableColumns = onlyWritableColumns columns

@@ -62,6 +62,7 @@ toolServerLayout inner = [hsx|
             {codegen}
             {logs}
             {docu}
+            {hpiHoogle}
 
             {when isBasicEdition getPro}
             {help}
@@ -85,7 +86,12 @@ toolServerLayout inner = [hsx|
         logs = navItem "LOGS" serverIcon (pathTo AppLogsAction) (isActiveController @LogsController)
         lint = navItem "LINT" flagIcon "#" False
         docu = navItem "DOCS" docsIcon "https://ihp.digitallyinduced.com/Guide/" False
-        
+
+        (HoogleUrl hoogleUrl) = lookupRequestVault hoogleUrlVaultKey ?request
+        hpiHoogle = case hoogleUrl of
+            Just url -> navItem "HOOGLE" searchIcon url False
+            Nothing -> mempty
+
         isSchemaEditorController =
                     (  isActiveController @SchemaController
                     || isActiveController @TablesController
