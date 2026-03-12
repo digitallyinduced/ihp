@@ -539,7 +539,7 @@ export async function updateRecord(table, id, patch, options = {}) {
         await waitPendingChanges(table, patch);
         const response = await DataSyncController.getInstance().sendMessage(request);
 
-        return response.record;
+        return { id, ...patch };
     } catch (e) {
         undoUpdateRecordOptimistic();
         throw new Error(e.message);
@@ -563,7 +563,7 @@ export async function updateRecords(table, ids, patch, options = {}) {
     try {
         const response = await DataSyncController.getInstance().sendMessage(request);
 
-        return response.records;
+        return ids.map(id => ({ id, ...patch }));
     } catch (e) {
         throw new Error(e.message);
     }
