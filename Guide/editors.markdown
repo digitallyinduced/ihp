@@ -281,48 +281,25 @@ Next time you use the dev server via `devenv up` all links will use the right `I
 
 ### Hoogle
 
-To quickly look up function type signatures you can use the built-in hoogle server.
+Hoogle is enabled by default in IHP projects, giving you instant type-signature search across all project dependencies.
 
-To install it:
+When you run `devenv up`, a Hoogle server automatically starts on port 8002. You can access it via:
 
-1. Open `flake.nix`
-2. Add `withHoogle = true;` to the `ihp` project block, inside `perSystem` function invocation like this:
+- The **HOOGLE** link in the IHP IDE sidebar
+- Directly at `http://localhost:8002`
+
+#### Disabling Hoogle
+
+If you want faster `nix develop` times and don't need Hoogle, you can opt out by adding `withHoogle = false;` to your `flake.nix`:
 
 ```nix
-...
-outputs = inputs@{ ihp, flake-parts, systems, ... }:
-    flake-parts.lib.mkFlake { inherit inputs; } {
-
-        systems = import systems;
-        imports = [ ihp.flakeModules.default ];
-
-        perSystem = { pkgs, ... }: {
-            ihp = {
-                enable = true;
-                projectPath = ./.;
-                packages = with pkgs; [
-                    # Native dependencies, e.g. imagemagick
-                ];
-                haskellPackages = p: with p; [
-                    # Haskell dependencies go here
-                    p.ihp
-                    cabal-install
-                    base
-                    wai
-                    text
-                    hlint
-                ];
-                withHoogle = true; # <-------
-            };
-        };
-
+perSystem = { pkgs, ... }: {
+    ihp = {
+        enable = true;
+        projectPath = ./.;
+        withHoogle = false; # Disable Hoogle for faster nix develop
     };
+};
 ```
 
-Run `devenv up` to remake your dev environment.
-
-After that you can use the following command to start hoogle at `localhost:8080`:
-
-```bash
-hoogle server --local -p 8080
-```
+After changing this setting, run `devenv up` to remake your dev environment.
