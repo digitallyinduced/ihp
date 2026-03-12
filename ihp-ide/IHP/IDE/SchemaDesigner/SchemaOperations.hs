@@ -497,7 +497,7 @@ addUpdatedAtTrigger tableName schema =
         trigger = CreateTrigger
             { name = updatedAtTriggerName tableName
             , eventWhen = Before
-            , event = TriggerOnUpdate
+            , event = [TriggerOnUpdate]
             , tableName
             , for = ForEachRow
             , whenCondition = Nothing

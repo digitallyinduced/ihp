@@ -997,12 +997,24 @@ COMMENT ON EXTENSION "uuid-ossp" IS 'generate universally unique identifiers (UU
             parseSql "CREATE TRIGGER call_test_function_for_new_users AFTER INSERT ON public.users FOR EACH ROW EXECUTE FUNCTION call_test_function('hello');" `shouldBe` CreateTrigger
                     { name = "call_test_function_for_new_users"
                     , eventWhen = After
-                    , event = TriggerOnInsert
+                    , event = [TriggerOnInsert]
                     , tableName = "users"
                     , for = ForEachRow
                     , whenCondition = Nothing
                     , functionName = "call_test_function"
                     , arguments = [TextExpression "hello"]
+                    }
+
+        it "should parse 'CREATE TRIGGER .. AFTER INSERT OR UPDATE ON ..' statements" do
+            parseSql "CREATE TRIGGER my_trigger AFTER INSERT OR UPDATE ON public.posts FOR EACH ROW EXECUTE FUNCTION my_function();" `shouldBe` CreateTrigger
+                    { name = "my_trigger"
+                    , eventWhen = After
+                    , event = [TriggerOnInsert, TriggerOnUpdate]
+                    , tableName = "posts"
+                    , for = ForEachRow
+                    , whenCondition = Nothing
+                    , functionName = "my_function"
+                    , arguments = []
                     }
 
         it "should parse 'CREATE EVENT TRIGGER ..' statements" do
