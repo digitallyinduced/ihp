@@ -74,7 +74,7 @@ ihpFlake:
                         and auto-starts a Hoogle server on port 8002.
                     '';
                     type = lib.types.bool;
-                    default = false;
+                    default = true;
                 };
 
                 dontCheckPackages = lib.mkOption {
