@@ -930,7 +930,7 @@ tests = do
             |] <> "\n"
             let statements = [
                         StatementCreateTable (table "pg_large_notifications")
-                            { unlogged = True
+                            { unlogged = True, inherits = Nothing
                             }
                         ]
             compileSql statements `shouldBe` sql

@@ -165,11 +165,21 @@ spec = do
             let statements = [ Commit ]
             compileSql statements `shouldBe` sql
 
+        it "should compile 'CREATE TABLE .. INHERITS (..)' statements" do
+            let sql = "CREATE TABLE post_revisions (\n    revision_content TEXT NOT NULL\n) INHERITS (posts);\n"
+            let statements = [
+                        StatementCreateTable (table "post_revisions")
+                            { columns = [(col "revision_content" PText) { notNull = True }]
+                            , inherits = Just "posts"
+                            }
+                        ]
+            compileSql statements `shouldBe` sql
+
         it "should compile 'CREATE UNLOGGED TABLE' statements" do
             let sql = "CREATE UNLOGGED TABLE pg_large_notifications (\n\n);\n"
             let statements = [
                         StatementCreateTable (table "pg_large_notifications")
-                            { unlogged = True
+                            { unlogged = True, inherits = Nothing
                             }
                         ]
             compileSql statements `shouldBe` sql
@@ -190,7 +200,7 @@ table name = CreateTable
     , columns = []
     , primaryKeyConstraint = PrimaryKeyConstraint []
     , constraints = []
-    , unlogged = False
+    , unlogged = False, inherits = Nothing
     }
 
 parseSql :: Text -> Statement

@@ -493,7 +493,7 @@ tests = do
                             ]
                         , primaryKeyConstraint = PrimaryKeyConstraint ["id"]
                         , constraints = []
-                        , unlogged = False
+                        , unlogged = False, inherits = Nothing
                         }
                 let compileOutput = compileStatementPreview [statement] statement |> Text.strip
 
@@ -921,7 +921,7 @@ tests = do
                             ]
                         , primaryKeyConstraint = PrimaryKeyConstraint ["id"]
                         , constraints = []
-                        , unlogged = False
+                        , unlogged = False, inherits = Nothing
                         }
                     ]
             let [StatementCreateTable theTable] = statements
@@ -1058,7 +1058,7 @@ tests = do
                                 ]
                             , primaryKeyConstraint = PrimaryKeyConstraint ["id"]
                             , constraints = []
-                            , unlogged = False
+                            , unlogged = False, inherits = Nothing
                             }
                         ]
                 let [StatementCreateTable snakeTable] = snakeStatements
@@ -1078,7 +1078,7 @@ tests = do
                                 ]
                             , primaryKeyConstraint = PrimaryKeyConstraint ["id"]
                             , constraints = []
-                            , unlogged = False
+                            , unlogged = False, inherits = Nothing
                             }
                         ]
                 let [StatementCreateTable defaultTable] = defaultStatements
@@ -1116,6 +1116,53 @@ tests = do
 
                     decoder :: Decoders.Result Generated.ActualTypes.Post
                     decoder = Decoders.singleRow RowDecoder.rowDecoder
+                    |]
+
+        describe "table inheritance (INHERITS)" do
+            let statements = parseSqlStatements [trimming|
+                CREATE TABLE posts (
+                    id UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL,
+                    title TEXT NOT NULL,
+                    body TEXT NOT NULL
+                );
+                CREATE TABLE post_revisions (
+                    id UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL,
+                    revision_content TEXT NOT NULL
+                ) INHERITS (posts);
+            |]
+            let
+                isNamedTable :: Text -> Statement -> Bool
+                isNamedTable targetName (StatementCreateTable CreateTable { name }) = name == targetName
+                isNamedTable _ _ = False
+            let (Just childStatement) = find (isNamedTable "post_revisions") statements
+            let compileOutput = compileStatementPreview statements childStatement |> Text.strip
+
+            it "should include inherited columns in FromRow instance" do
+                getInstanceDecl "FromRow" compileOutput `shouldBe` [trimming|
+                    instance FromRow Generated.ActualTypes.PostRevision where
+                        fromRow = do
+                            id <- field
+                            revisionContent <- field
+                            title <- field
+                            body <- field
+                            let theRecord = Generated.ActualTypes.PostRevision id revisionContent title body def { originalDatabaseRecord = Just (Data.Dynamic.toDyn theRecord) }
+                            pure theRecord
+                    |]
+
+            it "should include inherited columns in Table instance" do
+                getInstanceDecl "IHP.ModelSupport.Table" compileOutput `shouldBe` [trimming|
+                    instance IHP.ModelSupport.Table (PostRevision') where
+                        tableName = "post_revisions"
+                        columnNames = ["id","revision_content","title","body"]
+                        primaryKeyColumnNames = ["id"]
+
+                    |]
+
+            it "should include inherited columns in Record instance" do
+                getInstanceDecl "Record" compileOutput `shouldBe` [trimming|
+                    instance Record Generated.ActualTypes.PostRevision where
+                        {-# INLINE newRecord #-}
+                        newRecord = Generated.ActualTypes.PostRevision def def def def  def
                     |]
 
 -- | Extract the body of a statement module (everything after the import block)

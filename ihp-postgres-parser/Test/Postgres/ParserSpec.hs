@@ -18,7 +18,7 @@ spec :: Spec
 spec = do
     describe "The Schema.sql Parser" do
         it "should parse an empty CREATE TABLE statement" do
-            parseSql "CREATE TABLE users ();"  `shouldBe` StatementCreateTable CreateTable { name = "users", columns = [], primaryKeyConstraint = PrimaryKeyConstraint [], constraints = [], unlogged = False }
+            parseSql "CREATE TABLE users ();"  `shouldBe` StatementCreateTable CreateTable { name = "users", columns = [], primaryKeyConstraint = PrimaryKeyConstraint [], constraints = [], unlogged = False, inherits = Nothing }
 
         it "should parse an CREATE EXTENSION for the UUID extension" do
             parseSql "CREATE EXTENSION IF NOT EXISTS \"uuid-ossp\";" `shouldBe` CreateExtension { name = "uuid-ossp", ifNotExists = True }
@@ -47,7 +47,7 @@ spec = do
                         ]
                     , primaryKeyConstraint = PrimaryKeyConstraint ["id"]
                     , constraints = []
-                    , unlogged = False
+                    , unlogged = False, inherits = Nothing
                     }
 
         it "should parse a CREATE TABLE with quoted identifiers" do
@@ -160,7 +160,10 @@ spec = do
             parseSql "COMMIT;" `shouldBe` Commit
 
         it "should parse 'CREATE UNLOGGED TABLE' statement" do
-            parseSql "CREATE UNLOGGED TABLE pg_large_notifications ();"  `shouldBe` StatementCreateTable CreateTable { name = "pg_large_notifications", columns = [], primaryKeyConstraint = PrimaryKeyConstraint [], constraints = [], unlogged = True }
+            parseSql "CREATE UNLOGGED TABLE pg_large_notifications ();"  `shouldBe` StatementCreateTable CreateTable { name = "pg_large_notifications", columns = [], primaryKeyConstraint = PrimaryKeyConstraint [], constraints = [], unlogged = True, inherits = Nothing }
+
+        it "should parse 'CREATE TABLE .. INHERITS (..)' statement" do
+            parseSql "CREATE TABLE post_revisions (revision_content TEXT NOT NULL) INHERITS (posts);"  `shouldBe` StatementCreateTable CreateTable { name = "post_revisions", columns = [Column { name = "revision_content", columnType = PText, defaultValue = Nothing, notNull = True, isUnique = False, generator = Nothing }], primaryKeyConstraint = PrimaryKeyConstraint [], constraints = [], unlogged = False, inherits = Just "posts" }
 
         it "should parse positive IntExpression's" do
             parseExpression "1" `shouldBe` (IntExpression 1)
@@ -190,7 +193,7 @@ table name = CreateTable
     , columns = []
     , primaryKeyConstraint = PrimaryKeyConstraint []
     , constraints = []
-    , unlogged = False
+    , unlogged = False, inherits = Nothing
     }
 
 parseSql :: Text -> Statement
