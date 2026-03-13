@@ -5,13 +5,64 @@ Copyright: (c) digitally induced GmbH, 2020
 -}
 module IHP.AutoRefresh.Types where
 
-import IHP.Prelude
-import Wai.Request.Params.Middleware (Respond)
 import Control.Concurrent.MVar (MVar)
+import qualified Data.Aeson as Aeson
+import qualified Data.Aeson.Types as AesonTypes
+import qualified Data.UUID as UUID
 import qualified IHP.PGListener as PGListener
+import IHP.Prelude
+import qualified Data.Map.Strict as Map
+import Data.Dynamic (Dynamic)
 import Network.Wai (Request)
+import Wai.Request.Params.Middleware (Respond)
+
+-- | A database operation that can trigger an auto refresh re-render.
+data AutoRefreshOperation
+    = AutoRefreshInsert
+    | AutoRefreshUpdate
+    | AutoRefreshDelete
+    deriving (Eq, Show)
+
+instance Aeson.FromJSON AutoRefreshOperation where
+    parseJSON = Aeson.withText "AutoRefreshOperation" \operation ->
+        case toLower operation of
+            "insert" -> pure AutoRefreshInsert
+            "update" -> pure AutoRefreshUpdate
+            "delete" -> pure AutoRefreshDelete
+            _        -> fail ("Unknown operation: " <> cs operation)
+
+-- | Internal: raw payload sent by the PostgreSQL trigger.
+--
+-- For oversized payloads the trigger stores the full JSON in @large_pg_notifications@ and sends only a @payloadId@.
+-- The auto refresh server resolves these @payloadId@s via a database lookup before building the change notification,
+-- so smart filtering receives the full row json in @old@/@new@ (if payload resolution fails, auto refresh falls back
+-- to forcing a refresh).
+data AutoRefreshRowChangePayload = AutoRefreshRowChangePayload
+    { payloadOperation      :: !AutoRefreshOperation
+    , payloadOldRow         :: !(Maybe Aeson.Value)
+    , payloadNewRow         :: !(Maybe Aeson.Value)
+    , payloadLargePayloadId :: !(Maybe UUID.UUID)
+    } deriving (Eq, Show)
+
+instance Aeson.FromJSON AutoRefreshRowChangePayload where
+    parseJSON = Aeson.withObject "AutoRefreshRowChangePayload" \object ->
+        AutoRefreshRowChangePayload
+            <$> object Aeson..: "op"
+            <*> object Aeson..:? "old"
+            <*> object Aeson..:? "new"
+            <*> do
+                payloadId <- object Aeson..:? "payloadId"
+                case payloadId of
+                    Nothing    -> pure Nothing
+                    Just value -> Just <$> parseUUID value
+        where
+            parseUUID :: Text -> AesonTypes.Parser UUID.UUID
+            parseUUID value = case UUID.fromText value of
+                Just uuid -> pure uuid
+                Nothing   -> fail "Invalid UUID for payloadId"
 
 data AutoRefreshState = AutoRefreshEnabled { sessionId :: !UUID }
+
 data AutoRefreshSession = AutoRefreshSession
         { id :: !UUID
         -- | A callback to rerun an action within the given request and respond
@@ -24,6 +75,14 @@ data AutoRefreshSession = AutoRefreshSession
         , lastResponse :: !LByteString
         -- | Keep track of the last ping to this session to close it after too much time has passed without anything happening
         , lastPing :: !UTCTime
+        -- | Tracked row IDs per table. 'Nothing' for a table means we can't filter (raw SQL / fetchCount).
+        -- 'Just ids' means only these IDs are relevant. Used by smart auto refresh to skip unrelated notifications.
+        , trackedIds :: !(Map.Map Text (Set Text))
+        -- | Tracked WHERE conditions per table.  Each fetch appends its condition
+        -- (wrapped in 'Dynamic' to avoid a circular module dependency on 'Condition').
+        -- 'Nothing' means no condition (unfiltered query) — always refresh on INSERT.
+        -- Used by smart auto refresh to evaluate INSERT payloads against query filters.
+        , trackedConditions :: !(Map.Map Text [Maybe Dynamic])
         }
 
 data AutoRefreshServer = AutoRefreshServer

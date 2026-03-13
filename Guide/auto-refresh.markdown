@@ -98,6 +98,15 @@ action MyAction = do -- <-- We don't enable auto refresh at the action start in 
         render MyView { expensiveModels, cheap }
 ```
 
+### Smart Filtering
+
+`autoRefresh` automatically tracks both the row IDs and the WHERE conditions of queries fetched during your action. This is used to skip unnecessary re-renders:
+
+- **UPDATE / DELETE**: When a notification arrives for a row whose ID is not in the tracked set, the re-render is skipped.
+- **INSERT**: When a new row is inserted, IHP evaluates your query's WHERE conditions against the inserted row. If the new row doesn't match your filters, the re-render is skipped. For example, if your action fetches `query @Task |> filterWhere (#projectId, myProjectId) |> fetch`, inserting a task with a different `projectId` will not trigger a re-render.
+
+This happens transparently — no configuration needed. For tables accessed via raw SQL or `fetchCount` (where individual row IDs aren't available), auto refresh falls back to refreshing on every change. Conditions that can't be evaluated at notification time (e.g. `LIKE`, `LOWER()`, range operators) also fall back to refreshing.
+
 ### Custom SQL Queries with Auto Refresh
 
 Auto Refresh automatically tracks all tables your action is using by hooking itself into the Query Builder and `fetch` functions.
