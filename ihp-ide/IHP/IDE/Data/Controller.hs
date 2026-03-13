@@ -192,14 +192,14 @@ instance Controller DataController where
 runSnippetQuery :: (?modelContext :: ModelContext) => Snippet -> Decoders.Result a -> IO a
 runSnippetQuery snippet decoder = do
     let pool = ?modelContext.hasqlPool
-    let statement = Snippet.toPreparedStatement snippet decoder
+    let statement = Snippet.toPreparableStatement snippet decoder
     let session = Session.statement () statement
     usePoolWithRetry pool session
 
 runSnippetExec :: (?modelContext :: ModelContext) => Snippet -> IO ()
 runSnippetExec snippet = do
     let pool = ?modelContext.hasqlPool
-    let statement = Snippet.toPreparedStatement snippet Decoders.noResult
+    let statement = Snippet.toPreparableStatement snippet Decoders.noResult
     let session = Session.statement () statement
     usePoolWithRetry pool session
 
