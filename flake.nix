@@ -20,6 +20,9 @@
         # import ihp-boilerplate for the templates
         ihp-boilerplate.url = "github:digitallyinduced/ihp-boilerplate";
 
+        # ihp-forum is used as a real-world benchmark for Core output size regression testing
+        ihp-forum.url = "github:digitallyinduced/ihp-forum/feature/upgrade-to-latest-ihp";
+
         nix-filter.url = "github:numtide/nix-filter";
 
         devenv-root = {

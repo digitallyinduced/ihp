@@ -95,6 +95,12 @@ that is defined in flake-module.nix
                 });
             }
 
+            # ihp-forum: build the forum to catch regressions in a real-world app
+            // (lib.mapAttrs' (n: v: { name = "forum-${n}"; value = v; }) (lib.filterAttrs (n: v: lib.isDerivation v
+                        && n != "default"
+                        && n != "unoptimized-docker-image" && n != "optimized-docker-image"
+                    ) inputs.ihp-forum.packages.${system}))
+
             # Integration test: a minimal IHP app that exercises controllers, views, models, HSX, and withIHPApp
             // {
                 integration-test = pkgs.stdenv.mkDerivation {
