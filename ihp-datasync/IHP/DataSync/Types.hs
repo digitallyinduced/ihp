@@ -40,8 +40,8 @@ data DataSyncResponse
     | DidChangeCount { subscriptionId :: !UUID, count :: !Int }
     | DidCreateRecord { requestId :: !Int, record :: ![Field] } -- ^ Response to 'CreateRecordMessage'
     | DidCreateRecords { requestId :: !Int, records :: ![[Field]] } -- ^ Response to 'CreateRecordsMessage'
-    | DidUpdateRecord { requestId :: !Int, record :: ![Field] } -- ^ Response to 'UpdateRecordMessage'
-    | DidUpdateRecords { requestId :: !Int, records :: ![[Field]] } -- ^ Response to 'UpdateRecordsMessage'
+    | DidUpdateRecord { requestId :: !Int } -- ^ Response to 'UpdateRecordMessage'
+    | DidUpdateRecords { requestId :: !Int } -- ^ Response to 'UpdateRecordsMessage'
     | DidDeleteRecord { requestId :: !Int }
     | DidDeleteRecords { requestId :: !Int }
     | DidStartTransaction { requestId :: !Int, transactionId :: !UUID }

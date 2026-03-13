@@ -347,15 +347,15 @@ buildMessageHandler hasqlPool ensureRLSEnabled installTableChangeTriggers sendJS
                 columnTypes <- columnTypeLookup table
 
                 let setSql = encodePatchToSetSql (renamer table) columnTypes patch
-                let updateResult = compileUpdate table setSql (Snippet.sql "id = " <> uuidParam id) (renamer table) columnTypes
-                let stmt = compiledQueryStatement updateResult
+                let updateSnippet = compileUpdateNoReturning table setSql (Snippet.sql "id = " <> uuidParam id)
+                let stmt = Snippet.toPreparedStatement updateSnippet (Decoders.rowList (Decoders.column (Decoders.nonNullable Decoders.uuid)))
 
-                result :: [[Field]] <- sqlQueryWriteWithRLSAndTransactionId hasqlPool transactionId stmt
+                result :: [UUID] <- sqlQueryWriteWithRLSAndTransactionId hasqlPool transactionId stmt
 
                 case result of
-                    [record] ->
-                        sendJSON DidUpdateRecord { requestId, record }
-                    otherwise -> sendJSON DataSyncError { requestId, errorMessage = "Could not apply the update to the given record. Are you sure the record ID you passed is correct? If the record ID is correct, likely the row level security policy is not making the record visible to the UPDATE operation." }
+                    [_] ->
+                        sendJSON DidUpdateRecord { requestId }
+                    _ -> sendJSON DataSyncError { requestId, errorMessage = "Could not apply the update to the given record. Are you sure the record ID you passed is correct? If the record ID is correct, likely the row level security policy is not making the record visible to the UPDATE operation." }
 
                 pure ()
 
@@ -366,12 +366,12 @@ buildMessageHandler hasqlPool ensureRLSEnabled installTableChangeTriggers sendJS
 
                 let setSql = encodePatchToSetSql (renamer table) columnTypes patch
                 let inList = mconcat $ List.intersperse (Snippet.sql ", ") (map uuidParam ids)
-                let updateResult = compileUpdate table setSql (Snippet.sql "id IN (" <> inList <> Snippet.sql ")") (renamer table) columnTypes
-                let stmt = compiledQueryStatement updateResult
+                let updateSnippet = compileUpdateNoReturning table setSql (Snippet.sql "id IN (" <> inList <> Snippet.sql ")")
+                let stmt = Snippet.toPreparedStatement updateSnippet (Decoders.rowList (Decoders.column (Decoders.nonNullable Decoders.uuid)))
 
-                records <- sqlQueryWriteWithRLSAndTransactionId hasqlPool transactionId stmt
+                _ :: [UUID] <- sqlQueryWriteWithRLSAndTransactionId hasqlPool transactionId stmt
 
-                sendJSON DidUpdateRecords { requestId, records }
+                sendJSON DidUpdateRecords { requestId }
 
                 pure ()
 
