@@ -17,6 +17,7 @@ import qualified IHP.EnvVar as EnvVar
 import Data.String.Conversions (cs)
 import qualified IHP.Telemetry as Telemetry
 import qualified IHP.Version as Version
+import qualified IHP.IDE.SourceInfo as SourceInfo
 
 import qualified IHP.Log.Types as Log
 import qualified IHP.Log as Log
@@ -91,8 +92,11 @@ mainWithOptions wrapWithDirenv = withUtf8 do
         lastSchemaCompilerError <- newIORef Nothing
         let ?context = Context { portConfig, isDebugMode, logger, ghciInChan, ghciOutChan, wrapWithDirenv, liveReloadClients, lastSchemaCompilerError, appSocket }
 
-        -- Print IHP Version when in debug mode
-        when isDebugMode (Log.debug ("IHP Version: " <> Version.ihpVersion))
+        -- Print IHP source and version info when in debug mode
+        when isDebugMode do
+            sourceInfo <- SourceInfo.getSourceInfo
+            Log.debug (SourceInfo.formatSourceInfo sourceInfo)
+            Log.debug ("IHP Version: " <> Version.ihpVersion)
 
         ghciIsLoadingVar <- newIORef False
         reloadGhciVar :: MVar () <- newEmptyMVar

@@ -14,6 +14,7 @@ import qualified Test.IDE.CodeGeneration.ViewGenerator
 import qualified Test.IDE.CodeGeneration.MailGenerator
 import qualified Test.IDE.CodeGeneration.JobGenerator
 import qualified Test.IDE.CodeGeneration.MigrationGenerator
+import qualified Test.IDE.SourceInfoSpec
 import qualified Test.SchemaCompilerSpec
 import qualified Test.IDE.ToolServer.MiddlewareSpec
 import qualified Test.IDE.Logs.ControllerSpec
@@ -32,6 +33,7 @@ main = hspec do
     Test.IDE.CodeGeneration.JobGenerator.tests
     Test.IDE.SchemaDesigner.SchemaOperationsSpec.tests
     Test.IDE.CodeGeneration.MigrationGenerator.tests
+    Test.IDE.SourceInfoSpec.tests
     Test.SchemaCompilerSpec.tests
     Test.IDE.ToolServer.MiddlewareSpec.tests
     Test.IDE.Logs.ControllerSpec.tests
