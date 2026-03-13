@@ -395,8 +395,8 @@ that is defined in flake-module.nix
 
                     # Per-module breakdown (CSV sorted by size descending)
                     echo "module,bytes" > modules.csv
-                    for f in dumps/*.dump-simpl; do
-                        MOD=$(basename "$f" .dump-simpl)
+                    find dumps -name '*.dump-simpl' | while read -r f; do
+                        MOD=$(echo "$f" | sed 's|^dumps/||; s|\.dump-simpl$||; s|/|.|g')
                         SIZE=$(wc -c < "$f" | tr -d ' ')
                         echo "$MOD,$SIZE" >> modules.csv
                     done
