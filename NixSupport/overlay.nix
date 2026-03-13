@@ -176,4 +176,16 @@ final: prev: {
             })
         ];
     };
+
+    # Experimental: GHC 9.14 (bleeding edge, expected to fail)
+    ghc914 = final.haskell.packages.ghc914.override {
+        overrides = final.lib.composeManyExtensions [
+            (ihpOverrides final)
+            (self: super: {
+                say = final.haskell.lib.dontCheck super.say;
+                text-icu = final.haskell.lib.dontCheck super.text-icu;
+                cryptonite = final.haskell.lib.dontCheck super.cryptonite;
+            })
+        ];
+    };
 }
