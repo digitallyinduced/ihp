@@ -109,7 +109,7 @@ CABAL_EOF
         DuplicateRecordFields
         OverloadedLabels
         OverloadedRecordDot
-    ghc-options: -Wno-unused-imports -Wno-dodgy-imports -Wno-unused-matches
+    ghc-options: -Wno-unused-imports -Wno-dodgy-imports -Wno-unused-matches -fspec-eval -fspec-eval-dict-fun
 CABAL_EOF
         '';
         installPhase = ''
@@ -167,7 +167,7 @@ CABAL_EOF
     commonBuildInputs = [ allHaskellPackages ];
     commonNativeBuildInputs = [ pkgs.gnumake ];
 
-    prodGhcOptions = "-funbox-strict-fields -fconstraint-solver-iterations=100 -fdicts-strict -with-rtsopts=\"${rtsFlags}\"";
+    prodGhcOptions = "-funbox-strict-fields -fconstraint-solver-iterations=100 -fdicts-strict -fspec-eval -fspec-eval-dict-fun -with-rtsopts=\"${rtsFlags}\"";
 
     appSrc = filter { root = pkgs.nix-gitignore.gitignoreSource [] projectPath; include = [filter.isDirectory "Makefile" (filter.matchExt "hs")]; exclude = ["static" "Frontend"]; name = "${appName}-source"; };
 
@@ -308,6 +308,8 @@ CABAL_HEADER
         -Wno-partial-type-signatures
         -Werror=missing-fields
         -fwarn-incomplete-patterns
+        -fspec-eval
+        -fspec-eval-dict-fun
 CABAL_EOF
         '';
         installPhase = ''

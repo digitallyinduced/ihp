@@ -59,6 +59,8 @@ common shared-properties
             -fspecialise-aggressively
             -Wno-ambiguous-fields
             -Werror=incomplete-patterns
+            -fspec-eval
+            -fspec-eval-dict-fun
 
 library
     import: shared-properties

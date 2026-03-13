@@ -1,6 +1,7 @@
 { mkDerivation, aeson, attoparsec, base, bytestring
 , countable-inflections, hspec, ihp, ihp-postgres-parser, lib
-, megaparsec, postgresql-simple, scientific, text, unordered-containers
+, megaparsec, postgresql-simple, scientific, text
+, unordered-containers
 }:
 mkDerivation {
   pname = "ihp-graphql";

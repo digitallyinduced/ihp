@@ -36,7 +36,7 @@ common shared-properties
         , TemplateHaskell
         , OverloadedRecordDot
         , DeepSubsumption
-    ghc-options: -Werror=incomplete-patterns -Werror=unused-imports
+    ghc-options: -Werror=incomplete-patterns -Werror=unused-imports -fspec-eval -fspec-eval-dict-fun
 
 library
     import: shared-properties

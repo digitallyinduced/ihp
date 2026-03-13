@@ -70,6 +70,8 @@ common common-flags
         -fexpose-all-unfoldings
         -optc-O3
         -Werror=incomplete-patterns
+        -fspec-eval
+        -fspec-eval-dict-fun
 
 common common-depends
     build-depends:

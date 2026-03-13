@@ -112,6 +112,8 @@ common shared-properties
             -Wno-ambiguous-fields
             -Werror=incomplete-patterns
             -Werror=unused-imports
+            -fspec-eval
+            -fspec-eval-dict-fun
 
 library
     import: shared-properties

@@ -40,7 +40,7 @@ common shared-properties
         , DuplicateRecordFields
         , BlockArguments
         , LambdaCase
-    ghc-options: -Werror=incomplete-patterns -Werror=unused-imports -Werror=missing-fields
+    ghc-options: -Werror=incomplete-patterns -Werror=unused-imports -Werror=missing-fields -fspec-eval -fspec-eval-dict-fun
 
 library
     import: shared-properties

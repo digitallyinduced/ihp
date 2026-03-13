@@ -7,12 +7,11 @@
 , ihp-log, ihp-migrate, ihp-modal, ihp-postgres-parser
 , ihp-schema-compiler, inflections, interpolate, lib, megaparsec
 , mono-traversable, neat-interpolation, network, network-uri
-, process, safe-exceptions, split
-, string-conversions, text, time, transformers, unagi-chan, unix
-, unliftio, uri-encode, uuid, vault, wai, wai-app-static
-, wai-asset-path, wai-extra, wai-request-params, wai-session
-, wai-session-clientsession, wai-util, wai-websockets, warp
-, websockets, with-utf8, wreq
+, process, safe-exceptions, split, string-conversions, text, time
+, transformers, unagi-chan, unix, unliftio, uri-encode, uuid, vault
+, wai, wai-app-static, wai-asset-path, wai-extra
+, wai-request-params, wai-session, wai-session-clientsession
+, wai-util, wai-websockets, warp, websockets, with-utf8, wreq
 }:
 mkDerivation {
   pname = "ihp-ide";
@@ -29,12 +28,11 @@ mkDerivation {
     hasql-dynamic-statements hasql-implicits hasql-pool http-types ihp
     ihp-hsx ihp-log ihp-migrate ihp-modal ihp-postgres-parser
     ihp-schema-compiler inflections interpolate megaparsec
-    mono-traversable neat-interpolation network network-uri
-    process safe-exceptions split string-conversions
-    text time transformers unagi-chan unix unliftio uri-encode uuid
-    vault wai wai-app-static wai-extra wai-request-params wai-session
-    wai-session-clientsession wai-util wai-websockets warp websockets
-    with-utf8 wreq
+    mono-traversable neat-interpolation network network-uri process
+    safe-exceptions split string-conversions text time transformers
+    unagi-chan unix unliftio uri-encode uuid vault wai wai-app-static
+    wai-extra wai-request-params wai-session wai-session-clientsession
+    wai-util wai-websockets warp websockets with-utf8 wreq
   ];
   executableHaskellDepends = [
     aeson async attoparsec auto-update base base16-bytestring
@@ -44,11 +42,11 @@ mkDerivation {
     hasql-dynamic-statements hasql-implicits hasql-pool http-types ihp
     ihp-hsx ihp-log ihp-migrate ihp-postgres-parser ihp-schema-compiler
     inflections interpolate megaparsec mono-traversable
-    neat-interpolation network network-uri process
-    safe-exceptions split string-conversions text time transformers
-    unagi-chan unix unliftio uri-encode uuid vault wai wai-app-static
-    wai-extra wai-session wai-session-clientsession wai-util
-    wai-websockets warp websockets with-utf8 wreq
+    neat-interpolation network network-uri process safe-exceptions
+    split string-conversions text time transformers unagi-chan unix
+    unliftio uri-encode uuid vault wai wai-app-static wai-extra
+    wai-session wai-session-clientsession wai-util wai-websockets warp
+    websockets with-utf8 wreq
   ];
   testHaskellDepends = [
     aeson async attoparsec auto-update base base16-bytestring
@@ -59,11 +57,11 @@ mkDerivation {
     http-types ihp ihp-hsx ihp-log ihp-migrate ihp-modal
     ihp-postgres-parser ihp-schema-compiler inflections interpolate
     megaparsec mono-traversable neat-interpolation network network-uri
-    process safe-exceptions split string-conversions
-    text time transformers unagi-chan unix unliftio uri-encode uuid
-    vault wai wai-app-static wai-asset-path wai-extra
-    wai-request-params wai-session wai-session-clientsession wai-util
-    wai-websockets warp websockets with-utf8 wreq
+    process safe-exceptions split string-conversions text time
+    transformers unagi-chan unix unliftio uri-encode uuid vault wai
+    wai-app-static wai-asset-path wai-extra wai-request-params
+    wai-session wai-session-clientsession wai-util wai-websockets warp
+    websockets with-utf8 wreq
   ];
   homepage = "https://ihp.digitallyinduced.com/";
   description = "Dev tools for IHP";
