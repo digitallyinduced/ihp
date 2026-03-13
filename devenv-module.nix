@@ -149,8 +149,8 @@ that is defined in flake-module.nix
                 };
             }
 
-            # GHC 9.14 compatibility checks (build and test all IHP packages)
-            // (let
+            # GHC 9.14 compatibility checks (only when nixpkgs includes ghc914)
+            // (lib.optionalAttrs (pkgs ? ghc914) (let
                 ghc914 = pkgs.ghc914;
                 ihpPackageNames = [
                     "ihp-ide" "ihp-hsx" "ihp-schema-compiler"
@@ -165,7 +165,7 @@ that is defined in flake-module.nix
             in lib.listToAttrs (map (name: {
                 name = "ghc914-${name}";
                 value = ghc914.${name};
-            }) ihpPackageNames))
+            }) ihpPackageNames)
 
             # GHC 9.14 packages that need a running PostgreSQL for their tests
             // {
@@ -173,7 +173,7 @@ that is defined in flake-module.nix
                 ghc914-ihp-datasync = withTestPostgres pkgs.ghc914.ihp-datasync;
                 ghc914-ihp-typed-sql = withTestPostgres pkgs.ghc914.ihp-typed-sql;
                 ghc914-ihp-pglistener = withTestPostgres pkgs.ghc914.ihp-pglistener;
-            }
+            }))
         ;
 
         devenv.shells.default = {
