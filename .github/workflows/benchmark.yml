@@ -15,11 +15,14 @@ jobs:
           --impure \
           --override-input ihp "github:digitallyinduced/ihp" \
           -o result-baseline -L &
+        PID_BASELINE=$!
         nix build .#default \
           --impure \
-          --override-input ihp "github:${{ github.event.repository.full_name }}/${{ github.sha }}" \
+          --override-input ihp "github:${{ github.event.repository.full_name }}/${{ github.event.pull_request.head.sha }}" \
           -o result-pr -L &
-        wait
+        PID_PR=$!
+        wait $PID_BASELINE
+        wait $PID_PR
 
     - name: Run HTTP latency benchmark
       working-directory: ihp/Bench
