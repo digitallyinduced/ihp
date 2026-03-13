@@ -22,12 +22,11 @@ jobs:
         wait
 
     - name: Compare and post PR comment
-      working-directory: ihp/Bench
       env:
         GH_TOKEN: ${{ github.token }}
       run: |
-        BASELINE=$(cat result-baseline/core-size)
-        CURRENT=$(cat result-pr/core-size)
+        BASELINE=$(cat ihp/Bench/result-baseline/core-size)
+        CURRENT=$(cat ihp/Bench/result-pr/core-size)
         PCT=$(awk "BEGIN { printf \"%.1f\", ($CURRENT - $BASELINE) / $BASELINE * 100 }")
 
         # Build markdown report
@@ -53,7 +52,7 @@ jobs:
           echo ""
           echo "| Module | Size (bytes) |"
           echo "|--------|-------------|"
-          head -10 result-pr/modules.csv | awk -F, '{ printf "| %s | %s |\n", $1, $2 }'
+          head -10 ihp/Bench/result-pr/modules.csv | awk -F, '{ printf "| %s | %s |\n", $1, $2 }'
         } > comment-body.md
 
         # Post/update PR comment
