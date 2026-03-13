@@ -8,7 +8,6 @@ import Test.Hspec
 import IHP.Prelude
 import qualified IHP.GraphQL.Compiler as Compiler
 import IHP.GraphQL.Types
-import qualified Data.Attoparsec.Text as Attoparsec
 import Test.GraphQL.ParserSpec (parseGQL, parseValue)
 import qualified Database.PostgreSQL.Simple.Types as PG
 import qualified Database.PostgreSQL.Simple.ToField as PG
@@ -141,5 +140,7 @@ substituteParams (PG.Query query, params) =
         actionToText (PG.Escape escape) = "'" <> cs escape <> "'"
         actionToText (PG.EscapeIdentifier escape) | cs escape == Text.toLower (cs escape) = cs escape
         actionToText (PG.EscapeIdentifier escape) = "\"" <> cs escape <> "\""
+        actionToText (PG.EscapeByteA bytes) = cs bytes
+        actionToText (PG.Many actions) = mconcat (map actionToText actions)
 
 
