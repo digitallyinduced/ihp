@@ -16,11 +16,94 @@
             let
                 lib = nixpkgs.lib;
 
+                # Flag configurations to benchmark
+                # Each config specifies libFlags (for IHP library packages) and
+                # appFlags (for the forum app ghc --make invocation).
+                flagConfigs = {
+                    baseline = {
+                        libFlags = [];
+                        appFlags = [];
+                    };
+                    dicts-strict = {
+                        libFlags = [ "-fdicts-strict" ];
+                        appFlags = [ "-fdicts-strict" ];
+                    };
+                    specialise-aggressively = {
+                        libFlags = [ "-fspecialise-aggressively" ];
+                        appFlags = [ "-fspecialise-aggressively" ];
+                    };
+                    expose-unfoldings = {
+                        libFlags = [ "-fexpose-all-unfoldings" ];
+                        appFlags = [ "-fexpose-all-unfoldings" ];
+                    };
+                    unfolding-threshold-120 = {
+                        libFlags = [ "-funfolding-use-threshold=120" ];
+                        appFlags = [ "-funfolding-use-threshold=120" ];
+                    };
+                    static-arg-transform = {
+                        libFlags = [ "-fstatic-argument-transformation" ];
+                        appFlags = [ "-fstatic-argument-transformation" ];
+                    };
+                    late-specialise = {
+                        libFlags = [ "-flate-specialise" ];
+                        appFlags = [ "-flate-specialise" ];
+                    };
+                    spec-constr-keen = {
+                        libFlags = [ "-fspec-constr-keen" ];
+                        appFlags = [ "-fspec-constr-keen" ];
+                    };
+                    unbox-strict-fields = {
+                        libFlags = [ "-funbox-strict-fields" ];
+                        appFlags = [ "-funbox-strict-fields" ];
+                    };
+                    full-combo = {
+                        libFlags = [
+                            "-fdicts-strict" "-fspecialise-aggressively"
+                            "-fexpose-all-unfoldings" "-funfolding-use-threshold=120"
+                            "-fstatic-argument-transformation" "-flate-specialise"
+                            "-fspec-constr-keen" "-funbox-strict-fields"
+                        ];
+                        appFlags = [
+                            "-fdicts-strict" "-fspecialise-aggressively"
+                            "-fexpose-all-unfoldings" "-funfolding-use-threshold=120"
+                            "-fstatic-argument-transformation" "-flate-specialise"
+                            "-fspec-constr-keen" "-funbox-strict-fields"
+                        ];
+                    };
+                };
+
                 mkPkgs = ihpFlake: import nixpkgs {
                     inherit system;
                     overlays = [ ihpFlake.overlays.default ];
                     config = { };
                 };
+
+                # Create a nixpkgs with extra GHC flags injected into IHP library packages.
+                # Uses .extend to layer flag overrides on top of IHP's existing overrides.
+                mkPkgsWithFlags = ihpFlake: extraLibFlags:
+                    let
+                        basePkgs = import nixpkgs {
+                            inherit system;
+                            overlays = [ ihpFlake.overlays.default ];
+                            config = { };
+                        };
+                        addFlags = pkg:
+                            basePkgs.haskell.lib.appendConfigureFlags pkg
+                                (map (f: "--ghc-options=${f}") extraLibFlags);
+                        ihpPkgNames = [
+                            "ihp" "ihp-hsx" "ihp-context" "ihp-pagehead" "ihp-log"
+                            "ihp-pglistener" "ihp-modal" "ihp-ide" "ihp-schema-compiler"
+                            "ihp-postgres-parser" "ihp-mail" "ihp-openai" "ihp-datasync"
+                        ];
+                    in
+                        if extraLibFlags == [] then basePkgs
+                        else basePkgs // {
+                            ghc = basePkgs.ghc.extend (hself: hsuper:
+                                lib.genAttrs
+                                    (builtins.filter (name: hsuper ? ${name}) ihpPkgNames)
+                                    (name: addFlags hsuper.${name})
+                            );
+                        };
 
                 pkgs = mkPkgs ihp;
 
@@ -33,7 +116,7 @@
                     in
                         "${shareRoot}/${sys}/${package.name}";
 
-                mkForumCoreSizeBench = name: ghcPkgs: pkgs.stdenv.mkDerivation {
+                mkForumCoreSizeBench = name: ghcPkgs: appFlags: pkgs.stdenv.mkDerivation {
                     inherit name;
                     src = ihp-forum;
                     nativeBuildInputs = [
@@ -59,6 +142,7 @@
                             $GHC_EXTS \
                             -O1 -ddump-simpl -ddump-to-file -dumpdir dumps \
                             -fforce-recomp \
+                            ${lib.concatStringsSep " " appFlags} \
                             -i. -ibuild -iConfig \
                             -package-env - \
                             -package ihp -package ihp-mail \
@@ -90,10 +174,18 @@
                 };
 
                 masterPkgs = mkPkgs (builtins.getFlake "github:digitallyinduced/ihp");
-            in {
-                default = mkForumCoreSizeBench "forum-core-size-bench" pkgs.ghc;
-                baseline = mkForumCoreSizeBench "forum-core-size-bench-baseline" masterPkgs.ghc;
-            }
+
+                # Generate one output per flag configuration
+                flagBenchmarks = lib.mapAttrs (configName: config:
+                    let pkgsForConfig = mkPkgsWithFlags ihp config.libFlags;
+                    in mkForumCoreSizeBench "bench-${configName}" pkgsForConfig.ghc config.appFlags
+                ) flagConfigs;
+            in
+                flagBenchmarks // {
+                    # CI compatibility: default = baseline config with current IHP, baseline = master IHP
+                    default = mkForumCoreSizeBench "forum-core-size-bench" pkgs.ghc [];
+                    baseline = mkForumCoreSizeBench "forum-core-size-bench-baseline" masterPkgs.ghc [];
+                }
         );
     };
 
