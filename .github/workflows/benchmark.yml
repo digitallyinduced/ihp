@@ -29,24 +29,41 @@ jobs:
         CURRENT=$(cat ihp/Bench/result-pr/core-size)
         PCT=$(awk "BEGIN { printf \"%.1f\", ($CURRENT - $BASELINE) / $BASELINE * 100 }")
 
+        ALLOC_BASELINE=$(cat ihp/Bench/result-baseline/compile-allocations)
+        ALLOC_CURRENT=$(cat ihp/Bench/result-pr/compile-allocations)
+        ALLOC_PCT=$(awk "BEGIN { printf \"%.1f\", ($ALLOC_CURRENT - $ALLOC_BASELINE) / $ALLOC_BASELINE * 100 }")
+
+        # Check for regressions
+        FAILED=0
+        if awk "BEGIN { exit !(($CURRENT - $BASELINE) / $BASELINE > 0.10) }"; then
+          CORE_STATUS="> **REGRESSION**: Core size +${PCT}% exceeds 10% threshold"
+          FAILED=1
+        elif awk "BEGIN { exit !(($CURRENT - $BASELINE) / $BASELINE < -0.05) }"; then
+          CORE_STATUS="> **Improvement**: Core size ${PCT}% reduction"
+        else
+          CORE_STATUS="> Core size within threshold"
+        fi
+        if awk "BEGIN { exit !(($ALLOC_CURRENT - $ALLOC_BASELINE) / $ALLOC_BASELINE > 0.10) }"; then
+          ALLOC_STATUS="> **REGRESSION**: Compile allocations +${ALLOC_PCT}% exceeds 10% threshold"
+          FAILED=1
+        elif awk "BEGIN { exit !(($ALLOC_CURRENT - $ALLOC_BASELINE) / $ALLOC_BASELINE < -0.05) }"; then
+          ALLOC_STATUS="> **Improvement**: Compile allocations ${ALLOC_PCT}% reduction"
+        else
+          ALLOC_STATUS="> Compile allocations within threshold"
+        fi
+
         # Build markdown report
         {
           echo "<!-- core-size-benchmark -->"
-          echo "## Core Size Benchmark"
+          echo "## Core Size & Compile Allocations Benchmark"
           echo ""
-          echo "| Metric | Value |"
-          echo "|--------|-------|"
-          echo "| Baseline (master) | $BASELINE bytes |"
-          echo "| This PR | $CURRENT bytes |"
-          echo "| Change | ${PCT}% |"
+          echo "| Metric | Baseline (master) | This PR | Change |"
+          echo "|--------|-------------------|---------|--------|"
+          echo "| Core size | $BASELINE bytes | $CURRENT bytes | ${PCT}% |"
+          echo "| Compile allocations | $ALLOC_BASELINE bytes | $ALLOC_CURRENT bytes | ${ALLOC_PCT}% |"
           echo ""
-          if awk "BEGIN { exit !(($CURRENT - $BASELINE) / $BASELINE > 0.10) }"; then
-            echo "> **REGRESSION**: +${PCT}% exceeds 10% threshold"
-          elif awk "BEGIN { exit !(($CURRENT - $BASELINE) / $BASELINE < -0.05) }"; then
-            echo "> **Improvement**: ${PCT}% reduction"
-          else
-            echo "> Within threshold"
-          fi
+          echo "$CORE_STATUS"
+          echo "$ALLOC_STATUS"
           echo ""
           echo "### Top 10 modules (this PR)"
           echo ""
@@ -63,8 +80,8 @@ jobs:
         fi
         gh pr comment "${{ github.event.pull_request.number }}" --body-file comment-body.md
 
-        # Fail if regression >10%
-        if awk "BEGIN { exit !(($CURRENT - $BASELINE) / $BASELINE > 0.10) }"; then
-          echo "::error::Core size regression: ${PCT}% ($CURRENT bytes vs baseline $BASELINE)"
+        # Fail if either metric regresses >10%
+        if [ "$FAILED" = "1" ]; then
+          echo "::error::Benchmark regression detected (core size: ${PCT}%, allocations: ${ALLOC_PCT}%)"
           exit 1
         fi
