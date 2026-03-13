@@ -626,7 +626,6 @@ instance QueryParam a => QueryParam [a] where
     showQueryParam = List.intercalate "," . map showQueryParam
 
 instance {-# OVERLAPPABLE #-} (Show controller, AutoRoute controller) => HasPath controller where
-    {-# INLINABLE pathTo #-}
     pathTo !action = case customPathTo action of
         Just path -> path
         Nothing ->
@@ -658,6 +657,7 @@ instance {-# OVERLAPPABLE #-} (Show controller, AutoRoute controller) => HasPath
                 |> map (\(k, v) -> k <> "=" <> URI.encodeText v)
                 |> Text.intercalate "&"
                 |> (\q -> if Text.null q then q else Text.cons '?' q)
+    {-# NOINLINE pathTo #-}
 
 -- | Render a controller field value as 'Text' for URL query parameter inclusion.
 --
@@ -684,7 +684,7 @@ renderFieldForUrl val
         case gmapQ renderFieldForUrl val of
             [inner] -> inner
             _ -> ""
-{-# INLINABLE renderFieldForUrl #-}
+{-# NOINLINE renderFieldForUrl #-}
 
 -- | Parses the HTTP Method from the request and returns it.
 getMethod :: (?request :: Request, ?respond :: Respond) => Parser StdMethod
