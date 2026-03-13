@@ -9,4 +9,4 @@ jobs:
     runs-on: ARM64
     steps:
     - uses: actions/checkout@v6
-    - run: nix flake check --impure --override-input ihp-boilerplate/ihp "github:${{ github.event.repository.full_name }}/${{ github.sha }}" --override-input ihp-forum/ihp "github:${{ github.event.repository.full_name }}/${{ github.sha }}" -L
+    - run: nix flake check --impure --override-input ihp-boilerplate/ihp "github:${{ github.event.repository.full_name }}/${{ github.sha }}" -L

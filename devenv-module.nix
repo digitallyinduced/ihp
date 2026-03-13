@@ -37,58 +37,6 @@ that is defined in flake-module.nix
                         '';
                     });
 
-                    # Build ihp-forum with -ddump-simpl and measure Core output size.
-                    # Parameterized on GHC package set so we can compare PR vs master.
-                    mkForumCoreSizeBench = name: ghcPkgs: pkgs.stdenv.mkDerivation {
-                        inherit name;
-                        src = inputs.ihp-forum;
-                        nativeBuildInputs = [
-                            (ghcPkgs.ghc.withPackages (p: with p; [
-                                ihp ihp-mail ihp-schema-compiler
-                                base wai text mmark mmark-ext wreq neat-interpolation
-                            ]))
-                            pkgs.gnumake
-                            pkgs.gawk
-                        ];
-                        buildPhase = ''
-                            export IHP_LIB=${hsDataDir ghcPkgs.ihp-ide.data}
-
-                            # Generate types from Schema.sql
-                            make -f $IHP_LIB/lib/IHP/Makefile.dist build/Generated/Types.hs
-
-                            # Get GHC extensions
-                            GHC_EXTS=$(make -f $IHP_LIB/lib/IHP/Makefile.dist print-ghc-extensions | sed 's/-fbyte-code//g')
-
-                            # Compile with -O1 and dump Core
-                            mkdir -p dumps
-                            ghc --make \
-                                $GHC_EXTS \
-                                -O1 -ddump-simpl -ddump-to-file -dumpdir dumps \
-                                -fforce-recomp \
-                                -i. -ibuild -iConfig \
-                                -package-env - \
-                                -package ihp -package ihp-mail \
-                                -Wno-partial-fields \
-                                Main.hs -o /dev/null
-
-                            # Measure total Core size
-                            TOTAL=$(find dumps -name '*.dump-simpl' -exec cat {} + | wc -c | tr -d ' ')
-                            echo "$TOTAL" > core-size
-
-                            # Per-module breakdown (CSV sorted by size descending)
-                            echo "module,bytes" > modules.csv
-                            find dumps -name '*.dump-simpl' | while read -r f; do
-                                MOD=$(echo "$f" | sed 's|^dumps/||; s|\.dump-simpl$||; s|/|.|g')
-                                SIZE=$(wc -c < "$f" | tr -d ' ')
-                                echo "$MOD,$SIZE" >> modules.csv
-                            done
-                            sort -t, -k2 -rn -o modules.csv modules.csv
-                        '';
-                        installPhase = ''
-                            mkdir -p $out
-                            cp core-size modules.csv $out/
-                        '';
-                    };
     in
     {
         _module.args.pkgs = import inputs.nixpkgs { inherit system; overlays = [ self.overlays.default ]; config = { }; };
@@ -147,12 +95,6 @@ that is defined in flake-module.nix
                     '';
                 });
             }
-
-            # ihp-forum: build the forum to catch regressions in a real-world app
-            // (lib.mapAttrs' (n: v: { name = "forum-${n}"; value = v; }) (lib.filterAttrs (n: v: lib.isDerivation v
-                        && n != "default"
-                        && n != "unoptimized-docker-image" && n != "optimized-docker-image"
-                    ) inputs.ihp-forum.packages.${system}))
 
             # Integration test: a minimal IHP app that exercises controllers, views, models, HSX, and withIHPApp
             // {
@@ -410,17 +352,6 @@ that is defined in flake-module.nix
             ihp-welcome = pkgs.ghc.ihp-welcome;
             ihp-mail = pkgs.ghc.ihp-mail;
 
-            forum-core-size-bench = mkForumCoreSizeBench "forum-core-size-bench" pkgs.ghc;
-
-            forum-core-size-bench-baseline =
-                let
-                    masterPkgs = import inputs.nixpkgs {
-                        inherit system;
-                        overlays = [ (builtins.getFlake "github:digitallyinduced/ihp").overlays.default ];
-                        config = { };
-                    };
-                in mkForumCoreSizeBench "forum-core-size-bench-baseline" masterPkgs.ghc;
-            
             run-script = pkgs.stdenv.mkDerivation {
                 pname = "run-script";
                 version = "1.0.0";
