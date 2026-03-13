@@ -71,7 +71,7 @@ common common-flags
         -optc-O3
         -Werror=incomplete-patterns
         -fspec-eval
-        -fspec-eval-dict-fun
+        -fspec-eval-dictfun
 
 common common-depends
     build-depends:

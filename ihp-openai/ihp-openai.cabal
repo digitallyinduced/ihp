@@ -55,7 +55,7 @@ library
         -fexpose-all-unfoldings
         -Werror=incomplete-patterns
         -fspec-eval
-        -fspec-eval-dict-fun
+        -fspec-eval-dictfun
     hs-source-dirs: .
     exposed-modules:
         IHP.OpenAI

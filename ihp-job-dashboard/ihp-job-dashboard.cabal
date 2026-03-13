@@ -15,7 +15,7 @@ build-type:          Simple
 
 library
     default-language: GHC2021
-    ghc-options: -Werror=incomplete-patterns -Werror=unused-imports -Werror=missing-fields -fspec-eval -fspec-eval-dict-fun
+    ghc-options: -Werror=incomplete-patterns -Werror=unused-imports -Werror=missing-fields -fspec-eval -fspec-eval-dictfun
     build-depends:
             base >= 4.17.0 && < 4.22
             , wai

@@ -113,7 +113,7 @@ common shared-properties
             -Werror=incomplete-patterns
             -Werror=unused-imports
             -fspec-eval
-            -fspec-eval-dict-fun
+            -fspec-eval-dictfun
 
 library
     import: shared-properties

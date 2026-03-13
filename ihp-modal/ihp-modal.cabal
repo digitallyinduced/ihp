@@ -30,7 +30,7 @@ common shared-properties
         , RecordWildCards
         , QuasiQuotes
         , OverloadedRecordDot
-    ghc-options: -Werror=incomplete-patterns -Werror=unused-imports -Werror=missing-fields -fspec-eval -fspec-eval-dict-fun
+    ghc-options: -Werror=incomplete-patterns -Werror=unused-imports -Werror=missing-fields -fspec-eval -fspec-eval-dictfun
 
 library
     import: shared-properties
