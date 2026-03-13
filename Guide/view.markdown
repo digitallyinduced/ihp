@@ -418,20 +418,22 @@ Preloading with InstantClick on hover will only happen with links that
 
 (So putting an anchor on a link, or explicitly setting the `data-turbolinks-preload` attribute to `false`, will let you selectively turn off preloading for that link.)
 
-We provide two custom events
-
--   `ihp:load` that will trigger when `DOMContentLoaded` or `turbolinks:load`
--   `ihp:unload` that will fire on `beforeunload` and before [morphdom patches the page](#TurboLinks)
+Triggered events:
 
 ```javascript
-document.addEventListener('ihp:load', () => {
+$(document).on('ready turbolinks:load', () => {
     console.log('Page Loaded');
 });
 
-document.addEventListener('ihp:unload', () => {
+$(document).on('beforeunload', () => {
     console.log('Page Unloaded');
 });
 ```
+
+There's also a custom event `ihp:unload` that will fire on `beforeunload` and before [morphdom patches the page](#TurboLinks)
+
+Note that when using jQuery there's a some difference from using `document.addEventListener`, which you can read about [here](https://api.jquery.com/ready/).
+Notably the part about "If the DOM becomes ready and the browser fires `DOMContentLoaded` before the code calls `.ready( handler )`, the function handler will still be executed."
 
 ## JSON
 
