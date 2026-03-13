@@ -34,7 +34,6 @@ import Data.Int (Int64)
 -- | Prepared statement for fetching a single record by primary key.
 --
 -- > SELECT table.col1, table.col2, ... FROM table WHERE table.id = $1 LIMIT 1
-{-# INLINE fetchByIdOneOrNothingStatement #-}
 fetchByIdOneOrNothingStatement :: forall table model. (Table model, GetTableName model ~ table, FromRowHasql model, DefaultParamEncoder (Id' table)) => Hasql.Statement (Id' table) (Maybe model)
 fetchByIdOneOrNothingStatement = Hasql.preparable sql (Encoders.param defaultParam) (Decoders.rowMaybe (hasqlRowDecoder @model))
   where
@@ -46,7 +45,6 @@ fetchByIdOneOrNothingStatement = Hasql.preparable sql (Encoders.param defaultPar
 -- | Prepared statement for fetching records by primary key (returns list).
 --
 -- > SELECT table.col1, table.col2, ... FROM table WHERE table.id = $1
-{-# INLINE fetchByIdListStatement #-}
 fetchByIdListStatement :: forall table model. (Table model, GetTableName model ~ table, FromRowHasql model, DefaultParamEncoder (Id' table)) => Hasql.Statement (Id' table) [model]
 fetchByIdListStatement = Hasql.preparable sql (Encoders.param defaultParam) (Decoders.rowList (hasqlRowDecoder @model))
   where
@@ -56,7 +54,6 @@ fetchByIdListStatement = Hasql.preparable sql (Encoders.param defaultParam) (Dec
     qualifiedColumns = Text.intercalate ", " (map (\c -> tn <> "." <> c) (columnNames @model))
 
 -- | Build a statement that fetches all rows matching a query builder.
-{-# INLINE buildQueryListStatement #-}
 buildQueryListStatement :: forall model table queryBuilderProvider joinRegister.
     ( Table model, HasQueryBuilder queryBuilderProvider joinRegister
     , model ~ GetModelByTableName table, KnownSymbol table, FromRowHasql model
@@ -65,7 +62,6 @@ buildQueryListStatement !queryBuilder =
     buildStatement (buildQuery queryBuilder) (Decoders.rowList (hasqlRowDecoder @model))
 
 -- | Build a statement that fetches at most one row (adds LIMIT 1).
-{-# INLINE buildQueryMaybeStatement #-}
 buildQueryMaybeStatement :: forall model table queryBuilderProvider joinRegister.
     ( Table model, HasQueryBuilder queryBuilderProvider joinRegister
     , model ~ GetModelByTableName table, KnownSymbol table, FromRowHasql model
@@ -74,7 +70,6 @@ buildQueryMaybeStatement !queryBuilder =
     buildStatement ((buildQuery queryBuilder) { limitClause = Just 1 }) (Decoders.rowMaybe (hasqlRowDecoder @model))
 
 -- | Build a @SELECT COUNT(*)@ statement wrapping a query builder.
-{-# INLINE buildCountStatement #-}
 buildCountStatement :: forall table queryBuilderProvider joinRegister.
     ( KnownSymbol table, HasQueryBuilder queryBuilderProvider joinRegister
     ) => queryBuilderProvider table -> Hasql.Statement () Int64
@@ -82,7 +77,6 @@ buildCountStatement !queryBuilder =
     buildWrappedStatement "SELECT COUNT(*) FROM (" (buildQuery queryBuilder) ") AS _count_values" (Decoders.singleRow (Decoders.column (Decoders.nonNullable Decoders.int8)))
 
 -- | Build a @SELECT EXISTS@ statement wrapping a query builder.
-{-# INLINE buildExistsStatement #-}
 buildExistsStatement :: forall table queryBuilderProvider joinRegister.
     ( KnownSymbol table, HasQueryBuilder queryBuilderProvider joinRegister
     ) => queryBuilderProvider table -> Hasql.Statement () Bool
