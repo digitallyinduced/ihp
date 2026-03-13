@@ -8,19 +8,11 @@ jobs:
     steps:
     - uses: actions/checkout@v6
 
-    - name: Build baseline (master IHP, using PR's package definition)
+    - name: Build baseline (master IHP) and PR benchmark
       run: |
-        nix build .#forum-core-size-bench \
-          --impure \
-          --override-input ihp-forum/ihp "github:digitallyinduced/ihp" \
-          -o result-baseline -L
-
-    - name: Build PR benchmark
-      run: |
-        nix build .#forum-core-size-bench \
-          --impure \
-          --override-input ihp-forum/ihp "github:${{ github.event.repository.full_name }}/${{ github.sha }}" \
-          -o result-pr -L
+        nix build .#forum-core-size-bench-baseline --impure -o result-baseline -L &
+        nix build .#forum-core-size-bench --impure -o result-pr -L &
+        wait
 
     - name: Compare and post PR comment
       env:
@@ -53,7 +45,7 @@ jobs:
           echo ""
           echo "| Module | Size (bytes) |"
           echo "|--------|-------------|"
-          head -11 result-pr/modules.csv | tail -10 | awk -F, '{ printf "| %s | %s |\n", $1, $2 }'
+          head -10 result-pr/modules.csv | awk -F, '{ printf "| %s | %s |\n", $1, $2 }'
         } > comment-body.md
 
         # Post/update PR comment
