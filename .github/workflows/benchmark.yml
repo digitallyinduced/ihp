@@ -49,6 +49,7 @@ jobs:
           createdb -h "$PGHOST" "forum_${LABEL}"
           psql -h "$PGHOST" -d "forum_${LABEL}" -f "$RESULT_DIR/IHPSchema.sql"
           psql -h "$PGHOST" -d "forum_${LABEL}" -f "$RESULT_DIR/Application/Schema.sql"
+          psql -h "$PGHOST" -d "forum_${LABEL}" -f "$RESULT_DIR/Application/Fixtures.sql"
 
           DATABASE_URL="postgresql:///forum_${LABEL}?host=$PGHOST" \
           PORT=$PORT \

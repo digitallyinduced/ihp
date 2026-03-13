@@ -89,6 +89,7 @@
                         cp forum-server $out/bin/
                         mkdir -p $out/Application
                         cp Application/Schema.sql $out/Application/
+                        cp Application/Fixtures.sql $out/Application/
                         cp ${hsDataDir ghcPkgs.ihp-ide.data}/IHPSchema.sql $out/
                     '';
                 };
