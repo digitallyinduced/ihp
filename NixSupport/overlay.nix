@@ -127,6 +127,7 @@ let
                     };
                 })));
             # ptr-peeker is marked broken in nixpkgs but is needed by postgresql-types
+            # https://github.com/nikita-volkov/ptr-peeker/issues/10
             ptr-peeker = final.haskell.lib.dontCheck (final.haskell.lib.markUnbroken super.ptr-peeker);
             postgresql-types-algebra = final.haskell.lib.doJailbreak (self.callHackageDirect { pkg = "postgresql-types-algebra"; ver = "0.1"; sha256 = "0ishl9dag7w73bclpaja4wj3s6jf8958jls2ffn1a6h3p9v40pfv"; } {});
             # dontCheck: tests require a running PostgreSQL server
