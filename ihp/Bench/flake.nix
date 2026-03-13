@@ -58,12 +58,12 @@
                         ghc --make \
                             $GHC_EXTS \
                             -O1 -ddump-simpl -ddump-to-file -dumpdir dumps \
-                            -fforce-recomp \
+                            -fforce-recomp -threaded -rtsopts=all \
                             -i. -ibuild -iConfig \
                             -package-env - \
                             -package ihp -package ihp-mail \
                             -Wno-partial-fields \
-                            Main.hs -o /dev/null \
+                            Main.hs -o forum-server \
                             +RTS -s 2>ghc-rts-stats.txt
 
                         # Extract compile allocations (deterministic metric)
@@ -84,8 +84,12 @@
                         sort -t, -k2 -rn -o modules.csv modules.csv
                     '';
                     installPhase = ''
-                        mkdir -p $out
+                        mkdir -p $out/bin
                         cp core-size modules.csv compile-allocations $out/
+                        cp forum-server $out/bin/
+                        mkdir -p $out/Application
+                        cp Application/Schema.sql $out/Application/
+                        cp ${hsDataDir ghcPkgs.ihp-ide.data}/IHPSchema.sql $out/
                     '';
                 };
 
