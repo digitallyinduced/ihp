@@ -1,0 +1,70 @@
+name: Core Size Benchmark
+on:
+  pull_request:
+    branches: [master]
+jobs:
+  core-size:
+    runs-on: ARM64
+    steps:
+    - uses: actions/checkout@v6
+
+    - name: Build baseline (master IHP) and PR benchmark
+      working-directory: ihp/Bench
+      run: |
+        nix build .#baseline \
+          --impure \
+          --override-input ihp "github:digitallyinduced/ihp" \
+          -o result-baseline -L &
+        nix build .#default \
+          --impure \
+          --override-input ihp "github:${{ github.event.repository.full_name }}/${{ github.sha }}" \
+          -o result-pr -L &
+        wait
+
+    - name: Compare and post PR comment
+      env:
+        GH_TOKEN: ${{ github.token }}
+      run: |
+        BASELINE=$(cat ihp/Bench/result-baseline/core-size)
+        CURRENT=$(cat ihp/Bench/result-pr/core-size)
+        PCT=$(awk "BEGIN { printf \"%.1f\", ($CURRENT - $BASELINE) / $BASELINE * 100 }")
+
+        # Build markdown report
+        {
+          echo "<!-- core-size-benchmark -->"
+          echo "## Core Size Benchmark"
+          echo ""
+          echo "| Metric | Value |"
+          echo "|--------|-------|"
+          echo "| Baseline (master) | $BASELINE bytes |"
+          echo "| This PR | $CURRENT bytes |"
+          echo "| Change | ${PCT}% |"
+          echo ""
+          if awk "BEGIN { exit !(($CURRENT - $BASELINE) / $BASELINE > 0.10) }"; then
+            echo "> **REGRESSION**: +${PCT}% exceeds 10% threshold"
+          elif awk "BEGIN { exit !(($CURRENT - $BASELINE) / $BASELINE < -0.05) }"; then
+            echo "> **Improvement**: ${PCT}% reduction"
+          else
+            echo "> Within threshold"
+          fi
+          echo ""
+          echo "### Top 10 modules (this PR)"
+          echo ""
+          echo "| Module | Size (bytes) |"
+          echo "|--------|-------------|"
+          head -10 ihp/Bench/result-pr/modules.csv | awk -F, '{ printf "| %s | %s |\n", $1, $2 }'
+        } > comment-body.md
+
+        # Post/update PR comment
+        COMMENT_ID=$(gh api "repos/${{ github.repository }}/issues/${{ github.event.pull_request.number }}/comments" \
+          --jq '.[] | select(.body | startswith("<!-- core-size-benchmark -->")) | .id' 2>/dev/null || true)
+        if [ -n "$COMMENT_ID" ]; then
+          gh api "repos/${{ github.repository }}/issues/comments/$COMMENT_ID" -X DELETE 2>/dev/null || true
+        fi
+        gh pr comment "${{ github.event.pull_request.number }}" --body-file comment-body.md
+
+        # Fail if regression >10%
+        if awk "BEGIN { exit !(($CURRENT - $BASELINE) / $BASELINE > 0.10) }"; then
+          echo "::error::Core size regression: ${PCT}% ($CURRENT bytes vs baseline $BASELINE)"
+          exit 1
+        fi

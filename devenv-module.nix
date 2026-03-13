@@ -36,6 +36,7 @@ that is defined in flake-module.nix
                             ${old.postCheck or ""}
                         '';
                     });
+
     in
     {
         _module.args.pkgs = import inputs.nixpkgs { inherit system; overlays = [ self.overlays.default ]; config = { }; };
@@ -350,7 +351,7 @@ that is defined in flake-module.nix
             ihp-hspec = pkgs.ghc.ihp-hspec;
             ihp-welcome = pkgs.ghc.ihp-welcome;
             ihp-mail = pkgs.ghc.ihp-mail;
-            
+
             run-script = pkgs.stdenv.mkDerivation {
                 pname = "run-script";
                 version = "1.0.0";
