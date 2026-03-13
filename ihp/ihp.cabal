@@ -297,6 +297,7 @@ test-suite tests
         Test.Controller.ParamSpec
         Test.Controller.AccessDeniedSpec
         Test.Controller.NotFoundSpec
+        Test.Controller.RenderSpec
         Test.ModelSupportSpec
         Test.QueryBuilderSpec
         Test.RouterSupportSpec
