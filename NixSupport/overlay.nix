@@ -80,6 +80,7 @@ let
                 });
 
             # Can be removed after v0.3.2 is on hackage
+            # https://github.com/tippenein/countable-inflections/pull/6
             countable-inflections = final.haskell.lib.overrideSrc super.countable-inflections {
                 version = "0.3.2";
                 src = final.fetchFromGitHub {
@@ -97,33 +98,8 @@ let
             postgresql-connection-string = self.callHackageDirect { pkg = "postgresql-connection-string"; ver = "0.1.0.6"; sha256 = "07iykhnjzryqqc1mccnmqf7lkg12rb4dq5azvrpfq6qaf6a6r0r1"; } {};
 
             hasql = final.haskell.lib.dontCheck (final.haskell.lib.doJailbreak (self.callHackageDirect { pkg = "hasql"; ver = "1.10.2.3"; sha256 = "1j52ia75168n88rrraf4g20grdl3qak8r426rav87kjjjqx3717v"; } {}));
-            # Using git commit for https://github.com/nikita-volkov/hasql-pool/pull/53
-            # (auto-discard pooled connections on stale prepared-statement/type-cache errors).
-            # Switch back to callHackageDirect once a new Hackage release lands.
-            hasql-pool = final.haskell.lib.dontCheck (final.haskell.lib.overrideCabal
-                (self.callHackageDirect { pkg = "hasql-pool"; ver = "1.4.1"; sha256 = "08my6djljjgpkxgk4xc3z314ad0rf6g4yvv470rmm12nbzj2g66a"; } {})
-                (old: {
-                    src = builtins.fetchTarball {
-                        url = "https://github.com/nikita-volkov/hasql-pool/archive/a1e06a7c86b17e1a81345afc9ea37530642ecf47.tar.gz";
-                        sha256 = "0mxxlixm82z4ng8ij7lsikxikyi5yhnkqxiy38ljd4qd2dfly5g6";
-                    };
-                }));
-            # Patched to add toPreparedStatement: like toStatement but creates a preparable
-            # (cached) statement instead of an unpreparable one. This allows IHP queries to
-            # benefit from PostgreSQL's prepared statement plan caching.
-            hasql-dynamic-statements = final.haskell.lib.dontCheck (final.haskell.lib.overrideCabal (self.callHackageDirect { pkg = "hasql-dynamic-statements"; ver = "0.5.0.1"; sha256 = "1vdydp8n0zq3mwkzids64b86d9q2l11yc8df4brhmwx06qmvq3sc"; } {}) (old: {
-                postPatch = (old.postPatch or "") + ''
-                    substituteInPlace src/library/Hasql/DynamicStatements/Snippet.hs \
-                        --replace-warn "toStatement," \
-                                       "toStatement, toPreparedStatement,"
-                    cat >> src/library/Hasql/DynamicStatements/Snippet.hs << 'PREPARED_STATEMENT'
-
-            toPreparedStatement :: Snippet -> Decoders.Result result -> Statement.Statement () result
-            toPreparedStatement (Snippet sql _ encoder) decoder =
-              Statement.preparable (TextBuilder.toText (sql 1)) encoder decoder
-            PREPARED_STATEMENT
-                '';
-            }));
+            hasql-pool = final.haskell.lib.dontCheck (self.callHackageDirect { pkg = "hasql-pool"; ver = "1.4.2"; sha256 = "0gw8brk3kwb1s58s0npbmszh5byqv0frjyaql7mgkc317x67c049"; } {});
+            hasql-dynamic-statements = final.haskell.lib.dontCheck (self.callHackageDirect { pkg = "hasql-dynamic-statements"; ver = "0.5.1"; sha256 = "13c04wb1635361wrszn2kn4s5ygl7yzv8yn6bvpxgm2j7hr0v94q"; } {});
             hasql-implicits = self.callHackageDirect { pkg = "hasql-implicits"; ver = "0.2.0.2"; sha256 = "0nyz96mgrc4i7x3q8wwv6zq8qpwam13f5y1rlbh102jp2ygb2mjy"; } {};
             hasql-transaction = final.haskell.lib.dontCheck (self.callHackageDirect { pkg = "hasql-transaction"; ver = "1.2.2"; sha256 = "0y1clnyw76rszsdvz0fxj2az036bmw1whp6pqchyjamnbkmf37d3"; } {});
             hasql-notifications = final.haskell.lib.dontCheck (self.callHackageDirect { pkg = "hasql-notifications"; ver = "0.2.5.0"; sha256 = "11jkrngiy175wc5hqx8pgagj4fdg42ry7afp4g4rr5hw8h43zg48"; } {});
@@ -152,13 +128,13 @@ let
                     };
                 })));
             # ptr-peeker is marked broken in nixpkgs but is needed by postgresql-types
+            # https://github.com/nikita-volkov/ptr-peeker/issues/10
             ptr-peeker = final.haskell.lib.dontCheck (final.haskell.lib.markUnbroken super.ptr-peeker);
             postgresql-types-algebra = final.haskell.lib.doJailbreak (self.callHackageDirect { pkg = "postgresql-types-algebra"; ver = "0.1"; sha256 = "0ishl9dag7w73bclpaja4wj3s6jf8958jls2ffn1a6h3p9v40pfv"; } {});
             # dontCheck: tests require a running PostgreSQL server
             postgresql-types = final.haskell.lib.dontCheck (final.haskell.lib.doJailbreak (self.callHackageDirect { pkg = "postgresql-types"; ver = "0.1.2"; sha256 = "1plkc0pjhlbml5innkla44jad1jx8f876kw5ckz168jxvzrkb4jc"; } {}));
-            # hasql-mapping provides the IsScalar typeclass for hasql encoder/decoder integration
-            # Not on Hackage, only on GitHub. Patched to export IsScalar(..) from Hasql.Mapping
-            # so that hasql-postgresql-types can define orphan instances.
+            # hasql-mapping provides the IsScalar typeclass for hasql encoder/decoder integration.
+            # Not on Hackage, only on GitHub.
             hasql-mapping = final.haskell.lib.doJailbreak (final.haskell.lib.overrideCabal
                 (super.callPackage "${flakeRoot}/NixSupport/hasql-mapping-default.nix" {})
                 (old: {
@@ -166,31 +142,22 @@ let
                         url = "https://github.com/nikita-volkov/hasql-mapping/archive/307dfb5f25ba28d8408fac3aa160ca4ba702acc9.tar.gz";
                         sha256 = "1ww54his5d3wfh3amdk9zk5w6v4pdgljlzifnqga3lwn1gasbsvr";
                     };
-                    postPatch = (old.postPatch or "") + ''
-                        substituteInPlace src/library/Hasql/Mapping.hs \
-                            --replace-warn "import Hasql.Mapping.IsScalar (IsScalar)" \
-                                           "import Hasql.Mapping.IsScalar (IsScalar(..))" \
-                            --replace-warn "( IsScalar," \
-                                           "( IsScalar(..),"
-                    '';
                 }));
-            # Patched to add Tsvector instance (added in postgresql-types fork)
-            hasql-postgresql-types = final.haskell.lib.doJailbreak (final.haskell.lib.overrideCabal
-                (super.callPackage "${flakeRoot}/NixSupport/hasql-postgresql-types-default.nix" {})
-                (old: {
-                    src = builtins.fetchTarball {
-                        url = "https://github.com/nikita-volkov/hasql-postgresql-types/archive/b8cb8fe1e7eb.tar.gz";
-                        sha256 = "0fffxiavxn70nis9rqgx2z9rp030x1afdr7qj8plwncif3qvsv1f";
-                    };
-                    postPatch = (old.postPatch or "") + ''
-                        cat >> src/library/Hasql/PostgresqlTypes.hs << 'TSVECTOR_INSTANCE'
-
-                        instance Hasql.Mapping.IsScalar Tsvector where
-                          encoder = Core.encoder
-                          decoder = Core.decoder
-                        TSVECTOR_INSTANCE
-                    '';
-                }));
+            # Patched to add Tsvector IsScalar instance
+            # https://github.com/nikita-volkov/hasql-postgresql-types/pull/2
+            hasql-postgresql-types = final.haskell.lib.dontHaddock (final.haskell.lib.doJailbreak (final.haskell.lib.appendPatch
+                (final.haskell.lib.overrideCabal
+                    (super.callPackage "${flakeRoot}/NixSupport/hasql-postgresql-types-default.nix" {})
+                    (old: {
+                        src = builtins.fetchTarball {
+                            url = "https://github.com/nikita-volkov/hasql-postgresql-types/archive/3ad6b0ef22b85744dec15078b88dd3ee47b258fc.tar.gz";
+                            sha256 = "12kgjrjc3nizsrdw3z2rn0rlv53zsy5jsw501lrajxmwkyqzxj5d";
+                        };
+                    }))
+                (builtins.fetchurl {
+                    url = "https://github.com/nikita-volkov/hasql-postgresql-types/commit/22a05a1d958cc1c333b2dea0c4e956338aaf338d.patch";
+                    sha256 = "02ph4h8wanix15jx7jkw4l4sp2rls7da57hgbwm2ll6a6ia2zkpk";
+                })));
         };
 in
 final: prev: {

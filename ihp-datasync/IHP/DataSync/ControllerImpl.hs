@@ -183,7 +183,7 @@ buildMessageHandler hasqlPool ensureRLSEnabled installTableChangeTriggers sendJS
                             if affectsFilterOrRLS
                                 then do
                                     let existsSnippet = Snippet.sql "SELECT EXISTS(SELECT * FROM (" <> querySnippet <> Snippet.sql ") AS records WHERE records.id = " <> uuidParam id <> Snippet.sql " LIMIT 1)"
-                                    let existsStmt = Snippet.toPreparedStatement existsSnippet (Decoders.singleRow (Decoders.column (Decoders.nonNullable Decoders.bool)))
+                                    let existsStmt = Snippet.toPreparableStatement existsSnippet (Decoders.singleRow (Decoders.column (Decoders.nonNullable Decoders.bool)))
                                     isRecordInResultSet :: Bool <- sqlQueryScalarWithRLS hasqlPool existsStmt
                                     if isRecordInResultSet
                                         then sendJSON DidUpdate { subscriptionId, id, changeSet = changeSetVal, appendSet = appendSetVal }
@@ -205,7 +205,7 @@ buildMessageHandler hasqlPool ensureRLSEnabled installTableChangeTriggers sendJS
                                 -- To honor the RLS policies we therefore need to fetch the record as the current user
                                 -- If the result set is empty, we know the record is not accesible to us
                                 let filterSnippet = Snippet.sql "SELECT * FROM (" <> querySnippet <> Snippet.sql ") AS records WHERE records.id = " <> uuidParam id <> Snippet.sql " LIMIT 1"
-                                let filterStmt = Snippet.toPreparedStatement (wrapDynamicQuery filterSnippet) dynamicRowDecoder
+                                let filterStmt = Snippet.toPreparableStatement (wrapDynamicQuery filterSnippet) dynamicRowDecoder
                                 newRecord :: [[Field]] <- sqlQueryWithRLS hasqlPool filterStmt
 
                                 case headMay newRecord of
@@ -253,7 +253,7 @@ buildMessageHandler hasqlPool ensureRLSEnabled installTableChangeTriggers sendJS
 
                 let countSnippet = Snippet.sql "SELECT COUNT(*) FROM (" <> querySnippet <> Snippet.sql ") AS _inner"
                 let countDecoder = Decoders.singleRow (Decoders.column (Decoders.nonNullable (fromIntegral <$> Decoders.int8)))
-                let countStmt = Snippet.toPreparedStatement countSnippet countDecoder
+                let countStmt = Snippet.toPreparableStatement countSnippet countDecoder
 
                 count :: Int <- sqlQueryScalarWithRLS hasqlPool countStmt
                 countRef <- newIORef count
@@ -379,7 +379,7 @@ buildMessageHandler hasqlPool ensureRLSEnabled installTableChangeTriggers sendJS
                 ensureRLSEnabled table
 
                 let deleteSnippet = Snippet.sql ("DELETE FROM " <> quoteIdentifier table <> " WHERE id = ") <> uuidParam id
-                let stmt = Snippet.toPreparedStatement deleteSnippet Decoders.noResult
+                let stmt = Snippet.toPreparableStatement deleteSnippet Decoders.noResult
                 sqlExecWithRLSAndTransactionId hasqlPool transactionId stmt
 
                 sendJSON DidDeleteRecord { requestId }
@@ -388,7 +388,7 @@ buildMessageHandler hasqlPool ensureRLSEnabled installTableChangeTriggers sendJS
                 ensureRLSEnabled table
 
                 let inList = mconcat $ List.intersperse (Snippet.sql ", ") (map uuidParam ids)
-                let stmt = Snippet.toPreparedStatement (Snippet.sql ("DELETE FROM " <> quoteIdentifier table <> " WHERE id IN (") <> inList <> Snippet.sql ")") Decoders.noResult
+                let stmt = Snippet.toPreparableStatement (Snippet.sql ("DELETE FROM " <> quoteIdentifier table <> " WHERE id IN (") <> inList <> Snippet.sql ")") Decoders.noResult
                 sqlExecWithRLSAndTransactionId hasqlPool transactionId stmt
 
                 sendJSON DidDeleteRecords { requestId }
