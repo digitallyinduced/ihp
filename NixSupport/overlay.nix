@@ -143,7 +143,8 @@ let
                         sha256 = "1ww54his5d3wfh3amdk9zk5w6v4pdgljlzifnqga3lwn1gasbsvr";
                     };
                 }));
-            # Patched to add Tsvector instance (added in postgresql-types fork)
+            # Patched to add Tsvector instance
+            # https://github.com/nikita-volkov/hasql-postgresql-types/pull/2
             hasql-postgresql-types = final.haskell.lib.dontHaddock (final.haskell.lib.doJailbreak (final.haskell.lib.overrideCabal
                 (super.callPackage "${flakeRoot}/NixSupport/hasql-postgresql-types-default.nix" {})
                 (old: {
