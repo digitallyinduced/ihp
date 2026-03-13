@@ -141,5 +141,7 @@ substituteParams (PG.Query query, params) =
         actionToText (PG.Escape escape) = "'" <> cs escape <> "'"
         actionToText (PG.EscapeIdentifier escape) | cs escape == Text.toLower (cs escape) = cs escape
         actionToText (PG.EscapeIdentifier escape) = "\"" <> cs escape <> "\""
+        actionToText (PG.EscapeByteA bytes) = cs bytes
+        actionToText (PG.Many actions) = mconcat (map actionToText actions)
 
 
