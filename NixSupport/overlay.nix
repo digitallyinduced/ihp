@@ -80,6 +80,7 @@ let
                 });
 
             # Can be removed after v0.3.2 is on hackage
+            # https://github.com/tippenein/countable-inflections/pull/6
             countable-inflections = final.haskell.lib.overrideSrc super.countable-inflections {
                 version = "0.3.2";
                 src = final.fetchFromGitHub {
@@ -132,9 +133,8 @@ let
             postgresql-types-algebra = final.haskell.lib.doJailbreak (self.callHackageDirect { pkg = "postgresql-types-algebra"; ver = "0.1"; sha256 = "0ishl9dag7w73bclpaja4wj3s6jf8958jls2ffn1a6h3p9v40pfv"; } {});
             # dontCheck: tests require a running PostgreSQL server
             postgresql-types = final.haskell.lib.dontCheck (final.haskell.lib.doJailbreak (self.callHackageDirect { pkg = "postgresql-types"; ver = "0.1.2"; sha256 = "1plkc0pjhlbml5innkla44jad1jx8f876kw5ckz168jxvzrkb4jc"; } {}));
-            # hasql-mapping provides the IsScalar typeclass for hasql encoder/decoder integration
-            # Not on Hackage, only on GitHub. Patched to export IsScalar(..) from Hasql.Mapping
-            # so that hasql-postgresql-types can define orphan instances.
+            # hasql-mapping provides the IsScalar typeclass for hasql encoder/decoder integration.
+            # Not on Hackage, only on GitHub.
             hasql-mapping = final.haskell.lib.doJailbreak (final.haskell.lib.overrideCabal
                 (super.callPackage "${flakeRoot}/NixSupport/hasql-mapping-default.nix" {})
                 (old: {
@@ -142,31 +142,24 @@ let
                         url = "https://github.com/nikita-volkov/hasql-mapping/archive/307dfb5f25ba28d8408fac3aa160ca4ba702acc9.tar.gz";
                         sha256 = "1ww54his5d3wfh3amdk9zk5w6v4pdgljlzifnqga3lwn1gasbsvr";
                     };
-                    postPatch = (old.postPatch or "") + ''
-                        substituteInPlace src/library/Hasql/Mapping.hs \
-                            --replace-warn "import Hasql.Mapping.IsScalar (IsScalar)" \
-                                           "import Hasql.Mapping.IsScalar (IsScalar(..))" \
-                            --replace-warn "( IsScalar," \
-                                           "( IsScalar(..),"
-                    '';
                 }));
             # Patched to add Tsvector instance (added in postgresql-types fork)
-            hasql-postgresql-types = final.haskell.lib.doJailbreak (final.haskell.lib.overrideCabal
+            hasql-postgresql-types = final.haskell.lib.dontHaddock (final.haskell.lib.doJailbreak (final.haskell.lib.overrideCabal
                 (super.callPackage "${flakeRoot}/NixSupport/hasql-postgresql-types-default.nix" {})
                 (old: {
                     src = builtins.fetchTarball {
-                        url = "https://github.com/nikita-volkov/hasql-postgresql-types/archive/b8cb8fe1e7eb.tar.gz";
-                        sha256 = "0fffxiavxn70nis9rqgx2z9rp030x1afdr7qj8plwncif3qvsv1f";
+                        url = "https://github.com/nikita-volkov/hasql-postgresql-types/archive/3ad6b0ef22b85744dec15078b88dd3ee47b258fc.tar.gz";
+                        sha256 = "12kgjrjc3nizsrdw3z2rn0rlv53zsy5jsw501lrajxmwkyqzxj5d";
                     };
                     postPatch = (old.postPatch or "") + ''
                         cat >> src/library/Hasql/PostgresqlTypes.hs << 'TSVECTOR_INSTANCE'
 
-                        instance Hasql.Mapping.IsScalar Tsvector where
+                        instance IsScalar.IsScalar Tsvector where
                           encoder = Core.encoder
                           decoder = Core.decoder
                         TSVECTOR_INSTANCE
                     '';
-                }));
+                })));
         };
 in
 final: prev: {
