@@ -63,7 +63,12 @@
                             -package-env - \
                             -package ihp -package ihp-mail \
                             -Wno-partial-fields \
-                            Main.hs -o /dev/null
+                            Main.hs -o /dev/null \
+                            +RTS -s 2>ghc-rts-stats.txt
+
+                        # Extract compile allocations (deterministic metric)
+                        grep 'bytes allocated in the heap' ghc-rts-stats.txt \
+                            | sed 's/,//g' | awk '{print $1}' > compile-allocations
 
                         # Measure total Core size
                         TOTAL=$(find dumps -name '*.dump-simpl' -exec cat {} + | wc -c | tr -d ' ')
@@ -80,7 +85,7 @@
                     '';
                     installPhase = ''
                         mkdir -p $out
-                        cp core-size modules.csv $out/
+                        cp core-size modules.csv compile-allocations $out/
                     '';
                 };
 
