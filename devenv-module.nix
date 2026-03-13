@@ -159,7 +159,7 @@ that is defined in flake-module.nix
                     "ihp-migrate" "ihp-openai" "ihp-ssc" "ihp-graphql"
                     "ihp-datasync-typescript" "ihp-sitemap"
                     "ihp-job-dashboard" "ihp-imagemagick"
-                    "ihp-hspec" "ihp-welcome"
+                    "ihp-hspec" "ihp-welcome" "ihp-zip"
                     "wai-asset-path" "wai-flash-messages" "wai-request-params"
                 ];
             in lib.listToAttrs (map (name: {
