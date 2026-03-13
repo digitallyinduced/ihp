@@ -9,9 +9,15 @@ jobs:
     - uses: actions/checkout@v6
 
     - name: Build baseline (from master, cached in nix store)
+      id: baseline
       run: |
-        nix build "github:digitallyinduced/ihp#forum-core-size-bench" \
-          --impure -o result-baseline -L
+        if nix build "github:digitallyinduced/ihp#forum-core-size-bench" \
+          --impure -o result-baseline -L 2>&1; then
+          echo "available=true" >> "$GITHUB_OUTPUT"
+        else
+          echo "available=false" >> "$GITHUB_OUTPUT"
+          echo "::warning::Baseline not available on master yet — skipping comparison"
+        fi
 
     - name: Build PR benchmark
       run: |
@@ -24,35 +30,57 @@ jobs:
       env:
         GH_TOKEN: ${{ github.token }}
       run: |
-        BASELINE=$(cat result-baseline/core-size)
         CURRENT=$(cat result-pr/core-size)
-        PCT=$(awk "BEGIN { printf \"%.1f\", ($CURRENT - $BASELINE) / $BASELINE * 100 }")
 
-        # Build markdown report
-        {
-          echo "<!-- core-size-benchmark -->"
-          echo "## Core Size Benchmark"
-          echo ""
-          echo "| Metric | Value |"
-          echo "|--------|-------|"
-          echo "| Baseline (master) | $BASELINE bytes |"
-          echo "| This PR | $CURRENT bytes |"
-          echo "| Change | ${PCT}% |"
-          echo ""
-          if awk "BEGIN { exit !(($CURRENT - $BASELINE) / $BASELINE > 0.10) }"; then
-            echo "> **REGRESSION**: +${PCT}% exceeds 10% threshold"
-          elif awk "BEGIN { exit !(($CURRENT - $BASELINE) / $BASELINE < -0.05) }"; then
-            echo "> **Improvement**: ${PCT}% reduction"
-          else
-            echo "> Within threshold"
-          fi
-          echo ""
-          echo "### Top 10 modules (this PR)"
-          echo ""
-          echo "| Module | Size (bytes) |"
-          echo "|--------|-------------|"
-          head -11 result-pr/modules.csv | tail -10 | awk -F, '{ printf "| %s | %s |\n", $1, $2 }'
-        } > comment-body.md
+        if [ "${{ steps.baseline.outputs.available }}" = "true" ]; then
+          BASELINE=$(cat result-baseline/core-size)
+          PCT=$(awk "BEGIN { printf \"%.1f\", ($CURRENT - $BASELINE) / $BASELINE * 100 }")
+
+          # Build markdown report with comparison
+          {
+            echo "<!-- core-size-benchmark -->"
+            echo "## Core Size Benchmark"
+            echo ""
+            echo "| Metric | Value |"
+            echo "|--------|-------|"
+            echo "| Baseline (master) | $BASELINE bytes |"
+            echo "| This PR | $CURRENT bytes |"
+            echo "| Change | ${PCT}% |"
+            echo ""
+            if awk "BEGIN { exit !(($CURRENT - $BASELINE) / $BASELINE > 0.10) }"; then
+              echo "> **REGRESSION**: +${PCT}% exceeds 10% threshold"
+            elif awk "BEGIN { exit !(($CURRENT - $BASELINE) / $BASELINE < -0.05) }"; then
+              echo "> **Improvement**: ${PCT}% reduction"
+            else
+              echo "> Within threshold"
+            fi
+            echo ""
+            echo "### Top 10 modules (this PR)"
+            echo ""
+            echo "| Module | Size (bytes) |"
+            echo "|--------|-------------|"
+            head -11 result-pr/modules.csv | tail -10 | awk -F, '{ printf "| %s | %s |\n", $1, $2 }'
+          } > comment-body.md
+        else
+          # No baseline yet — just report current size
+          {
+            echo "<!-- core-size-benchmark -->"
+            echo "## Core Size Benchmark"
+            echo ""
+            echo "| Metric | Value |"
+            echo "|--------|-------|"
+            echo "| This PR | $CURRENT bytes |"
+            echo "| Baseline (master) | _not available yet_ |"
+            echo ""
+            echo "> Baseline will be available after this PR is merged to master."
+            echo ""
+            echo "### Top 10 modules (this PR)"
+            echo ""
+            echo "| Module | Size (bytes) |"
+            echo "|--------|-------------|"
+            head -11 result-pr/modules.csv | tail -10 | awk -F, '{ printf "| %s | %s |\n", $1, $2 }'
+          } > comment-body.md
+        fi
 
         # Post/update PR comment
         COMMENT_ID=$(gh api "repos/${{ github.repository }}/issues/${{ github.event.pull_request.number }}/comments" \
@@ -62,8 +90,10 @@ jobs:
         fi
         gh pr comment "${{ github.event.pull_request.number }}" --body-file comment-body.md
 
-        # Fail if regression >10%
-        if awk "BEGIN { exit !(($CURRENT - $BASELINE) / $BASELINE > 0.10) }"; then
-          echo "::error::Core size regression: ${PCT}% ($CURRENT bytes vs baseline $BASELINE)"
-          exit 1
+        # Fail if regression >10% (only when baseline is available)
+        if [ "${{ steps.baseline.outputs.available }}" = "true" ]; then
+          if awk "BEGIN { exit !(($CURRENT - $BASELINE) / $BASELINE > 0.10) }"; then
+            echo "::error::Core size regression: ${PCT}% ($CURRENT bytes vs baseline $BASELINE)"
+            exit 1
+          fi
         fi
