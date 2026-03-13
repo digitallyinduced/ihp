@@ -25,8 +25,6 @@ jobs:
     - name: Compare and post PR comment
       env:
         GH_TOKEN: ${{ github.token }}
-        PR_NUMBER: ${{ github.event.pull_request.number }}
-        REPO: ${{ github.repository }}
       run: |
         BASELINE=$(cat result-baseline/core-size)
         CURRENT=$(cat result-pr/core-size)
@@ -58,22 +56,13 @@ jobs:
           head -11 result-pr/modules.csv | tail -10 | awk -F, '{ printf "| %s | %s |\n", $1, $2 }'
         } > comment-body.md
 
-        BODY=$(cat comment-body.md)
-
-        # Delete previous benchmark comment if it exists
-        COMMENT_ID=$(curl -s -H "Authorization: token $GH_TOKEN" \
-          "https://api.github.com/repos/$REPO/issues/$PR_NUMBER/comments?per_page=100" \
-          | python3 -c "import sys,json; comments=json.load(sys.stdin); [print(c['id']) for c in comments if c.get('body','').startswith('<!-- core-size-benchmark -->')]" 2>/dev/null || true)
+        # Post/update PR comment
+        COMMENT_ID=$(gh api "repos/${{ github.repository }}/issues/${{ github.event.pull_request.number }}/comments" \
+          --jq '.[] | select(.body | startswith("<!-- core-size-benchmark -->")) | .id' 2>/dev/null || true)
         if [ -n "$COMMENT_ID" ]; then
-          curl -s -X DELETE -H "Authorization: token $GH_TOKEN" \
-            "https://api.github.com/repos/$REPO/issues/comments/$COMMENT_ID" || true
+          gh api "repos/${{ github.repository }}/issues/comments/$COMMENT_ID" -X DELETE 2>/dev/null || true
         fi
-
-        # Post new comment
-        curl -s -X POST -H "Authorization: token $GH_TOKEN" \
-          -H "Content-Type: application/json" \
-          "https://api.github.com/repos/$REPO/issues/$PR_NUMBER/comments" \
-          -d "$(python3 -c "import json,sys; print(json.dumps({'body': open('comment-body.md').read()}))")"
+        gh pr comment "${{ github.event.pull_request.number }}" --body-file comment-body.md
 
         # Fail if regression >10%
         if awk "BEGIN { exit !(($CURRENT - $BASELINE) / $BASELINE > 0.10) }"; then
