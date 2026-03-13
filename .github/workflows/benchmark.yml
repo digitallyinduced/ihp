@@ -21,6 +21,72 @@ jobs:
           -o result-pr -L &
         wait
 
+    - name: Run HTTP latency benchmark
+      working-directory: ihp/Bench
+      run: |
+        set -euo pipefail
+
+        # Get hyperfine, jq, and postgresql into PATH
+        export PATH="$(nix build nixpkgs#hyperfine --print-out-paths --no-link)/bin:$PATH"
+        export PATH="$(nix build nixpkgs#jq --print-out-paths --no-link)/bin:$PATH"
+        PG_OUTPUTS=$(nix build nixpkgs#postgresql --print-out-paths --no-link)
+        PG_OUT=$(echo "$PG_OUTPUTS" | grep -v '\-lib' | grep -v '\-man' | grep -v '\-doc' | head -1)
+        export PATH="$PG_OUT/bin:$PATH"
+
+        # Setup PostgreSQL (Unix socket only, no TCP)
+        PGHOST="$(mktemp -d)"
+        initdb -D pgdata --no-locale --encoding=UTF8
+        echo "unix_socket_directories = '$PGHOST'" >> pgdata/postgresql.conf
+        echo "listen_addresses = ''" >> pgdata/postgresql.conf
+        pg_ctl -D pgdata -l pg.log start
+
+        bench_one() {
+          local LABEL=$1 RESULT_DIR=$2 PORT=$3
+          dropdb -h "$PGHOST" --if-exists "forum_${LABEL}"
+          createdb -h "$PGHOST" "forum_${LABEL}"
+          psql -h "$PGHOST" -d "forum_${LABEL}" -f "$RESULT_DIR/IHPSchema.sql"
+          psql -h "$PGHOST" -d "forum_${LABEL}" -f "$RESULT_DIR/Application/Schema.sql"
+
+          DATABASE_URL="postgresql:///forum_${LABEL}?host=$PGHOST" \
+          PORT=$PORT \
+          IHP_SESSION_SECRET="benchmarkkeybenchmarkkeybenchmarkkeybenchmarkkey" \
+          IHP_BASEURL="http://localhost:$PORT" \
+            "$RESULT_DIR/bin/forum-server" +RTS -N2 -A64m -RTS &
+          local PID=$!
+
+          # Wait for ready
+          for i in $(seq 1 30); do
+            curl -sf "http://localhost:$PORT/" >/dev/null 2>&1 && break
+            sleep 0.5
+          done
+
+          hyperfine \
+            --warmup 50 \
+            --runs 200 \
+            --export-json "bench-${LABEL}.json" \
+            "curl -sf http://localhost:$PORT/"
+
+          kill $PID 2>/dev/null; wait $PID 2>/dev/null || true
+        }
+
+        bench_one baseline "$(readlink -f result-baseline)" 8100
+        bench_one pr "$(readlink -f result-pr)" 8200
+
+        pg_ctl -D pgdata stop || true
+
+        # Extract metrics from hyperfine JSON (times in seconds -> ms)
+        for LABEL in baseline pr; do
+          jq -r '.results[0] | "\(.mean*1000)\n\(.median*1000)\n\(.min*1000)\n\(.max*1000)\n\(.stddev*1000)"' \
+            "bench-${LABEL}.json" | {
+            read MEAN; read MEDIAN; read MIN; read MAX; read STDDEV
+            printf "%.2f" "$MEAN"   > "${LABEL}-mean-ms"
+            printf "%.2f" "$MEDIAN" > "${LABEL}-median-ms"
+            printf "%.2f" "$MIN"    > "${LABEL}-min-ms"
+            printf "%.2f" "$MAX"    > "${LABEL}-max-ms"
+            printf "%.2f" "$STDDEV" > "${LABEL}-stddev-ms"
+          }
+        done
+
     - name: Compare and post PR comment
       env:
         GH_TOKEN: ${{ github.token }}
@@ -32,6 +98,19 @@ jobs:
         ALLOC_BASELINE=$(cat ihp/Bench/result-baseline/compile-allocations)
         ALLOC_CURRENT=$(cat ihp/Bench/result-pr/compile-allocations)
         ALLOC_PCT=$(awk "BEGIN { printf \"%.1f\", ($ALLOC_CURRENT - $ALLOC_BASELINE) / $ALLOC_BASELINE * 100 }")
+
+        # HTTP metrics (latency in ms)
+        BASELINE_MEAN=$(cat ihp/Bench/baseline-mean-ms)
+        PR_MEAN=$(cat ihp/Bench/pr-mean-ms)
+        LATENCY_PCT=$(awk "BEGIN { printf \"%.1f\", ($PR_MEAN - $BASELINE_MEAN) / $BASELINE_MEAN * 100 }")
+        BASELINE_MEDIAN=$(cat ihp/Bench/baseline-median-ms)
+        PR_MEDIAN=$(cat ihp/Bench/pr-median-ms)
+        BASELINE_STDDEV=$(cat ihp/Bench/baseline-stddev-ms)
+        PR_STDDEV=$(cat ihp/Bench/pr-stddev-ms)
+        BASELINE_MIN=$(cat ihp/Bench/baseline-min-ms)
+        PR_MIN=$(cat ihp/Bench/pr-min-ms)
+        BASELINE_MAX=$(cat ihp/Bench/baseline-max-ms)
+        PR_MAX=$(cat ihp/Bench/pr-max-ms)
 
         # Check for regressions
         FAILED=0
@@ -51,6 +130,13 @@ jobs:
         else
           ALLOC_STATUS="> Compile allocations within threshold"
         fi
+        if awk "BEGIN { exit !(($PR_MEAN - $BASELINE_MEAN) / $BASELINE_MEAN > 0.20) }"; then
+          HTTP_STATUS="> **Warning**: Mean latency increased ${LATENCY_PCT}% (>20% threshold)"
+        elif awk "BEGIN { exit !(($PR_MEAN - $BASELINE_MEAN) / $BASELINE_MEAN < -0.10) }"; then
+          HTTP_STATUS="> **Improvement**: Mean latency decreased ${LATENCY_PCT}%"
+        else
+          HTTP_STATUS="> HTTP latency within threshold"
+        fi
 
         # Build markdown report
         {
@@ -64,6 +150,18 @@ jobs:
           echo ""
           echo "$CORE_STATUS"
           echo "$ALLOC_STATUS"
+          echo ""
+          echo "### HTTP Latency (GET /, 200 runs)"
+          echo ""
+          echo "| Metric | Baseline (master) | This PR | Change |"
+          echo "|--------|-------------------|---------|--------|"
+          echo "| Mean | ${BASELINE_MEAN}ms | ${PR_MEAN}ms | ${LATENCY_PCT}% |"
+          echo "| Median | ${BASELINE_MEDIAN}ms | ${PR_MEDIAN}ms | — |"
+          echo "| Stddev | ${BASELINE_STDDEV}ms | ${PR_STDDEV}ms | — |"
+          echo "| Min | ${BASELINE_MIN}ms | ${PR_MIN}ms | — |"
+          echo "| Max | ${BASELINE_MAX}ms | ${PR_MAX}ms | — |"
+          echo ""
+          echo "$HTTP_STATUS"
           echo ""
           echo "### Top 10 modules (this PR)"
           echo ""
