@@ -155,13 +155,8 @@ let
         };
 in
 final: prev: {
-    # Default: GHC 9.10 (binary-cached via nixpkgs haskellPackages)
-    ghc = final.haskellPackages.override {
-        overrides = ihpOverrides final;
-    };
-
-    # Experimental: GHC 9.12 (not yet binary-cached; builds from source)
-    ghc912 = final.haskell.packages.ghc912.override {
+    # Default: GHC 9.12
+    ghc = final.haskell.packages.ghc912.override {
         overrides = final.lib.composeManyExtensions [
             (ihpOverrides final)
             (self: super: {
