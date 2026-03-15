@@ -143,21 +143,15 @@ let
                         sha256 = "1ww54his5d3wfh3amdk9zk5w6v4pdgljlzifnqga3lwn1gasbsvr";
                     };
                 }));
-            # Patched to add Tsvector IsScalar instance
-            # https://github.com/nikita-volkov/hasql-postgresql-types/pull/2
-            hasql-postgresql-types = final.haskell.lib.dontHaddock (final.haskell.lib.doJailbreak (final.haskell.lib.appendPatch
+            hasql-postgresql-types = final.haskell.lib.dontHaddock (final.haskell.lib.doJailbreak
                 (final.haskell.lib.overrideCabal
                     (super.callPackage "${flakeRoot}/NixSupport/hasql-postgresql-types-default.nix" {})
                     (old: {
                         src = builtins.fetchTarball {
-                            url = "https://github.com/nikita-volkov/hasql-postgresql-types/archive/3ad6b0ef22b85744dec15078b88dd3ee47b258fc.tar.gz";
-                            sha256 = "12kgjrjc3nizsrdw3z2rn0rlv53zsy5jsw501lrajxmwkyqzxj5d";
+                            url = "https://github.com/nikita-volkov/hasql-postgresql-types/archive/v0.2.tar.gz";
+                            sha256 = "00j0lz29glb17jab2ag70bzpq9wwrx5h4q7rad4cqzj5a2ialvx0";
                         };
-                    }))
-                (builtins.fetchurl {
-                    url = "https://github.com/nikita-volkov/hasql-postgresql-types/commit/22a05a1d958cc1c333b2dea0c4e956338aaf338d.patch";
-                    sha256 = "02ph4h8wanix15jx7jkw4l4sp2rls7da57hgbwm2ll6a6ia2zkpk";
-                })));
+                    })));
         };
 in
 final: prev: {
