@@ -1012,7 +1012,6 @@ We start by adding the `jwt` package to the `flake.nix` file.
 haskellPackages = p: with p; [
     # Haskell dependencies go here
     p.ihp
-    cabal-install
     base
     # ...
     jwt # <-- ADD THIS LINE
