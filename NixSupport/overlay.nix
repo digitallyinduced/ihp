@@ -5,8 +5,8 @@ let
     ihpOverrides = final: self: super:
         let
             filter = inputs.nix-filter.lib;
-            # Disable profiling and haddock for faster local builds
-            fastBuild = pkg: final.haskell.lib.disableLibraryProfiling (final.haskell.lib.dontHaddock pkg);
+            # Disable profiling for faster local builds
+            fastBuild = pkg: final.haskell.lib.disableLibraryProfiling pkg;
 
             filteredSrc = name: filter {
                 root = "${toString flakeRoot}/${name}";
