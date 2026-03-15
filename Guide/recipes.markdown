@@ -275,11 +275,9 @@ To make an HTTP request, you need [`Wreq`](https://hackage.haskell.org/package/w
 ```bash
 ...
 haskellDeps = p: with p; [
-    cabal-install
     base
     wai
     text
-    hlint
     p.ihp
     wreq <-- Add this
 ];

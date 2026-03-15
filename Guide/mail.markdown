@@ -18,7 +18,6 @@ Add `ihp-mail` to your `flake.nix` file:
 haskellPackages = p: with p; [
     # Haskell dependencies go here
     p.ihp
-    cabal-install
     base
     wai
     # Add this:
