@@ -175,6 +175,32 @@ that is defined in flake-module.nix
                 ghc912-ihp-typed-sql = withTestPostgres pkgs.ghc912.ihp-typed-sql;
                 ghc912-ihp-pglistener = withTestPostgres pkgs.ghc912.ihp-pglistener;
             }
+
+            # GHC 9.14 compatibility checks (only when nixpkgs includes ghc914)
+            // (lib.optionalAttrs (pkgs.haskell.packages ? ghc914) (let
+                ghc914 = pkgs.ghc914;
+                ihpPackageNames = [
+                    "ihp-ide" "ihp-hsx" "ihp-schema-compiler"
+                    "ihp-postgres-parser" "ihp-context" "ihp-pagehead"
+                    "ihp-log" "ihp-modal" "ihp-mail"
+                    "ihp-migrate" "ihp-openai" "ihp-ssc" "ihp-graphql"
+                    "ihp-datasync-typescript" "ihp-sitemap"
+                    "ihp-job-dashboard" "ihp-imagemagick"
+                    "ihp-hspec" "ihp-welcome" "ihp-zip"
+                    "wai-asset-path" "wai-flash-messages" "wai-request-params"
+                ];
+            in lib.listToAttrs (map (name: {
+                name = "ghc914-${name}";
+                value = ghc914.${name};
+            }) ihpPackageNames)
+
+            # GHC 9.14 packages that need a running PostgreSQL for their tests
+            // {
+                ghc914-ihp = withTestPostgres pkgs.ghc914.ihp;
+                ghc914-ihp-datasync = withTestPostgres pkgs.ghc914.ihp-datasync;
+                ghc914-ihp-typed-sql = withTestPostgres pkgs.ghc914.ihp-typed-sql;
+                ghc914-ihp-pglistener = withTestPostgres pkgs.ghc914.ihp-pglistener;
+            }))
         ;
 
         devenv.shells.default = {
