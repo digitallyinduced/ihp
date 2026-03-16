@@ -147,7 +147,6 @@ withGHCI callback = do
             { Process.std_in = Process.CreatePipe
             , Process.std_out = Process.CreatePipe
             , Process.std_err = Process.CreatePipe
-            , Process.create_group = True
             }
 
     Process.withCreateProcess params \(Just input) (Just output) (Just error) processHandle -> callback input output error processHandle

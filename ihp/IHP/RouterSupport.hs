@@ -503,7 +503,7 @@ actionPrefixText
 
         getPrefix :: Text -> Text
         getPrefix t = fst (Text.breakOn "." t)
-{-# INLINE actionPrefixText #-}
+{-# NOINLINE actionPrefixText #-}
 
 -- | Strips the "Action" suffix from action names
 --

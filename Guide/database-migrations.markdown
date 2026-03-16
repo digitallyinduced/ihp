@@ -54,7 +54,6 @@ To test your migrations locally, first add `ihp-migrate` to your `flake.nix` if 
                          # Haskell dependencies go here
                          p.ihp
 +                        p.ihp-migrate
-                         cabal-install
 ```
 then you can run this tool locally like:
 

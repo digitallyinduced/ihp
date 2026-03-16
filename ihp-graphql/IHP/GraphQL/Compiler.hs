@@ -15,26 +15,31 @@ data SqlQuery = SqlQuery { query :: Text, params :: [PG.Action]}
 data QueryPart = QueryPart { sql :: PG.Query, params :: [PG.Action] }
 
 compileDocument :: Variables -> Document -> [(PG.Query, [PG.Action])]
-compileDocument (Variables arguments) document@(Document { definitions = (definition:rest) }) = 
+compileDocument (Variables arguments) document@(Document { definitions = (definition:rest) }) =
     case definition of
         ExecutableDefinition { operation = OperationDefinition { operationType = Query } } ->
             [ unpackQueryPart ("SELECT to_json(_root.data) FROM (" <> compileDefinition document definition arguments <> ") AS _root") ]
         ExecutableDefinition { operation = OperationDefinition { operationType = Mutation } } ->
             map unpackQueryPart $ compileMutationDefinition definition arguments
+        _ -> error $ "Unsupported definition: " <> show definition
+compileDocument _ (Document { definitions = [] }) = error "Empty document"
 
 compileDefinition :: Document -> Definition -> [Argument] -> QueryPart
 compileDefinition document ExecutableDefinition { operation = OperationDefinition { operationType = Query, selectionSet } } variables =
     selectionSet
     |> map (compileSelection document variables)
     |> unionAll
+compileDefinition _ definition _ = error $ "Expected query definition, got: " <> show definition
 
 compileMutationDefinition :: Definition -> [Argument] -> [QueryPart]
 compileMutationDefinition ExecutableDefinition { operation = OperationDefinition { operationType = Mutation, selectionSet } } arguments =
     selectionSet
     |> map (compileMutationSelection arguments)
+compileMutationDefinition definition _ = error $ "Expected mutation definition, got: " <> show definition
 
 compileSelection :: Document -> [Argument] -> Selection -> QueryPart
-compileSelection document variables field@(Field { alias, name = fieldName, arguments }) = 
+compileSelection _ _ (FragmentSpread {}) = error "Fragment spreads not supported at top level of query selection"
+compileSelection document variables field@(Field { alias, name = fieldName, arguments }) =
         ("(SELECT json_build_object(?, json_agg(?.*)) AS data FROM (SELECT " |> withParams [PG.toField nameOrAlias, PG.toField (PG.Identifier subqueryId)])
         <> selectQueryPieces document (PG.toField (PG.Identifier tableName)) field
         <> (" FROM ?" |> withParams [PG.toField (PG.Identifier tableName)])
@@ -96,10 +101,11 @@ selectQueryPieces document tableName field = field.selectionSet
                 if columnName /= name
                     then qualified field <> "? AS ?" |> withParams [ PG.toField (PG.Identifier (fieldNameToColumnName name)), PG.toField (PG.Identifier name) ]
                     else qualified field <> "?" |> withParams [ PG.toField (PG.Identifier (fieldNameToColumnName name)) ]
+        compileField _ = error "compileField called with non-Field selection"
 
         
         compileFragmentSpread :: Selection -> [QueryPart]
-        compileFragmentSpread FragmentSpread { fragmentName } = 
+        compileFragmentSpread FragmentSpread { fragmentName } =
                 fragment.selectionSet
                     |> map compileSelection
                     |> mconcat
@@ -108,13 +114,16 @@ selectQueryPieces document tableName field = field.selectionSet
                 fragment = document.definitions
                     |> find (\case
                             FragmentDefinition (Fragment { name }) -> name == fragmentName
-                            otherwise -> False
+                            _ -> False
                         )
                     |> fromMaybe (error $ "Could not find fragment named " <> fragmentName)
                     |> \case
                         FragmentDefinition fragment -> fragment
+                        _ -> error $ "Expected FragmentDefinition for " <> fragmentName
+        compileFragmentSpread _ = error "compileFragmentSpread called with non-FragmentSpread"
 
 fieldToJoin :: Document -> Text -> Selection -> QueryPart
+fieldToJoin _ _ (FragmentSpread {}) = error "Fragment spreads not supported in joins"
 fieldToJoin document rootTableName field@(Field { name }) =
         "LEFT JOIN LATERAL ("
             <> "SELECT ARRAY("
@@ -141,6 +150,7 @@ fieldToJoin document rootTableName field@(Field { name }) =
                     Nothing -> field.name
 
 compileMutationSelection :: [Argument] -> Selection -> QueryPart
+compileMutationSelection _ (FragmentSpread {}) = error "Fragment spreads not supported in mutations"
 compileMutationSelection queryArguments field@(Field { alias, name = fieldName, arguments, selectionSet }) = fromMaybe (error ("Invalid mutation: " <> tshow fieldName)) do
         let create = do
                 modelName <- Text.stripPrefix "create" fieldName
@@ -180,6 +190,7 @@ compileMutationSelection queryArguments field@(Field { alias, name = fieldName, 
 -- >     RETURNING json_build_object('id', projects.id, 'title', projects.title)
 --
 compileSelectionToInsertStatement :: [Argument] -> Selection -> Text -> QueryPart
+compileSelectionToInsertStatement queryArguments (FragmentSpread {}) _ = error "Fragment spreads not supported in mutations"
 compileSelectionToInsertStatement queryArguments field@(Field { alias, name = fieldName, arguments, selectionSet }) modelName =
         ("INSERT INTO ? (" |> withParams [PG.toField $ PG.Identifier tableName]) <> commaSep columns <> ") VALUES (" <> commaSep values <> ") RETURNING " <> returning
     where
@@ -203,7 +214,7 @@ compileSelectionToInsertStatement queryArguments field@(Field { alias, name = fi
         returning :: QueryPart
         returning = "json_build_object(" <> returningArgs <> ")"
         returningArgs = selectionSet
-                |> map (\Field { name = fieldName } -> "?, ?.?" |> withParams [PG.toField (fieldNameToColumnName fieldName), PG.toField (PG.Identifier tableName), PG.toField (PG.Identifier (fieldNameToColumnName fieldName))])
+                |> map (\case Field { name = fieldName } -> "?, ?.?" |> withParams [PG.toField (fieldNameToColumnName fieldName), PG.toField (PG.Identifier tableName), PG.toField (PG.Identifier (fieldNameToColumnName fieldName))]; _ -> error "Fragment spreads not supported in mutation returning clause")
                 |> commaSep
 
 -- | Turns a @update..@ mutation into a UPDATE SQL query
@@ -232,6 +243,7 @@ compileSelectionToInsertStatement queryArguments field@(Field { alias, name = fi
 -- >     RETURNING json_build_object('id', projects.id, 'title', projects.title)
 --
 compileSelectionToUpdateStatement :: [Argument] -> Selection -> Text -> QueryPart
+compileSelectionToUpdateStatement queryArguments (FragmentSpread {}) _ = error "Fragment spreads not supported in mutations"
 compileSelectionToUpdateStatement queryArguments field@(Field { alias, name = fieldName, arguments, selectionSet }) modelName =
         ("UPDATE ? SET " |> withParams [PG.toField $ PG.Identifier tableName]) <> commaSep setValues <> where_ <> " RETURNING " <> returning
     where
@@ -257,7 +269,7 @@ compileSelectionToUpdateStatement queryArguments field@(Field { alias, name = fi
         returning :: QueryPart
         returning = "json_build_object(" <> returningArgs <> ")"
         returningArgs = selectionSet
-                |> map (\Field { name = fieldName } -> "?, ?.?" |> withParams [PG.toField (fieldNameToColumnName fieldName), PG.toField (PG.Identifier tableName), PG.toField (PG.Identifier (fieldNameToColumnName fieldName))])
+                |> map (\case Field { name = fieldName } -> "?, ?.?" |> withParams [PG.toField (fieldNameToColumnName fieldName), PG.toField (PG.Identifier tableName), PG.toField (PG.Identifier (fieldNameToColumnName fieldName))]; _ -> error "Fragment spreads not supported in mutation returning clause")
                 |> commaSep
 
 -- | Turns a @delete..@ mutation into a DELETE SQL query
@@ -281,6 +293,7 @@ compileSelectionToUpdateStatement queryArguments field@(Field { alias, name = fi
 -- >     RETURNING json_build_object('id', projects.id, 'title', projects.title)
 --
 compileSelectionToDeleteStatement :: [Argument] -> Selection -> Text -> QueryPart
+compileSelectionToDeleteStatement queryArguments (FragmentSpread {}) _ = error "Fragment spreads not supported in mutations"
 compileSelectionToDeleteStatement queryArguments field@(Field { alias, name = fieldName, arguments, selectionSet }) modelName =
         ("DELETE FROM ? WHERE id = ?" |> withParams [PG.toField $ PG.Identifier tableName, recordId]) <> " RETURNING " <> returning
     where
@@ -293,12 +306,17 @@ compileSelectionToDeleteStatement queryArguments field@(Field { alias, name = fi
         returning :: QueryPart
         returning = "json_build_object(" <> returningArgs <> ")"
         returningArgs = selectionSet
-                |> map (\Field { name = fieldName } -> "?, ?.?" |> withParams [PG.toField (fieldNameToColumnName fieldName), PG.toField (PG.Identifier tableName), PG.toField (PG.Identifier (fieldNameToColumnName fieldName))])
+                |> map (\case Field { name = fieldName } -> "?, ?.?" |> withParams [PG.toField (fieldNameToColumnName fieldName), PG.toField (PG.Identifier tableName), PG.toField (PG.Identifier (fieldNameToColumnName fieldName))]; _ -> error "Fragment spreads not supported in mutation returning clause")
                 |> commaSep
 
 valueToSQL :: Value -> PG.Action
 valueToSQL (IntValue int) = PG.toField int
 valueToSQL (StringValue string) = PG.toField string
+valueToSQL (FloatValue double) = PG.toField double
+valueToSQL (BooleanValue bool) = PG.toField bool
+valueToSQL NullValue = PG.toField PG.Null
+valueToSQL (Variable varName) = error $ "Unresolved variable: " <> show varName
+valueToSQL value = error $ "Unsupported GraphQL value: " <> show value
 
 
 resolveVariables :: Value -> [Argument] -> Value
@@ -331,4 +349,4 @@ unpackQueryPart :: QueryPart -> (PG.Query, [PG.Action])
 unpackQueryPart QueryPart { sql, params } = (sql, params)
 
 withParams :: [PG.Action] -> QueryPart -> QueryPart
-withParams params queryPart = queryPart { params = queryPart.params <> params }
+withParams params (QueryPart { sql, params = existingParams }) = QueryPart { sql, params = existingParams <> params }

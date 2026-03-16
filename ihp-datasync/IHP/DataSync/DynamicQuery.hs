@@ -202,7 +202,7 @@ quoteIdentifier name = "\"" <> Text.replace "\"" "\"\"" name <> "\""
 -- | Convert a query 'Snippet' into a prepared statement that returns dynamic JSON rows.
 -- Wraps the query SQL with the CTE that produces @row_to_json@ output.
 compiledQueryStatement :: Snippet -> Hasql.Statement () [[Field]]
-compiledQueryStatement snippet = Snippet.toPreparedStatement (wrapDynamicQuery snippet) dynamicRowDecoder
+compiledQueryStatement snippet = Snippet.toPreparableStatement (wrapDynamicQuery snippet) dynamicRowDecoder
 {-# INLINE compiledQueryStatement #-}
 
 -- | Encode a UUID as a parameterized SQL 'Snippet'.

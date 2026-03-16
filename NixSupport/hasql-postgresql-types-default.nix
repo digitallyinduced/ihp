@@ -4,7 +4,7 @@
 }:
 mkDerivation {
   pname = "hasql-postgresql-types";
-  version = "0.1.0.1";
+  version = "0.2";
   src = fetchgit {
     url = "https://github.com/nikita-volkov/hasql-postgresql-types";
     sha256 = "0fffxiavxn70nis9rqgx2z9rp030x1afdr7qj8plwncif3qvsv1f";

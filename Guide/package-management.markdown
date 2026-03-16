@@ -40,11 +40,9 @@ Let's say we want to use [mmark](https://hackage.haskell.org/package/mmark) for 
                     haskellPackages = p: with p; [
                         # Haskell dependencies go here
                         p.ihp
-                        cabal-install
                         base
                         wai
                         text
-                        hlint
                     ];
                 };
             };
@@ -81,11 +79,9 @@ In the list following `haskellPackages` we can see a few haskell dependencies al
                     haskellPackages = p: with p; [
                         # Haskell dependencies go here
                         p.ihp
-                        cabal-install
                         base
                         wai
                         text
-                        hlint
                         mmark
                     ];
                 };
@@ -98,6 +94,36 @@ In the list following `haskellPackages` we can see a few haskell dependencies al
 Stop the development server by hitting CTRL + C. Your terminal should now automatically start rebuilding the development environment. This is triggered by `direnv` detecting that the `flake.nix` has changed.
 
 Run `devenv up` again to start the development server, and `mmark` should now be used as expected.
+
+## Dev-Only Haskell Packages
+
+Some Haskell packages are only needed during development (e.g. `cabal-install`, `hlint`, `stylish-haskell`) and should not be included in production builds. IHP provides a `devHaskellPackages` option for this purpose.
+
+By default, `devHaskellPackages` includes `cabal-install` and `hlint`. These are available in your development shell (ghci, devenv) but are **not** included when building production binaries via `nix build`.
+
+To add additional dev-only packages, set `devHaskellPackages` in your `flake.nix`:
+
+```nix
+perSystem = { pkgs, ... }: {
+    ihp = {
+        enable = true;
+        projectPath = ./.;
+        haskellPackages = p: with p; [
+            p.ihp
+            base
+            wai
+            text
+        ];
+        devHaskellPackages = p: with p; [
+            cabal-install
+            hlint
+            stylish-haskell
+        ];
+    };
+};
+```
+
+Packages in `haskellPackages` are included in both development and production. Packages in `devHaskellPackages` are only available during development. If you don't set `devHaskellPackages`, it defaults to `cabal-install` and `hlint`.
 
 
 ## Using a Native Dependency
@@ -135,11 +161,9 @@ All dependencies of our project are listed in `flake.nix` at the root of the pro
                     haskellPackages = p: with p; [
                         # Haskell dependencies go here
                         p.ihp
-                        cabal-install
                         base
                         wai
                         text
-                        hlint
                     ];
                 };
             };
@@ -178,11 +202,9 @@ We now just have to add `imagemagick` to `packages`:
                     haskellPackages = p: with p; [
                         # Haskell dependencies go here
                         p.ihp
-                        cabal-install
                         base
                         wai
                         text
-                        hlint
                     ];
                 };
             };
@@ -229,11 +251,9 @@ Let's say we want to use [the google-oauth2 package from hackage](https://hackag
                     haskellPackages = p: with p; [
                         # Haskell dependencies go here
                         p.ihp
-                        cabal-install
                         base
                         wai
                         text
-                        hlint
                         google-oauth2
                     ];
                 };
@@ -406,11 +426,9 @@ To jailbreak the package open `flake.nix` and append `"google-oauth2"` to the `d
                     haskellPackages = p: with p; [
                         # Haskell dependencies go here
                         p.ihp
-                        cabal-install
                         base
                         wai
                         text
-                        hlint
                     ];
                     doJailbreakPackages = [ "google-oauth2" ];
                 };
@@ -504,11 +522,9 @@ Open `flake.nix` and append the package name to the `dontCheckPackages` list:
                     haskellPackages = p: with p; [
                         # Haskell dependencies go here
                         p.ihp
-                        cabal-install
                         base
                         wai
                         text
-                        hlint
                     ];
                     dontCheckPackages = [ "my-failing-package" ]; # <------- ADD YOUR PACKAGE HERE
                 };

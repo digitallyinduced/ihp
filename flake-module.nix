@@ -40,16 +40,27 @@ ihpFlake:
                 haskellPackages = lib.mkOption {
                     description = ''
                         Function returning a list of Haskell packages to be installed in the IHP environment.
+                        These packages are included in both the development shell and production builds.
+                        The set of Haskell packages is passed to the function.
+                    '';
+                    default = p: [
+                        p.base
+                        p.wai
+                        p.text
+                        p.ihp
+                        p.hasql # Required for generated Types.hs (FromRowHasql instances)
+                    ];
+                };
+
+                devHaskellPackages = lib.mkOption {
+                    description = ''
+                        Function returning a list of Haskell packages that are only available in the
+                        development shell (ghci, etc.) but NOT included in production builds.
                         The set of Haskell packages is passed to the function.
                     '';
                     default = p: [
                         p.cabal-install
-                        p.base
-                        p.wai
-                        p.text
                         p.hlint
-                        p.ihp
-                        p.hasql # Required for generated Types.hs (FromRowHasql instances)
                     ];
                 };
 
@@ -299,7 +310,7 @@ ihpFlake:
                     tests = pkgs.stdenv.mkDerivation {
                             name = "${config.ihp.appName}-tests";
                             src = builtins.path { path = config.ihp.projectPath; name = "source"; };
-                            nativeBuildInputs = with pkgs; [ (ghcCompiler.ghcWithPackages (p: cfg.haskellPackages p ++ [p.ihp-ide p.ihp-schema-compiler])) ];
+                            nativeBuildInputs = with pkgs; [ (ghcCompiler.ghcWithPackages (p: cfg.haskellPackages p ++ cfg.devHaskellPackages p ++ [p.ihp-ide p.ihp-schema-compiler])) ];
                             buildPhase = ''
                                 # shellcheck disable=SC2046
                                 make -f ${hsDataDir ghcCompiler.ihp-ide.data}/lib/IHP/Makefile.dist build/Generated/Types.hs
@@ -316,7 +327,7 @@ ihpFlake:
                             name = "${config.ihp.appName}-integration-tests";
                             src = builtins.path { path = config.ihp.projectPath; name = "source"; };
                             nativeBuildInputs = with pkgs; [
-                                (ghcCompiler.ghcWithPackages (p: cfg.haskellPackages p ++ [p.ihp-ide p.ihp-schema-compiler]))
+                                (ghcCompiler.ghcWithPackages (p: cfg.haskellPackages p ++ cfg.devHaskellPackages p ++ [p.ihp-ide p.ihp-schema-compiler]))
                                 gnumake
                                 postgresql
                             ];
@@ -376,7 +387,7 @@ ihpFlake:
                 languages.haskell.enable = true;
                 languages.haskell.package = (if cfg.withHoogle
                                              then ghcCompiler.ghc.withHoogle
-                                             else ghcCompiler.ghc.withPackages) cfg.haskellPackages;
+                                             else ghcCompiler.ghc.withPackages) (p: cfg.haskellPackages p ++ cfg.devHaskellPackages p);
 
                 languages.haskell.stack.enable = false; # Stack is not used in IHP
 

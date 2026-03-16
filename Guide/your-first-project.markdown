@@ -615,11 +615,9 @@ To install this package, open the `flake.nix` file and append `mmark` to the `ha
                     haskellPackages = p: with p; [
                         # Haskell dependencies go here
                         p.ihp
-                        cabal-install
                         base
                         wai
                         text
-                        hlint
                         mmark # <--------- OUR NEW PACKAGE ADDED HERE
                     ];
                 };

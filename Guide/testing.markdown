@@ -16,7 +16,6 @@ The following setup and tests can be viewed in the [Blog example](https://github
 1. Add `hspec` and `ihp-hspec` in `flake.nix`
 ```nix
         haskellPackages = p: with p; [
-            cabal-install
             # ...
             p.ihp
 
@@ -246,11 +245,9 @@ perSystem = { pkgs, ... }: {
         haskellPackages = p: with p; [
             # Haskell dependencies go here
             p.ihp
-            cabal-install
             base
             wai
             text
-            hlint
             hspec
         ];
     };
