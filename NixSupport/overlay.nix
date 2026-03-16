@@ -179,7 +179,7 @@ final: prev: {
 
     # Experimental: GHC 9.14 (bleeding edge, expected to fail)
     # Only defined when nixpkgs includes the ghc914 package set
-} // final.lib.optionalAttrs (final.haskell.packages ? ghc914) {
+} // prev.lib.optionalAttrs (prev.haskell.packages ? ghc914) {
     ghc914 = final.haskell.packages.ghc914.override {
         overrides = final.lib.composeManyExtensions [
             (ihpOverrides final)
