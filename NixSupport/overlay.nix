@@ -178,16 +178,19 @@ final: prev: {
     };
 
     # Experimental: GHC 9.14 (bleeding edge, expected to fail)
-    # Only defined when nixpkgs includes the ghc914 package set
-} // prev.lib.optionalAttrs (prev.haskell.packages ? ghc914) {
-    ghc914 = final.haskell.packages.ghc914.override {
-        overrides = final.lib.composeManyExtensions [
-            (ihpOverrides final)
-            (self: super: {
-                say = final.haskell.lib.dontCheck super.say;
-                text-icu = final.haskell.lib.dontCheck super.text-icu;
-                cryptonite = final.haskell.lib.dontCheck super.cryptonite;
-            })
-        ];
-    };
+    # Only defined when nixpkgs includes the ghc914 package set.
+    # Attribute always exists but throws if ghc914 is unavailable in nixpkgs.
+    ghc914 =
+        if prev.haskell.packages ? ghc914
+        then final.haskell.packages.ghc914.override {
+            overrides = final.lib.composeManyExtensions [
+                (ihpOverrides final)
+                (self: super: {
+                    say = final.haskell.lib.dontCheck super.say;
+                    text-icu = final.haskell.lib.dontCheck super.text-icu;
+                    cryptonite = final.haskell.lib.dontCheck super.cryptonite;
+                })
+            ];
+        }
+        else throw "ghc914 is not available in this nixpkgs";
 }

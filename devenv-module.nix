@@ -177,7 +177,7 @@ that is defined in flake-module.nix
             }
 
             # GHC 9.14 compatibility checks (only when nixpkgs includes ghc914)
-            // (lib.optionalAttrs (pkgs ? ghc914) (let
+            // (lib.optionalAttrs (pkgs.haskell.packages ? ghc914) (let
                 ghc914 = pkgs.ghc914;
                 ihpPackageNames = [
                     "ihp-ide" "ihp-hsx" "ihp-schema-compiler"
