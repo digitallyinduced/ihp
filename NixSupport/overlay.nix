@@ -143,15 +143,7 @@ let
                         sha256 = "1ww54his5d3wfh3amdk9zk5w6v4pdgljlzifnqga3lwn1gasbsvr";
                     };
                 }));
-            hasql-postgresql-types = final.haskell.lib.dontHaddock (final.haskell.lib.doJailbreak
-                (final.haskell.lib.overrideCabal
-                    (super.callPackage "${flakeRoot}/NixSupport/hasql-postgresql-types-default.nix" {})
-                    (old: {
-                        src = builtins.fetchTarball {
-                            url = "https://github.com/nikita-volkov/hasql-postgresql-types/archive/v0.2.tar.gz";
-                            sha256 = "00j0lz29glb17jab2ag70bzpq9wwrx5h4q7rad4cqzj5a2ialvx0";
-                        };
-                    })));
+            hasql-postgresql-types = final.haskell.lib.dontHaddock (final.haskell.lib.doJailbreak (self.callHackageDirect { pkg = "hasql-postgresql-types"; ver = "0.2"; sha256 = "0841s41izgjg4qfw6s74bwhixby3rwj167a2p8vbwp4xlf8wzaz6"; } {}));
         };
 in
 final: prev: {
