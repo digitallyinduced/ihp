@@ -941,6 +941,33 @@ tests = do
                         pure (let theRecord = Generated.ActualTypes.Post id title body def { originalDatabaseRecord = Just (Data.Dynamic.toDyn theRecord) } in theRecord)
                     |]
 
+            it "should generate nonNullable decoder for PRIMARY KEY column even without explicit NOT NULL (#2531)" do
+                let bugStatements =
+                        [ StatementCreateTable CreateTable
+                            { name = "bars"
+                            , columns =
+                                [ (col "id" PUUID) { defaultValue = Just (CallExpression "uuid_generate_v4" []) }
+                                , (col "ticker" PText) { notNull = True }
+                                , (col "date" PDate) { notNull = True }
+                                ]
+                            , primaryKeyConstraint = PrimaryKeyConstraint ["id"]
+                            , constraints = []
+                            , unlogged = False
+                            , inherits = Nothing
+                            }
+                        ]
+                let [StatementCreateTable bugTable] = bugStatements
+                let ?schema = Schema bugStatements
+                let output = compileRowDecoderModule bugTable
+                getStatementBody output `shouldBe` [trimming|
+                    rowDecoder :: Decoders.Row Generated.ActualTypes.Bar
+                    rowDecoder = do
+                        id <- Decoders.column (Decoders.nonNullable Mapping.decoder)
+                        ticker <- Decoders.column (Decoders.nonNullable Decoders.text)
+                        date <- Decoders.column (Decoders.nonNullable Decoders.date)
+                        pure (let theRecord = Generated.ActualTypes.Bar id ticker date def { originalDatabaseRecord = Just (Data.Dynamic.toDyn theRecord) } in theRecord)
+                    |]
+
             it "should generate correct Create statement module" do
                 let output = compileCreateStatement theTable
                 getStatementBody output `shouldBe` [trimming|
