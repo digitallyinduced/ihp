@@ -818,6 +818,12 @@ nix build .#unoptimized-docker-image --option sandbox false --extra-experimental
 cat result | podman load
 ```
 
+There's also `.#optimized-docker-image` which compiles your app with GHC's `-O2` optimization level. The optimized build produces faster binaries but takes significantly longer to compile. For getting started and testing your deployment, use the unoptimized image. For production, use the optimized image:
+
+```bash
+nix build .#optimized-docker-image --option sandbox false --extra-experimental-features nix-command --extra-experimental-features flakes
+```
+
 Running `podman images` you can now see that the image is available:
 
 ```bash
