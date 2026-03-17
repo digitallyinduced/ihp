@@ -47,10 +47,10 @@ let
             ihp = localPackage "ihp";
             ihp-with-docs = localPackageWithHaddock "ihp";
             ihp-context = hackageOrLocal "ihp-context";
-            ihp-pagehead = localPackage "ihp-pagehead";
+            ihp-pagehead = hackageOrLocal "ihp-pagehead";
             ihp-log = hackageOrLocal "ihp-log";
-            ihp-pglistener = localPackage "ihp-pglistener";
-            ihp-modal = localPackage "ihp-modal";
+            ihp-pglistener = hackageOrLocal "ihp-pglistener";
+            ihp-modal = hackageOrLocal "ihp-modal";
             ihp-ide = localPackage "ihp-ide";
             ihp-schema-compiler = localPackage "ihp-schema-compiler";
             ihp-postgres-parser = hackageOrLocal "ihp-postgres-parser";

@@ -1,6 +1,6 @@
 cabal-version:       2.2
 name:                ihp-pagehead
-version:             1.4.0
+version:             1.0.0
 synopsis:            Page title and meta tags for IHP
 description:
     Manage page titles and Open Graph meta tags in IHP applications.
