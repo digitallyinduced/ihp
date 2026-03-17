@@ -1,9 +1,10 @@
 cabal-version:       2.2
 name:                ihp-ide
-version:             1.4.0
+version:             1.5.0
 synopsis:            Dev tools for IHP
 description:         The Integrated Haskell Platform is a full stack framework focused on rapid application development while striving for robust code quality.
 license:             MIT
+license-file:        LICENSE
 author:              digitally induced GmbH
 maintainer:          hello@digitallyinduced.com
 homepage:            https://ihp.digitallyinduced.com/
@@ -13,6 +14,7 @@ category:            Web, IHP
 stability:           Stable
 tested-with:         GHC == 9.8.4
 build-type:          Simple
+extra-source-files:  changelog.md
 data-dir: data
 data-files:
       lib/IHP/Makefile.dist
@@ -30,6 +32,10 @@ data-files:
 Flag FastBuild
     Default: False
     Description: Disables all optimisations, leads to faster build time
+
+Flag OptimizedGHCRTS
+    Default: False
+    Description: Pass +RTS flags to GHC during compilation for faster builds (not compatible with Hackage)
 
 common shared-properties
     default-language: GHC2021
@@ -113,10 +119,11 @@ common shared-properties
         , TemplateHaskell
         , OverloadedRecordDot
         , DeepSubsumption
+    if flag(OptimizedGHCRTS)
+        ghc-options: +RTS -A256m -n4m -H512m -qg -N -RTS
     if flag(FastBuild)
         ghc-options:
             -threaded
-            +RTS -A256m -n4m -H512m -qg -N -RTS
 
             -Wunused-imports
             -Wunused-foralls
@@ -241,6 +248,8 @@ executable RunDevServer
     hs-source-dirs: exe
     main-is: IHP/IDE/DevServer.hs
     ghc-options: -rtsopts=all
+    if flag(OptimizedGHCRTS)
+        ghc-options: +RTS -A512m -n4m -H512m -G3 -qg -N -RTS
     if flag(FastBuild)
         ghc-options:
             -threaded
@@ -249,7 +258,6 @@ executable RunDevServer
             -with-rtsopts=-n4m
             -with-rtsopts=--nonmoving-gc
             -with-rtsopts=-Iw60
-            +RTS -A512m -n4m -H512m -G3 -qg -N -RTS
             -Wno-ambiguous-fields
             -Werror=incomplete-patterns
     else
@@ -271,7 +279,6 @@ executable RunDevServer
             -with-rtsopts=-n4m
             -with-rtsopts=--nonmoving-gc
             -with-rtsopts=-Iw60
-            +RTS -A256m -n4m -H512m -G3 -qg -N -RTS
             -Wno-ambiguous-fields
             -Werror=incomplete-patterns
     autogen-modules: Paths_ihp_ide

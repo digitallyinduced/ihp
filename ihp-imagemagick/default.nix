@@ -3,7 +3,7 @@
 }:
 mkDerivation {
   pname = "ihp-imagemagick";
-  version = "1.4.0";
+  version = "1.0.0";
   src = ./.;
   libraryHaskellDepends = [
     base bytestring process temporary text wai-extra

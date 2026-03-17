@@ -1,14 +1,18 @@
 cabal-version:       2.2
 name:                ihp-welcome
-version:             1.4.0
+version:             1.5.0
 synopsis:            IHP Welcome Controller
 description:         Provides a default welcome page for new IHP applications
 license:             MIT
+license-file:        LICENSE
 author:              digitally induced GmbH
 maintainer:          support@digitallyinduced.com
+homepage:            https://ihp.digitallyinduced.com/
 bug-reports:         https://github.com/digitallyinduced/ihp/issues
+copyright:           (c) digitally induced GmbH
 category:            Web
 build-type:          Simple
+extra-source-files:  changelog.md
 
 source-repository head
     type:     git
