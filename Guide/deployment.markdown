@@ -818,6 +818,12 @@ nix build .#unoptimized-docker-image --option sandbox false --extra-experimental
 cat result | podman load
 ```
 
+There's also `.#optimized-docker-image` which compiles your app with GHC's `-O2` optimization level. The optimized build produces faster binaries but takes significantly longer to compile. For getting started and testing your deployment, use the unoptimized image. For production, use the optimized image:
+
+```bash
+nix build .#optimized-docker-image --option sandbox false --extra-experimental-features nix-command --extra-experimental-features flakes
+```
+
 Running `podman images` you can now see that the image is available:
 
 ```bash
@@ -828,6 +834,37 @@ app            g13rks9fb4ik8hnqip2s3ngqq4nq14zw   ffc01de1ec7e   54 years ago   
 ```
 
 The `CREATED` timestamp is showing over 50 years ago as the image is built using nix. For having a totally reproducible build, the timestamp is set to `Jan 1970, 00:00 UTC`.
+
+### Worker Docker Image
+
+If your app uses [background jobs](jobs.html), you'll want to run the job worker in a separate container. IHP provides dedicated worker images for this:
+
+```bash
+nix build .#unoptimized-docker-image-worker --option sandbox false --extra-experimental-features nix-command --extra-experimental-features flakes
+
+cat result | podman load
+```
+
+The worker image is named `ihp-worker` and runs `RunJobs` as its entrypoint instead of `RunProdServer`.
+
+**Building both images:** Since `nix build` writes its output to the `result` symlink, building the app and worker images one after the other will overwrite the first `result`. Use the `-o` flag to write them to different paths:
+
+```bash
+nix build .#unoptimized-docker-image -o result-app
+nix build .#unoptimized-docker-image-worker -o result-worker
+
+cat result-app | podman load
+cat result-worker | podman load
+```
+
+The worker container needs the same env variables as the app container (`DATABASE_URL`, `IHP_SESSION_SECRET`, etc.):
+
+```bash
+$ docker run \
+    -e 'DATABASE_URL=postgresql://postgres:mysecretpassword@the-hostname/postgres' \
+    -e 'IHP_SESSION_SECRET=...' \
+    ihp-worker:TAG
+```
 
 ### Starting the App Container
 

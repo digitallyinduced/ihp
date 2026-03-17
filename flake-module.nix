@@ -246,6 +246,15 @@ ihpFlake:
                     config = { Cmd = [ "${self'.packages.optimized-prod-server}/bin/RunProdServer" ]; };
                 };
 
+                unoptimized-docker-image-worker = pkgs.dockerTools.buildImage {
+                    name = "ihp-worker";
+                    config = { Cmd = [ "${self'.packages.unoptimized-prod-server}/bin/RunJobs" ]; };
+                };
+
+                optimized-docker-image-worker = pkgs.dockerTools.buildImage {
+                    name = "ihp-worker";
+                    config = { Cmd = [ "${self'.packages.optimized-prod-server}/bin/RunJobs" ]; };
+                };
 
                 migrate = ghcCompiler.ihp-migrate;
 
@@ -485,7 +494,7 @@ ihpFlake:
             };
 
             checks = (lib.filterAttrs (n: v:
-                   n != "unoptimized-docker-image" && n != "optimized-docker-image" # Docker imagee builds are very slow, so we ignore them
+                   n != "unoptimized-docker-image" && n != "optimized-docker-image" && n != "unoptimized-docker-image-worker" && n != "optimized-docker-image-worker" # Docker image builds are very slow, so we ignore them
                 && n != "migrate"
                 && lib.isDerivation v
                 ) self.packages.${system});
