@@ -133,16 +133,7 @@ let
             postgresql-types-algebra = final.haskell.lib.doJailbreak (self.callHackageDirect { pkg = "postgresql-types-algebra"; ver = "0.1"; sha256 = "0ishl9dag7w73bclpaja4wj3s6jf8958jls2ffn1a6h3p9v40pfv"; } {});
             # dontCheck: tests require a running PostgreSQL server
             postgresql-types = final.haskell.lib.dontCheck (final.haskell.lib.doJailbreak (self.callHackageDirect { pkg = "postgresql-types"; ver = "0.1.2"; sha256 = "1plkc0pjhlbml5innkla44jad1jx8f876kw5ckz168jxvzrkb4jc"; } {}));
-            # hasql-mapping provides the IsScalar typeclass for hasql encoder/decoder integration.
-            # Not on Hackage, only on GitHub.
-            hasql-mapping = final.haskell.lib.doJailbreak (final.haskell.lib.overrideCabal
-                (super.callPackage "${flakeRoot}/NixSupport/hasql-mapping-default.nix" {})
-                (old: {
-                    src = builtins.fetchTarball {
-                        url = "https://github.com/nikita-volkov/hasql-mapping/archive/307dfb5f25ba28d8408fac3aa160ca4ba702acc9.tar.gz";
-                        sha256 = "1ww54his5d3wfh3amdk9zk5w6v4pdgljlzifnqga3lwn1gasbsvr";
-                    };
-                }));
+            hasql-mapping = final.haskell.lib.doJailbreak (self.callHackageDirect { pkg = "hasql-mapping"; ver = "0.1"; sha256 = "1l6p7sbw6wwkk964bs3hljmja1kwy0b9gld24g71dcbjs24hchcf"; } {});
             hasql-postgresql-types = final.haskell.lib.dontHaddock (final.haskell.lib.doJailbreak
                 (final.haskell.lib.overrideCabal
                     (super.callPackage "${flakeRoot}/NixSupport/hasql-postgresql-types-default.nix" {})
