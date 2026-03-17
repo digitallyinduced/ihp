@@ -134,15 +134,7 @@ let
             # dontCheck: tests require a running PostgreSQL server
             postgresql-types = final.haskell.lib.dontCheck (final.haskell.lib.doJailbreak (self.callHackageDirect { pkg = "postgresql-types"; ver = "0.1.2"; sha256 = "1plkc0pjhlbml5innkla44jad1jx8f876kw5ckz168jxvzrkb4jc"; } {}));
             hasql-mapping = final.haskell.lib.doJailbreak (self.callHackageDirect { pkg = "hasql-mapping"; ver = "0.1"; sha256 = "1l6p7sbw6wwkk964bs3hljmja1kwy0b9gld24g71dcbjs24hchcf"; } {});
-            hasql-postgresql-types = final.haskell.lib.dontHaddock (final.haskell.lib.doJailbreak
-                (final.haskell.lib.overrideCabal
-                    (super.callPackage "${flakeRoot}/NixSupport/hasql-postgresql-types-default.nix" {})
-                    (old: {
-                        src = builtins.fetchTarball {
-                            url = "https://github.com/nikita-volkov/hasql-postgresql-types/archive/v0.2.tar.gz";
-                            sha256 = "00j0lz29glb17jab2ag70bzpq9wwrx5h4q7rad4cqzj5a2ialvx0";
-                        };
-                    })));
+            hasql-postgresql-types = final.haskell.lib.dontHaddock (final.haskell.lib.doJailbreak (self.callHackageDirect { pkg = "hasql-postgresql-types"; ver = "0.2"; sha256 = "0841s41izgjg4qfw6s74bwhixby3rwj167a2p8vbwp4xlf8wzaz6"; } {}));
         };
 in
 final: prev: {
