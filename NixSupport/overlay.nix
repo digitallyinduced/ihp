@@ -79,18 +79,6 @@ let
                     sha256 = "02127wd8y26aps34kmvxxvyyzg94p3i9f3drf7zwp8phdncb19pg";
                 });
 
-            # Can be removed after v0.3.2 is on hackage
-            # https://github.com/tippenein/countable-inflections/pull/6
-            countable-inflections = final.haskell.lib.overrideSrc super.countable-inflections {
-                version = "0.3.2";
-                src = final.fetchFromGitHub {
-                    owner = "tippenein";
-                    repo = "countable-inflections";
-                    rev = "9cae03513ad76783c226509f5c00dfe7989893e8";
-                    hash = "sha256-Pd9wQgEtc3e39c0iJR347kdawbyShDEtQqEzrIEu0eQ=";
-                };
-            };
-
             # Hasql 1.10 ecosystem upgrade for postgresql-types binary encoding support.
             # callHackageDirect used because these versions are newer than the nixpkgs all-cabal-hashes snapshot.
             # dontCheck on postgresql/hasql packages: their tests require a running PostgreSQL server.
