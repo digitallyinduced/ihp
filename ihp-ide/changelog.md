@@ -19,7 +19,7 @@
 - Fix app crash detection with persistent socket
 - Fix lazy IO crash in FileWatcher
 - Fix devenv up Ctrl+C leaving GHCi/web server running as orphan processes
-- Compile-time `+RTS` flags moved behind `OptimizedGHCRTS` cabal flag
+- Remove compile-time `+RTS` flags (were incompatible with Hackage)
 - Replace snippet codegen with hasql statement modules
 - Improve code generators with type-aware scaffolding
 - Use `OsPath` instead of `FilePath`

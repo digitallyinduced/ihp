@@ -33,10 +33,6 @@ Flag FastBuild
     Default: False
     Description: Disables all optimisations, leads to faster build time
 
-Flag OptimizedGHCRTS
-    Default: False
-    Description: Pass +RTS flags to GHC during compilation for faster builds (not compatible with Hackage)
-
 common shared-properties
     default-language: GHC2021
     build-depends:
@@ -119,8 +115,6 @@ common shared-properties
         , TemplateHaskell
         , OverloadedRecordDot
         , DeepSubsumption
-    if flag(OptimizedGHCRTS)
-        ghc-options: +RTS -A256m -n4m -H512m -qg -N -RTS
     if flag(FastBuild)
         ghc-options:
             -threaded
@@ -248,8 +242,6 @@ executable RunDevServer
     hs-source-dirs: exe
     main-is: IHP/IDE/DevServer.hs
     ghc-options: -rtsopts=all
-    if flag(OptimizedGHCRTS)
-        ghc-options: +RTS -A512m -n4m -H512m -G3 -qg -N -RTS
     if flag(FastBuild)
         ghc-options:
             -threaded
