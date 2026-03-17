@@ -94,7 +94,6 @@ common shared-properties
         ghc-options: +RTS -A256m -n4m -H512m -qg -N -RTS
     if flag(FastBuild)
         ghc-options:
-            -threaded
             -Wunused-imports
             -Wunused-foralls
             -Werror=missing-fields
