@@ -1,6 +1,6 @@
 cabal-version:       2.2
 name:                ihp-log
-version:             1.4.0
+version:             1.0.0
 synopsis:            Lightweight logging for IHP applications
 description:         Provides structured logging with configurable levels, formatters, and destinations.
                      Can be used standalone or with the full IHP framework.

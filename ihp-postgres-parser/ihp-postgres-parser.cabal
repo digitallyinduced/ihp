@@ -1,6 +1,6 @@
 cabal-version:       2.2
 name:                ihp-postgres-parser
-version:             1.4.0
+version:             1.0.0
 synopsis:            PostgreSQL DDL parser and compiler
 description:         A standalone PostgreSQL DDL parser and SQL compiler extracted from IHP.
 license:             MIT

@@ -1,4 +1,4 @@
-{ self, inputs }:
+{ self, inputs, forceLocal ? false }:
 let
     flakeRoot = self;
 
@@ -23,6 +23,15 @@ let
                     { src = filteredSrc name; }
             );
 
+            # Use the nixpkgs version if available (i.e. published on Hackage and
+            # picked up by the nixpkgs all-cabal-hashes snapshot), otherwise fall
+            # back to building from the local source tree.  Pass --arg forceLocal true
+            # to always use the local version (useful during development).
+            hackageOrLocal = name:
+                if forceLocal || !(super ? ${name})
+                then localPackage name
+                else fastBuild super.${name};
+
             # For quick testing during development, you can use callCabal2nix directly
             # (slower eval due to IFD, but no generated files needed):
             #   localPackageIFD = name: fastBuild (super.callCabal2nix name (filteredSrc name) {});
@@ -37,14 +46,14 @@ let
         in {
             ihp = localPackage "ihp";
             ihp-with-docs = localPackageWithHaddock "ihp";
-            ihp-context = localPackage "ihp-context";
+            ihp-context = hackageOrLocal "ihp-context";
             ihp-pagehead = localPackage "ihp-pagehead";
-            ihp-log = localPackage "ihp-log";
+            ihp-log = hackageOrLocal "ihp-log";
             ihp-pglistener = localPackage "ihp-pglistener";
             ihp-modal = localPackage "ihp-modal";
             ihp-ide = localPackage "ihp-ide";
             ihp-schema-compiler = localPackage "ihp-schema-compiler";
-            ihp-postgres-parser = localPackage "ihp-postgres-parser";
+            ihp-postgres-parser = hackageOrLocal "ihp-postgres-parser";
             ihp-mail = localPackage "ihp-mail";
             ihp-migrate = (localPackage "ihp-migrate").overrideAttrs (old: { mainProgram = "migrate"; });
             ihp-openai = localPackage "ihp-openai";
@@ -57,10 +66,10 @@ let
             ihp-typed-sql = localPackage "ihp-typed-sql";
             ihp-datasync = localPackage "ihp-datasync";
             ihp-job-dashboard = localPackage"ihp-job-dashboard";
-            wai-asset-path = localPackage "wai-asset-path";
-            wai-flash-messages = localPackage "wai-flash-messages";
-            wai-request-params = localPackage "wai-request-params";
-            ihp-imagemagick = localPackage "ihp-imagemagick";
+            wai-asset-path = hackageOrLocal "wai-asset-path";
+            wai-flash-messages = hackageOrLocal "wai-flash-messages";
+            wai-request-params = hackageOrLocal "wai-request-params";
+            ihp-imagemagick = hackageOrLocal "ihp-imagemagick";
             ihp-hspec = localPackage "ihp-hspec";
             ihp-welcome = localPackage "ihp-welcome";
 

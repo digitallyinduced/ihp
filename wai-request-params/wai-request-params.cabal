@@ -1,6 +1,6 @@
 cabal-version:       2.2
 name:                wai-request-params
-version:             1.4.0
+version:             1.0.0
 synopsis:            Generic parameter parsing for WAI requests
 description:         A standalone parameter parsing library for WAI requests, supporting form-encoded and JSON request bodies.
 license:             MIT
