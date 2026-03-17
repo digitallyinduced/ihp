@@ -52,26 +52,26 @@ let
             ihp-pglistener = hackageOrLocal "ihp-pglistener";
             ihp-modal = hackageOrLocal "ihp-modal";
             ihp-ide = localPackage "ihp-ide";
-            ihp-schema-compiler = localPackage "ihp-schema-compiler";
+            ihp-schema-compiler = hackageOrLocal "ihp-schema-compiler";
             ihp-postgres-parser = hackageOrLocal "ihp-postgres-parser";
-            ihp-mail = localPackage "ihp-mail";
+            ihp-mail = hackageOrLocal "ihp-mail";
             ihp-migrate = (localPackage "ihp-migrate").overrideAttrs (old: { mainProgram = "migrate"; });
             ihp-openai = localPackage "ihp-openai";
-            ihp-ssc = localPackage "ihp-ssc";
+            ihp-ssc = hackageOrLocal "ihp-ssc";
             ihp-zip = fastBuild (super.callCabal2nix "ihp-zip" (final.fetchFromGitHub { owner = "digitallyinduced"; repo = "ihp-zip"; rev = "1c0d812d12d21269f83d6480a6ec7a8cdd054485"; sha256 = "0y0dj8ggi1jqzy74i0d6k9my8kdvfi516zfgnsl7znicwq9laald"; }) {});
             ihp-hsx = localPackage "ihp-hsx";
-            ihp-graphql = localPackage "ihp-graphql";
-            ihp-datasync-typescript = localPackage "ihp-datasync-typescript";
-            ihp-sitemap = localPackage"ihp-sitemap";
-            ihp-typed-sql = localPackage "ihp-typed-sql";
-            ihp-datasync = localPackage "ihp-datasync";
-            ihp-job-dashboard = localPackage"ihp-job-dashboard";
+            ihp-graphql = hackageOrLocal "ihp-graphql";
+            ihp-datasync-typescript = hackageOrLocal "ihp-datasync-typescript";
+            ihp-sitemap = hackageOrLocal "ihp-sitemap";
+            ihp-typed-sql = hackageOrLocal "ihp-typed-sql";
+            ihp-datasync = hackageOrLocal "ihp-datasync";
+            ihp-job-dashboard = hackageOrLocal "ihp-job-dashboard";
             wai-asset-path = hackageOrLocal "wai-asset-path";
             wai-flash-messages = hackageOrLocal "wai-flash-messages";
             wai-request-params = hackageOrLocal "wai-request-params";
             ihp-imagemagick = hackageOrLocal "ihp-imagemagick";
-            ihp-hspec = localPackage "ihp-hspec";
-            ihp-welcome = localPackage "ihp-welcome";
+            ihp-hspec = hackageOrLocal "ihp-hspec";
+            ihp-welcome = hackageOrLocal "ihp-welcome";
 
             # Lazy session middleware: defer cookie decryption until first access,
             # skip Set-Cookie when session is unmodified.

@@ -4,7 +4,7 @@
 }:
 mkDerivation {
   pname = "wai-request-params";
-  version = "1.4.0";
+  version = "1.0.0";
   src = ./.;
   libraryHaskellDepends = [
     aeson attoparsec base bytestring deepseq http-types scientific
