@@ -2,5 +2,4 @@
 
 ## v1.5.0
 
-- Initial Hackage release
-- Provides sitemap generation for IHP applications
+- No user-facing changes since 1.4.0

@@ -2,4 +2,6 @@
 
 ## v1.5.0
 
-- Version bump for IHP 1.5 release
+- Migrate from postgresql-simple to hasql
+- Remove ihp dependency for a lighter install
+- Fix crash: "cannot enter pipeline mode, connection not idle"

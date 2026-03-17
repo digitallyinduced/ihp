@@ -2,5 +2,8 @@
 
 ## v1.5.0
 
-- Initial Hackage release
-- GraphQL API support for IHP applications
+- Fix incomplete pattern matches for GHC 9.12 compatibility
+
+## v1.3.0
+
+- Initial release as a standalone package

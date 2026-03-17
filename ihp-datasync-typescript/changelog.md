@@ -2,5 +2,8 @@
 
 ## v1.5.0
 
-- Initial Hackage release
-- TypeScript type interface generation from IHP Schema.sql
+- Add PostgreSQL table inheritance (`INHERITS`) support in TypeScript codegen
+
+## v1.4.0
+
+- Initial release as a standalone package
