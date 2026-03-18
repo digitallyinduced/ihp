@@ -1,4 +1,4 @@
-{ self, inputs }:
+{ self, inputs, forceLocal ? false }:
 let
     flakeRoot = self;
 
@@ -23,6 +23,15 @@ let
                     { src = filteredSrc name; }
             );
 
+            # Use the nixpkgs version if available (i.e. published on Hackage and
+            # picked up by the nixpkgs all-cabal-hashes snapshot), otherwise fall
+            # back to building from the local source tree.  Pass --arg forceLocal true
+            # to always use the local version (useful during development).
+            hackageOrLocal = name:
+                if forceLocal || !(super ? ${name})
+                then localPackage name
+                else fastBuild super.${name};
+
             # For quick testing during development, you can use callCabal2nix directly
             # (slower eval due to IFD, but no generated files needed):
             #   localPackageIFD = name: fastBuild (super.callCabal2nix name (filteredSrc name) {});
@@ -37,32 +46,32 @@ let
         in {
             ihp = localPackage "ihp";
             ihp-with-docs = localPackageWithHaddock "ihp";
-            ihp-context = localPackage "ihp-context";
-            ihp-pagehead = localPackage "ihp-pagehead";
-            ihp-log = localPackage "ihp-log";
-            ihp-pglistener = localPackage "ihp-pglistener";
-            ihp-modal = localPackage "ihp-modal";
+            ihp-context = hackageOrLocal "ihp-context";
+            ihp-pagehead = hackageOrLocal "ihp-pagehead";
+            ihp-log = hackageOrLocal "ihp-log";
+            ihp-pglistener = hackageOrLocal "ihp-pglistener";
+            ihp-modal = hackageOrLocal "ihp-modal";
             ihp-ide = localPackage "ihp-ide";
-            ihp-schema-compiler = localPackage "ihp-schema-compiler";
-            ihp-postgres-parser = localPackage "ihp-postgres-parser";
-            ihp-mail = localPackage "ihp-mail";
+            ihp-schema-compiler = hackageOrLocal "ihp-schema-compiler";
+            ihp-postgres-parser = hackageOrLocal "ihp-postgres-parser";
+            ihp-mail = hackageOrLocal "ihp-mail";
             ihp-migrate = (localPackage "ihp-migrate").overrideAttrs (old: { mainProgram = "migrate"; });
             ihp-openai = localPackage "ihp-openai";
-            ihp-ssc = localPackage "ihp-ssc";
+            ihp-ssc = hackageOrLocal "ihp-ssc";
             ihp-zip = fastBuild (super.callCabal2nix "ihp-zip" (final.fetchFromGitHub { owner = "digitallyinduced"; repo = "ihp-zip"; rev = "1c0d812d12d21269f83d6480a6ec7a8cdd054485"; sha256 = "0y0dj8ggi1jqzy74i0d6k9my8kdvfi516zfgnsl7znicwq9laald"; }) {});
             ihp-hsx = localPackage "ihp-hsx";
-            ihp-graphql = localPackage "ihp-graphql";
-            ihp-datasync-typescript = localPackage "ihp-datasync-typescript";
-            ihp-sitemap = localPackage"ihp-sitemap";
-            ihp-typed-sql = localPackage "ihp-typed-sql";
-            ihp-datasync = localPackage "ihp-datasync";
-            ihp-job-dashboard = localPackage"ihp-job-dashboard";
-            wai-asset-path = localPackage "wai-asset-path";
-            wai-flash-messages = localPackage "wai-flash-messages";
-            wai-request-params = localPackage "wai-request-params";
-            ihp-imagemagick = localPackage "ihp-imagemagick";
-            ihp-hspec = localPackage "ihp-hspec";
-            ihp-welcome = localPackage "ihp-welcome";
+            ihp-graphql = hackageOrLocal "ihp-graphql";
+            ihp-datasync-typescript = hackageOrLocal "ihp-datasync-typescript";
+            ihp-sitemap = hackageOrLocal "ihp-sitemap";
+            ihp-typed-sql = hackageOrLocal "ihp-typed-sql";
+            ihp-datasync = hackageOrLocal "ihp-datasync";
+            ihp-job-dashboard = hackageOrLocal "ihp-job-dashboard";
+            wai-asset-path = hackageOrLocal "wai-asset-path";
+            wai-flash-messages = hackageOrLocal "wai-flash-messages";
+            wai-request-params = hackageOrLocal "wai-request-params";
+            ihp-imagemagick = hackageOrLocal "ihp-imagemagick";
+            ihp-hspec = hackageOrLocal "ihp-hspec";
+            ihp-welcome = hackageOrLocal "ihp-welcome";
 
             # ihp-pro
             ihp-stripe = localPackage "ihp-stripe";
@@ -126,39 +135,15 @@ let
             ptr-poker = self.callHackageDirect { pkg = "ptr-poker"; ver = "0.1.3"; sha256 = "0jl9df0kzsq5gd6fhfqc8my4wy7agg5q5jw4q92h4b7rkdf3hix7"; } {};
             # postgresql-simple-postgresql-types: bridge providing FromField/ToField instances
             # for all postgresql-types types (Point, Polygon, Inet, Interval, etc.) in postgresql-simple
-            postgresql-simple-postgresql-types = final.haskell.lib.dontCheck (final.haskell.lib.doJailbreak (final.haskell.lib.overrideCabal
-                (super.callPackage "${flakeRoot}/NixSupport/postgresql-simple-postgresql-types-default.nix" {})
-                (old: {
-                    src = builtins.fetchTarball {
-                        url = "https://github.com/nikita-volkov/postgresql-simple-postgresql-types/archive/c786a1fb.tar.gz";
-                        sha256 = "0hrlfbqnhf8jcc36hnq62mp6jnh9w1m2n1i4b9qvd3mdzy4w7knx";
-                    };
-                })));
+            postgresql-simple-postgresql-types = final.haskell.lib.dontCheck (final.haskell.lib.doJailbreak (self.callHackageDirect { pkg = "postgresql-simple-postgresql-types"; ver = "0.1.1"; sha256 = "09xqrcpp56jbfjqk9njw6l7aw13qi2838rwqg2xc483sjp0jxxzd"; } {}));
             # ptr-peeker is marked broken in nixpkgs but is needed by postgresql-types
             # https://github.com/nikita-volkov/ptr-peeker/issues/10
             ptr-peeker = final.haskell.lib.dontCheck (final.haskell.lib.markUnbroken super.ptr-peeker);
             postgresql-types-algebra = final.haskell.lib.doJailbreak (self.callHackageDirect { pkg = "postgresql-types-algebra"; ver = "0.1"; sha256 = "0ishl9dag7w73bclpaja4wj3s6jf8958jls2ffn1a6h3p9v40pfv"; } {});
             # dontCheck: tests require a running PostgreSQL server
             postgresql-types = final.haskell.lib.dontCheck (final.haskell.lib.doJailbreak (self.callHackageDirect { pkg = "postgresql-types"; ver = "0.1.2"; sha256 = "1plkc0pjhlbml5innkla44jad1jx8f876kw5ckz168jxvzrkb4jc"; } {}));
-            # hasql-mapping provides the IsScalar typeclass for hasql encoder/decoder integration.
-            # Not on Hackage, only on GitHub.
-            hasql-mapping = final.haskell.lib.doJailbreak (final.haskell.lib.overrideCabal
-                (super.callPackage "${flakeRoot}/NixSupport/hasql-mapping-default.nix" {})
-                (old: {
-                    src = builtins.fetchTarball {
-                        url = "https://github.com/nikita-volkov/hasql-mapping/archive/307dfb5f25ba28d8408fac3aa160ca4ba702acc9.tar.gz";
-                        sha256 = "1ww54his5d3wfh3amdk9zk5w6v4pdgljlzifnqga3lwn1gasbsvr";
-                    };
-                }));
-            hasql-postgresql-types = final.haskell.lib.dontHaddock (final.haskell.lib.doJailbreak
-                (final.haskell.lib.overrideCabal
-                    (super.callPackage "${flakeRoot}/NixSupport/hasql-postgresql-types-default.nix" {})
-                    (old: {
-                        src = builtins.fetchTarball {
-                            url = "https://github.com/nikita-volkov/hasql-postgresql-types/archive/v0.2.tar.gz";
-                            sha256 = "00j0lz29glb17jab2ag70bzpq9wwrx5h4q7rad4cqzj5a2ialvx0";
-                        };
-                    })));
+            hasql-mapping = final.haskell.lib.doJailbreak (self.callHackageDirect { pkg = "hasql-mapping"; ver = "0.1"; sha256 = "1l6p7sbw6wwkk964bs3hljmja1kwy0b9gld24g71dcbjs24hchcf"; } {});
+            hasql-postgresql-types = final.haskell.lib.dontHaddock (final.haskell.lib.doJailbreak (self.callHackageDirect { pkg = "hasql-postgresql-types"; ver = "0.2"; sha256 = "0841s41izgjg4qfw6s74bwhixby3rwj167a2p8vbwp4xlf8wzaz6"; } {}));
         };
 in
 final: prev: {

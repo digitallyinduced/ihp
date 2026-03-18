@@ -1,9 +1,10 @@
 cabal-version:       2.2
 name:                ihp-schema-compiler
-version:             1.4.0
+version:             1.5.0
 synopsis:            Lightweight schema compiler for IHP
 description:         Compiles Schema.sql to Generated Types.hs for IHP applications. This is a minimal package with few dependencies, suitable for production builds that don't need the full ihp-ide.
 license:             MIT
+license-file:        LICENSE
 author:              digitally induced GmbH
 maintainer:          hello@digitallyinduced.com
 homepage:            https://ihp.digitallyinduced.com/
@@ -13,6 +14,7 @@ category:            Web, IHP
 stability:           Stable
 tested-with:         GHC == 9.8.4
 build-type:          Simple
+extra-source-files:  changelog.md
 data-dir: data
 data-files: IHPSchema.sql
 

@@ -1,6 +1,6 @@
 cabal-version:       2.2
 name:                ihp-modal
-version:             1.4.0
+version:             1.0.0
 synopsis:            Modal dialog support for IHP applications
 description:         Provides modal dialog functionality with Bootstrap-compatible markup.
                      Can be used with the full IHP framework or standalone with ihp-context and ihp-hsx.

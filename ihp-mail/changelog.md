@@ -1,7 +1,9 @@
-# Changelog
+# Changelog for `ihp-mail`
+
+## v1.5.0
+
+- Add `EnvVarReader` instance for `SMTPEncryption`
 
 ## v1.4.0
 
-- Initial release as a standalone package
-- Extracted from the main ihp package
-- Mail configuration is now stored in appConfig via TMap instead of a dedicated FrameworkConfig field
+- Initial release as a standalone package, extracted from ihp

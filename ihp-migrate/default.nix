@@ -3,7 +3,7 @@
 }:
 mkDerivation {
   pname = "ihp-migrate";
-  version = "1.4.0";
+  version = "1.5.0";
   src = ./.;
   isLibrary = true;
   isExecutable = true;
@@ -18,6 +18,7 @@ mkDerivation {
   testHaskellDepends = [
     base directory filepath hspec temporary with-utf8
   ];
+  homepage = "https://ihp.digitallyinduced.com/";
   description = "Provides the IHP migrate binary";
   license = lib.licenses.mit;
   mainProgram = "migrate";

@@ -3,7 +3,7 @@ Module: IHP.ScriptSupport
 Description: Run scripts inside the framework context, but outside of the usual web request response lifecycle
 Copyright: (c) digitally induced GmbH, 2020
 -}
-module IHP.ScriptSupport (runScript, Script, module IHP.FrameworkConfig) where
+module IHP.ScriptSupport (runScript, runDevScript, Script, module IHP.FrameworkConfig) where
 
 import IHP.Prelude
 import IHP.FrameworkConfig
@@ -22,3 +22,22 @@ runScript configBuilder taskMain = withUtf8 do
             let ?context = frameworkConfig
             taskMain
 {-# INLINABLE runScript #-}
+
+-- | Run a script interactively from GHCi using the default IHP config.
+--
+-- This reads DATABASE_URL from the environment (set by devenv) and uses
+-- default settings for everything else. For custom config, use 'runScript' instead.
+--
+-- __Example:__ Run a script module from GHCi:
+--
+-- > import IHP.ScriptSupport
+-- > :l Application/Script/HelloWorld.hs
+-- > runDevScript run
+--
+-- __Example:__ Run inline script code:
+--
+-- > import IHP.ScriptSupport
+-- > runDevScript do { users <- query @User |> fetch; forEach users \user -> putStrLn user.name }
+--
+runDevScript :: Script -> IO ()
+runDevScript = runScript ihpDefaultConfig

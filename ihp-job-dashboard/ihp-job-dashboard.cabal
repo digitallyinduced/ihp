@@ -1,8 +1,10 @@
 cabal-version:       2.2
 name:                ihp-job-dashboard
-version:             1.4.0
+version:             1.5.0
 synopsis:            Dashboard for IHP job runners
+description:         Web-based dashboard for monitoring IHP background job runners
 license:             MIT
+license-file:        LICENSE
 author:              digitally induced GmbH
 maintainer:          hello@digitallyinduced.com
 homepage:            https://ihp.digitallyinduced.com/
@@ -12,6 +14,7 @@ category:            Web, IHP
 stability:           Stable
 tested-with:         GHC == 9.8.4
 build-type:          Simple
+extra-source-files:  changelog.md
 
 library
     default-language: GHC2021

@@ -6,7 +6,7 @@
 }:
 mkDerivation {
   pname = "ihp-typed-sql";
-  version = "1.4.0";
+  version = "1.5.0";
   src = ./.;
   libraryHaskellDepends = [
     aeson base bytestring containers haskell-src-meta hasql

@@ -5,7 +5,7 @@
 }:
 mkDerivation {
   pname = "ihp-pglistener";
-  version = "1.4.0";
+  version = "1.0.0";
   src = ./.;
   libraryHaskellDepends = [
     aeson async base bytestring containers hashable hasql

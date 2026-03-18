@@ -3,7 +3,7 @@
 }:
 mkDerivation {
   pname = "ihp-datasync-typescript";
-  version = "1.4.0";
+  version = "1.5.0";
   src = ./.;
   isLibrary = true;
   isExecutable = true;
@@ -16,6 +16,7 @@ mkDerivation {
   testHaskellDepends = [
     hspec ihp ihp-postgres-parser megaparsec neat-interpolation
   ];
+  homepage = "https://ihp.digitallyinduced.com/";
   description = "TypeScript code generation for IHP DataSync";
   license = lib.licenses.mit;
   mainProgram = "generate-datasync-types";

@@ -881,13 +881,14 @@ hasqlColumnDecoder :: (?schema :: Schema) => CreateTable -> Column -> Text
 hasqlColumnDecoder table column@Column { name, columnType, notNull, generator } =
     "Decoders.column (" <> nullability <> " " <> decoder <> ")"
     where
-        -- Match the logic in haskellType: if not notNull OR has a generator, treat as nullable
-        isNullable = not notNull || isJust generator
-        nullability = if isNullable then "Decoders.nullable" else "Decoders.nonNullable"
-
         -- Id columns (primary keys and foreign keys) use Mapping.decoder which
         -- goes through the IsScalar instance for Id'
         isPrimaryKey = [name] == primaryKeyColumnNames table.primaryKeyConstraint
+
+        -- Match the logic in haskellType: primary keys are always nonNullable (even without
+        -- explicit NOT NULL), otherwise nullable if not notNull or has a generator
+        isNullable = not isPrimaryKey && (not notNull || isJust generator)
+        nullability = if isNullable then "Decoders.nullable" else "Decoders.nonNullable"
         isForeignKey = isJust (findForeignKeyConstraint table column)
         needsIdWrapper = isPrimaryKey || isForeignKey
 
