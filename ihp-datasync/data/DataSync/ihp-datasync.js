@@ -279,6 +279,7 @@ class DataSubscription {
         this.newRecordBehaviour = (options && 'newRecordBehaviour' in options) ? options.newRecordBehaviour : this.detectNewRecordBehaviour();
         
         this.optimisticCreatedPendingRecordIds = [];
+        this.optimisticUpdatedPendingRecordIds = new Set();
     }
 
     detectNewRecordBehaviour() {
@@ -388,7 +389,7 @@ class DataSubscription {
         this.records = this.records.map(record => {
             if (record.id === id) {
                 const updated = Object.assign({}, record, changeSet);
-                if (appendSet) {
+                if (appendSet && !this.optimisticUpdatedPendingRecordIds.has(id)) {
                     for (const [key, value] of Object.entries(appendSet)) {
                         updated[key] = (typeof updated[key] === 'string' ? updated[key] : '') + value;
                     }
@@ -399,6 +400,7 @@ class DataSubscription {
             return record;
         });
 
+        this.optimisticUpdatedPendingRecordIds.delete(id);
         this.updateSubscribers();
     }
 
@@ -727,8 +729,11 @@ function updateRecordOptimistic(table, id, patch) {
 
             // Apply the patch optimistically
             dataSubscription.onUpdate(id, patch, null);
+            dataSubscription.optimisticUpdatedPendingRecordIds.add(id);
 
             rollbackOperations.push(() => {
+                dataSubscription.optimisticUpdatedPendingRecordIds.delete(id);
+
                 const records = dataSubscription.getRecords();
                 if (!records) {
                     return;
