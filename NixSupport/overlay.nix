@@ -129,6 +129,9 @@ let
                 editedCabalFile = null;
             })));
 
+            # Fork of temporary using OsPath instead of FilePath
+            temporary-ospath = self.callHackageDirect { pkg = "temporary-ospath"; ver = "1.3"; sha256 = "0bb5pjiz83a2cj02g2kmnq2k3jyp7hiainy7iknyi9ncdgs7hrxk"; } {};
+
             # postgresql-types for proper binary encoders of Point, Polygon, Inet, Interval
             ptr-poker = self.callHackageDirect { pkg = "ptr-poker"; ver = "0.1.3"; sha256 = "0jl9df0kzsq5gd6fhfqc8my4wy7agg5q5jw4q92h4b7rkdf3hix7"; } {};
             # postgresql-simple-postgresql-types: bridge providing FromField/ToField instances

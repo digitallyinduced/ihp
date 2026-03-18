@@ -275,7 +275,7 @@ that is defined in flake-module.nix
                         ip
                         fast-logger
                         minio-hs
-                        temporary
+                        temporary-ospath
                         wai-cors
                         random
                         cereal-text

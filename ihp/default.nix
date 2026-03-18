@@ -14,7 +14,7 @@
 , postgresql-simple-postgresql-types, postgresql-types, process
 , pwstore-fast, random, random-strings, regex-tdfa, resource-pool
 , resourcet, safe-exceptions, scientific, slugger, split, stm
-, string-conversions, tasty-bench, template-haskell, temporary
+, string-conversions, tasty-bench, template-haskell
 , text, time, transformers, typerep-map, unagi-chan, unix, unliftio
 , unordered-containers, uri-encode, uuid, vault, vector, wai
 , wai-app-static, wai-asset-path, wai-cors, wai-early-return
@@ -43,7 +43,7 @@ mkDerivation {
     postgresql-simple-postgresql-types postgresql-types process
     pwstore-fast random random-strings regex-tdfa resource-pool
     resourcet safe-exceptions scientific slugger split stm
-    string-conversions template-haskell temporary text time
+    string-conversions template-haskell text time
     transformers typerep-map unagi-chan unix unliftio
     unordered-containers uri-encode uuid vault vector wai
     wai-app-static wai-asset-path wai-cors wai-early-return wai-extra
@@ -67,7 +67,7 @@ mkDerivation {
     postgresql-simple-postgresql-types postgresql-types process
     pwstore-fast random random-strings regex-tdfa resource-pool
     resourcet safe-exceptions scientific slugger split stm
-    string-conversions template-haskell temporary text time
+    string-conversions template-haskell text time
     transformers typerep-map unagi-chan unix unliftio
     unordered-containers uri-encode uuid vault vector wai
     wai-app-static wai-asset-path wai-cors wai-early-return wai-extra
@@ -91,7 +91,7 @@ mkDerivation {
     postgresql-simple-postgresql-types postgresql-types process
     pwstore-fast random random-strings regex-tdfa resource-pool
     resourcet safe-exceptions scientific slugger split stm
-    string-conversions tasty-bench template-haskell temporary text time
+    string-conversions tasty-bench template-haskell text time
     transformers typerep-map unagi-chan unix unliftio
     unordered-containers uri-encode uuid vault vector wai
     wai-app-static wai-asset-path wai-cors wai-early-return wai-extra
