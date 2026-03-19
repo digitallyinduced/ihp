@@ -125,8 +125,8 @@ instance AutoRoute CustomRouteController where
 
 instance FrontController WebApplication where
   controllers =
-    [ parseRoute @TestController
-    , parseRoute @CustomRouteController
+    [ parseAutoRoute @TestController
+    , parseAutoRoute @CustomRouteController
     ]
 
 defaultLayout :: Html -> Html

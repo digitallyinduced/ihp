@@ -65,11 +65,11 @@ instance InitControllerContext BenchApp where
 
 instance FrontController BenchApp where
     controllers =
-        [ parseRoute @BenchController1
-        , parseRoute @BenchController2
-        , parseRoute @BenchController3
-        , parseRoute @BenchController4
-        , parseRoute @BenchController5
+        [ parseAutoRoute @BenchController1
+        , parseAutoRoute @BenchController2
+        , parseAutoRoute @BenchController3
+        , parseAutoRoute @BenchController4
+        , parseAutoRoute @BenchController5
         ]
 
 -- Mock request for benchmarking
@@ -98,7 +98,7 @@ instance InitControllerContext SingleControllerApp where
     initContext = pure ()
 
 instance FrontController SingleControllerApp where
-    controllers = [ parseRoute @BenchController1 ]
+    controllers = [ parseAutoRoute @BenchController1 ]
 
 benchSingleDirect :: ByteString -> ()
 benchSingleDirect !path =

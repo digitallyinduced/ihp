@@ -33,6 +33,7 @@ CanRoute (..)
 , ControllerRoute (..)
 , findInRouteMaps
 , buildAutoRouteMap
+, parseAutoRoute
 ) where
 
 import Prelude hiding (take)
@@ -921,7 +922,7 @@ frontControllerToWAIApp middleware application notFoundAction waiRequest waiResp
                 pure $ withImplicits (startWebSocketAppAndFailOnHTTP @autoRefreshApp @() (WS.initialState @autoRefreshApp))
 
     let allRoutes = let ?application = application in
-            controllers @app <> [ControllerRouteParser autoRefreshWSParser]
+            ControllerRouteParser autoRefreshWSParser : controllers @app
 
     let path = waiRequest.rawPathInfo
 
@@ -952,7 +953,27 @@ mountFrontController :: forall frontController application. (?request :: Request
 mountFrontController application = ControllerRouteParser (let ?application = application in router [])
 {-# INLINABLE mountFrontController #-}
 
+-- | Create a route entry for a controller using Attoparsec parsing.
+-- Works with any controller that has a 'CanRoute' instance (including custom ones without 'AutoRoute').
+-- For better performance with auto-routed controllers, use 'parseAutoRoute' instead.
 parseRoute :: forall controller application.
+    ( ?request :: Request
+    , ?respond :: Respond
+    , CanRoute controller
+    , Controller controller
+    , InitControllerContext application
+    , ?application :: application
+    , Typeable application
+    , Typeable controller
+    ) => ControllerRoute application
+parseRoute = ControllerRouteParser (parseRouteWithAction @controller (runAction' @application))
+{-# INLINABLE parseRoute #-}
+
+-- | Optimized route entry for controllers with 'AutoRoute'.
+-- Builds a pre-computed HashMap for O(1) path dispatch, bypassing Attoparsec entirely.
+-- Falls back to 'parseRouteWithAction' for custom routes.
+-- IHP's code generators emit this for all auto-generated controllers.
+parseAutoRoute :: forall controller application.
     ( ?request :: Request
     , ?respond :: Respond
     , AutoRoute controller
@@ -963,12 +984,12 @@ parseRoute :: forall controller application.
     , Typeable application
     , Typeable controller
     ) => ControllerRoute application
-parseRoute = ControllerRouteMap
+parseAutoRoute = ControllerRouteMap
     (buildAutoRouteMap @controller @application)
     -- Use parseRouteWithAction as fallback (not just customRoutes) to preserve
     -- custom CanRoute instances that override parseRoute' or parseRouteWithAction.
     (parseRouteWithAction @controller (runAction' @application))
-{-# INLINABLE parseRoute #-}
+{-# INLINABLE parseAutoRoute #-}
 
 -- | Build a HashMap from full paths (prefix + action name) to Application closures.
 -- The Application closures take the application value explicitly and handle query string
@@ -989,14 +1010,14 @@ buildAutoRouteMap = HashMap.fromList
           allowedMethods = allowedMethodsForAction @controller actionName
           handler app waiRequest waiRespond =
               let ?application = app
-              in case applyAction @controller constr (queryString waiRequest) of
-                  Left e -> waiRespond $ responseLBS status400 [(hContentType, "text/plain")] (cs $ show e)
-                  Right action -> case parseMethod (requestMethod waiRequest) of
-                      Right method -> do
-                          unless (allowedMethods |> includes method)
-                              (Exception.throw UnexpectedMethodException { allowedMethods, method })
-                          runAction' @application action waiRequest waiRespond
-                      Left err -> error ("Invalid HTTP method: " <> ByteString.unpack err)
+              in case parseMethod (requestMethod waiRequest) of
+                  Left err -> error ("Invalid HTTP method: " <> ByteString.unpack err)
+                  Right method -> do
+                      unless (allowedMethods |> includes method)
+                          (Exception.throw UnexpectedMethodException { allowedMethods, method })
+                      case applyAction @controller constr (queryString waiRequest) of
+                          Left e -> waiRespond $ responseLBS status400 [(hContentType, "text/plain")] (cs $ show e)
+                          Right action -> runAction' @application action waiRequest waiRespond
     ]
     where
         prefix :: ByteString
@@ -1015,7 +1036,6 @@ parseRouteWithId
         (
             ?request :: Request,
             ?respond :: Respond,
-            AutoRoute controller,
             CanRoute controller,
             Controller controller,
             InitControllerContext application,
