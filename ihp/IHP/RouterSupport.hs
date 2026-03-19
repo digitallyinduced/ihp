@@ -30,6 +30,9 @@ CanRoute (..)
 , routeParam
 , withImplicits
 , applyConstr
+, ControllerRoute (..)
+, findInRouteMaps
+, buildAutoRouteMap
 ) where
 
 import Prelude hiding (take)
@@ -71,6 +74,7 @@ import qualified Data.Text.Encoding as Text
 import Data.Dynamic
 import IHP.Router.Types
 import IHP.Router.UrlGenerator
+import qualified Data.HashMap.Strict as HashMap
 import IHP.WebSocket (WSApp)
 import qualified IHP.WebSocket as WS
 import GHC.TypeLits as T
@@ -117,22 +121,43 @@ runAction' controller waiRequest waiRespond = do
 class FrontController application where
     controllers
         :: (?application :: application, ?request :: Request, ?respond :: Respond)
-        => [Parser Application]
+        => [ControllerRoute application]
 
     router
         :: (?application :: application, ?request :: Request, ?respond :: Respond)
-        => [Parser Application] -> Parser Application
+        => [ControllerRoute application] -> Parser Application
     router = defaultRouter
     {-# INLINABLE router #-}
 
 defaultRouter
     :: (?application :: application, ?request :: Request, ?respond :: Respond, FrontController application)
-    => [Parser Application] -> Parser Application
-defaultRouter additionalControllers = do
-    let allControllers = controllers <> additionalControllers
-    applications <- choice $ map (\r -> r <* endOfInput) allControllers
-    pure applications
+    => [ControllerRoute application] -> Parser Application
+defaultRouter additionalRoutes = do
+    let allRoutes = controllers <> additionalRoutes
+        path = rawPathInfo ?request
+    -- Fast path: check auto-route HashMaps directly (no Attoparsec string matching)
+    case findInRouteMaps path allRoutes of
+        Just handler -> takeByteString *> pure (handler ?application)
+        Nothing -> do
+            -- Slow path: fall back to Attoparsec parsers for custom/dynamic routes
+            let parsers = concatMap getRouteParsers allRoutes
+            choice (map (<* endOfInput) parsers)
 {-# INLINABLE defaultRouter #-}
+
+-- | Scan 'ControllerRouteMap' entries for a matching path.
+-- Returns as soon as a HashMap contains the path. Skips 'ControllerRouteParser' entries.
+findInRouteMaps :: ByteString -> [ControllerRoute application] -> Maybe (application -> Application)
+findInRouteMaps _ [] = Nothing
+findInRouteMaps path (ControllerRouteMap m _ : rest) =
+    case HashMap.lookup path m of
+        Just handler -> Just handler
+        Nothing -> findInRouteMaps path rest
+findInRouteMaps path (_ : rest) = findInRouteMaps path rest
+
+-- | Extract fallback parsers from controller routes.
+getRouteParsers :: ControllerRoute application -> [Parser Application]
+getRouteParsers (ControllerRouteMap _ fallback) = [fallback]
+getRouteParsers (ControllerRouteParser p) = [p]
 
 -- | Returns the url to a given action.
 --
@@ -162,6 +187,23 @@ class HasPath controller => CanRoute controller where
         action <- parseRoute'
         pure (toApp action)
     {-# INLINE parseRouteWithAction #-}
+
+    -- | Build a 'ControllerRoute' for this controller.
+    --
+    -- The default wraps the parser in 'ControllerRouteParser'.
+    -- The overlappable 'AutoRoute' instance overrides this to use 'ControllerRouteMap'
+    -- for O(1) HashMap dispatch. This is what 'parseRoute' calls.
+    toControllerRoute :: forall application.
+        ( ?request :: Request
+        , ?respond :: Respond
+        , Controller controller
+        , InitControllerContext application
+        , ?application :: application
+        , Typeable application
+        , Typeable controller
+        ) => ControllerRoute application
+    toControllerRoute = ControllerRouteParser (parseRouteWithAction @controller (runAction' @application))
+    {-# INLINABLE toControllerRoute #-}
 
 
 -- | Each of these is tried when trying to parse an argument to a controller constructor (i.e. in IHP, an action).
@@ -463,24 +505,28 @@ class Data controller => AutoRoute controller where
     {-# INLINE customPathTo #-}
 
 -- | Static route-matching parser that becomes a CAF when specialized for a concrete
--- controller type. It only does string matching against URL paths and returns the
--- matched constructor and its allowed HTTP methods. Since it doesn't reference
--- @?request@ or @?respond@, GHC can float this out as a top-level constant.
+-- controller type. Uses a 'HashMap' for O(1) action name lookup after matching the prefix.
+-- Since it doesn't reference @?request@ or @?respond@, GHC can float this out as a
+-- top-level constant.
 routeMatchParser :: forall controller. (Data controller, AutoRoute controller) => Parser (Constr, [StdMethod])
-routeMatchParser = choice (map parseAction allConstructors)
+routeMatchParser = do
+    string prefix
+    remaining <- takeByteString
+    case HashMap.lookup remaining actionMatchMap of
+        Just result -> pure result
+        Nothing -> fail "no matching action"
     where
-        allConstructors :: [Constr]
-        allConstructors = dataTypeConstrs (dataTypeOf (Prelude.undefined :: controller))
-
         prefix :: ByteString
         prefix = Text.encodeUtf8 (actionPrefixText @controller)
 
-        parseAction :: Constr -> Parser (Constr, [StdMethod])
-        parseAction constr =
-            let actionName = ByteString.pack (showConstr constr)
-                actionPath = stripActionSuffixByteString actionName
-                allowedMethods = allowedMethodsForAction @controller actionName
-            in string prefix *> string actionPath *> endOfInput *> pure (constr, allowedMethods)
+        actionMatchMap :: HashMap.HashMap ByteString (Constr, [StdMethod])
+        actionMatchMap = HashMap.fromList
+            [ (actionPath, (constr, allowedMethods))
+            | constr <- dataTypeConstrs (dataTypeOf (Prelude.undefined :: controller))
+            , let actionName = ByteString.pack (showConstr constr)
+                  actionPath = stripActionSuffixByteString actionName
+                  allowedMethods = allowedMethodsForAction @controller actionName
+            ]
 {-# NOINLINE routeMatchParser #-}
 
 -- | Returns the url prefix for a controller. The prefix is based on the
@@ -579,12 +625,13 @@ instance {-# OVERLAPPABLE #-} (AutoRoute controller, Controller controller) => C
     parseRoute' = customRoutes <|> autoRoute
     {-# INLINABLE parseRoute' #-}
 
+    -- | This is only used as a fallback parser (via lazy thunk in 'ControllerRouteMap').
+    -- The primary routing path goes through 'findInRouteMaps' / 'buildAutoRouteMap' instead.
+    -- Performance here doesn't matter — keep it simple.
     parseRouteWithAction toApp = (do
         action <- customRoutes @controller
         pure (toApp action)
       ) <|> (do
-        -- routeMatchParser is a NOINLINE CAF — the static path matching is computed once per controller type.
-        -- We defer query string parsing and method validation to the Application closure.
         (constr, allowedMethods) <- routeMatchParser @controller
         pure $ \waiRequest waiRespond -> do
             case applyAction @controller constr (queryString waiRequest) of
@@ -598,6 +645,17 @@ instance {-# OVERLAPPABLE #-} (AutoRoute controller, Controller controller) => C
                         Left err -> error ("Invalid HTTP method: " <> ByteString.unpack err)
       )
     {-# INLINABLE parseRouteWithAction #-}
+
+    -- | Override to use 'ControllerRouteMap' for O(1) HashMap dispatch.
+    toControllerRoute :: forall application.
+        ( ?request :: Request, ?respond :: Respond, Controller controller
+        , InitControllerContext application, ?application :: application
+        , Typeable application, Typeable controller
+        ) => ControllerRoute application
+    toControllerRoute = ControllerRouteMap
+        (buildAutoRouteMap @controller @application)
+        (parseRouteWithAction @controller (runAction' @application))
+    {-# INLINABLE toControllerRoute #-}
 
 -- | Instances of the @QueryParam@ type class can be represented in URLs as query parameters.
 -- Currently this is only Int, Text, and both wrapped in List and Maybe.
@@ -711,8 +769,8 @@ get :: (Controller action
     , ?application :: application
     , Typeable application
     , Typeable action
-    ) => ByteString -> action -> Parser Application
-get path action = do
+    ) => ByteString -> action -> ControllerRoute application
+get path action = ControllerRouteParser $ do
     string path
     pure $ \waiRequest waiRespond ->
         case parseMethod (requestMethod waiRequest) of
@@ -739,8 +797,8 @@ post :: (Controller action
     , ?application :: application
     , Typeable application
     , Typeable action
-    ) => ByteString -> action -> Parser Application
-post path action = do
+    ) => ByteString -> action -> ControllerRoute application
+post path action = ControllerRouteParser $ do
     string path
     pure $ \waiRequest waiRespond ->
         case parseMethod (requestMethod waiRequest) of
@@ -797,7 +855,7 @@ webSocketApp :: forall webSocketApp application.
     , ?application :: application
     , Typeable application
     , Typeable webSocketApp
-    ) => Parser Application
+    ) => ControllerRoute application
 webSocketApp = webSocketAppWithCustomPath @webSocketApp typeName
     where
         typeName :: ByteString
@@ -813,7 +871,7 @@ webSocketAppWithHTTPFallback :: forall webSocketApp application.
     , Typeable application
     , Typeable webSocketApp
     , Controller webSocketApp
-    ) => Parser Application
+    ) => ControllerRoute application
 webSocketAppWithHTTPFallback = webSocketAppWithCustomPathAndHTTPFallback @webSocketApp @application typeName
     where
         typeName :: ByteString
@@ -839,8 +897,8 @@ webSocketAppWithCustomPath :: forall webSocketApp application.
     , ?application :: application
     , Typeable application
     , Typeable webSocketApp
-    ) => ByteString -> Parser Application
-webSocketAppWithCustomPath path = do
+    ) => ByteString -> ControllerRoute application
+webSocketAppWithCustomPath path = ControllerRouteParser $ do
         Attoparsec.char '/'
         string path
         pure $ withImplicits (startWebSocketAppAndFailOnHTTP @webSocketApp @application (WS.initialState @webSocketApp))
@@ -853,8 +911,8 @@ webSocketAppWithCustomPathAndHTTPFallback :: forall webSocketApp application.
     , Typeable application
     , Typeable webSocketApp
     , Controller webSocketApp
-    ) => ByteString -> Parser Application
-webSocketAppWithCustomPathAndHTTPFallback path = do
+    ) => ByteString -> ControllerRoute application
+webSocketAppWithCustomPathAndHTTPFallback path = ControllerRouteParser $ do
         Attoparsec.char '/'
         string path
         let action = WS.initialState @webSocketApp
@@ -863,7 +921,7 @@ webSocketAppWithCustomPathAndHTTPFallback path = do
 
 
 -- | Defines the start page for a router (when @\/@ is requested).
-startPage :: forall action application. (Controller action, InitControllerContext application, ?application::application, Typeable application, Typeable action) => action -> Parser Application
+startPage :: forall action application. (Controller action, InitControllerContext application, ?application::application, Typeable application, Typeable action) => action -> ControllerRoute application
 startPage action = get (Text.encodeUtf8 (actionPrefixText @action)) action
 {-# INLINABLE startPage #-}
 
@@ -880,31 +938,56 @@ frontControllerToWAIApp middleware application notFoundAction waiRequest waiResp
     let ?request = waiRequest
     let ?respond = waiRespond
 
-    let
-        path = waiRequest.rawPathInfo
-        handleException :: SomeException -> IO (Either String Application)
-        handleException exception = pure $ Right $ ErrorController.handleRouterException environment exception
+    let autoRefreshWSParser :: Parser Application
+        autoRefreshWSParser =
+            let ?application = () in
+            let typeName = Typeable.typeOf (error "unreachable" :: autoRefreshApp)
+                    |> show |> ByteString.pack
+            in do
+                Attoparsec.char '/'
+                string typeName
+                pure $ withImplicits (startWebSocketAppAndFailOnHTTP @autoRefreshApp @() (WS.initialState @autoRefreshApp))
 
-        routes = let ?application = application in router [let ?application = () in webSocketApp @autoRefreshApp]
+    let allRoutes = let ?application = application in
+            ControllerRouteParser autoRefreshWSParser : controllers @app
 
-    routedAction :: Either String Application <-
-        (do
-            res <- evaluate $ parseOnly (routes <* endOfInput) path
-            case res of
-                Left s -> pure $ Left s
-                Right action -> do
-                    pure $ Right action
-            )
-        `Exception.catch` handleException
-    case routedAction of
-        Left message -> notFoundAction waiRequest waiRespond
-        Right action -> (middleware action) waiRequest waiRespond
+    let path = waiRequest.rawPathInfo
+
+    -- Fast path: scan auto-route HashMaps directly (no Attoparsec overhead)
+    case findInRouteMaps path allRoutes of
+        Just handler -> (middleware (handler application)) waiRequest waiRespond
+        Nothing -> do
+            -- Slow path: Attoparsec for custom/dynamic route parsers only
+            let handleException :: SomeException -> IO (Either String Application)
+                handleException exception = pure $ Right $ ErrorController.handleRouterException environment exception
+
+                customParsers = concatMap getRouteParsers allRoutes
+
+            routedAction :: Either String Application <-
+                (do
+                    res <- evaluate $ parseOnly (choice (map (<* endOfInput) customParsers)) path
+                    case res of
+                        Left s -> pure $ Left s
+                        Right action -> pure $ Right action
+                    )
+                `Exception.catch` handleException
+            case routedAction of
+                Left _ -> notFoundAction waiRequest waiRespond
+                Right action -> (middleware action) waiRequest waiRespond
 {-# INLINABLE frontControllerToWAIApp #-}
 
-mountFrontController :: forall frontController. (?request :: Request, ?respond :: Respond, FrontController frontController) => frontController -> Parser Application
-mountFrontController application = let ?application = application in router []
+mountFrontController :: forall frontController application. (?request :: Request, ?respond :: Respond, FrontController frontController) => frontController -> ControllerRoute application
+mountFrontController application = ControllerRouteParser (let ?application = application in router [])
 {-# INLINABLE mountFrontController #-}
 
+-- | Create a route entry for a controller.
+--
+-- Automatically uses the HashMap fast path when 'AutoRoute' is available
+-- (via the overlappable 'CanRoute' instance), or falls back to Attoparsec
+-- for controllers with custom 'CanRoute' instances.
+--
+-- No user code changes needed — @parseRoute \@PostsController@ picks the
+-- optimal strategy at compile time.
 parseRoute :: forall controller application.
     ( ?request :: Request
     , ?respond :: Respond
@@ -914,9 +997,42 @@ parseRoute :: forall controller application.
     , ?application :: application
     , Typeable application
     , Typeable controller
-    ) => Parser Application
-parseRoute = parseRouteWithAction @controller (runAction' @application)
+    ) => ControllerRoute application
+parseRoute = toControllerRoute @controller @application
 {-# INLINABLE parseRoute #-}
+
+-- | Build a HashMap from full paths (prefix + action name) to Application closures.
+-- The Application closures take the application value explicitly and handle query string
+-- parsing, method validation, and controller execution.
+-- Computed once per (controller, application) type pair (NOINLINE CAF).
+buildAutoRouteMap :: forall controller application.
+    ( AutoRoute controller
+    , Controller controller
+    , InitControllerContext application
+    , Typeable application
+    , Typeable controller
+    ) => HashMap.HashMap ByteString (application -> Application)
+buildAutoRouteMap = HashMap.fromList
+    [ (prefix <> actionPath, handler)
+    | constr <- dataTypeConstrs (dataTypeOf (Prelude.undefined :: controller))
+    , let actionName = ByteString.pack (showConstr constr)
+          actionPath = stripActionSuffixByteString actionName
+          allowedMethods = allowedMethodsForAction @controller actionName
+          handler app waiRequest waiRespond =
+              let ?application = app
+              in case parseMethod (requestMethod waiRequest) of
+                  Left err -> error ("Invalid HTTP method: " <> ByteString.unpack err)
+                  Right method -> do
+                      unless (allowedMethods |> includes method)
+                          (Exception.throw UnexpectedMethodException { allowedMethods, method })
+                      case applyAction @controller constr (queryString waiRequest) of
+                          Left e -> waiRespond $ responseLBS status400 [(hContentType, "text/plain")] (cs $ show e)
+                          Right action -> runAction' @application action waiRequest waiRespond
+    ]
+    where
+        prefix :: ByteString
+        prefix = Text.encodeUtf8 (actionPrefixText @controller)
+{-# NOINLINE buildAutoRouteMap #-}
 
 parseUUIDOrTextId ::  ByteString -> Maybe Dynamic
 parseUUIDOrTextId queryVal = queryVal
@@ -936,11 +1052,11 @@ parseRouteWithId
             ?application :: application,
             Typeable application,
             Typeable controller)
-        => Parser Application
+        => ControllerRoute application
 parseRouteWithId = parseRoute @controller @application
 
-catchAll :: forall action application. (Controller action, InitControllerContext application, Typeable action, ?application :: application, Typeable application, Data action) => action -> Parser Application
-catchAll action = do
+catchAll :: forall action application. (Controller action, InitControllerContext application, Typeable action, ?application :: application, Typeable application, Data action) => action -> ControllerRoute application
+catchAll action = ControllerRouteParser $ do
     string (Text.encodeUtf8 (actionPrefixText @action))
     _ <- takeByteString
     pure (runAction' @application action)
