@@ -866,6 +866,46 @@ $ docker run \
     ihp-worker:TAG
 ```
 
+### Running Migrations Automatically in Docker
+
+Instead of using the default `unoptimized-docker-image` or `optimized-docker-image` flake outputs, you can define a custom Docker image in your `flake.nix` that runs database migrations before starting the server. This is useful when you want a single container that handles both migrations and the web server.
+
+**Note:** This pattern is designed for single-replica deployments. If you run multiple replicas, migrations may race against each other. In that case, run migrations as a separate one-shot container or init container before starting the app replicas.
+
+```nix
+packages = {
+  docker = pkgs.dockerTools.buildImage {
+    name = "myapp";
+    tag = "latest";
+    config = {
+      Env = [
+        "IHP_MIGRATION_DIR=${./Application/Migration}/"
+        "IHP_REQUEST_LOGGER_IP_ADDR_SOURCE=FromHeader"
+        "IHP_ENV=Production"
+      ];
+      ExposedPorts = { "8000/tcp" = { }; };
+      Cmd = let migrate-then-run = pkgs.writeShellScript "start-container" ''
+        echo "Checking if there are migrations to be run..."
+        ${ihp.apps."${pkgs.system}".migrate.program}
+        echo "Launching web server"
+        exec ${self'.packages.unoptimized-prod-server}/bin/RunProdServer
+      ''; in [ migrate-then-run ];
+    };
+  };
+};
+```
+
+Pass `DATABASE_URL`, `IHP_BASEURL`, and other environment variables at runtime via `docker run -e` or your orchestrator's env configuration.
+
+Build and load this image with:
+
+```bash
+nix build .#docker --option sandbox false --extra-experimental-features nix-command --extra-experimental-features flakes
+cat result | podman load
+```
+
+This pattern also integrates better with Docker tooling since you control the image name and tag directly.
+
 ### Starting the App Container
 
 #### First Steps
