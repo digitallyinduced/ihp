@@ -401,7 +401,7 @@ ihpFlake:
                 languages.haskell.stack.enable = false; # Stack is not used in IHP
 
                 scripts.start.exec = ''
-                    IHP_STATIC=${ihpFlake.inputs.self.packages.${system}.ihp-static} ${ghcCompiler.ihp-ide}/bin/RunDevServer
+                    exec env IHP_STATIC=${ihpFlake.inputs.self.packages.${system}.ihp-static} ${ghcCompiler.ihp-ide}/bin/RunDevServer
                 '';
 
                 processes.ihp.exec = "start";
