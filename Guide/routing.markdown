@@ -333,7 +333,18 @@ instance HasPath RegistrationsController where
 
 ## Method Override Middleware
 
-HTML forms don't support special HTTP methods like `DELETE`. To work around this issue, IHP has [a middleware](https://hackage.haskell.org/package/wai-extra-3.0.1/docs/Network-Wai-Middleware-MethodOverridePost.html) which transforms e.g. a `POST` request with a form field `_method` set to `DELETE` to a `DELETE` request.
+HTML forms only support GET and POST methods, but IHP's router expects DELETE requests for delete actions (and PUT/PATCH for updates). To bridge this gap, IHP includes [a middleware](https://hackage.haskell.org/package/wai-extra-3.0.1/docs/Network-Wai-Middleware-MethodOverridePost.html) that transforms a POST request with a hidden form field `_method` into the corresponding HTTP method.
+
+For example, this form sends a DELETE request:
+
+```haskell
+<form method="POST" action={DeleteWidgetAction widget.id}>
+    <input type="hidden" name="_method" value="DELETE"/>
+    <button type="submit">Delete</button>
+</form>
+```
+
+This is important because actions with side effects (creating, updating, deleting data) should never use GET requests. Plain `<a>` links make GET requests, so they are not suitable for side-effect actions. See the [Actions with Side Effects](form.html#actions-with-side-effects) section in the Forms guide for a full explanation and examples.
 
 ## Custom 403 and 404 pages
 
