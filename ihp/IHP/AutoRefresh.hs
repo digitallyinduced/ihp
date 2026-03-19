@@ -124,7 +124,8 @@ autoRefresh runAction = do
                                     lastResponse <- Exception.evaluate (ByteString.toLazyByteString builder)
 
                                     event <- MVar.newEmptyMVar
-                                    let session = AutoRefreshSession { id, renderView, event, tables, lastResponse, lastPing }
+                                    notificationVersion <- newIORef 0
+                                    let session = AutoRefreshSession { id, renderView, event, tables, lastResponse, lastPing, notificationVersion }
                                     modifyIORef' autoRefreshServer (\s -> s { sessions = session:s.sessions } )
                                     async (gcSessions autoRefreshServer)
 
@@ -147,7 +148,7 @@ instance WSApp AutoRefreshWSApp where
         availableSessions <- getAvailableSessions autoRefreshServer
 
         when (sessionId `elem` availableSessions) do
-            AutoRefreshSession { renderView, event, lastResponse } <- getSessionById autoRefreshServer sessionId
+            AutoRefreshSession { renderView, event, lastResponse, notificationVersion } <- getSessionById autoRefreshServer sessionId
 
             let handleResponseException (ResponseException response) = case response of
                     Wai.ResponseBuilder status headers builder -> do
@@ -163,11 +164,12 @@ instance WSApp AutoRefreshWSApp where
 
             async $ forever do
                 MVar.takeMVar event
-                let currentRequest = ?request
-                -- Create a dummy respond function that does nothing, since actual response
-                -- is handled by the handleResponseException handler
-                let dummyRespond _ = error "AutoRefresh: respond should not be called directly"
-                ((renderView currentRequest dummyRespond) `catch` handleResponseException) `catch` handleOtherException
+                renderUntilCaughtUp notificationVersion do
+                    let currentRequest = ?request
+                    -- Create a dummy respond function that does nothing, since actual response
+                    -- is handled by the handleResponseException handler
+                    let dummyRespond _ = error "AutoRefresh: respond should not be called directly"
+                    ((renderView currentRequest dummyRespond) `catch` handleResponseException) `catch` handleOtherException
                 pure ()
 
             pure ()
@@ -216,8 +218,7 @@ registerNotificationTrigger touchedTablesVar autoRefreshServer = do
                 sessions <- (.sessions) <$> readIORef autoRefreshServer
                 sessions
                     |> filter (\session -> table `Set.member` session.tables)
-                    |> map (\session -> session.event)
-                    |> mapM (\event -> MVar.tryPutMVar event ())
+                    |> mapM markSessionDirty
                 pure ())
 
     -- Re-run trigger SQL for already-subscribed tables in dev mode
@@ -259,6 +260,25 @@ updateSession server sessionId updateFunction = do
     let updateSession' session = if session.id == sessionId then updateFunction session else session
     modifyIORef' server (\server -> server { sessions = map updateSession' server.sessions })
     pure ()
+
+-- | Marks a session as dirty and wakes its websocket worker.
+--
+-- The version counter keeps track of notifications even when the MVar is
+-- already full because a previous wakeup is still being processed.
+markSessionDirty :: AutoRefreshSession -> IO Bool
+markSessionDirty AutoRefreshSession { event, notificationVersion } = do
+    atomicModifyIORef' notificationVersion (\version -> let nextVersion = version + 1 in (nextVersion, ()))
+    MVar.tryPutMVar event ()
+
+-- | Re-runs the render action until no newer notification arrived during the
+-- previous render.
+renderUntilCaughtUp :: IORef Int -> IO () -> IO ()
+renderUntilCaughtUp notificationVersion renderAction = do
+    startVersion <- readIORef notificationVersion
+    renderAction
+    endVersion <- readIORef notificationVersion
+    when (endVersion > startVersion) do
+        renderUntilCaughtUp notificationVersion renderAction
 
 -- | Removes all expired sessions
 --

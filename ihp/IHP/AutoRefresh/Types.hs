@@ -24,6 +24,11 @@ data AutoRefreshSession = AutoRefreshSession
         , lastResponse :: !LByteString
         -- | Keep track of the last ping to this session to close it after too much time has passed without anything happening
         , lastPing :: !UTCTime
+        -- | Counts how many DB notifications have been seen for this session.
+        --
+        -- This allows the websocket worker to detect changes that happened while
+        -- a re-render was already in progress, even if the MVar wakeup was full.
+        , notificationVersion :: !(IORef Int)
         }
 
 data AutoRefreshServer = AutoRefreshServer
