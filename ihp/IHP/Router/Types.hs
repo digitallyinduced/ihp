@@ -25,8 +25,8 @@ import Network.Wai (Application)
 data ControllerRoute application
     = ControllerRouteMap
         !(HashMap.HashMap ByteString (application -> Application))
-        !(Parser Application)
-        -- ^ Auto-route HashMap + custom routes fallback parser
+        (Parser Application)
+        -- ^ Auto-route HashMap + custom routes fallback parser (lazy — only evaluated on HashMap miss)
     | ControllerRouteParser !(Parser Application)
         -- ^ Custom route parser (for get, post, webSocketApp, startPage, etc.)
 
