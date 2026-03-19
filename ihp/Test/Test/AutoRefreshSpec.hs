@@ -14,7 +14,7 @@ import IHP.ControllerPrelude hiding (get, request)
 import Network.Wai
 import Network.Wai.Internal (ResponseReceived(..))
 import Network.HTTP.Types
-import IHP.AutoRefresh (globalAutoRefreshServerVar)
+import IHP.AutoRefresh (globalAutoRefreshServerVar, markSessionDirty, renderUntilCaughtUp, sessionResponseHasChanged, updateSession)
 import IHP.AutoRefresh.Types
 import qualified Control.Concurrent.MVar as MVar
 import IHP.Controller.Response (ResponseException(..))
@@ -23,6 +23,7 @@ import qualified IHP.PGListener as PGListener
 import IHP.Log.Types (Logger(..), LogLevel(..))
 import IHP.Server (initMiddlewareStack)
 import IHP.Test.Mocking
+import qualified Data.UUID as UUID
 import qualified Network.Wai as Wai
 
 data WebApplication = WebApplication deriving (Eq, Show, Data)
@@ -158,3 +159,62 @@ tests = beforeAll (mockContextNoDatabase WebApplication config) do
                 case maybeServerRef of
                     Nothing -> pure ()
                     Just _ -> expectationFailure "Expected globalAutoRefreshServerVar to be Nothing"
+
+        describe "session state tracking" do
+            it "should compare re-rendered html against the latest session response" $ withContext do
+                event <- MVar.newEmptyMVar
+                now <- getCurrentTime
+                notificationVersion <- newIORef 0
+                let session =
+                        AutoRefreshSession
+                            { id = UUID.nil
+                            , renderView = \_ _ -> pure ()
+                            , event
+                            , tables = mempty
+                            , lastResponse = "resolved"
+                            , lastPing = now
+                            , notificationVersion
+                            }
+                serverRef <-
+                    newIORef
+                        AutoRefreshServer
+                            { subscriptions = []
+                            , sessions = [session]
+                            , subscribedTables = mempty
+                            , pgListener = error "pgListener unused in session state test"
+                            }
+
+                updateSession serverRef UUID.nil (\currentSession -> currentSession { lastResponse = "unresolved" })
+
+                sessionResponseHasChanged serverRef UUID.nil "resolved" `shouldReturn` True
+                sessionResponseHasChanged serverRef UUID.nil "unresolved" `shouldReturn` False
+
+            it "should keep notification versions even when the wakeup MVar is already full" $ withContext do
+                event <- MVar.newEmptyMVar
+                now <- getCurrentTime
+                notificationVersion <- newIORef 0
+                let session =
+                        AutoRefreshSession
+                            { id = UUID.nil
+                            , renderView = \_ _ -> pure ()
+                            , event
+                            , tables = mempty
+                            , lastResponse = ""
+                            , lastPing = now
+                            , notificationVersion
+                            }
+
+                markSessionDirty session `shouldReturn` True
+                markSessionDirty session `shouldReturn` False
+                readIORef notificationVersion `shouldReturn` 2
+
+            it "should rerender again when a second notification lands during an in-flight rerender" $ withContext do
+                notificationVersion <- newIORef 1
+                renderCount <- newIORef (0 :: Int)
+
+                renderUntilCaughtUp notificationVersion do
+                    currentRun <- atomicModifyIORef' renderCount (\count -> let nextCount = count + 1 in (nextCount, nextCount))
+                    when (currentRun == 1) do
+                        atomicModifyIORef' notificationVersion (\version -> let nextVersion = version + 1 in (nextVersion, ()))
+
+                readIORef renderCount `shouldReturn` 2

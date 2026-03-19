@@ -124,7 +124,8 @@ autoRefresh runAction = do
                                     lastResponse <- Exception.evaluate (ByteString.toLazyByteString builder)
 
                                     event <- MVar.newEmptyMVar
-                                    let session = AutoRefreshSession { id, renderView, event, tables, lastResponse, lastPing }
+                                    notificationVersion <- newIORef 0
+                                    let session = AutoRefreshSession { id, renderView, event, tables, lastResponse, lastPing, notificationVersion }
                                     modifyIORef' autoRefreshServer (\s -> s { sessions = session:s.sessions } )
                                     async (gcSessions autoRefreshServer)
 
@@ -146,34 +147,39 @@ instance WSApp AutoRefreshWSApp where
         autoRefreshServer <- getOrCreateAutoRefreshServer
         availableSessions <- getAvailableSessions autoRefreshServer
 
-        when (sessionId `elem` availableSessions) do
-            AutoRefreshSession { renderView, event, lastResponse } <- getSessionById autoRefreshServer sessionId
+        if sessionId `elem` availableSessions
+            then do
+                AutoRefreshSession { renderView, event, notificationVersion } <- getSessionById autoRefreshServer sessionId
 
-            let handleResponseException (ResponseException response) = case response of
-                    Wai.ResponseBuilder status headers builder -> do
-                        let html = ByteString.toLazyByteString builder
+                let handleResponseException (ResponseException response) = case response of
+                        Wai.ResponseBuilder _status _headers builder -> do
+                            let html = ByteString.toLazyByteString builder
+                            responseChanged <- sessionResponseHasChanged autoRefreshServer sessionId html
 
-                        when (html /= lastResponse) do
-                            sendTextData html
-                            updateSession autoRefreshServer sessionId (\session -> session { lastResponse = html })
-                    _   -> error "Unimplemented WAI response type."
+                            when responseChanged do
+                                sendTextData html
+                                updateSession autoRefreshServer sessionId (\session -> session { lastResponse = html })
+                        _   -> error "Unimplemented WAI response type."
 
-            let handleOtherException :: SomeException -> IO ()
-                handleOtherException ex = Log.error ("AutoRefresh: Failed to re-render view: " <> tshow ex)
+                let handleOtherException :: SomeException -> IO ()
+                    handleOtherException ex = Log.error ("AutoRefresh: Failed to re-render view: " <> tshow ex)
 
-            async $ forever do
-                MVar.takeMVar event
-                let currentRequest = ?request
-                -- Create a dummy respond function that does nothing, since actual response
-                -- is handled by the handleResponseException handler
-                let dummyRespond _ = error "AutoRefresh: respond should not be called directly"
-                ((renderView currentRequest dummyRespond) `catch` handleResponseException) `catch` handleOtherException
-                pure ()
+                let rerenderSession = do
+                        let currentRequest = ?request
+                        -- Create a dummy respond function that does nothing, since actual response
+                        -- is handled by the handleResponseException handler
+                        let dummyRespond _ = error "AutoRefresh: respond should not be called directly"
+                        ((renderView currentRequest dummyRespond) `catch` handleResponseException) `catch` handleOtherException
 
-            pure ()
+                refreshThread <- async $ forever do
+                    MVar.takeMVar event
+                    renderUntilCaughtUp notificationVersion rerenderSession
 
-        -- Keep the connection open until it's killed and the onClose is called
-        forever receiveDataMessage
+                -- Keep the connection open until it's closed and stop the rerender worker afterwards.
+                Exception.finally (forever receiveDataMessage) (cancel refreshThread)
+            else
+                -- Keep the connection open until it's killed and the onClose is called.
+                forever receiveDataMessage
 
     onPing = do
         now <- getCurrentTime
@@ -216,8 +222,7 @@ registerNotificationTrigger touchedTablesVar autoRefreshServer = do
                 sessions <- (.sessions) <$> readIORef autoRefreshServer
                 sessions
                     |> filter (\session -> table `Set.member` session.tables)
-                    |> map (\session -> session.event)
-                    |> mapM (\event -> MVar.tryPutMVar event ())
+                    |> mapM markSessionDirty
                 pure ())
 
     -- Re-run trigger SQL for already-subscribed tables in dev mode
@@ -259,6 +264,36 @@ updateSession server sessionId updateFunction = do
     let updateSession' session = if session.id == sessionId then updateFunction session else session
     modifyIORef' server (\server -> server { sessions = map updateSession' server.sessions })
     pure ()
+
+-- | Returns 'True' when the rendered html differs from the session's latest
+-- known response.
+--
+-- This must read the current session state instead of comparing against a
+-- websocket-local snapshot, otherwise switching back to an earlier DOM state
+-- can be incorrectly suppressed as "unchanged".
+sessionResponseHasChanged :: IORef AutoRefreshServer -> UUID -> LByteString -> IO Bool
+sessionResponseHasChanged autoRefreshServer sessionId html = do
+    currentLastResponse <- (.lastResponse) <$> getSessionById autoRefreshServer sessionId
+    pure (html /= currentLastResponse)
+
+-- | Marks a session as dirty and wakes its websocket worker.
+--
+-- The version counter keeps track of notifications even when the MVar is
+-- already full because a previous wakeup is still being processed.
+markSessionDirty :: AutoRefreshSession -> IO Bool
+markSessionDirty AutoRefreshSession { event, notificationVersion } = do
+    atomicModifyIORef' notificationVersion (\version -> let nextVersion = version + 1 in (nextVersion, ()))
+    MVar.tryPutMVar event ()
+
+-- | Re-runs the render action until no newer notification arrived during the
+-- previous render.
+renderUntilCaughtUp :: IORef Int -> IO () -> IO ()
+renderUntilCaughtUp notificationVersion renderAction = do
+    startVersion <- readIORef notificationVersion
+    renderAction
+    endVersion <- readIORef notificationVersion
+    when (endVersion > startVersion) do
+        renderUntilCaughtUp notificationVersion renderAction
 
 -- | Removes all expired sessions
 --
