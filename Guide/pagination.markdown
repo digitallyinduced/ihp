@@ -84,20 +84,21 @@ action UsersAction = do
 
 ## Filtering
 
-IHP provides built-in text filtering that works alongside pagination. Use `filterList` in your controller to filter results by a text field using case-insensitive `ILIKE` matching:
+IHP provides built-in text filtering that works alongside pagination. Use `filterList` in your controller to filter results by a text field using case-insensitive `ILIKE` matching.
+
+**Important:** Apply `filterList` *before* `paginate` so that the total item count and page links reflect the filtered results:
 
 ```haskell
 action UsersAction = do
     (usersQuery, pagination) <- query @User
         |> orderBy #email
-        |> paginate
-    users <- usersQuery
         |> filterList #email
-        |> fetch
+        |> paginate
+    users <- usersQuery |> fetch
     render IndexView { .. }
 ```
 
-`filterList` reads the `filter` query parameter from the URL. If present, it adds a `WHERE email ILIKE '%searchterm%'` clause to the query.
+`filterList` reads the `filter` query parameter from the URL. If present, it adds a `WHERE email ILIKE '%searchterm%'` clause to the query. Because it narrows the query before `paginate` runs its count, the pagination controls will correctly reflect the number of filtered results.
 
 In your view, use `renderFilter` to display a search box:
 
