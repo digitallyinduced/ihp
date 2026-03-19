@@ -868,7 +868,9 @@ $ docker run \
 
 ### Running Migrations Automatically in Docker
 
-Instead of using the default `unoptimized-docker-image` or `optimized-docker-image` flake outputs, you can define a custom Docker image in your `flake.nix` that runs database migrations before starting the server. This is useful when you want a single container that handles both migrations and the web server:
+Instead of using the default `unoptimized-docker-image` or `optimized-docker-image` flake outputs, you can define a custom Docker image in your `flake.nix` that runs database migrations before starting the server. This is useful when you want a single container that handles both migrations and the web server.
+
+**Note:** This pattern is designed for single-replica deployments. If you run multiple replicas, migrations may race against each other. In that case, run migrations as a separate one-shot container or init container before starting the app replicas.
 
 ```nix
 packages = {
@@ -878,8 +880,6 @@ packages = {
     config = {
       Env = [
         "IHP_MIGRATION_DIR=${./Application/Migration}/"
-        "DATABASE_URL"
-        "IHP_BASEURL"
         "IHP_REQUEST_LOGGER_IP_ADDR_SOURCE=FromHeader"
         "IHP_ENV=Production"
       ];
@@ -894,6 +894,8 @@ packages = {
   };
 };
 ```
+
+Pass `DATABASE_URL`, `IHP_BASEURL`, and other environment variables at runtime via `docker run -e` or your orchestrator's env configuration.
 
 Build and load this image with:
 
