@@ -991,6 +991,7 @@ parseRoute :: forall controller application.
     ( ?request :: Request
     , ?respond :: Respond
     , AutoRoute controller
+    , CanRoute controller
     , Controller controller
     , InitControllerContext application
     , ?application :: application
@@ -999,7 +1000,9 @@ parseRoute :: forall controller application.
     ) => ControllerRoute application
 parseRoute = ControllerRouteMap
     (buildAutoRouteMap @controller @application)
-    (customRoutes @controller >>= \action -> pure (runAction' @application action))
+    -- Use parseRouteWithAction as fallback (not just customRoutes) to preserve
+    -- custom CanRoute instances that override parseRoute' or parseRouteWithAction.
+    (parseRouteWithAction @controller (runAction' @application))
 {-# INLINABLE parseRoute #-}
 
 -- | Build a HashMap from full paths (prefix + action name) to Application closures.
@@ -1048,6 +1051,7 @@ parseRouteWithId
             ?request :: Request,
             ?respond :: Respond,
             AutoRoute controller,
+            CanRoute controller,
             Controller controller,
             InitControllerContext application,
             ?application :: application,
