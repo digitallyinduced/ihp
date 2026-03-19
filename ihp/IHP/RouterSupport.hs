@@ -33,7 +33,6 @@ CanRoute (..)
 , ControllerRoute (..)
 , findInRouteMaps
 , buildAutoRouteMap
-, parseAutoRoute
 ) where
 
 import Prelude hiding (take)
@@ -188,6 +187,23 @@ class HasPath controller => CanRoute controller where
         action <- parseRoute'
         pure (toApp action)
     {-# INLINE parseRouteWithAction #-}
+
+    -- | Build a 'ControllerRoute' for this controller.
+    --
+    -- The default wraps the parser in 'ControllerRouteParser'.
+    -- The overlappable 'AutoRoute' instance overrides this to use 'ControllerRouteMap'
+    -- for O(1) HashMap dispatch. This is what 'parseRoute' calls.
+    toControllerRoute :: forall application.
+        ( ?request :: Request
+        , ?respond :: Respond
+        , Controller controller
+        , InitControllerContext application
+        , ?application :: application
+        , Typeable application
+        , Typeable controller
+        ) => ControllerRoute application
+    toControllerRoute = ControllerRouteParser (parseRouteWithAction @controller (runAction' @application))
+    {-# INLINABLE toControllerRoute #-}
 
 
 -- | Each of these is tried when trying to parse an argument to a controller constructor (i.e. in IHP, an action).
@@ -630,6 +646,17 @@ instance {-# OVERLAPPABLE #-} (AutoRoute controller, Controller controller) => C
       )
     {-# INLINABLE parseRouteWithAction #-}
 
+    -- | Override to use 'ControllerRouteMap' for O(1) HashMap dispatch.
+    toControllerRoute :: forall application.
+        ( ?request :: Request, ?respond :: Respond, Controller controller
+        , InitControllerContext application, ?application :: application
+        , Typeable application, Typeable controller
+        ) => ControllerRoute application
+    toControllerRoute = ControllerRouteMap
+        (buildAutoRouteMap @controller @application)
+        (parseRouteWithAction @controller (runAction' @application))
+    {-# INLINABLE toControllerRoute #-}
+
 -- | Instances of the @QueryParam@ type class can be represented in URLs as query parameters.
 -- Currently this is only Int, Text, and both wrapped in List and Maybe.
 -- IDs also are representable in a URL, but we are unable to match on polymorphic types using reflection,
@@ -953,9 +980,14 @@ mountFrontController :: forall frontController application. (?request :: Request
 mountFrontController application = ControllerRouteParser (let ?application = application in router [])
 {-# INLINABLE mountFrontController #-}
 
--- | Create a route entry for a controller using Attoparsec parsing.
--- Works with any controller that has a 'CanRoute' instance (including custom ones without 'AutoRoute').
--- For better performance with auto-routed controllers, use 'parseAutoRoute' instead.
+-- | Create a route entry for a controller.
+--
+-- Automatically uses the HashMap fast path when 'AutoRoute' is available
+-- (via the overlappable 'CanRoute' instance), or falls back to Attoparsec
+-- for controllers with custom 'CanRoute' instances.
+--
+-- No user code changes needed — @parseRoute \@PostsController@ picks the
+-- optimal strategy at compile time.
 parseRoute :: forall controller application.
     ( ?request :: Request
     , ?respond :: Respond
@@ -966,30 +998,8 @@ parseRoute :: forall controller application.
     , Typeable application
     , Typeable controller
     ) => ControllerRoute application
-parseRoute = ControllerRouteParser (parseRouteWithAction @controller (runAction' @application))
+parseRoute = toControllerRoute @controller @application
 {-# INLINABLE parseRoute #-}
-
--- | Optimized route entry for controllers with 'AutoRoute'.
--- Builds a pre-computed HashMap for O(1) path dispatch, bypassing Attoparsec entirely.
--- Falls back to 'parseRouteWithAction' for custom routes.
--- IHP's code generators emit this for all auto-generated controllers.
-parseAutoRoute :: forall controller application.
-    ( ?request :: Request
-    , ?respond :: Respond
-    , AutoRoute controller
-    , CanRoute controller
-    , Controller controller
-    , InitControllerContext application
-    , ?application :: application
-    , Typeable application
-    , Typeable controller
-    ) => ControllerRoute application
-parseAutoRoute = ControllerRouteMap
-    (buildAutoRouteMap @controller @application)
-    -- Use parseRouteWithAction as fallback (not just customRoutes) to preserve
-    -- custom CanRoute instances that override parseRoute' or parseRouteWithAction.
-    (parseRouteWithAction @controller (runAction' @application))
-{-# INLINABLE parseAutoRoute #-}
 
 -- | Build a HashMap from full paths (prefix + action name) to Application closures.
 -- The Application closures take the application value explicitly and handle query string
