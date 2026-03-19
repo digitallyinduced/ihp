@@ -17,7 +17,7 @@ module IHP.View.Form.Fields where
 
 import           IHP.HSX.ConvertibleStrings ()
 import           IHP.HSX.ToHtml
-import           IHP.ModelSupport (InputValue, getModelName, inputValue, isNew)
+import           IHP.ModelSupport (InputValue, getModelName, inputValue)
 import           IHP.Prelude
 import           IHP.ValidationSupport
 import           IHP.View.Classes ()

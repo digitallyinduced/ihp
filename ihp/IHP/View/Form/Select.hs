@@ -20,7 +20,6 @@ import           IHP.Prelude
 import           IHP.ValidationSupport
 import           IHP.View.Classes ()
 import           IHP.View.Types
-import           IHP.ViewSupport
 
 -- | Select inputs require you to pass a list of possible values to select.
 --
