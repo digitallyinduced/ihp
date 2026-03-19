@@ -1032,6 +1032,47 @@ This way no special behavior will be attached to your forms.
 
 To dig deeper into the JavaScript, [take a look at the source in helpers.js](https://github.com/digitallyinduced/ihp/blob/master/lib/IHP/static/helpers.js#L115).
 
+## Actions with Side Effects
+
+Any action that creates, updates, or deletes data is a **side effect**. According to the HTTP specification, GET requests should be safe and free of side effects — only POST, PUT, PATCH, and DELETE requests should modify data.
+
+In practice this means: **don't use a plain `<a>` link to trigger a side-effect action.** Links make GET requests, but actions like toggling a status, approving a record, or deleting an entry need a form that submits via POST (or DELETE).
+
+### Example: "Mark as Done" Button
+
+Suppose you have a `UpdateTodoAction` that marks a todo as done. The correct way to trigger it is with a form:
+
+```haskell
+<form method="POST" action={UpdateTodoAction todo.id}>
+    <button type="submit" class="btn btn-primary">Mark as Done</button>
+</form>
+```
+
+This sends a POST request to `UpdateTodoAction`, which is what the router expects for update actions.
+
+### Example: Delete with a Form
+
+Delete actions expect a DELETE HTTP method. Since browsers only support GET and POST in plain HTML forms, IHP uses a hidden `_method` field to override the method (see [Method Override Middleware](routing.html#method-override-middleware)):
+
+```haskell
+<form method="POST" action={DeleteTodoAction todo.id}>
+    <input type="hidden" name="_method" value="DELETE"/>
+    <button type="submit" class="btn btn-danger">Delete</button>
+</form>
+```
+
+### The `js-delete` Shortcut
+
+IHP's generated index views use a convenient shorthand for delete links:
+
+```haskell
+<a href={DeleteTodoAction todo.id} class="js-delete">Delete</a>
+```
+
+The `js-delete` CSS class tells IHP's JavaScript helpers to intercept the click and submit a proper DELETE request via a dynamically created form — so the link never actually makes a GET request. This is purely a convenience shortcut; writing an explicit form as shown above is the more transparent approach and works even without JavaScript.
+
+**Common mistake:** Seeing `js-delete` links in generated code, new users sometimes assume that any `<a>` link can trigger side-effect actions. It cannot — `js-delete` is a special case handled by JavaScript. For all other side-effect actions, use a form with the appropriate method.
+
 ## Working within the Bootstrap CSS framework
 
 While the default forms layout is vertical with one field per line, it is easy to change. Bootstrap's excellent [forms documentation](https://getbootstrap.com/docs/5.3/forms/overview/) shows how.
