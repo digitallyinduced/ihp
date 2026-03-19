@@ -16,7 +16,7 @@ module IHP.View.Form.FormFor where
 import           IHP.Controller.Context
 import           IHP.HSX.ConvertibleStrings ()
 import           IHP.HSX.QQ (hsx)
-import           IHP.ModelSupport (Id', InputValue, getModelName, inputValue, isNew)
+import           IHP.ModelSupport (Id', InputValue, getModelName, isNew)
 import           IHP.Prelude
 import           IHP.View.Form.Fields (hiddenField)
 import           IHP.View.Types
