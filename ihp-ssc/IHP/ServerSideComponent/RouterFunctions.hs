@@ -14,7 +14,6 @@ import qualified Prelude
 import IHP.ServerSideComponent.Controller.ComponentsController ()
 import Data.Aeson
 import IHP.ControllerSupport
-import Network.Wai
 
 routeComponent :: forall component controller application.
     ( Typeable component
