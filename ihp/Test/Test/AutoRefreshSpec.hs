@@ -14,7 +14,7 @@ import IHP.ControllerPrelude hiding (get, request)
 import Network.Wai
 import Network.Wai.Internal (ResponseReceived(..))
 import Network.HTTP.Types
-import IHP.AutoRefresh (globalAutoRefreshServerVar)
+import IHP.AutoRefresh (globalAutoRefreshServerVar, sessionResponseHasChanged, updateSession)
 import IHP.AutoRefresh.Types
 import qualified Control.Concurrent.MVar as MVar
 import IHP.Controller.Response (ResponseException(..))
@@ -23,6 +23,7 @@ import qualified IHP.PGListener as PGListener
 import IHP.Log.Types (Logger(..), LogLevel(..))
 import IHP.Server (initMiddlewareStack)
 import IHP.Test.Mocking
+import qualified Data.UUID as UUID
 import qualified Network.Wai as Wai
 
 data WebApplication = WebApplication deriving (Eq, Show, Data)
@@ -158,3 +159,30 @@ tests = beforeAll (mockContextNoDatabase WebApplication config) do
                 case maybeServerRef of
                     Nothing -> pure ()
                     Just _ -> expectationFailure "Expected globalAutoRefreshServerVar to be Nothing"
+
+        describe "session state tracking" do
+            it "should compare re-rendered html against the latest session response" $ withContext do
+                event <- MVar.newEmptyMVar
+                now <- getCurrentTime
+                let session =
+                        AutoRefreshSession
+                            { id = UUID.nil
+                            , renderView = \_ _ -> pure ()
+                            , event
+                            , tables = mempty
+                            , lastResponse = "resolved"
+                            , lastPing = now
+                            }
+                serverRef <-
+                    newIORef
+                        AutoRefreshServer
+                            { subscriptions = []
+                            , sessions = [session]
+                            , subscribedTables = mempty
+                            , pgListener = error "pgListener unused in session state test"
+                            }
+
+                updateSession serverRef UUID.nil (\currentSession -> currentSession { lastResponse = "unresolved" })
+
+                sessionResponseHasChanged serverRef UUID.nil "resolved" `shouldReturn` True
+                sessionResponseHasChanged serverRef UUID.nil "unresolved" `shouldReturn` False

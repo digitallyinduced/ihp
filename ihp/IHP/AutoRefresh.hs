@@ -147,13 +147,14 @@ instance WSApp AutoRefreshWSApp where
         availableSessions <- getAvailableSessions autoRefreshServer
 
         when (sessionId `elem` availableSessions) do
-            AutoRefreshSession { renderView, event, lastResponse } <- getSessionById autoRefreshServer sessionId
+            AutoRefreshSession { renderView, event } <- getSessionById autoRefreshServer sessionId
 
             let handleResponseException (ResponseException response) = case response of
-                    Wai.ResponseBuilder status headers builder -> do
+                    Wai.ResponseBuilder _status _headers builder -> do
                         let html = ByteString.toLazyByteString builder
+                        responseChanged <- sessionResponseHasChanged autoRefreshServer sessionId html
 
-                        when (html /= lastResponse) do
+                        when responseChanged do
                             sendTextData html
                             updateSession autoRefreshServer sessionId (\session -> session { lastResponse = html })
                     _   -> error "Unimplemented WAI response type."
@@ -259,6 +260,17 @@ updateSession server sessionId updateFunction = do
     let updateSession' session = if session.id == sessionId then updateFunction session else session
     modifyIORef' server (\server -> server { sessions = map updateSession' server.sessions })
     pure ()
+
+-- | Returns 'True' when the rendered html differs from the session's latest
+-- known response.
+--
+-- This must read the current session state instead of comparing against a
+-- websocket-local snapshot, otherwise switching back to an earlier DOM state
+-- can be incorrectly suppressed as "unchanged".
+sessionResponseHasChanged :: IORef AutoRefreshServer -> UUID -> LByteString -> IO Bool
+sessionResponseHasChanged autoRefreshServer sessionId html = do
+    currentLastResponse <- (.lastResponse) <$> getSessionById autoRefreshServer sessionId
+    pure (html /= currentLastResponse)
 
 -- | Removes all expired sessions
 --
