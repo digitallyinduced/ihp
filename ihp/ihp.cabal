@@ -222,7 +222,6 @@ library
         , IHP.ViewPrelude
         , IHP.ViewSupport
         , IHP.RouterSupport
-        , IHP.Router.Trie
         , IHP.Router.Types
         , IHP.Router.UrlGenerator
         , IHP.Prelude
