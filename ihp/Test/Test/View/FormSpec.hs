@@ -7,7 +7,9 @@ module Test.View.FormSpec where
 import Test.Hspec
 import IHP.FrameworkConfig as FrameworkConfig
 import Wai.Request.Params.Middleware (RequestBody (..))
-import qualified Text.Blaze.Renderer.Text as Blaze
+import IHP.HSX.Markup (Markup, renderMarkup)
+import qualified Data.Text.Encoding as TE
+import qualified Data.ByteString.Lazy as LBS
 import IHP.ModelSupport
 import Data.Bits ((.|.))
 import qualified Network.Wai as Wai
@@ -59,7 +61,7 @@ tests = do
                 
                 -- The date input should have value="" (not omit the value attribute)
                 -- This is necessary for HTML5 required validation to work properly
-                let rendered = Blaze.renderMarkup form
+                let rendered = renderMarkupLT form
                 let renderedText = LT.toStrict rendered
                 renderedText `shouldSatisfy` (\t -> "type=\"date\"" `isInfixOf` t)
                 renderedText `shouldSatisfy` (\t -> "required=\"required\"" `isInfixOf` t)
@@ -76,13 +78,16 @@ tests = do
                 |]
                 
                 -- The datetime input should have value="" (not omit the value attribute)
-                let rendered = Blaze.renderMarkup form
+                let rendered = renderMarkupLT form
                 let renderedText = LT.toStrict rendered
                 renderedText `shouldSatisfy` (\t -> "type=\"datetime-local\"" `isInfixOf` t)
                 renderedText `shouldSatisfy` (\t -> "required=\"required\"" `isInfixOf` t)
                 renderedText `shouldSatisfy` (\t -> "value=\"\"" `isInfixOf` t)
 
-shouldRenderTo renderFunction expectedHtml = Blaze.renderMarkup renderFunction `shouldBe` expectedHtml
+shouldRenderTo renderFunction expectedHtml = renderMarkupLT renderFunction `shouldBe` expectedHtml
+
+renderMarkupLT :: Markup -> LT.Text
+renderMarkupLT = LT.fromStrict . TE.decodeUtf8 . LBS.toStrict . renderMarkup
 
 createControllerContext :: IO ControllerContext
 createControllerContext = do

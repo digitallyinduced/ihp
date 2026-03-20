@@ -12,7 +12,8 @@ import Wai.Request.Params.Middleware (RequestBody (..))
 import IHP.View.Types
 import IHP.View.CSSFramework
 import Network.Wai.Middleware.FlashMessages (FlashMessage (..))
-import qualified Text.Blaze.Renderer.Text as Blaze
+import IHP.HSX.Markup (Markup, renderMarkup)
+import qualified Data.ByteString.Lazy as LBS
 import IHP.ModelSupport
 import IHP.Breadcrumb.ViewFunctions (breadcrumbLinkExternal, breadcrumbText, renderBreadcrumb)
 import IHP.Pagination.Types
@@ -320,7 +321,7 @@ tests = do
                             , itemsPerPageSelector = mempty
                             }
 
-                    let render = Blaze.renderMarkup $ styledPagination cssFramework cssFramework paginationView
+                    let render = renderMarkupLT $ styledPagination cssFramework cssFramework paginationView
                     Text.isInfixOf "<div class=\"d-flex justify-content-md-center\">" (cs render) `shouldBe` True
 
                 it "should render the pagination if there are enough elements" do
@@ -335,7 +336,7 @@ tests = do
                     let ?context = context
                     let ?request = ?context.request
 
-                    let render = Blaze.renderMarkup $ renderPagination pagination
+                    let render = renderMarkupLT $ renderPagination pagination
                     Text.isInfixOf "<nav aria-label=\"Page Navigator\"" (cs render) `shouldBe` True
 
 
@@ -619,7 +620,7 @@ tests = do
                             , itemsPerPageSelector = mempty
                             }
 
-                    let render = Blaze.renderMarkup $ styledPagination cssFramework cssFramework paginationView
+                    let render = renderMarkupLT $ styledPagination cssFramework cssFramework paginationView
                     Text.isInfixOf "<div class=\"d-flex justify-content-md-center\">" (cs render) `shouldBe` True
 
                 it "should render the pagination if there are enough elements" do
@@ -634,7 +635,7 @@ tests = do
                     let ?context = context
                     let ?request = ?context.request
 
-                    let render = Blaze.renderMarkup $ renderPagination pagination
+                    let render = renderMarkupLT $ renderPagination pagination
                     Text.isInfixOf "<nav aria-label=\"Page Navigator\"" (cs render) `shouldBe` True
 
 
@@ -714,7 +715,10 @@ tests = do
 
 
 
-shouldRenderTo renderFunction expectedHtml = Blaze.renderMarkup renderFunction `shouldBe` expectedHtml
+shouldRenderTo renderFunction expectedHtml = renderMarkupLT renderFunction `shouldBe` expectedHtml
+
+renderMarkupLT :: Markup -> LText
+renderMarkupLT = cs . LBS.toStrict . renderMarkup
 
 {-| Mock a Controller context with CSSFramework.
 -}

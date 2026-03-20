@@ -12,9 +12,8 @@ import Data.Time.Format (formatTime, defaultTimeLocale)
 import Data.String.Conversions (cs)
 import Data.Time.Format.ISO8601 (iso8601Show)
 import IHP.HSX.ConvertibleStrings ()
-import Text.Blaze.Html5 (Html, (!))
-import qualified Text.Blaze.Html5 as H
-import qualified Text.Blaze.Html5.Attributes as A
+import IHP.HSX.Markup (Markup)
+import IHP.HSX.MarkupQQ (hsx)
 
 -- | __Display time like @5 minutes ago@__
 --
@@ -34,7 +33,7 @@ import qualified Text.Blaze.Html5.Attributes as A
 --
 -- >>> <div>{timeAgo (project.createdAt)}</div>
 -- <div><time class="time-ago">a while ago</time></div>
-timeAgo :: UTCTime -> Html
+timeAgo :: UTCTime -> Markup
 timeAgo = timeElement "time-ago"
 
 -- | __Display time like @31.08.2007, 16:47@__
@@ -55,7 +54,7 @@ timeAgo = timeElement "time-ago"
 --
 -- >>> <div>{dateTime (project.createdAt)}</div>
 -- <div><time class="date-time">31.08.2007, 16:47 Uhr</time></div>
-dateTime :: UTCTime -> Html
+dateTime :: UTCTime -> Markup
 dateTime = timeElement "date-time"
 
 -- | __Display date like @31.08.2007@__
@@ -76,7 +75,7 @@ dateTime = timeElement "date-time"
 --
 -- >>> <div>{date (project.createdAt)}</div>
 -- <div><time class="date">31.08.2007</time></div>
-date :: UTCTime -> Html
+date :: UTCTime -> Markup
 date = timeElement "date"
 
 -- | __Display time like @16:47@__
@@ -97,11 +96,14 @@ date = timeElement "date"
 --
 -- >>> <div>{time (project.createdAt)}</div>
 -- <div><time class="time">16:47 Uhr</time></div>
-time :: UTCTime -> Html
+time :: UTCTime -> Markup
 time = timeElement "time"
 
-timeElement :: Text -> UTCTime -> Html
-timeElement className dateTime = H.time ! A.class_ (cs className) ! A.datetime (cs $ iso8601Show dateTime) $ cs (beautifyUtcTime dateTime)
+timeElement :: Text -> UTCTime -> Markup
+timeElement className dateTime =
+    let dateTimeAttr = cs (iso8601Show dateTime) :: Text
+        content = cs (beautifyUtcTime dateTime) :: Text
+    in [hsx|<time class={className} datetime={dateTimeAttr}>{content}</time>|]
 
 beautifyUtcTime :: UTCTime -> String
 beautifyUtcTime utcTime = formatTime defaultTimeLocale "%d.%m.%Y, %H:%M" utcTime

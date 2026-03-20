@@ -11,12 +11,12 @@ import IHP.Breadcrumb.Types
 
 import IHP.ControllerSupport
 
-import Text.Blaze.Html (Html)
+import IHP.HSX.Markup (Markup)
 import IHP.View.Types (BreadcrumbsView(..), styledBreadcrumb, styledBreadcrumbItem)
 import IHP.ViewSupport (theCSSFramework)
 import IHP.ControllerPrelude
 
-renderBreadcrumb :: (?request :: Request) => [BreadcrumbItem] -> Html
+renderBreadcrumb :: (?request :: Request) => [BreadcrumbItem] -> Markup
 renderBreadcrumb breadcrumbItems = styledBreadcrumb theCSSFramework theCSSFramework breadcrumbItems breadcrumbsView
         where
             breadcrumbsView = BreadcrumbsView
@@ -29,16 +29,16 @@ renderBreadcrumb breadcrumbItems = styledBreadcrumb theCSSFramework theCSSFramew
                 }
 
 
-breadcrumbLink :: (HasPath controller) => Html -> controller -> BreadcrumbItem
+breadcrumbLink :: (HasPath controller) => Markup -> controller -> BreadcrumbItem
 breadcrumbLink label route =
     breadcrumbLinkExternal label (pathTo route)
 
-breadcrumbLinkExternal :: Html -> Text -> BreadcrumbItem
+breadcrumbLinkExternal :: Markup -> Text -> BreadcrumbItem
 breadcrumbLinkExternal label url =
     BreadcrumbItem { breadcrumbLabel = label, url = Just url }
 
 
 
-breadcrumbText :: Html -> BreadcrumbItem
+breadcrumbText :: Markup -> BreadcrumbItem
 breadcrumbText label =
         BreadcrumbItem { breadcrumbLabel = label, url = Nothing }

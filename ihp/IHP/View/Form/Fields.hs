@@ -16,14 +16,13 @@ Copyright: (c) digitally induced GmbH, 2020
 module IHP.View.Form.Fields where
 
 import           IHP.HSX.ConvertibleStrings ()
-import           IHP.HSX.ToHtml
+import           IHP.HSX.Markup (Markup, ToHtml(..))
 import           IHP.ModelSupport (InputValue, getModelName, inputValue)
 import           IHP.Prelude
 import           IHP.ValidationSupport
 import           IHP.View.Classes ()
 import           IHP.View.Types
 import           IHP.ViewSupport
-import qualified Text.Blaze.Html5 as Html5
 
 -- | Renders a text input field
 --
@@ -482,7 +481,7 @@ checkboxField field = FormField
 
 instance ToHtml FormField where
     {-# INLINE toHtml #-}
-    toHtml ::  FormField -> Html5.Html
+    toHtml ::  FormField -> Markup
     toHtml formField@(FormField { cssFramework }) = styledFormField cssFramework cssFramework formField
 
 instance ToHtml SubmitButton where

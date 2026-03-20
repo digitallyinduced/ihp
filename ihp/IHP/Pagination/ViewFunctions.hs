@@ -10,8 +10,8 @@ import IHP.Pagination.Helpers
 
 import IHP.ControllerSupport
 
-import Text.Blaze.Html (Html)
-import IHP.HSX.QQ (hsx)
+import IHP.HSX.Markup (Markup)
+import IHP.HSX.MarkupQQ (hsx)
 
 import IHP.Controller.Param (paramOrNothing)
 
@@ -25,7 +25,7 @@ import IHP.View.Types (PaginationView(..), styledPagination, styledPaginationPag
 -- | Render a navigation for your pagination. This is to be used in your view whenever
 -- to allow users to change pages, including "Next" and "Previous".
 -- If there is only one page, this will not render anything.
-renderPagination :: (?context :: ControllerContext, ?request :: Request) => Pagination -> Html
+renderPagination :: (?context :: ControllerContext, ?request :: Request) => Pagination -> Markup
 renderPagination pagination@Pagination {currentPage, window, pageSize} =
         when (showPagination pagination) $ styledPagination theCSSFramework theCSSFramework paginationView
         where
@@ -138,7 +138,7 @@ renderPagination pagination@Pagination {currentPage, window, pageSize} =
 --        </div>
 renderFilter :: (?context::ControllerContext, ?request :: Request) =>
     Text    -- ^ Placeholder text for the text box
-    -> Html
+    -> Markup
 renderFilter placeholder =
     [hsx|
         <form method="GET" action="" class="mt-2 float-end">

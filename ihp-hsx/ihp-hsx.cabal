@@ -100,12 +100,29 @@ library
         , blaze-html
         , blaze-markup
     default-language: GHC2021
-    hs-source-dirs: blaze
+    hs-source-dirs: blaze, direct
     exposed-modules:
         IHP.HSX.QQ
         , IHP.HSX.ToHtml
         , IHP.HSX.ConvertibleStrings
         , IHP.HSX.Attribute
+        , IHP.HSX.Markup
+        , IHP.HSX.MarkupQQ
+    reexported-modules:
+        IHP.HSX.Parser
+        , IHP.HSX.HaskellParser
+        , IHP.HSX.HsExpToTH
+
+library ihp-hsx-direct
+    import: common-extensions, common-flags, common-depends
+    build-depends:
+        ihp-hsx-parser
+        , bytestring-strict-builder
+    default-language: GHC2021
+    hs-source-dirs: direct
+    exposed-modules:
+        IHP.HSX.StrictMarkup
+        , IHP.HSX.StrictMarkupQQ
     reexported-modules:
         IHP.HSX.Parser
         , IHP.HSX.HaskellParser
@@ -161,3 +178,19 @@ benchmark ihp-hsx-parser-bench
         , ihp-hsx
         , tasty-bench
         , deepseq
+
+benchmark ihp-hsx-render-bench
+    import: common-extensions, common-flags, common-depends
+    type:                exitcode-stdio-1.0
+    hs-source-dirs:      Test
+    main-is:             RenderBench.hs
+    default-language:    GHC2021
+    ghc-options:         -fno-static-argument-transformation
+    build-depends:
+        , ihp-hsx
+        , ihp-hsx-direct
+        , tasty-bench
+        , deepseq
+        , blaze-html
+        , blaze-markup
+        , bytestring-strict-builder
