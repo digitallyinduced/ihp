@@ -51,7 +51,7 @@ renderModalHeader :: Text -> Text -> Html
 renderModalHeader title closeUrl = [hsx|
     <div class="modal-header">
       <h5 class="modal-title" id="modal-title">{title}</h5>
-      <a href={closeUrl} class="btn-close" aria-label="Close" onclick="document.getElementById('modal-backdrop').click(); return false"></a>
+      <a href={closeUrl} class="btn-close" aria-label="Close"></a>
     </div>
 |]
 
