@@ -8,50 +8,22 @@ Internal module containing hasql 'Statement' definitions shared by
 'IHP.Fetch' and 'IHP.FetchPipelined'.
 -}
 module IHP.Fetch.Statement
-( fetchByIdOneOrNothingStatement
-, fetchByIdListStatement
-, buildQueryListStatement
+( buildQueryListStatement
 , buildQueryMaybeStatement
 , buildCountStatement
 , buildExistsStatement
 ) where
 
 import Prelude
-import IHP.ModelSupport (Table(..), primaryKeyConditionColumnSelector, GetModelByTableName)
-import IHP.ModelSupport.Types (Id'(..), GetTableName)
+import IHP.ModelSupport (Table(..), GetModelByTableName)
 import IHP.Hasql.FromRow (FromRowHasql(..))
 import qualified Hasql.Statement as Hasql
 import qualified Hasql.Decoders as Decoders
-import qualified Hasql.Encoders as Encoders
-import Hasql.Implicits.Encoders (DefaultParamEncoder(..))
-import qualified Data.Text as Text
 import IHP.QueryBuilder.Types (HasQueryBuilder(..), SQLQuery(..))
 import IHP.QueryBuilder.Compiler (buildQuery)
 import IHP.QueryBuilder.HasqlCompiler (buildStatement, buildWrappedStatement)
 import GHC.TypeLits (KnownSymbol)
 import Data.Int (Int64)
-
--- | Prepared statement for fetching a single record by primary key.
---
--- > SELECT table.col1, table.col2, ... FROM table WHERE table.id = $1 LIMIT 1
-fetchByIdOneOrNothingStatement :: forall table model. (Table model, GetTableName model ~ table, FromRowHasql model, DefaultParamEncoder (Id' table)) => Hasql.Statement (Id' table) (Maybe model)
-fetchByIdOneOrNothingStatement = Hasql.preparable sql (Encoders.param defaultParam) (Decoders.rowMaybe (hasqlRowDecoder @model))
-  where
-    sql = "SELECT " <> qualifiedColumns <> " FROM " <> tn <> " WHERE " <> pkCol <> " = $1 LIMIT 1"
-    tn = tableName @model
-    pkCol = primaryKeyConditionColumnSelector @model
-    qualifiedColumns = Text.intercalate ", " (map (\c -> tn <> "." <> c) (columnNames @model))
-
--- | Prepared statement for fetching records by primary key (returns list).
---
--- > SELECT table.col1, table.col2, ... FROM table WHERE table.id = $1
-fetchByIdListStatement :: forall table model. (Table model, GetTableName model ~ table, FromRowHasql model, DefaultParamEncoder (Id' table)) => Hasql.Statement (Id' table) [model]
-fetchByIdListStatement = Hasql.preparable sql (Encoders.param defaultParam) (Decoders.rowList (hasqlRowDecoder @model))
-  where
-    sql = "SELECT " <> qualifiedColumns <> " FROM " <> tn <> " WHERE " <> pkCol <> " = $1"
-    tn = tableName @model
-    pkCol = primaryKeyConditionColumnSelector @model
-    qualifiedColumns = Text.intercalate ", " (map (\c -> tn <> "." <> c) (columnNames @model))
 
 -- | Build a statement that fetches all rows matching a query builder.
 buildQueryListStatement :: forall model table queryBuilderProvider joinRegister.
