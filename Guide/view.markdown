@@ -491,31 +491,40 @@ instance View IndexView where
     |]
 ```
 
-We can add a JSON output for all blog posts by adding a [`json`](https://ihp.digitallyinduced.com/api-docs/IHP-ViewSupport.html#v:json) function to this:
+We can add a JSON output for all blog posts by defining a typed [`JsonResponse`](https://ihp.digitallyinduced.com/api-docs/IHP-ViewSupport.html#t:View) payload and implementing [`jsonTyped`](https://ihp.digitallyinduced.com/api-docs/IHP-ViewSupport.html#v:jsonTyped):
 
 ```haskell
-import Data.Aeson -- <--- Add this import at the top of the file
+import Data.Aeson
+import GHC.Generics (Generic)
 
+data PostPayload = PostPayload
+    { id :: !(Id Post)
+    , title :: !Text
+    , body :: !Text
+    }
+    deriving (Eq, Show, Generic)
+
+instance ToJSON PostPayload
+```
+
+```haskell
 instance View IndexView where
     html IndexView { .. } = [hsx|
         ...
     |]
 
-    json IndexView { .. } = toJSON posts -- <---- The new json render function
+    type JsonResponse IndexView = [PostPayload]
+
+    jsonTyped IndexView { .. } =
+        posts
+            |> map (\post -> PostPayload
+                { id = post.id
+                , title = post.title
+                , body = post.body
+                })
 ```
 
-In the above code, our [`json`](https://ihp.digitallyinduced.com/api-docs/IHP-ViewSupport.html#v:json) function has access to all arguments passed to the view. Here we call [`toJSON`](https://ihp.digitallyinduced.com/api-docs/IHP-ViewPrelude.html#v:toJSON), which is provided by the [aeson](https://hackage.haskell.org/package/aeson) Haskell library. This simply encodes all the `posts` given to this view as JSON.
-
-Additionally we need to define a [`ToJSON`](https://ihp.digitallyinduced.com/api-docs/IHP-ViewPrelude.html#t:ToJSON) instance which describes how the `Post` record is going to be transformed to JSON. We need to add this to our view:
-
-```haskell
-instance ToJSON Post where
-    toJSON post = object
-        [ "id" .= post.id
-        , "title" .= post.title
-        , "body" .= post.body
-        ]
-```
+In the above code, [`jsonTyped`](https://ihp.digitallyinduced.com/api-docs/IHP-ViewSupport.html#v:jsonTyped) has access to all arguments passed to the view, but returns a normal Haskell value instead of raw `Value`. IHP then turns that into JSON automatically using [`toJSON`](https://ihp.digitallyinduced.com/api-docs/IHP-ViewPrelude.html#v:toJSON).
 
 The full `Index` View for our `PostsController` looks like this:
 
@@ -523,8 +532,18 @@ The full `Index` View for our `PostsController` looks like this:
 module Web.View.Posts.Index where
 import Web.View.Prelude
 import Data.Aeson
+import GHC.Generics (Generic)
 
 data IndexView = IndexView { posts :: [Post] }
+
+data PostPayload = PostPayload
+    { id :: !(Id Post)
+    , title :: !Text
+    , body :: !Text
+    }
+    deriving (Eq, Show, Generic)
+
+instance ToJSON PostPayload
 
 instance View IndexView where
     html IndexView { .. } = [hsx|
@@ -549,14 +568,15 @@ instance View IndexView where
         </div>
     |]
 
-    json IndexView { .. } = toJSON posts
+    type JsonResponse IndexView = [PostPayload]
 
-instance ToJSON Post where
-    toJSON post = object
-        [ "id" .= post.id
-        , "title" .= post.title
-        , "body" .= post.body
-        ]
+    jsonTyped IndexView { .. } =
+        posts
+            |> map (\post -> PostPayload
+                { id = post.id
+                , title = post.title
+                , body = post.body
+                })
 
 renderPost post = [hsx|
     <tr>
@@ -567,6 +587,8 @@ renderPost post = [hsx|
     </tr>
 |]
 ```
+
+You can still override [`json`](https://ihp.digitallyinduced.com/api-docs/IHP-ViewSupport.html#v:json) directly for backwards compatibility. The typed `JsonResponse` / `jsonTyped` style is preferred because it is also the representation used by IHP's OpenAPI support.
 
 ### Getting JSON responses
 
@@ -592,6 +614,37 @@ curl http://localhost:8000/Posts -H 'Accept: application/json'
 
 [{"body":"This is a test json post","id":"d559cd60-e36e-40ef-b69a-d651e3257dc9","title":"Hello World!"}]
 ```
+
+### OpenAPI schemas for JSON views
+
+If you want an AutoRoute controller action to appear in the generated OpenAPI document, add a [`ToSchema`](https://ihp.digitallyinduced.com/api-docs/IHP-OpenApiSupport.html#t:ToSchema) instance for the typed JSON payload and describe the action using [`OpenApiController`](https://ihp.digitallyinduced.com/api-docs/IHP-RouterSupport.html#t:OpenApiController):
+
+```haskell
+import GHC.Generics (Generic)
+
+data PostPayload = PostPayload
+    { id :: !(Id Post)
+    , title :: !Text
+    }
+    deriving (Eq, Show, Generic)
+
+instance ToJSON PostPayload
+instance ToSchema PostPayload
+
+instance View IndexView where
+    html IndexView { .. } = [hsx|...|]
+
+    type JsonResponse IndexView = [PostPayload]
+    jsonTyped IndexView { .. } = posts |> map (\post -> PostPayload { id = post.id, title = post.title })
+
+instance OpenApiController PostsController where
+    openApiActions =
+        [ actionDoc @IndexView "PostsAction"
+            |> setOpenApiSummary "List all posts"
+        ]
+```
+
+When a documented action renders a different JSON view than the one declared in `openApiActions`, IHP will fail the request instead of silently letting the documentation drift away from the controller code.
 
 ### Advanced: Rendering JSON directly from actions
 

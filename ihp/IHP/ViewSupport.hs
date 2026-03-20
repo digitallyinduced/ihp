@@ -1,4 +1,5 @@
 {-# LANGUAGE AllowAmbiguousTypes #-}
+{-# LANGUAGE DefaultSignatures   #-}
 {-# LANGUAGE UndecidableInstances  #-}
 {-|
 Module: IHP.ViewSupport
@@ -66,7 +67,16 @@ class View theView where
 -- | Implement this for views that can be rendered as JSON.
 -- Use 'renderHtmlOrJson' in your controller to dispatch based on the Accept header.
 class JsonView theView where
+    type JsonResponse theView :: Type
+    type JsonResponse theView = JSON.Value
+
+    jsonTyped :: theView -> JsonResponse theView
+    jsonTyped _ = error "Json View for this route is not implemented"
+
+    -- | Renders the view to a JSON
     json :: theView -> JSON.Value
+    default json :: JSON.ToJSON (JsonResponse theView) => theView -> JSON.Value
+    json view = JSON.toJSON (jsonTyped view)
 
 -- | Returns a string to be used as a html id attribute for the current view.
 -- E.g. when calling @currentViewId@ while rendering the view @Web.View.Projects.Show@, this will return @"projects-show"@

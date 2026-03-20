@@ -26,6 +26,27 @@ instance FrontController WebApplication where
 
 Now you can open e.g. `/Posts` to access the `PostsAction`.
 
+If you want a pure `AutoRoute` controller to also appear in the generated OpenAPI document, mount it using [`documentRoute`](https://ihp.digitallyinduced.com/api-docs/IHP-RouterSupport.html#v:documentRoute):
+
+```haskell
+instance FrontController WebApplication where
+    controllers =
+        [ -- ...
+        , documentRoute @PostsController
+        ]
+```
+
+`documentRoute` still derives the path, methods and query parameters from `AutoRoute`. It only adds the extra metadata needed for OpenAPI generation.
+
+You can then build the OpenAPI document from the mounted router tree:
+
+```haskell
+spec :: Value
+spec = buildOpenApi RootApplication
+```
+
+[`buildOpenApi`](https://ihp.digitallyinduced.com/api-docs/IHP-OpenApiSupport.html#v:buildOpenApi) traverses the same front controller structure that serves requests, so nested `mountFrontController` prefixes are reflected in the generated paths.
+
 ## Changing the Start Page / Home Page
 
 You can define a custom start page action using the [`startPage`](https://ihp.digitallyinduced.com/api-docs/IHP-RouterSupport.html#v:startPage) function like this:
@@ -207,6 +228,8 @@ With this setup:
 - `pathTo PostsAction` generates `/Posts` (the auto-generated URL as usual)
 
 The `customRoutes` parser is tried first, before the auto-generated routes. If it doesn't match, the auto-generated routes are tried as usual. Return `Nothing` from `customPathTo` for any action that should use the default URL generation.
+
+Controllers that use `customRoutes` / `customPathTo` keep working normally at runtime, but they are intentionally omitted from IHP's OpenAPI generation. OpenAPI v1 only documents pure `AutoRoute` controllers so the generated spec cannot diverge from the real routing behavior.
 
 ## Custom Routing
 

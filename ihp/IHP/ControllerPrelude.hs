@@ -34,6 +34,7 @@ module IHP.ControllerPrelude
     , Only (..)
     , module IHP.PageHead.ControllerFunctions
     , module IHP.WebSocket
+    , module IHP.OpenApiSupport
     , module IHP.FileStorage.Types
     , module IHP.FileStorage.ControllerFunctions
     , module IHP.FileStorage.Preprocessor.ImageMagick
@@ -79,6 +80,7 @@ import IHP.LoginSupport.Helper.Controller
 import IHP.PageHead.ControllerFunctions
 
 import IHP.WebSocket
+import IHP.OpenApiSupport
 
 import IHP.FileStorage.Types
 import IHP.FileStorage.ControllerFunctions
