@@ -1144,11 +1144,13 @@ instance HasField "id" #{tableNameToModelName name} (Id' "#{name}") where
             ids -> "Id (" <> commaSep (map columnNameToFieldName ids) <> ")"
 
 needsHasFieldId :: CreateTable -> Bool
-needsHasFieldId CreateTable { primaryKeyConstraint } =
+needsHasFieldId CreateTable { columns, primaryKeyConstraint } =
   case primaryKeyColumnNames primaryKeyConstraint of
     [] -> False
     ["id"] -> False
-    _ -> True
+    pkCols
+      | any (\col -> col.name == "id") columns -> False
+      | otherwise -> True
 
 primaryKeyColumns :: CreateTable -> [Column]
 primaryKeyColumns CreateTable { name, columns, primaryKeyConstraint } =
