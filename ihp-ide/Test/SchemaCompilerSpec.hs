@@ -817,6 +817,53 @@ tests = do
                 -- Should contain a generated HasField "id" instance for the composite PK
                 compileOutput `shouldSatisfy` (Text.isInfixOf "instance HasField \"id\"")
 
+        describe "FK referencing non-PK column" do
+            it "should not generate type parameters or Include instances for non-PK FK columns" do
+                let statements = parseSqlStatements [trimming|
+                    CREATE TABLE users (
+                        id UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL,
+                        email TEXT NOT NULL UNIQUE
+                    );
+                    CREATE TABLE logins (
+                        id UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL,
+                        user_email TEXT NOT NULL
+                    );
+                    ALTER TABLE logins ADD CONSTRAINT logins_ref_user_email FOREIGN KEY (user_email) REFERENCES users (email) ON DELETE NO ACTION;
+                |]
+                let
+                    isTargetTable :: Text -> Statement -> Bool
+                    isTargetTable targetName (StatementCreateTable CreateTable { name }) = name == targetName
+                    isTargetTable _ _ = False
+                let (Just loginStatement) = find (isTargetTable "logins") statements
+                let compileOutput = compileStatementPreview statements loginStatement |> Text.strip
+
+                -- userEmail should be Text (not Id' "users"), and no type parameter for it
+                compileOutput `shouldSatisfy` ("userEmail :: Text" `Text.isInfixOf`)
+                -- Should NOT have Include instance for userEmail (since it's not a PK-based FK)
+                compileOutput `shouldSatisfy` (not . ("Include \"userEmail\"" `Text.isInfixOf`))
+
+            it "should not generate has-many QueryBuilder field on the referenced table for non-PK FK" do
+                let statements = parseSqlStatements [trimming|
+                    CREATE TABLE users (
+                        id UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL,
+                        email TEXT NOT NULL UNIQUE
+                    );
+                    CREATE TABLE logins (
+                        id UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL,
+                        user_email TEXT NOT NULL
+                    );
+                    ALTER TABLE logins ADD CONSTRAINT logins_ref_user_email FOREIGN KEY (user_email) REFERENCES users (email) ON DELETE NO ACTION;
+                |]
+                let
+                    isTargetTable :: Text -> Statement -> Bool
+                    isTargetTable targetName (StatementCreateTable CreateTable { name }) = name == targetName
+                    isTargetTable _ _ = False
+                let (Just userStatement) = find (isTargetTable "users") statements
+                let compileOutput = compileStatementPreview statements userStatement |> Text.strip
+
+                -- Users table should NOT have a has-many logins Include instance
+                compileOutput `shouldSatisfy` (not . ("Include \"logins\"" `Text.isInfixOf`))
+
         describe "simple mode (compileRelationSupport = False)" do
             let simpleOptions = previewCompilerOptions { compileRelationSupport = False }
             it "should produce no type parameters and no QueryBuilder fields for a table with FK and has-many relations" do

@@ -227,18 +227,13 @@ haskellType table@CreateTable { name = tableName, primaryKeyConstraint } column@
         let
             actualType =
                 case findForeignKeyConstraint table column of
-                    Just (ForeignKeyConstraint { referenceTable, referenceColumn }) ->
-                        case referenceColumn of
-                            Just refCol | not (refCol `elem` referencedPKColumns) ->
-                                -- FK references a non-PK column; use the referenced column's actual type
-                                case findTableByName referenceTable >>= \t -> find (\c -> c.name == refCol) t.columns of
-                                    Just refColumn -> atomicType refColumn.columnType
-                                    Nothing -> "(" <> primaryKeyTypeName referenceTable <> ")"
-                            _ -> "(" <> primaryKeyTypeName referenceTable <> ")"
-                        where
-                            referencedPKColumns = case findTableByName referenceTable of
-                                Just t -> primaryKeyColumnNames t.primaryKeyConstraint
-                                Nothing -> []
+                    Just fk@(ForeignKeyConstraint { referenceTable, referenceColumn })
+                        | isForeignKeyReferencingPK fk -> "(" <> primaryKeyTypeName referenceTable <> ")"
+                        | otherwise ->
+                            -- FK references a non-PK column; use the referenced column's actual type
+                            case referenceColumn >>= \refCol -> findTableByName referenceTable >>= \t -> find (\c -> c.name == refCol) t.columns of
+                                Just refColumn -> atomicType refColumn.columnType
+                                Nothing -> atomicType columnType
                     _ -> atomicType columnType
         in
             if not notNull || isJust generator
@@ -595,7 +590,7 @@ columnsReferencingTable theTableName =
     in
         statements
         |> mapMaybe \case
-            AddConstraint { tableName, constraint = ForeignKeyConstraint { columnName, referenceTable, referenceColumn } } | referenceTable == theTableName -> Just (tableName, columnName)
+            AddConstraint { tableName, constraint = fk@ForeignKeyConstraint { columnName, referenceTable } } | referenceTable == theTableName && isForeignKeyReferencingPK fk -> Just (tableName, columnName)
             _ -> Nothing
 
 variableAttributes :: (?schema :: Schema, ?compilerOptions :: CompilerOptions) => CreateTable -> [Column]
@@ -607,9 +602,13 @@ isVariableAttribute table column
     | otherwise = isRefCol table column
 
 
--- | Returns @True@ when the coluns is referencing another column via foreign key constraint
+-- | Returns @True@ when the column references another table's primary key via foreign key constraint.
+-- FK constraints that reference a non-PK column (e.g., REFERENCES users(email)) return @False@,
+-- because the relation machinery (Include, fetchRelated, QueryBuilder) only works for PK-based FKs.
 isRefCol :: (?schema :: Schema) => CreateTable -> Column -> Bool
-isRefCol table column = isJust (findForeignKeyConstraint table column)
+isRefCol table column = case findForeignKeyConstraint table column of
+    Just fk -> isForeignKeyReferencingPK fk
+    Nothing -> False
 
 -- | Returns the foreign key constraint bound on the given column.
 -- For inherited columns, recursively checks ancestor table constraints.
@@ -635,6 +634,19 @@ findTableByName tableName =
             StatementCreateTable table@CreateTable { name } | name == tableName -> Just table
             _ -> Nothing)
         |> headMay
+
+-- | Returns @True@ when a FK constraint references the primary key of the target table.
+-- FK constraints pointing at non-PK columns (e.g., REFERENCES users(email)) return @False@.
+isForeignKeyReferencingPK :: (?schema :: Schema) => Constraint -> Bool
+isForeignKeyReferencingPK ForeignKeyConstraint { referenceTable, referenceColumn } =
+    case referenceColumn of
+        Just refCol -> refCol `elem` referencedPKColumns
+        Nothing -> True
+    where
+        referencedPKColumns = case findTableByName referenceTable of
+            Just t -> primaryKeyColumnNames t.primaryKeyConstraint
+            Nothing -> []
+isForeignKeyReferencingPK _ = False
 
 -- | Returns all columns including inherited columns from parent tables.
 -- Inherited columns that are not overridden in the child table are appended.
