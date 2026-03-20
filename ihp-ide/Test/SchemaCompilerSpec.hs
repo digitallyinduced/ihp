@@ -770,6 +770,53 @@ tests = do
                         {-# INLINE filterWhereId #-}
                     |]
 
+        describe "needsHasFieldId" do
+            let
+                isNamedTable :: Text -> Statement -> Bool
+                isNamedTable targetName (StatementCreateTable CreateTable { name }) = name == targetName
+                isNamedTable _ _ = False
+            it "should not generate HasField id for composite PK table with an id column" do
+                let statements = parseSqlStatements [trimming|
+                    CREATE TABLE ideas_votes (
+                        id INT NOT NULL,
+                        idea_id UUID NOT NULL,
+                        parent_id UUID NOT NULL,
+                        PRIMARY KEY(idea_id, parent_id)
+                    );
+                |]
+                let (Just statement) = find (isNamedTable "ideas_votes") statements
+                let compileOutput = compileStatementPreview statements statement |> Text.strip
+
+                -- Should NOT contain a generated HasField "id" instance since the table has a column named "id"
+                compileOutput `shouldNotSatisfy` (Text.isInfixOf "instance HasField \"id\"")
+
+            it "should not generate HasField id for single non-id PK table with an id column" do
+                let statements = parseSqlStatements [trimming|
+                    CREATE TABLE things (
+                        id INT NOT NULL,
+                        code TEXT PRIMARY KEY NOT NULL
+                    );
+                |]
+                let (Just statement) = find (isNamedTable "things") statements
+                let compileOutput = compileStatementPreview statements statement |> Text.strip
+
+                -- Should NOT contain a generated HasField "id" instance since the table has a column named "id"
+                compileOutput `shouldNotSatisfy` (Text.isInfixOf "instance HasField \"id\"")
+
+            it "should generate HasField id for composite PK table without an id column" do
+                let statements = parseSqlStatements [trimming|
+                    CREATE TABLE bit_part_refs (
+                        bit_ref UUID NOT NULL,
+                        part_ref UUID NOT NULL,
+                        PRIMARY KEY(bit_ref, part_ref)
+                    );
+                |]
+                let (Just statement) = find (isNamedTable "bit_part_refs") statements
+                let compileOutput = compileStatementPreview statements statement |> Text.strip
+
+                -- Should contain a generated HasField "id" instance for the composite PK
+                compileOutput `shouldSatisfy` (Text.isInfixOf "instance HasField \"id\"")
+
         describe "simple mode (compileRelationSupport = False)" do
             let simpleOptions = previewCompilerOptions { compileRelationSupport = False }
             it "should produce no type parameters and no QueryBuilder fields for a table with FK and has-many relations" do
