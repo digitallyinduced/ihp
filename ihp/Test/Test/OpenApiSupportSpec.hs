@@ -53,6 +53,11 @@ data DocumentedCustomPathController
     = ShowDocumentedCustomPathAction { bandId :: !(Id Band) }
     deriving (Eq, Show, Data)
 
+data CrudNamedApiController
+    = CreateApiSessionAction
+    | ShowApiSessionAction
+    deriving (Eq, Show, Data)
+
 data BandView = BandView
     { bandId :: !(Id Band)
     , page :: !(Maybe Int)
@@ -72,6 +77,15 @@ instance ToSchema BandPayload
 data LegacyJsonView = LegacyJsonView
 data WrongJsonShapeView = WrongJsonShapeView { bandId :: !(Id Band) }
 data DocumentedCustomPathView = DocumentedCustomPathView { bandId :: !(Id Band) }
+data AckView = AckView
+
+data AckPayload = AckPayload
+    { ok :: !Bool
+    }
+    deriving (Eq, Show, Generic)
+
+instance JSON.ToJSON AckPayload
+instance ToSchema AckPayload
 
 instance View BandView where
     html BandView { .. } = [hsx||]
@@ -117,6 +131,13 @@ instance View DocumentedCustomPathView where
         , tags = []
         }
 
+instance View AckView where
+    html AckView = [hsx||]
+
+    type JsonResponse AckView = AckPayload
+
+    jsonTyped AckView = AckPayload { ok = True }
+
 instance Controller DocumentedController where
     action ShowBandAction { .. } = render BandView { .. }
     action LegacyJsonAction = render LegacyJsonView
@@ -129,6 +150,10 @@ instance Controller CustomRouteController where
 
 instance Controller DocumentedCustomPathController where
     action ShowDocumentedCustomPathAction { .. } = render DocumentedCustomPathView { .. }
+
+instance Controller CrudNamedApiController where
+    action CreateApiSessionAction = render AckView
+    action ShowApiSessionAction = render AckView
 
 instance AutoRoute DocumentedController where
     autoRoute = autoRouteWithIdType (parseIntegerId @(Id Band))
@@ -164,10 +189,19 @@ instance OpenApiController DocumentedCustomPathController where
         [ actionDoc @DocumentedCustomPathView "ShowDocumentedCustomPathAction"
         ]
 
+instance AutoRoute CrudNamedApiController
+
+instance OpenApiController CrudNamedApiController where
+    openApiActions =
+        [ actionDoc @AckView "CreateApiSessionAction"
+        , actionDoc @AckView "ShowApiSessionAction"
+        ]
+
 instance FrontController WebApplication where
     controllers =
         [ documentRoute @DocumentedController
         , documentRoute @DocumentedCustomPathController
+        , documentRoute @CrudNamedApiController
         , parseRoute @CustomRouteController
         , swaggerUiWithOptions ((defaultSwaggerUiOptions @WebApplication) { swaggerUiPath = "/docs", swaggerUiTitle = Just "Band API Docs" })
         ]
@@ -291,6 +325,16 @@ tests = aroundAll (withMockContextAndApp RootApplication config) do
             let spec = buildOpenApi RootApplication
             lookupPathOperation "/test/ShowDocumentedCustomPath" "get" spec `shouldBe` Nothing
             lookupPathOperation "/bands/{bandId}" "get" spec `shouldBe` Nothing
+
+        it "keeps CreateApi and ShowApi action names unchanged in documented AutoRoute paths" $ withContextAndApp \_ -> do
+            let spec = buildOpenApi RootApplication
+
+            lookupPathOperation "/test/CreateApiSession" "post" spec `shouldSatisfy` isJust
+            lookupPathOperation "/test/CreateApiSession" "get" spec `shouldBe` Nothing
+            lookupPathOperation "/test/ShowApiSession" "get" spec `shouldSatisfy` isJust
+            lookupPathOperation "/test/ShowApiSession" "head" spec `shouldSatisfy` isJust
+            lookupPathOperation "/test/ApiSession" "post" spec `shouldBe` Nothing
+            lookupPathOperation "/test/ApiSession" "get" spec `shouldBe` Nothing
 
     describe "Swagger UI" do
         it "serves the generated OpenAPI JSON from the mounted router" $ withContextAndApp \application -> do
