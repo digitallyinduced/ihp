@@ -169,6 +169,7 @@ instance FrontController WebApplication where
         [ documentRoute @DocumentedController
         , documentRoute @DocumentedCustomPathController
         , parseRoute @CustomRouteController
+        , swaggerUiWithOptions ((defaultSwaggerUiOptions @WebApplication) { swaggerUiPath = "/docs", swaggerUiTitle = Just "Band API Docs" })
         ]
 
 instance FrontController RootApplication where
@@ -187,6 +188,9 @@ testJson url = request $ setPath defaultRequest
     { requestMethod = methodGet
     , requestHeaders = [(hAccept, "application/json")]
     } url
+
+testGet :: ByteString -> Session SResponse
+testGet url = request $ setPath defaultRequest { requestMethod = methodGet } url
 
 assertJsonBody :: JSON.Value -> SResponse -> IO ()
 assertJsonBody expected response = do
@@ -287,3 +291,19 @@ tests = aroundAll (withMockContextAndApp RootApplication config) do
             let spec = buildOpenApi RootApplication
             lookupPathOperation "/test/ShowDocumentedCustomPath" "get" spec `shouldBe` Nothing
             lookupPathOperation "/bands/{bandId}" "get" spec `shouldBe` Nothing
+
+    describe "Swagger UI" do
+        it "serves the generated OpenAPI JSON from the mounted router" $ withContextAndApp \application -> do
+            response <- runSession (testGet "docs/openapi.json") application
+            response.simpleStatus `shouldBe` status200
+            Prelude.lookup hContentType response.simpleHeaders `shouldBe` Just "application/json"
+            JSON.decode response.simpleBody `shouldBe` Just (buildOpenApi WebApplication)
+
+        it "serves a Swagger UI page pointing at the generated OpenAPI JSON" $ withContextAndApp \application -> do
+            response <- runSession (testGet "docs") application
+            response.simpleStatus `shouldBe` status200
+            Prelude.lookup hContentType response.simpleHeaders `shouldBe` Just "text/html; charset=utf-8"
+            let body = cs response.simpleBody
+            Text.isInfixOf "Band API Docs" body `shouldBe` True
+            Text.isInfixOf "./openapi.json" body `shouldBe` True
+            Text.isInfixOf "SwaggerUIBundle" body `shouldBe` True
