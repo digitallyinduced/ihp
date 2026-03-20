@@ -173,7 +173,7 @@ generateUpdateActionBody config
         <> "                Right " <> config.modelVariableSingular <> " -> do\n"
         <> "                    " <> config.modelVariableSingular <> " <- " <> config.modelVariableSingular <> " |> updateRecord\n"
         <> "                    setSuccessMessage \"" <> config.model <> " updated\"\n"
-        <> "                    redirectTo Edit" <> config.singularName <> "Action { .. }\n"
+        <> "                    redirectTo Edit" <> config.singularName <> "Action\n"
 
 generateCreateActionBody :: ActionBodyConfig -> Text
 generateCreateActionBody config =
