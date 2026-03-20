@@ -958,6 +958,28 @@ tests = do
                         newRecord = Generated.ActualTypes.User def  def
                 |]
 
+            it "should use the referenced column's type when FK points to a non-PK column" do
+                let statements = parseSqlStatements [trimming|
+                    CREATE TABLE users (
+                        id UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL,
+                        email TEXT NOT NULL UNIQUE
+                    );
+                    CREATE TABLE logins (
+                        id UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL,
+                        user_email TEXT NOT NULL
+                    );
+                    ALTER TABLE logins ADD CONSTRAINT logins_ref_user_email FOREIGN KEY (user_email) REFERENCES users (email) ON DELETE NO ACTION;
+                |]
+                let
+                    isTargetTable :: Text -> Statement -> Bool
+                    isTargetTable targetName (StatementCreateTable CreateTable { name }) = name == targetName
+                    isTargetTable _ _ = False
+                let (Just loginStatement) = find (isTargetTable "logins") statements
+                let compileOutput = compileStatementPreviewWith simpleOptions statements loginStatement |> Text.strip
+
+                -- userEmail should be Text, not Id' "users"
+                compileOutput `shouldSatisfy` ("userEmail :: Text" `Text.isInfixOf`)
+
         describe "statement module content" do
             let statements =
                     [ StatementCreateTable CreateTable

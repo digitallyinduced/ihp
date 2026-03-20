@@ -227,7 +227,18 @@ haskellType table@CreateTable { name = tableName, primaryKeyConstraint } column@
         let
             actualType =
                 case findForeignKeyConstraint table column of
-                    Just (ForeignKeyConstraint { referenceTable }) -> "(" <> primaryKeyTypeName referenceTable <> ")"
+                    Just (ForeignKeyConstraint { referenceTable, referenceColumn }) ->
+                        case referenceColumn of
+                            Just refCol | not (refCol `elem` referencedPKColumns) ->
+                                -- FK references a non-PK column; use the referenced column's actual type
+                                case findTableByName referenceTable >>= \t -> find (\c -> c.name == refCol) t.columns of
+                                    Just refColumn -> atomicType refColumn.columnType
+                                    Nothing -> "(" <> primaryKeyTypeName referenceTable <> ")"
+                            _ -> "(" <> primaryKeyTypeName referenceTable <> ")"
+                        where
+                            referencedPKColumns = case findTableByName referenceTable of
+                                Just t -> primaryKeyColumnNames t.primaryKeyConstraint
+                                Nothing -> []
                     _ -> atomicType columnType
         in
             if not notNull || isJust generator
