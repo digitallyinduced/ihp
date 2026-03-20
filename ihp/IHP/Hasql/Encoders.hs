@@ -33,7 +33,6 @@ import Data.Functor.Contravariant (contramap)
 import Data.Functor.Contravariant.Divisible (divide)
 import Data.Vector (Vector)
 import IHP.ModelSupport.Types (Id'(..), PrimaryKey)
-import Data.UUID (UUID)
 import Database.PostgreSQL.Simple.Types (Binary(..))
 import qualified Hasql.Mapping.IsScalar as Mapping
 import Hasql.PostgresqlTypes ()
@@ -85,31 +84,57 @@ instance Mapping.IsScalar (PrimaryKey table) => DefaultParamEncoder (Maybe (Id' 
 instance Mapping.IsScalar (PrimaryKey table) => DefaultParamEncoder [Maybe (Id' table)] where
     defaultParam = Encoders.nonNullable $ Encoders.foldableArray $ Encoders.nullable (contramap (\(Id pk) -> pk) Mapping.encoder)
 
--- | Encode '(UUID, UUID)' as PostgreSQL composite/record type
--- Used for composite primary keys with two UUID columns
-instance DefaultParamEncoder (UUID, UUID) where
-    defaultParam = Encoders.nonNullable $ Encoders.composite (Nothing :: Maybe Text) "" uuidPairComposite
-
--- | Encode '[(UUID, UUID)]' as PostgreSQL array of composite types
--- Used by filterWhereIdIn for tables with composite primary keys of two UUIDs
-instance DefaultParamEncoder [(UUID, UUID)] where
-    defaultParam = Encoders.nonNullable $ Encoders.foldableArray $ Encoders.nonNullable $ Encoders.composite (Nothing :: Maybe Text) "" uuidPairComposite
-
 -- | Encode '(Id' a, Id' b)' as PostgreSQL composite/record type
--- Used for composite primary keys with two Id columns (where both resolve to UUID)
-instance (PrimaryKey a ~ UUID, PrimaryKey b ~ UUID) => DefaultParamEncoder (Id' a, Id' b) where
+-- Used for composite primary keys with two Id columns of any scalar PK type
+instance (Mapping.IsScalar (PrimaryKey a), Mapping.IsScalar (PrimaryKey b)) => DefaultParamEncoder (Id' a, Id' b) where
     defaultParam = Encoders.nonNullable $ Encoders.composite (Nothing :: Maybe Text) "" $
-        contramap (\(Id a, Id b) -> (a, b)) uuidPairComposite
+        divide (\(Id a, Id b) -> (a, b))
+            (Encoders.field (Encoders.nonNullable Mapping.encoder))
+            (Encoders.field (Encoders.nonNullable Mapping.encoder))
 
 -- | Encode '[(Id' a, Id' b)]' as PostgreSQL array of composite types
--- Used by filterWhereIdIn for tables with composite primary keys of two Id columns
-instance (PrimaryKey a ~ UUID, PrimaryKey b ~ UUID) => DefaultParamEncoder [(Id' a, Id' b)] where
+-- Used by filterWhereIdIn for tables with two-column composite primary keys
+instance (Mapping.IsScalar (PrimaryKey a), Mapping.IsScalar (PrimaryKey b)) => DefaultParamEncoder [(Id' a, Id' b)] where
     defaultParam = Encoders.nonNullable $ Encoders.foldableArray $ Encoders.nonNullable $ Encoders.composite (Nothing :: Maybe Text) "" $
-        contramap (\(Id a, Id b) -> (a, b)) uuidPairComposite
+        divide (\(Id a, Id b) -> (a, b))
+            (Encoders.field (Encoders.nonNullable Mapping.encoder))
+            (Encoders.field (Encoders.nonNullable Mapping.encoder))
 
--- | Helper: composite encoder for a pair of UUIDs
-uuidPairComposite :: Encoders.Composite (UUID, UUID)
-uuidPairComposite = divide id (Encoders.field (Encoders.nonNullable Encoders.uuid)) (Encoders.field (Encoders.nonNullable Encoders.uuid))
+-- | Encode '(Id' a, Id' b, Id' c)' as PostgreSQL composite/record type
+-- Used for composite primary keys with three Id columns of any scalar PK type
+instance (Mapping.IsScalar (PrimaryKey a), Mapping.IsScalar (PrimaryKey b), Mapping.IsScalar (PrimaryKey c)) => DefaultParamEncoder (Id' a, Id' b, Id' c) where
+    defaultParam = Encoders.nonNullable $ Encoders.composite (Nothing :: Maybe Text) "" $
+        divide (\(Id a, Id b, Id c) -> (a, (b, c)))
+            (Encoders.field (Encoders.nonNullable Mapping.encoder))
+            (divide id (Encoders.field (Encoders.nonNullable Mapping.encoder)) (Encoders.field (Encoders.nonNullable Mapping.encoder)))
+
+-- | Encode '[(Id' a, Id' b, Id' c)]' as PostgreSQL array of composite types
+-- Used by filterWhereIdIn for tables with three-column composite primary keys
+instance (Mapping.IsScalar (PrimaryKey a), Mapping.IsScalar (PrimaryKey b), Mapping.IsScalar (PrimaryKey c)) => DefaultParamEncoder [(Id' a, Id' b, Id' c)] where
+    defaultParam = Encoders.nonNullable $ Encoders.foldableArray $ Encoders.nonNullable $ Encoders.composite (Nothing :: Maybe Text) "" $
+        divide (\(Id a, Id b, Id c) -> (a, (b, c)))
+            (Encoders.field (Encoders.nonNullable Mapping.encoder))
+            (divide id (Encoders.field (Encoders.nonNullable Mapping.encoder)) (Encoders.field (Encoders.nonNullable Mapping.encoder)))
+
+-- | Encode '(Id' a, Id' b, Id' c, Id' d)' as PostgreSQL composite/record type
+-- Used for composite primary keys with four Id columns of any scalar PK type
+instance (Mapping.IsScalar (PrimaryKey a), Mapping.IsScalar (PrimaryKey b), Mapping.IsScalar (PrimaryKey c), Mapping.IsScalar (PrimaryKey d)) => DefaultParamEncoder (Id' a, Id' b, Id' c, Id' d) where
+    defaultParam = Encoders.nonNullable $ Encoders.composite (Nothing :: Maybe Text) "" $
+        divide (\(Id a, Id b, Id c, Id d) -> (a, (b, c, d)))
+            (Encoders.field (Encoders.nonNullable Mapping.encoder))
+            (divide (\(b, c, d) -> (b, (c, d)))
+                (Encoders.field (Encoders.nonNullable Mapping.encoder))
+                (divide id (Encoders.field (Encoders.nonNullable Mapping.encoder)) (Encoders.field (Encoders.nonNullable Mapping.encoder))))
+
+-- | Encode '[(Id' a, Id' b, Id' c, Id' d)]' as PostgreSQL array of composite types
+-- Used by filterWhereIdIn for tables with four-column composite primary keys
+instance (Mapping.IsScalar (PrimaryKey a), Mapping.IsScalar (PrimaryKey b), Mapping.IsScalar (PrimaryKey c), Mapping.IsScalar (PrimaryKey d)) => DefaultParamEncoder [(Id' a, Id' b, Id' c, Id' d)] where
+    defaultParam = Encoders.nonNullable $ Encoders.foldableArray $ Encoders.nonNullable $ Encoders.composite (Nothing :: Maybe Text) "" $
+        divide (\(Id a, Id b, Id c, Id d) -> (a, (b, c, d)))
+            (Encoders.field (Encoders.nonNullable Mapping.encoder))
+            (divide (\(b, c, d) -> (b, (c, d)))
+                (Encoders.field (Encoders.nonNullable Mapping.encoder))
+                (divide id (Encoders.field (Encoders.nonNullable Mapping.encoder)) (Encoders.field (Encoders.nonNullable Mapping.encoder))))
 
 -- | Encode 'Binary ByteString' as PostgreSQL bytea
 -- IHP wraps bytea columns in Binary, so we need to unwrap before encoding

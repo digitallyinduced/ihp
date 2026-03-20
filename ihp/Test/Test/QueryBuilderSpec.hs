@@ -218,6 +218,15 @@ tests = do
 
                         (toSQL theQuery) `shouldBe` "SELECT composite_taggings.post_id, composite_taggings.tag_id FROM composite_taggings WHERE (composite_taggings.post_id, composite_taggings.tag_id) = ANY ($1)"
 
+        describe "filterWhereId" do
+            describe "with composite keys" do
+                it "should decompose into per-column WHERE conditions" do
+                    let theId :: Id CompositeTagging = Id (Id "b80e37a8-41d4-4731-b050-a716879ef1d1", Id "629b7ee0-3675-4b02-ba3e-cdbd7b513553")
+                    let theQuery = query @CompositeTagging
+                            |> filterWhereId theId
+
+                    (toSQL theQuery) `shouldBe` "SELECT composite_taggings.post_id, composite_taggings.tag_id FROM composite_taggings WHERE (composite_taggings.post_id = $1) AND (composite_taggings.tag_id = $2)"
+
         describe "filterWhereCaseInsensitive" do
             it "should produce a SQL with a WHERE LOWER() condition" do
                 let theQuery = query @Post

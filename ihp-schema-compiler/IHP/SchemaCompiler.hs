@@ -459,7 +459,7 @@ compileTypeAlias table@(CreateTable { name, columns }) =
         hasManyDefaults
             | ?compilerOptions.compileRelationSupport =
                 columnsReferencingTable name
-                |> map (\(tableName, columnName) -> "(QueryBuilder.QueryBuilder \"" <> tableName <> "\")")
+                |> map (\(tableName, columnName, _) -> "(QueryBuilder.QueryBuilder \"" <> tableName <> "\")")
                 |> unwords
             | otherwise = ""
 
@@ -529,10 +529,10 @@ columnsWithBitIndices allColumns subset =
     let subsetNames = setFromList (map (.name) subset) :: Set Text
     in [(col, idx) | (col, idx) <- zip allColumns [0..], col.name `member` subsetNames]
 
-compileQueryBuilderFields :: [(Text, Text)] -> [(Text, Text)]
+compileQueryBuilderFields :: [(Text, Text, Maybe Text)] -> [(Text, Text)]
 compileQueryBuilderFields columns = map compileQueryBuilderField columns
     where
-        compileQueryBuilderField (refTableName, refColumnName) =
+        compileQueryBuilderField (refTableName, refColumnName, _refColumn) =
             let
                 -- Given a relationship like the following:
                 --
@@ -551,7 +551,7 @@ compileQueryBuilderFields columns = map compileQueryBuilderField columns
                 -- being added to the data structure.
                 hasDuplicateQueryBuilder =
                     columns
-                    |> map fst
+                    |> map (\(t, _, _) -> t)
                     |> map columnNameToFieldName
                     |> filter (columnNameToFieldName refTableName ==)
                     |> length
@@ -583,14 +583,14 @@ compileQueryBuilderFields columns = map compileQueryBuilderField columns
 --
 -- >>> columnsReferencingTable "companies"
 -- [ ("users", "company_id") ]
-columnsReferencingTable :: (?schema :: Schema) => Text -> [(Text, Text)]
+columnsReferencingTable :: (?schema :: Schema) => Text -> [(Text, Text, Maybe Text)]
 columnsReferencingTable theTableName =
     let
         (Schema statements) = ?schema
     in
         statements
         |> mapMaybe \case
-            AddConstraint { tableName, constraint = fk@ForeignKeyConstraint { columnName, referenceTable } } | referenceTable == theTableName && isForeignKeyReferencingPK fk -> Just (tableName, columnName)
+            AddConstraint { tableName, constraint = fk@ForeignKeyConstraint { columnName, referenceTable, referenceColumn } } | referenceTable == theTableName && isForeignKeyReferencingPK fk -> Just (tableName, columnName, referenceColumn)
             _ -> Nothing
 
 variableAttributes :: (?schema :: Schema, ?compilerOptions :: CompilerOptions) => CreateTable -> [Column]
@@ -871,16 +871,22 @@ compileFromRowHasqlInstance table@(CreateTable { name, columns }) =
     hasqlRowDecoder = #{rowDecoderModule}.rowDecoder
 |]
 
-compileFromRowQueryBuilder :: (?schema :: Schema) => CreateTable -> (Text, Text) -> Text
-compileFromRowQueryBuilder table (refTableName, refFieldName) = "(QueryBuilder.filterWhere (#" <> columnNameToFieldName refFieldName <> ", " <> primaryKeyField <> ") (QueryBuilder.query @" <> tableNameToModelName refTableName <> "))"
+compileFromRowQueryBuilder :: (?schema :: Schema) => CreateTable -> (Text, Text, Maybe Text) -> Text
+compileFromRowQueryBuilder table (refTableName, refFieldName, maybeRefColumn) = "(QueryBuilder.filterWhere (#" <> columnNameToFieldName refFieldName <> ", " <> primaryKeyField <> ") (QueryBuilder.query @" <> tableNameToModelName refTableName <> "))"
     where
         primaryKeyField :: Text
         primaryKeyField = if refColumn.notNull then actualPrimaryKeyField else "Just " <> actualPrimaryKeyField
         actualPrimaryKeyField :: Text
-        actualPrimaryKeyField = case primaryKeyColumns table of
-                [] -> error $ "Impossible happened in compileFromRowHasqlInstance. No primary keys found for table " <> cs table.name <> ". At least one primary key is required."
-                [pk] -> columnNameToFieldName pk.name
-                pks -> error $ "No support yet for composite foreign keys. Tables cannot have foreign keys to table '" <> cs table.name <> "' which has more than one column as its primary key."
+        actualPrimaryKeyField = case maybeRefColumn of
+                -- When the FK constraint specifies the referenced column, use it directly.
+                -- This handles composite PK tables where a FK references a specific column
+                -- (which must have a standalone UNIQUE constraint).
+                Just refCol -> columnNameToFieldName refCol
+                -- Otherwise fall back to the single primary key column
+                Nothing -> case primaryKeyColumns table of
+                    [] -> error $ "Impossible happened in compileFromRowHasqlInstance. No primary keys found for table " <> cs table.name <> ". At least one primary key is required."
+                    [pk] -> columnNameToFieldName pk.name
+                    pks -> error $ "No support yet for composite foreign keys. Tables cannot have foreign keys to table '" <> cs table.name <> "' which has more than one column as its primary key."
 
         (Just refTable) = let (Schema statements) = ?schema in
                 statements
@@ -1069,7 +1075,7 @@ compileInclude table@(CreateTable { name }) = (belongsToIncludes <> hasManyInclu
         columns = allColumnsIncludingInherited table
         belongsToIncludes = map compileBelongsTo (filter (isRefCol table) columns)
         hasManyIncludes = columnsReferencingTable name
-                |> (\refs -> zip (map fst refs) (map fst (compileQueryBuilderFields refs)))
+                |> (\refs -> zip (map (\(t, _, _) -> t) refs) (map fst (compileQueryBuilderFields refs)))
                 |> map compileHasMany
         typeArgs = dataTypeArguments table
         modelName = tableNameToModelName name
