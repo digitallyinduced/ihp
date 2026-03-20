@@ -308,7 +308,6 @@ findInRouteMaps path (_ : rest) = findInRouteMaps path rest
 getRouteParsers :: ControllerRoute application -> [Parser Application]
 getRouteParsers ControllerRouteMap { routeParser } = [routeParser]
 getRouteParsers ControllerRouteParser { routeParser } = [routeParser]
-
 data DocumentedRenderExpectation = DocumentedRenderExpectation
     { expectedViewTypeName :: Text
     , expectedTypedJson :: Dynamic -> Maybe JSON.Value

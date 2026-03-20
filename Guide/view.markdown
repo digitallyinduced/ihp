@@ -494,6 +494,8 @@ instance View IndexView where
 We can add a JSON output for all blog posts by defining a typed [`JsonResponse`](https://ihp.digitallyinduced.com/api-docs/IHP-ViewSupport.html#t:View) payload and implementing [`jsonTyped`](https://ihp.digitallyinduced.com/api-docs/IHP-ViewSupport.html#v:jsonTyped):
 
 ```haskell
+{-# LANGUAGE DeriveGeneric #-}
+
 import Data.Aeson
 import GHC.Generics (Generic)
 
@@ -530,6 +532,9 @@ The full `Index` View for our `PostsController` looks like this:
 
 ```haskell
 module Web.View.Posts.Index where
+
+{-# LANGUAGE DeriveGeneric #-}
+
 import Web.View.Prelude
 import Data.Aeson
 import GHC.Generics (Generic)
@@ -620,6 +625,8 @@ curl http://localhost:8000/Posts -H 'Accept: application/json'
 If you want an AutoRoute controller action to appear in the generated OpenAPI document, add a [`ToSchema`](https://ihp.digitallyinduced.com/api-docs/IHP-OpenApiSupport.html#t:ToSchema) instance for the typed JSON payload and describe the action using [`OpenApiController`](https://ihp.digitallyinduced.com/api-docs/IHP-RouterSupport.html#t:OpenApiController):
 
 ```haskell
+{-# LANGUAGE DeriveGeneric #-}
+
 import GHC.Generics (Generic)
 
 data PostPayload = PostPayload

@@ -41,11 +41,16 @@ data DocumentedController
     = ShowBandAction { bandId :: !(Id Band), page :: !(Maybe Int), tags :: ![Text] }
     | LegacyJsonAction
     | WrongJsonAction
+    | WrongJsonShapeAction { bandId :: !(Id Band) }
     deriving (Eq, Show, Data)
 
 data CustomRouteController
     = ListCustomAction
     | ShowCustomAction { performanceId :: !(Id Performance) }
+    deriving (Eq, Show, Data)
+
+data DocumentedCustomPathController
+    = ShowDocumentedCustomPathAction { bandId :: !(Id Band) }
     deriving (Eq, Show, Data)
 
 data BandView = BandView
@@ -65,6 +70,8 @@ instance JSON.ToJSON BandPayload
 instance ToSchema BandPayload
 
 data LegacyJsonView = LegacyJsonView
+data WrongJsonShapeView = WrongJsonShapeView { bandId :: !(Id Band) }
+data DocumentedCustomPathView = DocumentedCustomPathView { bandId :: !(Id Band) }
 
 instance View BandView where
     html BandView { .. } = [hsx||]
@@ -84,14 +91,44 @@ instance View LegacyJsonView where
         [ "legacy" JSON..= True
         ]
 
+instance View WrongJsonShapeView where
+    html WrongJsonShapeView { .. } = [hsx||]
+
+    type JsonResponse WrongJsonShapeView = BandPayload
+
+    jsonTyped WrongJsonShapeView { .. } = BandPayload
+        { bandId = unpackId bandId
+        , page = Nothing
+        , tags = []
+        }
+
+    json WrongJsonShapeView { .. } = JSON.object
+        [ "legacyBandId" JSON..= unpackId bandId
+        ]
+
+instance View DocumentedCustomPathView where
+    html DocumentedCustomPathView { .. } = [hsx||]
+
+    type JsonResponse DocumentedCustomPathView = BandPayload
+
+    jsonTyped DocumentedCustomPathView { .. } = BandPayload
+        { bandId = unpackId bandId
+        , page = Nothing
+        , tags = []
+        }
+
 instance Controller DocumentedController where
     action ShowBandAction { .. } = render BandView { .. }
     action LegacyJsonAction = render LegacyJsonView
     action WrongJsonAction = render LegacyJsonView
+    action WrongJsonShapeAction { .. } = render WrongJsonShapeView { .. }
 
 instance Controller CustomRouteController where
     action ListCustomAction = renderPlain "ListCustomAction"
     action ShowCustomAction { .. } = renderPlain (cs (Prelude.show performanceId))
+
+instance Controller DocumentedCustomPathController where
+    action ShowDocumentedCustomPathAction { .. } = render DocumentedCustomPathView { .. }
 
 instance AutoRoute DocumentedController where
     autoRoute = autoRouteWithIdType (parseIntegerId @(Id Band))
@@ -102,6 +139,7 @@ instance OpenApiController DocumentedController where
         [ actionDoc @BandView "ShowBandAction"
             |> setOpenApiSummary "Show a band payload"
         , actionDoc @BandView "WrongJsonAction"
+        , actionDoc @WrongJsonShapeView "WrongJsonShapeAction"
         ]
 
 instance AutoRoute CustomRouteController where
@@ -115,9 +153,21 @@ instance AutoRoute CustomRouteController where
     customPathTo ShowCustomAction { performanceId } = Just ("/custom/" <> cs (Prelude.show performanceId))
     customPathTo _ = Nothing
 
+instance AutoRoute DocumentedCustomPathController where
+    autoRoute = autoRouteWithIdType (parseIntegerId @(Id Band))
+    applyAction = applyConstr (parseIntegerId @(Id Band))
+
+    customPathTo ShowDocumentedCustomPathAction { bandId } = Just ("/bands/" <> cs (Prelude.show (unpackId bandId)))
+
+instance OpenApiController DocumentedCustomPathController where
+    openApiActions =
+        [ actionDoc @DocumentedCustomPathView "ShowDocumentedCustomPathAction"
+        ]
+
 instance FrontController WebApplication where
     controllers =
         [ documentRoute @DocumentedController
+        , documentRoute @DocumentedCustomPathController
         , parseRoute @CustomRouteController
         ]
 
@@ -185,6 +235,11 @@ tests = aroundAll (withMockContextAndApp RootApplication config) do
             response.simpleStatus `shouldBe` status500
             Text.isInfixOf "OpenAPI docs expect view" (cs response.simpleBody) `shouldBe` True
 
+        it "fails fast when documented actions override json with a shape different from jsonTyped" $ withContextAndApp \application -> do
+            response <- runSession (testJson "test/WrongJsonShape?bandId=12") application
+            response.simpleStatus `shouldBe` status500
+            Text.isInfixOf "jsonTyped" (cs response.simpleBody) `shouldBe` True
+
     describe "OpenAPI generation" do
         it "derives AutoRoute paths, methods, params and response schemas from the controller" $ withContextAndApp \_ -> do
             let spec = buildOpenApi RootApplication
@@ -216,10 +271,19 @@ tests = aroundAll (withMockContextAndApp RootApplication config) do
                         >>= lookupValue "content"
                         >>= lookupValue "application/json"
                         >>= lookupValue "schema"
-            lookupValue "type" schema `shouldBe` Just (JSON.String "object")
-            (lookupValue "properties" schema >>= lookupValue "bandId") `shouldSatisfy` isJust
+            lookupValue "$ref" schema `shouldBe` Just (JSON.String "#/components/schemas/BandPayload")
+
+            let Just componentsSchemas = lookupValue "components" spec >>= lookupValue "schemas"
+            let Just bandPayloadSchema = lookupValue "BandPayload" componentsSchemas
+            lookupValue "type" bandPayloadSchema `shouldBe` Just (JSON.String "object")
+            (lookupValue "properties" bandPayloadSchema >>= lookupValue "bandId") `shouldSatisfy` isJust
 
         it "omits undocumented custom routes from the generated spec" $ withContextAndApp \_ -> do
             let spec = buildOpenApi RootApplication
             lookupPathOperation "/test/ShowCustom" "get" spec `shouldBe` Nothing
             lookupPathOperation "/custom/{performanceId}" "get" spec `shouldBe` Nothing
+
+        it "omits documented actions with customPathTo so generated paths cannot diverge" $ withContextAndApp \_ -> do
+            let spec = buildOpenApi RootApplication
+            lookupPathOperation "/test/ShowDocumentedCustomPath" "get" spec `shouldBe` Nothing
+            lookupPathOperation "/bands/{bandId}" "get" spec `shouldBe` Nothing

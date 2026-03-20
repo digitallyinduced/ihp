@@ -247,7 +247,6 @@ swaggerUiBootScript openApiUrlLiteral =
 
 jsonStringLiteral :: Text -> Text
 jsonStringLiteral = cs . LazyByteString.toStrict . JSON.encode
-
 openApiInfoValue :: OpenApiInfo -> JSON.Value
 openApiInfoValue OpenApiInfo { openApiTitle, openApiVersion, openApiDescription } = JSON.object
     ( [ Just ("title" JSON..= openApiTitle)
