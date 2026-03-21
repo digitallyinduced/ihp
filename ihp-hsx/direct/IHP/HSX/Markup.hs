@@ -35,6 +35,7 @@ import qualified Data.ByteString.Builder.Prim as BP
 import Data.String.Conversions (ConvertibleStrings, cs)
 import Data.String (IsString(..))
 import Data.Word (Word8)
+import Unsafe.Coerce (unsafeCoerce)
 
 -- | Efficient HTML markup type backed by ByteString Builder.
 -- Unlike Blaze's MarkupM, this does not build an intermediate tree.
@@ -68,7 +69,9 @@ instance Applicative MarkupM where
 
 instance Monad MarkupM where
     {-# INLINE (>>=) #-}
-    Markup a >>= f = let Markup b = f (error "IHP.HSX.Markup: MarkupM value should not be inspected") in Markup (a <> b)
+    -- The phantom value is never inspected (forM_ uses \_ -> ...).
+    -- unsafeCoerce avoids allocating an error thunk.
+    Markup a >>= f = let Markup b = f (unsafeCoerce ()) in Markup (a <> b)
     {-# INLINE (>>) #-}
     Markup a >> Markup b = Markup (a <> b)
 
