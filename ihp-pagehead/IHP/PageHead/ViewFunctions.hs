@@ -24,8 +24,9 @@ import System.IO.Unsafe (unsafePerformIO)
 import Network.Wai (Request)
 import IHP.PageHead.Types
 import IHP.PageHead.ControllerFunctions
-import IHP.HSX.QQ (hsx)
-import Text.Blaze.Html5 (Html)
+import IHP.HSX.MarkupQQ (hsx)
+import IHP.HSX.Markup (Markup)
+type Html = Markup
 
 -- | Returns the current page title. The title can be set using @setTitle "my title"@ from the action.
 --

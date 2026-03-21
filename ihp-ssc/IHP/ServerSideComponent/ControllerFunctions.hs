@@ -10,7 +10,7 @@ import IHP.ControllerPrelude
 import IHP.ServerSideComponent.Types as SSC
 
 import qualified Network.WebSockets as WebSocket
-import qualified Text.Blaze.Html.Renderer.Text as Blaze
+import IHP.HSX.Markup (renderMarkup)
 
 import qualified Data.Aeson as Aeson
 import qualified Data.Aeson.TH as Aeson
@@ -31,11 +31,11 @@ setState state = do
     oldState <- (.state) <$> readIORef ?instanceRef
     let oldHtml = oldState
             |> SSC.render
-            |> Blaze.renderHtml
+            |> renderMarkup
             |> cs
     let newHtml = state
             |> SSC.render
-            |> Blaze.renderHtml
+            |> renderMarkup
             |> cs
 
     modifyIORef' ?instanceRef (\componentInstance -> componentInstance { state })
