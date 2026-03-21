@@ -32,7 +32,7 @@ import qualified Data.ByteString.Lazy as LBS
 import Data.ByteString.Builder (Builder)
 import qualified Data.ByteString.Builder as Builder
 import qualified Data.ByteString.Builder.Prim as BP
-import Data.String.Conversions (cs)
+import Data.String.Conversions (ConvertibleStrings, cs)
 import Data.String (IsString(..))
 import Data.Word (Word8)
 
@@ -200,9 +200,9 @@ spreadAttributes = foldMap (\(name, value) -> applyAttribute name (" " <> name <
 {-# INLINE spreadAttributes #-}
 
 -- | Blaze compatibility: emit pre-escaped HTML (no escaping applied).
--- Use for trusted HTML content only.
-preEscapedToHtml :: Text -> Markup
-preEscapedToHtml = Markup . TE.encodeUtf8Builder
+-- Use for trusted HTML content only. Accepts Text, String, ByteString, etc.
+preEscapedToHtml :: ConvertibleStrings s Text => s -> Markup
+preEscapedToHtml = Markup . TE.encodeUtf8Builder . cs
 {-# INLINE preEscapedToHtml #-}
 
 -- | Blaze compatibility: pre-escaped text value for attributes.
