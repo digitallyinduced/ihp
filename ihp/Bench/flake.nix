@@ -64,7 +64,7 @@
                             -package ihp -package ihp-mail \
                             -Wno-partial-fields \
                             Main.hs -o forum-server \
-                            +RTS -s 2>ghc-rts-stats.txt
+                            +RTS -s -M8G -A128M 2>ghc-rts-stats.txt
 
                         # Extract compile allocations (deterministic metric)
                         grep 'bytes allocated in the heap' ghc-rts-stats.txt \
