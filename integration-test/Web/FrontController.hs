@@ -8,10 +8,12 @@ import Web.Types
 import Web.Routes ()
 import Web.Controller.Posts ()
 import Web.Job.UpdatePostViews ()
+import IHP.HSX.Markup (Markup)
+
 instance FrontController WebApplication where
     controllers = [ parseRoute @PostsController ]
 
-defaultLayout :: Layout
+defaultLayout :: Markup -> Markup
 defaultLayout inner = [hsx|
     <html>
         <body>{inner}</body>
