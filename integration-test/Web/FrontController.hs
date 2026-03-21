@@ -8,12 +8,10 @@ import Web.Types
 import Web.Routes ()
 import Web.Controller.Posts ()
 import Web.Job.UpdatePostViews ()
-import Text.Blaze.Html (Html)
-
 instance FrontController WebApplication where
     controllers = [ parseRoute @PostsController ]
 
-defaultLayout :: Html -> Html
+defaultLayout :: Layout
 defaultLayout inner = [hsx|
     <html>
         <body>{inner}</body>
