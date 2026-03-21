@@ -87,8 +87,12 @@
                         sort -t, -k2 -rn -o modules.csv modules.csv
                     '';
                     installPhase = ''
-                        mkdir -p $out/bin
+                        mkdir -p $out/bin $out/dumps
                         cp core-size modules.csv compile-allocations $out/
+                        cd dumps && find . -name '*.dump-simpl' | while read f; do
+                            mkdir -p "$out/dumps/$(dirname "$f")"
+                            cp "$f" "$out/dumps/$f"
+                        done && cd ..
                         cp forum-server $out/bin/
                         mkdir -p $out/Application
                         cp Application/Schema.sql $out/Application/

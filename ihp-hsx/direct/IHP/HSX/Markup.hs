@@ -48,7 +48,6 @@ newtype MarkupM a = Markup { getBuilder :: Builder }
 type Markup = MarkupM ()
 
 instance Semigroup (MarkupM a) where
-    {-# INLINE (<>) #-}
     Markup a <> Markup b = Markup (a <> b)
 
 instance Monoid (MarkupM a) where
@@ -95,7 +94,7 @@ renderMarkupBS = LBS.toStrict . renderMarkup
 -- | Emit pre-encoded bytes. Used for compile-time static HTML.
 rawByteString :: ByteString -> Markup
 rawByteString = Markup . Builder.byteString
-{-# INLINE rawByteString #-}
+{-# NOINLINE rawByteString #-}
 
 -- | Emit HTML-escaped text. NOINLINE to avoid duplicating the BoundedPrim
 -- escaping logic at every call site (each condB chain is ~70 Core terms).
@@ -126,7 +125,7 @@ htmlEscapedW8 =
 -- | Emit an HTML comment.
 textComment :: Text -> Markup
 textComment t = Markup (Builder.byteString "<!-- " <> TE.encodeUtf8Builder t <> Builder.byteString " -->")
-{-# INLINE textComment #-}
+{-# NOINLINE textComment #-}
 
 -- | Convert a value to HTML markup.
 class ToHtml a where
@@ -165,7 +164,7 @@ class ApplyAttribute value where
     applyAttribute :: Text -> Text -> value -> Markup
 
 instance ApplyAttribute Text where
-    {-# INLINE applyAttribute #-}
+    {-# NOINLINE applyAttribute #-}
     applyAttribute _name prefix value =
         Markup (TE.encodeUtf8Builder prefix <> TE.encodeUtf8BuilderEscaped htmlEscapedW8 value <> Builder.char8 '"')
 
@@ -178,7 +177,7 @@ instance ApplyAttribute ByteString where
     applyAttribute name prefix value = applyAttribute name prefix (cs value :: Text)
 
 instance ApplyAttribute Bool where
-    {-# INLINE applyAttribute #-}
+    {-# NOINLINE applyAttribute #-}
     applyAttribute name prefix True
         | "data-" `Text.isPrefixOf` name =
             Markup (TE.encodeUtf8Builder prefix <> Builder.byteString "true\"")
