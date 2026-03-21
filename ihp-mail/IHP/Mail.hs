@@ -23,10 +23,11 @@ import qualified Network.Mail.SMTP                    as SMTP
 import qualified Network.HTTP.Client
 import qualified Network.HTTP.Client.TLS
 import IHP.HSX.Markup (Markup, renderMarkup)
-type Html = Markup
 import qualified Data.Text as Text
 import Data.Maybe
 import qualified Data.TMap as TMap
+
+type Html = Markup
 
 buildMail :: (BuildMail mail, ?context :: context, ConfigProvider context) => mail -> Mail
 buildMail mail =
