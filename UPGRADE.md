@@ -178,10 +178,32 @@ nix build
 nix flake check --impure
 ```
 
-## 14. GHC 9.12 Support (Experimental)
+## 14. `postgresql-simple` → `hasql` Migration
 
-IHP now supports GHC 9.12 as an experimental opt-in. The default remains GHC 9.10 (binary-cached). To try GHC 9.12, see [Switching GHC Versions](https://ihp.digitallyinduced.com/Guide/package-management.html#switching-ghc-versions) in the Guide.
+All database access in IHP has been migrated from `postgresql-simple` to `hasql`. Applications using IHP's standard APIs (`fetch`, `query`, `createRecord`, `updateRecord`, etc.) are unaffected — the migration is internal.
 
+If your application uses `postgresql-simple` directly (importing `Database.PostgreSQL.Simple`), you need to migrate those call sites to use IHP's query builder or the new `typedSql` macro.
+
+## 15. `touchedFields` Bitmask Change
+
+The internal `touchedFields` representation changed from `[Text]` to an `Integer` bitmask for better performance. This is an internal change. If you have custom `SetField` instances or code that reads `touchedFields` directly, you will need to update it to use the bitmask API.
+
+## 16. `CSSFramework` Changes
+
+- `instance Default CSSFramework` has been removed. If you use `def` to get a CSS framework value, replace it with `unstyled`.
+- A new `styledLabelClass` field has been added to the `CSSFramework` record. If you define a custom CSS framework, add this field to your record.
+
+## 17. devenv v2.0
+
+devenv has been upgraded from v1.11.2 to v2.0.2. This should be transparent for most users. If you have custom `devenv.nix` configuration, consult the [devenv changelog](https://devenv.sh/changelog/) for any breaking changes.
+
+## 18. GHC 9.12 / 9.14 Support (Experimental)
+
+IHP now supports GHC 9.12 as an experimental opt-in, with GHC 9.14 compatibility checks also added. The default remains GHC 9.10 (binary-cached). To try GHC 9.12, see [Switching GHC Versions](https://ihp.digitallyinduced.com/Guide/package-management.html#switching-ghc-versions) in the Guide.
+
+## 19. Remove `RequestContext` Imports
+
+As noted in section 7, `RequestContext` has been removed. If you have `import IHP.Controller.RequestContext` in your code, remove the import. Any code referencing the `RequestContext` type or pattern matching on its constructors should be updated to use `?request` (for the WAI `Request`) or `?respond` (for the response callback) instead.
 
 ## AI Assisted Upgrade
 
