@@ -107,9 +107,50 @@ If you have custom view rendering functions or middleware that manually construc
 
 ## 7. `RequestContext` Removed
 
-The `RequestContext` type has been removed and replaced with WAI request vault storage and a `?respond` implicit parameter. The `ActionType` is now also stored in the WAI request vault.
+The `RequestContext` type, the `IHP.Controller.RequestContext` module, and the `?requestContext` implicit parameter have been removed. Their functionality is replaced by `?request`, `?respond`, and the WAI request vault.
 
-This is an internal change. Most applications are unaffected unless you directly imported or pattern-matched on `RequestContext`.
+In IHP 1.4, `IHP.ControllerPrelude` re-exported `IHP.Controller.RequestContext`, so every controller had access to `RequestContext`, `Respond`, and `RequestBody` types. These are now gone.
+
+**Remove explicit imports** if you have them:
+
+```diff
+-import IHP.Controller.RequestContext
+```
+
+**Update `InitControllerContext` instances** that reference `?requestContext`:
+
+```diff
+-instance InitControllerContext WebApplication where
+-    initContext = do
+-        let req = ?requestContext.request
++instance InitControllerContext WebApplication where
++    initContext = do
++        let req = ?request
+```
+
+**Update code using `RequestBody` pattern matching:**
+
+```diff
+-case ?context.requestContext.requestBody of
+-    RequestContext.JSONBody { rawPayload } -> ...
+-    RequestContext.FormBody { params, files } -> ...
++-- Use the provided helper functions instead:
++body <- getRequestBody       -- returns the raw body
++jsonBody <- requestBodyJSON   -- returns IO Aeson.Value
+```
+
+**Update `Respond` type references:**
+
+```diff
+-myFunction :: (?requestContext :: RequestContext) => ...
+-myFunction = do
+-    let respond = ?requestContext.respond
++myFunction :: (?respond :: (Response -> IO ResponseReceived)) => ...
++myFunction = do
++    let respond = ?respond
+```
+
+Most applications using standard IHP controller patterns (`action`, `render`, `redirectTo`, etc.) are unaffected — only custom middleware or low-level request handling code needs changes.
 
 ## 8. `Fixtures.sql` Now Optional
 
@@ -196,10 +237,6 @@ The internal `touchedFields` representation changed from `[Text]` to an `Integer
 ## 17. devenv v2.0
 
 devenv has been upgraded from v1.11.2 to v2.0.2. This should be transparent for most users. If you have custom `devenv.nix` configuration, consult the [devenv changelog](https://devenv.sh/changelog/) for any breaking changes.
-
-## 18. Remove `RequestContext` Imports
-
-As noted in section 7, `RequestContext` has been removed. If you have `import IHP.Controller.RequestContext` in your code, remove the import. Any code referencing the `RequestContext` type or pattern matching on its constructors should be updated to use `?request` (for the WAI `Request`) or `?respond` (for the response callback) instead.
 
 ## AI Assisted Upgrade
 
