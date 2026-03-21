@@ -94,10 +94,11 @@ rawByteString :: ByteString -> Markup
 rawByteString = Markup . Builder.byteString
 {-# INLINE rawByteString #-}
 
--- | Emit HTML-escaped text.
+-- | Emit HTML-escaped text. NOINLINE to avoid duplicating the BoundedPrim
+-- escaping logic at every call site (each condB chain is ~70 Core terms).
 escapeHtml :: Text -> Markup
 escapeHtml = Markup . TE.encodeUtf8BuilderEscaped htmlEscapedW8
-{-# INLINE escapeHtml #-}
+{-# NOINLINE escapeHtml #-}
 
 -- | BoundedPrim that escapes HTML special characters: & < > "
 -- Matches Blaze's escaping behavior.
