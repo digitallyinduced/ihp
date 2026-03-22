@@ -401,7 +401,7 @@ function initDatePicker() {
         flatpickr(el, {
             ...(el.dataset.enableTime ? {} : { enableTime: true }),
             ...(el.dataset.time_24hr ? {} : { time_24hr: true }),
-            ...(el.dataset.dateFormat ? {} : { dateFormat: 'Z' }),
+            ...(el.dataset.dateFormat ? {} : { dateFormat: 'Y-m-d\\TH:i' }),
             ...(el.dataset.altFormat ? {} : { altFormat: 'd.m.y, H:i' }),
             ...(el.dataset.altInput ? {} : { altInput: true }),
         });
