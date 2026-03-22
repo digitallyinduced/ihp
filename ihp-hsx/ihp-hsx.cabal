@@ -92,6 +92,7 @@ library ihp-hsx-parser
         IHP.HSX.Parser
         , IHP.HSX.HaskellParser
         , IHP.HSX.HsExpToTH
+        , IHP.HSX.QQCompiler
 
 library
     import: common-extensions, common-flags, common-depends
