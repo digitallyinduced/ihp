@@ -12,3 +12,4 @@ packages:
     wai-asset-path/
     wai-flash-messages/
     wai-request-params/
+    ihp-rowlevelsecurity/

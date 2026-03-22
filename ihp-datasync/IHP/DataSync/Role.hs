@@ -13,71 +13,39 @@ wrap it in a transaction and then use 'SET LOCAL ROLE ..' to switch to
 our second role for the duration of the transaction.
 
 -}
-module IHP.DataSync.Role where
+module IHP.DataSync.Role
+( -- * Re-exported from "IHP.RowLevelSecurity.Role"
+  ensureAuthenticatedRole
+, createAuthenticatedRole
+, grantPermissions
+, quoteIdentifier
+  -- * IHP-specific wrappers
+, authenticatedRole
+, ensureAuthenticatedRoleExists
+, ensureAuthenticatedRoleExistsWithRole
+, ensureAuthenticatedRoleSession
+) where
 
 import IHP.Prelude
 import IHP.FrameworkConfig
-import qualified Data.Text as Text
 import qualified Hasql.Pool
-import qualified Hasql.Decoders as Decoders
-import qualified Hasql.Encoders as Encoders
-import qualified Hasql.Statement as Statement
 import qualified Hasql.Session as Session
 import IHP.DataSync.Hasql (runSession)
 
--- Statements
+-- Re-exports from the dedicated package
+import IHP.RowLevelSecurity.Role
+    ( ensureAuthenticatedRole
+    , createAuthenticatedRole
+    , grantPermissions
+    , quoteIdentifier
+    )
 
-doesRoleExistsStatement :: Statement.Statement Text Bool
-doesRoleExistsStatement = Statement.preparable
-    "SELECT EXISTS(SELECT 1 FROM pg_roles WHERE rolname = $1 LIMIT 1)"
-    (Encoders.param (Encoders.nonNullable Encoders.text))
-    (Decoders.singleRow (Decoders.column (Decoders.nonNullable Decoders.bool)))
-
--- Sessions
-
+-- | Idempotent: ensure the role exists and has permissions.
+-- Reads the role name from 'FrameworkConfig'.
 ensureAuthenticatedRoleSession :: (?context :: context, ConfigProvider context) => Session.Session ()
-ensureAuthenticatedRoleSession = do
-    let role = authenticatedRole
-    roleExists <- Session.statement role doesRoleExistsStatement
-    unless roleExists (createAuthenticatedRoleSession role)
-    grantPermissionsSession role
+ensureAuthenticatedRoleSession = ensureAuthenticatedRole authenticatedRole
 
-createAuthenticatedRoleSession :: Text -> Session.Session ()
-createAuthenticatedRoleSession role = do
-    -- The role is only going to be used from 'SET ROLE ..' calls
-    -- Therefore we can disallow direct connection with NOLOGIN
-    Session.statement () (Statement.unpreparable
-        ("CREATE ROLE " <> quoteIdentifier role <> " NOLOGIN")
-        Encoders.noParams
-        Decoders.noResult)
-
-grantPermissionsSession :: Text -> Session.Session ()
-grantPermissionsSession role = do
-    -- From SO https://stackoverflow.com/a/17355059/14144232
-    --
-    -- GRANTs on different objects are separate. GRANTing on a database doesn't GRANT rights to the schema within. Similiarly, GRANTing on a schema doesn't grant rights on the tables within.
-    --
-    -- If you have rights to SELECT from a table, but not the right to see it in the schema that contains it then you can't access the table.
-    --
-    -- The rights tests are done in order:
-    --
-    -- Do you have `USAGE` on the schema?
-    --     No:  Reject access.
-    --     Yes: Do you also have the appropriate rights on the table?
-    --         No:  Reject access.
-    --         Yes: Check column privileges.
-
-    let exec sql = Session.statement () (Statement.unpreparable sql Encoders.noParams Decoders.noResult)
-
-    -- The role should have access to all existing tables in our schema
-    exec ("GRANT USAGE ON SCHEMA public TO " <> quoteIdentifier role)
-
-    -- The role should have access to all existing tables in our schema
-    exec ("GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA public TO " <> quoteIdentifier role)
-
-    -- Also grant access to all tables created in the future
-    exec ("ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL PRIVILEGES ON TABLES TO " <> quoteIdentifier role)
-
+-- | IO wrapper using the pool. Reads the role name from 'FrameworkConfig'.
 ensureAuthenticatedRoleExists :: (?context :: context, ConfigProvider context) => Hasql.Pool.Pool -> IO ()
 ensureAuthenticatedRoleExists pool = runSession pool ensureAuthenticatedRoleSession
 
@@ -85,15 +53,8 @@ ensureAuthenticatedRoleExists pool = runSession pool ensureAuthenticatedRoleSess
 -- instead of reading it from the framework config. Used by 'initHasqlPoolWithRLS'
 -- at config-build time when 'FrameworkConfig' is not yet available.
 ensureAuthenticatedRoleExistsWithRole :: Hasql.Pool.Pool -> Text -> IO ()
-ensureAuthenticatedRoleExistsWithRole pool role = runSession pool $ do
-    roleExists <- Session.statement role doesRoleExistsStatement
-    unless roleExists (createAuthenticatedRoleSession role)
-    grantPermissionsSession role
+ensureAuthenticatedRoleExistsWithRole pool role = runSession pool (ensureAuthenticatedRole role)
 
+-- | The authenticated role name from 'FrameworkConfig'.
 authenticatedRole :: (?context :: context, ConfigProvider context) => Text
 authenticatedRole = ?context.frameworkConfig.rlsAuthenticatedRole
-
--- | Quote a SQL identifier (role name, table name, etc.) to prevent SQL injection.
--- Escapes embedded double quotes by doubling them per SQL standard.
-quoteIdentifier :: Text -> Text
-quoteIdentifier name = "\"" <> Text.replace "\"" "\"\"" name <> "\""

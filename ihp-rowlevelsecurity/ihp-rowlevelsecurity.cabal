@@ -1,0 +1,47 @@
+cabal-version:       2.2
+name:                ihp-rowlevelsecurity
+version:             1.5.0
+synopsis:            PostgreSQL Row Level Security for hasql
+description:         Provides hasql statements, sessions, role management, and introspection for PostgreSQL Row Level Security (RLS). Used by IHP but has no dependency on the IHP web framework.
+license:             MIT
+license-file:        LICENSE
+author:              digitally induced GmbH
+maintainer:          support@digitallyinduced.com
+homepage:            https://ihp.digitallyinduced.com/
+bug-reports:         https://github.com/digitallyinduced/ihp/issues
+copyright:           (c) digitally induced GmbH
+category:            Database
+build-type:          Simple
+extra-source-files:  changelog.md
+
+source-repository head
+    type:     git
+    location: https://github.com/digitallyinduced/ihp
+
+library
+    default-language: GHC2021
+    default-extensions:
+        OverloadedStrings
+        OverloadedRecordDot
+        DuplicateRecordFields
+        DisambiguateRecordFields
+        BlockArguments
+        ScopedTypeVariables
+    ghc-options: -Werror=incomplete-patterns -Werror=unused-imports -Werror=missing-fields
+    build-depends:
+        base >= 4.17.0 && < 4.22
+      , text
+      , hasql >= 1.4
+      , hasql-pool >= 1.3
+      , hasql-transaction >= 0.10
+      , containers
+      , unordered-containers
+      , hashable
+    hs-source-dirs: .
+    exposed-modules:
+        IHP.RowLevelSecurity
+        IHP.RowLevelSecurity.Types
+        IHP.RowLevelSecurity.Statement
+        IHP.RowLevelSecurity.Session
+        IHP.RowLevelSecurity.Role
+        IHP.RowLevelSecurity.Introspection

@@ -71,6 +71,7 @@ let
             wai-request-params = hackageOrLocal "wai-request-params";
             ihp-imagemagick = hackageOrLocal "ihp-imagemagick";
             ihp-hspec = hackageOrLocal "ihp-hspec";
+            ihp-rowlevelsecurity = hackageOrLocal "ihp-rowlevelsecurity";
             ihp-welcome = hackageOrLocal "ihp-welcome";
 
             # Lazy session middleware: defer cookie decryption until first access,

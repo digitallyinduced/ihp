@@ -65,7 +65,8 @@ import Data.Scientific
 import GHC.Stack
 import qualified Hasql.Transaction as Tx
 import qualified Hasql.Transaction.Sessions as Tx
-import Data.Functor.Contravariant (contramap)
+import qualified IHP.RowLevelSecurity.Statement as RLS
+import qualified IHP.RowLevelSecurity.Session as RLS
 import Control.Concurrent (forkIO, MVar, newEmptyMVar, putMVar, takeMVar)
 import Control.Monad.IO.Class (liftIO)
 import Control.Monad.Error.Class (catchError)
@@ -308,20 +309,9 @@ sqlExecDiscardResult theQuery theParameters = do
 {-# INLINABLE sqlExecDiscardResult #-}
 
 
--- | Prepared statement that sets the RLS role and user id using set_config().
---
--- Uses @set_config(setting, value, is_local)@ which is a regular SQL function
--- that supports parameterized values in the extended query protocol, unlike
--- @SET LOCAL@ which is a utility command that cannot be parameterized.
---
--- The third argument @true@ makes the setting local to the current transaction,
--- equivalent to @SET LOCAL@.
+-- | Re-exported from "IHP.RowLevelSecurity.Statement".
 setRLSConfigStatement :: Hasql.Statement (Text, Text) ()
-setRLSConfigStatement = Hasql.preparable
-    "SELECT set_config('role', $1, true), set_config('rls.ihp_user_id', $2, true)"
-    (contramap fst (Encoders.param (Encoders.nonNullable Encoders.text))
-     <> contramap snd (Encoders.param (Encoders.nonNullable Encoders.text)))
-    (Decoders.singleRow (Decoders.column (Decoders.nullable Decoders.text) *> Decoders.column (Decoders.nullable Decoders.text) *> pure ()))
+setRLSConfigStatement = RLS.setRLSConfigStatement
 
 -- | Runs a hasql 'Hasql.Statement' directly on the pool.
 --
@@ -338,10 +328,8 @@ sqlStatementHasql pool input statement = do
     let ?context = ?modelContext
     let currentLogLevel = ?modelContext.logger.level
     let session = case (?modelContext.transactionRunner, ?modelContext.rowLevelSecurity) of
-            (Nothing, Just RowLevelSecurityContext { rlsAuthenticatedRole, rlsUserId }) ->
-                Tx.transaction Tx.ReadCommitted Tx.Read $ do
-                    Tx.statement (rlsAuthenticatedRole, rlsUserId) setRLSConfigStatement
-                    Tx.statement input statement
+            (Nothing, Just rlsContext) ->
+                RLS.withRLS rlsContext Tx.Read (Tx.statement input statement)
             _ ->
                 Hasql.statement input statement
     let runQuery = case ?modelContext.transactionRunner of
@@ -380,10 +368,8 @@ sqlExecStatement pool input statement = do
     let session = case (?modelContext.transactionRunner, ?modelContext.rowLevelSecurity) of
             (Just _, _) ->
                 Hasql.statement input statement
-            (Nothing, Just RowLevelSecurityContext { rlsAuthenticatedRole, rlsUserId }) ->
-                Tx.transaction Tx.ReadCommitted Tx.Write $ do
-                    Tx.statement (rlsAuthenticatedRole, rlsUserId) setRLSConfigStatement
-                    Tx.statement input statement
+            (Nothing, Just rlsContext) ->
+                RLS.withRLS rlsContext Tx.Write (Tx.statement input statement)
             _ ->
                 Hasql.statement input statement
     let runQuery = case ?modelContext.transactionRunner of
@@ -410,10 +396,8 @@ sqlExecHasqlCount pool snippet = do
     let currentLogLevel = ?modelContext.logger.level
     let statement = Snippet.toPreparableStatement snippet Decoders.rowsAffected
     let session = case (?modelContext.transactionRunner, ?modelContext.rowLevelSecurity) of
-            (Nothing, Just RowLevelSecurityContext { rlsAuthenticatedRole, rlsUserId }) ->
-                Tx.transaction Tx.ReadCommitted Tx.Write $ do
-                    Tx.statement (rlsAuthenticatedRole, rlsUserId) setRLSConfigStatement
-                    Tx.statement () statement
+            (Nothing, Just rlsContext) ->
+                RLS.withRLS rlsContext Tx.Write (Tx.statement () statement)
             _ ->
                 Hasql.statement () statement
     let runQuery = case ?modelContext.transactionRunner of
@@ -541,8 +525,7 @@ withTransaction block
     let transactionSession = do
             Hasql.script "BEGIN"
             case ?modelContext.rowLevelSecurity of
-                Just RowLevelSecurityContext { rlsAuthenticatedRole, rlsUserId } ->
-                    Hasql.statement (rlsAuthenticatedRole, rlsUserId) setRLSConfigStatement
+                Just rlsContext -> RLS.setRLSConfig rlsContext
                 Nothing -> pure ()
 
             -- Fork the user's block in a separate thread

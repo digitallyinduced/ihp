@@ -67,6 +67,7 @@ import GHC.Types
 import Data.Data
 import Data.Dynamic
 import IHP.Log.Types (Logger)
+import IHP.RowLevelSecurity.Types (RowLevelSecurityContext(..))
 
 -- | Runner that executes a hasql Session on the current transaction's connection
 newtype TransactionRunner = TransactionRunner
@@ -94,13 +95,6 @@ data ModelContext = ModelContext
     , trackTableReadCallback :: Maybe (Text -> IO ())
     -- | Is set to a value if row level security was enabled at runtime
     , rowLevelSecurity :: Maybe RowLevelSecurityContext
-    }
-
--- | When row level security is enabled at runtime, this keeps track of the current
--- logged in user and the postgresql role to switch to.
-data RowLevelSecurityContext = RowLevelSecurityContext
-    { rlsAuthenticatedRole :: Text -- ^ Default is @ihp_authenticated@. This value comes from the @IHP_RLS_AUTHENTICATED_ROLE@  env var.
-    , rlsUserId :: Text -- ^ The user id of the current logged in user
     }
 
 type family GetModelById id :: Type where
