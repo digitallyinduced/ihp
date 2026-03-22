@@ -25,7 +25,7 @@ buildPlan' schema config =
     in
         [ CreateFile { filePath = textToOsPath (config.applicationName <> "/Controller/" <> config.controllerName <> ".hs"), fileContent = (generateController schema config) }
         , AppendToFile { filePath = textToOsPath (config.applicationName <> "/Routes.hs"), fileContent = "\n" <> (controllerInstance config) }
-        , AppendToFile { filePath = textToOsPath (config.applicationName <> "/Types.hs"), fileContent = (generateControllerData config) }
+        , AppendToFile { filePath = textToOsPath (config.applicationName <> "/Types.hs"), fileContent = (generateControllerData schema config) }
         , AppendToMarker { marker = "-- Controller Imports", filePath = textToOsPath (config.applicationName <> "/FrontController.hs"), fileContent = ("import " <> config.applicationName <> ".Controller." <> config.controllerName) }
         , AppendToMarker { marker = "-- Generator Marker", filePath = textToOsPath (config.applicationName <> "/FrontController.hs"), fileContent = ("        , parseRoute @" <> config.controllerName <> "Controller") }
         ]
@@ -66,22 +66,30 @@ controllerInstance ControllerConfig { controllerName, modelName, applicationName
 
 data HaskellModule = HaskellModule { moduleName :: Text, body :: Text }
 
-generateControllerData :: ControllerConfig -> Text
-generateControllerData config =
+generateControllerData :: [Statement] -> ControllerConfig -> Text
+generateControllerData schema config =
     let
         name = config.controllerName
         pluralName = config.controllerName |> lcfirst |> pluralize |> ucfirst
         singularName = config.modelName |> lcfirst |> singularize |> ucfirst
+        modelVariableSingular = lcfirst singularName
         idFieldName = lcfirst singularName <> "Id"
         idType = "Id " <> singularName
+        tableFound = [ modelNameToTableName modelVariableSingular, modelVariableSingular ]
+                |> mapMaybe (columnsForTable schema)
+                |> headMay
+                |> isJust
+        idRecord suffix = if tableFound
+            then suffix <> " { " <> idFieldName <> " :: !(" <> idType <> ") }"
+            else suffix
         constructors = catMaybes
             [ if config.indexActionEnabled then Just (pluralName <> "Action") else Nothing
             , if config.newActionEnabled then Just ("New" <> singularName <> "Action") else Nothing
-            , if config.showActionEnabled then Just ("Show" <> singularName <> "Action { " <> idFieldName <> " :: !(" <> idType <> ") }") else Nothing
+            , if config.showActionEnabled then Just (idRecord $ "Show" <> singularName <> "Action") else Nothing
             , if config.createActionEnabled then Just ("Create" <> singularName <> "Action") else Nothing
-            , if config.editActionEnabled then Just ("Edit" <> singularName <> "Action { " <> idFieldName <> " :: !(" <> idType <> ") }") else Nothing
-            , if config.updateActionEnabled then Just ("Update" <> singularName <> "Action { " <> idFieldName <> " :: !(" <> idType <> ") }") else Nothing
-            , if config.deleteActionEnabled then Just ("Delete" <> singularName <> "Action { " <> idFieldName <> " :: !(" <> idType <> ") }") else Nothing
+            , if config.editActionEnabled then Just (idRecord $ "Edit" <> singularName <> "Action") else Nothing
+            , if config.updateActionEnabled then Just (idRecord $ "Update" <> singularName <> "Action") else Nothing
+            , if config.deleteActionEnabled then Just (idRecord $ "Delete" <> singularName <> "Action") else Nothing
             ]
         formattedConstructors = case constructors of
             (first:rest) ->
@@ -124,7 +132,7 @@ generateController schema config =
         model = ucfirst singularName
         paginationEnabled = config.paginationEnabled
 
-        actionBodyConfig = ActionBodyConfig { singularName, modelVariableSingular, idFieldName, model, indexAction = pluralName <> "Action" }
+        actionBodyConfig = ActionBodyConfig { singularName, modelVariableSingular, idFieldName, model, indexAction = pluralName <> "Action", tableFound }
 
         indexAction =
             ""
@@ -139,6 +147,12 @@ generateController schema config =
         newAction = generateNewActionBody actionBodyConfig
         showAction = generateShowActionBody actionBodyConfig
         editAction = generateEditActionBody actionBodyConfig
+
+        tableFound :: Bool
+        tableFound = [ modelNameToTableName modelVariableSingular, modelVariableSingular ]
+                |> mapMaybe (columnsForTable schema)
+                |> headMay
+                |> isJust
 
         modelColumns :: [Column]
         modelColumns = [ modelNameToTableName modelVariableSingular, modelVariableSingular ]

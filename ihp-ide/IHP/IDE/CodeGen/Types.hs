@@ -114,14 +114,20 @@ data ActionBodyConfig = ActionBodyConfig
     , idFieldName :: Text           -- ^ e.g. "userId"
     , model :: Text                 -- ^ e.g. "User"
     , indexAction :: Text           -- ^ redirect target for create/delete, e.g. "UsersAction"
+    , tableFound :: Bool            -- ^ whether the corresponding table exists in the schema
     }
 
 generateShowActionBody :: ActionBodyConfig -> Text
-generateShowActionBody config =
-    ""
-    <> "    action Show" <> config.singularName <> "Action { " <> config.idFieldName <> " } = do\n"
-    <> "        " <> config.modelVariableSingular <> " <- fetch " <> config.idFieldName <> "\n"
-    <> "        render ShowView { .. }\n"
+generateShowActionBody config
+    | config.tableFound =
+        ""
+        <> "    action Show" <> config.singularName <> "Action { " <> config.idFieldName <> " } = do\n"
+        <> "        " <> config.modelVariableSingular <> " <- fetch " <> config.idFieldName <> "\n"
+        <> "        render ShowView { .. }\n"
+    | otherwise =
+        ""
+        <> "    action Show" <> config.singularName <> "Action = do\n"
+        <> "        render ShowView { .. }\n"
 
 generateNewActionBody :: ActionBodyConfig -> Text
 generateNewActionBody config =
@@ -131,25 +137,43 @@ generateNewActionBody config =
     <> "        render NewView { .. }\n"
 
 generateEditActionBody :: ActionBodyConfig -> Text
-generateEditActionBody config =
-    ""
-    <> "    action Edit" <> config.singularName <> "Action { " <> config.idFieldName <> " } = do\n"
-    <> "        " <> config.modelVariableSingular <> " <- fetch " <> config.idFieldName <> "\n"
-    <> "        render EditView { .. }\n"
+generateEditActionBody config
+    | config.tableFound =
+        ""
+        <> "    action Edit" <> config.singularName <> "Action { " <> config.idFieldName <> " } = do\n"
+        <> "        " <> config.modelVariableSingular <> " <- fetch " <> config.idFieldName <> "\n"
+        <> "        render EditView { .. }\n"
+    | otherwise =
+        ""
+        <> "    action Edit" <> config.singularName <> "Action = do\n"
+        <> "        render EditView { .. }\n"
 
 generateUpdateActionBody :: ActionBodyConfig -> Text
-generateUpdateActionBody config =
-    ""
-    <> "    action Update" <> config.singularName <> "Action { " <> config.idFieldName <> " } = do\n"
-    <> "        " <> config.modelVariableSingular <> " <- fetch " <> config.idFieldName <> "\n"
-    <> "        " <> config.modelVariableSingular <> "\n"
-    <> "            |> build" <> config.singularName <> "\n"
-    <> "            |> ifValid \\case\n"
-    <> "                Left " <> config.modelVariableSingular <> " -> render EditView { .. }\n"
-    <> "                Right " <> config.modelVariableSingular <> " -> do\n"
-    <> "                    " <> config.modelVariableSingular <> " <- " <> config.modelVariableSingular <> " |> updateRecord\n"
-    <> "                    setSuccessMessage \"" <> config.model <> " updated\"\n"
-    <> "                    redirectTo Edit" <> config.singularName <> "Action { .. }\n"
+generateUpdateActionBody config
+    | config.tableFound =
+        ""
+        <> "    action Update" <> config.singularName <> "Action { " <> config.idFieldName <> " } = do\n"
+        <> "        " <> config.modelVariableSingular <> " <- fetch " <> config.idFieldName <> "\n"
+        <> "        " <> config.modelVariableSingular <> "\n"
+        <> "            |> build" <> config.singularName <> "\n"
+        <> "            |> ifValid \\case\n"
+        <> "                Left " <> config.modelVariableSingular <> " -> render EditView { .. }\n"
+        <> "                Right " <> config.modelVariableSingular <> " -> do\n"
+        <> "                    " <> config.modelVariableSingular <> " <- " <> config.modelVariableSingular <> " |> updateRecord\n"
+        <> "                    setSuccessMessage \"" <> config.model <> " updated\"\n"
+        <> "                    redirectTo Edit" <> config.singularName <> "Action { .. }\n"
+    | otherwise =
+        ""
+        <> "    action Update" <> config.singularName <> "Action = do\n"
+        <> "        let " <> config.modelVariableSingular <> " = newRecord\n"
+        <> "        " <> config.modelVariableSingular <> "\n"
+        <> "            |> build" <> config.singularName <> "\n"
+        <> "            |> ifValid \\case\n"
+        <> "                Left " <> config.modelVariableSingular <> " -> render EditView { .. }\n"
+        <> "                Right " <> config.modelVariableSingular <> " -> do\n"
+        <> "                    " <> config.modelVariableSingular <> " <- " <> config.modelVariableSingular <> " |> updateRecord\n"
+        <> "                    setSuccessMessage \"" <> config.model <> " updated\"\n"
+        <> "                    redirectTo Edit" <> config.singularName <> "Action\n"
 
 generateCreateActionBody :: ActionBodyConfig -> Text
 generateCreateActionBody config =
@@ -166,10 +190,16 @@ generateCreateActionBody config =
     <> "                    redirectTo " <> config.indexAction <> "\n"
 
 generateDeleteActionBody :: ActionBodyConfig -> Text
-generateDeleteActionBody config =
-    ""
-    <> "    action Delete" <> config.singularName <> "Action { " <> config.idFieldName <> " } = do\n"
-    <> "        " <> config.modelVariableSingular <> " <- fetch " <> config.idFieldName <> "\n"
-    <> "        deleteRecord " <> config.modelVariableSingular <> "\n"
-    <> "        setSuccessMessage \"" <> config.model <> " deleted\"\n"
-    <> "        redirectTo " <> config.indexAction <> "\n"
+generateDeleteActionBody config
+    | config.tableFound =
+        ""
+        <> "    action Delete" <> config.singularName <> "Action { " <> config.idFieldName <> " } = do\n"
+        <> "        " <> config.modelVariableSingular <> " <- fetch " <> config.idFieldName <> "\n"
+        <> "        deleteRecord " <> config.modelVariableSingular <> "\n"
+        <> "        setSuccessMessage \"" <> config.model <> " deleted\"\n"
+        <> "        redirectTo " <> config.indexAction <> "\n"
+    | otherwise =
+        ""
+        <> "    action Delete" <> config.singularName <> "Action = do\n"
+        <> "        setSuccessMessage \"" <> config.model <> " deleted\"\n"
+        <> "        redirectTo " <> config.indexAction <> "\n"

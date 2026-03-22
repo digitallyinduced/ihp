@@ -187,6 +187,9 @@ library
         , IHP.ValidationSupport.ValidateField
         , IHP.ValidationSupport.ValidateIsUnique
         , IHP.View.Form
+        , IHP.View.Form.Fields
+        , IHP.View.Form.FormFor
+        , IHP.View.Form.Select
         , IHP.View.TimeAgo
         , IHP.RequestVault
         , IHP.RequestVault.Helper

@@ -265,7 +265,34 @@ timeAgo post.createdAt -- "1 minute ago"
 dateTime post.createdAt -- "10.6.2019, 15:58"
 ```
 
-### Customizing Delete Confirmation
+### Delete Buttons
+
+Delete actions require a DELETE HTTP method, but browsers can only send GET and POST from plain HTML. There are two ways to handle this in IHP.
+
+#### Explicit Form Approach
+
+The most transparent way is to use a form with a hidden `_method` field. IHP's [Method Override Middleware](routing.html#method-override-middleware) converts this POST into a DELETE request:
+
+```haskell
+<form method="POST" action={DeleteToolAction tool.id}>
+    <input type="hidden" name="_method" value="DELETE"/>
+    <button type="submit" class="btn btn-danger">Delete Tool</button>
+</form>
+```
+
+This works without JavaScript and makes the HTTP method explicit.
+
+#### `js-delete` Shorthand
+
+IHP's generated code uses a shorthand: adding the `js-delete` CSS class to a link. IHP's JavaScript helpers intercept the click and submit a proper DELETE request via a dynamically created form:
+
+```haskell
+<a href={DeleteToolAction tool.id} class="js-delete">Delete Tool</a>
+```
+
+This is convenient but requires JavaScript. Note that `js-delete` is a special case — you cannot use plain links for other side-effect actions. See the [Actions with Side Effects](form.html#actions-with-side-effects) section in the Forms guide for details.
+
+#### Customizing Delete Confirmation
 
 By default, a message `Are you sure you want to delete this?` is shown as a simple confirmation alert with yes/no choices. The message text can be customized:
 

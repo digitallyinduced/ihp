@@ -19,7 +19,83 @@ After updating your project, please consult the segments from your current relea
 
     Visit https://ihp.digitallyinduced.com/Builds and copy the latest v1.5 URL into your `flake.nix`.
 
-## 2. Remake Env
+## 2. Update `.envrc`
+
+Replace your `.envrc` with the new devenv-root pattern:
+
+```bash
+#!/usr/bin/env bash
+# See https://github.com/cachix/devenv/blob/main/templates/flake-parts/.envrc
+
+if ! has nix_direnv_version || ! nix_direnv_version 3.1.0; then
+    source_url "https://raw.githubusercontent.com/nix-community/nix-direnv/3.1.0/direnvrc" "sha256-yMJ2OVMzrFaDPn7q8nCBZFRYpL/f0RcHzhmw/i6btJM="
+fi
+
+export DEVENV_IN_DIRENV_SHELL=true
+
+watch_file flake.nix
+watch_file flake.lock
+
+mkdir -p "$PWD/.devenv"
+DEVENV_ROOT_FILE="$PWD/.devenv/root"
+printf %s "$PWD" >"$DEVENV_ROOT_FILE"
+if ! use flake . --override-input devenv-root "file+file://$DEVENV_ROOT_FILE" --accept-flake-config; then
+    echo "devenv could not be built. The devenv environment was not loaded. Make the necessary changes to devenv.nix and hit enter to try again." >&2
+fi
+
+# Include .env file if it exists locally. Use the .env file to load env vars that you don't want to commit to git
+if [ -f .env ]
+then
+    dotenv .env
+fi
+```
+
+## 3. Update `flake.nix`
+
+Add the `devenv-root` input to your `flake.nix` inputs:
+
+```diff
+     inputs = {
+         ihp.url = "github:digitallyinduced/ihp/v1.5";
+         flake-parts.follows = "ihp/flake-parts";
+         devenv.follows = "ihp/devenv";
+         systems.follows = "ihp/systems";
++        devenv-root = {
++            url = "file+file:///dev/null";
++            flake = false;
++        };
+     };
+```
+
+Also enable the binary caches for faster builds by adding/updating the `nixConfig` at the bottom of `flake.nix`:
+
+```nix
+    nixConfig = {
+        extra-substituters = [
+            "https://devenv.cachix.org"
+            "https://cachix.cachix.org"
+            "https://digitallyinduced.cachix.org"
+        ];
+        extra-trusted-public-keys = [
+            "devenv.cachix.org-1:w1cLUi8dv3hnoSPGAuibQv+f9TZLr6cv/Hm9XgU50cw="
+            "cachix.cachix.org-1:eWNHQldwUO7G2VkjpnjDbWwy4KQ/HNxht7H4SSoMckM="
+            "digitallyinduced.cachix.org-1:y+wQvrnxQ+PdEsCt91rmvv39qRCYzEgGQaldK26hCKE="
+        ];
+    };
+```
+
+## 4. Update `hie.yaml`
+
+Add `/bin/sh` prefix to the bios shell command:
+
+```diff
+ cradle:
+     bios:
+-        shell: "$IHP/.hie-bios"
++        shell: "/bin/sh $IHP/.hie-bios"
+```
+
+## 5. Remake Env
 
 Run the following commands:
 
@@ -30,7 +106,7 @@ direnv reload
 
 Now you can start your project as usual with `devenv up`.
 
-## 3. Bootstrap 5 Migration
+## 6. Bootstrap 5 Migration
 
 IHP 1.5 upgrades the bundled frontend dependencies:
 
@@ -86,7 +162,7 @@ Bootstrap 5 namespaces its data attributes with `bs`:
 
 jQuery 4.0.0 drops support for some deprecated APIs. If you use jQuery directly, review the [jQuery 4.0 upgrade guide](https://jquery.com/upgrade-guide/4.0/). Old jQuery versions are still included in `ihp-static` for backwards compatibility during migration.
 
-## 4. `addStyle` Removed
+## 7. `addStyle` Removed
 
 The `addStyle` function has been removed. Replace usage with inline `<style>` tags in your HSX:
 
@@ -95,27 +171,68 @@ The `addStyle` function has been removed. Replace usage with inline `<style>` ta
 +[hsx|<style>body { background: red; }</style>|]
 ```
 
-## 5. `toSlug` Now Uses `slugger` Package
+## 8. `toSlug` Now Uses `slugger` Package
 
 The `toSlug` function now uses the `slugger` package instead of IHP's custom implementation. The behavior is mostly compatible, but edge cases (special characters, Unicode handling) may differ slightly. If you depend on exact slug output, test your slugs after upgrading.
 
-## 6. `?request` Implicit Parameter
+## 9. `?request` Implicit Parameter
 
 A new `?request :: Request` implicit parameter is now available alongside `?context`. This provides direct access to the WAI `Request` object.
 
 If you have custom view rendering functions or middleware that manually constructs the implicit parameter environment, you may need to add `?request` to the implicit parameter constraints. Most applications using standard IHP patterns are unaffected.
 
-## 7. `RequestContext` Removed
+## 10. `RequestContext` Removed
 
-The `RequestContext` type has been removed and replaced with WAI request vault storage and a `?respond` implicit parameter. The `ActionType` is now also stored in the WAI request vault.
+The `RequestContext` type, the `IHP.Controller.RequestContext` module, and the `?requestContext` implicit parameter have been removed. Their functionality is replaced by `?request`, `?respond`, and the WAI request vault.
 
-This is an internal change. Most applications are unaffected unless you directly imported or pattern-matched on `RequestContext`.
+In IHP 1.4, `IHP.ControllerPrelude` re-exported `IHP.Controller.RequestContext`, so every controller had access to `RequestContext`, `Respond`, and `RequestBody` types. These are now gone.
 
-## 8. `Fixtures.sql` Now Optional
+**Remove explicit imports** if you have them:
+
+```diff
+-import IHP.Controller.RequestContext
+```
+
+**Update `InitControllerContext` instances** that reference `?requestContext`:
+
+```diff
+-instance InitControllerContext WebApplication where
+-    initContext = do
+-        let req = ?requestContext.request
++instance InitControllerContext WebApplication where
++    initContext = do
++        let req = ?request
+```
+
+**Update code using `RequestBody` pattern matching:**
+
+```diff
+-case ?context.requestContext.requestBody of
+-    RequestContext.JSONBody { rawPayload } -> ...
+-    RequestContext.FormBody { params, files } -> ...
++-- Use the provided helper functions instead:
++body <- getRequestBody       -- returns the raw body
++jsonBody <- requestBodyJSON   -- returns IO Aeson.Value
+```
+
+**Update `Respond` type references:**
+
+```diff
+-myFunction :: (?requestContext :: RequestContext) => ...
+-myFunction = do
+-    let respond = ?requestContext.respond
++myFunction :: (?respond :: (Response -> IO ResponseReceived)) => ...
++myFunction = do
++    let respond = ?respond
+```
+
+Most applications using standard IHP controller patterns (`action`, `render`, `redirectTo`, etc.) are unaffected — only custom middleware or low-level request handling code needs changes.
+
+## 11. `Fixtures.sql` Now Optional
 
 `Application/Fixtures.sql` is no longer required to exist. If your project doesn't use fixtures, you can safely delete this file.
 
-## 9. Internal Packages Extracted from `ihp`
+## 12. Internal Packages Extracted from `ihp`
 
 Several internal modules have been extracted into separate packages. This should not affect most applications as they are re-exported through the standard preludes. However, if you import these modules directly, you may need to add the corresponding package to your dependencies:
 
@@ -151,19 +268,19 @@ The welcome page controller has been moved to its own package `ihp-welcome`. If 
 
 Most production applications don't use the welcome controller and can safely ignore this change.
 
-## 10. OsPath Migration
+## 13. OsPath Migration
 
 IHP internally now uses `OsPath` instead of `FilePath` for file system operations. This is an internal change and most applications are unaffected. If you use IHP internal file APIs directly (e.g., code generator types), you may need to update `FilePath` references to `OsPath`.
 
-## 11. `Generated.ActualTypes` Split
+## 14. `Generated.ActualTypes` Split
 
 The generated `Types.hs` / `Generated.ActualTypes` module is now split into per-table modules for parallel compilation. This is transparent to application code — all types are still re-exported from the same locations. This change improves compile times for projects with many database tables.
 
-## 12. `compileRelationSupport` Flag
+## 15. `compileRelationSupport` Flag
 
 A new `compileRelationSupport` flag has been added to the schema compiler. Setting it to `False` disables generation of relation type machinery (`Include`, `fetch` relations, etc.), which can significantly speed up compilation for large schemas where you don't use `fetch` relations. To use this, add `relationSupport = false;` to the `ihp` section of your `flake.nix`.
 
-## 13. Deprecated Makefile Targets
+## 16. Deprecated Makefile Targets
 
 Several Makefile targets (`build/bin/RunUnoptimizedProdServer`, etc.) have been deprecated. Use `nix build` instead:
 
@@ -178,10 +295,24 @@ nix build
 nix flake check --impure
 ```
 
-## 14. GHC 9.12 Support (Experimental)
+## 17. `postgresql-simple` → `hasql` Migration
 
-IHP now supports GHC 9.12 as an experimental opt-in. The default remains GHC 9.10 (binary-cached). To try GHC 9.12, see [Switching GHC Versions](https://ihp.digitallyinduced.com/Guide/package-management.html#switching-ghc-versions) in the Guide.
+All database access in IHP has been migrated from `postgresql-simple` to `hasql`. Applications using IHP's standard APIs (`fetch`, `query`, `createRecord`, `updateRecord`, etc.) are unaffected — the migration is internal.
 
+If your application uses `postgresql-simple` directly (importing `Database.PostgreSQL.Simple`), you need to migrate those call sites to use IHP's query builder or the new `typedSql` macro.
+
+## 18. `touchedFields` Bitmask Change
+
+The internal `touchedFields` representation changed from `[Text]` to an `Integer` bitmask for better performance. This is an internal change. If you have custom `SetField` instances or code that reads `touchedFields` directly, you will need to update it to use the bitmask API.
+
+## 19. `CSSFramework` Changes
+
+- `instance Default CSSFramework` has been removed. If you use `def` to get a CSS framework value, replace it with `unstyled`.
+- A new `styledLabelClass` field has been added to the `CSSFramework` record. If you define a custom CSS framework, add this field to your record.
+
+## 20. devenv v2.0
+
+devenv has been upgraded from v1.11.2 to v2.0.2. This should be transparent for most users. If you have custom `devenv.nix` configuration, consult the [devenv changelog](https://devenv.sh/changelog/) for any breaking changes.
 
 ## AI Assisted Upgrade
 

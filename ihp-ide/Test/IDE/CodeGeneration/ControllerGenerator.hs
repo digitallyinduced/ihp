@@ -27,6 +27,12 @@ tests = do
                             , (col "email" PText) { notNull = True }
                         ]
                         , primaryKeyConstraint = PrimaryKeyConstraint ["id"]
+                    },
+                    StatementCreateTable (table "page_comments") {
+                        columns = [
+                            (col "id" PUUID) { defaultValue = Just (CallExpression "uuid_generate_v4" []), notNull = True }
+                        ]
+                        , primaryKeyConstraint = PrimaryKeyConstraint ["id"]
                     }
                 ]
 
@@ -267,3 +273,28 @@ tests = do
                     |> filter (\case CreateFile { filePath } -> "View" `isInfixOf` osPathToText filePath; _ -> False)
                     |> map (\(CreateFile { filePath }) -> osPathToText filePath)
             viewFiles `shouldBe` ["Web/View/Pages/Index.hs", "Web/View/Pages/Show.hs"]
+
+        it "should not generate Id fields when table doesn't exist in schema" do
+            let emptySchema = []
+            let rawControllerName = "bars"
+            let controllerName = tableNameToControllerName rawControllerName
+            let modelName = tableNameToModelName rawControllerName
+            let applicationName = "Web"
+            let pagination = False
+            let builtPlan = ControllerGenerator.buildPlan' emptySchema (makeConfig controllerName modelName applicationName pagination)
+
+            -- Types.hs should not contain barId or Id Bar
+            let [AppendToFile { fileContent = typesFileContent }] = builtPlan
+                    |> filter (\case AppendToFile { filePath } -> osPathToText filePath == "Web/Types.hs"; _ -> False)
+            let typesContent = cs typesFileContent :: String
+            typesContent `shouldNotContain` "barId"
+            typesContent `shouldNotContain` "Id Bar"
+            typesContent `shouldContain` "ShowBarAction\n"
+            typesContent `shouldContain` "EditBarAction\n"
+            typesContent `shouldContain` "UpdateBarAction\n"
+            typesContent `shouldContain` "DeleteBarAction\n"
+
+            -- Controller file should not contain { barId } destructuring or fetch barId
+            let (CreateFile { fileContent = controllerContent }):_ = builtPlan
+            (cs controllerContent :: String) `shouldNotContain` "barId"
+            (cs controllerContent :: String) `shouldNotContain` "fetch barId"
