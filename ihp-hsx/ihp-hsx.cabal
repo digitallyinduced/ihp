@@ -123,12 +123,6 @@ library ihp-hsx-direct
     exposed-modules:
         IHP.HSX.StrictMarkup
         , IHP.HSX.StrictMarkupQQ
-        , IHP.HSX.TextMarkup
-        , IHP.HSX.TextMarkupQQ
-        , IHP.HSX.ShortMarkup
-        , IHP.HSX.ShortMarkupQQ
-        , IHP.HSX.LazyMarkup
-        , IHP.HSX.LazyMarkupQQ
     reexported-modules:
         IHP.HSX.Parser
         , IHP.HSX.HaskellParser
