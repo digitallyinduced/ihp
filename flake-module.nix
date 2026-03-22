@@ -404,6 +404,8 @@ ihpFlake:
                     exec env IHP_STATIC=${ihpFlake.inputs.self.packages.${system}.ihp-static} ${ghcCompiler.ihp-ide}/bin/RunDevServer
                 '';
 
+                process.manager.implementation = "process-compose";
+
                 processes.ihp.exec = "start";
 
                 # Disabled for now
