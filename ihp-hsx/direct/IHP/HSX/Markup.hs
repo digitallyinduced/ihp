@@ -31,6 +31,7 @@ import Data.ByteString (ByteString)
 import qualified Data.ByteString.Lazy as LBS
 import Data.ByteString.Builder (Builder)
 import qualified Data.ByteString.Builder as Builder
+import qualified Data.ByteString.Builder.Extra as Extra
 import qualified Data.ByteString.Builder.Prim as BP
 import Data.String.Conversions (ConvertibleStrings, cs)
 import Data.String (IsString(..))
@@ -82,13 +83,19 @@ instance Show Markup where
     show m = cs (renderMarkup m)
 
 -- | Render markup to a lazy ByteString.
+-- Uses 32KB untrimmed buffers: fewer, larger chunks means less overhead for
+-- warp's response sending and for 'evaluate . length' in respondHtml.
 renderMarkup :: Markup -> LBS.ByteString
-renderMarkup (Markup b) = Builder.toLazyByteString b
+renderMarkup (Markup b) = Extra.toLazyByteStringWith
+    (Extra.untrimmedStrategy 32768 32768) LBS.empty b
 {-# INLINE renderMarkup #-}
 
 -- | Render markup to a strict ByteString.
+-- Uses 32KB untrimmed first buffer so typical HTML pages (< 32KB) fit in a
+-- single chunk, making the toStrict conversion zero-copy.
 renderMarkupBS :: Markup -> ByteString
-renderMarkupBS = LBS.toStrict . renderMarkup
+renderMarkupBS (Markup b) = LBS.toStrict
+    $ Extra.toLazyByteStringWith (Extra.untrimmedStrategy 32768 32768) LBS.empty b
 {-# INLINE renderMarkupBS #-}
 
 -- | Emit pre-encoded bytes. Used for compile-time static HTML.

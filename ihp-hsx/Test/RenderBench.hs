@@ -12,10 +12,12 @@ import Text.Blaze.Html (Html)
 import qualified Text.Blaze.Html.Renderer.Utf8 as Utf8
 import qualified Data.ByteString as BS
 import qualified Data.ByteString.Lazy as LBS
+import qualified Data.ByteString.Builder as Builder (hPutBuilder)
 import Data.Text (Text)
 import qualified Data.Text as Text
 import Test.Tasty.Bench
 import Control.DeepSeq (NFData(..), rnf)
+import System.IO (Handle, IOMode(..), openBinaryFile)
 
 -- Force evaluation
 forceLBS :: LBS.ByteString -> ()
@@ -33,9 +35,26 @@ renderDirect :: Direct.Markup -> LBS.ByteString
 renderDirect = Direct.renderMarkup
 {-# NOINLINE renderDirect #-}
 
+renderDirectBS :: Direct.Markup -> BS.ByteString
+renderDirectBS = Direct.renderMarkupBS
+{-# NOINLINE renderDirectBS #-}
+
 renderStrict :: Strict.Markup -> BS.ByteString
 renderStrict = Strict.renderMarkupBS
 {-# NOINLINE renderStrict #-}
+
+-- Write renderers (simulate sending response via Handle)
+writeBlazeToHandle :: Handle -> Html -> IO ()
+writeBlazeToHandle h html = LBS.hPut h (renderBlaze html)
+{-# NOINLINE writeBlazeToHandle #-}
+
+writeDirectToHandle :: Handle -> Direct.Markup -> IO ()
+writeDirectToHandle h markup = LBS.hPut h (renderDirect markup)
+{-# NOINLINE writeDirectToHandle #-}
+
+writeDirectHPutBuilder :: Handle -> Direct.Markup -> IO ()
+writeDirectHPutBuilder h (Direct.Markup b) = Builder.hPutBuilder h b
+{-# NOINLINE writeDirectHPutBuilder #-}
 
 -- ============================================================
 -- Blaze benchmarks
@@ -328,6 +347,205 @@ strictRenderTable rows = [Strict.hsx|
 |]
 {-# NOINLINE strictRenderTable #-}
 
+-- ============================================================
+-- Real-world: forum thread listing page (modeled after ihp-forum)
+-- ============================================================
+
+data ThreadData = ThreadData
+    { threadTitle :: !Text
+    , threadBody :: !Text
+    , threadAuthor :: !Text
+    , threadTopic :: !Text
+    , threadDate :: !Text
+    }
+
+sampleThreads :: Int -> [ThreadData]
+sampleThreads n = take n $ cycle
+    [ ThreadData "How to deploy IHP to production?" "I've been building an app with IHP and I'm ready to deploy. What are the recommended options for hosting?" "alice" "Deployment" "2024-01-15"
+    , ThreadData "Best practices for database migrations" "When working with a team, what's the best workflow for handling Schema.sql changes and migrations?" "bob" "Database" "2024-01-14"
+    , ThreadData "Custom middleware in IHP" "I need to add rate limiting to my API endpoints. How do I write custom WAI middleware that integrates with IHP?" "charlie" "Advanced" "2024-01-13"
+    , ThreadData "HSX performance tips" "Are there any tips for making HSX templates render faster? My pages have large tables." "diana" "Performance" "2024-01-12"
+    , ThreadData "WebSocket support in IHP" "Does IHP support WebSockets out of the box? I want to build a real-time chat feature." "eve" "Features" "2024-01-11"
+    ]
+
+-- Direct backend
+directForumPage :: [ThreadData] -> Direct.Markup
+directForumPage threads = [Direct.hsx|
+    <!DOCTYPE html>
+    <html lang="en">
+    <head>
+        <meta charset="utf-8"/>
+        <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no"/>
+        <title>IHP Forum</title>
+        <link rel="stylesheet" href="/vendor/bootstrap.min.css"/>
+        <link rel="stylesheet" href="/app.css"/>
+    </head>
+    <body>
+        <nav class="navbar navbar-expand-lg navbar-light bg-light">
+            <div class="container">
+                <a class="navbar-brand" href="/">IHP Forum</a>
+                <button class="navbar-toggler" type="button" data-toggle="collapse" data-target="#navbarNav">
+                    <span class="navbar-toggler-icon"></span>
+                </button>
+                <div class="collapse navbar-collapse" id="navbarNav">
+                    <ul class="navbar-nav mr-auto">
+                        <li class="nav-item active"><a class="nav-link" href="/">Start</a></li>
+                        <li class="nav-item"><a class="nav-link" href="/Topics">Topics</a></li>
+                    </ul>
+                    <ul class="navbar-nav">
+                        <li class="nav-item"><a class="nav-link" href="/NewThread">New Thread</a></li>
+                        <li class="nav-item dropdown">
+                            <a class="nav-link dropdown-toggle" href="#" data-toggle="dropdown">alice</a>
+                            <div class="dropdown-menu dropdown-menu-right">
+                                <a class="dropdown-item" href="/EditUser">Update Profile</a>
+                                <a class="dropdown-item" href="/DeleteSession">Logout</a>
+                            </div>
+                        </li>
+                    </ul>
+                </div>
+            </div>
+        </nav>
+        <div class="container mt-4">
+            <div class="threads">
+                {directForEach threads directRenderThread}
+            </div>
+        </div>
+        <footer class="mt-5 py-4 bg-dark text-light">
+            <div class="container">
+                <div class="row">
+                    <div class="col-md-4">
+                        <h5>IHP Forum</h5>
+                        <p>A community forum built with IHP</p>
+                    </div>
+                    <div class="col-md-4">
+                        <h5>Links</h5>
+                        <ul class="list-unstyled">
+                            <li><a href="https://ihp.digitallyinduced.com/" class="text-light">IHP Website</a></li>
+                            <li><a href="https://github.com/digitallyinduced/ihp" class="text-light">GitHub</a></li>
+                            <li><a href="https://ihp.digitallyinduced.com/api-docs" class="text-light">API Docs</a></li>
+                        </ul>
+                    </div>
+                    <div class="col-md-4">
+                        <p class="text-muted">Powered by IHP &amp; Haskell</p>
+                    </div>
+                </div>
+            </div>
+        </footer>
+        <script src="/vendor/jquery-3.6.0.slim.min.js"></script>
+        <script src="/vendor/bootstrap.min.js"></script>
+        <script src="/app.js"></script>
+    </body>
+    </html>
+|]
+{-# NOINLINE directForumPage #-}
+
+directRenderThread :: ThreadData -> Direct.Markup
+directRenderThread thread = [Direct.hsx|
+    <div class="thread mb-3 p-3 border rounded">
+        <a class="thread-title h5 text-decoration-none" href="/ShowThread">
+            {thread.threadTitle}
+        </a>
+        <div class="thread-body text-muted mt-1">
+            {thread.threadBody}
+        </div>
+        <div class="text-muted small mt-2">
+            <a class="text-muted" href="/ShowUser">{thread.threadAuthor}</a>
+            , {thread.threadDate}
+            <span class="ml-1">in <a href="/ShowTopic" class="text-muted">{thread.threadTopic}</a></span>
+        </div>
+    </div>
+|]
+{-# NOINLINE directRenderThread #-}
+
+-- Blaze backend
+blazeForumPage :: [ThreadData] -> Html
+blazeForumPage threads = [Blaze.hsx|
+    <!DOCTYPE html>
+    <html lang="en">
+    <head>
+        <meta charset="utf-8"/>
+        <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no"/>
+        <title>IHP Forum</title>
+        <link rel="stylesheet" href="/vendor/bootstrap.min.css"/>
+        <link rel="stylesheet" href="/app.css"/>
+    </head>
+    <body>
+        <nav class="navbar navbar-expand-lg navbar-light bg-light">
+            <div class="container">
+                <a class="navbar-brand" href="/">IHP Forum</a>
+                <button class="navbar-toggler" type="button" data-toggle="collapse" data-target="#navbarNav">
+                    <span class="navbar-toggler-icon"></span>
+                </button>
+                <div class="collapse navbar-collapse" id="navbarNav">
+                    <ul class="navbar-nav mr-auto">
+                        <li class="nav-item active"><a class="nav-link" href="/">Start</a></li>
+                        <li class="nav-item"><a class="nav-link" href="/Topics">Topics</a></li>
+                    </ul>
+                    <ul class="navbar-nav">
+                        <li class="nav-item"><a class="nav-link" href="/NewThread">New Thread</a></li>
+                        <li class="nav-item dropdown">
+                            <a class="nav-link dropdown-toggle" href="#" data-toggle="dropdown">alice</a>
+                            <div class="dropdown-menu dropdown-menu-right">
+                                <a class="dropdown-item" href="/EditUser">Update Profile</a>
+                                <a class="dropdown-item" href="/DeleteSession">Logout</a>
+                            </div>
+                        </li>
+                    </ul>
+                </div>
+            </div>
+        </nav>
+        <div class="container mt-4">
+            <div class="threads">
+                {blazeForEach threads blazeRenderThread}
+            </div>
+        </div>
+        <footer class="mt-5 py-4 bg-dark text-light">
+            <div class="container">
+                <div class="row">
+                    <div class="col-md-4">
+                        <h5>IHP Forum</h5>
+                        <p>A community forum built with IHP</p>
+                    </div>
+                    <div class="col-md-4">
+                        <h5>Links</h5>
+                        <ul class="list-unstyled">
+                            <li><a href="https://ihp.digitallyinduced.com/" class="text-light">IHP Website</a></li>
+                            <li><a href="https://github.com/digitallyinduced/ihp" class="text-light">GitHub</a></li>
+                            <li><a href="https://ihp.digitallyinduced.com/api-docs" class="text-light">API Docs</a></li>
+                        </ul>
+                    </div>
+                    <div class="col-md-4">
+                        <p class="text-muted">Powered by IHP &amp; Haskell</p>
+                    </div>
+                </div>
+            </div>
+        </footer>
+        <script src="/vendor/jquery-3.6.0.slim.min.js"></script>
+        <script src="/vendor/bootstrap.min.js"></script>
+        <script src="/app.js"></script>
+    </body>
+    </html>
+|]
+{-# NOINLINE blazeForumPage #-}
+
+blazeRenderThread :: ThreadData -> Html
+blazeRenderThread thread = [Blaze.hsx|
+    <div class="thread mb-3 p-3 border rounded">
+        <a class="thread-title h5 text-decoration-none" href="/ShowThread">
+            {thread.threadTitle}
+        </a>
+        <div class="thread-body text-muted mt-1">
+            {thread.threadBody}
+        </div>
+        <div class="text-muted small mt-2">
+            <a class="text-muted" href="/ShowUser">{thread.threadAuthor}</a>
+            , {thread.threadDate}
+            <span class="ml-1">in <a href="/ShowTopic" class="text-muted">{thread.threadTopic}</a></span>
+        </div>
+    </div>
+|]
+{-# NOINLINE blazeRenderThread #-}
+
 -- Dynamic attribute benchmarks
 blazeDynAttrItems :: [Text] -> Html
 blazeDynAttrItems items = [Blaze.hsx|
@@ -366,7 +584,9 @@ strictDynAttrItem item = [Strict.hsx|<li class={item}>{item}</li>|]
 {-# NOINLINE strictDynAttrItem #-}
 
 main :: IO ()
-main = defaultMain
+main = do
+  devNull <- openBinaryFile "/dev/null" WriteMode
+  defaultMain
     [ bgroup "static page"
         [ bench "blaze"  $ nf (forceLBS . renderBlaze) blazeStaticPage
         , bench "direct" $ nf (forceLBS . renderDirect) directStaticPage
@@ -406,5 +626,25 @@ main = defaultMain
         [ bench "blaze"  $ nf (forceLBS . renderBlaze . blazeDynAttrItems) (replicate 100 "item-class")
         , bench "direct" $ nf (forceLBS . renderDirect . directDynAttrItems) (replicate 100 "item-class")
         , bench "strict" $ nf (forceBS . renderStrict . strictDynAttrItems) (replicate 100 "item-class")
+        ]
+    , bgroup "forum 20 threads"
+        [ bench "blaze"  $ nf (forceLBS . renderBlaze . blazeForumPage) (sampleThreads 20)
+        , bench "direct" $ nf (forceLBS . renderDirect . directForumPage) (sampleThreads 20)
+        , bench "direct-toBS" $ nf (forceBS . renderDirectBS . directForumPage) (sampleThreads 20)
+        ]
+    , bgroup "forum 100 threads"
+        [ bench "blaze"  $ nf (forceLBS . renderBlaze . blazeForumPage) (sampleThreads 100)
+        , bench "direct" $ nf (forceLBS . renderDirect . directForumPage) (sampleThreads 100)
+        , bench "direct-toBS" $ nf (forceBS . renderDirectBS . directForumPage) (sampleThreads 100)
+        ]
+    , bgroup "forum 20 write"
+        [ bench "blaze"  $ nfAppIO (writeBlazeToHandle devNull . blazeForumPage) (sampleThreads 20)
+        , bench "direct" $ nfAppIO (writeDirectToHandle devNull . directForumPage) (sampleThreads 20)
+        , bench "direct-hPutBuilder" $ nfAppIO (writeDirectHPutBuilder devNull . directForumPage) (sampleThreads 20)
+        ]
+    , bgroup "forum 100 write"
+        [ bench "blaze"  $ nfAppIO (writeBlazeToHandle devNull . blazeForumPage) (sampleThreads 100)
+        , bench "direct" $ nfAppIO (writeDirectToHandle devNull . directForumPage) (sampleThreads 100)
+        , bench "direct-hPutBuilder" $ nfAppIO (writeDirectHPutBuilder devNull . directForumPage) (sampleThreads 100)
         ]
     ]
