@@ -398,10 +398,14 @@ function initDatePicker() {
     });
 
     document.querySelectorAll("input[type='datetime-local']").forEach(el => {
+        // Append Z so Flatpickr knows the server value is UTC
+        if (el.value && !el.value.endsWith('Z')) {
+            el.value = el.value + 'Z';
+        }
         flatpickr(el, {
             ...(el.dataset.enableTime ? {} : { enableTime: true }),
             ...(el.dataset.time_24hr ? {} : { time_24hr: true }),
-            ...(el.dataset.dateFormat ? {} : { dateFormat: 'Y-m-d\\TH:i' }),
+            ...(el.dataset.dateFormat ? {} : { dateFormat: 'Z' }),
             ...(el.dataset.altFormat ? {} : { altFormat: 'd.m.y, H:i' }),
             ...(el.dataset.altInput ? {} : { altInput: true }),
         });
