@@ -462,8 +462,12 @@ ihpFlake:
                 env.IHP_HOOGLE_PORT = if cfg.withHoogle then "8002" else "";
 
                 # Auto-start Hoogle search server when withHoogle is enabled
+                # Disable CSP security headers: Hoogle v5.0.18.4 sends `upgrade-insecure-requests`
+                # even over plain HTTP, which causes Safari to try loading CSS/JS over HTTPS and fail.
+                # Fixed upstream (github.com/ndmitchell/hoogle/issues/432) but not yet released.
+                # Since Hoogle only runs on localhost for development, these headers aren't needed.
                 processes.hoogle = lib.mkIf cfg.withHoogle {
-                    exec = "hoogle server --local -p 8002";
+                    exec = "hoogle server --local -p 8002 --no-security-headers";
                 };
 
                 scripts.deploy-to-nixos.exec = ''
