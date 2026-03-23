@@ -249,7 +249,7 @@ class ConditionBuildable<TTable extends string = string> {
     }
 }
 
-class ConditionBuilder extends ConditionBuildable<string> {
+class ConditionBuilder extends ConditionBuildable {
     type: 'ConditionBuilder';
 
     constructor() {

@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useContext, useSyncExternalStore, useRef, useMemo } from 'react';
 import { DataSubscription, DataSyncController } from './ihp-datasync.js';
 import { QueryBuilder } from './ihp-querybuilder.js';
-import type { DataRecord, DynamicSQLQuery, DataSubscriptionOptions, DataSyncEventMap, ServerMessage } from './types.js';
+import type { DataRecord, DynamicSQLQuery, DataSubscriptionOptions, DataSyncEventMap, ServerMessage, TableName } from './types.js';
 
 // Most IHP apps never use this context because they use session cookies for auth.
 // Therefore the default value is true.
