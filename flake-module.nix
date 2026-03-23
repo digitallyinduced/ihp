@@ -328,6 +328,7 @@ ihpFlake:
                                 runghc $(make -f ${hsDataDir ghcCompiler.ihp-ide.data}/lib/IHP/Makefile.dist print-ghc-extensions) -i. -ibuild -iConfig Test/Main.hs
                                 touch $out
                             '';
+                            installPhase = "true";
                         };
                 } else {})
             // (if builtins.pathExists "${cfg.projectPath}/Test/Integration.hs"
@@ -365,6 +366,7 @@ ihpFlake:
                                 pg_ctl -D "$PGDATA" stop || true
                                 touch $out
                             '';
+                            installPhase = "true";
                         };
                 } else {});
 
