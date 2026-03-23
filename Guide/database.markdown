@@ -875,3 +875,64 @@ ALTER TABLE strategy_factor_regime_online
 ```
 
 Alternative: use `CREATE UNIQUE INDEX ...`.
+
+## Troubleshooting
+
+### "relation does not exist"
+
+```
+QueryError "SELECT ... FROM posts" ... (PGRES_FATAL_ERROR,"ERROR:  relation \"posts\" does not exist")
+```
+
+The table has not been created in your database. This usually means you added a table to `Application/Schema.sql` but have not pushed the schema to the database yet. Run `make db` while the development server is running to re-create the database from your schema. Also check for typos in the table name.
+
+### "column does not exist"
+
+```
+QueryError "SELECT ... " ... (PGRES_FATAL_ERROR,"ERROR:  column \"my_column\" does not exist")
+```
+
+Your database schema is out of sync with the generated Haskell types. This happens when you add or rename a column in `Schema.sql` but the actual database has not been updated. Run `make db` to re-import the schema into the database, or use `Migrate DB` from the Schema Designer. If you renamed a column, also run the appropriate `ALTER TABLE` statement as described in the "Renaming a Column" section above.
+
+### Connection Refused
+
+```
+libpq: failed (connection to server on socket ... failed: No such file or directory)
+```
+
+The PostgreSQL database is not running. Make sure the IHP development server is started with `devenv up`. The built-in development server automatically manages a PostgreSQL instance -- it is not available until the dev server is running.
+
+### "Couldn't match type 'Maybe'" on a Column
+
+```
+Couldn't match type 'Maybe Text' with 'Text'
+```
+
+This happens when a column in your schema is nullable (no `NOT NULL` constraint) but your code treats it as a non-nullable value, or vice versa. Nullable columns generate `Maybe` types in Haskell. Either add `NOT NULL` to the column in `Schema.sql` if it should never be null, or handle the `Maybe` in your code:
+
+```haskell
+-- For a nullable column:
+case user.bio of
+    Just bio -> [hsx|{bio}|]
+    Nothing  -> [hsx|No bio provided|]
+```
+
+### N+1 Query Issues
+
+If you see many repeated queries in your server log like this:
+
+```
+Query (SELECT * FROM comments WHERE post_id = ?) ...
+Query (SELECT * FROM comments WHERE post_id = ?) ...
+Query (SELECT * FROM comments WHERE post_id = ?) ...
+```
+
+You have an N+1 query problem. This happens when you fetch a list of records and then individually fetch related records for each one inside a loop. Fix this by using `fetch` with `include` to eagerly load the related records in a single query. See the [Relationships guide](relationships.html) for details on how to use `include`.
+
+### Type Mismatch on Query Results
+
+```
+Couldn't match type 'Post' with '[Post]'
+```
+
+Check whether you are using the right fetch function. `fetch` on an `Id` returns a single record, while `query @Post |> fetch` returns a list `[Post]`. Use `fetchOne` if you want a single result from a query, or `fetchOrNothing` if you want `Maybe Post` when fetching by id.

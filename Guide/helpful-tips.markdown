@@ -248,3 +248,410 @@ Writing out implicit parameters, and other type constrains could become messy an
 ```haskell
 accessDeniedUnlessJobPositionAllowed :: _ => JobPosition -> IO ()
 ```
+
+## Essential Haskell Concepts for IHP
+
+The sections below explain fundamental Haskell concepts that you will encounter in every IHP application. They are written for developers coming from languages like JavaScript, Python, or Ruby.
+
+### Pattern Matching
+
+Pattern matching lets you branch on the shape of a value. If you are familiar with `switch` or destructuring in JavaScript, pattern matching is similar but more powerful because the compiler checks that you have covered all cases.
+
+#### Matching in function arguments
+
+In IHP, every controller is a big pattern match. Each action is a different "shape" that the controller can receive:
+
+```haskell
+instance Controller PostsController where
+    action PostsAction = do
+        posts <- query @Post |> fetch
+        render IndexView { .. }
+
+    action ShowPostAction { postId } = do
+        post <- fetch postId
+        render ShowView { .. }
+
+    action CreatePostAction = do
+        ...
+```
+
+Each `action` clause matches a different data constructor. The `{ postId }` part extracts the `postId` field from the `ShowPostAction` value, so you can use it directly in the body.
+
+#### case expressions
+
+You can also pattern match in the middle of a function using `case ... of`:
+
+```haskell
+action ShowTaskAction { taskId } = do
+    task <- fetch taskId
+    case task.status of
+        "open"   -> render OpenTaskView { .. }
+        "closed" -> render ClosedTaskView { .. }
+        _        -> render DefaultTaskView { .. }
+```
+
+The `_` is a wildcard that matches anything. It acts as a default/fallback case.
+
+#### Matching on True/False
+
+```haskell
+case isAdmin of
+    True  -> renderAdmin
+    False -> redirectTo AccessDeniedAction
+```
+
+#### Matching on lists
+
+```haskell
+case users of
+    []           -> putStrLn "No users found"
+    [singleUser] -> putStrLn ("Found exactly one user: " <> singleUser.name)
+    _            -> putStrLn "Found multiple users"
+```
+
+#### Common mistake: non-exhaustive patterns
+
+If you forget to handle a case, the compiler will warn you. For example, if you match on `True` but forget `False`, your program could crash at runtime. Always include a wildcard `_` as a fallback when matching on values with many possibilities, or handle every constructor explicitly.
+
+### Maybe, Just, and Nothing
+
+In JavaScript or Python, any value can be `null` or `None`. This leads to the famous "null reference" bugs. Haskell avoids this by making "absence" explicit with the `Maybe` type.
+
+A `Maybe` value is either:
+
+- `Just x` -- there is a value, and it is `x`
+- `Nothing` -- there is no value
+
+Think of it like a box that either contains something or is empty.
+
+#### Where you encounter Maybe in IHP
+
+When a database column can be `NULL`, the generated Haskell type is wrapped in `Maybe`. For example, given this schema:
+
+```sql
+CREATE TABLE tasks (
+    id UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL,
+    title TEXT NOT NULL,
+    assigned_user_id UUID
+);
+```
+
+The `title` field becomes `Text` (always present), but `assigned_user_id` becomes `Maybe (Id User)` (might be `NULL`).
+
+#### Handling Maybe values
+
+**Using case (most explicit):**
+
+```haskell
+case task.assignedUserId of
+    Just userId -> do
+        user <- fetch userId
+        putStrLn ("Assigned to: " <> user.name)
+    Nothing -> putStrLn "Unassigned"
+```
+
+**Using `fromMaybe` (provide a default):**
+
+```haskell
+let name = fromMaybe "Anonymous" user.nickname
+-- If user.nickname is Just "Alice", name is "Alice"
+-- If user.nickname is Nothing, name is "Anonymous"
+```
+
+**Using `maybe` (transform or default):**
+
+```haskell
+let greeting = maybe "No user" (\name -> "Hello, " <> name) user.nickname
+```
+
+**Using `isJust` and `isNothing` (just check):**
+
+```haskell
+when (isNothing task.assignedUserId) do
+    putStrLn "Warning: task is unassigned"
+```
+
+#### Common mistake: using a Maybe value directly
+
+If you write `fetch task.assignedUserId` when `assignedUserId` is `Maybe (Id User)`, you will get a type error. The compiler is telling you: "this might be `Nothing`, you need to handle that case first." Use `fetchOneOrNothing` instead, or unwrap the `Maybe` with a `case` expression.
+
+### The |> Pipe Operator
+
+The pipe operator `|>` passes a value into a function. It works like the Unix pipe `|` -- the result of the left side becomes the input to the right side.
+
+```haskell
+x |> f      -- is the same as:  f x
+x |> f |> g -- is the same as:  g (f x)
+```
+
+IHP uses `|>` extensively for building queries and processing records. It reads top-to-bottom, like a pipeline:
+
+```haskell
+action PostsAction = do
+    posts <- query @Post
+        |> filterWhere (#isPublished, True)
+        |> orderByDesc #createdAt
+        |> limit 10
+        |> fetch
+    render IndexView { .. }
+```
+
+Without `|>`, the same code would use nested function calls that read inside-out:
+
+```haskell
+posts <- fetch (limit 10 (orderByDesc #createdAt (filterWhere (#isPublished, True) (query @Post))))
+```
+
+The pipe version is much easier to read and modify.
+
+#### |> vs $
+
+You will also see the `$` operator in Haskell code. It works in the opposite direction -- it passes the right side into the function on the left:
+
+```haskell
+putStrLn $ "Hello, " <> name
+-- is the same as:
+putStrLn ("Hello, " <> name)
+```
+
+Think of `$` as "apply what follows." It is mainly used to avoid parentheses.
+
+In summary:
+
+- `|>` pipes left-to-right: `value |> function`
+- `$` applies right-to-left: `function $ value`
+
+### do Notation
+
+In languages like JavaScript, you write sequential steps one after another. In Haskell, you use `do` notation to do the same thing. Every IHP action is a `do` block:
+
+```haskell
+action CreatePostAction = do
+    let post = newRecord @Post
+    post <- post
+        |> fill @'["title", "body"]
+        |> createRecord
+    setSuccessMessage "Post created"
+    redirectTo PostsAction
+```
+
+Each line in a `do` block runs in order, just like sequential code in other languages.
+
+#### The <- arrow (bind)
+
+The `<-` arrow extracts a value from an action that "does something" (like a database query or reading a request parameter). Think of it as `await` in JavaScript:
+
+```haskell
+-- Haskell with do notation:
+user <- fetch userId
+
+-- Conceptually similar to JavaScript:
+-- const user = await fetch(userId)
+```
+
+Use `<-` when the right side is an IO action (database query, network request, etc.).
+Use `let` when the right side is a pure computation (no side effects).
+
+```haskell
+action ShowPostAction { postId } = do
+    post <- fetch postId                      -- <- because fetch does IO (database query)
+    let title = post.title                    -- let because accessing a field is pure
+    let uppercaseTitle = toUpper title         -- let because toUpper is pure
+    render ShowView { .. }
+```
+
+#### The last line is the result
+
+The last line of a `do` block is its result. You do not need to write `pure` or `return` explicitly in most IHP actions, because the last line is usually `render` or `redirectTo`, which already produce the right type.
+
+#### Common mistake: forgetting <-
+
+If you write:
+
+```haskell
+action ShowPostAction { postId } = do
+    let post = fetch postId  -- WRONG: this stores the action, not the result
+    render ShowView { .. }
+```
+
+The compiler will give you a type error. The fix is to use `<-` instead of `let`:
+
+```haskell
+action ShowPostAction { postId } = do
+    post <- fetch postId  -- CORRECT: this runs the query and gives you the result
+    render ShowView { .. }
+```
+
+The rule of thumb: if the function talks to the database, reads from the request, or has any side effect, use `<-`. If it is a pure calculation, use `let`.
+
+### let and where
+
+Haskell provides two ways to define local variables: `let` and `where`.
+
+#### let inside do blocks
+
+Inside a `do` block, `let` works like variable assignment in other languages:
+
+```haskell
+action CreateUserAction = do
+    let user = newRecord @User
+    user <- user
+        |> fill @'["name", "email"]
+        |> createRecord
+    let welcomeMessage = "Welcome, " <> user.name <> "!"
+    setSuccessMessage welcomeMessage
+    redirectTo UsersAction
+```
+
+Note: `let` in a `do` block does not use `in`. It is just `let x = ...` on its own line.
+
+#### where at the end of a function
+
+`where` lets you define helper values or functions at the end, keeping the main logic at the top:
+
+```haskell
+action ShowDashboardAction = do
+    posts <- query @Post
+        |> filterWhere (#authorId, currentUserId)
+        |> fetch
+    let stats = computeStats posts
+    render DashboardView { .. }
+    where
+        computeStats posts =
+            let total = length posts
+                published = length (filter (\p -> p.isPublished) posts)
+            in (total, published)
+```
+
+Use `let` for quick inline definitions. Use `where` when you want to keep the main function body clean and define helpers afterward.
+
+### Type Signatures
+
+A type signature tells you what a function accepts and what it produces. Reading type signatures is one of the most useful skills for working with IHP.
+
+#### Basic syntax
+
+```haskell
+functionName :: InputType -> OutputType
+```
+
+Read `::` as "has type" and `->` as "takes ... and returns ...".
+
+```haskell
+toUpper :: Text -> Text
+-- "toUpper takes a Text and returns a Text"
+
+fetch :: Id User -> IO User
+-- "fetch takes an Id User and returns an IO User"
+-- (IO means it does something with side effects, like a database query)
+
+filterWhere :: (field, value) -> query -> query
+-- "filterWhere takes a tuple of (field, value) and a query, and returns a query"
+```
+
+#### Multiple arguments
+
+Functions with multiple arguments have multiple `->` arrows:
+
+```haskell
+set :: field -> value -> record -> record
+-- "set takes a field, a value, and a record, and returns a record"
+-- Example: set #name "Alice" user
+```
+
+#### Checking types in GHCi
+
+When you are unsure about a type, use `:t` (short for `:type`) in GHCi:
+
+```
+ghci> :t fetch
+fetch :: (...) => id -> IO result
+```
+
+This is very helpful for debugging type errors.
+
+#### Common type error patterns
+
+When you see an error like:
+
+```
+Couldn't match type 'Maybe Text' with 'Text'
+```
+
+It means you are passing a `Maybe Text` (a value that might be absent) where a plain `Text` is expected. You need to unwrap the `Maybe` first (see the Maybe section above).
+
+### Implicit Parameters (?modelContext, ?context)
+
+In most web frameworks, things like the database connection or the current request are available globally or passed via dependency injection. IHP uses a Haskell feature called implicit parameters for this.
+
+#### What are implicit parameters?
+
+An implicit parameter is a value that is automatically passed through function calls without you having to write it out. You can recognize them by the `?` prefix:
+
+- `?modelContext` -- the database connection (needed for queries)
+- `?context` -- the controller context (request, session, flash messages, framework config)
+
+#### You usually do not need to think about them
+
+Inside controller actions, views, and most IHP code, these implicit parameters are already available. You can just call `fetch`, `query`, `currentUser`, and other framework functions without worrying about where the database connection comes from:
+
+```haskell
+action PostsAction = do
+    -- ?modelContext is automatically available here
+    -- so you can just call fetch directly:
+    posts <- query @Post |> fetch
+    render IndexView { .. }
+```
+
+#### When they matter: extracting helper functions
+
+Implicit parameters become visible when you extract code into a helper function. If your helper calls database functions, it needs `?modelContext` in its type:
+
+```haskell
+-- This helper queries the database, so it needs ?modelContext
+fetchPublishedPosts :: (?modelContext :: ModelContext) => IO [Post]
+fetchPublishedPosts = query @Post
+    |> filterWhere (#isPublished, True)
+    |> orderByDesc #createdAt
+    |> fetch
+```
+
+If your helper accesses the request or session, it needs `?context`:
+
+```haskell
+-- This helper accesses the session, so it needs ?context
+isAdmin :: (?context :: ControllerContext) => Bool
+isAdmin = currentUser.role == "admin"
+```
+
+#### The shortcut: let GHC infer constraints
+
+Instead of writing out the full constraint, you can use `_` to let the compiler figure it out:
+
+```haskell
+fetchPublishedPosts :: _ => IO [Post]
+```
+
+This is covered in the "Tell GHC to Infer Constraints" section above.
+
+#### Understanding implicit parameter errors
+
+When you see an error like:
+
+```
+Unbound implicit parameter (?modelContext::ModelContext)
+  arising from a use of 'fetch'
+```
+
+It means your function calls something that needs a database connection, but the type signature does not declare this requirement. The fix is to add the constraint to your type signature:
+
+```haskell
+-- Before (causes the error):
+myHelper :: IO [Post]
+
+-- After (fixes it):
+myHelper :: (?modelContext :: ModelContext) => IO [Post]
+
+-- Or let GHC infer it:
+myHelper :: _ => IO [Post]
+```

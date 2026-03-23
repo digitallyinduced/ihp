@@ -615,3 +615,58 @@ instance ToJSON Post where
 In this example, no content negotiation takes place as the [`renderJson`](https://ihp.digitallyinduced.com/api-docs/IHP-Controller-Render.html#v:renderJson) is used instead of the normal `render` function.
 
 The [`ToJSON`](https://ihp.digitallyinduced.com/api-docs/IHP-ViewPrelude.html#t:ToJSON) instances have to be defined somewhere, so it's usually placed inside the controller file. This often makes the file harder to read. We recommend not using [`renderJson`](https://ihp.digitallyinduced.com/api-docs/IHP-Controller-Render.html#v:renderJson) most times and instead stick with a separate view file as described in the section above. Using [`renderJson`](https://ihp.digitallyinduced.com/api-docs/IHP-Controller-Render.html#v:renderJson) makes sense only when the controller is very small or you already have a predefined [`ToJSON`](https://ihp.digitallyinduced.com/api-docs/IHP-ViewPrelude.html#t:ToJSON) instance which is not defined in your controller.
+
+## Troubleshooting
+
+### HSX Parse Errors
+
+```
+ihp-hsx: Unexpected tag closing, expected </div> but got </span>
+```
+
+HSX requires valid, well-formed HTML. Common causes include unclosed tags, mismatched opening/closing tags, or self-closing tags that are not written correctly. Check that every opening tag has a matching closing tag and that they are properly nested. Void elements like `<br>`, `<hr>`, and `<input>` should not have closing tags.
+
+### "Variable not in scope" in HSX
+
+```
+Variable not in scope: userName :: Text
+```
+
+This means you are using a variable inside `[hsx|...|]` that is not available in the current scope. Either the variable was not passed to the view data structure, it has a typo, or it was not destructured in the pattern match. Make sure it is a field in your view and that you use `{ .. }` to bring all fields into scope:
+
+```haskell
+instance View ShowView where
+    html ShowView { .. } = [hsx|Hello {userName}|]
+    -- The { .. } wildcard brings all fields of ShowView into scope
+```
+
+### "No instance for (View ...)"
+
+```
+No instance for (View ShowView)
+```
+
+You defined the view data structure but forgot to implement the `View` instance. Add the instance with at least the `html` function:
+
+```haskell
+instance View ShowView where
+    html ShowView { .. } = [hsx|...|]
+```
+
+### Blank Page (Layout Not Applied)
+
+If your view renders but you see a blank or unstyled page, the layout may not be applied. Check these:
+
+1. Make sure `Web/View/Layout.hs` exports `defaultLayout` and that it is set in `Web/FrontController.hs`:
+
+    ```haskell
+    instance InitControllerContext WebApplication where
+        initContext = do
+            setLayout defaultLayout
+    ```
+
+2. Verify your view module imports `Web.View.Prelude` (not just `IHP.Prelude`), since the view prelude brings layout-related functions into scope.
+
+### HTML Not Updating After a Change
+
+If you change your view code but the browser still shows the old version, this is typically a caching issue. In development mode, IHP uses diff-based DOM patching which usually handles this automatically. Try a hard refresh in your browser (`Cmd+Shift+R` on macOS, `Ctrl+Shift+R` on Linux/Windows). In production, TurboLinks may cache the page -- you can add `data-turbolinks-preload="false"` to specific links, or clear the TurboLinks cache with `Turbolinks.clearCache()` from JavaScript.
