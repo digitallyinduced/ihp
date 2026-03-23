@@ -21,7 +21,9 @@ export interface NewRecordRegistry {}
 type _TableName = keyof TableRegistry & string;
 export type TableName = [_TableName] extends [never] ? string : _TableName;
 export type IHPRecord<T extends string> = T extends keyof TableRegistry ? TableRegistry[T] : DataRecord;
-export type NewRecord<T extends string> = T extends keyof NewRecordRegistry ? NewRecordRegistry[T] : DataRecord;
+// Intersect with { id?: UUID } so TypeScript can prove id access in generic contexts.
+// Every IHP record has an id primary key with a default, so this is always true.
+export type NewRecord<T extends string> = (T extends keyof NewRecordRegistry ? NewRecordRegistry[T] : DataRecord) & { id?: UUID };
 
 // Condition operators (matches Haskell ConditionOperator)
 export type ConditionOperator =

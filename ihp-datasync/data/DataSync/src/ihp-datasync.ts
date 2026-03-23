@@ -667,15 +667,15 @@ export async function createRecords<T extends TableName>(table: T, records: NewR
 
 function createOptimisticRecord<T extends TableName>(table: T, record: NewRecord<T>): void {
     const dataSyncController = DataSyncController.getInstance();
-    // NewRecord<T> always has { id?: UUID, ... } shape at runtime
-    const rec = record as NewRecord<T> & { id?: UUID; createdAt?: unknown };
 
     // Ensure that the record has an ID
-    if (rec.id === null || rec.id === undefined) {
-        rec.id = randomUUID();
+    if (record.id == null) {
+        record.id = randomUUID();
     }
 
-    if (dataSyncController.optimisticCreatedNeedsCreatedAtField.has(table) && (rec.createdAt === null || rec.createdAt === undefined)) {
+    // Optimistically set createdAt if the table has this field (dynamic check)
+    const rec = record as Record<string, unknown>;
+    if (dataSyncController.optimisticCreatedNeedsCreatedAtField.has(table) && rec.createdAt == null) {
         rec.createdAt = new Date();
     }
 
@@ -690,7 +690,7 @@ function createOptimisticRecord<T extends TableName>(table: T, record: NewRecord
         dataSubscription.onCreateOptimistic(rec as DataRecord);
     }
 
-    dataSyncController.optimisticCreatedPendingRecordIds.push(rec.id);
+    dataSyncController.optimisticCreatedPendingRecordIds.push(record.id!);
 }
 
 function randomUUID(): UUID {
@@ -716,13 +716,12 @@ function randomUUID(): UUID {
 
 function undoCreateOptimisticRecord<T extends TableName>(table: T, record: NewRecord<T>): void {
     const dataSyncController = DataSyncController.getInstance();
-    const rec = record as NewRecord<T> & { id: UUID };
     for (const dataSubscription of dataSyncController.dataSubscriptions) {
         if (dataSubscription.query.table !== table) {
             continue;
         }
 
-        dataSubscription.onDelete(rec.id);
+        dataSubscription.onDelete(record.id!);
     }
 
     markCreateOptimisticRecordFinished(record);
@@ -730,8 +729,7 @@ function undoCreateOptimisticRecord<T extends TableName>(table: T, record: NewRe
 
 function markCreateOptimisticRecordFinished<T extends TableName>(record: NewRecord<T>): void {
     const dataSyncController = DataSyncController.getInstance();
-    const rec = record as NewRecord<T> & { id: UUID };
-    const index = dataSyncController.optimisticCreatedPendingRecordIds.indexOf(rec.id);
+    const index = dataSyncController.optimisticCreatedPendingRecordIds.indexOf(record.id!);
     if (index !== -1) {
         dataSyncController.optimisticCreatedPendingRecordIds.splice(index, 1);
     }
@@ -839,8 +837,7 @@ function doesRecordReferencePendingOptimisticRecord<T extends TableName>(record:
 
 async function waitPendingChanges<T extends TableName>(_table: T, record: NewRecord<T> | Partial<NewRecord<T>>): Promise<void> {
     if (doesRecordReferencePendingOptimisticRecord(record)) {
-        const rec = record as NewRecord<T> & { id: UUID };
-        return waitForMessageMatching(message => message.tag === 'DidCreateRecord' && (message as ServerMessage).record != null && ((message as ServerMessage).record as DataRecord).id === rec.id);
+        return waitForMessageMatching(message => message.tag === 'DidCreateRecord' && (message as ServerMessage).record != null && ((message as ServerMessage).record as DataRecord).id === record.id!);
     }
 }
 
