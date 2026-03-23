@@ -532,4 +532,461 @@ instance Confirmations.ConfirmationsControllerConfig User where
 If you are creating an admin sub-application, first use the code generator to create an application called `Admin`, then follow this guide replacing `Web` with `Admin` and `User` with `Admin` everywhere (except for the lower-case `user` in the file `Admin/View/Sessions/New.hs`, which comes from an imported module).
 
 
+## User Registration
+
+The existing "Creating a User" section above shows the core pattern. Here is a more complete registration flow that includes auto-login after registration.
+
+### Registration Controller
+
+Add a `NewUserAction` and `CreateUserAction` to your `UsersController` in `Web/Types.hs`:
+
+```haskell
+data UsersController
+    = NewUserAction
+    | CreateUserAction
+    deriving (Eq, Show, Data)
+```
+
+Add routing in `Web/Routes.hs`:
+
+```haskell
+instance AutoRoute UsersController
+```
+
+Mount the controller in `Web/FrontController.hs`:
+
+```haskell
+import Web.Controller.Users
+
+instance FrontController WebApplication where
+    controllers =
+        [ startPage WelcomeAction
+        , parseRoute @SessionsController
+        , parseRoute @UsersController -- <--- add this
+        -- Generator Marker
+        ]
+```
+
+Here is a complete `Web/Controller/Users.hs` with validation and auto-login:
+
+```haskell
+module Web.Controller.Users where
+
+import Web.Controller.Prelude
+import Web.View.Users.New
+
+instance Controller UsersController where
+    action NewUserAction = do
+        let user = newRecord @User
+        render NewView { .. }
+
+    action CreateUserAction = do
+        let user = newRecord @User
+        let passwordConfirmation = param @Text "passwordConfirmation"
+        user
+            |> fill @["email", "passwordHash"]
+            |> validateField #email isEmail
+            |> validateField #passwordHash nonEmpty
+            |> validateField #passwordHash (hasMinLength 8)
+            |> validateField #passwordHash (isEqual passwordConfirmation |> withCustomErrorMessage "Passwords don't match")
+            |> validateIsUnique #email
+            >>= ifValid \case
+                Left user -> render NewView { .. }
+                Right user -> do
+                    hashed <- hashPassword user.passwordHash
+                    user <- user
+                        |> set #passwordHash hashed
+                        |> createRecord
+
+                    -- Auto-login after registration
+                    login user
+
+                    setSuccessMessage "Your account has been created"
+                    redirectTo NewSessionAction
+```
+
+Note the validation pipeline:
+
+- `isEmail` checks for a valid email format.
+- `nonEmpty` rejects blank passwords.
+- `hasMinLength 8` enforces a minimum password length.
+- `isEqual passwordConfirmation` checks that the password and confirmation match.
+- `validateIsUnique #email` queries the database to make sure the email is not already taken. Because it does IO, everything after it uses `>>=`.
+
+### Registration View
+
+Create `Web/View/Users/New.hs`:
+
+```haskell
+module Web.View.Users.New where
+import Web.View.Prelude
+
+data NewView = NewView { user :: User }
+
+instance View NewView where
+    html NewView { .. } = [hsx|
+        <div class="mx-auto" style="max-width: 400px">
+            <h1>Sign Up</h1>
+            {renderForm user}
+        </div>
+    |]
+
+renderForm :: User -> Html
+renderForm user = formFor user [hsx|
+    {(textField #email) { fieldLabel = "Email" }}
+    {(passwordField #passwordHash) { fieldLabel = "Password", required = True }}
+    {(passwordField #passwordHash) { fieldLabel = "Confirm Password", fieldName = "passwordConfirmation", required = True, validatorResult = Nothing }}
+    {submitButton { label = "Sign Up" }}
+|]
+```
+
+You can link to the registration page from your login view:
+
+```html
+<a href={NewUserAction}>Sign Up</a>
+```
+
+## Password Reset
+
+IHP does not include a built-in password reset flow, but the pattern is straightforward to implement yourself. The general approach is:
+
+1. User requests a password reset by entering their email.
+2. Your app generates a random token, saves it to the user record, and emails a reset link.
+3. User clicks the link. Your app verifies the token and shows a "set new password" form.
+4. User submits a new password. Your app hashes and saves it.
+
+### Database Columns
+
+Add two columns to your `users` table:
+
+```sql
+ALTER TABLE users ADD COLUMN password_reset_token TEXT DEFAULT NULL;
+ALTER TABLE users ADD COLUMN password_reset_token_created_at TIMESTAMP WITH TIME ZONE DEFAULT NULL;
+```
+
+### Controller Actions
+
+Add these actions to `Web/Types.hs`:
+
+```haskell
+data PasswordResetsController
+    = NewPasswordResetAction
+    | CreatePasswordResetAction
+    | EditPasswordResetAction { userId :: !(Id User), token :: !Text }
+    | UpdatePasswordAction { userId :: !(Id User) }
+    deriving (Eq, Show, Data)
+```
+
+Add routing in `Web/Routes.hs`:
+
+```haskell
+instance AutoRoute PasswordResetsController
+```
+
+Mount in `Web/FrontController.hs`:
+
+```haskell
+import Web.Controller.PasswordResets
+-- ...
+, parseRoute @PasswordResetsController
+```
+
+### Controller Implementation
+
+Create `Web/Controller/PasswordResets.hs`:
+
+```haskell
+module Web.Controller.PasswordResets where
+
+import Web.Controller.Prelude
+import Web.View.PasswordResets.New
+import Web.View.PasswordResets.Edit
+import Web.Mail.PasswordResetMail
+import IHP.AuthSupport.Authentication (generateAuthenticationToken, hashPassword)
+
+instance Controller PasswordResetsController where
+    -- Show "forgot password" form
+    action NewPasswordResetAction = do
+        render NewView
+
+    -- Handle the form submission: generate token and send email
+    action CreatePasswordResetAction = do
+        let email = param @Text "email"
+        maybeUser <- query @User
+            |> filterWhereCaseInsensitive (#email, email)
+            |> fetchOneOrNothing
+        case maybeUser of
+            Just user -> do
+                token <- generateAuthenticationToken
+                now <- getCurrentTime
+                user
+                    |> set #passwordResetToken (Just token)
+                    |> set #passwordResetTokenCreatedAt (Just now)
+                    |> updateRecord
+                sendMail PasswordResetMail { .. }
+            Nothing -> pure () -- Don't reveal whether the email exists
+        setSuccessMessage "If that email is in our system, you will receive a reset link shortly."
+        redirectTo NewPasswordResetAction
+
+    -- Show "enter new password" form (after clicking email link)
+    action EditPasswordResetAction { userId, token } = do
+        user <- fetch userId
+        -- Verify the token matches and is not older than 1 hour
+        case user.passwordResetToken of
+            Just storedToken | storedToken == token -> do
+                case user.passwordResetTokenCreatedAt of
+                    Just createdAt -> do
+                        now <- getCurrentTime
+                        let ageInSeconds = diffUTCTime now createdAt
+                        if ageInSeconds < 3600
+                            then render EditView { .. }
+                            else do
+                                setErrorMessage "This reset link has expired. Please request a new one."
+                                redirectTo NewPasswordResetAction
+                    Nothing -> redirectTo NewPasswordResetAction
+            _ -> do
+                setErrorMessage "Invalid reset link."
+                redirectTo NewPasswordResetAction
+
+    -- Save the new password
+    action UpdatePasswordAction { userId } = do
+        user <- fetch userId
+        let passwordConfirmation = param @Text "passwordConfirmation"
+        let password = param @Text "passwordHash"
+        if password /= passwordConfirmation
+            then do
+                setErrorMessage "Passwords don't match"
+                redirectTo NewPasswordResetAction
+            else do
+                hashed <- hashPassword password
+                user
+                    |> set #passwordHash hashed
+                    |> set #passwordResetToken Nothing
+                    |> set #passwordResetTokenCreatedAt Nothing
+                    |> updateRecord
+                setSuccessMessage "Your password has been reset. Please log in."
+                redirectTo NewSessionAction
+```
+
+### Password Reset Views
+
+Create `Web/View/PasswordResets/New.hs`:
+
+```haskell
+module Web.View.PasswordResets.New where
+import Web.View.Prelude
+
+data NewView = NewView
+
+instance View NewView where
+    html NewView = [hsx|
+        <div class="mx-auto" style="max-width: 400px">
+            <h1>Forgot Password</h1>
+            <form method="POST" action={CreatePasswordResetAction}>
+                <div class="mb-3">
+                    <label class="form-label" for="email">Email</label>
+                    <input name="email" id="email" type="email" class="form-control" required autofocus />
+                </div>
+                <button type="submit" class="btn btn-primary w-100">Send Reset Link</button>
+            </form>
+        </div>
+    |]
+```
+
+Create `Web/View/PasswordResets/Edit.hs`:
+
+```haskell
+module Web.View.PasswordResets.Edit where
+import Web.View.Prelude
+
+data EditView = EditView { user :: User, token :: Text }
+
+instance View EditView where
+    html EditView { .. } = [hsx|
+        <div class="mx-auto" style="max-width: 400px">
+            <h1>Set New Password</h1>
+            <form method="POST" action={UpdatePasswordAction user.id}>
+                <div class="mb-3">
+                    <label class="form-label" for="passwordHash">New Password</label>
+                    <input name="passwordHash" id="passwordHash" type="password" class="form-control" required />
+                </div>
+                <div class="mb-3">
+                    <label class="form-label" for="passwordConfirmation">Confirm Password</label>
+                    <input name="passwordConfirmation" id="passwordConfirmation" type="password" class="form-control" required />
+                </div>
+                <button type="submit" class="btn btn-primary w-100">Reset Password</button>
+            </form>
+        </div>
+    |]
+```
+
+### Password Reset Email
+
+Create `Web/Mail/PasswordResetMail.hs`:
+
+```haskell
+module Web.Mail.PasswordResetMail where
+import Web.View.Prelude
+import IHP.MailPrelude
+
+data PasswordResetMail = PasswordResetMail { user :: User, token :: Text }
+
+instance BuildMail PasswordResetMail where
+    subject = "Reset Your Password"
+    to PasswordResetMail { .. } = Address { addressName = Nothing, addressEmail = user.email }
+    from = "noreply@example.com" -- Change to your app's email
+    html PasswordResetMail { .. } = [hsx|
+        <h1>Password Reset</h1>
+        <p>Someone requested a password reset for your account. If this was you, click the link below:</p>
+        <a href={urlTo (EditPasswordResetAction user.id token)} target="_blank">
+            Reset Your Password
+        </a>
+        <p>This link will expire in 1 hour.</p>
+        <p>If you did not request this, you can safely ignore this email.</p>
+    |]
+```
+
+You can link to the password reset page from your login view:
+
+```html
+<a href={NewPasswordResetAction}>Forgot your password?</a>
+```
+
+## Session Configuration
+
+IHP sessions are cookie-based. Session data is cryptographically signed and encrypted using a key stored at `Config/client_session_key.aes`. This key is generated automatically the first time your app starts.
+
+### Default Settings
+
+The default session cookie has these properties:
+
+- **Max age:** 30 days
+- **Path:** `/`
+- **SameSite:** Lax (protects against CSRF)
+- **HttpOnly:** True (JavaScript cannot read the cookie)
+- **Secure:** True when your `baseUrl` starts with `https://`
+
+### Customizing Session Settings
+
+You can override the session cookie in `Config/Config.hs`:
+
+```haskell
+import qualified Web.Cookie as Cookie
+import IHP.FrameworkConfig (defaultIHPSessionCookie)
+
+config :: ConfigBuilder
+config = do
+    option $ SessionCookie (defaultIHPSessionCookie "https://yourapp.com")
+        { Cookie.setCookieMaxAge = Just (fromIntegral (60 * 60 * 24 * 7)) -- 7 days instead of 30
+        }
+```
+
+### How Login and Logout Work
+
+When a user logs in, IHP stores the user's ID in the session under the key `login.users` (or `login.admins` for admin authentication). The `initAuthentication @User` call in your `FrontController.hs` reads this session value on each request and fetches the corresponding user record from the database.
+
+When a user logs out, IHP sets the session value for `login.users` to an empty string. The session cookie itself remains, but the user ID is cleared.
+
+### Working with the Session Directly
+
+You can store and retrieve your own values in the session:
+
+```haskell
+-- Storing a value
+action MyAction = do
+    setSession "preferredLanguage" ("en" :: Text)
+
+-- Retrieving a value
+action AnotherAction = do
+    language <- getSession @Text "preferredLanguage"
+    -- language :: Maybe Text
+
+-- Deleting a value
+action LogoutAction = do
+    deleteSession "preferredLanguage"
+```
+
+## Verifying Your Setup
+
+After completing the authentication setup, walk through these checks to make sure everything is working.
+
+### 1. Visit a Protected Page Without Logging In
+
+Add `ensureIsUser` to a controller's `beforeAction`:
+
+```haskell
+instance Controller SomeController where
+    beforeAction = ensureIsUser
+```
+
+Now visit that page in your browser. You should be redirected to `/NewSession` (the login page).
+
+### 2. Try Logging In with Wrong Credentials
+
+Go to `/NewSession` and enter an incorrect email or password. You should see the error message "Invalid Credentials" and remain on the login page.
+
+### 3. Try Logging In with Correct Credentials
+
+First, create a user. You can do this from the IHP Schema Designer by inserting a row into the `users` table. To generate a password hash, run this from your terminal:
+
+```bash
+hash-password
+```
+
+Enter a password and paste the resulting hash into the `password_hash` column.
+
+Now go to `/NewSession` and log in with the correct email and password. You should be redirected to `/` (or whatever you configured as `afterLoginRedirectPath`).
+
+### 4. Verify currentUser Works
+
+In any action protected by `ensureIsUser`, add:
+
+```haskell
+action MyAction = do
+    let email = currentUser.email
+    renderPlain ("Logged in as: " <> email)
+```
+
+You should see your email displayed.
+
+### 5. Test Logout
+
+Click your logout link (pointing to `DeleteSessionAction`). You should be redirected back to the login page. Visiting a protected page should redirect to login again.
+
+## Setup Checklist
+
+Here is a summary of every change needed to add authentication. Use this as a reference to make sure you have not missed a step.
+
+1. Add `id`, `email`, `password_hash`, `locked_at`, and `failed_login_attempts` columns to your `users` table in `Schema.sql`.
+
+2. In `Web/Types.hs`:
+    - Add `import IHP.LoginSupport.Types`
+    - Add `instance HasNewSessionUrl User` with the login URL
+    - Add `type instance CurrentUserRecord = User`
+    - Add the `data SessionsController` type with `NewSessionAction`, `CreateSessionAction`, `DeleteSessionAction`
+
+3. In `Web/Routes.hs`:
+    - Add `instance AutoRoute SessionsController`
+
+4. Create `Web/Controller/Sessions.hs`:
+    - Delegate actions to `IHP.AuthSupport.Controller.Sessions`
+    - Add `instance Sessions.SessionsControllerConfig User`
+
+5. Create `Web/View/Sessions/New.hs`:
+    - Implement the login form view
+
+6. In `Web/FrontController.hs`:
+    - Add `import IHP.LoginSupport.Middleware`
+    - Add `import Web.Controller.Sessions`
+    - Mount the controller: `parseRoute @SessionsController`
+    - Add `initAuthentication @User` to `initContext`
+
+7. Add `ensureIsUser` to `beforeAction` in any controller that requires login.
+
+8. Add a logout link in your layout: `<a class="js-delete js-delete-no-confirm" href={DeleteSessionAction}>Logout</a>`
+
+9. (Optional) Create a registration controller and view for user sign-up.
+
+10. (Optional) Set up password reset flow with token generation and email.
+
 [Next: Authorization](https://ihp.digitallyinduced.com/Guide/authorization.html)

@@ -429,3 +429,89 @@ The Request Context provides access to the Wai request as well as information li
 ## File Uploads
 
 [See File Storage & Uploads](file-storage.html)
+
+## Troubleshooting
+
+### "Variable not in scope: action"
+
+```
+Variable not in scope: action :: ShowPostAction -> IO ()
+```
+
+You forgot to add the action constructor to your controller's data type in `Web/Types.hs`. Every action your controller handles must be listed as a constructor:
+
+```haskell
+data PostsController
+    = ShowPostAction { postId :: !(Id Post) }
+    | PostsAction -- Don't forget to add new actions here
+    deriving (Eq, Show, Data)
+```
+
+### Missing Parameter Error
+
+```
+param: Parameter 'title' not found in the request
+```
+
+This happens when you call `param @Text "title"` but the request does not contain a `title` parameter. Use `paramOrDefault` to provide a fallback value, or `paramOrNothing` to handle the missing case explicitly:
+
+```haskell
+let title = paramOrDefault @Text "" "title"
+let title = paramOrNothing @Text "title" -- Returns Maybe Text
+```
+
+### "No instance for (Controller ...)"
+
+```
+No instance for (Controller PostsController)
+```
+
+You defined the controller type in `Web/Types.hs` but forgot to implement the `Controller` instance in `Web/Controller/Posts.hs`:
+
+```haskell
+instance Controller PostsController where
+    action ShowPostAction { postId } = do
+        ...
+```
+
+### "Ambiguous type variable" When Using `param`
+
+```
+Ambiguous type variable 'a0' arising from a use of 'param'
+```
+
+The compiler cannot figure out what type the parameter should be parsed as. Add a type annotation:
+
+```haskell
+-- Wrong: let value = param "id"
+let value = param @Int "id"       -- Correct
+let value = param @(Id Post) "id" -- Correct
+```
+
+### Action Not Being Called (404 Not Found)
+
+If your action returns a 404, check two things:
+
+1. **Route missing in `Web/Routes.hs`**: Make sure your controller type has an `AutoRoute` instance:
+
+    ```haskell
+    instance AutoRoute PostsController
+    ```
+
+2. **Controller not listed in `Web/FrontController.hs`**: Your controller must be added to the front controller's `controllers` list:
+
+    ```haskell
+    instance FrontController WebApplication where
+        controllers =
+            [ -- ...
+            , parseRoute @PostsController -- Add this line
+            ]
+    ```
+
+### Type Error When Doing IO in the Wrong Context
+
+```
+Couldn't match type 'IO' with 'IO'
+```
+
+This confusing error often means you are trying to run a plain `IO` action where a controller action is expected, or vice versa. Controller actions run in a special context that has access to the request and response. Make sure you use `liftIO` if you need to call a plain IO function from within a controller, or check that your function signatures match the expected types.
