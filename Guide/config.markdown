@@ -228,7 +228,7 @@ The hasql pool can be configured using environment variables:
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `HASQL_POOL_SIZE` | 3 | Number of connections in the pool |
+| `HASQL_POOL_SIZE` | 20 | Number of connections in the pool |
 | `HASQL_IDLE_TIME` | 600 | Seconds before idle connections are closed |
 
 Example `.env` configuration:

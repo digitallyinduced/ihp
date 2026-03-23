@@ -300,7 +300,7 @@ validationErrorsToJson :: (HasField "meta" record MetaBag) => record -> Value
 validationErrorsToJson record =
     let MetaBag { annotations } = record.meta
     in object
-        [ "errors" .= object (map (\(field, err) -> (fromString (cs field)) .= err) annotations)
+        [ "errors" .= object (map (\(field, violation) -> (fromString (cs field)) .= violation.message) annotations)
         ]
 ```
 
@@ -591,7 +591,7 @@ action CreatePostAction = do
         |> ifValid \case
             Left post -> do
                 let MetaBag { annotations } = post.meta
-                let errors = object (map (\(field, err) -> (fromString (cs field)) .= err) annotations)
+                let errors = object (map (\(field, violation) -> (fromString (cs field)) .= violation.message) annotations)
                 renderJsonWithStatusCode status422 (object ["errors" .= errors])
             Right post -> do
                 post <- post |> createRecord

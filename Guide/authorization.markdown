@@ -416,7 +416,7 @@ import IHP.ViewPrelude
 import Application.Helper.Controller (canEditPost, canDeletePost, isAdmin)
 ```
 
-Note that helper functions using `currentUser` (which requires a `?request` implicit parameter) will work in controllers. In views, the `?request` implicit parameter is not available. For view helpers, use `currentUserOrNothing` instead if the user might not be logged in, or rely on the fact that the controller already verified authentication before rendering the view.
+Note that `currentUser` will redirect to the login page if no user is logged in. In views, triggering a redirect is not appropriate — a view should only produce HTML. For view helpers where the user might not be logged in, use `currentUserOrNothing` instead, which returns `Nothing` rather than redirecting. If your controller already verified authentication with `ensureIsUser` in `beforeAction`, then `currentUser` is safe to use in views too since you know a user is always present.
 
 An alternative approach is to define separate view-safe helpers that use `currentUserOrNothing`:
 

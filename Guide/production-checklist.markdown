@@ -38,7 +38,7 @@ IHP uses the `IHP_ENV` environment variable (or the `option` in `Config/Config.h
     services.postgresqlBackup.enable = true;
     ```
 
-- [ ] **Configure connection pooling**: IHP uses two connection pools (postgresql-simple and hasql). The hasql pool can be tuned with `HASQL_POOL_SIZE` (default: 3) and `HASQL_IDLE_TIME` (default: 600 seconds). For most applications the defaults are fine, but high-traffic apps may need adjustment. See the [Config guide](https://ihp.digitallyinduced.com/Guide/config.html#database-connection-pool) for details.
+- [ ] **Configure connection pooling**: IHP uses a hasql connection pool. It can be tuned with `HASQL_POOL_SIZE` (default: 20) and `HASQL_IDLE_TIME` (default: 600 seconds). For most applications the defaults are fine, but high-traffic apps may need adjustment. See the [Config guide](https://ihp.digitallyinduced.com/Guide/config.html#database-connection-pool) for details.
 
 - [ ] **Test the production database connection**: Before directing traffic to the new deployment, verify that your app can connect to the production database and that queries return expected results.
 
@@ -229,4 +229,4 @@ Here is a summary of the essential environment variables for production:
 | `IHP_ASSET_VERSION` | Recommended | `abc1234` | Cache busting for static assets |
 | `PORT` | Optional | `8000` | HTTP port (default: 8000) |
 | `IHP_REQUEST_LOGGER_IP_ADDR_SOURCE` | Optional | `FromHeader` | Use `FromHeader` behind a reverse proxy |
-| `HASQL_POOL_SIZE` | Optional | `3` | Hasql connection pool size |
+| `HASQL_POOL_SIZE` | Optional | `20` | Hasql connection pool size |

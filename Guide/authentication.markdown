@@ -260,7 +260,7 @@ Creating a user is similar to creating any other record. However, one notable di
         -- The value from the password confirmation input field.
         let passwordConfirmation = param @Text "passwordConfirmation"
         user
-            |> fill @["email", "passwordHash"]
+            |> fill @'["email", "passwordHash"]
             -- We ensure that the error message doesn't include
             -- the entered password.
             |> validateField #passwordHash (isEqual passwordConfirmation |> withCustomErrorMessage "Passwords don't match")
@@ -313,7 +313,7 @@ Furthermore, we want to make sure that when we present the form, we don't popula
         -- The value from the password confirmation input field.
         let passwordConfirmation = param @Text "passwordConfirmation"
         user
-            |> fill @["email", "passwordHash"]
+            |> fill @'["email", "passwordHash"]
             -- We only validate the email field isn't empty, as the password
             -- can remain empty. We ensure that the error message doesn't include
             -- the entered password.
@@ -460,7 +460,7 @@ To send out the confirmation mail, open your registration action. Typically this
     action CreateUserAction = do
         let user = newRecord @User
         user
-            |> fill @["email", "passwordHash"]
+            |> fill @'["email", "passwordHash"]
             |> validateField #email isEmail
             |> validateField #passwordHash nonEmpty
             |> ifValid \case
@@ -584,7 +584,7 @@ instance Controller UsersController where
         let user = newRecord @User
         let passwordConfirmation = param @Text "passwordConfirmation"
         user
-            |> fill @["email", "passwordHash"]
+            |> fill @'["email", "passwordHash"]
             |> validateField #email isEmail
             |> validateField #passwordHash nonEmpty
             |> validateField #passwordHash (hasMinLength 8)
@@ -602,7 +602,7 @@ instance Controller UsersController where
                     login user
 
                     setSuccessMessage "Your account has been created"
-                    redirectTo NewSessionAction
+                    redirectTo PostsAction -- Redirect to your app's main page
 ```
 
 Note the validation pipeline:
@@ -673,7 +673,7 @@ data PasswordResetsController
     = NewPasswordResetAction
     | CreatePasswordResetAction
     | EditPasswordResetAction { userId :: !(Id User), token :: !Text }
-    | UpdatePasswordAction { userId :: !(Id User) }
+    | UpdatePasswordAction { userId :: !(Id User), token :: !Text }
     deriving (Eq, Show, Data)
 ```
 
@@ -749,23 +749,29 @@ instance Controller PasswordResetsController where
                 redirectTo NewPasswordResetAction
 
     -- Save the new password
-    action UpdatePasswordAction { userId } = do
+    action UpdatePasswordAction { userId, token } = do
         user <- fetch userId
-        let passwordConfirmation = param @Text "passwordConfirmation"
-        let password = param @Text "passwordHash"
-        if password /= passwordConfirmation
-            then do
-                setErrorMessage "Passwords don't match"
+        -- Re-verify the token (don't trust that EditPasswordResetAction already checked it)
+        case user.passwordResetToken of
+            Just storedToken | storedToken == token -> do
+                let passwordConfirmation = param @Text "passwordConfirmation"
+                let password = param @Text "passwordHash"
+                if password /= passwordConfirmation
+                    then do
+                        setErrorMessage "Passwords don't match"
+                        redirectTo (EditPasswordResetAction userId token)
+                    else do
+                        hashed <- hashPassword password
+                        user
+                            |> set #passwordHash hashed
+                            |> set #passwordResetToken Nothing
+                            |> set #passwordResetTokenCreatedAt Nothing
+                            |> updateRecord
+                        setSuccessMessage "Your password has been reset. Please log in."
+                        redirectTo NewSessionAction
+            _ -> do
+                setErrorMessage "Invalid reset link."
                 redirectTo NewPasswordResetAction
-            else do
-                hashed <- hashPassword password
-                user
-                    |> set #passwordHash hashed
-                    |> set #passwordResetToken Nothing
-                    |> set #passwordResetTokenCreatedAt Nothing
-                    |> updateRecord
-                setSuccessMessage "Your password has been reset. Please log in."
-                redirectTo NewSessionAction
 ```
 
 ### Password Reset Views
@@ -805,7 +811,7 @@ instance View EditView where
     html EditView { .. } = [hsx|
         <div class="mx-auto" style="max-width: 400px">
             <h1>Set New Password</h1>
-            <form method="POST" action={UpdatePasswordAction user.id}>
+            <form method="POST" action={UpdatePasswordAction user.id token}>
                 <div class="mb-3">
                     <label class="form-label" for="passwordHash">New Password</label>
                     <input name="passwordHash" id="passwordHash" type="password" class="form-control" required />
@@ -883,9 +889,9 @@ config = do
 
 ### How Login and Logout Work
 
-When a user logs in, IHP stores the user's ID in the session under the key `login.users` (or `login.admins` for admin authentication). The `initAuthentication @User` call in your `FrontController.hs` reads this session value on each request and fetches the corresponding user record from the database.
+When a user logs in, IHP stores the user's ID in the session under the key `login.User` (or `login.Admin` for admin authentication). The key is constructed from the model name, not the table name. The `initAuthentication @User` call in your `FrontController.hs` reads this session value on each request and fetches the corresponding user record from the database.
 
-When a user logs out, IHP sets the session value for `login.users` to an empty string. The session cookie itself remains, but the user ID is cleared.
+When a user logs out, IHP sets the session value for `login.User` to an empty string. The session cookie itself remains, but the user ID is cleared.
 
 ### Working with the Session Directly
 
