@@ -1,6 +1,6 @@
 import { DataSyncController, createRecord, createRecords, updateRecord, updateRecords, deleteRecord, deleteRecords } from "./ihp-datasync.js";
 import { QueryBuilder } from "./ihp-querybuilder.js";
-import type { UUID, DataRecord, CrudOptions, DataSyncEventCallback } from "./types.js";
+import type { UUID, CrudOptions, DataSyncEventCallback, TableName, IHPRecord, NewRecord } from "./types.js";
 
 export class Transaction {
     transactionId: UUID | null;
@@ -54,33 +54,33 @@ export class Transaction {
         return { transactionId: this.getIdOrFail() };
     }
 
-    query(table: string): QueryBuilder {
-        const tableQuery = new QueryBuilder(table);
+    query<T extends TableName>(table: T): QueryBuilder<T, IHPRecord<T>> {
+        const tableQuery = new QueryBuilder<T, IHPRecord<T>>(table);
         tableQuery.transactionId = this.getIdOrFail();
         return tableQuery;
     }
 
-    createRecord(table: string, record: DataRecord): Promise<DataRecord> {
+    createRecord<T extends TableName>(table: T, record: NewRecord<T>): Promise<IHPRecord<T>> {
         return createRecord(table, record, this.buildOptions());
     }
 
-    createRecords(table: string, records: DataRecord[]): Promise<DataRecord[]> {
+    createRecords<T extends TableName>(table: T, records: NewRecord<T>[]): Promise<IHPRecord<T>[]> {
         return createRecords(table, records, this.buildOptions());
     }
 
-    updateRecord(table: string, id: UUID, patch: DataRecord): Promise<DataRecord> {
+    updateRecord<T extends TableName>(table: T, id: UUID, patch: Partial<NewRecord<T>>): Promise<IHPRecord<T>> {
         return updateRecord(table, id, patch, this.buildOptions());
     }
 
-    updateRecords(table: string, ids: UUID[], patch: DataRecord): Promise<DataRecord[]> {
+    updateRecords<T extends TableName>(table: T, ids: UUID[], patch: Partial<NewRecord<T>>): Promise<IHPRecord<T>[]> {
         return updateRecords(table, ids, patch, this.buildOptions());
     }
 
-    deleteRecord(table: string, id: UUID): Promise<void> {
+    deleteRecord<T extends TableName>(table: T, id: UUID): Promise<void> {
         return deleteRecord(table, id, this.buildOptions());
     }
 
-    deleteRecords(table: string, ids: UUID[]): Promise<void> {
+    deleteRecords<T extends TableName>(table: T, ids: UUID[]): Promise<void> {
         return deleteRecords(table, ids, this.buildOptions());
     }
 }

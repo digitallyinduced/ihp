@@ -1,5 +1,5 @@
 import { DataSyncController, DataSubscription } from './ihp-datasync.js';
-import type { ConditionExpression, ConditionOperator, DynamicSQLQuery, DataRecord, UUID } from './types.js';
+import type { ConditionExpression, ConditionOperator, DynamicSQLQuery, DataRecord, UUID, TableName, IHPRecord } from './types.js';
 
 function fetchAuthenticated(path: string, params: RequestInit & { headers?: Record<string, string> }): Promise<Response> {
     const jwt = localStorage.getItem('ihp_jwt');
@@ -122,7 +122,7 @@ function whereIn(field: string, values: unknown[]): ConditionBuilder {
     return new ConditionBuilder().whereIn(field, values);
 }
 
-class ConditionBuildable {
+class ConditionBuildable<TTable extends string = string> {
     hasPreviousCondition: boolean;
     query: { whereCondition: ConditionExpression | null };
 
@@ -147,9 +147,9 @@ class ConditionBuildable {
         }
     }
 
-    where(field: string, value: unknown): this;
+    where<K extends keyof IHPRecord<TTable> & string>(column: K, value: IHPRecord<TTable>[K]): this;
     where(conditionBuilder: ConditionBuilder): this;
-    where(filterRecord: DataRecord): this;
+    where(filterRecord: Partial<IHPRecord<TTable>>): this;
     where(conditionExpression: ConditionExpression): this;
     where(...args: unknown[]): this {
         switch (args.length) {
@@ -189,27 +189,27 @@ class ConditionBuildable {
         }
     }
 
-    whereNot(field: string, value: unknown): this {
+    whereNot<K extends keyof IHPRecord<TTable> & string>(field: K, value: IHPRecord<TTable>[K]): this {
         return this.where(notEq(field, value));
     }
 
-    whereLessThan(field: string, value: unknown): this {
+    whereLessThan<K extends keyof IHPRecord<TTable> & string>(field: K, value: IHPRecord<TTable>[K]): this {
         return this.where(lessThan(field, value));
     }
 
-    whereLessThanOrEqual(field: string, value: unknown): this {
+    whereLessThanOrEqual<K extends keyof IHPRecord<TTable> & string>(field: K, value: IHPRecord<TTable>[K]): this {
         return this.where(lessThanOrEqual(field, value));
     }
 
-    whereGreaterThan(field: string, value: unknown): this {
+    whereGreaterThan<K extends keyof IHPRecord<TTable> & string>(field: K, value: IHPRecord<TTable>[K]): this {
         return this.where(greaterThan(field, value));
     }
 
-    whereGreaterThanOrEqual(field: string, value: unknown): this {
+    whereGreaterThanOrEqual<K extends keyof IHPRecord<TTable> & string>(field: K, value: IHPRecord<TTable>[K]): this {
         return this.where(greaterThanOrEqual(field, value));
     }
 
-    filterWhere(field: string, value: unknown): this {
+    filterWhere<K extends keyof IHPRecord<TTable> & string>(field: K, value: IHPRecord<TTable>[K]): this {
         return this.where(field, value);
     }
 
@@ -231,7 +231,7 @@ class ConditionBuildable {
         return this;
     }
 
-    whereIn(field: string, values: unknown[]): this {
+    whereIn<K extends keyof IHPRecord<TTable> & string>(field: K, values: Array<IHPRecord<TTable>[K]>): this {
         const expression: ConditionExpression = {
             tag: 'InfixOperatorExpression',
             left: {
@@ -241,7 +241,7 @@ class ConditionBuildable {
             op: 'OpIn',
             right: {
                 tag: 'ListExpression',
-                values: values.map(undefinedToNull),
+                values: (values as unknown[]).map(undefinedToNull),
             },
         };
         this._addCondition('OpAnd', expression);
@@ -249,7 +249,7 @@ class ConditionBuildable {
     }
 }
 
-class ConditionBuilder extends ConditionBuildable {
+class ConditionBuilder extends ConditionBuildable<string> {
     type: 'ConditionBuilder';
 
     constructor() {
@@ -261,7 +261,7 @@ class ConditionBuilder extends ConditionBuildable {
     }
 }
 
-class QueryBuilder extends ConditionBuildable {
+class QueryBuilder<TTable extends string = string, TResult = IHPRecord<TTable>> extends ConditionBuildable<TTable> {
     override query: DynamicSQLQuery;
     transactionId: UUID | null;
 
@@ -309,7 +309,7 @@ class QueryBuilder extends ConditionBuildable {
         return this;
     }
 
-    whereTextSearchStartsWith(field: string, value: unknown): this {
+    whereTextSearchStartsWith(field: keyof IHPRecord<TTable> & string, value: unknown): this {
         let normalized = String(value ?? '').trim().split(' ').map(s => s.trim()).filter(v => v.length > 0).join('&');
         if (normalized.length > 0) {
             normalized += ':*';
@@ -337,23 +337,23 @@ class QueryBuilder extends ConditionBuildable {
         return this;
     }
 
-    orderBy(column: string): this {
+    orderBy(column: keyof IHPRecord<TTable> & string): this {
         return this.orderByAsc(column);
     }
 
-    orderByAsc(column: string): this {
+    orderByAsc(column: keyof IHPRecord<TTable> & string): this {
         this.query.orderByClause.push({ orderByColumn: column, orderByDirection: 'Asc' });
 
         return this;
     }
 
-    orderByDesc(column: string): this {
+    orderByDesc(column: keyof IHPRecord<TTable> & string): this {
         this.query.orderByClause.push({ orderByColumn: column, orderByDirection: 'Desc' });
 
         return this;
     }
 
-    distinctOn(column: string): this {
+    distinctOn(column: keyof IHPRecord<TTable> & string): this {
         this.query.distinctOnColumn = column;
 
         return this;
@@ -377,7 +377,7 @@ class QueryBuilder extends ConditionBuildable {
         return this;
     }
 
-    async fetch(): Promise<DataRecord[]> {
+    async fetch(): Promise<TResult[]> {
         const dataSyncController = DataSyncController.getInstance();
         const response = await dataSyncController.sendMessage({
             tag: 'DataSyncQuery',
@@ -385,26 +385,26 @@ class QueryBuilder extends ConditionBuildable {
             transactionId: this.transactionId
         });
 
-        const result = response.result as DataRecord[];
-        dataSyncController.learnOptimisticShapeFromResult(this.query.table, result);
+        const result = response.result as TResult[];
+        dataSyncController.learnOptimisticShapeFromResult(this.query.table, result as DataRecord[]);
 
         return result;
     }
 
-    async fetchOne(): Promise<DataRecord | null> {
+    async fetchOne(): Promise<TResult | null> {
         const result = await this.limit(1).fetch();
         return result.length > 0 ? result[0] : null;
     }
 
-    subscribe(callback: (records: DataRecord[] | null) => void): () => void {
+    subscribe(callback: (records: TResult[] | null) => void): () => void {
         const dataSubscription = new DataSubscription(this.query);
         dataSubscription.createOnServer();
-        return dataSubscription.subscribe(callback);
+        return dataSubscription.subscribe(callback as (records: DataRecord[] | null) => void);
     }
 }
 
-function query(table: string, columns?: string[]): QueryBuilder {
-    return new QueryBuilder(table, columns);
+function query<T extends TableName>(table: T, columns?: string[]): QueryBuilder<T, IHPRecord<T>> {
+    return new QueryBuilder<T, IHPRecord<T>>(table, columns);
 }
 
 export function recordMatchesQuery(query: DynamicSQLQuery, record: DataRecord): boolean {

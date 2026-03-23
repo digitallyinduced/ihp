@@ -3,6 +3,9 @@ import type {
     DynamicSQLQuery,
     DataRecord,
     UUID,
+    TableName,
+    IHPRecord,
+    NewRecord,
     DataSyncEventType,
     DataSyncEventCallback,
     PendingRequest,
@@ -522,7 +525,7 @@ function initIHPBackend({ host }: { host: string }): void {
     DataSyncController.ihpBackendHost = host;
 }
 
-export async function createRecord(table: string, record: DataRecord, options: CrudOptions = {}): Promise<DataRecord> {
+export async function createRecord<T extends TableName>(table: T, record: NewRecord<T>, options: CrudOptions = {}): Promise<IHPRecord<T>> {
     if (typeof table !== "string") {
         throw new Error(`Table name needs to be a string, you passed ${JSON.stringify(table)} in a call to createRecord(${JSON.stringify(table)}, ${JSON.stringify(record, null, 4)})`);
     }
@@ -534,20 +537,20 @@ export async function createRecord(table: string, record: DataRecord, options: C
     const request = { tag: 'CreateRecordMessage', table, record, transactionId };
 
     try {
-        createOptimisticRecord(table, record);
-        await waitPendingChanges(table, record);
+        createOptimisticRecord(table, record as DataRecord);
+        await waitPendingChanges(table, record as DataRecord);
 
         const response = await DataSyncController.getInstance().sendMessage(request);
-        markCreateOptimisticRecordFinished(record);
-        return response.record as DataRecord;
+        markCreateOptimisticRecordFinished(record as DataRecord);
+        return response.record as IHPRecord<T>;
     } catch (e) {
-        undoCreateOptimisticRecord(table, record);
+        undoCreateOptimisticRecord(table, record as DataRecord);
 
         throw new Error(`${(e as Error).message} while calling:\n\ncreateRecord(${JSON.stringify(table)}, ${JSON.stringify(record, null, 4)})`);
     }
 }
 
-export async function updateRecord(table: string, id: UUID, patch: DataRecord, options: CrudOptions = {}): Promise<DataRecord> {
+export async function updateRecord<T extends TableName>(table: T, id: UUID, patch: Partial<NewRecord<T>>, options: CrudOptions = {}): Promise<IHPRecord<T>> {
     if (typeof table !== "string") {
         throw new Error(`Table name needs to be a string, you passed ${JSON.stringify(table)} in a call to updateRecord(${JSON.stringify(table)}, ${JSON.stringify(id)}, ${JSON.stringify(patch, null, 4)})`);
     }
@@ -561,21 +564,21 @@ export async function updateRecord(table: string, id: UUID, patch: DataRecord, o
     const transactionId = 'transactionId' in options ? options.transactionId : null;
     const request = { tag: 'UpdateRecordMessage', table, id, patch, transactionId };
 
-    const undoUpdateRecordOptimistic = updateRecordOptimistic(table, id, patch);
+    const undoUpdateRecordOptimistic = updateRecordOptimistic(table, id, patch as DataRecord);
 
     try {
         await waitPendingCreation(table, id);
-        await waitPendingChanges(table, patch);
+        await waitPendingChanges(table, patch as DataRecord);
         const response = await DataSyncController.getInstance().sendMessage(request);
 
-        return response.record as DataRecord;
+        return response.record as IHPRecord<T>;
     } catch (e) {
         undoUpdateRecordOptimistic();
         throw new Error((e as Error).message);
     }
 }
 
-export async function updateRecords(table: string, ids: UUID[], patch: DataRecord, options: CrudOptions = {}): Promise<DataRecord[]> {
+export async function updateRecords<T extends TableName>(table: T, ids: UUID[], patch: Partial<NewRecord<T>>, options: CrudOptions = {}): Promise<IHPRecord<T>[]> {
     if (typeof table !== "string") {
         throw new Error(`Table name needs to be a string, you passed ${JSON.stringify(table)} in a call to updateRecords(${JSON.stringify(table)}, ${JSON.stringify(ids)}, ${JSON.stringify(patch, null, 4)})`);
     }
@@ -592,13 +595,13 @@ export async function updateRecords(table: string, ids: UUID[], patch: DataRecor
     try {
         const response = await DataSyncController.getInstance().sendMessage(request);
 
-        return response.records as DataRecord[];
+        return response.records as IHPRecord<T>[];
     } catch (e) {
         throw new Error((e as Error).message);
     }
 }
 
-export async function deleteRecord(table: string, id: UUID, options: CrudOptions = {}): Promise<void> {
+export async function deleteRecord<T extends TableName>(table: T, id: UUID, options: CrudOptions = {}): Promise<void> {
     if (typeof table !== "string") {
         throw new Error(`Table name needs to be a string, you passed ${JSON.stringify(table)} in a call to deleteRecord(${JSON.stringify(table)}, ${JSON.stringify(id)})`);
     }
@@ -621,7 +624,7 @@ export async function deleteRecord(table: string, id: UUID, options: CrudOptions
     }
 }
 
-export async function deleteRecords(table: string, ids: UUID[], options: CrudOptions = {}): Promise<void> {
+export async function deleteRecords<T extends TableName>(table: T, ids: UUID[], options: CrudOptions = {}): Promise<void> {
     if (typeof table !== "string") {
         throw new Error(`Table name needs to be a string, you passed ${JSON.stringify(table)} in a call to deleteRecords(${JSON.stringify(table)}, ${JSON.stringify(ids)})`);
     }
@@ -641,7 +644,7 @@ export async function deleteRecords(table: string, ids: UUID[], options: CrudOpt
     }
 }
 
-export async function createRecords(table: string, records: DataRecord[], options: CrudOptions = {}): Promise<DataRecord[]> {
+export async function createRecords<T extends TableName>(table: T, records: NewRecord<T>[], options: CrudOptions = {}): Promise<IHPRecord<T>[]> {
     if (typeof table !== "string") {
         throw new Error(`Table name needs to be a string, you passed ${JSON.stringify(table)} in a call to createRecords(${JSON.stringify(table)}, ${JSON.stringify(records, null, 4)})`);
     }
@@ -655,7 +658,7 @@ export async function createRecords(table: string, records: DataRecord[], option
     try {
         const response = await DataSyncController.getInstance().sendMessage(request);
 
-        return response.records as DataRecord[];
+        return response.records as IHPRecord<T>[];
     } catch (e) {
         throw new Error((e as Error).message);
     }

@@ -3,6 +3,26 @@
 export type UUID = string;
 export type DataRecord = Record<string, unknown>;
 
+// Schema type registries - augmented by generated code from ihp-datasync-typescript.
+// When empty (no code generation), all table/record types fall back to string/DataRecord.
+// When augmented, types narrow to specific table names and record shapes.
+//
+// Example generated augmentation:
+//   declare module 'ihp-datasync' {
+//       interface TableRegistry { tasks: Task; users: User; }
+//       interface NewRecordRegistry { tasks: NewTask; users: NewUser; }
+//       interface Task { id: UUID; title: string; }
+//       interface NewTask { id?: UUID; title: string; }
+//   }
+export interface TableRegistry {}
+export interface NewRecordRegistry {}
+
+// Derived types that automatically narrow when registries are augmented
+type _TableName = keyof TableRegistry & string;
+export type TableName = [_TableName] extends [never] ? string : _TableName;
+export type IHPRecord<T extends string> = T extends keyof TableRegistry ? TableRegistry[T] : DataRecord;
+export type NewRecord<T extends string> = T extends keyof NewRecordRegistry ? NewRecordRegistry[T] : DataRecord;
+
 // Condition operators (matches Haskell ConditionOperator)
 export type ConditionOperator =
     | 'OpEqual'

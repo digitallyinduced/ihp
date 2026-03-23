@@ -57,6 +57,11 @@ export {
 export type {
     UUID,
     DataRecord,
+    TableName,
+    IHPRecord,
+    NewRecord,
+    TableRegistry,
+    NewRecordRegistry,
     DynamicSQLQuery,
     ConditionExpression,
     ConditionOperator,

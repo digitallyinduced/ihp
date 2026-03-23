@@ -12,7 +12,7 @@ export const AuthCompletedContext = React.createContext<boolean>(true);
  * @example
  * const messages = useQuery(query('messages').orderBy('createdAt'));
  */
-export function useQuery(queryBuilder: QueryBuilder, options: DataSubscriptionOptions | null = null): DataRecord[] | null {
+export function useQuery<TTable extends string, TResult>(queryBuilder: QueryBuilder<TTable, TResult>, options: DataSubscriptionOptions | null = null): TResult[] | null {
     const dataSubscription = DataSubscriptionStore.get(queryBuilder.query, options);
     const isAuthCompleted = useContext(AuthCompletedContext);
     const records = useSyncExternalStore(dataSubscription.subscribe, dataSubscription.getRecords);
@@ -25,7 +25,7 @@ export function useQuery(queryBuilder: QueryBuilder, options: DataSubscriptionOp
         return null;
     }
 
-    return records;
+    return records as TResult[] | null;
 }
 
 /**
@@ -36,7 +36,7 @@ export function useQuery(queryBuilder: QueryBuilder, options: DataSubscriptionOp
  * @example
  * const message = useQuerySingleresult(query('messages').filterWhere('id', '1f290b39-c6d1-4dff-8404-0581f470253c'));
  */
-export function useQuerySingleResult(queryBuilder: QueryBuilder): DataRecord | null {
+export function useQuerySingleResult<TTable extends string, TResult>(queryBuilder: QueryBuilder<TTable, TResult>): TResult | null {
     const result = useQuery(queryBuilder.limit(1));
     return result === null ? null : result[0];
 }
