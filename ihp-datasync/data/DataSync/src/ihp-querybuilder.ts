@@ -464,4 +464,5 @@ export {
     whereLessThanOrEqual,
     whereGreaterThan,
     whereGreaterThanOrEqual,
+    whereIn,
 };

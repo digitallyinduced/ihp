@@ -18,7 +18,8 @@ import {
     whereLessThan,
     whereLessThanOrEqual,
     whereGreaterThan,
-    whereGreaterThanOrEqual
+    whereGreaterThanOrEqual,
+    whereIn
 } from './ihp-querybuilder.js';
 import { DataSyncController, DataSubscription, initIHPBackend, createRecord, createRecords, updateRecord, updateRecords, deleteRecord, deleteRecords, NewRecordBehaviour } from './ihp-datasync.js';
 import { Transaction, withTransaction } from './transaction.js';
@@ -45,6 +46,7 @@ export {
     whereLessThanOrEqual,
     whereGreaterThan,
     whereGreaterThanOrEqual,
+    whereIn,
 
     /* ihp-datasync.js */
     DataSyncController, DataSubscription, initIHPBackend, createRecord, createRecords, updateRecord, updateRecords, deleteRecord, deleteRecords, NewRecordBehaviour,

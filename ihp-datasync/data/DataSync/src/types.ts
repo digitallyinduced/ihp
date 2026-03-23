@@ -87,7 +87,7 @@ export const NewRecordBehaviour = {
 } as const;
 
 export interface DataSubscriptionOptions {
-    newRecordBehaviour?: number;
+    newRecordBehaviour?: typeof APPEND_NEW_RECORD | typeof PREPEND_NEW_RECORD;
 }
 
 // CRUD options
