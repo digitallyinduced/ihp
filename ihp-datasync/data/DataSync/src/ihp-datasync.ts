@@ -797,7 +797,7 @@ function updateRecordOptimistic<T extends TableName>(table: T, id: UUID, patch: 
     };
 }
 
-function deleteRecordOptimistic(table: string, id: UUID): () => void {
+function deleteRecordOptimistic<T extends TableName>(table: T, id: UUID): () => void {
     const dataSyncController = DataSyncController.getInstance();
     const undoOperations: (() => void)[] = [];
     for (const dataSubscription of dataSyncController.dataSubscriptions) {
@@ -843,7 +843,7 @@ async function waitPendingChanges<T extends TableName>(_table: T, record: NewRec
     }
 }
 
-async function waitPendingCreation(_table: string, id: UUID): Promise<void> {
+async function waitPendingCreation<T extends TableName>(_table: T, id: UUID): Promise<void> {
     const optimisticIds = DataSyncController.getInstance().optimisticCreatedPendingRecordIds;
     if (optimisticIds.indexOf(id) !== -1) {
         return waitForMessageMatching(message => message.tag === 'DidCreateRecord' && (message as ServerMessage).record != null && ((message as ServerMessage).record as DataRecord).id === id);
