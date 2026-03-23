@@ -1,5 +1,6 @@
 import {
     QueryBuilder,
+    ConditionBuilder,
     query,
     ihpBackendUrl,
     fetchAuthenticated,
@@ -25,9 +26,10 @@ import { Transaction, withTransaction } from './transaction.js';
 export {
     /* ihp-querybuilder.js */
     QueryBuilder,
+    ConditionBuilder,
     query,
     ihpBackendUrl,
-    fetchAuthenticated, 
+    fetchAuthenticated,
     filterWhere,
     where,
     whereNot,
@@ -50,3 +52,18 @@ export {
     /* transaction.js */
     Transaction, withTransaction
 };
+
+/* Re-export types */
+export type {
+    UUID,
+    DataRecord,
+    DynamicSQLQuery,
+    ConditionExpression,
+    ConditionOperator,
+    SelectedColumns,
+    OrderByClause,
+    OrderByDirection,
+    DataSubscriptionOptions,
+    CrudOptions,
+    ServerMessage,
+} from './types.js';
