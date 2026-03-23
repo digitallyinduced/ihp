@@ -1,6 +1,6 @@
 import { DataSyncController, createRecord, createRecords, updateRecord, updateRecords, deleteRecord, deleteRecords } from "./ihp-datasync.js";
 import { QueryBuilder } from "./ihp-querybuilder.js";
-import type { UUID, CrudOptions, DataSyncEventCallback, TableName, IHPRecord, NewRecord } from "./types.js";
+import type { UUID, CrudOptions, DataSyncEventMap, TableName, IHPRecord, NewRecord } from "./types.js";
 
 export class Transaction {
     transactionId: UUID | null;
@@ -16,7 +16,7 @@ export class Transaction {
         const response = await this.dataSyncController.sendMessage({ tag: 'StartTransaction' });
         this.transactionId = response.transactionId as UUID;
 
-        this.dataSyncController.addEventListener('close', this.onClose as DataSyncEventCallback);
+        this.dataSyncController.addEventListener('close', this.onClose);
     }
 
     async commit(): Promise<void> {
@@ -39,7 +39,7 @@ export class Transaction {
 
     onClose(): void {
         this.transactionId = null;
-        this.dataSyncController.removeEventListener('close', this.onClose as DataSyncEventCallback);
+        this.dataSyncController.removeEventListener('close', this.onClose);
     }
 
     getIdOrFail(): UUID {

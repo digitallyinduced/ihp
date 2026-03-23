@@ -97,7 +97,15 @@ export interface CrudOptions {
 
 // Event system types
 export type DataSyncEventType = 'message' | 'close' | 'reconnect' | 'open';
-export type DataSyncEventCallback = (payload: unknown) => void;
+
+export interface DataSyncEventMap {
+    message: (payload: ServerMessage) => void;
+    close: (event: unknown) => void;
+    reconnect: () => void;
+    open: (event: unknown) => void;
+}
+
+export type DataSyncEventCallback = (payload: never) => void;
 
 // Pending request tracking
 export interface PendingRequest {

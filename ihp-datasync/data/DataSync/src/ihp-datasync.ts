@@ -7,7 +7,7 @@ import type {
     IHPRecord,
     NewRecord,
     DataSyncEventType,
-    DataSyncEventCallback,
+    DataSyncEventMap,
     PendingRequest,
     ServerMessage,
     DataSubscriptionOptions,
@@ -16,7 +16,7 @@ import type {
 import { APPEND_NEW_RECORD, PREPEND_NEW_RECORD, NewRecordBehaviour } from './types.js';
 
 type EventListeners = {
-    [K in DataSyncEventType]: DataSyncEventCallback[];
+    [K in DataSyncEventType]: DataSyncEventMap[K][];
 };
 
 class DataSyncController {
@@ -202,14 +202,15 @@ class DataSyncController {
         });
     }
 
-    addEventListener(event: DataSyncEventType, callback: DataSyncEventCallback): void {
-        this.eventListeners[event].push(callback);
+    addEventListener<E extends DataSyncEventType>(event: E, callback: DataSyncEventMap[E]): void {
+        (this.eventListeners[event] as DataSyncEventMap[E][]).push(callback);
     }
 
-    removeEventListener(event: DataSyncEventType, callback: DataSyncEventCallback): void {
-        const index = this.eventListeners[event].indexOf(callback);
+    removeEventListener<E extends DataSyncEventType>(event: E, callback: DataSyncEventMap[E]): void {
+        const listeners = this.eventListeners[event] as DataSyncEventMap[E][];
+        const index = listeners.indexOf(callback);
         if (index > -1) {
-            this.eventListeners[event].splice(index, 1);
+            listeners.splice(index, 1);
         }
     }
 
@@ -227,7 +228,7 @@ class DataSyncController {
                 await this.startConnection();
 
                 for (const listener of this.eventListeners.reconnect) {
-                    listener(undefined);
+                    listener();
                 }
             } catch (error) {
                 console.error('DataSync reconnection failed:', error);
@@ -341,9 +342,9 @@ class DataSubscription {
             // run. This function could be called multiple times (e.g. a second time on internet reconnect).
             // In those cases we already did register the event listener.
             if (this.isClosed === false) {
-                dataSyncController.addEventListener('message', this.onMessage as DataSyncEventCallback);
-                dataSyncController.addEventListener('close', this.onDataSyncClosed as DataSyncEventCallback);
-                dataSyncController.addEventListener('reconnect', this.onDataSyncReconnect as DataSyncEventCallback);
+                dataSyncController.addEventListener('message', this.onMessage);
+                dataSyncController.addEventListener('close', this.onDataSyncClosed);
+                dataSyncController.addEventListener('reconnect', this.onDataSyncReconnect);
                 dataSyncController.dataSubscriptions.push(this);
             }
 
@@ -402,9 +403,9 @@ class DataSubscription {
         const dataSyncController = DataSyncController.getInstance();
         await dataSyncController.sendMessage({ tag: 'DeleteDataSubscription', subscriptionId: this.subscriptionId });
 
-        dataSyncController.removeEventListener('message', this.onMessage as DataSyncEventCallback);
-        dataSyncController.removeEventListener('close', this.onDataSyncClosed as DataSyncEventCallback);
-        dataSyncController.removeEventListener('reconnect', this.onDataSyncReconnect as DataSyncEventCallback);
+        dataSyncController.removeEventListener('message', this.onMessage);
+        dataSyncController.removeEventListener('close', this.onDataSyncClosed);
+        dataSyncController.removeEventListener('reconnect', this.onDataSyncReconnect);
         const index = dataSyncController.dataSubscriptions.indexOf(this);
         if (index !== -1) {
             dataSyncController.dataSubscriptions.splice(index, 1);
@@ -738,7 +739,7 @@ function markCreateOptimisticRecordFinished<T extends TableName>(record: NewReco
 
 function updateRecordOptimistic<T extends TableName>(table: T, id: UUID, patch: Partial<NewRecord<T>>): () => void {
     const dataSyncController = DataSyncController.getInstance();
-    const patchRecord = patch as DataRecord;
+    const patchRecord = patch as Record<string, unknown>;
     const rollbackOperations: (() => void)[] = [];
     for (const dataSubscription of dataSyncController.dataSubscriptions) {
         if (dataSubscription.query.table !== table) {
@@ -822,7 +823,7 @@ function deleteRecordOptimistic<T extends TableName>(table: T, id: UUID): () => 
 function doesRecordReferencePendingOptimisticRecord<T extends TableName>(record: NewRecord<T> | Partial<NewRecord<T>>): boolean {
     const dataSyncController = DataSyncController.getInstance();
     const optimisticIds = dataSyncController.optimisticCreatedPendingRecordIds;
-    const rec = record as DataRecord;
+    const rec = record as Record<string, unknown>;
 
     for (const attribute in rec) {
         if (attribute === 'id') {
@@ -854,8 +855,8 @@ function waitForMessageMatching(condition: (message: ServerMessage) => boolean):
     const dataSyncController = DataSyncController.getInstance();
 
     return new Promise((resolve) => {
-        const callback: DataSyncEventCallback = (payload) => {
-            if (condition(payload as ServerMessage)) {
+        const callback = (payload: ServerMessage) => {
+            if (condition(payload)) {
                 dataSyncController.removeEventListener('message', callback);
                 resolve();
             }

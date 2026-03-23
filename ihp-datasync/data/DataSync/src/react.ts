@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useContext, useSyncExternalStore, useRef, useMemo } from 'react';
 import { DataSubscription, DataSyncController } from './ihp-datasync.js';
 import { QueryBuilder } from './ihp-querybuilder.js';
-import type { DataRecord, DynamicSQLQuery, DataSubscriptionOptions, DataSyncEventCallback, ServerMessage } from './types.js';
+import type { DataRecord, DynamicSQLQuery, DataSubscriptionOptions, DataSyncEventMap, ServerMessage } from './types.js';
 
 // Most IHP apps never use this context because they use session cookies for auth.
 // Therefore the default value is true.
@@ -48,8 +48,8 @@ export function useIsConnected(): boolean {
     const [isConnected, setConnected] = useState(isConnectedDefault);
 
     useEffect(() => {
-        const setConnectedTrue: DataSyncEventCallback = () => setConnected(true);
-        const setConnectedFalse: DataSyncEventCallback = () => setConnected(false);
+        const setConnectedTrue: DataSyncEventMap['open'] = () => setConnected(true);
+        const setConnectedFalse: DataSyncEventMap['close'] = () => setConnected(false);
 
         dataSyncController.addEventListener('open', setConnectedTrue);
         dataSyncController.addEventListener('close', setConnectedFalse);
@@ -108,8 +108,7 @@ export function useCount(queryBuilder: QueryBuilder): number | null {
         const controller = DataSyncController.getInstance();
         let isActive = true;
         let subscriptionId: string | null = null;
-        const onMessage: DataSyncEventCallback = (payload) => {
-            const message = payload as ServerMessage;
+        const onMessage: DataSyncEventMap['message'] = (message) => {
             if (message.tag === 'DidChangeCount' && message.subscriptionId === subscriptionId) {
                 count.current = message.count as number;
                 onStoreChange();
