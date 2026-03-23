@@ -1,7 +1,7 @@
 // Wire protocol types mirroring Haskell IHP.DataSync.DynamicQuery and IHP.DataSync.Types
 
 export type UUID = string;
-export type DataRecord = Record<string, unknown>;
+export type DataRecord = { id: UUID; [key: string]: unknown };
 
 // Schema type registries - augmented by generated code from ihp-datasync-typescript.
 // When empty (no code generation), all table/record types fall back to string/DataRecord.
@@ -106,9 +106,19 @@ export interface PendingRequest {
     reject: (reason: unknown) => void;
 }
 
-// Server response (loosely typed - the specific shapes vary by tag)
+// Server response tags (matches Haskell DataSyncResponse)
+export type ServerMessageTag =
+    | 'DataSyncResult' | 'DataSyncError' | 'FailedToDecodeMessageError'
+    | 'DidCreateDataSubscription' | 'DidCreateCountSubscription' | 'DidDeleteDataSubscription'
+    | 'DidInsert' | 'DidUpdate' | 'DidDelete' | 'DidChangeCount'
+    | 'DidCreateRecord' | 'DidCreateRecords' | 'DidUpdateRecord' | 'DidUpdateRecords'
+    | 'DidDeleteRecord' | 'DidDeleteRecords'
+    | 'DidStartTransaction' | 'DidRollbackTransaction' | 'DidCommitTransaction'
+    | 'LoginSuccessful' | 'UserLocked' | 'UserUnconfirmed' | 'InvalidCredentials'
+    | 'DidCreateUser' | 'CreateUserFailed' | 'DidConfirmUser' | 'DidConfirmUserAlready' | 'ConfirmUserFailed';
+
 export interface ServerMessage {
-    tag: string;
+    tag: ServerMessageTag;
     requestId?: number;
     [key: string]: unknown;
 }

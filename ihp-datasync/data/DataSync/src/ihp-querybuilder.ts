@@ -309,7 +309,7 @@ class QueryBuilder<TTable extends string = string, TResult = IHPRecord<TTable>> 
         return this;
     }
 
-    whereTextSearchStartsWith(field: keyof IHPRecord<TTable> & string, value: unknown): this {
+    whereTextSearchStartsWith(field: keyof IHPRecord<TTable> & string, value: string): this {
         let normalized = String(value ?? '').trim().split(' ').map(s => s.trim()).filter(v => v.length > 0).join('&');
         if (normalized.length > 0) {
             normalized += ':*';

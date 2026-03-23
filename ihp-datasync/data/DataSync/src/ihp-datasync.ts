@@ -375,7 +375,7 @@ class DataSubscription {
     receiveUpdate(message: ServerMessage): void {
         const tag = message.tag;
         if (tag === 'DidUpdate') {
-            this.onUpdate(message.id as UUID, message.changeSet as DataRecord | null, message.appendSet as DataRecord | null);
+            this.onUpdate(message.id as UUID, message.changeSet as Record<string, unknown> | null, message.appendSet as Record<string, unknown> | null);
         } else if (tag === 'DidInsert') {
             this.onCreate(message.record as DataRecord);
         } else if (tag === 'DidDelete') {
@@ -422,9 +422,9 @@ class DataSubscription {
         await this.createOnServer();
     }
 
-    onUpdate(id: UUID, changeSet: DataRecord | null, appendSet: DataRecord | null): void {
+    onUpdate(id: UUID, changeSet: Record<string, unknown> | null, appendSet: Record<string, unknown> | null): void {
         this.records = this.records!.map(record => {
-            if ((record as DataRecord & { id: UUID }).id === id) {
+            if (record.id === id) {
                 const updated = Object.assign({}, record, changeSet);
                 if (appendSet && !this.optimisticUpdatedPendingRecordIds.has(id)) {
                     for (const [key, value] of Object.entries(appendSet)) {
@@ -444,7 +444,7 @@ class DataSubscription {
     onCreate(newRecord: DataRecord): void {
         const shouldAppend = this.newRecordBehaviour === APPEND_NEW_RECORD;
 
-        const newRecordId = (newRecord as DataRecord & { id: UUID }).id;
+        const newRecordId = newRecord.id;
         const isOptimisticallyCreatedAlready = this.optimisticCreatedPendingRecordIds.indexOf(newRecordId) !== -1;
         if (isOptimisticallyCreatedAlready) {
             this.onUpdate(newRecordId, newRecord, null);
@@ -462,11 +462,11 @@ class DataSubscription {
         }
 
         this.onCreate(newRecord);
-        this.optimisticCreatedPendingRecordIds.push((newRecord as DataRecord & { id: UUID }).id);
+        this.optimisticCreatedPendingRecordIds.push(newRecord.id);
     }
 
     onDelete(id: UUID): void {
-        this.records = this.records!.filter(record => (record as DataRecord & { id: UUID }).id !== id);
+        this.records = this.records!.filter(record => record.id !== id);
         this.updateSubscribers();
     }
 
@@ -751,12 +751,12 @@ function updateRecordOptimistic<T extends TableName>(table: T, id: UUID, patch: 
         }
 
         for (const record of dataSubscriptionRecords) {
-            if (!record || (record as DataRecord & { id: UUID }).id !== id) {
+            if (!record || record.id !== id) {
                 continue;
             }
 
             // Store values before we apply the patch to the record
-            const oldValues: DataRecord = {};
+            const oldValues: Record<string, unknown> = {};
             for (const key of Object.keys(patchRecord)) {
                 oldValues[key] = record[key];
             }
@@ -773,12 +773,12 @@ function updateRecordOptimistic<T extends TableName>(table: T, id: UUID, patch: 
                     return;
                 }
 
-                const currentRecord = records.find(record => (record as DataRecord & { id: UUID }).id === id);
+                const currentRecord = records.find(record => record.id === id);
                 if (!currentRecord) {
                     return;
                 }
 
-                const undoPatch: DataRecord = {};
+                const undoPatch: Record<string, unknown> = {};
                 for (const key of Object.keys(patchRecord)) {
                     if (currentRecord[key] === patchRecord[key]) {
                         undoPatch[key] = oldValues[key];
@@ -805,7 +805,7 @@ function deleteRecordOptimistic<T extends TableName>(table: T, id: UUID): () => 
             continue;
         }
 
-        const deletedRecord = dataSubscription.records!.find(record => (record as DataRecord & { id: UUID }).id === id);
+        const deletedRecord = dataSubscription.records!.find(record => record.id === id);
         if (deletedRecord) {
             dataSubscription.onDelete(id);
             undoOperations.push(() => dataSubscription.onCreate(deletedRecord));
