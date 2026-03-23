@@ -363,13 +363,13 @@ Adjust the policy to match your application's needs. If you use inline scripts, 
 
 Use this checklist to review your application's security posture:
 
-- [ ] **Use HTTPS in production** -- Set `IHP_BASEURL` to an `https://` URL so session cookies are marked `Secure`
-- [ ] **Keep secrets out of source code** -- Store API keys, database credentials, and session secrets in environment variables, not in committed files
-- [ ] **Use `fill` to whitelist form fields** -- Never manually assign user input to sensitive record fields
-- [ ] **Do not use `preEscapedToHtml` with user input** -- Only use it with content you have generated or sanitized yourself
-- [ ] **Use parameterized queries for raw SQL** -- Always use `?` placeholders in `sqlQuery`/`sqlExec`, never string concatenation
-- [ ] **Validate file uploads** -- Check content types and set upload size limits
-- [ ] **Use POST for state-changing actions** -- Do not use GET requests for actions that create, update, or delete data
-- [ ] **Add security headers** -- Configure `Strict-Transport-Security`, `X-Content-Type-Options`, and `X-Frame-Options` via middleware or your reverse proxy
-- [ ] **Keep dependencies updated** -- Run `nix flake update` periodically to pick up security patches
-- [ ] **Use authorization checks** -- Use `ensureIsUser`, `accessDeniedUnless`, and row-level security policies to control access to resources
+- **Use HTTPS in production** -- Set `IHP_BASEURL` to an `https://` URL so session cookies are marked `Secure`
+- **Keep secrets out of source code** -- Store API keys, database credentials, and session secrets in environment variables, not in committed files
+- **Use `fill` to whitelist form fields** -- Never manually assign user input to sensitive record fields
+- **Do not use `preEscapedToHtml` with user input** -- Only use it with content you have generated or sanitized yourself
+- **Use parameterized queries for raw SQL** -- Always use `?` placeholders in `sqlQuery`/`sqlExec`, never string concatenation
+- **Validate file uploads** -- Check content types and set upload size limits
+- **Use POST for state-changing actions** -- Do not use GET requests for actions that create, update, or delete data
+- **Add security headers** -- Configure `Strict-Transport-Security`, `X-Content-Type-Options`, and `X-Frame-Options` via middleware or your reverse proxy
+- **Keep dependencies updated** -- Run `nix flake update` periodically to pick up security patches
+- **Use authorization checks** -- Use `ensureIsUser`, `accessDeniedUnless`, and row-level security policies to control access to resources
