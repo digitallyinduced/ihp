@@ -260,7 +260,6 @@ CABAL_HEADER
 
             cat >> ${appName}-lib.cabal <<'CABAL_EOF'
     default-extensions:
-        GHC2021
         OverloadedStrings
         NoImplicitPrelude
         ImplicitParams
