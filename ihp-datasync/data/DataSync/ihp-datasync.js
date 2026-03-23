@@ -433,10 +433,6 @@ class DataSubscription {
     }
 
     subscribe(callback) {
-        if (this.isClosed) {
-            throw new Error('Trying to subscribe to a DataSubscription that is already closed');
-        }
-
         this.subscribers.push(callback);
 
         return () => {
