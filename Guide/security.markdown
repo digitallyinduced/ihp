@@ -213,13 +213,13 @@ This requires your `users` table to have `locked_at` and `failed_login_attempts`
 
 When a user provides an email that does not exist, IHP returns the same generic "Invalid Credentials" error message as when the password is wrong. This prevents attackers from enumerating valid email addresses.
 
-## Mass Assignment Protection
+## Mass Assignment
 
-Mass assignment is a vulnerability where an attacker submits extra form fields to modify database columns that were not intended to be user-editable. For example, a user registration form might only show name and email fields, but an attacker could add an `isAdmin=true` parameter to the request.
+In some frameworks (like Rails before Strong Parameters), all form fields are automatically assigned to model attributes, meaning an attacker could submit extra fields like `isAdmin=true` to escalate privileges. IHP does not have this problem — you always explicitly name every field, whether you use `fill` or `param`.
 
-### How IHP Prevents Mass Assignment
+### Using fill
 
-IHP uses the `fill` function, which takes a type-level list of field names. Only the fields you explicitly list will be read from the request:
+The `fill` function reads multiple fields from the request and integrates with IHP's validation system. Only the fields you list are read:
 
 ```haskell
 action UpdateUserAction { userId } = do
@@ -233,22 +233,7 @@ action UpdateUserAction { userId } = do
                 redirectTo ShowUserAction { userId }
 ```
 
-In this example, only `firstname`, `lastname`, and `email` are read from the request parameters. Even if an attacker submits `isAdmin=true` or `passwordHash=...` in the request, those fields will not be set on the record.
-
-This is similar to Rails' Strong Parameters, but enforced at the type level. If you try to `fill` a field that does not exist on the record, you get a compile-time error.
-
-### Best Practice
-
-Always use `fill` to whitelist the fields that should be settable by the user. Never manually read parameters and assign them to sensitive fields:
-
-```haskell
--- SAFE: Only explicitly listed fields are filled from the request
-user |> fill @'["firstname", "lastname"]
-
--- DANGEROUS: Manually reading and setting a sensitive field from user input
-let isAdmin = param "isAdmin"
-user |> set #isAdmin isAdmin
-```
+The advantage of `fill` over manually calling `param` is that it integrates with form validation — if a field is missing or invalid, the error is attached to the record and can be displayed next to the form field. Using `param` directly works fine too, but you handle validation yourself.
 
 ## File Upload Security
 
