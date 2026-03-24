@@ -246,7 +246,7 @@ tests = do
                         case result of
                             Left (e :: Exception.SomeException) ->
                                 expectationFailure $
-                                    "Second trigger install blocked or failed with locked table: " <> show e
+                                    "Second trigger install blocked or failed with locked table: " <> tshow e
                             Right () -> pure ()
 
 -- DB helpers (same pattern as DataSyncIntegrationSpec.hs)
@@ -311,11 +311,10 @@ withHasqlPool connStr action =
 
 queryTriggerCount :: Hasql.Pool.Pool -> Text -> IO Int
 queryTriggerCount pool tableName = do
-    let session = Session.statement (cs tableName) $ Statement.Statement
+    let session = Session.statement (cs tableName) $ Statement.preparable
             "SELECT count(*)::int FROM pg_trigger WHERE tgrelid = $1::regclass AND tgname LIKE 'did_%'"
             (Encoders.param (Encoders.nonNullable Encoders.text))
             (Decoders.singleRow (Decoders.column (Decoders.nonNullable (fromIntegral <$> Decoders.int4))))
-            True
     runSession pool session
 
 withDB :: (Text -> IO ()) -> IO ()
