@@ -75,22 +75,18 @@ let
 
             # Forks of wai-session / wai-session-clientsession with deferred
             # session decryption and optional Set-Cookie (Maybe ByteString).
-            # https://github.com/digitallyinduced/wai-session-maybe
-            # https://github.com/digitallyinduced/wai-session-clientsession-deferred
-            wai-session-maybe = super.callCabal2nix "wai-session-maybe"
-                (final.fetchFromGitHub {
-                    owner = "digitallyinduced";
-                    repo = "wai-session-maybe";
-                    rev = "v1.0.0";
-                    hash = "sha256-zXbWqp9L+JfD1RlW2Fvpb2XVhcL7hDHZCsl2wLMNKOQ=";
-                }) {};
-            wai-session-clientsession-deferred = super.callCabal2nix "wai-session-clientsession-deferred"
-                (final.fetchFromGitHub {
-                    owner = "digitallyinduced";
-                    repo = "wai-session-clientsession-deferred";
-                    rev = "v1.0.0";
-                    hash = "sha256-jrHXJGrlMdCv0JkD7+Sh55kkdQbbPCBIWhq+vatNi50=";
-                }) {};
+            # https://hackage.haskell.org/package/wai-session-maybe
+            # https://hackage.haskell.org/package/wai-session-clientsession-deferred
+            wai-session-maybe = super.callHackageDirect {
+                pkg = "wai-session-maybe";
+                ver = "1.0.0";
+                sha256 = "sha256-DCdGNnwE9OC/E2ancM9tgxV1KNnAm/h0rJRd2hOa7ls=";
+            } {};
+            wai-session-clientsession-deferred = super.callHackageDirect {
+                pkg = "wai-session-clientsession-deferred";
+                ver = "1.0.0";
+                sha256 = "sha256-l/AQrZCJklAEYl6v8rtx00ohLkYgylFtxaihtszJkkc=";
+            } {};
 
             # Can be removed after v0.3.2 is on hackage
             # https://github.com/tippenein/countable-inflections/pull/6
