@@ -271,6 +271,37 @@ IHP provides two main NixOS modules:
 
 You can also import individual service modules (`ihp.nixosModules.services_app`, `services_worker`, `services_migrate`, `services_appKeygen`) for full control.
 
+#### Separate Nixpkgs for NixOS Deployments
+
+IHP provides two `nixpkgs` inputs that can be pinned independently:
+
+- **`nixpkgs`** — Used for building Haskell packages and development. This can track the latest nixpkgs for newer GHC versions and updated Haskell libraries.
+- **`nixpkgs-nixos`** — Used for NixOS server deployments (system packages like nginx, PostgreSQL, etc.). This can be pinned to a stable NixOS release for production reliability.
+
+By default both point to the same nixpkgs version. To pin them independently, override the URLs in your app's `flake.nix`:
+
+```nix
+inputs = {
+    ihp.url = "github:digitallyinduced/ihp/v1.4";
+    nixpkgs.follows = "ihp/nixpkgs";
+    nixpkgs-nixos.follows = "ihp/nixpkgs-nixos";
+    # ... other inputs
+};
+```
+
+Then in your `host.nix`, use `nixpkgs-nixos` for the NixOS system evaluation:
+
+```nix
+{ inputs }:
+inputs.nixpkgs-nixos.lib.nixosSystem {
+    system = "x86_64-linux";
+    specialArgs = inputs // { nixpkgs = inputs.nixpkgs-nixos; };
+    modules = [ ./configuration.nix ];
+}
+```
+
+This ensures NixOS system packages (nginx, PostgreSQL, vim, etc.) come from the stable `nixpkgs-nixos` input, while your IHP application binary remains built against the Haskell `nixpkgs` — it is a pre-built derivation from `self.packages.*` and is unaffected by the NixOS nixpkgs choice.
+
 #### Security Hardening
 
 Add these settings to your `configuration.nix` for a hardened production server:

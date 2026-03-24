@@ -1589,6 +1589,22 @@
         "type": "github"
       }
     },
+    "nixpkgs-nixos": {
+      "locked": {
+        "lastModified": 1774244481,
+        "narHash": "sha256-4XfMXU0DjN83o6HWZoKG9PegCvKvIhNUnRUI19vzTcQ=",
+        "owner": "NixOS",
+        "repo": "nixpkgs",
+        "rev": "4590696c8693fea477850fe379a01544293ca4e2",
+        "type": "github"
+      },
+      "original": {
+        "owner": "NixOS",
+        "ref": "nixos-25.11",
+        "repo": "nixpkgs",
+        "type": "github"
+      }
+    },
     "nixpkgs-regression": {
       "locked": {
         "lastModified": 1643052045,
@@ -2013,6 +2029,7 @@
         "ihp-boilerplate": "ihp-boilerplate",
         "nix-filter": "nix-filter_3",
         "nixpkgs": "nixpkgs_8",
+        "nixpkgs-nixos": "nixpkgs-nixos",
         "systems": "systems_7"
       }
     },
