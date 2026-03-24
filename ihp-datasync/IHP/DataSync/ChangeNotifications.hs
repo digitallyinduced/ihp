@@ -49,87 +49,91 @@ data Change
     deriving (Eq, Show)
 
 -- | Returns the sql code to set up a database trigger. Mainly used by 'watchInsertOrUpdateTable'.
+--
+-- The function body is always updated via @CREATE OR REPLACE FUNCTION@ (no table lock needed).
+-- The trigger DDL (@DROP TRIGGER@ / @CREATE TRIGGER@) requires @AccessExclusiveLock@ on the table,
+-- so it is only executed when the triggers don't already exist, avoiding lock contention with
+-- long-running queries like @COPY@ or @pg_dump@.
 createNotificationFunction :: Text -> RLS.TableWithRLS -> Text
 createNotificationFunction uuidFunction table = [i|
     DO $$
     BEGIN
-        -- Serialize trigger DDL per table using an advisory lock keyed on the
-        -- table OID. Without this, concurrent DataSync WebSocket connections
-        -- race to DROP/CREATE triggers, each requiring AccessExclusiveLock,
-        -- which causes cascading lock waits that can exhaust the connection pool.
-        -- See: https://github.com/digitallyinduced/ihp/issues/2467
-        PERFORM pg_advisory_xact_lock(
-            (SELECT oid::int FROM pg_class WHERE relname = '#{tableName}' AND relnamespace = 'public'::regnamespace)
-        );
-
-        BEGIN
-            CREATE OR REPLACE FUNCTION "#{functionName}"() RETURNS TRIGGER AS $BODY$
-                DECLARE
-                    payload TEXT;
-                    large_pg_notification_id UUID;
-                    changeset JSON;
-                BEGIN
-                    CASE TG_OP
-                    WHEN 'UPDATE' THEN
-                        SELECT coalesce(json_agg(
-                            CASE
-                                WHEN jsonb_typeof(pre.value) = 'string'
-                                    AND jsonb_typeof(post.value) = 'string'
-                                    AND length(post.value #>> '{}') > length(pre.value #>> '{}')
-                                    AND starts_with(post.value #>> '{}', pre.value #>> '{}')
-                                THEN json_build_object(
-                                    'col', pre.key,
-                                    'append', substring(post.value #>> '{}' from length(pre.value #>> '{}') + 1)
-                                )
-                                ELSE json_build_object('col', pre.key, 'new', post.value)
-                            END
-                        ), '[]'::json)
-                        FROM jsonb_each(to_jsonb(OLD)) AS pre
-                        CROSS JOIN jsonb_each(to_jsonb(NEW)) AS post
-                        WHERE pre.key = post.key AND pre.value IS DISTINCT FROM post.value
-                        INTO changeset;
+        -- Always update the function body. CREATE OR REPLACE FUNCTION only locks
+        -- the function in pg_proc, not the table, so this is safe to run
+        -- unconditionally and ensures the function stays up to date.
+        CREATE OR REPLACE FUNCTION "#{functionName}"() RETURNS TRIGGER AS $BODY$
+            DECLARE
+                payload TEXT;
+                large_pg_notification_id UUID;
+                changeset JSON;
+            BEGIN
+                CASE TG_OP
+                WHEN 'UPDATE' THEN
+                    SELECT coalesce(json_agg(
+                        CASE
+                            WHEN jsonb_typeof(pre.value) = 'string'
+                                AND jsonb_typeof(post.value) = 'string'
+                                AND length(post.value #>> '{}') > length(pre.value #>> '{}')
+                                AND starts_with(post.value #>> '{}', pre.value #>> '{}')
+                            THEN json_build_object(
+                                'col', pre.key,
+                                'append', substring(post.value #>> '{}' from length(pre.value #>> '{}') + 1)
+                            )
+                            ELSE json_build_object('col', pre.key, 'new', post.value)
+                        END
+                    ), '[]'::json)
+                    FROM jsonb_each(to_jsonb(OLD)) AS pre
+                    CROSS JOIN jsonb_each(to_jsonb(NEW)) AS post
+                    WHERE pre.key = post.key AND pre.value IS DISTINCT FROM post.value
+                    INTO changeset;
+                    payload := json_build_object(
+                      'UPDATE', NEW.id::text,
+                      'CHANGESET', changeset
+                    )::text;
+                    IF octet_length(payload) > 7800 THEN
+                        INSERT INTO large_pg_notifications (payload) VALUES (changeset) RETURNING id INTO large_pg_notification_id;
                         payload := json_build_object(
-                          'UPDATE', NEW.id::text,
-                          'CHANGESET', changeset
+                            'UPDATE', NEW.id::text,
+                            'CHANGESET', large_pg_notification_id::text
                         )::text;
-                        IF octet_length(payload) > 7800 THEN
-                            INSERT INTO large_pg_notifications (payload) VALUES (changeset) RETURNING id INTO large_pg_notification_id;
-                            payload := json_build_object(
-                                'UPDATE', NEW.id::text,
-                                'CHANGESET', large_pg_notification_id::text
-                            )::text;
-                            DELETE FROM large_pg_notifications WHERE created_at < CURRENT_TIMESTAMP - interval '30s';
-                        END IF;
-                        PERFORM pg_notify(
-                            '#{channelName table}',
-                            payload
-                        );
-                    WHEN 'DELETE' THEN
-                        PERFORM pg_notify(
-                            '#{channelName table}',
-                            (json_build_object('DELETE', OLD.id)::text)
-                        );
-                    WHEN 'INSERT' THEN
-                        PERFORM pg_notify(
-                            '#{channelName table}',
-                            json_build_object('INSERT', NEW.id)::text
-                        );
-                    END CASE;
-                    RETURN new;
-                END;
-            $BODY$ language plpgsql;
-            DROP TRIGGER IF EXISTS "#{insertTriggerName}" ON "#{tableName}";
-            DROP TRIGGER IF EXISTS "#{updateTriggerName}" ON "#{tableName}";
-            DROP TRIGGER IF EXISTS "#{deleteTriggerName}" ON "#{tableName}";
+                        DELETE FROM large_pg_notifications WHERE created_at < CURRENT_TIMESTAMP - interval '30s';
+                    END IF;
+                    PERFORM pg_notify(
+                        '#{channelName table}',
+                        payload
+                    );
+                WHEN 'DELETE' THEN
+                    PERFORM pg_notify(
+                        '#{channelName table}',
+                        (json_build_object('DELETE', OLD.id)::text)
+                    );
+                WHEN 'INSERT' THEN
+                    PERFORM pg_notify(
+                        '#{channelName table}',
+                        json_build_object('INSERT', NEW.id)::text
+                    );
+                END CASE;
+                RETURN new;
+            END;
+        $BODY$ language plpgsql;
 
-            CREATE TRIGGER "#{insertTriggerName}" AFTER INSERT ON "#{tableName}" FOR EACH ROW EXECUTE PROCEDURE "#{functionName}"();
-            CREATE TRIGGER "#{updateTriggerName}" AFTER UPDATE ON "#{tableName}" FOR EACH ROW EXECUTE PROCEDURE "#{functionName}"();
-            CREATE TRIGGER "#{deleteTriggerName}" AFTER DELETE ON "#{tableName}" FOR EACH ROW EXECUTE PROCEDURE "#{functionName}"();
-        EXCEPTION
-            WHEN duplicate_function THEN null;
-            WHEN duplicate_object THEN null;
-            WHEN SQLSTATE 'XX000' THEN null; -- tuple concurrently updated
-        END;
+        -- Only install triggers if they don't already exist. DROP TRIGGER and
+        -- CREATE TRIGGER require AccessExclusiveLock on the table, which blocks
+        -- (and is blocked by) all other table access. Skipping this when triggers
+        -- are already in place avoids cascading lock waits from long-running
+        -- queries like COPY or pg_dump.
+        IF NOT EXISTS (
+            SELECT 1 FROM pg_trigger WHERE tgname = '#{insertTriggerName}'
+                AND tgrelid = '#{tableName}'::regclass
+        ) THEN
+            BEGIN
+                CREATE TRIGGER "#{insertTriggerName}" AFTER INSERT ON "#{tableName}" FOR EACH ROW EXECUTE PROCEDURE "#{functionName}"();
+                CREATE TRIGGER "#{updateTriggerName}" AFTER UPDATE ON "#{tableName}" FOR EACH ROW EXECUTE PROCEDURE "#{functionName}"();
+                CREATE TRIGGER "#{deleteTriggerName}" AFTER DELETE ON "#{tableName}" FOR EACH ROW EXECUTE PROCEDURE "#{functionName}"();
+            EXCEPTION
+                WHEN duplicate_object THEN null;
+            END;
+        END IF;
 
         BEGIN
             IF NOT EXISTS (
