@@ -73,20 +73,24 @@ let
             ihp-hspec = hackageOrLocal "ihp-hspec";
             ihp-welcome = hackageOrLocal "ihp-welcome";
 
-            # Lazy session middleware: defer cookie decryption until first access,
-            # skip Set-Cookie when session is unmodified.
-            # PRs: https://github.com/singpolyma/wai-session/pull/17
-            #       https://github.com/singpolyma/wai-session-clientsession/pull/5
-            wai-session = final.haskell.lib.appendPatch super.wai-session
-                (builtins.fetchurl {
-                    url = "https://github.com/singpolyma/wai-session/commit/c0142c100975d7f4ba7516f5235d30a3e88e32a2.patch";
-                    sha256 = "0ymv7zwg4wdkdyz8wrfyjcprjq9iyik7iiaazsi1d6vhgm3fv6ls";
-                });
-            wai-session-clientsession = final.haskell.lib.appendPatch super.wai-session-clientsession
-                (builtins.fetchurl {
-                    url = "https://github.com/singpolyma/wai-session-clientsession/commit/8b383eac381b6a96ceaa7b3a282b0fe856452f78.patch";
-                    sha256 = "02127wd8y26aps34kmvxxvyyzg94p3i9f3drf7zwp8phdncb19pg";
-                });
+            # Forks of wai-session / wai-session-clientsession with deferred
+            # session decryption and optional Set-Cookie (Maybe ByteString).
+            # https://github.com/digitallyinduced/wai-session-maybe
+            # https://github.com/digitallyinduced/wai-session-clientsession-deferred
+            wai-session-maybe = super.callCabal2nix "wai-session-maybe"
+                (final.fetchFromGitHub {
+                    owner = "digitallyinduced";
+                    repo = "wai-session-maybe";
+                    rev = "v1.0.0";
+                    hash = "sha256-zXbWqp9L+JfD1RlW2Fvpb2XVhcL7hDHZCsl2wLMNKOQ=";
+                }) {};
+            wai-session-clientsession-deferred = super.callCabal2nix "wai-session-clientsession-deferred"
+                (final.fetchFromGitHub {
+                    owner = "digitallyinduced";
+                    repo = "wai-session-clientsession-deferred";
+                    rev = "v1.0.0";
+                    hash = "sha256-jrHXJGrlMdCv0JkD7+Sh55kkdQbbPCBIWhq+vatNi50=";
+                }) {};
 
             # Can be removed after v0.3.2 is on hackage
             # https://github.com/tippenein/countable-inflections/pull/6

@@ -6,8 +6,8 @@ import qualified Network.Wai.Handler.Warp as Warp
 import qualified Network.Wai.Handler.Warp.Systemd as Systemd
 import Network.Wai
 import Network.Wai.Middleware.MethodOverridePost (methodOverridePost)
-import Network.Wai.Session (withSession)
-import Network.Wai.Session.ClientSession (clientsessionStore)
+import Network.Wai.Session.Maybe (withSession)
+import Network.Wai.Session.ClientSession.Deferred (clientsessionStore)
 import qualified Network.Wai.Middleware.HealthCheckEndpoint as HealthCheckEndpoint
 import qualified Web.ClientSession as ClientSession
 import IHP.Controller.Session (sessionVaultKey)

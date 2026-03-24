@@ -26,7 +26,7 @@ import Test.Hspec
 import qualified Data.Text as Text
 import qualified Network.Wai as Wai
 import qualified IHP.LoginSupport.Helper.Controller as Session
-import qualified Network.Wai.Session
+import qualified Network.Wai.Session.Maybe
 import qualified Data.Serialize as Serialize
 import IHP.Controller.Session (sessionVaultKey)
 import IHP.Server (initMiddlewareStack)
@@ -278,7 +278,7 @@ withUser user callback =
     where
         newRequest = currentRequest { Wai.vault = newVault }
 
-        newSession :: Network.Wai.Session.Session IO ByteString ByteString
+        newSession :: Network.Wai.Session.Maybe.Session IO ByteString ByteString
         newSession = (lookupSession, insertSession)
 
         lookupSession key = if key == sessionKey
