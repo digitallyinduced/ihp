@@ -59,8 +59,8 @@ common shared-properties
             , network-uri
             , uri-encode
             , aeson
-            , wai-session
-            , wai-session-clientsession
+            , wai-session-maybe
+            , wai-session-clientsession-deferred
             , clientsession
             , pwstore-fast
             , vault

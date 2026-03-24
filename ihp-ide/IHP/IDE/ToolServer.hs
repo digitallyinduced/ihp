@@ -8,10 +8,10 @@ import IHP.IDE.PortConfig
 import qualified IHP.ControllerSupport as ControllerSupport
 import IHP.ModelSupport
 import IHP.RouterSupport hiding (get)
-import Network.Wai.Session.ClientSession (clientsessionStore)
+import Network.Wai.Session.ClientSession.Deferred (clientsessionStore)
 import qualified Web.ClientSession as ClientSession
 import Network.Wai.Middleware.MethodOverridePost (methodOverridePost)
-import Network.Wai.Session (withSession)
+import Network.Wai.Session.Maybe (withSession)
 import qualified Network.WebSockets as Websocket
 import qualified Network.Wai.Handler.WebSockets as Websocket
 

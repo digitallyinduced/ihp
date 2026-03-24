@@ -162,6 +162,7 @@ that is defined in flake-module.nix
                     "ihp-job-dashboard" "ihp-imagemagick"
                     "ihp-hspec" "ihp-welcome" "ihp-zip"
                     "wai-asset-path" "wai-flash-messages" "wai-request-params"
+                    "wai-session-maybe" "wai-session-clientsession-deferred"
                 ];
             in lib.listToAttrs (map (name: {
                 name = "ghc912-${name}";
@@ -188,6 +189,7 @@ that is defined in flake-module.nix
                     "ihp-job-dashboard" "ihp-imagemagick"
                     "ihp-hspec" "ihp-welcome" "ihp-zip"
                     "wai-asset-path" "wai-flash-messages" "wai-request-params"
+                    "wai-session-maybe" "wai-session-clientsession-deferred"
                 ];
             in lib.listToAttrs (map (name: {
                 name = "ghc914-${name}";
@@ -240,8 +242,8 @@ that is defined in flake-module.nix
                         wai-util
                         aeson
                         uuid
-                        wai-session
-                        wai-session-clientsession
+                        wai-session-maybe
+                        wai-session-clientsession-deferred
                         clientsession
                         pwstore-fast
                         template-haskell
