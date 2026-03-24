@@ -1,6 +1,6 @@
 cabal-version:       2.2
 name:                ihp
-version:             1.4.0
+version:             1.5.0
 synopsis:            Haskell Web Framework
 description:         The Integrated Haskell Platform is a full stack framework focused on rapid application development while striving for robust code quality.
                      Full guide available at: <https://ihp.digitallyinduced.com/Guide/index.html>
@@ -187,6 +187,9 @@ library
         , IHP.ValidationSupport.ValidateField
         , IHP.ValidationSupport.ValidateIsUnique
         , IHP.View.Form
+        , IHP.View.Form.Fields
+        , IHP.View.Form.FormFor
+        , IHP.View.Form.Select
         , IHP.View.TimeAgo
         , IHP.RequestVault
         , IHP.RequestVault.Helper
@@ -312,3 +315,15 @@ test-suite tests
         Test.FetchPipelinedSpec
         Test.JobQueueSpec
         Test.ModelFixtures
+
+benchmark ihp-router-bench
+    import: shared-properties
+    type: exitcode-stdio-1.0
+    hs-source-dirs: .
+    main-is: Test/RouterBench.hs
+    -- tasty-bench requires -fno-static-argument-transformation to prevent
+    -- GHC from defeating the re-evaluation trick used for measurement
+    ghc-options: -fno-static-argument-transformation
+    build-depends:
+        , ihp
+        , tasty-bench

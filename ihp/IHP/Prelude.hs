@@ -1,4 +1,8 @@
+{-# LANGUAGE CPP #-}
 {-# OPTIONS_HADDOCK not-home, hide #-}
+#if __GLASGOW_HASKELL__ >= 912
+{-# LANGUAGE NamedDefaults #-}
+#endif
 module IHP.Prelude
 ( module CorePrelude
 , module Data.Text.IO
@@ -46,6 +50,9 @@ module IHP.Prelude
 , OsPath
 , textToOsPath
 , osPathToText
+#if __GLASGOW_HASKELL__ >= 912
+, default IsString
+#endif
 )
 where
 
@@ -143,3 +150,7 @@ osPathToText path = cs (unsafePerformIO (OsPath.decodeUtf path))
 instance IsString OsPath where
     fromString s = unsafePerformIO (OsPath.encodeUtf s)
     {-# NOINLINE fromString #-}
+
+#if __GLASGOW_HASKELL__ >= 912
+default IsString (Text, String)
+#endif

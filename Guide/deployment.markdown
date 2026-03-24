@@ -849,6 +849,12 @@ nix build .#unoptimized-docker-image --option sandbox false --extra-experimental
 cat result | podman load
 ```
 
+There's also `.#optimized-docker-image` which compiles your app with GHC's `-O2` optimization level. The optimized build produces faster binaries but takes significantly longer to compile. For getting started and testing your deployment, use the unoptimized image. For production, use the optimized image:
+
+```bash
+nix build .#optimized-docker-image --option sandbox false --extra-experimental-features nix-command --extra-experimental-features flakes
+```
+
 Running `podman images` you can now see that the image is available:
 
 ```bash
@@ -859,6 +865,77 @@ app            g13rks9fb4ik8hnqip2s3ngqq4nq14zw   ffc01de1ec7e   54 years ago   
 ```
 
 The `CREATED` timestamp is showing over 50 years ago as the image is built using nix. For having a totally reproducible build, the timestamp is set to `Jan 1970, 00:00 UTC`.
+
+### Worker Docker Image
+
+If your app uses [background jobs](jobs.html), you'll want to run the job worker in a separate container. IHP provides dedicated worker images for this:
+
+```bash
+nix build .#unoptimized-docker-image-worker --option sandbox false --extra-experimental-features nix-command --extra-experimental-features flakes
+
+cat result | podman load
+```
+
+The worker image is named `ihp-worker` and runs `RunJobs` as its entrypoint instead of `RunProdServer`.
+
+**Building both images:** Since `nix build` writes its output to the `result` symlink, building the app and worker images one after the other will overwrite the first `result`. Use the `-o` flag to write them to different paths:
+
+```bash
+nix build .#unoptimized-docker-image -o result-app
+nix build .#unoptimized-docker-image-worker -o result-worker
+
+cat result-app | podman load
+cat result-worker | podman load
+```
+
+The worker container needs the same env variables as the app container (`DATABASE_URL`, `IHP_SESSION_SECRET`, etc.):
+
+```bash
+$ docker run \
+    -e 'DATABASE_URL=postgresql://postgres:mysecretpassword@the-hostname/postgres' \
+    -e 'IHP_SESSION_SECRET=...' \
+    ihp-worker:TAG
+```
+
+### Running Migrations Automatically in Docker
+
+Instead of using the default `unoptimized-docker-image` or `optimized-docker-image` flake outputs, you can define a custom Docker image in your `flake.nix` that runs database migrations before starting the server. This is useful when you want a single container that handles both migrations and the web server.
+
+**Note:** This pattern is designed for single-replica deployments. If you run multiple replicas, migrations may race against each other. In that case, run migrations as a separate one-shot container or init container before starting the app replicas.
+
+```nix
+packages = {
+  docker = pkgs.dockerTools.buildImage {
+    name = "myapp";
+    tag = "latest";
+    config = {
+      Env = [
+        "IHP_MIGRATION_DIR=${./Application/Migration}/"
+        "IHP_REQUEST_LOGGER_IP_ADDR_SOURCE=FromHeader"
+        "IHP_ENV=Production"
+      ];
+      ExposedPorts = { "8000/tcp" = { }; };
+      Cmd = let migrate-then-run = pkgs.writeShellScript "start-container" ''
+        echo "Checking if there are migrations to be run..."
+        ${ihp.apps."${pkgs.system}".migrate.program}
+        echo "Launching web server"
+        exec ${self'.packages.unoptimized-prod-server}/bin/RunProdServer
+      ''; in [ migrate-then-run ];
+    };
+  };
+};
+```
+
+Pass `DATABASE_URL`, `IHP_BASEURL`, and other environment variables at runtime via `docker run -e` or your orchestrator's env configuration.
+
+Build and load this image with:
+
+```bash
+nix build .#docker --option sandbox false --extra-experimental-features nix-command --extra-experimental-features flakes
+cat result | podman load
+```
+
+This pattern also integrates better with Docker tooling since you control the image name and tag directly.
 
 ### Starting the App Container
 

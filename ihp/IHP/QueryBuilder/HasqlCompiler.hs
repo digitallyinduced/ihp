@@ -46,7 +46,6 @@ buildStatement :: SQLQuery -> Decoders.Result a -> Hasql.Statement () a
 buildStatement sqlQuery decoder =
     let (sql, CompilerState _ encoder) = compileQuery emptyCompilerState sqlQuery
     in Hasql.preparable sql encoder decoder
-{-# INLINE buildStatement #-}
 
 -- | Like 'buildStatement', but wraps the compiled SQL with a prefix and suffix.
 -- Used for @SELECT COUNT(*) FROM (inner) AS alias@ patterns.
@@ -54,7 +53,6 @@ buildWrappedStatement :: Text -> SQLQuery -> Text -> Decoders.Result a -> Hasql.
 buildWrappedStatement prefix sqlQuery suffix decoder =
     let (innerSql, CompilerState _ encoder) = compileQuery emptyCompilerState sqlQuery
     in Hasql.preparable (prefix <> innerSql <> suffix) encoder decoder
-{-# INLINE buildWrappedStatement #-}
 
 -- | Compile a QueryBuilder to SQL text (for testing / error messages).
 -- Discards the encoder.
@@ -62,7 +60,6 @@ toSQL :: forall table queryBuilderProvider joinRegister. (KnownSymbol table, Has
 toSQL queryBuilderProvider =
     let (sql, _) = compileQuery emptyCompilerState (buildQuery queryBuilderProvider)
     in sql
-{-# INLINE toSQL #-}
 
 -- | Compile a full SQLQuery to SQL text + updated compile context.
 --
@@ -117,7 +114,6 @@ compileQuery cc0 sqlQuery@SQLQuery { queryIndex, selectFrom, distinctClause, dis
                 in (withLimit <> " OFFSET " <> placeholder, cc')
 
     in (result, cc3)
-{-# INLINE compileQuery #-}
 
 -- | Compile a non-empty list of joins. Not called for empty join lists —
 -- the caller pattern-matches on @[]@ directly.
@@ -152,12 +148,10 @@ compileCondition cc (AndCondition a b) =
     let (aText, cc1) = compileCondition cc a
         (bText, cc2) = compileCondition cc1 b
     in ("(" <> aText <> ") AND (" <> bText <> ")", cc2)
-{-# INLINE compileCondition #-}
 
 compileConditionValue :: CompilerState -> ConditionValue -> (Text, CompilerState)
 compileConditionValue cc (Param enc) = nextParam enc cc
 compileConditionValue cc (Literal t) = (t, cc)
-{-# INLINE compileConditionValue #-}
 
 compileOrderByClauses :: [OrderByClause] -> Text
 compileOrderByClauses clauses = mconcat (List.intersperse "," (map compileOrderByClause clauses))
@@ -184,4 +178,3 @@ compileOperator GreaterThanOrEqualToOp = ">="
 compileOperator LessThanOp = "<"
 compileOperator LessThanOrEqualToOp = "<="
 compileOperator SqlOp = ""
-{-# INLINE compileOperator #-}

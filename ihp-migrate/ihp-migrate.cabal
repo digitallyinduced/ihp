@@ -1,14 +1,22 @@
 cabal-version:       2.2
 name:                ihp-migrate
-version:             1.4.0
+version:             1.5.0
 synopsis:            Provides the IHP migrate binary
 description:         Postgres DB migrations for IHP applications
 license:             MIT
+license-file:        LICENSE
 author:              digitally induced GmbH
 maintainer:          support@digitallyinduced.com
+homepage:            https://ihp.digitallyinduced.com/
 bug-reports:         https://github.com/digitallyinduced/ihp/issues
+copyright:           (c) digitally induced GmbH
 category:            Database
 build-type:          Simple
+extra-source-files:  changelog.md
+
+source-repository head
+    type:     git
+    location: https://github.com/digitallyinduced/ihp
 
 
 common ihp-std

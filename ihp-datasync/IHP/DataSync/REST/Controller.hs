@@ -121,7 +121,7 @@ instance (
         ensureRLSEnabled hasqlPool table
 
         let deleteSnippet = Snippet.sql ("DELETE FROM " <> quoteIdentifier table <> " WHERE id = ") <> uuidParam id
-        let stmt = Snippet.toPreparedStatement deleteSnippet Decoders.noResult
+        let stmt = Snippet.toPreparableStatement deleteSnippet Decoders.noResult
         sqlExecWithRLS hasqlPool stmt
 
         renderJson True
@@ -135,7 +135,7 @@ instance (
         columnTypes <- columnTypeLookup table
         let selectColumns = compileSelectedColumns camelCaseRenamer columnTypes SelectAll
         let selectSnippet = Snippet.sql ("SELECT " <> selectColumns <> " FROM " <> quoteIdentifier table <> " WHERE id = ") <> uuidParam id
-        let stmt = Snippet.toPreparedStatement (wrapDynamicQuery selectSnippet) dynamicRowDecoder
+        let stmt = Snippet.toPreparableStatement (wrapDynamicQuery selectSnippet) dynamicRowDecoder
         result :: [[Field]] <- sqlQueryWithRLS hasqlPool stmt
 
         renderJson (head result)

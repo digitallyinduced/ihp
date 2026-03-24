@@ -3,7 +3,7 @@
 }:
 mkDerivation {
   pname = "ihp-pagehead";
-  version = "1.4.0";
+  version = "1.0.0";
   src = ./.;
   libraryHaskellDepends = [
     base blaze-html ihp-context ihp-hsx text vault wai

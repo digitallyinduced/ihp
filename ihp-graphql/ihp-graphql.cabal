@@ -1,16 +1,18 @@
 cabal-version:       2.2
 name:                ihp-graphql
-version:             1.3.0
+version:             1.5.0
 synopsis:            GraphQL support for IHP
 description:         GraphQL support for IHP
 license:             MIT
 license-file:        LICENSE
 author:              digitally induced GmbH
 maintainer:          support@digitallyinduced.com
+homepage:            https://ihp.digitallyinduced.com/
 bug-reports:         https://github.com/digitallyinduced/ihp/issues
-category:            HTML
+copyright:           (c) digitally induced GmbH
+category:            Web, IHP
 build-type:          Simple
-extra-source-files: README.md, changelog.md
+extra-source-files:  README.md, changelog.md
 
 source-repository head
     type:     git
@@ -19,7 +21,7 @@ source-repository head
 common shared-properties
     default-language: GHC2021
     build-depends:
-          base
+          base >= 4.17.0 && < 4.22
           , ihp
           , ihp-postgres-parser
           , unordered-containers
@@ -27,6 +29,7 @@ common shared-properties
           , attoparsec
           , postgresql-simple
           , aeson
+          , scientific
           , countable-inflections
     default-extensions:
         OverloadedStrings

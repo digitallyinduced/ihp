@@ -770,6 +770,100 @@ tests = do
                         {-# INLINE filterWhereId #-}
                     |]
 
+        describe "needsHasFieldId" do
+            let
+                isNamedTable :: Text -> Statement -> Bool
+                isNamedTable targetName (StatementCreateTable CreateTable { name }) = name == targetName
+                isNamedTable _ _ = False
+            it "should not generate HasField id for composite PK table with an id column" do
+                let statements = parseSqlStatements [trimming|
+                    CREATE TABLE ideas_votes (
+                        id INT NOT NULL,
+                        idea_id UUID NOT NULL,
+                        parent_id UUID NOT NULL,
+                        PRIMARY KEY(idea_id, parent_id)
+                    );
+                |]
+                let (Just statement) = find (isNamedTable "ideas_votes") statements
+                let compileOutput = compileStatementPreview statements statement |> Text.strip
+
+                -- Should NOT contain a generated HasField "id" instance since the table has a column named "id"
+                compileOutput `shouldNotSatisfy` (Text.isInfixOf "instance HasField \"id\"")
+
+            it "should not generate HasField id for single non-id PK table with an id column" do
+                let statements = parseSqlStatements [trimming|
+                    CREATE TABLE things (
+                        id INT NOT NULL,
+                        code TEXT PRIMARY KEY NOT NULL
+                    );
+                |]
+                let (Just statement) = find (isNamedTable "things") statements
+                let compileOutput = compileStatementPreview statements statement |> Text.strip
+
+                -- Should NOT contain a generated HasField "id" instance since the table has a column named "id"
+                compileOutput `shouldNotSatisfy` (Text.isInfixOf "instance HasField \"id\"")
+
+            it "should generate HasField id for composite PK table without an id column" do
+                let statements = parseSqlStatements [trimming|
+                    CREATE TABLE bit_part_refs (
+                        bit_ref UUID NOT NULL,
+                        part_ref UUID NOT NULL,
+                        PRIMARY KEY(bit_ref, part_ref)
+                    );
+                |]
+                let (Just statement) = find (isNamedTable "bit_part_refs") statements
+                let compileOutput = compileStatementPreview statements statement |> Text.strip
+
+                -- Should contain a generated HasField "id" instance for the composite PK
+                compileOutput `shouldSatisfy` (Text.isInfixOf "instance HasField \"id\"")
+
+        describe "FK referencing non-PK column" do
+            it "should not generate type parameters or Include instances for non-PK FK columns" do
+                let statements = parseSqlStatements [trimming|
+                    CREATE TABLE users (
+                        id UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL,
+                        email TEXT NOT NULL UNIQUE
+                    );
+                    CREATE TABLE logins (
+                        id UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL,
+                        user_email TEXT NOT NULL
+                    );
+                    ALTER TABLE logins ADD CONSTRAINT logins_ref_user_email FOREIGN KEY (user_email) REFERENCES users (email) ON DELETE NO ACTION;
+                |]
+                let
+                    isTargetTable :: Text -> Statement -> Bool
+                    isTargetTable targetName (StatementCreateTable CreateTable { name }) = name == targetName
+                    isTargetTable _ _ = False
+                let (Just loginStatement) = find (isTargetTable "logins") statements
+                let compileOutput = compileStatementPreview statements loginStatement |> Text.strip
+
+                -- userEmail should be Text (not Id' "users"), and no type parameter for it
+                compileOutput `shouldSatisfy` ("userEmail :: Text" `Text.isInfixOf`)
+                -- Should NOT have Include instance for userEmail (since it's not a PK-based FK)
+                compileOutput `shouldSatisfy` (not . ("Include \"userEmail\"" `Text.isInfixOf`))
+
+            it "should not generate has-many QueryBuilder field on the referenced table for non-PK FK" do
+                let statements = parseSqlStatements [trimming|
+                    CREATE TABLE users (
+                        id UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL,
+                        email TEXT NOT NULL UNIQUE
+                    );
+                    CREATE TABLE logins (
+                        id UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL,
+                        user_email TEXT NOT NULL
+                    );
+                    ALTER TABLE logins ADD CONSTRAINT logins_ref_user_email FOREIGN KEY (user_email) REFERENCES users (email) ON DELETE NO ACTION;
+                |]
+                let
+                    isTargetTable :: Text -> Statement -> Bool
+                    isTargetTable targetName (StatementCreateTable CreateTable { name }) = name == targetName
+                    isTargetTable _ _ = False
+                let (Just userStatement) = find (isTargetTable "users") statements
+                let compileOutput = compileStatementPreview statements userStatement |> Text.strip
+
+                -- Users table should NOT have a has-many logins Include instance
+                compileOutput `shouldSatisfy` (not . ("Include \"logins\"" `Text.isInfixOf`))
+
         describe "simple mode (compileRelationSupport = False)" do
             let simpleOptions = previewCompilerOptions { compileRelationSupport = False }
             it "should produce no type parameters and no QueryBuilder fields for a table with FK and has-many relations" do
@@ -911,6 +1005,28 @@ tests = do
                         newRecord = Generated.ActualTypes.User def  def
                 |]
 
+            it "should use the referenced column's type when FK points to a non-PK column" do
+                let statements = parseSqlStatements [trimming|
+                    CREATE TABLE users (
+                        id UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL,
+                        email TEXT NOT NULL UNIQUE
+                    );
+                    CREATE TABLE logins (
+                        id UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL,
+                        user_email TEXT NOT NULL
+                    );
+                    ALTER TABLE logins ADD CONSTRAINT logins_ref_user_email FOREIGN KEY (user_email) REFERENCES users (email) ON DELETE NO ACTION;
+                |]
+                let
+                    isTargetTable :: Text -> Statement -> Bool
+                    isTargetTable targetName (StatementCreateTable CreateTable { name }) = name == targetName
+                    isTargetTable _ _ = False
+                let (Just loginStatement) = find (isTargetTable "logins") statements
+                let compileOutput = compileStatementPreviewWith simpleOptions statements loginStatement |> Text.strip
+
+                -- userEmail should be Text, not Id' "users"
+                compileOutput `shouldSatisfy` ("userEmail :: Text" `Text.isInfixOf`)
+
         describe "statement module content" do
             let statements =
                     [ StatementCreateTable CreateTable
@@ -939,6 +1055,33 @@ tests = do
                         title <- Decoders.column (Decoders.nonNullable Decoders.text)
                         body <- Decoders.column (Decoders.nonNullable Decoders.text)
                         pure (let theRecord = Generated.ActualTypes.Post id title body def { originalDatabaseRecord = Just (Data.Dynamic.toDyn theRecord) } in theRecord)
+                    |]
+
+            it "should generate nonNullable decoder for PRIMARY KEY column even without explicit NOT NULL (#2531)" do
+                let bugStatements =
+                        [ StatementCreateTable CreateTable
+                            { name = "bars"
+                            , columns =
+                                [ (col "id" PUUID) { defaultValue = Just (CallExpression "uuid_generate_v4" []) }
+                                , (col "ticker" PText) { notNull = True }
+                                , (col "date" PDate) { notNull = True }
+                                ]
+                            , primaryKeyConstraint = PrimaryKeyConstraint ["id"]
+                            , constraints = []
+                            , unlogged = False
+                            , inherits = Nothing
+                            }
+                        ]
+                let [StatementCreateTable bugTable] = bugStatements
+                let ?schema = Schema bugStatements
+                let output = compileRowDecoderModule bugTable
+                getStatementBody output `shouldBe` [trimming|
+                    rowDecoder :: Decoders.Row Generated.ActualTypes.Bar
+                    rowDecoder = do
+                        id <- Decoders.column (Decoders.nonNullable Mapping.decoder)
+                        ticker <- Decoders.column (Decoders.nonNullable Decoders.text)
+                        date <- Decoders.column (Decoders.nonNullable Decoders.date)
+                        pure (let theRecord = Generated.ActualTypes.Bar id ticker date def { originalDatabaseRecord = Just (Data.Dynamic.toDyn theRecord) } in theRecord)
                     |]
 
             it "should generate correct Create statement module" do

@@ -4,7 +4,7 @@
 }:
 mkDerivation {
   pname = "ihp-mail";
-  version = "1.4.0";
+  version = "1.5.0";
   src = ./.;
   libraryHaskellDepends = [
     base blaze-html bytestring http-client http-client-tls ihp

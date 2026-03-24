@@ -1,12 +1,12 @@
-{ self, inputs }:
+{ self, inputs, forceLocal ? false }:
 let
     flakeRoot = self;
 
     ihpOverrides = final: self: super:
         let
             filter = inputs.nix-filter.lib;
-            # Disable profiling and haddock for faster local builds
-            fastBuild = pkg: final.haskell.lib.disableLibraryProfiling (final.haskell.lib.dontHaddock pkg);
+            # Disable profiling for faster local builds
+            fastBuild = pkg: final.haskell.lib.disableLibraryProfiling pkg;
 
             filteredSrc = name: filter {
                 root = "${toString flakeRoot}/${name}";
@@ -23,6 +23,15 @@ let
                     { src = filteredSrc name; }
             );
 
+            # Use the nixpkgs version if available (i.e. published on Hackage and
+            # picked up by the nixpkgs all-cabal-hashes snapshot), otherwise fall
+            # back to building from the local source tree.  Pass --arg forceLocal true
+            # to always use the local version (useful during development).
+            hackageOrLocal = name:
+                if forceLocal || !(super ? ${name})
+                then localPackage name
+                else fastBuild super.${name};
+
             # For quick testing during development, you can use callCabal2nix directly
             # (slower eval due to IFD, but no generated files needed):
             #   localPackageIFD = name: fastBuild (super.callCabal2nix name (filteredSrc name) {});
@@ -37,32 +46,32 @@ let
         in {
             ihp = localPackage "ihp";
             ihp-with-docs = localPackageWithHaddock "ihp";
-            ihp-context = localPackage "ihp-context";
-            ihp-pagehead = localPackage "ihp-pagehead";
-            ihp-log = localPackage "ihp-log";
-            ihp-pglistener = localPackage "ihp-pglistener";
-            ihp-modal = localPackage "ihp-modal";
+            ihp-context = hackageOrLocal "ihp-context";
+            ihp-pagehead = hackageOrLocal "ihp-pagehead";
+            ihp-log = hackageOrLocal "ihp-log";
+            ihp-pglistener = hackageOrLocal "ihp-pglistener";
+            ihp-modal = hackageOrLocal "ihp-modal";
             ihp-ide = localPackage "ihp-ide";
-            ihp-schema-compiler = localPackage "ihp-schema-compiler";
-            ihp-postgres-parser = localPackage "ihp-postgres-parser";
-            ihp-mail = localPackage "ihp-mail";
+            ihp-schema-compiler = hackageOrLocal "ihp-schema-compiler";
+            ihp-postgres-parser = hackageOrLocal "ihp-postgres-parser";
+            ihp-mail = hackageOrLocal "ihp-mail";
             ihp-migrate = (localPackage "ihp-migrate").overrideAttrs (old: { mainProgram = "migrate"; });
             ihp-openai = localPackage "ihp-openai";
-            ihp-ssc = localPackage "ihp-ssc";
+            ihp-ssc = hackageOrLocal "ihp-ssc";
             ihp-zip = fastBuild (super.callCabal2nix "ihp-zip" (final.fetchFromGitHub { owner = "digitallyinduced"; repo = "ihp-zip"; rev = "1c0d812d12d21269f83d6480a6ec7a8cdd054485"; sha256 = "0y0dj8ggi1jqzy74i0d6k9my8kdvfi516zfgnsl7znicwq9laald"; }) {});
             ihp-hsx = localPackage "ihp-hsx";
-            ihp-graphql = localPackage "ihp-graphql";
-            ihp-datasync-typescript = localPackage "ihp-datasync-typescript";
-            ihp-sitemap = localPackage"ihp-sitemap";
-            ihp-typed-sql = localPackage "ihp-typed-sql";
-            ihp-datasync = localPackage "ihp-datasync";
-            ihp-job-dashboard = localPackage"ihp-job-dashboard";
-            wai-asset-path = localPackage "wai-asset-path";
-            wai-flash-messages = localPackage "wai-flash-messages";
-            wai-request-params = localPackage "wai-request-params";
-            ihp-imagemagick = localPackage "ihp-imagemagick";
-            ihp-hspec = localPackage "ihp-hspec";
-            ihp-welcome = localPackage "ihp-welcome";
+            ihp-graphql = hackageOrLocal "ihp-graphql";
+            ihp-datasync-typescript = hackageOrLocal "ihp-datasync-typescript";
+            ihp-sitemap = hackageOrLocal "ihp-sitemap";
+            ihp-typed-sql = hackageOrLocal "ihp-typed-sql";
+            ihp-datasync = hackageOrLocal "ihp-datasync";
+            ihp-job-dashboard = hackageOrLocal "ihp-job-dashboard";
+            wai-asset-path = hackageOrLocal "wai-asset-path";
+            wai-flash-messages = hackageOrLocal "wai-flash-messages";
+            wai-request-params = hackageOrLocal "wai-request-params";
+            ihp-imagemagick = hackageOrLocal "ihp-imagemagick";
+            ihp-hspec = hackageOrLocal "ihp-hspec";
+            ihp-welcome = hackageOrLocal "ihp-welcome";
 
             # Lazy session middleware: defer cookie decryption until first access,
             # skip Set-Cookie when session is unmodified.
@@ -80,6 +89,7 @@ let
                 });
 
             # Can be removed after v0.3.2 is on hackage
+            # https://github.com/tippenein/countable-inflections/pull/6
             countable-inflections = final.haskell.lib.overrideSrc super.countable-inflections {
                 version = "0.3.2";
                 src = final.fetchFromGitHub {
@@ -97,33 +107,8 @@ let
             postgresql-connection-string = self.callHackageDirect { pkg = "postgresql-connection-string"; ver = "0.1.0.6"; sha256 = "07iykhnjzryqqc1mccnmqf7lkg12rb4dq5azvrpfq6qaf6a6r0r1"; } {};
 
             hasql = final.haskell.lib.dontCheck (final.haskell.lib.doJailbreak (self.callHackageDirect { pkg = "hasql"; ver = "1.10.2.3"; sha256 = "1j52ia75168n88rrraf4g20grdl3qak8r426rav87kjjjqx3717v"; } {}));
-            # Using git commit for https://github.com/nikita-volkov/hasql-pool/pull/53
-            # (auto-discard pooled connections on stale prepared-statement/type-cache errors).
-            # Switch back to callHackageDirect once a new Hackage release lands.
-            hasql-pool = final.haskell.lib.dontCheck (final.haskell.lib.overrideCabal
-                (self.callHackageDirect { pkg = "hasql-pool"; ver = "1.4.1"; sha256 = "08my6djljjgpkxgk4xc3z314ad0rf6g4yvv470rmm12nbzj2g66a"; } {})
-                (old: {
-                    src = builtins.fetchTarball {
-                        url = "https://github.com/nikita-volkov/hasql-pool/archive/a1e06a7c86b17e1a81345afc9ea37530642ecf47.tar.gz";
-                        sha256 = "0mxxlixm82z4ng8ij7lsikxikyi5yhnkqxiy38ljd4qd2dfly5g6";
-                    };
-                }));
-            # Patched to add toPreparedStatement: like toStatement but creates a preparable
-            # (cached) statement instead of an unpreparable one. This allows IHP queries to
-            # benefit from PostgreSQL's prepared statement plan caching.
-            hasql-dynamic-statements = final.haskell.lib.dontCheck (final.haskell.lib.overrideCabal (self.callHackageDirect { pkg = "hasql-dynamic-statements"; ver = "0.5.0.1"; sha256 = "1vdydp8n0zq3mwkzids64b86d9q2l11yc8df4brhmwx06qmvq3sc"; } {}) (old: {
-                postPatch = (old.postPatch or "") + ''
-                    substituteInPlace src/library/Hasql/DynamicStatements/Snippet.hs \
-                        --replace-warn "toStatement," \
-                                       "toStatement, toPreparedStatement,"
-                    cat >> src/library/Hasql/DynamicStatements/Snippet.hs << 'PREPARED_STATEMENT'
-
-            toPreparedStatement :: Snippet -> Decoders.Result result -> Statement.Statement () result
-            toPreparedStatement (Snippet sql _ encoder) decoder =
-              Statement.preparable (TextBuilder.toText (sql 1)) encoder decoder
-            PREPARED_STATEMENT
-                '';
-            }));
+            hasql-pool = final.haskell.lib.dontCheck (self.callHackageDirect { pkg = "hasql-pool"; ver = "1.4.2"; sha256 = "0gw8brk3kwb1s58s0npbmszh5byqv0frjyaql7mgkc317x67c049"; } {});
+            hasql-dynamic-statements = final.haskell.lib.dontCheck (self.callHackageDirect { pkg = "hasql-dynamic-statements"; ver = "0.5.1"; sha256 = "13c04wb1635361wrszn2kn4s5ygl7yzv8yn6bvpxgm2j7hr0v94q"; } {});
             hasql-implicits = self.callHackageDirect { pkg = "hasql-implicits"; ver = "0.2.0.2"; sha256 = "0nyz96mgrc4i7x3q8wwv6zq8qpwam13f5y1rlbh102jp2ygb2mjy"; } {};
             hasql-transaction = final.haskell.lib.dontCheck (self.callHackageDirect { pkg = "hasql-transaction"; ver = "1.2.2"; sha256 = "0y1clnyw76rszsdvz0fxj2az036bmw1whp6pqchyjamnbkmf37d3"; } {});
             hasql-notifications = final.haskell.lib.dontCheck (self.callHackageDirect { pkg = "hasql-notifications"; ver = "0.2.5.0"; sha256 = "11jkrngiy175wc5hqx8pgagj4fdg42ry7afp4g4rr5hw8h43zg48"; } {});
@@ -143,54 +128,15 @@ let
             ptr-poker = self.callHackageDirect { pkg = "ptr-poker"; ver = "0.1.3"; sha256 = "0jl9df0kzsq5gd6fhfqc8my4wy7agg5q5jw4q92h4b7rkdf3hix7"; } {};
             # postgresql-simple-postgresql-types: bridge providing FromField/ToField instances
             # for all postgresql-types types (Point, Polygon, Inet, Interval, etc.) in postgresql-simple
-            postgresql-simple-postgresql-types = final.haskell.lib.dontCheck (final.haskell.lib.doJailbreak (final.haskell.lib.overrideCabal
-                (super.callPackage "${flakeRoot}/NixSupport/postgresql-simple-postgresql-types-default.nix" {})
-                (old: {
-                    src = builtins.fetchTarball {
-                        url = "https://github.com/nikita-volkov/postgresql-simple-postgresql-types/archive/c786a1fb.tar.gz";
-                        sha256 = "0hrlfbqnhf8jcc36hnq62mp6jnh9w1m2n1i4b9qvd3mdzy4w7knx";
-                    };
-                })));
+            postgresql-simple-postgresql-types = final.haskell.lib.dontCheck (final.haskell.lib.doJailbreak (self.callHackageDirect { pkg = "postgresql-simple-postgresql-types"; ver = "0.1.1"; sha256 = "09xqrcpp56jbfjqk9njw6l7aw13qi2838rwqg2xc483sjp0jxxzd"; } {}));
             # ptr-peeker is marked broken in nixpkgs but is needed by postgresql-types
+            # https://github.com/nikita-volkov/ptr-peeker/issues/10
             ptr-peeker = final.haskell.lib.dontCheck (final.haskell.lib.markUnbroken super.ptr-peeker);
             postgresql-types-algebra = final.haskell.lib.doJailbreak (self.callHackageDirect { pkg = "postgresql-types-algebra"; ver = "0.1"; sha256 = "0ishl9dag7w73bclpaja4wj3s6jf8958jls2ffn1a6h3p9v40pfv"; } {});
             # dontCheck: tests require a running PostgreSQL server
             postgresql-types = final.haskell.lib.dontCheck (final.haskell.lib.doJailbreak (self.callHackageDirect { pkg = "postgresql-types"; ver = "0.1.2"; sha256 = "1plkc0pjhlbml5innkla44jad1jx8f876kw5ckz168jxvzrkb4jc"; } {}));
-            # hasql-mapping provides the IsScalar typeclass for hasql encoder/decoder integration
-            # Not on Hackage, only on GitHub. Patched to export IsScalar(..) from Hasql.Mapping
-            # so that hasql-postgresql-types can define orphan instances.
-            hasql-mapping = final.haskell.lib.doJailbreak (final.haskell.lib.overrideCabal
-                (super.callPackage "${flakeRoot}/NixSupport/hasql-mapping-default.nix" {})
-                (old: {
-                    src = builtins.fetchTarball {
-                        url = "https://github.com/nikita-volkov/hasql-mapping/archive/307dfb5f25ba28d8408fac3aa160ca4ba702acc9.tar.gz";
-                        sha256 = "1ww54his5d3wfh3amdk9zk5w6v4pdgljlzifnqga3lwn1gasbsvr";
-                    };
-                    postPatch = (old.postPatch or "") + ''
-                        substituteInPlace src/library/Hasql/Mapping.hs \
-                            --replace-warn "import Hasql.Mapping.IsScalar (IsScalar)" \
-                                           "import Hasql.Mapping.IsScalar (IsScalar(..))" \
-                            --replace-warn "( IsScalar," \
-                                           "( IsScalar(..),"
-                    '';
-                }));
-            # Patched to add Tsvector instance (added in postgresql-types fork)
-            hasql-postgresql-types = final.haskell.lib.doJailbreak (final.haskell.lib.overrideCabal
-                (super.callPackage "${flakeRoot}/NixSupport/hasql-postgresql-types-default.nix" {})
-                (old: {
-                    src = builtins.fetchTarball {
-                        url = "https://github.com/nikita-volkov/hasql-postgresql-types/archive/b8cb8fe1e7eb.tar.gz";
-                        sha256 = "0fffxiavxn70nis9rqgx2z9rp030x1afdr7qj8plwncif3qvsv1f";
-                    };
-                    postPatch = (old.postPatch or "") + ''
-                        cat >> src/library/Hasql/PostgresqlTypes.hs << 'TSVECTOR_INSTANCE'
-
-                        instance Hasql.Mapping.IsScalar Tsvector where
-                          encoder = Core.encoder
-                          decoder = Core.decoder
-                        TSVECTOR_INSTANCE
-                    '';
-                }));
+            hasql-mapping = final.haskell.lib.doJailbreak (self.callHackageDirect { pkg = "hasql-mapping"; ver = "0.1"; sha256 = "1l6p7sbw6wwkk964bs3hljmja1kwy0b9gld24g71dcbjs24hchcf"; } {});
+            hasql-postgresql-types = final.haskell.lib.dontHaddock (final.haskell.lib.doJailbreak (self.callHackageDirect { pkg = "hasql-postgresql-types"; ver = "0.2"; sha256 = "0841s41izgjg4qfw6s74bwhixby3rwj167a2p8vbwp4xlf8wzaz6"; } {}));
         };
 in
 final: prev: {
@@ -215,4 +161,21 @@ final: prev: {
             })
         ];
     };
+
+    # Experimental: GHC 9.14 (bleeding edge, expected to fail)
+    # Only defined when nixpkgs includes the ghc914 package set.
+    # Attribute always exists but throws if ghc914 is unavailable in nixpkgs.
+    ghc914 =
+        if prev.haskell.packages ? ghc914
+        then final.haskell.packages.ghc914.override {
+            overrides = final.lib.composeManyExtensions [
+                (ihpOverrides final)
+                (self: super: {
+                    say = final.haskell.lib.dontCheck super.say;
+                    text-icu = final.haskell.lib.dontCheck super.text-icu;
+                    cryptonite = final.haskell.lib.dontCheck super.cryptonite;
+                })
+            ];
+        }
+        else throw "ghc914 is not available in this nixpkgs";
 }

@@ -7,6 +7,7 @@ module Test.ModelFixtures where
 
 import IHP.Prelude
 import IHP.ModelSupport
+import IHP.QueryBuilder (FilterPrimaryKey(..), filterWhere)
 import IHP.Hasql.FromRow (FromRowHasql(..), HasqlDecodeColumn(..))
 import IHP.Job.Types (JobStatus(..))
 import IHP.Job.Queue ()
@@ -91,6 +92,15 @@ type instance PrimaryKey "composite_taggings" = (Id' "posts", Id' "tags")
 instance Table CompositeTagging where
     columnNames = ["post_id", "tag_id"]
     primaryKeyColumnNames = ["post_id", "tag_id"]
+
+instance FromRowHasql CompositeTagging where
+    hasqlRowDecoder = CompositeTagging
+        <$> hasqlColumnDecoder
+        <*> hasqlColumnDecoder
+
+instance FilterPrimaryKey "composite_taggings" where
+    filterWhereId (Id (Id postId, Id tagId)) builder =
+        builder |> filterWhere (#postId, postId) |> filterWhere (#tagId, tagId)
 
 data User = User
     { id :: UUID

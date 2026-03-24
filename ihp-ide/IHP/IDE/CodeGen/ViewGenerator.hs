@@ -52,6 +52,12 @@ buildPlan' schema config =
 
             paginationEnabled = config.paginationEnabled
 
+            tableFound :: Bool
+            tableFound = [ modelNameToTableName pluralVariableName, pluralVariableName ]
+                    |> mapMaybe (columnsForTable schema)
+                    |> headMay
+                    |> isJust
+
             modelColumns :: [Column]
             modelColumns = [ modelNameToTableName pluralVariableName, pluralVariableName ]
                     |> mapMaybe (columnsForTable schema)
@@ -229,15 +235,19 @@ buildPlan' schema config =
                 render${singularName} ${singularVariableName} = [hsx|
                     <tr>
                         ${indexCells}
-                        <td><a href={Show${singularName}Action ${singularVariableName}.id}>Show</a></td>
-                        <td><a href={Edit${singularName}Action ${singularVariableName}.id} class="text-muted">Edit</a></td>
-                        <td><a href={Delete${singularName}Action ${singularVariableName}.id} class="js-delete text-muted">Delete</a></td>
+                        <td><a href={${showLink}}>Show</a></td>
+                        <td><a href={${editLink}} class="text-muted">Edit</a></td>
+                        <td><a href={${deleteLink}} class="js-delete text-muted">Delete</a></td>
                     </tr>
                 ${qqClose}
             |]
                 where
                     importPagination = if paginationEnabled then ", pagination :: Pagination" else ""
                     renderPagination = if paginationEnabled then "{renderPagination pagination}" else ""
+                    idSuffix = if tableFound then " " <> singularVariableName <> ".id" else ""
+                    showLink = "Show" <> singularName <> "Action" <> idSuffix
+                    editLink = "Edit" <> singularName <> "Action" <> idSuffix
+                    deleteLink = "Delete" <> singularName <> "Action" <> idSuffix
 
 
 

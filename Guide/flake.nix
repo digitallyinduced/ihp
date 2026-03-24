@@ -1,7 +1,7 @@
 {
     inputs = {
         nixpkgs.url = "github:NixOS/nixpkgs/nixos-25.05";
-        devenv.url = "github:cachix/devenv/v2.0.2";
+        devenv.url = "github:cachix/devenv/v2.0.6";
     };
 
     outputs = inputs@{ flake-parts, nixpkgs, ... }:

@@ -68,7 +68,7 @@ runTestMiddlewares frameworkConfig modelContext maybePgListener baseRequest = do
 mockContextNoDatabase :: (InitControllerContext application) => application -> ConfigBuilder -> IO (MockContext application)
 mockContextNoDatabase application configBuilder = do
    frameworkConfig@(FrameworkConfig {databaseUrl}) <- FrameworkConfig.buildFrameworkConfig configBuilder
-   logger <- newLogger def { level = Warn } -- don't log queries
+   logger <- newLogger (def :: LoggerSettings) { level = Warn } -- don't log queries
    modelContext <- createModelContext databaseUrl logger
 
    -- Start with a minimal request - the middleware stack will set up session, etc.
@@ -158,9 +158,8 @@ callActionWithParams controller params = do
     -- Build request with real form body (let middleware parse it)
     requestBody <- newIORef (HTTP.renderSimpleQuery False params)
     let readBody = atomicModifyIORef requestBody (\body -> ("", body))
-    let baseRequest = ?request
+    let baseRequest = (Wai.setRequestBodyChunks readBody ?request)
             { Wai.requestMethod = "POST"
-            , Wai.requestBody = readBody
             , Wai.requestHeaders = (HTTP.hContentType, "application/x-www-form-urlencoded") : filter ((/= HTTP.hContentType) . fst) (Wai.requestHeaders ?request)
             }
 

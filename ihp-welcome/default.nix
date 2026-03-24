@@ -3,11 +3,12 @@
 }:
 mkDerivation {
   pname = "ihp-welcome";
-  version = "1.4.0";
+  version = "1.5.0";
   src = ./.;
   libraryHaskellDepends = [
     base blaze-html blaze-markup ihp ihp-hsx text
   ];
+  homepage = "https://ihp.digitallyinduced.com/";
   description = "IHP Welcome Controller";
   license = lib.licenses.mit;
 }

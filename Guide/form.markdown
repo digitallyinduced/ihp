@@ -1032,6 +1032,47 @@ This way no special behavior will be attached to your forms.
 
 To dig deeper into the JavaScript, [take a look at the source in helpers.js](https://github.com/digitallyinduced/ihp/blob/master/lib/IHP/static/helpers.js#L115).
 
+## Actions with Side Effects
+
+Any action that creates, updates, or deletes data is a **side effect**. According to the HTTP specification, GET requests should be safe and free of side effects — only POST, PUT, PATCH, and DELETE requests should modify data.
+
+In practice this means: **don't use a plain `<a>` link to trigger a side-effect action.** Links make GET requests, but actions like toggling a status, approving a record, or deleting an entry need a form that submits via POST (or DELETE).
+
+### Example: "Mark as Done" Button
+
+Suppose you have a `UpdateTodoAction` that marks a todo as done. The correct way to trigger it is with a form:
+
+```haskell
+<form method="POST" action={UpdateTodoAction todo.id}>
+    <button type="submit" class="btn btn-primary">Mark as Done</button>
+</form>
+```
+
+This sends a POST request to `UpdateTodoAction`, which is what the router expects for update actions.
+
+### Example: Delete with a Form
+
+Delete actions expect a DELETE HTTP method. Since browsers only support GET and POST in plain HTML forms, IHP uses a hidden `_method` field to override the method (see [Method Override Middleware](routing.html#method-override-middleware)):
+
+```haskell
+<form method="POST" action={DeleteTodoAction todo.id}>
+    <input type="hidden" name="_method" value="DELETE"/>
+    <button type="submit" class="btn btn-danger">Delete</button>
+</form>
+```
+
+### The `js-delete` Shortcut
+
+IHP's generated index views use a convenient shorthand for delete links:
+
+```haskell
+<a href={DeleteTodoAction todo.id} class="js-delete">Delete</a>
+```
+
+The `js-delete` CSS class tells IHP's JavaScript helpers to intercept the click and submit a proper DELETE request via a dynamically created form — so the link never actually makes a GET request. This is purely a convenience shortcut; writing an explicit form as shown above is the more transparent approach and works even without JavaScript.
+
+**Common mistake:** Seeing `js-delete` links in generated code, new users sometimes assume that any `<a>` link can trigger side-effect actions. It cannot — `js-delete` is a special case handled by JavaScript. For all other side-effect actions, use a form with the appropriate method.
+
 ## Working within the Bootstrap CSS framework
 
 While the default forms layout is vertical with one field per line, it is easy to change. Bootstrap's excellent [forms documentation](https://getbootstrap.com/docs/5.3/forms/overview/) shows how.
@@ -1039,3 +1080,76 @@ While the default forms layout is vertical with one field per line, it is easy t
 ## Working with other CSS Frameworks
 
 TODO: This section still has to be implemented. The gist of how rendering can be completely overridden to support a different layout or CSS framework can be found in the implementation of [horizontalFormFor](https://ihp.digitallyinduced.com/api-docs/IHP-View-Form.html#v:horizontalFormFor) (renders a Bootstrap 5 form in a horizontal way).
+
+## Troubleshooting
+
+### Form Not Submitting (No Response from Server)
+
+If clicking the submit button does nothing, check the following:
+
+1. Make sure your form uses `method="POST"`. When using `formFor`, this is set automatically. If you write the form HTML manually, you must include it: `<form method="POST" action={CreatePostAction}>`.
+2. IHP uses `SameSite=Lax` cookies for CSRF protection, which works with all modern browsers. If you are making cross-origin requests to your IHP app, the session cookie will not be sent and authentication will fail.
+
+### Validation Errors Not Showing
+
+When form validation fails but no error messages appear on the form, you are likely redirecting instead of re-rendering. After validation fails, you must render the view again with the validated record (which carries the error annotations):
+
+```haskell
+action CreatePostAction = do
+    let post = newRecord @Post
+    post
+        |> fill @'["title", "body"]
+        |> validateField #title nonEmpty
+        |> ifValid \case
+            Left post -> render NewView { .. }  -- Re-render with the SAME post that has errors
+            Right post -> do
+                post <- post |> createRecord
+                redirectTo PostsAction
+```
+
+If you redirect on the `Left` branch instead of calling `render`, the validation errors are lost.
+
+### "Couldn't match type" on Form Fields
+
+```
+Couldn't match type 'Text' with 'Int'
+    arising from a use of 'textField'
+```
+
+The form field helper does not match the field's type. For example, using `textField` on an `Int` field will not work. Use the appropriate helper for the field type: `numberField` for numeric fields, `checkboxField` for `Bool` fields, `selectField` for enum or foreign key fields, etc. Also check that the field name (e.g. `#title`) actually exists on the record.
+
+### File Upload Not Working
+
+If file uploads silently fail or the file data is empty, make sure you are not relying on `formFor` alone. File uploads require the `enctype="multipart/form-data"` attribute on the form. Use `formForWithOptions` to set it:
+
+```haskell
+renderForm post = formForWithOptions post options [hsx|
+    {fileField #imageUrl}
+    {submitButton}
+|]
+
+options :: FormContext Post -> FormContext Post
+options formContext =
+    formContext
+    |> set #customFormAttributes [("enctype", "multipart/form-data")]
+```
+
+See the [File Storage guide](file-storage.html) for the full file upload workflow.
+
+### Form Values Lost After Validation Error
+
+If the user fills out a form, submits it, validation fails, and all the entered values disappear, you are creating a fresh `newRecord` instead of re-rendering with the filled record. Make sure you pass the record that was populated by `fill` back to the view:
+
+```haskell
+action CreatePostAction = do
+    let post = newRecord @Post
+    post
+        |> fill @'["title", "body"]
+        |> ifValid \case
+            Left post -> render NewView { .. }  -- This 'post' still has the user's input
+            Right post -> do
+                post <- post |> createRecord
+                redirectTo PostsAction
+```
+
+The `post` in the `Left` branch contains both the validation errors and the values the user entered. Passing it to the view ensures the form fields are pre-filled with the user's previous input.

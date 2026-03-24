@@ -2,7 +2,7 @@
 
 ## v1.5.0 (Unreleased)
 
-320 commits since v1.4.0. 410 files changed, 14,403 insertions, 8,319 deletions.
+1,051 commits since v1.4.0. 607 files changed, 46,204 insertions, 27,040 deletions.
 
 ### Breaking Changes
 
@@ -18,6 +18,10 @@
 - Replaced `ApplicationContext` with WAI request vault for AutoRefresh ([#2149](https://github.com/digitallyinduced/ihp/pull/2149))
 - Used `OsPath` instead of `FilePath` across all packages ([#2246](https://github.com/digitallyinduced/ihp/pull/2246))
 - `requestBodyJSON` now returns `IO Aeson.Value` instead of `Aeson.Value`; update call sites to bind it in `do`-notation ([#2396](https://github.com/digitallyinduced/ihp/pull/2396))
+- Migrated from `postgresql-simple` to `hasql` for all database access — applications using `Database.PostgreSQL.Simple` directly need to migrate to IHP's query builder or `typedSql`
+- `touchedFields` changed from `[Text]` to `Integer` bitmask for better performance ([#2473](https://github.com/digitallyinduced/ihp/pull/2473))
+- `CSSFramework` `Default` instance removed — use `unstyled` instead of `def`; new `styledLabelClass` field added to the record
+- `requestBodyJSON` now returns HTTP 400 for malformed JSON instead of crashing
 
 ### New Features
 
@@ -37,6 +41,24 @@
 - `EnvVarReader` instance for `SMTPEncryption` ([#2214](https://github.com/digitallyinduced/ihp/pull/2214))
 - NixOS: `sessionSecretFile` option and `appKeygen` service
 - Migrations made optional in deployment configuration
+- Typed SQL (`ihp-typed-sql` package) — type-safe SQL queries with automatic decoder inference and JOIN nullability detection ([#2304](https://github.com/digitallyinduced/ihp/pull/2304))
+- `fetchPipelined` for batching multiple database queries in a single round-trip using PostgreSQL pipeline mode ([#2459](https://github.com/digitallyinduced/ihp/pull/2459))
+- Composite primary key support — tables with composite PKs now generate correct types and HasField instances ([#992](https://github.com/digitallyinduced/ihp/pull/992), [#2553](https://github.com/digitallyinduced/ihp/pull/2553))
+- PostgreSQL table inheritance (INHERITS) support in schema designer ([#2505](https://github.com/digitallyinduced/ihp/pull/2505))
+- SECURITY DEFINER support for SQL functions ([#2504](https://github.com/digitallyinduced/ihp/pull/2504))
+- Multiple trigger events support (e.g. INSERT OR UPDATE) ([#2508](https://github.com/digitallyinduced/ihp/pull/2508))
+- Integration test support with automatic temporary PostgreSQL database ([#2510](https://github.com/digitallyinduced/ihp/pull/2510))
+- `withIHPApp` public API for testing ([#2314](https://github.com/digitallyinduced/ihp/pull/2314))
+- `runDevScript` for easy GHCi script execution ([#2539](https://github.com/digitallyinduced/ihp/pull/2539))
+- `devHaskellPackages` option for dev-only Haskell dependencies ([#2529](https://github.com/digitallyinduced/ihp/pull/2529))
+- Docker worker images for background job runners ([#2541](https://github.com/digitallyinduced/ihp/pull/2541))
+- IDE logs viewer with devenv service tabs ([#2499](https://github.com/digitallyinduced/ihp/pull/2499))
+- App selector in Generate Controller preview from schema designer ([#2509](https://github.com/digitallyinduced/ihp/pull/2509))
+- Deselectable actions in controller generator ([#2511](https://github.com/digitallyinduced/ihp/pull/2511))
+- HSX wildcard pattern support ([#1852](https://github.com/digitallyinduced/ihp/pull/1852), [#2506](https://github.com/digitallyinduced/ihp/pull/2506))
+- Type applications in HSX splices ([#2321](https://github.com/digitallyinduced/ihp/pull/2321))
+- Hoogle documentation enabled by default ([#2512](https://github.com/digitallyinduced/ihp/pull/2512))
+- Allow overriding nixpkgs config ([#2495](https://github.com/digitallyinduced/ihp/pull/2495))
 
 ### Performance
 
@@ -61,6 +83,17 @@
 - Hoist `actionPrefixText` computation out of per-constructor loop
 - Break serial compilation dependencies for better Nix parallelism ([#2252](https://github.com/digitallyinduced/ihp/pull/2252))
 - Build jobs and web server concurrently in `nix build`
+- Optimize AutoRoute URL generation (`pathTo`) by 2.3x ([#2335](https://github.com/digitallyinduced/ihp/pull/2335))
+- HashMap-based dispatch for AutoRoute routing
+- Optimize per-request latency: flash messages + Accept header ([#2329](https://github.com/digitallyinduced/ihp/pull/2329))
+- Lazy session middleware: skip decrypt/encrypt when session is unused ([#2328](https://github.com/digitallyinduced/ihp/pull/2328))
+- INLINE pragmas on render hot-path functions ([#2333](https://github.com/digitallyinduced/ihp/pull/2333))
+- Drop INLINE pragmas from fetch/query compilation chain to reduce Core bloat ([#2522](https://github.com/digitallyinduced/ihp/pull/2522))
+- Use record update syntax for SetField/UpdateField codegen ([#2476](https://github.com/digitallyinduced/ihp/pull/2476))
+- Replace Snippet with direct Hasql.Statement compilation ([#2435](https://github.com/digitallyinduced/ihp/pull/2435))
+- Reduce GHCi dev server memory from ~4GB to ~500-800MB ([#2543](https://github.com/digitallyinduced/ihp/pull/2543))
+- Mark `actionPrefixText` NOINLINE to reduce code bloat in views ([#2516](https://github.com/digitallyinduced/ihp/pull/2516))
+- Tune GC settings for dev server to reduce request latency spikes ([#2323](https://github.com/digitallyinduced/ihp/pull/2323))
 
 ### Package Extractions
 
@@ -82,6 +115,7 @@ The following modules have been extracted into standalone packages:
 | `IHP.PageHead.*` | `ihp-pagehead` |
 | `IHP.Log.*` | `ihp-log` |
 | `IHP.Modal.*` | `ihp-modal` |
+| `IHP.PGListener` | `ihp-pglistener` |
 
 All extracted modules are still re-exported from `ihp` for backwards compatibility.
 
@@ -117,6 +151,27 @@ All extracted modules are still re-exported from `ihp` for backwards compatibili
 - Use `Data.Text` qualified in `IHP.NameSupport` to fix build with text-2.1.2
 - Fix `uriToString` instead of `show` for URI serialization
 - Fix duplicate Cabal modules from nested Generated subdirectories
+- Fix AutoRefresh losing layout after vault migration ([#2337](https://github.com/digitallyinduced/ihp/pull/2337))
+- Fix AutoRefresh losing query parameters during re-render ([#2401](https://github.com/digitallyinduced/ihp/pull/2401))
+- Fix stale AutoRefresh response comparisons ([#2546](https://github.com/digitallyinduced/ihp/pull/2546))
+- AutoRefresh gracefully degrades without PGListener ([#2465](https://github.com/digitallyinduced/ihp/pull/2465))
+- Fix DataSync append optimization double-applying ([#2544](https://github.com/digitallyinduced/ihp/pull/2544))
+- Fix DataSync trigger installation deadlock ([#2468](https://github.com/digitallyinduced/ihp/pull/2468))
+- Fix HasqlDecodeColumn Int using int8 instead of int4 ([#2493](https://github.com/digitallyinduced/ihp/pull/2493))
+- Fix `filterWhere` with `Nothing` generating invalid `IS $N` instead of `IS NULL`
+- Fix RowDecoder generating nullable decoder for PRIMARY KEY columns ([#2540](https://github.com/digitallyinduced/ihp/pull/2540))
+- Fix controller generator producing invalid Id fields when table doesn't exist ([#1179](https://github.com/digitallyinduced/ihp/pull/1179), [#2559](https://github.com/digitallyinduced/ihp/pull/2559))
+- Fix duplicate HasField "id" when table has composite PK and id column ([#989](https://github.com/digitallyinduced/ihp/pull/989), [#2557](https://github.com/digitallyinduced/ihp/pull/2557))
+- Fix foreign key non-PK column type ([#2558](https://github.com/digitallyinduced/ihp/pull/2558))
+- Fix modal close button not working ([#2561](https://github.com/digitallyinduced/ihp/pull/2561))
+- Fix IDE Data Editor foreign key dropdown flickering ([#2489](https://github.com/digitallyinduced/ihp/pull/2489))
+- Fix IDE toolbar help popover not opening ([#2494](https://github.com/digitallyinduced/ihp/pull/2494))
+- Fix devenv up Ctrl+C leaving orphan processes ([#2527](https://github.com/digitallyinduced/ihp/pull/2527), [#2548](https://github.com/digitallyinduced/ihp/pull/2548))
+- Fix devenv up Ctrl+C not stopping postgres ([#2485](https://github.com/digitallyinduced/ihp/pull/2485))
+- Fix lazy IO crash in FileWatcher filterGitIgnored ([#2330](https://github.com/digitallyinduced/ihp/pull/2330))
+- Suppress `-Wambiguous-fields` warnings in generated types ([#2487](https://github.com/digitallyinduced/ihp/pull/2487))
+- Render hasql PostgreSQL errors with structured detail in dev mode ([#2399](https://github.com/digitallyinduced/ihp/pull/2399))
+- Fix job worker silently exiting on transient fetchNextJob error ([#2453](https://github.com/digitallyinduced/ihp/pull/2453))
 
 ### DataSync JavaScript Fixes
 
@@ -143,10 +198,21 @@ All extracted modules are still re-exported from `ihp` for backwards compatibili
 - `redirect` now uses 303 See Other for auth redirects ([#2199](https://github.com/digitallyinduced/ihp/pull/2199))
 - Set line buffering for stdout and stderr in DevServer
 - Use default GHC from nixpkgs instead of pinned version
+- i18n documentation ([#2503](https://github.com/digitallyinduced/ihp/pull/2503))
+- Pagination guide ([#2551](https://github.com/digitallyinduced/ihp/pull/2551))
+- Explain side-effect actions need forms, not links ([#2552](https://github.com/digitallyinduced/ihp/pull/2552))
+- Docker migration-before-start pattern documentation ([#2555](https://github.com/digitallyinduced/ihp/pull/2555))
+
+### Job Queue
+
+- Job worker redesign for reliability and performance ([#2327](https://github.com/digitallyinduced/ihp/pull/2327))
+- Dev-only job poller trigger self-heal ([#2470](https://github.com/digitallyinduced/ihp/pull/2470))
+- Decouple job queue from ModelContext by passing HasqlPool explicitly
+- IHP.Job refactored into focused submodules ([#2471](https://github.com/digitallyinduced/ihp/pull/2471))
 
 ### DevEnv Updates
 
-- devenv v1.8.2 → v1.10 → v1.11.2
+- devenv v1.8.2 → v1.10 → v1.11.2 → v2.0.2 ([#2475](https://github.com/digitallyinduced/ihp/pull/2475))
 - Use devenv postgres instead of IHP's built-in postgres
 - Add binary cache to flake
 - Improve caching of nix builds
@@ -170,3 +236,13 @@ All extracted modules are still re-exported from `ihp` for backwards compatibili
 - Move `IHP.Test.Database` to `ihp-hspec` package ([#2163](https://github.com/digitallyinduced/ihp/pull/2163))
 - Extract `PrimaryKey` instances into `Generated.ActualTypes.PrimaryKeys` module
 - Add `relationSupport` Nix option for declarative configuration
+- Full migration from `postgresql-simple` to `hasql` across all packages ([#2262](https://github.com/digitallyinduced/ihp/pull/2262), [#2311](https://github.com/digitallyinduced/ihp/pull/2311), [#2322](https://github.com/digitallyinduced/ihp/pull/2322), [#2326](https://github.com/digitallyinduced/ihp/pull/2326), [#2377](https://github.com/digitallyinduced/ihp/pull/2377))
+- Hackage release preparation for Tier 0-4 packages ([#2533](https://github.com/digitallyinduced/ihp/pull/2533), [#2536](https://github.com/digitallyinduced/ihp/pull/2536), [#2537](https://github.com/digitallyinduced/ihp/pull/2537), [#2538](https://github.com/digitallyinduced/ihp/pull/2538))
+- Use Hackage versions of hasql-mapping, hasql-postgresql-types, postgresql-simple-postgresql-types
+- Split `IHP.View.Form` into sub-modules ([#2550](https://github.com/digitallyinduced/ihp/pull/2550))
+- Extract `ihp-pglistener` package ([#2273](https://github.com/digitallyinduced/ihp/pull/2273))
+- Simplify hasql pool retry using upstream auto-discard
+- `CSSFramework` split into separate modules, removed ~295 lines of duplicated render code
+- GHC 9.12 support (experimental, opt-in)
+- GHC 9.14 compatibility checks added ([#2515](https://github.com/digitallyinduced/ihp/pull/2515))
+- NamedDefaults for IsString (GHC 9.12+, CPP-gated) ([#2530](https://github.com/digitallyinduced/ihp/pull/2530))

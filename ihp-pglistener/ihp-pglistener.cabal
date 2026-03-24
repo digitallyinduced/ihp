@@ -1,6 +1,6 @@
 cabal-version:       2.2
 name:                ihp-pglistener
-version:             1.4.0
+version:             1.0.0
 synopsis:            PostgreSQL LISTEN/NOTIFY channel manager for IHP
 description:         Manages PostgreSQL LISTEN/NOTIFY subscriptions over a single shared connection
                      with automatic reconnection and exponential backoff.

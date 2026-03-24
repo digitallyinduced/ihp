@@ -1,9 +1,10 @@
 cabal-version:       2.2
 name:                ihp-datasync
-version:             1.4.0
+version:             1.5.0
 synopsis:            IHP DataSync Framework
 description:         DataSync module for the Integrated Haskell Platform, enabling real-time data synchronization and RESTful API capabilities for IHP applications.
 license:             MIT
+license-file:        LICENSE
 author:              digitally induced GmbH
 maintainer:          hello@digitallyinduced.com
 homepage:            https://ihp.digitallyinduced.com/
@@ -13,6 +14,7 @@ category:            Web, IHP, DataSync
 stability:           Stable
 tested-with:         GHC == 9.8.4
 build-type:          Simple
+extra-source-files:  changelog.md
 
 Flag FastBuild
     Default: False
@@ -86,8 +88,6 @@ common shared-properties
         , DeepSubsumption
     if flag(FastBuild)
         ghc-options:
-            -threaded
-            +RTS -A256m -n4m -H512m -qg -N -RTS
             -Wunused-imports
             -Wunused-foralls
             -Werror=missing-fields
@@ -102,7 +102,6 @@ common shared-properties
             -fstatic-argument-transformation
             -funbox-strict-fields
             -haddock
-            +RTS -A256m -n4m -H512m -qg -N -RTS
             -Wunused-imports
             -Wunused-foralls
             -Werror=missing-fields

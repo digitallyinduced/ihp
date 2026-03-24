@@ -3,7 +3,7 @@
 }:
 mkDerivation {
   pname = "ihp-log";
-  version = "1.4.0";
+  version = "1.0.0";
   src = ./.;
   libraryHaskellDepends = [
     base bytestring data-default fast-logger filepath text wai

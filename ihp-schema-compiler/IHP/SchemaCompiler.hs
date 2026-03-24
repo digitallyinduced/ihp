@@ -227,7 +227,13 @@ haskellType table@CreateTable { name = tableName, primaryKeyConstraint } column@
         let
             actualType =
                 case findForeignKeyConstraint table column of
-                    Just (ForeignKeyConstraint { referenceTable }) -> "(" <> primaryKeyTypeName referenceTable <> ")"
+                    Just fk@(ForeignKeyConstraint { referenceTable, referenceColumn })
+                        | isForeignKeyReferencingPK fk -> "(" <> primaryKeyTypeName referenceTable <> ")"
+                        | otherwise ->
+                            -- FK references a non-PK column; use the referenced column's actual type
+                            case referenceColumn >>= \refCol -> findTableByName referenceTable >>= \t -> find (\c -> c.name == refCol) t.columns of
+                                Just refColumn -> atomicType refColumn.columnType
+                                Nothing -> atomicType columnType
                     _ -> atomicType columnType
         in
             if not notNull || isJust generator
@@ -453,7 +459,7 @@ compileTypeAlias table@(CreateTable { name, columns }) =
         hasManyDefaults
             | ?compilerOptions.compileRelationSupport =
                 columnsReferencingTable name
-                |> map (\(tableName, columnName) -> "(QueryBuilder.QueryBuilder \"" <> tableName <> "\")")
+                |> map (\(tableName, columnName, _) -> "(QueryBuilder.QueryBuilder \"" <> tableName <> "\")")
                 |> unwords
             | otherwise = ""
 
@@ -523,10 +529,10 @@ columnsWithBitIndices allColumns subset =
     let subsetNames = setFromList (map (.name) subset) :: Set Text
     in [(col, idx) | (col, idx) <- zip allColumns [0..], col.name `member` subsetNames]
 
-compileQueryBuilderFields :: [(Text, Text)] -> [(Text, Text)]
+compileQueryBuilderFields :: [(Text, Text, Maybe Text)] -> [(Text, Text)]
 compileQueryBuilderFields columns = map compileQueryBuilderField columns
     where
-        compileQueryBuilderField (refTableName, refColumnName) =
+        compileQueryBuilderField (refTableName, refColumnName, _refColumn) =
             let
                 -- Given a relationship like the following:
                 --
@@ -545,7 +551,7 @@ compileQueryBuilderFields columns = map compileQueryBuilderField columns
                 -- being added to the data structure.
                 hasDuplicateQueryBuilder =
                     columns
-                    |> map fst
+                    |> map (\(t, _, _) -> t)
                     |> map columnNameToFieldName
                     |> filter (columnNameToFieldName refTableName ==)
                     |> length
@@ -577,14 +583,14 @@ compileQueryBuilderFields columns = map compileQueryBuilderField columns
 --
 -- >>> columnsReferencingTable "companies"
 -- [ ("users", "company_id") ]
-columnsReferencingTable :: (?schema :: Schema) => Text -> [(Text, Text)]
+columnsReferencingTable :: (?schema :: Schema) => Text -> [(Text, Text, Maybe Text)]
 columnsReferencingTable theTableName =
     let
         (Schema statements) = ?schema
     in
         statements
         |> mapMaybe \case
-            AddConstraint { tableName, constraint = ForeignKeyConstraint { columnName, referenceTable, referenceColumn } } | referenceTable == theTableName -> Just (tableName, columnName)
+            AddConstraint { tableName, constraint = fk@ForeignKeyConstraint { columnName, referenceTable, referenceColumn } } | referenceTable == theTableName && isForeignKeyReferencingPK fk -> Just (tableName, columnName, referenceColumn)
             _ -> Nothing
 
 variableAttributes :: (?schema :: Schema, ?compilerOptions :: CompilerOptions) => CreateTable -> [Column]
@@ -596,9 +602,13 @@ isVariableAttribute table column
     | otherwise = isRefCol table column
 
 
--- | Returns @True@ when the coluns is referencing another column via foreign key constraint
+-- | Returns @True@ when the column references another table's primary key via foreign key constraint.
+-- FK constraints that reference a non-PK column (e.g., REFERENCES users(email)) return @False@,
+-- because the relation machinery (Include, fetchRelated, QueryBuilder) only works for PK-based FKs.
 isRefCol :: (?schema :: Schema) => CreateTable -> Column -> Bool
-isRefCol table column = isJust (findForeignKeyConstraint table column)
+isRefCol table column = case findForeignKeyConstraint table column of
+    Just fk -> isForeignKeyReferencingPK fk
+    Nothing -> False
 
 -- | Returns the foreign key constraint bound on the given column.
 -- For inherited columns, recursively checks ancestor table constraints.
@@ -624,6 +634,19 @@ findTableByName tableName =
             StatementCreateTable table@CreateTable { name } | name == tableName -> Just table
             _ -> Nothing)
         |> headMay
+
+-- | Returns @True@ when a FK constraint references the primary key of the target table.
+-- FK constraints pointing at non-PK columns (e.g., REFERENCES users(email)) return @False@.
+isForeignKeyReferencingPK :: (?schema :: Schema) => Constraint -> Bool
+isForeignKeyReferencingPK ForeignKeyConstraint { referenceTable, referenceColumn } =
+    case referenceColumn of
+        Just refCol -> refCol `elem` referencedPKColumns
+        Nothing -> True
+    where
+        referencedPKColumns = case findTableByName referenceTable of
+            Just t -> primaryKeyColumnNames t.primaryKeyConstraint
+            Nothing -> []
+isForeignKeyReferencingPK _ = False
 
 -- | Returns all columns including inherited columns from parent tables.
 -- Inherited columns that are not overridden in the child table are appended.
@@ -848,16 +871,22 @@ compileFromRowHasqlInstance table@(CreateTable { name, columns }) =
     hasqlRowDecoder = #{rowDecoderModule}.rowDecoder
 |]
 
-compileFromRowQueryBuilder :: (?schema :: Schema) => CreateTable -> (Text, Text) -> Text
-compileFromRowQueryBuilder table (refTableName, refFieldName) = "(QueryBuilder.filterWhere (#" <> columnNameToFieldName refFieldName <> ", " <> primaryKeyField <> ") (QueryBuilder.query @" <> tableNameToModelName refTableName <> "))"
+compileFromRowQueryBuilder :: (?schema :: Schema) => CreateTable -> (Text, Text, Maybe Text) -> Text
+compileFromRowQueryBuilder table (refTableName, refFieldName, maybeRefColumn) = "(QueryBuilder.filterWhere (#" <> columnNameToFieldName refFieldName <> ", " <> primaryKeyField <> ") (QueryBuilder.query @" <> tableNameToModelName refTableName <> "))"
     where
         primaryKeyField :: Text
         primaryKeyField = if refColumn.notNull then actualPrimaryKeyField else "Just " <> actualPrimaryKeyField
         actualPrimaryKeyField :: Text
-        actualPrimaryKeyField = case primaryKeyColumns table of
-                [] -> error $ "Impossible happened in compileFromRowHasqlInstance. No primary keys found for table " <> cs table.name <> ". At least one primary key is required."
-                [pk] -> columnNameToFieldName pk.name
-                pks -> error $ "No support yet for composite foreign keys. Tables cannot have foreign keys to table '" <> cs table.name <> "' which has more than one column as its primary key."
+        actualPrimaryKeyField = case maybeRefColumn of
+                -- When the FK constraint specifies the referenced column, use it directly.
+                -- This handles composite PK tables where a FK references a specific column
+                -- (which must have a standalone UNIQUE constraint).
+                Just refCol -> columnNameToFieldName refCol
+                -- Otherwise fall back to the single primary key column
+                Nothing -> case primaryKeyColumns table of
+                    [] -> error $ "Impossible happened in compileFromRowHasqlInstance. No primary keys found for table " <> cs table.name <> ". At least one primary key is required."
+                    [pk] -> columnNameToFieldName pk.name
+                    pks -> error $ "No support yet for composite foreign keys. Tables cannot have foreign keys to table '" <> cs table.name <> "' which has more than one column as its primary key."
 
         (Just refTable) = let (Schema statements) = ?schema in
                 statements
@@ -881,13 +910,14 @@ hasqlColumnDecoder :: (?schema :: Schema) => CreateTable -> Column -> Text
 hasqlColumnDecoder table column@Column { name, columnType, notNull, generator } =
     "Decoders.column (" <> nullability <> " " <> decoder <> ")"
     where
-        -- Match the logic in haskellType: if not notNull OR has a generator, treat as nullable
-        isNullable = not notNull || isJust generator
-        nullability = if isNullable then "Decoders.nullable" else "Decoders.nonNullable"
-
         -- Id columns (primary keys and foreign keys) use Mapping.decoder which
         -- goes through the IsScalar instance for Id'
         isPrimaryKey = [name] == primaryKeyColumnNames table.primaryKeyConstraint
+
+        -- Match the logic in haskellType: primary keys are always nonNullable (even without
+        -- explicit NOT NULL), otherwise nullable if not notNull or has a generator
+        isNullable = not isPrimaryKey && (not notNull || isJust generator)
+        nullability = if isNullable then "Decoders.nullable" else "Decoders.nonNullable"
         isForeignKey = isJust (findForeignKeyConstraint table column)
         needsIdWrapper = isPrimaryKey || isForeignKey
 
@@ -1045,7 +1075,7 @@ compileInclude table@(CreateTable { name }) = (belongsToIncludes <> hasManyInclu
         columns = allColumnsIncludingInherited table
         belongsToIncludes = map compileBelongsTo (filter (isRefCol table) columns)
         hasManyIncludes = columnsReferencingTable name
-                |> (\refs -> zip (map fst refs) (map fst (compileQueryBuilderFields refs)))
+                |> (\refs -> zip (map (\(t, _, _) -> t) refs) (map fst (compileQueryBuilderFields refs)))
                 |> map compileHasMany
         typeArgs = dataTypeArguments table
         modelName = tableNameToModelName name
@@ -1143,11 +1173,13 @@ instance HasField "id" #{tableNameToModelName name} (Id' "#{name}") where
             ids -> "Id (" <> commaSep (map columnNameToFieldName ids) <> ")"
 
 needsHasFieldId :: CreateTable -> Bool
-needsHasFieldId CreateTable { primaryKeyConstraint } =
+needsHasFieldId CreateTable { columns, primaryKeyConstraint } =
   case primaryKeyColumnNames primaryKeyConstraint of
     [] -> False
     ["id"] -> False
-    _ -> True
+    pkCols
+      | any (\col -> col.name == "id") columns -> False
+      | otherwise -> True
 
 primaryKeyColumns :: CreateTable -> [Column]
 primaryKeyColumns CreateTable { name, columns, primaryKeyConstraint } =
