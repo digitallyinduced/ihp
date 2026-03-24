@@ -207,7 +207,7 @@ tests = do
                             Right () -> pure ()
 
         describe "trigger installation with locked table" do
-            it "succeeds on second call even when table is locked by COPY/pg_dump" do
+            it "succeeds on second call even when a writer holds RowExclusiveLock" do
                 withDB \connStr -> do
                     Exception.bracket (makePool connStr) Hasql.Pool.release \pool -> do
                         execSQL pool "CREATE EXTENSION IF NOT EXISTS \"uuid-ossp\""
@@ -225,18 +225,21 @@ tests = do
                         triggerCount <- queryTriggerCount pool tableName
                         triggerCount `shouldBe` 3
 
-                        -- Now simulate a pg_dump/COPY holding an ACCESS SHARE lock
-                        -- on the table. We do this by starting a transaction that
-                        -- SELECTs from the table (acquiring ACCESS SHARE) and
-                        -- holding it open while we run the second install.
+                        -- Simulate a long-running writer holding RowExclusiveLock.
+                        -- RowExclusiveLock conflicts with ShareRowExclusiveLock
+                        -- (which CREATE TRIGGER takes), but NOT with the
+                        -- IF NOT EXISTS check (AccessShareLock on pg_trigger).
+                        -- An open SELECT only takes AccessShareLock which does
+                        -- NOT conflict with CREATE TRIGGER, so we must use a
+                        -- writer (INSERT) to properly test this.
                         lockPool <- makePoolN 1 connStr
-                        execSQL lockPool (cs ("BEGIN; SELECT * FROM " <> tableName))
+                        execSQL lockPool (cs ("BEGIN; INSERT INTO " <> tableName <> " (body) VALUES ('lock holder')"))
 
                         -- Second call: triggers already exist, so this should
-                        -- skip the DDL and succeed despite the table being locked.
-                        -- With the old code this would block on AccessExclusiveLock.
+                        -- skip CREATE TRIGGER and succeed despite the writer lock.
+                        -- With the old code (DROP TRIGGER + CREATE TRIGGER always),
+                        -- this would block on the table lock.
                         result <- Exception.try $ do
-                            -- Use a short statement_timeout to detect if we'd block
                             execSQL pool "SET statement_timeout = '2s'"
                             installTableChangeTriggers pool table
                             execSQL pool "SET statement_timeout = '0'"

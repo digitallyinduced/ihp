@@ -51,9 +51,10 @@ data Change
 -- | Returns the sql code to set up a database trigger. Mainly used by 'watchInsertOrUpdateTable'.
 --
 -- The function body is always updated via @CREATE OR REPLACE FUNCTION@ (no table lock needed).
--- The trigger DDL (@DROP TRIGGER@ / @CREATE TRIGGER@) requires @AccessExclusiveLock@ on the table,
--- so it is only executed when the triggers don't already exist, avoiding lock contention with
--- long-running queries like @COPY@ or @pg_dump@.
+-- The trigger DDL (@CREATE TRIGGER@) requires @ShareRowExclusiveLock@ on the table,
+-- which conflicts with @RowExclusiveLock@ from writers (INSERT\/UPDATE\/DELETE\/COPY FROM).
+-- It is only executed when the triggers don't already exist, with a short @lock_timeout@
+-- to fail fast rather than block behind long-running writers.
 createNotificationFunction :: Text -> RLS.TableWithRLS -> Text
 createNotificationFunction uuidFunction table = [i|
     DO $$
@@ -117,15 +118,26 @@ createNotificationFunction uuidFunction table = [i|
             END;
         $BODY$ language plpgsql;
 
-        -- Only install triggers if they don't already exist. DROP TRIGGER and
-        -- CREATE TRIGGER require AccessExclusiveLock on the table, which blocks
-        -- (and is blocked by) all other table access. Skipping this when triggers
-        -- are already in place avoids cascading lock waits from long-running
-        -- queries like COPY or pg_dump.
+        -- Only install triggers if they don't already exist. CREATE TRIGGER
+        -- takes ShareRowExclusiveLock on the table, which conflicts with
+        -- RowExclusiveLock from INSERT/UPDATE/DELETE. Skipping this when
+        -- triggers are already in place avoids blocking behind long-running
+        -- writers or COPY FROM.
+        --
+        -- When triggers ARE missing (first install, new table), use a short
+        -- lock_timeout so we fail fast rather than blocking writers
+        -- indefinitely. The Haskell-side MVar cache removes its entry on
+        -- failure, so the next WebSocket connection will retry.
         IF NOT EXISTS (
             SELECT 1 FROM pg_trigger WHERE tgname = '#{insertTriggerName}'
                 AND tgrelid = '#{tableName}'::regclass
         ) THEN
+            -- Use a short lock_timeout so we fail fast if a long-running
+            -- writer holds RowExclusiveLock on the table (which conflicts
+            -- with CREATE TRIGGER's ShareRowExclusiveLock). The error
+            -- propagates to Haskell where the MVar cache removes its entry,
+            -- allowing the next WebSocket connection to retry.
+            SET LOCAL lock_timeout = '5s';
             BEGIN
                 CREATE TRIGGER "#{insertTriggerName}" AFTER INSERT ON "#{tableName}" FOR EACH ROW EXECUTE PROCEDURE "#{functionName}"();
                 CREATE TRIGGER "#{updateTriggerName}" AFTER UPDATE ON "#{tableName}" FOR EACH ROW EXECUTE PROCEDURE "#{functionName}"();
