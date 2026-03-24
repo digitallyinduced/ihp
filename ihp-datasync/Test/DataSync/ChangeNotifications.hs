@@ -246,7 +246,7 @@ tests = do
                         case result of
                             Left (e :: Exception.SomeException) ->
                                 expectationFailure
-                                    ("Second trigger install blocked or failed with locked table: " ++ show e)
+                                    (cs ("Second trigger install blocked or failed with locked table: " <> show e))
                             Right () -> pure ()
 
 -- DB helpers (same pattern as DataSyncIntegrationSpec.hs)
