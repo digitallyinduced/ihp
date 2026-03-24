@@ -12,6 +12,7 @@ document.addEventListener('DOMContentLoaded', function () {
     initToggle();
     initTime();
     initDatePicker();
+    initDateTimeLocal();
     initFileUploadPreview();
 
     document.dispatchEvent(ihpLoadEvent);
@@ -34,6 +35,7 @@ document.addEventListener('turbolinks:load', function () {
     }, 1);
 
     initDatePicker();
+    initDateTimeLocal();
 
     document.dispatchEvent(ihpLoadEvent);
 });
@@ -397,19 +399,52 @@ function initDatePicker() {
         });
     });
 
-    document.querySelectorAll("input[type='datetime-local']").forEach(el => {
-        // Append Z so Flatpickr knows the server value is UTC
-        if (el.value && !el.value.endsWith('Z')) {
-            el.value = el.value + 'Z';
-        }
-        flatpickr(el, {
-            ...(el.dataset.enableTime ? {} : { enableTime: true }),
-            ...(el.dataset.time_24hr ? {} : { time_24hr: true }),
-            ...(el.dataset.dateFormat ? {} : { dateFormat: 'Z' }),
-            ...(el.dataset.altFormat ? {} : { altFormat: 'd.m.y, H:i' }),
-            ...(el.dataset.altInput ? {} : { altInput: true }),
+}
+
+// Converts server-rendered UTC values in datetime-local inputs to the user's
+// local timezone for display, and converts back to UTC on form submit.
+// This replaces Flatpickr for datetime-local inputs — the native browser
+// picker is used instead.
+function initDateTimeLocal() {
+    // Convert server-rendered UTC values to local time for display
+    document.querySelectorAll("input[type='datetime-local']").forEach(function(el) {
+        if (!el.value) return;
+        var utcDate = new Date(el.value + 'Z');
+        if (isNaN(utcDate.getTime())) return;
+        el.value = formatLocalDateTime(utcDate);
+    });
+
+    // On form submit, convert local values back to UTC before FormData reads them.
+    // Form-level listeners fire before IHP's document-level submit handler,
+    // so values are converted before submitForm() creates FormData.
+    document.querySelectorAll('form').forEach(function(form) {
+        if (form.dataset.datetimeLocalHandled) return;
+        form.dataset.datetimeLocalHandled = 'true';
+        form.addEventListener('submit', function() {
+            form.querySelectorAll("input[type='datetime-local']").forEach(function(el) {
+                if (!el.value) return;
+                var localDate = new Date(el.value);
+                if (isNaN(localDate.getTime())) return;
+                el.value = formatUTCDateTime(localDate);
+            });
         });
     });
+}
+
+function formatLocalDateTime(date) {
+    return date.getFullYear() + '-' +
+        String(date.getMonth() + 1).padStart(2, '0') + '-' +
+        String(date.getDate()).padStart(2, '0') + 'T' +
+        String(date.getHours()).padStart(2, '0') + ':' +
+        String(date.getMinutes()).padStart(2, '0');
+}
+
+function formatUTCDateTime(date) {
+    return date.getUTCFullYear() + '-' +
+        String(date.getUTCMonth() + 1).padStart(2, '0') + '-' +
+        String(date.getUTCDate()).padStart(2, '0') + 'T' +
+        String(date.getUTCHours()).padStart(2, '0') + ':' +
+        String(date.getUTCMinutes()).padStart(2, '0');
 }
 
 var locked = false;
