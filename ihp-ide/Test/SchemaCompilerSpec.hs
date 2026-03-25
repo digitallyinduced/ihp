@@ -249,7 +249,8 @@ tests = do
                     createManyUser [] = pure []
                     createManyUser models = do
                         let pool = ?modelContext.hasqlPool
-                        sqlStatementHasql pool models (Generated.Statements.CreateManyUser.statement (List.length models))
+                        let touchedList = List.map (\model -> model.meta.touchedFields) models
+                        sqlStatementHasql pool models (Generated.Statements.CreateManyUser.statement touchedList)
 
                     createRecordDiscardResultUser :: (?modelContext :: ModelContext) => Generated.ActualTypes.User -> IO ()
                     createRecordDiscardResultUser model = do
@@ -348,7 +349,8 @@ tests = do
                     createManyUser [] = pure []
                     createManyUser models = do
                         let pool = ?modelContext.hasqlPool
-                        sqlStatementHasql pool models (Generated.Statements.CreateManyUser.statement (List.length models))
+                        let touchedList = List.map (\model -> model.meta.touchedFields) models
+                        sqlStatementHasql pool models (Generated.Statements.CreateManyUser.statement touchedList)
 
                     createRecordDiscardResultUser :: (?modelContext :: ModelContext) => Generated.ActualTypes.User -> IO ()
                     createRecordDiscardResultUser model = do
@@ -577,7 +579,8 @@ tests = do
                     createManyLandingPage [] = pure []
                     createManyLandingPage models = do
                         let pool = ?modelContext.hasqlPool
-                        sqlStatementHasql pool models (Generated.Statements.CreateManyLandingPage.statement (List.length models))
+                        let touchedList = List.map (\model -> model.meta.touchedFields) models
+                        sqlStatementHasql pool models (Generated.Statements.CreateManyLandingPage.statement touchedList)
 
                     createRecordDiscardResultLandingPage :: (?modelContext :: ModelContext) => Generated.ActualTypes.LandingPage -> IO ()
                     createRecordDiscardResultLandingPage model = do
@@ -940,7 +943,8 @@ tests = do
                     createManyPost [] = pure []
                     createManyPost models = do
                         let pool = ?modelContext.hasqlPool
-                        sqlStatementHasql pool models (Generated.Statements.CreateManyPost.statement (List.length models))
+                        let touchedList = List.map (\model -> model.meta.touchedFields) models
+                        sqlStatementHasql pool models (Generated.Statements.CreateManyPost.statement touchedList)
 
                     createRecordDiscardResultPost :: (?modelContext :: ModelContext) => Generated.ActualTypes.Post -> IO ()
                     createRecordDiscardResultPost model = do
@@ -1263,6 +1267,114 @@ tests = do
 
                     decoder :: Decoders.Result Generated.ActualTypes.Post
                     decoder = Decoders.singleRow RowDecoder.rowDecoder
+                    |]
+
+            it "should generate correct CreateMany statement module with DEFAULT columns" do
+                let defaultStatements =
+                        [ StatementCreateTable CreateTable
+                            { name = "posts"
+                            , columns =
+                                [ (col "id" PUUID) { notNull = True, isUnique = True, defaultValue = Just (CallExpression "uuid_generate_v4" []) }
+                                , (col "title" PText) { notNull = True }
+                                , (col "created_at" PTimestampWithTimezone) { notNull = True, defaultValue = Just (CallExpression "now" []) }
+                                ]
+                            , primaryKeyConstraint = PrimaryKeyConstraint ["id"]
+                            , constraints = []
+                            , unlogged = False
+                            , inherits = Nothing
+                            }
+                        ]
+                let [StatementCreateTable defaultTable] = defaultStatements
+                let ?schema = Schema defaultStatements
+                let output = compileCreateManyStatement defaultTable
+                getStatementBody output `shouldBe` [trimming|
+                    statement :: [Integer] -> Statement.Statement [Generated.ActualTypes.Post] [Generated.ActualTypes.Post]
+                    statement touchedFieldsList = Statement.unpreparable (sql touchedFieldsList) (encoder touchedFieldsList) decoder
+
+                    sql :: [Integer] -> Text
+                    sql touchedFieldsList =
+                        let (valueGroups, _) = List.foldl' (\(gs, offset) tf ->
+                                let (g, offset') = valueGroup tf offset
+                                in (gs ++ [g], offset')
+                                ) ([], 1) touchedFieldsList
+                        in "INSERT INTO posts (id, title, created_at) VALUES "
+                            <> Text.intercalate ", " valueGroups
+                            <> " RETURNING id, title, created_at"
+                      where
+                        columnMeta = [(0, True), (1, False), (2, True)]
+                        valueGroup tf offset =
+                            let step (parts, off) (bitIdx, hasDefault) =
+                                    if hasDefault && not (testBit tf bitIdx)
+                                        then (parts ++ ["DEFAULT"], off)
+                                        else (parts ++ ["$$" <> Text.pack (show off)], off + 1)
+                                (parts, offset') = List.foldl' step ([], offset) columnMeta
+                            in ("(" <> Text.intercalate ", " parts <> ")", offset')
+
+                    encoder :: [Integer] -> Encoders.Params [Generated.ActualTypes.Post]
+                    encoder touchedFieldsList = mconcat $$ List.zipWith (\i tf -> contramap (!! i) (singleEncoder tf)) [0..] touchedFieldsList
+
+                    singleEncoder :: Integer -> Encoders.Params Generated.ActualTypes.Post
+                    singleEncoder touchedFields = mconcat $$ catMaybes
+                        [ if testBit touchedFields 0 then Just ((.id) >$$< Encoders.param (Encoders.nonNullable Mapping.encoder)) else Nothing
+                        , Just ((.title) >$$< Encoders.param (Encoders.nonNullable Encoders.text))
+                        , if testBit touchedFields 2 then Just ((.createdAt) >$$< Encoders.param (Encoders.nonNullable Encoders.timestamptz)) else Nothing
+                        ]
+
+                    decoder :: Decoders.Result [Generated.ActualTypes.Post]
+                    decoder = Decoders.rowList RowDecoder.rowDecoder
+                    |]
+
+            it "should generate correct CreateMany statement module when all columns have defaults" do
+                let allDefaultStatements =
+                        [ StatementCreateTable CreateTable
+                            { name = "posts"
+                            , columns =
+                                [ (col "id" PUUID) { notNull = True, isUnique = True, defaultValue = Just (CallExpression "uuid_generate_v4" []) }
+                                , (col "created_at" PTimestampWithTimezone) { notNull = True, defaultValue = Just (CallExpression "now" []) }
+                                ]
+                            , primaryKeyConstraint = PrimaryKeyConstraint ["id"]
+                            , constraints = []
+                            , unlogged = False
+                            , inherits = Nothing
+                            }
+                        ]
+                let [StatementCreateTable allDefaultTable] = allDefaultStatements
+                let ?schema = Schema allDefaultStatements
+                let output = compileCreateManyStatement allDefaultTable
+                getStatementBody output `shouldBe` [trimming|
+                    statement :: [Integer] -> Statement.Statement [Generated.ActualTypes.Post] [Generated.ActualTypes.Post]
+                    statement touchedFieldsList = Statement.unpreparable (sql touchedFieldsList) (encoder touchedFieldsList) decoder
+
+                    sql :: [Integer] -> Text
+                    sql touchedFieldsList =
+                        let (valueGroups, _) = List.foldl' (\(gs, offset) tf ->
+                                let (g, offset') = valueGroup tf offset
+                                in (gs ++ [g], offset')
+                                ) ([], 1) touchedFieldsList
+                        in "INSERT INTO posts (id, created_at) VALUES "
+                            <> Text.intercalate ", " valueGroups
+                            <> " RETURNING id, created_at"
+                      where
+                        columnMeta = [(0, True), (1, True)]
+                        valueGroup tf offset =
+                            let step (parts, off) (bitIdx, hasDefault) =
+                                    if hasDefault && not (testBit tf bitIdx)
+                                        then (parts ++ ["DEFAULT"], off)
+                                        else (parts ++ ["$$" <> Text.pack (show off)], off + 1)
+                                (parts, offset') = List.foldl' step ([], offset) columnMeta
+                            in ("(" <> Text.intercalate ", " parts <> ")", offset')
+
+                    encoder :: [Integer] -> Encoders.Params [Generated.ActualTypes.Post]
+                    encoder touchedFieldsList = mconcat $$ List.zipWith (\i tf -> contramap (!! i) (singleEncoder tf)) [0..] touchedFieldsList
+
+                    singleEncoder :: Integer -> Encoders.Params Generated.ActualTypes.Post
+                    singleEncoder touchedFields = mconcat $$ catMaybes
+                        [ if testBit touchedFields 0 then Just ((.id) >$$< Encoders.param (Encoders.nonNullable Mapping.encoder)) else Nothing
+                        , if testBit touchedFields 1 then Just ((.createdAt) >$$< Encoders.param (Encoders.nonNullable Encoders.timestamptz)) else Nothing
+                        ]
+
+                    decoder :: Decoders.Result [Generated.ActualTypes.Post]
+                    decoder = Decoders.rowList RowDecoder.rowDecoder
                     |]
 
         describe "table inheritance (INHERITS)" do

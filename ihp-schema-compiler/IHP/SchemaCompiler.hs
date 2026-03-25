@@ -763,7 +763,11 @@ compileCreate table@(CreateTable { name }) =
                 <> "sqlStatementHasql pool model (Generated.Statements.Create" <> funcName <> ".statement touched)"
             else "let pool = ?modelContext.hasqlPool\n"
                 <> "sqlStatementHasql pool model Generated.Statements.Create" <> funcName <> ".statement"
-        hasqlCreateManyBody = "let pool = ?modelContext.hasqlPool\n"
+        hasqlCreateManyBody = if isDynamic
+            then "let pool = ?modelContext.hasqlPool\n"
+                <> "let touchedList = List.map (\\model -> model.meta.touchedFields) models\n"
+                <> "sqlStatementHasql pool models (Generated.Statements.CreateMany" <> funcName <> ".statement touchedList)"
+            else "let pool = ?modelContext.hasqlPool\n"
                 <> "sqlStatementHasql pool models (Generated.Statements.CreateMany" <> funcName <> ".statement (List.length models))"
         hasqlCreateDiscardBody = if isDynamic
             then "let pool = ?modelContext.hasqlPool\n"
@@ -1254,7 +1258,7 @@ compileStatementsIndex schema@(Schema statements) =
 statementModuleBaseImports :: Text
 statementModuleBaseImports =
     Text.unlines
-        [ "import Prelude (($), (.), (<$>), (<*>), (<>), (+), (*), (-), show, fromIntegral, length, null, zip, mconcat, (++), Maybe(..), (!!), map, Bool(..), Int, Integer, pure)"
+        [ "import Prelude (($), (.), (<$>), (<*>), (<>), (+), (*), (-), show, fromIntegral, length, null, zip, mconcat, (++), Maybe(..), (!!), map, Bool(..), Int, Integer, pure, (&&), not)"
         , "import Generated.ActualTypes"
         , "import Generated.Enums"
         , "import IHP.ModelSupport.Types (Id'(..), MetaBag(..))"
@@ -1602,22 +1606,26 @@ compileCreateManyStatement table@(CreateTable { name }) =
         moduleName = "Generated.Statements.CreateMany" <> modelName
         qualifiedModelName = qualifiedConstructorNameFromTableName name
         writableColumns = onlyWritableColumns columns
-        writableColumnNames = commaSep (map (.name) writableColumns)
         allColumnNames = commaSep (map (.name) columns)
-        numCols = length writableColumns
+        isDynamic = hasAnyDefaults writableColumns
+        rowDecoderImport = "import qualified Generated.Statements.RowDecoder" <> modelName <> " as RowDecoder\n"
+    in if isDynamic
+        then compileDynamicCreateManyStatement moduleName qualifiedModelName name writableColumns allColumnNames table columns rowDecoderImport
+        else compileStaticCreateManyStatement moduleName qualifiedModelName name writableColumns allColumnNames table rowDecoderImport
 
+compileStaticCreateManyStatement :: (?schema :: Schema) => Text -> Text -> Text -> [Column] -> Text -> CreateTable -> Text -> Text
+compileStaticCreateManyStatement moduleName qualifiedModelName tableName writableColumns allColumnNames table rowDecoderImport =
+    let insertColumnNames = commaSep (map (.name) writableColumns)
+        numCols = length writableColumns
         encoderLines = map (hasqlColumnEncoder table) writableColumns
         singleEncoderBlock = formatEncoderBlock encoderLines
-
-        rowDecoderImport = "import qualified Generated.Statements.RowDecoder" <> modelName <> " as RowDecoder\n"
-
     in statementModuleHeader moduleName ["statement"] (rowDecoderImport <> "import qualified Data.Text as Text\n")
         <> Text.unlines
         [ "statement :: Int -> Statement.Statement [" <> qualifiedModelName <> "] [" <> qualifiedModelName <> "]"
         , "statement count = Statement.unpreparable (sql count) (encoder count) decoder"
         , ""
         , "sql :: Int -> Text"
-        , "sql count = \"INSERT INTO " <> name <> " (" <> writableColumnNames <> ") VALUES \""
+        , "sql count = \"INSERT INTO " <> tableName <> " (" <> insertColumnNames <> ") VALUES \""
         , "    <> Text.intercalate \", \" [valueGroup (i * " <> tshow numCols <> ") | i <- [0..count - 1]]"
         , "    <> \" RETURNING " <> allColumnNames <> "\""
         , "  where"
@@ -1629,6 +1637,53 @@ compileCreateManyStatement table@(CreateTable { name }) =
         , "singleEncoder :: Encoders.Params " <> qualifiedModelName
         , "singleEncoder ="
         , singleEncoderBlock
+        , ""
+        , "decoder :: Decoders.Result [" <> qualifiedModelName <> "]"
+        , "decoder = Decoders.rowList RowDecoder.rowDecoder"
+        ]
+
+compileDynamicCreateManyStatement :: (?schema :: Schema) => Text -> Text -> Text -> [Column] -> Text -> CreateTable -> [Column] -> Text -> Text
+compileDynamicCreateManyStatement moduleName qualifiedModelName tableName writableColumns allColumnNames table columns rowDecoderImport =
+    let columnBitIndices = columnsWithBitIndices columns writableColumns
+        writableColumnNames = commaSep (map (.name) writableColumns)
+
+        columnMetaEntries = map (\(col, bitIdx) ->
+            "(" <> tshow bitIdx <> ", " <> tshow (hasExplicitOrImplicitDefault col) <> ")"
+            ) columnBitIndices
+
+        encoderEntries = map (\(col, bitIdx) -> compileEncoderEntry False bitIdx table col) columnBitIndices
+
+    in statementModuleHeader moduleName ["statement"] (rowDecoderImport <> statementModuleDynamicImports <> "import qualified Data.List as List\n")
+        <> Text.unlines
+        [ "statement :: [Integer] -> Statement.Statement [" <> qualifiedModelName <> "] [" <> qualifiedModelName <> "]"
+        , "statement touchedFieldsList = Statement.unpreparable (sql touchedFieldsList) (encoder touchedFieldsList) decoder"
+        , ""
+        , "sql :: [Integer] -> Text"
+        , "sql touchedFieldsList ="
+        , "    let (valueGroups, _) = List.foldl' (\\(gs, offset) tf ->"
+        , "            let (g, offset') = valueGroup tf offset"
+        , "            in (gs ++ [g], offset')"
+        , "            ) ([], 1) touchedFieldsList"
+        , "    in \"INSERT INTO " <> tableName <> " (" <> writableColumnNames <> ") VALUES \""
+        , "        <> Text.intercalate \", \" valueGroups"
+        , "        <> \" RETURNING " <> allColumnNames <> "\""
+        , "  where"
+        , "    columnMeta = [" <> Text.intercalate ", " columnMetaEntries <> "]"
+        , "    valueGroup tf offset ="
+        , "        let step (parts, off) (bitIdx, hasDefault) ="
+        , "                if hasDefault && not (testBit tf bitIdx)"
+        , "                    then (parts ++ [\"DEFAULT\"], off)"
+        , "                    else (parts ++ [\"$\" <> Text.pack (show off)], off + 1)"
+        , "            (parts, offset') = List.foldl' step ([], offset) columnMeta"
+        , "        in (\"(\" <> Text.intercalate \", \" parts <> \")\", offset')"
+        , ""
+        , "encoder :: [Integer] -> Encoders.Params [" <> qualifiedModelName <> "]"
+        , "encoder touchedFieldsList = mconcat $ List.zipWith (\\i tf -> contramap (!! i) (singleEncoder tf)) [0..] touchedFieldsList"
+        , ""
+        , "singleEncoder :: Integer -> Encoders.Params " <> qualifiedModelName
+        , "singleEncoder touchedFields = mconcat $ catMaybes"
+        , "    [ " <> Text.intercalate "\n    , " encoderEntries
+        , "    ]"
         , ""
         , "decoder :: Decoders.Result [" <> qualifiedModelName <> "]"
         , "decoder = Decoders.rowList RowDecoder.rowDecoder"
