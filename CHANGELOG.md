@@ -1,6 +1,6 @@
 # IHP Changelog
 
-## v1.5.0 (Unreleased)
+## v1.5.0 (2026-03-25)
 
 1,051 commits since v1.4.0. 607 files changed, 46,204 insertions, 27,040 deletions.
 
@@ -249,7 +249,6 @@ All extracted modules are still re-exported from `ihp` for backwards compatibili
 - Extract `PrimaryKey` instances into `Generated.ActualTypes.PrimaryKeys` module
 - Add `relationSupport` Nix option for declarative configuration
 - Full migration from `postgresql-simple` to `hasql` across all packages ([#2262](https://github.com/digitallyinduced/ihp/pull/2262), [#2311](https://github.com/digitallyinduced/ihp/pull/2311), [#2322](https://github.com/digitallyinduced/ihp/pull/2322), [#2326](https://github.com/digitallyinduced/ihp/pull/2326), [#2377](https://github.com/digitallyinduced/ihp/pull/2377))
-- Hackage release preparation for Tier 0-4 packages ([#2533](https://github.com/digitallyinduced/ihp/pull/2533), [#2536](https://github.com/digitallyinduced/ihp/pull/2536), [#2537](https://github.com/digitallyinduced/ihp/pull/2537), [#2538](https://github.com/digitallyinduced/ihp/pull/2538))
 - Use Hackage versions of hasql-mapping, hasql-postgresql-types, postgresql-simple-postgresql-types
 - Split `IHP.View.Form` into sub-modules ([#2550](https://github.com/digitallyinduced/ihp/pull/2550))
 - Extract `ihp-pglistener` package ([#2273](https://github.com/digitallyinduced/ihp/pull/2273))
