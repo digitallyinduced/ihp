@@ -7,6 +7,7 @@ module IHP.Mail
 ( MailServer (..)
 , BuildMail (..)
 , SMTPEncryption (..)
+, buildMail
 , sendMail
 , sendWithMailServer
 )
