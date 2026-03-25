@@ -765,7 +765,7 @@ compileCreate table@(CreateTable { name }) =
                 <> "sqlStatementHasql pool model Generated.Statements.Create" <> funcName <> ".statement"
         hasqlCreateManyBody = if isDynamic
             then "let pool = ?modelContext.hasqlPool\n"
-                <> "let touched = (head models).meta.touchedFields\n"
+                <> "let touched = (List.head models).meta.touchedFields\n"
                 <> "sqlStatementHasql pool models (Generated.Statements.CreateMany" <> funcName <> ".statement touched (List.length models))"
             else "let pool = ?modelContext.hasqlPool\n"
                 <> "sqlStatementHasql pool models (Generated.Statements.CreateMany" <> funcName <> ".statement (List.length models))"

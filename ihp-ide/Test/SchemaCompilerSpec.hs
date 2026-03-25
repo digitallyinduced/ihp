@@ -249,7 +249,7 @@ tests = do
                     createManyUser [] = pure []
                     createManyUser models = do
                         let pool = ?modelContext.hasqlPool
-                        let touched = (head models).meta.touchedFields
+                        let touched = (List.head models).meta.touchedFields
                         sqlStatementHasql pool models (Generated.Statements.CreateManyUser.statement touched (List.length models))
 
                     createRecordDiscardResultUser :: (?modelContext :: ModelContext) => Generated.ActualTypes.User -> IO ()
@@ -349,7 +349,7 @@ tests = do
                     createManyUser [] = pure []
                     createManyUser models = do
                         let pool = ?modelContext.hasqlPool
-                        let touched = (head models).meta.touchedFields
+                        let touched = (List.head models).meta.touchedFields
                         sqlStatementHasql pool models (Generated.Statements.CreateManyUser.statement touched (List.length models))
 
                     createRecordDiscardResultUser :: (?modelContext :: ModelContext) => Generated.ActualTypes.User -> IO ()
@@ -579,7 +579,7 @@ tests = do
                     createManyLandingPage [] = pure []
                     createManyLandingPage models = do
                         let pool = ?modelContext.hasqlPool
-                        let touched = (head models).meta.touchedFields
+                        let touched = (List.head models).meta.touchedFields
                         sqlStatementHasql pool models (Generated.Statements.CreateManyLandingPage.statement touched (List.length models))
 
                     createRecordDiscardResultLandingPage :: (?modelContext :: ModelContext) => Generated.ActualTypes.LandingPage -> IO ()
@@ -943,7 +943,7 @@ tests = do
                     createManyPost [] = pure []
                     createManyPost models = do
                         let pool = ?modelContext.hasqlPool
-                        let touched = (head models).meta.touchedFields
+                        let touched = (List.head models).meta.touchedFields
                         sqlStatementHasql pool models (Generated.Statements.CreateManyPost.statement touched (List.length models))
 
                     createRecordDiscardResultPost :: (?modelContext :: ModelContext) => Generated.ActualTypes.Post -> IO ()
