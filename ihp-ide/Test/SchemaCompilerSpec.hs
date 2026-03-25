@@ -1319,6 +1319,53 @@ tests = do
                     decoder = Decoders.rowList RowDecoder.rowDecoder
                     |]
 
+            it "should generate correct CreateMany statement module when all columns have defaults" do
+                let allDefaultStatements =
+                        [ StatementCreateTable CreateTable
+                            { name = "posts"
+                            , columns =
+                                [ (col "id" PUUID) { notNull = True, isUnique = True, defaultValue = Just (CallExpression "uuid_generate_v4" []) }
+                                , (col "created_at" PTimestampWithTimezone) { notNull = True, defaultValue = Just (CallExpression "now" []) }
+                                ]
+                            , primaryKeyConstraint = PrimaryKeyConstraint ["id"]
+                            , constraints = []
+                            , unlogged = False
+                            , inherits = Nothing
+                            }
+                        ]
+                let [StatementCreateTable allDefaultTable] = allDefaultStatements
+                let ?schema = Schema allDefaultStatements
+                let output = compileCreateManyStatement allDefaultTable
+                getStatementBody output `shouldBe` [trimming|
+                    statement :: Integer -> Int -> Statement.Statement [Generated.ActualTypes.Post] [Generated.ActualTypes.Post]
+                    statement touchedFields count = Statement.unpreparable (sql touchedFields count) (encoder touchedFields count) decoder
+
+                    sql :: Integer -> Int -> Text
+                    sql touchedFields count =
+                        let entries = catMaybes
+                                [ if testBit touchedFields 0 then Just "id" else Nothing
+                                , if testBit touchedFields 1 then Just "created_at" else Nothing
+                                ]
+                            numCols = length entries
+                            columns = Text.intercalate ", " entries
+                            valueGroup offset = "(" <> Text.intercalate ", " ["$$" <> Text.pack (show (offset + j)) | j <- [1..numCols]] <> ")"
+                        in "INSERT INTO posts (" <> columns <> ") VALUES "
+                            <> Text.intercalate ", " [valueGroup (i * numCols) | i <- [0..count - 1]]
+                            <> " RETURNING id, created_at"
+
+                    encoder :: Integer -> Int -> Encoders.Params [Generated.ActualTypes.Post]
+                    encoder touchedFields count = mconcat [contramap (!! i) (singleEncoder touchedFields) | i <- [0..count - 1]]
+
+                    singleEncoder :: Integer -> Encoders.Params Generated.ActualTypes.Post
+                    singleEncoder touchedFields = mconcat $$ catMaybes
+                        [ if testBit touchedFields 0 then Just ((.id) >$$< Encoders.param (Encoders.nonNullable Mapping.encoder)) else Nothing
+                        , if testBit touchedFields 1 then Just ((.createdAt) >$$< Encoders.param (Encoders.nonNullable Encoders.timestamptz)) else Nothing
+                        ]
+
+                    decoder :: Decoders.Result [Generated.ActualTypes.Post]
+                    decoder = Decoders.rowList RowDecoder.rowDecoder
+                    |]
+
         describe "table inheritance (INHERITS)" do
             let statements = parseSqlStatements [trimming|
                 CREATE TABLE posts (
