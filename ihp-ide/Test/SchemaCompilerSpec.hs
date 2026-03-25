@@ -1265,6 +1265,48 @@ tests = do
                     decoder = Decoders.singleRow RowDecoder.rowDecoder
                     |]
 
+            it "should generate correct CreateMany statement module with DEFAULT columns" do
+                let defaultStatements =
+                        [ StatementCreateTable CreateTable
+                            { name = "posts"
+                            , columns =
+                                [ (col "id" PUUID) { notNull = True, isUnique = True, defaultValue = Just (CallExpression "uuid_generate_v4" []) }
+                                , (col "title" PText) { notNull = True }
+                                , (col "created_at" PTimestampWithTimezone) { notNull = True, defaultValue = Just (CallExpression "now" []) }
+                                ]
+                            , primaryKeyConstraint = PrimaryKeyConstraint ["id"]
+                            , constraints = []
+                            , unlogged = False
+                            , inherits = Nothing
+                            }
+                        ]
+                let [StatementCreateTable defaultTable] = defaultStatements
+                let ?schema = Schema defaultStatements
+                let output = compileCreateManyStatement defaultTable
+                getStatementBody output `shouldBe` [trimming|
+                    statement :: Int -> Statement.Statement [Generated.ActualTypes.Post] [Generated.ActualTypes.Post]
+                    statement count = Statement.unpreparable (sql count) (encoder count) decoder
+
+                    sql :: Int -> Text
+                    sql count = "INSERT INTO posts (title) VALUES "
+                        <> Text.intercalate ", " [valueGroup (i * 1) | i <- [0..count - 1]]
+                        <> " RETURNING id, title, created_at"
+                      where
+                        valueGroup offset = "(" <> Text.intercalate ", " ["$$" <> Text.pack (show (offset + j)) | j <- [1..1]] <> ")"
+
+                    encoder :: Int -> Encoders.Params [Generated.ActualTypes.Post]
+                    encoder count = mconcat [contramap (!! i) singleEncoder | i <- [0..count - 1]]
+
+                    singleEncoder :: Encoders.Params Generated.ActualTypes.Post
+                    singleEncoder =
+                            mconcat
+                                [ (.title) >$$< Encoders.param (Encoders.nonNullable Encoders.text)
+                                ]
+
+                    decoder :: Decoders.Result [Generated.ActualTypes.Post]
+                    decoder = Decoders.rowList RowDecoder.rowDecoder
+                    |]
+
         describe "table inheritance (INHERITS)" do
             let statements = parseSqlStatements [trimming|
                 CREATE TABLE posts (

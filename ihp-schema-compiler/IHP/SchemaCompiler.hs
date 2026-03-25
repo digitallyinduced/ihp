@@ -1602,11 +1602,15 @@ compileCreateManyStatement table@(CreateTable { name }) =
         moduleName = "Generated.Statements.CreateMany" <> modelName
         qualifiedModelName = qualifiedConstructorNameFromTableName name
         writableColumns = onlyWritableColumns columns
-        writableColumnNames = commaSep (map (.name) writableColumns)
+        -- Skip columns with defaults (e.g. id with uuid_generate_v4()) since
+        -- createMany cannot conditionally include them per-record. The DB
+        -- DEFAULT will generate the value instead.
+        insertColumns = filter (not . hasExplicitOrImplicitDefault) writableColumns
+        insertColumnNames = commaSep (map (.name) insertColumns)
         allColumnNames = commaSep (map (.name) columns)
-        numCols = length writableColumns
+        numCols = length insertColumns
 
-        encoderLines = map (hasqlColumnEncoder table) writableColumns
+        encoderLines = map (hasqlColumnEncoder table) insertColumns
         singleEncoderBlock = formatEncoderBlock encoderLines
 
         rowDecoderImport = "import qualified Generated.Statements.RowDecoder" <> modelName <> " as RowDecoder\n"
@@ -1617,7 +1621,7 @@ compileCreateManyStatement table@(CreateTable { name }) =
         , "statement count = Statement.unpreparable (sql count) (encoder count) decoder"
         , ""
         , "sql :: Int -> Text"
-        , "sql count = \"INSERT INTO " <> name <> " (" <> writableColumnNames <> ") VALUES \""
+        , "sql count = \"INSERT INTO " <> name <> " (" <> insertColumnNames <> ") VALUES \""
         , "    <> Text.intercalate \", \" [valueGroup (i * " <> tshow numCols <> ") | i <- [0..count - 1]]"
         , "    <> \" RETURNING " <> allColumnNames <> "\""
         , "  where"
