@@ -249,7 +249,8 @@ tests = do
                     createManyUser [] = pure []
                     createManyUser models = do
                         let pool = ?modelContext.hasqlPool
-                        sqlStatementHasql pool models (Generated.Statements.CreateManyUser.statement (List.length models))
+                        let touched = (head models).meta.touchedFields
+                        sqlStatementHasql pool models (Generated.Statements.CreateManyUser.statement touched (List.length models))
 
                     createRecordDiscardResultUser :: (?modelContext :: ModelContext) => Generated.ActualTypes.User -> IO ()
                     createRecordDiscardResultUser model = do
@@ -348,7 +349,8 @@ tests = do
                     createManyUser [] = pure []
                     createManyUser models = do
                         let pool = ?modelContext.hasqlPool
-                        sqlStatementHasql pool models (Generated.Statements.CreateManyUser.statement (List.length models))
+                        let touched = (head models).meta.touchedFields
+                        sqlStatementHasql pool models (Generated.Statements.CreateManyUser.statement touched (List.length models))
 
                     createRecordDiscardResultUser :: (?modelContext :: ModelContext) => Generated.ActualTypes.User -> IO ()
                     createRecordDiscardResultUser model = do
@@ -577,7 +579,8 @@ tests = do
                     createManyLandingPage [] = pure []
                     createManyLandingPage models = do
                         let pool = ?modelContext.hasqlPool
-                        sqlStatementHasql pool models (Generated.Statements.CreateManyLandingPage.statement (List.length models))
+                        let touched = (head models).meta.touchedFields
+                        sqlStatementHasql pool models (Generated.Statements.CreateManyLandingPage.statement touched (List.length models))
 
                     createRecordDiscardResultLandingPage :: (?modelContext :: ModelContext) => Generated.ActualTypes.LandingPage -> IO ()
                     createRecordDiscardResultLandingPage model = do
@@ -940,7 +943,8 @@ tests = do
                     createManyPost [] = pure []
                     createManyPost models = do
                         let pool = ?modelContext.hasqlPool
-                        sqlStatementHasql pool models (Generated.Statements.CreateManyPost.statement (List.length models))
+                        let touched = (head models).meta.touchedFields
+                        sqlStatementHasql pool models (Generated.Statements.CreateManyPost.statement touched (List.length models))
 
                     createRecordDiscardResultPost :: (?modelContext :: ModelContext) => Generated.ActualTypes.Post -> IO ()
                     createRecordDiscardResultPost model = do
@@ -1284,24 +1288,32 @@ tests = do
                 let ?schema = Schema defaultStatements
                 let output = compileCreateManyStatement defaultTable
                 getStatementBody output `shouldBe` [trimming|
-                    statement :: Int -> Statement.Statement [Generated.ActualTypes.Post] [Generated.ActualTypes.Post]
-                    statement count = Statement.unpreparable (sql count) (encoder count) decoder
+                    statement :: Integer -> Int -> Statement.Statement [Generated.ActualTypes.Post] [Generated.ActualTypes.Post]
+                    statement touchedFields count = Statement.unpreparable (sql touchedFields count) (encoder touchedFields count) decoder
 
-                    sql :: Int -> Text
-                    sql count = "INSERT INTO posts (title) VALUES "
-                        <> Text.intercalate ", " [valueGroup (i * 1) | i <- [0..count - 1]]
-                        <> " RETURNING id, title, created_at"
-                      where
-                        valueGroup offset = "(" <> Text.intercalate ", " ["$$" <> Text.pack (show (offset + j)) | j <- [1..1]] <> ")"
-
-                    encoder :: Int -> Encoders.Params [Generated.ActualTypes.Post]
-                    encoder count = mconcat [contramap (!! i) singleEncoder | i <- [0..count - 1]]
-
-                    singleEncoder :: Encoders.Params Generated.ActualTypes.Post
-                    singleEncoder =
-                            mconcat
-                                [ (.title) >$$< Encoders.param (Encoders.nonNullable Encoders.text)
+                    sql :: Integer -> Int -> Text
+                    sql touchedFields count =
+                        let entries = catMaybes
+                                [ if testBit touchedFields 0 then Just "id" else Nothing
+                                , Just "title"
+                                , if testBit touchedFields 2 then Just "created_at" else Nothing
                                 ]
+                            numCols = length entries
+                            columns = Text.intercalate ", " entries
+                            valueGroup offset = "(" <> Text.intercalate ", " ["$$" <> Text.pack (show (offset + j)) | j <- [1..numCols]] <> ")"
+                        in "INSERT INTO posts (" <> columns <> ") VALUES "
+                            <> Text.intercalate ", " [valueGroup (i * numCols) | i <- [0..count - 1]]
+                            <> " RETURNING id, title, created_at"
+
+                    encoder :: Integer -> Int -> Encoders.Params [Generated.ActualTypes.Post]
+                    encoder touchedFields count = mconcat [contramap (!! i) (singleEncoder touchedFields) | i <- [0..count - 1]]
+
+                    singleEncoder :: Integer -> Encoders.Params Generated.ActualTypes.Post
+                    singleEncoder touchedFields = mconcat $$ catMaybes
+                        [ if testBit touchedFields 0 then Just ((.id) >$$< Encoders.param (Encoders.nonNullable Mapping.encoder)) else Nothing
+                        , Just ((.title) >$$< Encoders.param (Encoders.nonNullable Encoders.text))
+                        , if testBit touchedFields 2 then Just ((.createdAt) >$$< Encoders.param (Encoders.nonNullable Encoders.timestamptz)) else Nothing
+                        ]
 
                     decoder :: Decoders.Result [Generated.ActualTypes.Post]
                     decoder = Decoders.rowList RowDecoder.rowDecoder
