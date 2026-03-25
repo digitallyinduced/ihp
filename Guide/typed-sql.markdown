@@ -24,7 +24,7 @@ import IHP.TypedSql (typedSql, sqlQueryTyped, sqlExecTyped)
 
 The `QuasiQuotes` extension is required but already enabled by default in IHP projects.
 
-**Important**: Your development database must be running during compilation, because `typedSql` uses `DATABASE_URL` to connect and describe queries at compile time.
+**Important**: Your development database must be running during compilation, because `typedSql` uses `DATABASE_URL` to connect and describe queries at compile time. For `nix build`, this is handled automatically — see [Production Builds](#production-builds) below.
 
 ## Basic Queries
 
@@ -354,6 +354,10 @@ Key differences:
 **When to use `sqlQuery`**: Simple queries where you already have `FromRow` instances, or when you can't have the database running during compilation.
 
 **When to use `typedSql`**: Complex queries, queries with many columns, or any time you want compile-time safety. Especially useful when the query shape changes frequently during development.
+
+### Production Builds
+
+When you run `nix build`, IHP automatically detects that `ihp-typed-sql` is in your dependencies and starts a temporary PostgreSQL instance during compilation. Your `Application/Schema.sql` is loaded into this temporary database so that `typedSql` can infer types at compile time — no extra configuration needed.
 
 ### Migrating from `sqlQuery` to `typedSql`
 
