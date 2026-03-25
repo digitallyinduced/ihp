@@ -158,6 +158,7 @@ ihpFlake:
                         If your app doesn't use the Makefile to bundle the CSS, you can disable this for faster builds.
                     '';
                 };
+
             };
         }
     );
@@ -167,6 +168,8 @@ ihpFlake:
             cfg = config.ihp;
             ihp = ihpFlake.inputs.self;
             ghcCompiler = pkgs.ghc;
+            # Auto-detect whether a build-time PostgreSQL is needed (e.g. ihp-typed-sql)
+            buildWithPostgres = builtins.any (p: (p.pname or "") == "ihp-typed-sql") (cfg.haskellPackages ghcCompiler);
             hsDataDir = package:
                     let
                         ghcName   = package.passthru.compiler.haskellCompilerName;         # e.g. "ghc-9.10.1"
@@ -200,6 +203,9 @@ ihpFlake:
                     ihp-env-var-backwards-compat = ihpFlake.inputs.self.packages.${system}.ihp-env-var-backwards-compat;
                     ihp-static = ihpFlake.inputs.self.packages.${system}.ihp-static;
                     static = self'.packages.static;
+                    inherit buildWithPostgres;
+                    appSchemaSql = "${self'.packages.schema}/Schema.sql";
+                    ihpSchemaSql = "${self'.packages.ihp-schema}/IHPSchema.sql";
                 };
 
                 unoptimized-prod-server = import "${ihp}/NixSupport/default.nix" {
@@ -218,6 +224,9 @@ ihpFlake:
                     ihp-env-var-backwards-compat = ihpFlake.inputs.self.packages.${system}.ihp-env-var-backwards-compat;
                     ihp-static = ihpFlake.inputs.self.packages.${system}.ihp-static;
                     static = self'.packages.static;
+                    inherit buildWithPostgres;
+                    appSchemaSql = "${self'.packages.schema}/Schema.sql";
+                    ihpSchemaSql = "${self'.packages.ihp-schema}/IHPSchema.sql";
                 };
 
                 static =
