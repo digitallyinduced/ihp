@@ -249,8 +249,8 @@ tests = do
                     createManyUser [] = pure []
                     createManyUser models = do
                         let pool = ?modelContext.hasqlPool
-                        let touched = (List.head models).meta.touchedFields
-                        sqlStatementHasql pool models (Generated.Statements.CreateManyUser.statement touched (List.length models))
+                        let touchedList = List.map (\model -> model.meta.touchedFields) models
+                        sqlStatementHasql pool models (Generated.Statements.CreateManyUser.statement touchedList)
 
                     createRecordDiscardResultUser :: (?modelContext :: ModelContext) => Generated.ActualTypes.User -> IO ()
                     createRecordDiscardResultUser model = do
@@ -349,8 +349,8 @@ tests = do
                     createManyUser [] = pure []
                     createManyUser models = do
                         let pool = ?modelContext.hasqlPool
-                        let touched = (List.head models).meta.touchedFields
-                        sqlStatementHasql pool models (Generated.Statements.CreateManyUser.statement touched (List.length models))
+                        let touchedList = List.map (\model -> model.meta.touchedFields) models
+                        sqlStatementHasql pool models (Generated.Statements.CreateManyUser.statement touchedList)
 
                     createRecordDiscardResultUser :: (?modelContext :: ModelContext) => Generated.ActualTypes.User -> IO ()
                     createRecordDiscardResultUser model = do
@@ -579,8 +579,8 @@ tests = do
                     createManyLandingPage [] = pure []
                     createManyLandingPage models = do
                         let pool = ?modelContext.hasqlPool
-                        let touched = (List.head models).meta.touchedFields
-                        sqlStatementHasql pool models (Generated.Statements.CreateManyLandingPage.statement touched (List.length models))
+                        let touchedList = List.map (\model -> model.meta.touchedFields) models
+                        sqlStatementHasql pool models (Generated.Statements.CreateManyLandingPage.statement touchedList)
 
                     createRecordDiscardResultLandingPage :: (?modelContext :: ModelContext) => Generated.ActualTypes.LandingPage -> IO ()
                     createRecordDiscardResultLandingPage model = do
@@ -943,8 +943,8 @@ tests = do
                     createManyPost [] = pure []
                     createManyPost models = do
                         let pool = ?modelContext.hasqlPool
-                        let touched = (List.head models).meta.touchedFields
-                        sqlStatementHasql pool models (Generated.Statements.CreateManyPost.statement touched (List.length models))
+                        let touchedList = List.map (\model -> model.meta.touchedFields) models
+                        sqlStatementHasql pool models (Generated.Statements.CreateManyPost.statement touchedList)
 
                     createRecordDiscardResultPost :: (?modelContext :: ModelContext) => Generated.ActualTypes.Post -> IO ()
                     createRecordDiscardResultPost model = do
@@ -1288,25 +1288,30 @@ tests = do
                 let ?schema = Schema defaultStatements
                 let output = compileCreateManyStatement defaultTable
                 getStatementBody output `shouldBe` [trimming|
-                    statement :: Integer -> Int -> Statement.Statement [Generated.ActualTypes.Post] [Generated.ActualTypes.Post]
-                    statement touchedFields count = Statement.unpreparable (sql touchedFields count) (encoder touchedFields count) decoder
+                    statement :: [Integer] -> Statement.Statement [Generated.ActualTypes.Post] [Generated.ActualTypes.Post]
+                    statement touchedFieldsList = Statement.unpreparable (sql touchedFieldsList) (encoder touchedFieldsList) decoder
 
-                    sql :: Integer -> Int -> Text
-                    sql touchedFields count =
-                        let entries = catMaybes
-                                [ if testBit touchedFields 0 then Just "id" else Nothing
-                                , Just "title"
-                                , if testBit touchedFields 2 then Just "created_at" else Nothing
-                                ]
-                            numCols = length entries
-                            columns = Text.intercalate ", " entries
-                            valueGroup offset = "(" <> Text.intercalate ", " ["$$" <> Text.pack (show (offset + j)) | j <- [1..numCols]] <> ")"
-                        in "INSERT INTO posts (" <> columns <> ") VALUES "
-                            <> Text.intercalate ", " [valueGroup (i * numCols) | i <- [0..count - 1]]
+                    sql :: [Integer] -> Text
+                    sql touchedFieldsList =
+                        let (valueGroups, _) = List.foldl' (\(gs, offset) tf ->
+                                let (g, offset') = valueGroup tf offset
+                                in (gs ++ [g], offset')
+                                ) ([], 1) touchedFieldsList
+                        in "INSERT INTO posts (id, title, created_at) VALUES "
+                            <> Text.intercalate ", " valueGroups
                             <> " RETURNING id, title, created_at"
+                      where
+                        columnMeta = [(0, True), (1, False), (2, True)]
+                        valueGroup tf offset =
+                            let step (parts, off) (bitIdx, hasDefault) =
+                                    if hasDefault && not (testBit tf bitIdx)
+                                        then (parts ++ ["DEFAULT"], off)
+                                        else (parts ++ ["$$" <> Text.pack (show off)], off + 1)
+                                (parts, offset') = List.foldl' step ([], offset) columnMeta
+                            in ("(" <> Text.intercalate ", " parts <> ")", offset')
 
-                    encoder :: Integer -> Int -> Encoders.Params [Generated.ActualTypes.Post]
-                    encoder touchedFields count = mconcat [contramap (!! i) (singleEncoder touchedFields) | i <- [0..count - 1]]
+                    encoder :: [Integer] -> Encoders.Params [Generated.ActualTypes.Post]
+                    encoder touchedFieldsList = mconcat $$ List.zipWith (\i tf -> contramap (!! i) (singleEncoder tf)) [0..] touchedFieldsList
 
                     singleEncoder :: Integer -> Encoders.Params Generated.ActualTypes.Post
                     singleEncoder touchedFields = mconcat $$ catMaybes
@@ -1337,24 +1342,30 @@ tests = do
                 let ?schema = Schema allDefaultStatements
                 let output = compileCreateManyStatement allDefaultTable
                 getStatementBody output `shouldBe` [trimming|
-                    statement :: Integer -> Int -> Statement.Statement [Generated.ActualTypes.Post] [Generated.ActualTypes.Post]
-                    statement touchedFields count = Statement.unpreparable (sql touchedFields count) (encoder touchedFields count) decoder
+                    statement :: [Integer] -> Statement.Statement [Generated.ActualTypes.Post] [Generated.ActualTypes.Post]
+                    statement touchedFieldsList = Statement.unpreparable (sql touchedFieldsList) (encoder touchedFieldsList) decoder
 
-                    sql :: Integer -> Int -> Text
-                    sql touchedFields count =
-                        let entries = catMaybes
-                                [ if testBit touchedFields 0 then Just "id" else Nothing
-                                , if testBit touchedFields 1 then Just "created_at" else Nothing
-                                ]
-                            numCols = length entries
-                            columns = Text.intercalate ", " entries
-                            valueGroup offset = "(" <> Text.intercalate ", " ["$$" <> Text.pack (show (offset + j)) | j <- [1..numCols]] <> ")"
-                        in "INSERT INTO posts (" <> columns <> ") VALUES "
-                            <> Text.intercalate ", " [valueGroup (i * numCols) | i <- [0..count - 1]]
+                    sql :: [Integer] -> Text
+                    sql touchedFieldsList =
+                        let (valueGroups, _) = List.foldl' (\(gs, offset) tf ->
+                                let (g, offset') = valueGroup tf offset
+                                in (gs ++ [g], offset')
+                                ) ([], 1) touchedFieldsList
+                        in "INSERT INTO posts (id, created_at) VALUES "
+                            <> Text.intercalate ", " valueGroups
                             <> " RETURNING id, created_at"
+                      where
+                        columnMeta = [(0, True), (1, True)]
+                        valueGroup tf offset =
+                            let step (parts, off) (bitIdx, hasDefault) =
+                                    if hasDefault && not (testBit tf bitIdx)
+                                        then (parts ++ ["DEFAULT"], off)
+                                        else (parts ++ ["$$" <> Text.pack (show off)], off + 1)
+                                (parts, offset') = List.foldl' step ([], offset) columnMeta
+                            in ("(" <> Text.intercalate ", " parts <> ")", offset')
 
-                    encoder :: Integer -> Int -> Encoders.Params [Generated.ActualTypes.Post]
-                    encoder touchedFields count = mconcat [contramap (!! i) (singleEncoder touchedFields) | i <- [0..count - 1]]
+                    encoder :: [Integer] -> Encoders.Params [Generated.ActualTypes.Post]
+                    encoder touchedFieldsList = mconcat $$ List.zipWith (\i tf -> contramap (!! i) (singleEncoder tf)) [0..] touchedFieldsList
 
                     singleEncoder :: Integer -> Encoders.Params Generated.ActualTypes.Post
                     singleEncoder touchedFields = mconcat $$ catMaybes
