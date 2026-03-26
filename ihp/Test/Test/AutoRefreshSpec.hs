@@ -97,11 +97,8 @@ callActionWithQueryParams pgListener controller queryParams = do
 
 testLogger :: Logger
 testLogger = Logger
-    { write = \_ -> pure ()
+    { log = \_ _ -> pure ()
     , level = Debug
-    , formatter = \_ _ msg -> msg
-    , timeCache = pure ""
-    , cleanup = pure ()
     }
 
 tests :: Spec

@@ -99,7 +99,7 @@ bodyContains needle haystack = BS.isInfixOf needle (LBS.toStrict haystack)
 
 buildRequest :: RequestBody -> Environment -> IO Wai.Request
 buildRequest requestBody environment = do
-    frameworkConfig <- FrameworkConfig.buildFrameworkConfig (FrameworkConfig.option environment)
+    (frameworkConfig, _) <- FrameworkConfig.buildFrameworkConfig (FrameworkConfig.option environment)
     pure Wai.defaultRequest
         { Wai.vault = Vault.insert RequestVault.frameworkConfigVaultKey frameworkConfig
                     $ Vault.insert requestBodyVaultKey requestBody Vault.empty

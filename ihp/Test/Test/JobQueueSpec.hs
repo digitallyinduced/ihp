@@ -5,7 +5,7 @@ import IHP.Prelude
 import qualified IHP.Job.Queue as JobQueue
 import IHP.ModelSupport (createModelContext, releaseModelContext, HasqlError (..))
 import qualified IHP.Log as Log
-import IHP.Log.Types (Logger, LogLevel (..), LoggerSettings (..))
+import IHP.Log.Types (Logger, LogLevel (..), defaultFormatter, defaultBufSize, simpleTimeFormat', LogType'(..))
 import qualified IHP.PGListener as PGListener
 import qualified Hasql.Pool as HasqlPool
 import qualified Hasql.Session as HasqlSession
@@ -75,7 +75,7 @@ withDB :: (ModelContext -> Logger -> ByteString -> IO ()) -> IO ()
 withDB action = do
     envUrl <- lookupEnv "DATABASE_URL"
     let databaseUrl = maybe "postgresql:///postgres" cs envUrl
-    logger <- Log.newLogger def { level = Warn }
+    (logger, _) <- Log.newLogger Warn defaultFormatter (LogStdout defaultBufSize) simpleTimeFormat'
     modelContext <- createModelContext databaseUrl logger
     result <- Exception.try (action modelContext logger databaseUrl `Exception.finally` releaseModelContext modelContext)
     case result of

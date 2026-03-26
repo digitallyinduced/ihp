@@ -8,7 +8,7 @@ import IHP.Controller.Context
 import IHP.ModelSupport (createModelContext, releaseModelContext, HasqlError(..))
 import qualified Hasql.Pool as HasqlPool
 import qualified IHP.Log as Log
-import IHP.Log.Types (LogLevel(..), LoggerSettings(..))
+import IHP.Log.Types (LogLevel(..), defaultFormatter, defaultBufSize, simpleTimeFormat', LogType'(..))
 import Wai.Request.Params.Middleware (RequestBody (..), requestBodyVaultKey)
 import qualified Data.Vault.Lazy as Vault
 import qualified Data.TMap as TypeMap
@@ -150,7 +150,7 @@ withDB :: (ModelContext -> IO ()) -> IO ()
 withDB action = do
     envUrl <- lookupEnv "DATABASE_URL"
     let databaseUrl = maybe "postgresql:///postgres" cs envUrl
-    logger <- Log.newLogger def { level = Warn }
+    (logger, _) <- Log.newLogger Warn defaultFormatter (LogStdout defaultBufSize) simpleTimeFormat'
     modelContext <- createModelContext databaseUrl logger
     result <- Exception.try (action modelContext `Exception.finally` releaseModelContext modelContext)
     case result of
