@@ -10,6 +10,7 @@ module IHP.ViewSupport
 , Layout
 , Html
 , View (..)
+, JsonView (..)
 , currentViewId
 , forEach
 , isActivePath
@@ -65,9 +66,10 @@ class View theView where
     -- Renders the view as html
     html :: (?context :: ControllerContext, ?view :: theView, ?request :: Request) => theView -> Html5.Html
 
-    -- | Renders the view to a JSON
+-- | Implement this for views that can be rendered as JSON.
+-- Use 'renderHtmlOrJson' in your controller to dispatch based on the Accept header.
+class JsonView theView where
     json :: theView -> JSON.Value
-    json = error "Json View for this route is not implemented"
 
 -- | Returns a string to be used as a html id attribute for the current view.
 -- E.g. when calling @currentViewId@ while rendering the view @Web.View.Projects.Show@, this will return @"projects-show"@

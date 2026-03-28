@@ -71,60 +71,40 @@ renderJson' :: (?request :: Request) => ResponseHeaders -> Data.Aeson.ToJSON jso
 renderJson' additionalHeaders json = respondAndExitWithHeaders $ responseLBS status200 ([(hContentType, "application/json")] <> additionalHeaders) (Data.Aeson.encode json)
 {-# INLINE renderJson' #-}
 
-data PolymorphicRender
-    = PolymorphicRender
-        { html :: Maybe (IO ())
-        , json :: Maybe (IO ())
-        }
-
--- | Can be used to render different responses for html, json, etc. requests based on `Accept` header
--- Example:
---
--- > show :: Action
--- > show = do
--- >     renderPolymorphic polymorphicRender {
--- >         html = renderHtml [hsx|<div>Hello World</div>|]
--- >         json = renderJson True
--- >     }
---
--- This will render @Hello World@ for normal browser requests and @true@ when requested via an ajax request
-{-# INLINE renderPolymorphic #-}
-renderPolymorphic :: (?context :: ControllerContext, ?request :: Request) => PolymorphicRender -> IO ()
-renderPolymorphic PolymorphicRender { html, json } = do
-    let acceptHeader = lookup hAccept (request.requestHeaders)
-    case acceptHeader of
-        -- Fast path: no Accept header or starts with text/html — dispatch directly
-        Nothing | Just handler <- html -> handler
-        Just h | "text/html" `isPrefixOf` h, Just handler <- html -> handler
-        _ -> do
-            let accept = fromMaybe "text/html" acceptHeader
-            let send406Error = respondAndExitWithHeaders $ responseLBS status406 [] "Could not find any acceptable response format"
-            let formats = concat [
-                        case html of
-                            Just handler -> [("text/html", handler)]
-                            Nothing -> mempty
-                         ,
-                        case json of
-                            Just handler -> [("application/json", handler)]
-                            Nothing -> mempty
-                    ]
-            fromMaybe send406Error (Accept.mapAcceptMedia formats accept)
-
-polymorphicRender :: PolymorphicRender
-polymorphicRender = PolymorphicRender Nothing Nothing
-
-
 {-# INLINE render #-}
 render :: forall view. (ViewSupport.View view, ?context :: ControllerContext, ?request :: Request, ?respond :: Respond) => view -> IO ()
 render !view = do
     let !currentRequest = ?request
-    renderPolymorphic PolymorphicRender
-            { html = Just do
-                    let next request respond = do
-                            let ?request = request in ((renderHtml view) >>= respondHtml)
-                            error "unreachable"
-                    _ <- consumeFlashMessagesMiddleware next currentRequest ?respond
-                    pure ()
-            , json = Just $ renderJson (ViewSupport.json view)
-            }
+    let next request respond = do
+            let ?request = request in ((renderHtml view) >>= respondHtml)
+            error "unreachable"
+    _ <- consumeFlashMessagesMiddleware next currentRequest ?respond
+    pure ()
+
+-- | Renders HTML or JSON based on the request's Accept header.
+-- Requires both 'View' and 'JsonView' instances for the view type.
+{-# INLINE renderHtmlOrJson #-}
+renderHtmlOrJson :: forall view. (ViewSupport.View view, ViewSupport.JsonView view, ?context :: ControllerContext, ?request :: Request, ?respond :: Respond) => view -> IO ()
+renderHtmlOrJson !view = do
+    let !currentRequest = ?request
+    let acceptHeader = lookup hAccept (?request.requestHeaders)
+    case acceptHeader of
+        Nothing -> renderHtmlView currentRequest view
+        Just h | "text/html" `isPrefixOf` h -> renderHtmlView currentRequest view
+        _ -> do
+            let accept = fromMaybe "text/html" acceptHeader
+            let send406Error = respondAndExitWithHeaders $ responseLBS status406 [] "Could not find any acceptable response format"
+            let formats =
+                    [ ("text/html", renderHtmlView currentRequest view)
+                    , ("application/json", renderJson (ViewSupport.json view))
+                    ]
+            fromMaybe send406Error (Accept.mapAcceptMedia formats accept)
+
+renderHtmlView :: (ViewSupport.View view, ?context :: ControllerContext, ?respond :: Respond) => Request -> view -> IO ()
+renderHtmlView currentRequest view = do
+    let next request respond = do
+            let ?request = request in ((renderHtml view) >>= respondHtml)
+            error "unreachable"
+    _ <- consumeFlashMessagesMiddleware next currentRequest ?respond
+    pure ()
 
