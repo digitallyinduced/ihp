@@ -58,8 +58,6 @@ import Data.Data
 import qualified Control.Monad.State.Strict as State
 import qualified Data.Text as Text
 import Network.HTTP.Types.URI
-import Network.HTTP.Types.Status (status400)
-import Network.HTTP.Types.Header (hContentType)
 import qualified Data.List as List
 import Unsafe.Coerce
 import IHP.HaskellSupport hiding (get)
