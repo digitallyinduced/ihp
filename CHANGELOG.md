@@ -31,10 +31,6 @@
 - `touchedFields` changed from `[Text]` to `Integer` bitmask for better performance ([#2473](https://github.com/digitallyinduced/ihp/pull/2473))
 - `CSSFramework` `Default` instance removed — use `unstyled` instead of `def`; new `styledLabelClass` field added to the record
 - `requestBodyJSON` now returns HTTP 400 for malformed JSON instead of crashing
-- Controller `action` now returns `IO ResponseReceived` instead of `IO ()` — response functions like `render`, `redirectTo`, `renderJson` return the WAI `ResponseReceived` directly instead of throwing exceptions. Use `earlyReturn` for conditional early exits (e.g. `when condition (earlyReturn $ redirectTo ...)`) ([#2205](https://github.com/digitallyinduced/ihp/pull/2205))
-- `ResponseException` removed — code that catches `ResponseException` will get a compiler error; use `earlyReturn`/`respondAndExit` instead
-- `respondAndExit` now requires `?request` and `?respond` implicit parameters (previously only needed `?context`)
-- `handleNoResponseReturned` and `handleRouterException` removed from `IHP.ErrorController` — error handling is now done via `errorHandlerMiddleware`
 - Session packages replaced: `wai-session` → `wai-session-maybe` (`Network.Wai.Session` → `Network.Wai.Session.Maybe`), `wai-session-clientsession` → `wai-session-clientsession-deferred` (`Network.Wai.Session.ClientSession` → `Network.Wai.Session.ClientSession.Deferred`) ([#2582](https://github.com/digitallyinduced/ihp/pull/2582))
 
 ### New Features

@@ -19,7 +19,7 @@ import IHP.FlashMessages (consumeFlashMessagesMiddleware)
 
 renderPlain :: (?request :: Request, ?respond :: Respond) => LByteString -> IO ResponseReceived
 renderPlain text = respondWith $ responseLBS status200 [(hContentType, "text/plain")] text
-{-# INLINABLE renderPlain #-}
+{-# INLINE renderPlain #-}
 
 respondHtml :: (?request :: Request, ?respond :: Respond) => Html -> IO ResponseReceived
 respondHtml html = do
@@ -31,7 +31,7 @@ respondHtml html = do
         -- message instead of our nice IHP error message design.
         _ <- evaluate (Data.ByteString.Lazy.length bs)
         respondWith $ responseLBS status200 [(hContentType, "text/html; charset=utf-8"), (hConnection, "keep-alive")] bs
-{-# INLINABLE respondHtml #-}
+{-# INLINE respondHtml #-}
 
 respondSvg :: (?request :: Request, ?respond :: Respond) => Html -> IO ResponseReceived
 respondSvg html = respondWith $ responseBuilder status200 [(hContentType, "image/svg+xml"), (hConnection, "keep-alive")] (Blaze.renderHtmlBuilder html)
@@ -52,7 +52,7 @@ renderHtml !view = do
 
 renderFile :: (?request :: Request, ?respond :: Respond) => String -> ByteString -> IO ResponseReceived
 renderFile filePath contentType = respondWith $ responseFile status200 [(hContentType, contentType)] filePath Nothing
-{-# INLINABLE renderFile #-}
+{-# INLINE renderFile #-}
 
 renderJson :: (?request :: Request, ?respond :: Respond) => Data.Aeson.ToJSON json => json -> IO ResponseReceived
 renderJson json = renderJsonWithStatusCode status200 json
@@ -60,18 +60,18 @@ renderJson json = renderJsonWithStatusCode status200 json
 
 renderJsonWithStatusCode :: (?request :: Request, ?respond :: Respond) => Data.Aeson.ToJSON json => Status -> json -> IO ResponseReceived
 renderJsonWithStatusCode statusCode json = respondWith $ responseLBS statusCode [(hContentType, "application/json")] (Data.Aeson.encode json)
-{-# INLINABLE renderJsonWithStatusCode #-}
+{-# INLINE renderJsonWithStatusCode #-}
 
 renderXml :: (?request :: Request, ?respond :: Respond) => LByteString -> IO ResponseReceived
 renderXml xml = respondWith $ responseLBS status200 [(hContentType, "application/xml")] xml
-{-# INLINABLE renderXml #-}
+{-# INLINE renderXml #-}
 
 -- | Use 'setHeader' instead
 renderJson' :: (?request :: Request, ?respond :: Respond) => ResponseHeaders -> Data.Aeson.ToJSON json => json -> IO ResponseReceived
 renderJson' additionalHeaders json = respondWith $ responseLBS status200 ([(hContentType, "application/json")] <> additionalHeaders) (Data.Aeson.encode json)
-{-# INLINABLE renderJson' #-}
+{-# INLINE renderJson' #-}
 
-{-# INLINABLE render #-}
+{-# INLINE render #-}
 render :: forall view. (ViewSupport.View view, ?context :: ControllerContext, ?request :: Request, ?respond :: Respond) => view -> IO ResponseReceived
 render !view = do
     let !currentRequest = ?request
@@ -79,7 +79,7 @@ render !view = do
 
 -- | Renders HTML or JSON based on the request's Accept header.
 -- Requires both 'View' and 'JsonView' instances for the view type.
-{-# INLINABLE renderHtmlOrJson #-}
+{-# INLINE renderHtmlOrJson #-}
 renderHtmlOrJson :: forall view. (ViewSupport.View view, ViewSupport.JsonView view, ?context :: ControllerContext, ?request :: Request, ?respond :: Respond) => view -> IO ResponseReceived
 renderHtmlOrJson !view = do
     let !currentRequest = ?request
