@@ -25,7 +25,7 @@ import Network.Wai (Request)
 import IHP.PageHead.Types
 import IHP.PageHead.ControllerFunctions
 import IHP.HSX.MarkupQQ (hsx)
-import IHP.HSX.Markup (Markup, Html)
+import IHP.HSX.Markup (Html)
 
 -- | Returns the current page title. The title can be set using @setTitle "my title"@ from the action.
 --
