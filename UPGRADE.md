@@ -2,6 +2,40 @@
 This document describes breaking changes, as well as how to fix them, that have occured at given releases.
 After updating your project, please consult the segments from your current release until now.
 
+# Upgrade to 1.6.0 (unreleased) from 1.5.0
+
+## `render` No Longer Handles JSON
+
+The `render` function now only renders HTML. Previously it used Accept header negotiation to serve both HTML and JSON, but the JSON path was unused in practice.
+
+If you had a `View` instance that defined `json`, move it to a separate `JsonView` instance and use `renderHtmlOrJson`:
+
+```haskell
+-- Before
+instance View ShowView where
+    html ShowView { .. } = [hsx|...|]
+    json ShowView { .. } = toJSON post
+
+action ShowPostAction { postId } = do
+    post <- fetch postId
+    render ShowView { post }
+
+-- After
+instance View ShowView where
+    html ShowView { .. } = [hsx|...|]
+
+instance JsonView ShowView where
+    json ShowView { .. } = toJSON post
+
+action ShowPostAction { postId } = do
+    post <- fetch postId
+    renderHtmlOrJson ShowView { post }
+```
+
+If your `View` instances only defined `html` (the common case), no changes are needed.
+
+The `renderJson` function is unchanged and can still be used directly in controllers.
+
 # Upgrade to 1.5.0 from 1.4.0
 
 ## 1. Switch IHP version

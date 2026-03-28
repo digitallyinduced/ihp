@@ -288,7 +288,7 @@ Inside a controller, you have several ways of sending a response. The most commo
 render ShowPostView { .. }
 ```
 
-The [`render`](https://ihp.digitallyinduced.com/api-docs/IHP-Controller-Render.html#v:render) function automatically picks the right response format based on the `Accept` header of the browser. It will try to send an HTML response when HTML is requested, and will also try to send a JSON response when a JSON response is expected. A [`406 Not Acceptable`](https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/406) will be send when the [`render`](https://ihp.digitallyinduced.com/api-docs/IHP-Controller-Render.html#v:render) function cannot fulfill the requested `Accept` formats.
+The [`render`](https://ihp.digitallyinduced.com/api-docs/IHP-Controller-Render.html#v:render) function renders the view as HTML. If you need to serve both HTML and JSON from the same action based on the `Accept` header, use [`renderHtmlOrJson`](https://ihp.digitallyinduced.com/api-docs/IHP-Controller-Render.html#v:renderHtmlOrJson) instead — this requires your view to implement both `View` and `JsonView`. See the [JSON API guide](json-api.html) for details.
 
 ### Rendering Plain Text
 
