@@ -801,5 +801,5 @@ handleRouterExceptionImpl environment exception =
                         <h2>Possible Solutions</h2>
                         <p>Are you trying to do a DELETE action, but your link is missing class="js-delete"?</p>
                     |]
-                let title = H.text "Routing failed"
+                let title = toHtml ("Routing failed" :: Text)
                 pure $ responseBuilder status500 [(hContentType, "text/html")] (getBuilder (renderError environment title errorMessage))
