@@ -398,17 +398,17 @@ action ExampleAction = do
 
 ## Action Execution
 
-When calling a function to send the response like `render` or `redirectTo`, the response is sent to the client and the action returns. Since these functions return `IO ResponseReceived`, any code after them would be unreachable.
-
-Here is an example:
+Response functions like `render`, `redirectTo`, and `renderJson` send the response to the client and return `IO ResponseReceived`. Since `action` returns `IO ResponseReceived`, the response function is typically the last expression in the action:
 
 ```haskell
 action ExampleAction = do
-    redirectTo SomeOtherAction
-    -- Any code here would be unreachable since redirectTo returns the response
+    post <- fetch postId
+    render ShowView { .. }
 ```
 
-For conditional early exits (like access control), use `earlyReturn`:
+### Early Return
+
+When you need to exit an action early (e.g. for access control), use `earlyReturn`. This sends the response and stops execution of the rest of the action:
 
 ```haskell
 action ExampleAction = do
@@ -418,6 +418,8 @@ action ExampleAction = do
     -- This code runs only if loggedIn is True
     render MyView
 ```
+
+When you have created a `Response` manually, you can use `respondAndExit` to send your response and stop execution.
 
 ## Controller Context
 
