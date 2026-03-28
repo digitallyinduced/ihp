@@ -18,7 +18,7 @@ import qualified Data.Aeson as Aeson
 import qualified Network.Wai as Wai
 import qualified Data.ByteString.Lazy as LBS
 import qualified Data.ByteString as BS
-import Network.HTTP.Types (status200, status400)
+import Network.HTTP.Types (status400)
 
 tests = do
     describe "IHP.ControllerSupport" do
@@ -27,14 +27,10 @@ tests = do
                 let jsonValue = Aeson.object [("name", Aeson.String "test")]
                 let requestBody = JSONBody { jsonPayload = Just jsonValue, rawPayload = "{\"name\":\"test\"}" }
                 req <- buildRequest requestBody Development
-                let app r respond = do
-                        let ?request = r
-                        let ?respond = respond
-                        result <- requestBodyJSON
-                        result `shouldBe` jsonValue
-                        respond (Wai.responseLBS (status200) [] "ok")
-                runSession (request req) (earlyReturnMiddleware app)
-                    `shouldReturn` SResponse (status200) [] "ok"
+                let ?request = req
+                let ?respond = error "respond should not be called for valid JSON"
+                result <- requestBodyJSON
+                result `shouldBe` jsonValue
 
             it "should return 400 for FormBody" do
                 let requestBody = FormBody { params = [], files = [], rawPayload = "" }
