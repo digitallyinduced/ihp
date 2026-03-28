@@ -114,10 +114,11 @@ runAction' controller waiRequest waiRespond =
         ) waiRequest waiRespond
 {-# INLINE runAction' #-}
 
--- | Wraps a routing exception in 'RouterException' so the error handler
--- middleware can distinguish routing failures from action failures.
-wrapRouterException :: SomeException -> IO a
-wrapRouterException e = throwIO (ErrorController.RouterException e)
+-- | Catches exceptions from routing and rethrows them wrapped in
+-- 'RouterException' so the error handler middleware can distinguish
+-- routing failures from action failures.
+wrapRouterException :: IO a -> IO a
+wrapRouterException action = action `catch` \(e :: SomeException) -> throwIO (ErrorController.RouterException e)
 
 class FrontController application where
     controllers
@@ -965,7 +966,7 @@ frontControllerToWAIApp middleware application notFoundAction waiRequest waiResp
                         Left s -> pure $ Left s
                         Right action -> pure $ Right action
                     )
-                `catch` wrapRouterException
+                |> wrapRouterException
             case routedAction of
                 Left _ -> notFoundAction waiRequest waiRespond
                 Right action -> (middleware action) waiRequest waiRespond
