@@ -44,7 +44,7 @@ import IHP.Controller.NotFound (handleNotFound, buildNotFoundResponse)
 import qualified IHP.Log as Log
 import IHP.Log (writeLog)
 import IHP.Log.Types (LogLevel(..))
-import IHP.ActionType (ActionType(..), actionTypeVaultKey)
+import IHP.ActionType (actionTypeVaultKey)
 import qualified Data.Vault.Lazy as Vault
 
 tshow :: Show a => a -> Text

@@ -51,7 +51,6 @@ import qualified Data.Typeable as Typeable
 import IHP.FrameworkConfig.Types (FrameworkConfig (..), ConfigProvider)
 import qualified IHP.Controller.Context as Context
 import IHP.Controller.Response
-import Network.Wai.Middleware.EarlyReturn
 import Network.HTTP.Types.Header
 import qualified Data.Aeson as Aeson
 import qualified Network.Wai.Handler.WebSockets as WebSockets
