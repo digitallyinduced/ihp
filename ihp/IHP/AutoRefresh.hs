@@ -106,16 +106,14 @@ autoRefresh runAction = do
                     -- Otherwise you might try to guess session UUIDs to access other peoples auto refresh sessions
                     setSession "autoRefreshSessions" (map UUID.toText (id:availableSessions) |> Text.intercalate "")
 
-                    (interceptingRespond, capturedResponseRef) <- captureResponseBody ?respond
-
                     withTableReadTracker do
-                        let ?respond = interceptingRespond
-                        result <- runAction
+                        (result, capturedResponse) <- captureResponseBody ?respond \respond -> do
+                            let ?respond = respond
+                            runAction
 
                         -- After the action completes, set up the auto refresh session
                         tables <- readIORef ?touchedTables
                         lastPing <- getCurrentTime
-                        capturedResponse <- readIORef capturedResponseRef
                         case capturedResponse of
                             Just lastResponse -> do
                                 event <- MVar.newEmptyMVar
@@ -147,13 +145,9 @@ instance WSApp AutoRefreshWSApp where
             async $ forever do
                 MVar.takeMVar event
                 let currentRequest = ?request
-                (captureRespond, capturedResponseRef) <- captureResponseBody (\_ -> pure (error "AutoRefresh: ResponseReceived placeholder"))
-
                 (do
-                    _ <- renderView currentRequest captureRespond
-
-                    -- Check if we captured a response and if it differs from the last one
-                    capturedResponse <- readIORef capturedResponseRef
+                    (_, capturedResponse) <- captureResponseBody (\_ -> pure (error "AutoRefresh: ResponseReceived placeholder")) \respond ->
+                        renderView currentRequest respond
                     case capturedResponse of
                         Just html -> do
                             responseChanged <- sessionResponseHasChanged autoRefreshServer sessionId html
@@ -183,11 +177,11 @@ instance WSApp AutoRefreshWSApp where
             AwaitingSessionID -> pure ()
 
 
--- | Wraps a WAI respond callback to capture the response body.
--- Returns a new respond callback and an IORef containing the captured body.
+-- | Runs an action while capturing the response body.
+-- Returns the action's result and the captured body (if it was a ResponseBuilder).
 -- Only captures ResponseBuilder responses (used by HSX/Blaze rendering).
-captureResponseBody :: Respond -> IO (Respond, IORef (Maybe LByteString))
-captureResponseBody originalRespond = do
+captureResponseBody :: Respond -> (Respond -> IO a) -> IO (a, Maybe LByteString)
+captureResponseBody originalRespond action = do
     bodyRef <- newIORef Nothing
     let capturingRespond response = do
             case response of
@@ -197,7 +191,9 @@ captureResponseBody originalRespond = do
                     writeIORef bodyRef (Just evaluatedBody)
                 _ -> pure ()
             originalRespond response
-    pure (capturingRespond, bodyRef)
+    result <- action capturingRespond
+    captured <- readIORef bodyRef
+    pure (result, captured)
 
 registerNotificationTrigger :: (?modelContext :: ModelContext, ?context :: ControllerContext) => IORef (Set Text) -> IORef AutoRefreshServer -> IO ()
 registerNotificationTrigger touchedTablesVar autoRefreshServer = do
