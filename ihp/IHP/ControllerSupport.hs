@@ -272,9 +272,8 @@ requestBodyJSON =
                         else if isDev
                             then ". The raw request body was: " <> truncatePayload rawPayload
                             else ".")
-            do respondAndExit $ responseLBS HTTP.status400 [(hContentType, "application/json")] $
-                    Aeson.encode $ Aeson.object [("error", Aeson.String errorMessage)]
-               error "unreachable"
+            respondAndExit $ responseLBS HTTP.status400 [(hContentType, "application/json")] $
+                Aeson.encode $ Aeson.object [("error", Aeson.String errorMessage)]
             where
                 truncatePayload payload =
                     let shown = show payload
@@ -282,10 +281,9 @@ requestBodyJSON =
                     in if length shown > maxLen
                         then Text.pack (take maxLen shown) <> "... (truncated)"
                         else Text.pack shown
-        FormBody {} -> do
+        FormBody {} ->
             respondAndExit $ responseLBS HTTP.status400 [(hContentType, "application/json")] $
                 Aeson.encode $ Aeson.object [("error", Aeson.String "Expected JSON body, but the request has a form content type. Make sure to set 'Content-Type: application/json' in the request header.")]
-            error "unreachable"
 
 -- | Returns a custom config parameter
 --

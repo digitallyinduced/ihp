@@ -40,7 +40,7 @@ import Control.Exception (Exception)
 -- The function runs the given IO action (which should send a response),
 -- then throws 'EarlyReturnException' to exit. The middleware catches this
 -- exception so it doesn't propagate further.
-earlyReturn :: IO ResponseReceived -> IO ()
+earlyReturn :: IO ResponseReceived -> IO a
 earlyReturn action = do
     result <- action
     Exception.throwIO (EarlyReturnException result)

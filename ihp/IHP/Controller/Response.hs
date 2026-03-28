@@ -60,7 +60,7 @@ responseHeadersVaultKey = unsafePerformIO Vault.newKey
 -- | Sends a response and exits the current action via early return.
 -- Backwards-compatible alias: sends the response via 'respondWith' then
 -- throws 'EarlyReturnException' so the action short-circuits.
-respondAndExit :: (?request :: Request, ?respond :: Respond) => Response -> IO ()
+respondAndExit :: (?request :: Request, ?respond :: Respond) => Response -> IO a
 respondAndExit response = earlyReturn (respondWith response)
 {-# INLINE respondAndExit #-}
 

@@ -5,7 +5,6 @@ Copyright: (c) digitally induced GmbH, 2020
 -}
 module IHP.ErrorController
 ( displayException
-, handleRouterException
 , errorHandlerMiddleware
 , RouterException(..)
 ) where
@@ -343,95 +342,6 @@ recordNotFoundExceptionHandlerProd exception controller additionalInfo =
         Just (exception@(ModelSupport.RecordNotFoundException {})) ->
             Just (handleNotFound ?request ?respond)
         Nothing -> Nothing
-
-handleRouterException :: Environment.Environment -> SomeException -> Application
-handleRouterException environment exception request respond =
-    case fromException exception of
-        Just Router.NoConstructorMatched { expectedType, value, field } -> do
-            let routingError = if environment == Environment.Development
-                then [hsx|<p>Routing failed with: {tshow exception}</p>|]
-                else ""
-
-            let errorMessage = [hsx|
-                    { routingError }
-
-                    <h2>Possible Solutions</h2>
-                    <p>You can pass this parameter by appending <code>&{field}=someValue</code> to the URL.</p>
-                |]
-
-            let title = case value of
-                    Just value -> [hsx|Expected <strong>{expectedType}</strong> for field <strong>{field}</strong> but got <q>{value}</q>|]
-                    Nothing -> [hsx|The action was called without the required <q>{field}</q> parameter|]
-            respond $ responseBuilder status400 [(hContentType, "text/html")] (Blaze.renderHtmlBuilder (renderError environment title errorMessage))
-        Just Router.BadType { expectedType, value = Just value, field } -> do
-            let errorMessage = [hsx|
-                    <p>Routing failed with: {tshow exception}</p>
-                |]
-            let title = [hsx|Query parameter <q>{field}</q> needs to be a <q>{expectedType}</q> but got <q>{value}</q>|]
-            respond $ responseBuilder status400 [(hContentType, "text/html")] (Blaze.renderHtmlBuilder (renderError environment title errorMessage))
-        _ -> case fromException exception of
-            Just Router.UnexpectedMethodException { allowedMethods = [Router.DELETE], method = Router.GET } -> do
-                let exampleLink :: Text = "<a href={DeleteProjectAction} class=\"js-delete\">Delete Project</a>"
-                let formExample :: Text = "<form method=\"POST\" action={DeleteProjectAction}>\n    <input type=\"hidden\" name=\"_method\" value=\"DELETE\"/>\n    <button type=\"submit\">Delete Project</button>\n</form>"
-                let errorMessage = [hsx|
-                        <p>
-                            You cannot directly link to Delete Action.
-                            GET requests should not have any external side effects, as a user could accidentally trigger it by following a normal link.
-                        </p>
-
-                        <h2>Possible Solutions</h2>
-                        <p>
-                            a) Add a <code>js-delete</code> class to your link. IHP's helper.js will intercept link clicks on these links and use a form with a DELETE request to submit the request.
-                            <br /><br/>
-
-                            Example: <br /><br />
-                            <code>{exampleLink}</code>
-                        </p>
-                        <p>
-                            b) Use a form to submit the request as a DELETE request:
-                            <br /><br/>
-
-                            Example: <br />
-                            <pre>{formExample}</pre>
-                            HTML forms don't support DELETE requests natively, therefore we use the hidden input field to work around this browser limitation.
-                        </p>
-                    |]
-                let title = [hsx|Action was called from a GET request, but needs to be called as a DELETE request|]
-                respond $ responseBuilder status400 [(hContentType, "text/html")] (Blaze.renderHtmlBuilder (renderError environment title errorMessage))
-            Just Router.UnexpectedMethodException { allowedMethods = [Router.POST], method = Router.GET } -> do
-                let errorMessage = [hsx|
-                        <p>
-                            You cannot directly link to Create Action.
-                            GET requests should not have any external side effects, as a user could accidentally trigger it by following a normal link.
-                        </p>
-
-                        <h2>Possible Solutions</h2>
-                        <p>
-                            <a style="text-decoration: none" href="https://ihp.digitallyinduced.com/Guide/form.html" target="_blank">Make a form with <code>formFor</code> to do the request</a>
-                        </p>
-                    |]
-                let title = [hsx|Action was called from a GET request, but needs to be called as a POST request|]
-                respond $ responseBuilder status400 [(hContentType, "text/html")] (Blaze.renderHtmlBuilder (renderError environment title errorMessage))
-            Just Router.UnexpectedMethodException { allowedMethods, method } -> do
-                let errorMessage = [hsx|
-                        <p>Routing failed with: {tshow exception}</p>
-                        <h2>Possible Solutions</h2>
-                        <p>
-                            <a style="text-decoration: none" href="https://ihp.digitallyinduced.com/Guide/form.html" target="_blank">Make a form with <code>formFor</code> to do the request</a>
-                        </p>
-                    |]
-                let title = [hsx|Action was called with a {method} request, but needs to be called with one of these request methods: <q>{allowedMethods}</q>|]
-                respond $ responseBuilder status400 [(hContentType, "text/html")] (Blaze.renderHtmlBuilder (renderError environment title errorMessage))
-            _ -> do
-                let errorMessage = [hsx|
-                        Routing failed with: {tshow exception}
-
-                        <h2>Possible Solutions</h2>
-                        <p>Are you trying to do a DELETE action, but your link is missing class="js-delete"?</p>
-                    |]
-                let title = H.text "Routing failed"
-                respond $ responseBuilder status500 [(hContentType, "text/html")] (Blaze.renderHtmlBuilder (renderError environment title errorMessage))
-
 
 renderError :: Environment.Environment -> H.Html -> H.Html -> H.Html
 renderError environment errorTitle view = [hsx|
