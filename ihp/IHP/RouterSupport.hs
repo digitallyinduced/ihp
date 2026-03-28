@@ -635,9 +635,9 @@ instance {-# OVERLAPPABLE #-} (AutoRoute controller, Controller controller) => C
         pure (toApp action)
       ) <|> (do
         (constr, allowedMethods) <- routeMatchParser @controller
-        pure $ \waiRequest waiRespond -> do
+        pure $ \waiRequest waiRespond -> wrapRouterException do
             case applyAction @controller constr (queryString waiRequest) of
-                Left e -> waiRespond $ responseLBS status400 [(hContentType, "text/plain")] (cs $ show e)
+                Left e -> Exception.throw e
                 Right action -> do
                     case parseMethod (requestMethod waiRequest) of
                         Right method -> do
@@ -1016,14 +1016,15 @@ buildAutoRouteMap = HashMap.fromList
           allowedMethods = allowedMethodsForAction @controller actionName
           handler app waiRequest waiRespond =
               let ?application = app
-              in case parseMethod (requestMethod waiRequest) of
-                  Left err -> error ("Invalid HTTP method: " <> ByteString.unpack err)
-                  Right method -> do
-                      unless (allowedMethods |> includes method)
-                          (Exception.throw UnexpectedMethodException { allowedMethods, method })
-                      case applyAction @controller constr (queryString waiRequest) of
-                          Left e -> waiRespond $ responseLBS status400 [(hContentType, "text/plain")] (cs $ show e)
-                          Right action -> runAction' @application action waiRequest waiRespond
+              in wrapRouterException do
+                  case parseMethod (requestMethod waiRequest) of
+                      Left err -> error ("Invalid HTTP method: " <> ByteString.unpack err)
+                      Right method -> do
+                          unless (allowedMethods |> includes method)
+                              (Exception.throw UnexpectedMethodException { allowedMethods, method })
+                          case applyAction @controller constr (queryString waiRequest) of
+                              Left e -> Exception.throw e
+                              Right action -> runAction' @application action waiRequest waiRespond
     ]
     where
         prefix :: ByteString
