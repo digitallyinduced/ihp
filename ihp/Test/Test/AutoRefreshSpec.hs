@@ -20,6 +20,7 @@ import qualified Control.Concurrent.MVar as MVar
 import qualified IHP.PGListener as PGListener
 import IHP.Log.Types (Logger(..), LogLevel(..))
 import IHP.Server (initMiddlewareStack)
+import Network.Wai.Middleware.EarlyReturn (earlyReturnMiddleware)
 import IHP.Test.Mocking
 import qualified Data.UUID as UUID
 import qualified Network.Wai as Wai
@@ -87,7 +88,7 @@ callActionWithQueryParams pgListener controller queryParams = do
 
     -- Run through middleware stack with PGListener enabled
     middlewareStack <- initMiddlewareStack frameworkConfig modelContext (Just pgListener)
-    _ <- middlewareStack controllerApp baseRequest captureRespond
+    _ <- earlyReturnMiddleware (middlewareStack controllerApp) baseRequest captureRespond
 
     readIORef responseRef >>= \case
         Just response -> pure response
@@ -135,7 +136,7 @@ tests = beforeAll (mockContextNoDatabase WebApplication config) do
                     let captureReRespond response = do
                             writeIORef reResponseRef (Just response)
                             pure ResponseReceived
-                    _ <- session.renderView bareRequest captureReRespond
+                    _ <- earlyReturnMiddleware (\req respond -> session.renderView req respond) bareRequest captureReRespond
                     reResponse <- readIORef reResponseRef >>= \case
                         Just r -> pure r
                         Nothing -> error "renderView did not produce a response"

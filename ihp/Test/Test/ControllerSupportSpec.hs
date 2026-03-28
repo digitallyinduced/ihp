@@ -6,16 +6,16 @@ module Test.ControllerSupportSpec where
 import IHP.Prelude
 import Test.Hspec
 import IHP.ControllerSupport (requestBodyJSON)
-import IHP.Controller.Response (EarlyReturnException(..), responseHeadersVaultKey)
+import IHP.Controller.Response (responseHeadersVaultKey)
 import IHP.Environment (Environment (..))
 import qualified IHP.FrameworkConfig as FrameworkConfig
 import qualified IHP.RequestVault as RequestVault
 import Wai.Request.Params.Middleware (RequestBody (..), requestBodyVaultKey, Respond)
+import Network.Wai.Middleware.EarlyReturn (earlyReturnMiddleware)
 import qualified Data.Vault.Lazy as Vault
 import qualified Data.Aeson as Aeson
 import qualified Network.Wai as Wai
 import qualified Network.Wai.Internal as Wai.Internal
-import qualified Control.Exception as Exception
 import qualified Data.ByteString.Lazy as LBS
 import qualified Data.ByteString as BS
 import Network.HTTP.Types (status400)
@@ -37,83 +37,57 @@ tests = do
 
             it "should return 400 for FormBody" do
                 let requestBody = FormBody { params = [], files = [], rawPayload = "" }
-                request <- buildRequest requestBody Development
-                responseRef <- newIORef (error "no response captured")
-                let ?request = request
-                let ?respond = captureRespond responseRef
-                result <- Exception.try requestBodyJSON
-                case result of
-                    Left (EarlyReturnException _) -> do
-                        response <- readIORef responseRef
-                        Wai.responseStatus response `shouldBe` status400
-                        let body = responseBody response
-                        body `shouldSatisfy` bodyContains "form content type"
-                    Right _ -> expectationFailure "Expected EarlyReturnException"
+                response <- runWithEarlyReturn requestBody Development requestBodyJSON
+                Wai.responseStatus response `shouldBe` status400
+                let body = responseBody response
+                body `shouldSatisfy` bodyContains "form content type"
 
             it "should return 400 for JSONBody with empty body" do
                 let requestBody = JSONBody { jsonPayload = Nothing, rawPayload = "" }
-                request <- buildRequest requestBody Development
-                responseRef <- newIORef (error "no response captured")
-                let ?request = request
-                let ?respond = captureRespond responseRef
-                result <- Exception.try requestBodyJSON
-                case result of
-                    Left (EarlyReturnException _) -> do
-                        response <- readIORef responseRef
-                        Wai.responseStatus response `shouldBe` status400
-                        let body = responseBody response
-                        body `shouldSatisfy` bodyContains "request body is empty"
-                    Right _ -> expectationFailure "Expected EarlyReturnException"
+                response <- runWithEarlyReturn requestBody Development requestBodyJSON
+                Wai.responseStatus response `shouldBe` status400
+                let body = responseBody response
+                body `shouldSatisfy` bodyContains "request body is empty"
 
             it "should return 400 for JSONBody with invalid JSON" do
                 let requestBody = JSONBody { jsonPayload = Nothing, rawPayload = "not valid json" }
-                request <- buildRequest requestBody Development
-                responseRef <- newIORef (error "no response captured")
-                let ?request = request
-                let ?respond = captureRespond responseRef
-                result <- Exception.try requestBodyJSON
-                case result of
-                    Left (EarlyReturnException _) -> do
-                        response <- readIORef responseRef
-                        Wai.responseStatus response `shouldBe` status400
-                        let body = responseBody response
-                        body `shouldSatisfy` bodyContains "not valid json"
-                    Right _ -> expectationFailure "Expected EarlyReturnException"
+                response <- runWithEarlyReturn requestBody Development requestBodyJSON
+                Wai.responseStatus response `shouldBe` status400
+                let body = responseBody response
+                body `shouldSatisfy` bodyContains "not valid json"
 
             it "should truncate long payloads in dev mode" do
                 let longPayload = LBS.pack (replicate 500 65) -- 500 bytes of 'A'
                 let requestBody = JSONBody { jsonPayload = Nothing, rawPayload = longPayload }
-                request <- buildRequest requestBody Development
-                responseRef <- newIORef (error "no response captured")
-                let ?request = request
-                let ?respond = captureRespond responseRef
-                result <- Exception.try requestBodyJSON
-                case result of
-                    Left (EarlyReturnException _) -> do
-                        response <- readIORef responseRef
-                        let body = responseBody response
-                        body `shouldSatisfy` bodyContains "truncated"
-                        body `shouldSatisfy` bodyContains "raw request body was"
-                    Right _ -> expectationFailure "Expected EarlyReturnException"
+                response <- runWithEarlyReturn requestBody Development requestBodyJSON
+                let body = responseBody response
+                body `shouldSatisfy` bodyContains "truncated"
+                body `shouldSatisfy` bodyContains "raw request body was"
 
             it "should omit raw payload in production mode" do
                 let requestBody = JSONBody { jsonPayload = Nothing, rawPayload = "not valid json" }
-                request <- buildRequest requestBody Production
-                responseRef <- newIORef (error "no response captured")
-                let ?request = request
-                let ?respond = captureRespond responseRef
-                result <- Exception.try requestBodyJSON
-                case result of
-                    Left (EarlyReturnException _) -> do
-                        response <- readIORef responseRef
-                        Wai.responseStatus response `shouldBe` status400
-                        let body = responseBody response
-                        body `shouldSatisfy` (not . bodyContains "not valid json")
-                        body `shouldSatisfy` (not . bodyContains "raw request body was")
-                    Right _ -> expectationFailure "Expected EarlyReturnException"
+                response <- runWithEarlyReturn requestBody Production requestBodyJSON
+                Wai.responseStatus response `shouldBe` status400
+                let body = responseBody response
+                body `shouldSatisfy` (not . bodyContains "not valid json")
+                body `shouldSatisfy` (not . bodyContains "raw request body was")
 
 bodyContains :: BS.ByteString -> LBS.ByteString -> Bool
 bodyContains needle haystack = BS.isInfixOf needle (LBS.toStrict haystack)
+
+-- | Run an action that calls earlyReturn through the earlyReturnMiddleware,
+-- capturing the response.
+runWithEarlyReturn :: RequestBody -> Environment -> ((?request :: Wai.Request, ?respond :: Respond) => IO a) -> IO Wai.Response
+runWithEarlyReturn requestBody environment action = do
+    request <- buildRequest requestBody environment
+    responseRef <- newIORef (error "no response captured")
+    let app req respond = do
+            let ?request = req
+            let ?respond = respond
+            _ <- action
+            error "requestBodyJSON should have called earlyReturn"
+    earlyReturnMiddleware app request (captureRespond responseRef)
+    readIORef responseRef
 
 -- | Creates a Respond callback that captures the Response in an IORef
 captureRespond :: IORef Wai.Response -> Respond
