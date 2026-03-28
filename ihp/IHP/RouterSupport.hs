@@ -82,7 +82,7 @@ import IHP.Controller.Context
 import IHP.Controller.Param
 import Data.Kind
 import qualified Data.TMap as TypeMap
-import IHP.Controller.Response (EarlyReturnException(..))
+import Network.Wai.Middleware.EarlyReturn (earlyReturnMiddleware)
 
 -- | Binds @?request@ and @?respond@ from WAI arguments, then runs the given action.
 --
@@ -104,15 +104,14 @@ runAction'
        )
      => controller -> Application
 runAction' controller waiRequest waiRespond =
-    go `catch` \(EarlyReturnException r) -> pure r
-  where
-    go = do
-        context <- setupActionContext @application (Typeable.typeOf controller) waiRequest waiRespond
+    earlyReturnMiddleware (\request respond -> do
+        context <- setupActionContext @application (Typeable.typeOf controller) request respond
         let ?context = context
-        let ?respond = waiRespond
+        let ?respond = respond
         let ?request = context.request
         let ?modelContext = ?request.modelContext
         runAction controller
+        ) waiRequest waiRespond
 {-# INLINE runAction' #-}
 
 class FrontController application where

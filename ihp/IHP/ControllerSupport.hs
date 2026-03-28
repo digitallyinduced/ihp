@@ -52,6 +52,7 @@ import qualified Data.Typeable as Typeable
 import IHP.FrameworkConfig.Types (FrameworkConfig (..), ConfigProvider)
 import qualified IHP.Controller.Context as Context
 import IHP.Controller.Response
+import Network.Wai.Middleware.EarlyReturn (earlyReturnMiddleware)
 import Network.HTTP.Types.Header
 import qualified Data.Aeson as Aeson
 import qualified Network.Wai.Handler.WebSockets as WebSockets
@@ -144,15 +145,14 @@ setupActionContext controllerTypeRep waiRequest waiRespond = do
 {-# INLINE runActionWithNewContext #-}
 runActionWithNewContext :: forall application controller. (Controller controller, ?request :: Request, ?respond :: Respond, InitControllerContext application, ?application :: application, Typeable application, Typeable controller) => controller -> IO ResponseReceived
 runActionWithNewContext controller =
-    go `Exception.catch` \(EarlyReturnException r) -> pure r
-  where
-    go = do
-        let request' = setActionType controller ?request
-        let ?request = request'
+    earlyReturnMiddleware (\request respond -> do
+        let ?request = setActionType controller request
+        let ?respond = respond
         context <- newContextForAction controller
         let ?modelContext = requestModelContext ?request
         let ?context = context
         runAction controller
+        ) ?request ?respond
 
 -- | If 'IHP.LoginSupport.Helper.Controller.enableRowLevelSecurityIfLoggedIn' was called, this will copy the
 -- the prepared RowLevelSecurityContext from the controller context into the ModelContext.
@@ -272,8 +272,9 @@ requestBodyJSON =
                         else if isDev
                             then ". The raw request body was: " <> truncatePayload rawPayload
                             else ".")
-            throwResponseException $ responseLBS HTTP.status400 [(hContentType, "application/json")] $
-                Aeson.encode $ Aeson.object [("error", Aeson.String errorMessage)]
+            do respondAndExit $ responseLBS HTTP.status400 [(hContentType, "application/json")] $
+                    Aeson.encode $ Aeson.object [("error", Aeson.String errorMessage)]
+               error "unreachable"
             where
                 truncatePayload payload =
                     let shown = show payload
@@ -281,13 +282,10 @@ requestBodyJSON =
                     in if length shown > maxLen
                         then Text.pack (take maxLen shown) <> "... (truncated)"
                         else Text.pack shown
-        FormBody {} ->
-            throwResponseException $ responseLBS HTTP.status400 [(hContentType, "application/json")] $
+        FormBody {} -> do
+            respondAndExit $ responseLBS HTTP.status400 [(hContentType, "application/json")] $
                 Aeson.encode $ Aeson.object [("error", Aeson.String "Expected JSON body, but the request has a form content type. Make sure to set 'Content-Type: application/json' in the request header.")]
-    where
-        throwResponseException response = do
-            received <- respondWith response
-            Exception.throwIO (EarlyReturnException received)
+            error "unreachable"
 
 -- | Returns a custom config parameter
 --
