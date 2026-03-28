@@ -37,6 +37,8 @@ import IHP.AuthSupport.Authentication
 import IHP.Controller.Context
 import qualified IHP.FrameworkConfig as FrameworkConfig
 import Data.Typeable
+import Network.Wai.Middleware.EarlyReturn (earlyReturn)
+import IHP.Controller.Response (respondWith)
 
 currentRoleOrNothing :: forall user. (?context :: ControllerContext, HasNewSessionUrl user, Typeable user) => Maybe user
 currentRoleOrNothing = case unsafePerformIO (maybeFromContext @(Maybe user)) of
@@ -44,22 +46,22 @@ currentRoleOrNothing = case unsafePerformIO (maybeFromContext @(Maybe user)) of
     Nothing -> error ("initAuthentication @" <> show (typeRep (Proxy @user)) <> " has not been called in initContext inside FrontController of this application")
 {-# INLINE currentRoleOrNothing #-}
 
-currentRole :: forall user. (?context :: ControllerContext, ?request :: Request, HasNewSessionUrl user, Typeable user) => user
+currentRole :: forall user. (?context :: ControllerContext, ?request :: Request, ?respond :: Respond, HasNewSessionUrl user, Typeable user) => user
 currentRole = fromMaybe (redirectToLogin (newSessionUrl (Proxy @user))) (currentRoleOrNothing @user)
 {-# INLINE currentRole #-}
 
-currentRoleId :: forall user userId. (?context :: ControllerContext, ?request :: Request, HasNewSessionUrl user, HasField "id" user userId, Typeable user) => userId
+currentRoleId :: forall user userId. (?context :: ControllerContext, ?request :: Request, ?respond :: Respond, HasNewSessionUrl user, HasField "id" user userId, Typeable user) => userId
 currentRoleId = (currentRole @user).id
 {-# INLINE currentRoleId #-}
 
-ensureIsRole :: forall (user :: Type). (?context :: ControllerContext, ?request :: Request, HasNewSessionUrl user, Typeable user) => IO ()
+ensureIsRole :: forall (user :: Type). (?context :: ControllerContext, ?request :: Request, ?respond :: Respond, HasNewSessionUrl user, Typeable user) => IO ()
 ensureIsRole =
     case currentRoleOrNothing @user of
         Just _ -> pure ()
         Nothing -> redirectToLoginWithMessage (newSessionUrl (Proxy :: Proxy user))
 {-# INLINABLE ensureIsRole #-}
 
-currentUser :: forall user. (?context :: ControllerContext, ?request :: Request, HasNewSessionUrl user, Typeable user, user ~ CurrentUserRecord) => user
+currentUser :: forall user. (?context :: ControllerContext, ?request :: Request, ?respond :: Respond, HasNewSessionUrl user, Typeable user, user ~ CurrentUserRecord) => user
 currentUser = currentRole @user
 {-# INLINABLE currentUser #-}
 
@@ -67,15 +69,15 @@ currentUserOrNothing :: forall user. (?context :: ControllerContext, HasNewSessi
 currentUserOrNothing = currentRoleOrNothing @user
 {-# INLINABLE currentUserOrNothing #-}
 
-currentUserId :: forall user userId. (?context :: ControllerContext, ?request :: Request, HasNewSessionUrl user, HasField "id" user userId, Typeable user, user ~ CurrentUserRecord) => userId
+currentUserId :: forall user userId. (?context :: ControllerContext, ?request :: Request, ?respond :: Respond, HasNewSessionUrl user, HasField "id" user userId, Typeable user, user ~ CurrentUserRecord) => userId
 currentUserId = currentRoleId @user
 {-# INLINABLE currentUserId #-}
 
-ensureIsUser :: forall user. (?context :: ControllerContext, ?request :: Request, HasNewSessionUrl user, Typeable user, user ~ CurrentUserRecord) => IO ()
+ensureIsUser :: forall user. (?context :: ControllerContext, ?request :: Request, ?respond :: Respond, HasNewSessionUrl user, Typeable user, user ~ CurrentUserRecord) => IO ()
 ensureIsUser = ensureIsRole @user
 {-# INLINABLE ensureIsUser #-}
 
-currentAdmin :: forall admin. (?context :: ControllerContext, ?request :: Request, HasNewSessionUrl admin, Typeable admin, admin ~ CurrentAdminRecord) => admin
+currentAdmin :: forall admin. (?context :: ControllerContext, ?request :: Request, ?respond :: Respond, HasNewSessionUrl admin, Typeable admin, admin ~ CurrentAdminRecord) => admin
 currentAdmin = currentRole @admin
 {-# INLINABLE currentAdmin #-}
 
@@ -83,11 +85,11 @@ currentAdminOrNothing :: forall admin. (?context :: ControllerContext, HasNewSes
 currentAdminOrNothing = currentRoleOrNothing @admin
 {-# INLINABLE currentAdminOrNothing #-}
 
-currentAdminId :: forall admin adminId. (?context :: ControllerContext, ?request :: Request, HasNewSessionUrl admin, HasField "id" admin adminId, Typeable admin, admin ~ CurrentAdminRecord) => adminId
+currentAdminId :: forall admin adminId. (?context :: ControllerContext, ?request :: Request, ?respond :: Respond, HasNewSessionUrl admin, HasField "id" admin adminId, Typeable admin, admin ~ CurrentAdminRecord) => adminId
 currentAdminId = currentRoleId @admin
 {-# INLINABLE currentAdminId #-}
 
-ensureIsAdmin :: forall (admin :: Type). (?context :: ControllerContext, ?request :: Request, HasNewSessionUrl admin, Typeable admin, admin ~ CurrentAdminRecord) => IO ()
+ensureIsAdmin :: forall (admin :: Type). (?context :: ControllerContext, ?request :: Request, ?respond :: Respond, HasNewSessionUrl admin, Typeable admin, admin ~ CurrentAdminRecord) => IO ()
 ensureIsAdmin = ensureIsRole @admin
 {-# INLINABLE ensureIsAdmin #-}
 
@@ -123,17 +125,16 @@ sessionKey :: forall user. (KnownSymbol (ModelSupport.GetModelName user)) => Byt
 sessionKey = "login." <> cs (ModelSupport.getModelName @user)
 {-# INLINABLE sessionKey #-}
 
-redirectToLoginWithMessage :: (?request :: Request) => Text -> IO ()
+redirectToLoginWithMessage :: (?request :: Request, ?respond :: Respond) => Text -> IO ()
 redirectToLoginWithMessage newSessionPath = do
     setSuccessMessage "Please log in to access this page"
     setSession "IHP.LoginSupport.redirectAfterLogin" getRequestPathAndQuery
-    redirectToPath newSessionPath
-    error "Unreachable"
+    earlyReturn $ redirectToPath newSessionPath
 
 
-redirectToLogin :: (?request :: Request) => Text -> a
+redirectToLogin :: (?request :: Request, ?respond :: Respond) => Text -> a
 redirectToLogin newSessionPath = unsafePerformIO $ do
-    redirectToPath newSessionPath
+    earlyReturn $ redirectToPath newSessionPath
     error "Unreachable"
 
 -- | After this call the security policies defined in your Schema.sql will be applied to the controller actions called after this

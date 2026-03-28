@@ -16,6 +16,7 @@ import Control.Monad (when)
 import Data.Maybe (mapMaybe, fromMaybe, listToMaybe)
 import Data.String.Conversions (cs)
 import Data.ByteString (ByteString)
+import qualified Data.ByteString as ByteString
 import qualified Data.Text as Text
 import IHP.HaskellSupport (isEmpty, forEach, (|>))
 import qualified IHP.Controller.Param as Param
@@ -25,11 +26,12 @@ import qualified Control.Exception as Exception
 import Data.Text (Text)
 import Wai.Request.Params.Middleware (Respond)
 import Network.HTTP.Types (status500, status400)
-import Network.Wai (Request, Application, Middleware, Response, ResponseReceived, responseBuilder, queryString)
+import Network.Wai (Request, Application, Middleware, Response, ResponseReceived, responseBuilder, queryString, vault)
 import Network.HTTP.Types.Header
 
 import qualified Text.Blaze.Html5            as H
 import qualified Text.Blaze.Html.Renderer.Utf8 as Blaze
+import qualified Database.PostgreSQL.Simple as PG
 import qualified Hasql.Errors as HasqlErrors
 import qualified Hasql.Pool as HasqlPool
 
@@ -42,7 +44,8 @@ import IHP.Controller.NotFound (handleNotFound, buildNotFoundResponse)
 import qualified IHP.Log as Log
 import IHP.Log (writeLog)
 import IHP.Log.Types (LogLevel(..))
-import IHP.RequestVault (requestActionType)
+import IHP.ActionType (ActionType(..), actionTypeVaultKey)
+import qualified Data.Vault.Lazy as Vault
 
 tshow :: Show a => a -> Text
 tshow = Text.pack . show
@@ -524,8 +527,8 @@ errorHandlerMiddleware :: FrameworkConfig -> Middleware
 errorHandlerMiddleware frameworkConfig app request respond =
     app request respond `catch` \(exception :: SomeException) -> do
         let environment = frameworkConfig.environment
-        let actionType = requestActionType request
-        let actionDescription = maybe "" (\t -> " while running " <> tshow t) actionType
+        let actionType = Vault.lookup actionTypeVaultKey (vault request)
+        let actionDescription = maybe "" (\(ActionType t) -> " while running " <> tshow t) actionType
 
         -- Call exception tracker in production
         when (environment == Environment.Production) do
@@ -734,15 +737,11 @@ paramNotFoundExceptionHandlerMiddleware frameworkConfig request actionDescriptio
 recordNotFoundExceptionHandlerDevMiddleware :: FrameworkConfig -> Request -> Text -> SomeException -> Maybe (IO Response)
 recordNotFoundExceptionHandlerDevMiddleware frameworkConfig request actionDescription exception =
     case fromException exception of
-        Just (exception@(ModelSupport.RecordNotFoundException { queryAndParams = (query, params) })) -> Just do
+        Just (exception@(ModelSupport.RecordNotFoundException { queryAndParams })) -> Just do
             let errorMessage = [hsx|
                     <p>
                         The following SQL was executed:
-                        <pre class="ihp-error-code">{query}</pre>
-                    </p>
-                    <p>
-                        These query parameters have been used:
-                        <pre class="ihp-error-code">{params}</pre>
+                        <pre class="ihp-error-code">{queryAndParams}</pre>
                     </p>
 
                     <p>

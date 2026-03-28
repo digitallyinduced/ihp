@@ -17,7 +17,7 @@ import Network.HTTP.Types
 import IHP.AutoRefresh (globalAutoRefreshServerVar, sessionResponseHasChanged, updateSession)
 import IHP.AutoRefresh.Types
 import qualified Control.Concurrent.MVar as MVar
-import IHP.Controller.Response (ResponseException(..))
+import IHP.Controller.Response ()
 import qualified Control.Exception as Exception
 import qualified IHP.PGListener as PGListener
 import IHP.Log.Types (Logger(..), LogLevel(..))
@@ -133,15 +133,17 @@ tests = beforeAll (mockContextNoDatabase WebApplication config) do
                     -- 3. Call renderView with a bare request (simulating WebSocket re-render)
                     --    The WebSocket request has NO query params — this is the bug scenario
                     let bareRequest = defaultRequest
-                    result <- Exception.try $ session.renderView bareRequest (\_ -> error "respond should not be called")
-                    case result of
-                        Left (ResponseException reResponse) -> do
-                            reBody <- responseBody reResponse
-                            -- If query params are NOT preserved, this would throw ParamNotFoundException
-                            -- instead of reaching here with the correct value
-                            cs reBody `shouldBe` ("abc-123" :: Text)
-                        Right _ ->
-                            expectationFailure "renderView should have thrown ResponseException"
+                    reResponseRef <- newIORef Nothing
+                    let captureReRespond response = do
+                            writeIORef reResponseRef (Just response)
+                            pure ResponseReceived
+                    _ <- session.renderView bareRequest captureReRespond
+                    reResponse <- readIORef reResponseRef >>= \case
+                        Just r -> pure r
+                        Nothing -> error "renderView did not produce a response"
+                    reBody <- responseBody reResponse
+                    -- If query params are NOT preserved, this would throw ParamNotFoundException
+                    cs reBody `shouldBe` ("abc-123" :: Text)
 
                     -- Cleanup
                     MVar.modifyMVar_ globalAutoRefreshServerVar (\_ -> pure Nothing)
@@ -167,7 +169,7 @@ tests = beforeAll (mockContextNoDatabase WebApplication config) do
                 let session =
                         AutoRefreshSession
                             { id = UUID.nil
-                            , renderView = \_ _ -> pure ()
+                            , renderView = \_ respond -> respond (Wai.responseLBS (toEnum 200) [] "")
                             , event
                             , tables = mempty
                             , lastResponse = "resolved"

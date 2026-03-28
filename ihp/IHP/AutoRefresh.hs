@@ -57,7 +57,7 @@ autoRefresh :: (
     , ?context :: ControllerContext
     , ?request :: Request
     , ?respond :: Respond
-    ) => ((?modelContext :: ModelContext) => IO ResponseReceived) -> IO ResponseReceived
+    ) => ((?modelContext :: ModelContext, ?respond :: Respond) => IO ResponseReceived) -> IO ResponseReceived
 autoRefresh runAction = do
     -- When PGListener is not available, degrade gracefully to a
     -- plain action without auto-refresh.
@@ -110,7 +110,6 @@ autoRefresh runAction = do
                     capturedResponseRef <- newIORef Nothing
                     let originalRespond = ?respond
                     let interceptingRespond response = do
-                            -- Capture the response body for auto refresh
                             case response of
                                 Wai.ResponseBuilder status headers builder -> do
                                     -- It's important that we evaluate the response to HNF here
