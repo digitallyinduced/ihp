@@ -1,7 +1,7 @@
 {-# LANGUAGE BangPatterns #-}
 module IHP.Controller.Render where
 import ClassyPrelude
-import Network.Wai (responseLBS, responseBuilder, responseFile)
+import Network.Wai (responseLBS, responseFile)
 import Network.HTTP.Types (Status, status200, status406)
 import Network.HTTP.Types.Header
 import qualified Data.ByteString.Lazy
