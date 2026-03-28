@@ -77,10 +77,10 @@ jobs:
         # Extract metrics from hey CSV (response-time in seconds -> ms)
         extract_metrics() {
           local CSV=$1 PREFIX=$2
-          tail -n +2 "$CSV" | awk -F, '
+          # Sort response times numerically, then compute percentiles
+          tail -n +2 "$CSV" | cut -d, -f1 | sort -n | awk '
             { times[NR] = $1; sum += $1; n = NR }
             END {
-              asort(times)
               printf "%.2f\n", (sum/n)*1000            # mean ms
               printf "%.2f\n", times[int(n*0.5)]*1000  # p50 ms
               printf "%.2f\n", times[int(n*0.99)]*1000 # p99 ms
