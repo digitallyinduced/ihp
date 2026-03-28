@@ -14,7 +14,7 @@ import IHP.Prelude
 import IHP.Environment
 import IHP.FrameworkConfig
 import IHP.ControllerPrelude hiding (get, request)
-import IHP.HSX.Markup (Markup)
+import IHP.HSX.Markup (Html)
 import Network.Wai
 import Network.HTTP.Types
 
@@ -37,7 +37,7 @@ instance AutoRoute TestController
 instance FrontController WebApplication where
   controllers = [ parseRoute @TestController ]
 
-defaultLayout :: Markup -> Markup
+defaultLayout :: Html -> Html
 defaultLayout inner = inner
 
 instance InitControllerContext WebApplication where
