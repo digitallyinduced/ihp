@@ -408,7 +408,7 @@ action ExampleAction = do
 
 ### Early Return
 
-When you need to exit an action early (e.g. for access control), use `earlyReturn`. This sends the response and stops execution of the rest of the action:
+When you need to exit an action early, use `earlyReturn`. This sends the response and stops execution of the rest of the action:
 
 ```haskell
 action ExampleAction = do
@@ -417,6 +417,15 @@ action ExampleAction = do
 
     -- This code runs only if loggedIn is True
     render MyView
+```
+
+For access control specifically, use the built-in helpers [`accessDeniedUnless`](https://ihp.digitallyinduced.com/api-docs/IHP-Controller-AccessDenied.html#v:accessDeniedUnless) and [`accessDeniedWhen`](https://ihp.digitallyinduced.com/api-docs/IHP-Controller-AccessDenied.html#v:accessDeniedWhen) which handle the early return for you:
+
+```haskell
+action EditPostAction { postId } = do
+    post <- fetch postId
+    accessDeniedUnless (post.authorId == currentUserId)
+    render EditView { .. }
 ```
 
 When you have created a `Response` manually, you can use `respondAndExit` to send your response and stop execution.
