@@ -114,6 +114,11 @@ runAction' controller waiRequest waiRespond =
         ) waiRequest waiRespond
 {-# INLINE runAction' #-}
 
+-- | Wraps a routing exception in 'RouterException' so the error handler
+-- middleware can distinguish routing failures from action failures.
+wrapRouterException :: SomeException -> IO a
+wrapRouterException e = throwIO (ErrorController.RouterException e)
+
 class FrontController application where
     controllers
         :: (?application :: application, ?request :: Request, ?respond :: Respond)
@@ -951,10 +956,7 @@ frontControllerToWAIApp middleware application notFoundAction waiRequest waiResp
             -- Slow path: Attoparsec for custom/dynamic route parsers only
             -- Wrap any exceptions during routing in RouterException so the error handler
             -- middleware can distinguish them from action exceptions
-            let wrapRouterException :: SomeException -> IO (Either String Application)
-                wrapRouterException e = throwIO (ErrorController.RouterException e)
-
-                customParsers = concatMap getRouteParsers allRoutes
+            let customParsers = concatMap getRouteParsers allRoutes
 
             routedAction :: Either String Application <-
                 (do
