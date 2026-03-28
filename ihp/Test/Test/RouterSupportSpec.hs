@@ -18,6 +18,7 @@ import IHP.ViewPrelude
 import IHP.ControllerPrelude hiding (get, request)
 import Network.Wai.Test
 import Network.HTTP.Types
+import qualified Data.Text
 
 data Band' = Band {id :: (Id' "bands"), meta :: MetaBag} deriving (Eq, Show)
 type Band = Band'
@@ -244,6 +245,17 @@ tests = aroundAll (withMockContextAndApp WebApplication config) do
         it "auto-generated POST route works for non-overridden actions" $ withContextAndApp \application -> do
             let postReq url = request $ setPath defaultRequest { requestMethod = methodPost } url
             runSession (postReq "test/CreatePerformance") application >>= assertSuccess "CreatePerformanceAction"
+    describe "router error handling" $ do
+        it "returns 400 with guidance for wrong HTTP method" $ withContextAndApp \application -> do
+            -- CreatePerformance is POST-only, calling with GET should give a helpful 400
+            response <- runSession (testGet "test/CreatePerformance") application
+            response.simpleStatus `shouldBe` status400
+            cs response.simpleBody `shouldSatisfy` \(body :: Text) -> "POST" `Data.Text.isInfixOf` body
+        it "returns 400 for invalid typed parameter" $ withContextAndApp \application -> do
+            -- intParam expects Int, passing a string should give a structured 400
+            response <- runSession (testGet "test/TestInt?intParam=hello") application
+            response.simpleStatus `shouldBe` status400
+            cs response.simpleBody `shouldSatisfy` \(body :: Text) -> "intParam" `Data.Text.isInfixOf` body
     describe "customPathTo" $ do
         it "generates custom path for overridden action" $ withContextAndApp \application -> do
             pathTo (ShowPerformanceAction "8dd57d19-490a-4323-8b94-6081ab93bf34") `shouldBe` "/performances/8dd57d19-490a-4323-8b94-6081ab93bf34"

@@ -894,7 +894,7 @@ trackTableRead tableName = case ?modelContext.trackTableReadCallback of
 -- >     tables <- readIORef ?touchedTables
 -- >     -- tables = Set.fromList ["projects", "users"]
 -- >
-withTableReadTracker :: (?modelContext :: ModelContext) => ((?modelContext :: ModelContext, ?touchedTables :: IORef (Set.Set Text)) => IO ()) -> IO ()
+withTableReadTracker :: (?modelContext :: ModelContext) => ((?modelContext :: ModelContext, ?touchedTables :: IORef (Set.Set Text)) => IO a) -> IO a
 withTableReadTracker trackedSection = do
     touchedTablesVar <- newIORef Set.empty
     let trackTableReadCallback = Just \tableName -> modifyIORef' touchedTablesVar (Set.insert tableName)

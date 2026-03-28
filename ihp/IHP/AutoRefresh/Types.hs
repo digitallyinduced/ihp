@@ -9,13 +9,13 @@ import IHP.Prelude
 import Wai.Request.Params.Middleware (Respond)
 import Control.Concurrent.MVar (MVar)
 import qualified IHP.PGListener as PGListener
-import Network.Wai (Request)
+import Network.Wai (Request, ResponseReceived)
 
 data AutoRefreshState = AutoRefreshEnabled { sessionId :: !UUID }
 data AutoRefreshSession = AutoRefreshSession
         { id :: !UUID
         -- | A callback to rerun an action within the given request and respond
-        , renderView :: !(Request -> Respond -> IO ())
+        , renderView :: !(Request -> Respond -> IO ResponseReceived)
         -- | MVar that is filled whenever some table changed
         , event :: !(MVar ())
         -- | All tables this auto refresh session watches

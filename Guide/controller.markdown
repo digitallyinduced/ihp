@@ -398,19 +398,37 @@ action ExampleAction = do
 
 ## Action Execution
 
-When calling a function to send the response, IHP will stop executing the action. Internally this is implemented by throwing and catching a [`ResponseException`](https://ihp.digitallyinduced.com/api-docs/src/IHP.ControllerSupport.html#ResponseException). Any code after e.g. a `render SomeView { .. }` call will not be called. This also applies to all redirect helpers.
-
-Here is an example of this behavior:
+Response functions like `render`, `redirectTo`, and `renderJson` send the response to the client and return `IO ResponseReceived`. Since `action` returns `IO ResponseReceived`, the response function is typically the last expression in the action:
 
 ```haskell
 action ExampleAction = do
-    redirectTo SomeOtherAction
-    putStrLn "This line here is not reachable"
+    post <- fetch postId
+    render ShowView { .. }
 ```
 
-The [`putStrLn`](https://ihp.digitallyinduced.com/api-docs/IHP-Prelude.html#v:putStrLn) will never be called because the [`redirectTo`](https://ihp.digitallyinduced.com/api-docs/IHP-Controller-Redirect.html#v:redirectTo) already stops execution.
+### Early Return
 
-When you have created a [`Response`](https://hackage.haskell.org/package/wai-3.2.2.1/docs/Network-Wai.html#t:Response) manually, you can use [`respondAndExit`](https://ihp.digitallyinduced.com/api-docs/src/IHP.ControllerSupport.html#respondAndExit) to send your response and stop action execution.
+When you need to exit an action early, use `earlyReturn`. This sends the response and stops execution of the rest of the action:
+
+```haskell
+action ExampleAction = do
+    when (not loggedIn) do
+        earlyReturn (redirectTo LoginAction)
+
+    -- This code runs only if loggedIn is True
+    render MyView
+```
+
+For access control specifically, use the built-in helpers [`accessDeniedUnless`](https://ihp.digitallyinduced.com/api-docs/IHP-Controller-AccessDenied.html#v:accessDeniedUnless) and [`accessDeniedWhen`](https://ihp.digitallyinduced.com/api-docs/IHP-Controller-AccessDenied.html#v:accessDeniedWhen) which handle the early return for you:
+
+```haskell
+action EditPostAction { postId } = do
+    post <- fetch postId
+    accessDeniedUnless (post.authorId == currentUserId)
+    render EditView { .. }
+```
+
+When you have created a `Response` manually, you can use `respondAndExit` to send your response and stop execution.
 
 ## Controller Context
 

@@ -37,13 +37,14 @@ newSessionAction :: forall record action.
     , Record record
     , HasPath action
     , SessionsControllerConfig record
-    ) => IO ()
+    ) => IO ResponseReceived
 newSessionAction = do
     let alreadyLoggedIn = isJust (currentUserOrNothing @record)
-    when alreadyLoggedIn (redirectToPathSeeOther (afterLoginRedirectPath @record))
-
-    let user = newRecord @record
-    render NewView { .. }
+    if alreadyLoggedIn
+        then redirectToPathSeeOther (afterLoginRedirectPath @record)
+        else do
+            let user = newRecord @record
+            render NewView { .. }
 {-# INLINE newSessionAction #-}
 
 -- | Logs in a user when a valid email and password is given
@@ -71,7 +72,7 @@ createSessionAction :: forall record action.
     , record ~ GetModelByTableName (GetTableName record)
     , Table record
     , FromRowHasql record
-    ) => IO ()
+    ) => IO ResponseReceived
 createSessionAction = do
     usersQueryBuilder
     |> filterWhereCaseInsensitive (#email, param "email")
@@ -79,28 +80,28 @@ createSessionAction = do
     >>= \case
         Just (user :: record) -> do
             isLocked <- Lockable.isLocked user
-            when isLocked do
-                setErrorMessage "User is locked"
-                redirectTo buildNewSessionAction
-
-            if verifyPassword user (param @Text "password")
+            if isLocked
                 then do
-                    beforeLogin user
-                    login user
-                    user <- user
-                            |> set #failedLoginAttempts 0
-                            |> updateRecord
-                    redirectUrl <- getSessionAndClear "IHP.LoginSupport.redirectAfterLogin"
-                    redirectToPathSeeOther (fromMaybe (afterLoginRedirectPath @record) redirectUrl)
-                else do
-                    setErrorMessage "Invalid Credentials"
-                    user :: record <- user
-                            |> incrementField #failedLoginAttempts
-                            |> updateRecord
-                    when (user.failedLoginAttempts >= maxFailedLoginAttempts user) do
-                        Lockable.lock user
-                        pure ()
+                    setErrorMessage "User is locked"
                     redirectTo buildNewSessionAction
+                else if verifyPassword user (param @Text "password")
+                    then do
+                        beforeLogin user
+                        login user
+                        user <- user
+                                |> set #failedLoginAttempts 0
+                                |> updateRecord
+                        redirectUrl <- getSessionAndClear "IHP.LoginSupport.redirectAfterLogin"
+                        redirectToPathSeeOther (fromMaybe (afterLoginRedirectPath @record) redirectUrl)
+                    else do
+                        setErrorMessage "Invalid Credentials"
+                        user :: record <- user
+                                |> incrementField #failedLoginAttempts
+                                |> updateRecord
+                        when (user.failedLoginAttempts >= maxFailedLoginAttempts user) do
+                            Lockable.lock user
+                            pure ()
+                        redirectTo buildNewSessionAction
         Nothing -> do
             setErrorMessage "Invalid Credentials"
             redirectTo buildNewSessionAction
@@ -118,7 +119,7 @@ deleteSessionAction :: forall record action id.
     , Show id
     , HasField "id" record id
     , SessionsControllerConfig record
-    ) => IO ()
+    ) => IO ResponseReceived
 deleteSessionAction = do
     case currentUserOrNothing @record of
         Just user -> do

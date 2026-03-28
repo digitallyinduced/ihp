@@ -17,15 +17,15 @@
 , string-conversions, tasty-bench, template-haskell, temporary
 , text, time, transformers, typerep-map, unagi-chan, unix, unliftio
 , unordered-containers, uri-encode, uuid, vault, vector, wai
-, wai-app-static, wai-asset-path, wai-cors, wai-extra
-, wai-flash-messages, wai-request-params
+, wai-app-static, wai-asset-path, wai-cors, wai-early-return
+, wai-extra, wai-flash-messages, wai-request-params
 , wai-session-clientsession-deferred, wai-session-maybe, wai-util
 , wai-websockets, warp, warp-systemd, websockets, with-utf8, wreq
 }:
 mkDerivation {
   pname = "ihp";
   version = "1.5.0";
-  src = ./.;
+  src = ./ihp;
   enableSeparateDataOutput = true;
   libraryHaskellDepends = [
     aeson async attoparsec base basic-prelude binary blaze-html
@@ -46,10 +46,10 @@ mkDerivation {
     string-conversions template-haskell temporary text time
     transformers typerep-map unagi-chan unix unliftio
     unordered-containers uri-encode uuid vault vector wai
-    wai-app-static wai-asset-path wai-cors wai-extra wai-flash-messages
-    wai-request-params wai-session-clientsession-deferred
-    wai-session-maybe wai-util wai-websockets warp warp-systemd
-    websockets with-utf8 wreq
+    wai-app-static wai-asset-path wai-cors wai-early-return wai-extra
+    wai-flash-messages wai-request-params
+    wai-session-clientsession-deferred wai-session-maybe wai-util
+    wai-websockets warp warp-systemd websockets with-utf8 wreq
   ];
   testHaskellDepends = [
     aeson async attoparsec base basic-prelude binary blaze-html
@@ -70,10 +70,10 @@ mkDerivation {
     string-conversions template-haskell temporary text time
     transformers typerep-map unagi-chan unix unliftio
     unordered-containers uri-encode uuid vault vector wai
-    wai-app-static wai-asset-path wai-cors wai-extra wai-flash-messages
-    wai-request-params wai-session-clientsession-deferred
-    wai-session-maybe wai-util wai-websockets warp warp-systemd
-    websockets with-utf8 wreq
+    wai-app-static wai-asset-path wai-cors wai-early-return wai-extra
+    wai-flash-messages wai-request-params
+    wai-session-clientsession-deferred wai-session-maybe wai-util
+    wai-websockets warp warp-systemd websockets with-utf8 wreq
   ];
   benchmarkHaskellDepends = [
     aeson async attoparsec base basic-prelude binary blaze-html
@@ -94,10 +94,10 @@ mkDerivation {
     string-conversions tasty-bench template-haskell temporary text time
     transformers typerep-map unagi-chan unix unliftio
     unordered-containers uri-encode uuid vault vector wai
-    wai-app-static wai-asset-path wai-cors wai-extra wai-flash-messages
-    wai-request-params wai-session-clientsession-deferred
-    wai-session-maybe wai-util wai-websockets warp warp-systemd
-    websockets with-utf8 wreq
+    wai-app-static wai-asset-path wai-cors wai-early-return wai-extra
+    wai-flash-messages wai-request-params
+    wai-session-clientsession-deferred wai-session-maybe wai-util
+    wai-websockets warp warp-systemd websockets with-utf8 wreq
   ];
   homepage = "https://ihp.digitallyinduced.com/";
   description = "Haskell Web Framework";
