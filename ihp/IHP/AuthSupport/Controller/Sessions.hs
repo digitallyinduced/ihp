@@ -20,7 +20,6 @@ import Data.Data
 import qualified IHP.AuthSupport.Lockable as Lockable
 import System.IO.Unsafe (unsafePerformIO)
 import IHP.Hasql.FromRow (FromRowHasql)
-import Network.Wai (ResponseReceived)
 
 -- | Displays the login form.
 --
