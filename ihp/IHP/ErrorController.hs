@@ -7,6 +7,7 @@ module IHP.ErrorController
 ( displayException
 , errorHandlerMiddleware
 , RouterException(..)
+, InitContextException(..)
 ) where
 
 import Prelude
@@ -56,6 +57,14 @@ newtype RouterException = RouterException SomeException
     deriving (Show)
 
 instance Exception.Exception RouterException
+
+-- | Wrapper for exceptions that occur during 'initContext'.
+-- This allows the error handler middleware to show "while calling initContext"
+-- in the error message, helping developers locate the source of the problem.
+newtype InitContextException = InitContextException SomeException
+    deriving (Show)
+
+instance Exception.Exception InitContextException
 
 displayException :: (Show action, ?context :: ControllerContext, ?request :: Request, ?respond :: Respond) => SomeException -> action -> Text -> IO ResponseReceived
 displayException exception action additionalInfo = do
@@ -440,11 +449,16 @@ errorHandlerMiddleware frameworkConfig app request respond =
         let actionType = Vault.lookup actionTypeVaultKey (vault request)
         let actionDescription = maybe "" (\(ActionType t) -> " while running " <> tshow t) actionType
 
+        -- Unwrap InitContextException to get the inner exception and add context
+        let (actualException, fullDescription) = case fromException exception of
+                Just (InitContextException inner) -> (inner, actionDescription <> " while calling initContext")
+                Nothing -> (exception, actionDescription)
+
         -- Call exception tracker in production
         when (environment == Environment.Production) do
-            frameworkConfig.exceptionTracker.onException (Just request) exception
+            frameworkConfig.exceptionTracker.onException (Just request) actualException
 
-        response <- handleExceptionMiddleware frameworkConfig request exception actionDescription
+        response <- handleExceptionMiddleware frameworkConfig request actualException fullDescription
         respond response
 
 -- | Handle an exception and return an appropriate Response.

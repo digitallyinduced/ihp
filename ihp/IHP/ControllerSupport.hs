@@ -39,6 +39,7 @@ import qualified Data.ByteString.Lazy as LBS
 import Data.Maybe (fromMaybe)
 import Control.Exception.Safe (SomeException, fromException, try, throwIO)
 import qualified Control.Exception as Exception
+import qualified IHP.ErrorController as ErrorController
 import Data.Typeable (Typeable)
 import IHP.HaskellSupport
 import Network.Wai
@@ -113,7 +114,7 @@ newContextForAction controller = do
     controllerContext <- Context.newControllerContext
     let ?context = controllerContext
     Context.putContext ?application
-    initContext @application
+    wrapInitContextException (initContext @application)
     pure ?context
 
 -- | Shared request context setup, specialized once per application type.
@@ -139,8 +140,17 @@ setupActionContext controllerTypeRep waiRequest waiRespond = do
     controllerContext <- Context.newControllerContext
     let ?context = controllerContext
     Context.putContext ?application
-    initContext @application
+    wrapInitContextException (initContext @application)
     pure ?context
+
+-- | Wraps non-EarlyReturn exceptions from initContext in InitContextException
+-- so the error handler middleware can show "while calling initContext".
+wrapInitContextException :: IO () -> IO ()
+wrapInitContextException action =
+    action `Exception.catch` \(e :: SomeException) ->
+        case fromException e of
+            Just (EarlyReturnException _) -> throwIO e  -- pass through early returns
+            Nothing -> throwIO (ErrorController.InitContextException e)
 
 {-# INLINE runActionWithNewContext #-}
 runActionWithNewContext :: forall application controller. (Controller controller, ?request :: Request, ?respond :: Respond, InitControllerContext application, ?application :: application, Typeable application, Typeable controller) => controller -> IO ResponseReceived
