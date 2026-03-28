@@ -77,7 +77,8 @@ jobs:
         # Extract metrics from hey CSV (response-time in seconds -> ms)
         extract_metrics() {
           local CSV=$1 PREFIX=$2
-          # Sort response times numerically, then compute percentiles
+          # Compute percentiles from sorted response times, and req/s from wall time
+          # CSV columns: response-time,DNS+dialup,DNS,Request-write,Response-delay,Response-read,status-code,offset
           tail -n +2 "$CSV" | cut -d, -f1 | sort -n | awk '
             { times[NR] = $1; sum += $1; n = NR }
             END {
@@ -86,16 +87,19 @@ jobs:
               printf "%.2f\n", times[int(n*0.99)]*1000 # p99 ms
               printf "%.2f\n", times[1]*1000            # min ms
               printf "%.2f\n", times[n]*1000            # max ms
-              printf "%.0f\n", n/sum                    # req/s
             }' | {
-            read MEAN; read P50; read P99; read MIN; read MAX; read RPS
+            read MEAN; read P50; read P99; read MIN; read MAX
             echo "$MEAN" > "${PREFIX}-mean-ms"
             echo "$P50"  > "${PREFIX}-p50-ms"
             echo "$P99"  > "${PREFIX}-p99-ms"
             echo "$MIN"  > "${PREFIX}-min-ms"
             echo "$MAX"  > "${PREFIX}-max-ms"
-            echo "$RPS"  > "${PREFIX}-rps"
           }
+          # Compute req/s from wall time: max(offset + response_time) across all requests
+          tail -n +2 "$CSV" | awk -F, '
+            { end = $8 + $1; if (end > wall) wall = end; n = NR }
+            END { printf "%.0f\n", n / wall }
+          ' > "${PREFIX}-rps"
         }
 
         extract_metrics bench-baseline.csv baseline
