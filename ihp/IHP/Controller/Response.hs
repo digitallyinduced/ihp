@@ -19,7 +19,6 @@ import qualified Data.Vault.Lazy as Vault
 import System.IO.Unsafe (unsafePerformIO)
 import IHP.RequestVault.Helper (lookupRequestVault)
 import Network.Wai.Middleware.EarlyReturn (earlyReturn, EarlyReturnException(..))
-import qualified Control.Exception as Exception
 
 -- | Sends a response to the client. Used by render functions.
 --
