@@ -17,6 +17,7 @@ module IHP.ControllerSupport
 , runActionWithNewContext
 , newContextForAction
 , respondWith
+, respondAndExit
 , earlyReturn
 , jumpToAction
 , requestBodyJSON

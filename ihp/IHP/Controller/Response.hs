@@ -1,5 +1,6 @@
 module IHP.Controller.Response
 ( respondWith
+, respondAndExit
 , addResponseHeaders
 , addResponseHeadersFromContext
 -- Re-exported from Network.Wai.Middleware.EarlyReturn
@@ -55,6 +56,13 @@ addResponseHeadersFromContext response = do
 responseHeadersVaultKey :: Vault.Key (IORef [Header])
 responseHeadersVaultKey = unsafePerformIO Vault.newKey
 {-# NOINLINE responseHeadersVaultKey #-}
+
+-- | Sends a response and exits the current action via early return.
+-- Backwards-compatible alias: sends the response via 'respondWith' then
+-- throws 'EarlyReturnException' so the action short-circuits.
+respondAndExit :: (?request :: Request, ?respond :: Respond) => Response -> IO ()
+respondAndExit response = earlyReturn (respondWith response)
+{-# INLINE respondAndExit #-}
 
 -- | Can be thrown from inside the action to abort the current action execution.
 -- This is kept for backwards compatibility with code that throws response exceptions
