@@ -38,7 +38,7 @@ import IHP.HaskellSupport (forEach)
 import IHP.ModelSupport.Types (Violation(..))
 import IHP.InputValue (inputValue)
 import Network.Wai.Middleware.FlashMessages (FlashMessage (..))
-import IHP.HSX.Markup (Markup, preEscapedToHtml)
+import IHP.HSX.Markup (Html, preEscapedToHtml)
 import IHP.HSX.MarkupQQ (hsx)
 import IHP.View.Types
 import IHP.View.Classes
@@ -79,15 +79,15 @@ unstyled = CSSFramework
             , styledBreadcrumbItem = styledBreadcrumbItemDefault
             }
 
-styledFlashMessageDefault :: CSSFramework -> FlashMessage -> Markup
+styledFlashMessageDefault :: CSSFramework -> FlashMessage -> Html
 styledFlashMessageDefault cssFramework = \case
     SuccessFlashMessage message -> [hsx|<div>{message}</div>|]
     ErrorFlashMessage message -> [hsx|<div>{message}</div>|]
 
-styledFlashMessagesDefault :: CSSFramework -> [FlashMessage] -> Markup
+styledFlashMessagesDefault :: CSSFramework -> [FlashMessage] -> Html
 styledFlashMessagesDefault cssFramework flashMessages = forEach flashMessages (cssFramework.styledFlashMessage cssFramework)
 
-styledFormFieldDefault :: CSSFramework -> FormField -> Markup
+styledFormFieldDefault :: CSSFramework -> FormField -> Html
 styledFormFieldDefault cssFramework@CSSFramework {styledValidationResult, styledTextFormField, styledCheckboxFormField, styledSelectFormField, styledRadioFormField, styledTextareaFormField, styledFormGroup} formField0 =
     formGroup renderInner
     where
@@ -112,20 +112,20 @@ styledFormFieldDefault cssFramework@CSSFramework {styledValidationResult, styled
             RadioInput {} -> styledRadioFormField cssFramework formField validationResult
             FileInput -> styledTextFormField cssFramework "file" formField validationResult
 
-        validationResult :: Markup
+        validationResult :: Html
         validationResult = unless formField.disableValidationResult (styledValidationResult cssFramework formField)
 
         -- | Wraps the input inside a @<div class="form-group">...</div>@ (unless @disableGroup = True@)
-        formGroup :: Markup -> Markup
+        formGroup :: Html -> Html
         formGroup renderInner = case formField of
             FormField { disableGroup = True } -> renderInner
             FormField { fieldInputId } -> styledFormGroup cssFramework fieldInputId renderInner
 
-styledFormGroupDefault :: CSSFramework -> Text -> Markup -> Markup
+styledFormGroupDefault :: CSSFramework -> Text -> Html -> Html
 styledFormGroupDefault cssFramework@CSSFramework {styledFormGroupClass} fieldInputId renderInner =
     [hsx|<div class={styledFormGroupClass} id={"form-group-" <> fieldInputId}>{renderInner}</div>|]
 
-styledCheckboxFormFieldDefault :: CSSFramework -> FormField -> Markup -> Markup
+styledCheckboxFormFieldDefault :: CSSFramework -> FormField -> Html -> Html
 styledCheckboxFormFieldDefault cssFramework@CSSFramework {styledInputInvalidClass, styledFormFieldHelp} formField@FormField {fieldType, fieldName, fieldLabel, fieldValue, fieldInputId, validatorResult, fieldClass, disabled, disableLabel, disableValidationResult, additionalAttributes, labelClass, required, autofocus } validationResult = do
     [hsx|<div>{element}</div>|]
     where
@@ -168,7 +168,7 @@ styledCheckboxFormFieldDefault cssFramework@CSSFramework {styledInputInvalidClas
                     {helpText}
                 |]
 
-styledTextFormFieldDefault :: CSSFramework -> Text -> FormField -> Markup -> Markup
+styledTextFormFieldDefault :: CSSFramework -> Text -> FormField -> Html -> Html
 styledTextFormFieldDefault cssFramework@CSSFramework {styledInputClass, styledInputInvalidClass, styledFormFieldHelp} inputType formField@FormField {fieldType, fieldName, fieldLabel, fieldValue, fieldInputId, validatorResult, fieldClass, disabled, disableLabel, disableValidationResult, additionalAttributes, labelClass, placeholder, required, autofocus } validationResult =
     [hsx|
         {label}
@@ -197,7 +197,7 @@ styledTextFormFieldDefault cssFramework@CSSFramework {styledInputClass, styledIn
             then Nothing
             else Just fieldValue
 
-styledSelectFormFieldDefault :: CSSFramework -> FormField -> Markup -> Markup
+styledSelectFormFieldDefault :: CSSFramework -> FormField -> Html -> Html
 styledSelectFormFieldDefault cssFramework@CSSFramework {styledInputClass, styledInputInvalidClass, styledFormFieldHelp} formField@FormField {fieldType, fieldName, placeholder, fieldLabel, fieldValue, fieldInputId, validatorResult, fieldClass, disabled, disableLabel, disableValidationResult, additionalAttributes, labelClass, required, autofocus } validationResult =
     [hsx|
         {label}
@@ -232,7 +232,7 @@ styledSelectFormFieldDefault cssFramework@CSSFramework {styledInputClass, styled
             </option>
         |]
 
-styledRadioFormFieldDefault :: CSSFramework -> FormField -> Markup -> Markup
+styledRadioFormFieldDefault :: CSSFramework -> FormField -> Html -> Html
 styledRadioFormFieldDefault cssFramework@CSSFramework {styledInputClass, styledInputInvalidClass, styledFormFieldHelp} formField@FormField {fieldType, fieldName, placeholder, fieldLabel, fieldValue, fieldInputId, validatorResult, fieldClass, disabled, disableLabel, disableValidationResult, additionalAttributes, labelClass, required, autofocus } validationResult =
     [hsx|
         {label}
@@ -269,7 +269,7 @@ styledRadioFormFieldDefault cssFramework@CSSFramework {styledInputClass, styledI
                 optionId = fieldInputId <> "_" <> optionValue
                 radioLabel = unless disableLabel [hsx|<label class={classes [(labelClass, labelClass /= "")]} for={optionId}>{optionLabel}</label>|]
 
-styledTextareaFormFieldDefault :: CSSFramework -> FormField -> Markup -> Markup
+styledTextareaFormFieldDefault :: CSSFramework -> FormField -> Html -> Html
 styledTextareaFormFieldDefault cssFramework@CSSFramework {styledInputClass, styledInputInvalidClass, styledFormFieldHelp} formField@FormField {fieldType, fieldName, fieldLabel, fieldValue, fieldInputId, validatorResult, fieldClass, disabled, disableLabel, disableValidationResult, additionalAttributes, labelClass, placeholder, required, autofocus } validationResult =
     [hsx|
         {label}
@@ -289,7 +289,7 @@ styledTextareaFormFieldDefault cssFramework@CSSFramework {styledInputClass, styl
         inputInvalidClass = styledInputInvalidClass cssFramework formField
         helpText = styledFormFieldHelp cssFramework formField
 
-styledValidationResultDefault :: CSSFramework -> FormField -> Markup
+styledValidationResultDefault :: CSSFramework -> FormField -> Html
 styledValidationResultDefault cssFramework formField@FormField { validatorResult = Just violation } =
     let
         className :: Text = cssFramework.styledValidationResultClass
@@ -300,12 +300,12 @@ styledValidationResultDefault cssFramework formField@FormField { validatorResult
         [hsx|<div class={className}>{message}</div>|]
 styledValidationResultDefault _ _ = mempty
 
-styledSubmitButtonDefault :: CSSFramework -> SubmitButton -> Markup
+styledSubmitButtonDefault :: CSSFramework -> SubmitButton -> Html
 styledSubmitButtonDefault cssFramework SubmitButton { label, buttonClass, buttonDisabled } =
     let className :: Text = cssFramework.styledSubmitButtonClass
     in [hsx|<button class={classes [(className, True), (buttonClass, not (null buttonClass))]} disabled={buttonDisabled} type="submit">{label}</button>|]
 
-styledFormFieldHelpDefault :: CSSFramework -> FormField -> Markup
+styledFormFieldHelpDefault :: CSSFramework -> FormField -> Html
 styledFormFieldHelpDefault _ FormField { helpText = "" } = mempty
 styledFormFieldHelpDefault _ FormField { helpText } = [hsx|<p>{helpText}</p>|]
 
@@ -315,7 +315,7 @@ styledInputClassDefault _ _ = ""
 styledInputInvalidClassDefault :: CSSFramework -> FormField -> Text
 styledInputInvalidClassDefault _ _ = "invalid"
 
-styledPaginationDefault :: CSSFramework -> PaginationView -> Markup
+styledPaginationDefault :: CSSFramework -> PaginationView -> Html
 styledPaginationDefault _ paginationView =
     [hsx|
 
@@ -333,26 +333,26 @@ styledPaginationDefault _ paginationView =
 
     |]
 
-styledPaginationPageLinkDefault :: CSSFramework -> Pagination -> ByteString -> Int -> Markup
+styledPaginationPageLinkDefault :: CSSFramework -> Pagination -> ByteString -> Int -> Html
 styledPaginationPageLinkDefault _ pagination@Pagination {currentPage} pageUrl pageNumber =
     let
         linkClass = classes [("active", pageNumber == currentPage)]
     in
         [hsx|<li class={linkClass}><a href={pageUrl}>{show pageNumber}</a></li>|]
 
-styledPaginationDotDotDefault :: CSSFramework -> Pagination -> Markup
+styledPaginationDotDotDefault :: CSSFramework -> Pagination -> Html
 styledPaginationDotDotDefault _ _ =
     [hsx|<li><a>…</a></li>|]
 
-styledPaginationItemsPerPageSelectorDefault :: CSSFramework -> Pagination -> (Int -> ByteString) -> Markup
+styledPaginationItemsPerPageSelectorDefault :: CSSFramework -> Pagination -> (Int -> ByteString) -> Html
 styledPaginationItemsPerPageSelectorDefault _ pagination@Pagination {pageSize} itemsPerPageUrl =
     let
-        oneOption :: Int -> Markup
+        oneOption :: Int -> Html
         oneOption n = [hsx|<option value={show n} selected={n == pageSize} data-url={itemsPerPageUrl n}>{n} items per page</option>|]
     in
         [hsx|{forEach [10,20,50,100,200] oneOption}|]
 
-styledPaginationLinkPreviousDefault :: CSSFramework -> Pagination -> ByteString -> Markup
+styledPaginationLinkPreviousDefault :: CSSFramework -> Pagination -> ByteString -> Html
 styledPaginationLinkPreviousDefault _ pagination@Pagination {currentPage} pageUrl =
     let
         prevClass = classes [("disabled", not $ hasPreviousPage pagination)]
@@ -366,7 +366,7 @@ styledPaginationLinkPreviousDefault _ pagination@Pagination {currentPage} pageUr
             </li>
         |]
 
-styledPaginationLinkNextDefault :: CSSFramework -> Pagination -> ByteString -> Markup
+styledPaginationLinkNextDefault :: CSSFramework -> Pagination -> ByteString -> Html
 styledPaginationLinkNextDefault _ pagination@Pagination {currentPage} pageUrl =
     let
         nextClass = classes [("disabled", not $ hasNextPage pagination)]
@@ -380,7 +380,7 @@ styledPaginationLinkNextDefault _ pagination@Pagination {currentPage} pageUrl =
             </li>
         |]
 
-styledBreadcrumbDefault :: CSSFramework -> [BreadcrumbItem]-> BreadcrumbsView -> Markup
+styledBreadcrumbDefault :: CSSFramework -> [BreadcrumbItem]-> BreadcrumbsView -> Html
 styledBreadcrumbDefault _ _ breadcrumbsView = [hsx|
     <nav>
         <ol>
@@ -390,7 +390,7 @@ styledBreadcrumbDefault _ _ breadcrumbsView = [hsx|
     </nav>
 |]
 
-styledBreadcrumbItemDefault :: CSSFramework -> [ BreadcrumbItem ]-> BreadcrumbItem -> Bool -> Markup
+styledBreadcrumbItemDefault :: CSSFramework -> [ BreadcrumbItem ]-> BreadcrumbItem -> Bool -> Html
 styledBreadcrumbItemDefault _ breadcrumbItems breadcrumbItem@BreadcrumbItem {breadcrumbLabel, url} isLast =
     let
         breadcrumbsClasses = classes [("active", isLast)]

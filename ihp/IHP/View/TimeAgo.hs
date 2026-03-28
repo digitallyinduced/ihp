@@ -12,7 +12,7 @@ import Data.Time.Format (formatTime, defaultTimeLocale)
 import Data.String.Conversions (cs)
 import Data.Time.Format.ISO8601 (iso8601Show)
 import IHP.HSX.ConvertibleStrings ()
-import IHP.HSX.Markup (Markup)
+import IHP.HSX.Markup (Html)
 import IHP.HSX.MarkupQQ (hsx)
 
 -- | __Display time like @5 minutes ago@__
@@ -33,7 +33,7 @@ import IHP.HSX.MarkupQQ (hsx)
 --
 -- >>> <div>{timeAgo (project.createdAt)}</div>
 -- <div><time class="time-ago">a while ago</time></div>
-timeAgo :: UTCTime -> Markup
+timeAgo :: UTCTime -> Html
 timeAgo = timeElement "time-ago"
 
 -- | __Display time like @31.08.2007, 16:47@__
@@ -54,7 +54,7 @@ timeAgo = timeElement "time-ago"
 --
 -- >>> <div>{dateTime (project.createdAt)}</div>
 -- <div><time class="date-time">31.08.2007, 16:47 Uhr</time></div>
-dateTime :: UTCTime -> Markup
+dateTime :: UTCTime -> Html
 dateTime = timeElement "date-time"
 
 -- | __Display date like @31.08.2007@__
@@ -75,7 +75,7 @@ dateTime = timeElement "date-time"
 --
 -- >>> <div>{date (project.createdAt)}</div>
 -- <div><time class="date">31.08.2007</time></div>
-date :: UTCTime -> Markup
+date :: UTCTime -> Html
 date = timeElement "date"
 
 -- | __Display time like @16:47@__
@@ -96,10 +96,10 @@ date = timeElement "date"
 --
 -- >>> <div>{time (project.createdAt)}</div>
 -- <div><time class="time">16:47 Uhr</time></div>
-time :: UTCTime -> Markup
+time :: UTCTime -> Html
 time = timeElement "time"
 
-timeElement :: Text -> UTCTime -> Markup
+timeElement :: Text -> UTCTime -> Html
 timeElement className dateTime =
     let dateTimeAttr = cs (iso8601Show dateTime) :: Text
         content = cs (beautifyUtcTime dateTime) :: Text

@@ -10,7 +10,7 @@ import IHP.HaskellSupport (SetField(..), modify, (|>))
 import Data.String.Conversions (cs)
 import IHP.ModelSupport.Types (Violation(..), MetaBag(..))
 import IHP.ModelSupport () -- for SetField instances on MetaBag
-import IHP.HSX.Markup (Markup, renderMarkup)
+import IHP.HSX.Markup (Html, renderMarkup)
 import qualified Data.List as List
 
 data ValidatorResult
@@ -76,7 +76,7 @@ attachFailure field !message = attachValidatorResult field (Failure message)
 -- >     |> getValidationViolation #email
 -- >
 -- > --  Returns: Just (HtmlViolation "should be a valid email. <a href="https://example.com/docs#email">Check out the documentation</a>")
-attachFailureHtml :: (KnownSymbol field, HasField "meta" model MetaBag, SetField "meta" model MetaBag) => Proxy field -> Markup -> model -> model
+attachFailureHtml :: (KnownSymbol field, HasField "meta" model MetaBag, SetField "meta" model MetaBag) => Proxy field -> Html -> model -> model
 attachFailureHtml field !message = attachValidatorResult field (FailureHtml renderedHtml)
     where
         renderedHtml = message
