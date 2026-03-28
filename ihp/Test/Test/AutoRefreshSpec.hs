@@ -17,7 +17,6 @@ import Network.HTTP.Types
 import IHP.AutoRefresh (globalAutoRefreshServerVar, sessionResponseHasChanged, updateSession)
 import IHP.AutoRefresh.Types
 import qualified Control.Concurrent.MVar as MVar
-import IHP.Controller.Response ()
 import qualified Control.Exception as Exception
 import qualified IHP.PGListener as PGListener
 import IHP.Log.Types (Logger(..), LogLevel(..))
