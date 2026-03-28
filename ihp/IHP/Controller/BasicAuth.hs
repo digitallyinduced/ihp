@@ -7,7 +7,6 @@ module IHP.Controller.BasicAuth (basicAuth) where
 
 import IHP.Prelude
 import IHP.ControllerSupport
-import IHP.Controller.Response (respondWith, earlyReturn)
 import Network.HTTP.Types (status401)
 import Network.Wai (responseLBS)
 import Network.Wai.Middleware.HttpAuth (extractBasicAuth)

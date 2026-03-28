@@ -8,7 +8,6 @@ module IHP.AutoRefresh where
 import IHP.Prelude
 import IHP.AutoRefresh.Types
 import IHP.ControllerSupport hiding (request)
-import qualified IHP.ControllerSupport as ControllerSupport
 import qualified Data.UUID.V4 as UUID
 import qualified Data.UUID as UUID
 import IHP.Controller.Session
@@ -22,7 +21,6 @@ import qualified Data.Maybe as Maybe
 import qualified Data.Text as Text
 import IHP.WebSocket
 import IHP.Controller.Context
-import IHP.Controller.Response
 import Network.Wai.Middleware.EarlyReturn (earlyReturnMiddleware)
 import qualified IHP.PGListener as PGListener
 import qualified Hasql.Session as HasqlSession
