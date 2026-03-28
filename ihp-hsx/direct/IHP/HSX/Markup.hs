@@ -9,6 +9,7 @@ Copyright: (c) digitally induced GmbH, 2024
 module IHP.HSX.Markup
 ( MarkupM (..)
 , Markup
+, Html
 , renderMarkup
 , renderMarkupBS
 , rawByteString
@@ -47,6 +48,10 @@ newtype MarkupM a = Markup { getBuilder :: Builder }
 
 -- | The standard markup type, equivalent to Blaze's @Html@.
 type Markup = MarkupM ()
+
+-- | Alias for 'Markup', matching Blaze's @Html@ so existing user code
+-- (e.g. @defaultLayout :: Html -> Html@) keeps compiling without changes.
+type Html = Markup
 
 instance Semigroup (MarkupM a) where
     Markup a <> Markup b = Markup (a <> b)
