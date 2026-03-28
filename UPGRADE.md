@@ -2,7 +2,7 @@
 This document describes breaking changes, as well as how to fix them, that have occured at given releases.
 After updating your project, please consult the segments from your current release until now.
 
-# Upgrade to 1.6.0 from 1.5.0
+# Upgrade to 1.6.0 (unreleased) from 1.5.0
 
 ## `render` No Longer Handles JSON
 
