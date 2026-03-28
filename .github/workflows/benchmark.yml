@@ -29,9 +29,8 @@ jobs:
       run: |
         set -euo pipefail
 
-        # Get hyperfine, jq, and postgresql into PATH
-        export PATH="$(nix build nixpkgs#hyperfine --print-out-paths --no-link)/bin:$PATH"
-        export PATH="$(nix build nixpkgs#jq --print-out-paths --no-link)/bin:$PATH"
+        # Get hey and postgresql into PATH
+        export PATH="$(nix build nixpkgs#hey --print-out-paths --no-link)/bin:$PATH"
         PG_OUTPUTS=$(nix build nixpkgs#postgresql --print-out-paths --no-link)
         PG_OUT=$(echo "$PG_OUTPUTS" | grep -v '\-lib' | grep -v '\-man' | grep -v '\-doc' | head -1)
         export PATH="$PG_OUT/bin:$PATH"
@@ -64,11 +63,8 @@ jobs:
             sleep 0.5
           done
 
-          hyperfine \
-            --warmup 50 \
-            --runs 200 \
-            --export-json "bench-${LABEL}.json" \
-            "curl -sf http://localhost:$PORT/"
+          # Run benchmark with persistent connections
+          hey -n 5000 -c 10 -o csv "http://localhost:$PORT/" > "bench-${LABEL}.csv"
 
           kill $PID 2>/dev/null; wait $PID 2>/dev/null || true
         }
@@ -78,18 +74,32 @@ jobs:
 
         pg_ctl -D pgdata stop || true
 
-        # Extract metrics from hyperfine JSON (times in seconds -> ms)
-        for LABEL in baseline pr; do
-          jq -r '.results[0] | "\(.mean*1000)\n\(.median*1000)\n\(.min*1000)\n\(.max*1000)\n\(.stddev*1000)"' \
-            "bench-${LABEL}.json" | {
-            read MEAN; read MEDIAN; read MIN; read MAX; read STDDEV
-            printf "%.2f" "$MEAN"   > "${LABEL}-mean-ms"
-            printf "%.2f" "$MEDIAN" > "${LABEL}-median-ms"
-            printf "%.2f" "$MIN"    > "${LABEL}-min-ms"
-            printf "%.2f" "$MAX"    > "${LABEL}-max-ms"
-            printf "%.2f" "$STDDEV" > "${LABEL}-stddev-ms"
+        # Extract metrics from hey CSV (response-time in seconds -> ms)
+        extract_metrics() {
+          local CSV=$1 PREFIX=$2
+          tail -n +2 "$CSV" | awk -F, '
+            { times[NR] = $1; sum += $1; n = NR }
+            END {
+              asort(times)
+              printf "%.2f\n", (sum/n)*1000            # mean ms
+              printf "%.2f\n", times[int(n*0.5)]*1000  # p50 ms
+              printf "%.2f\n", times[int(n*0.99)]*1000 # p99 ms
+              printf "%.2f\n", times[1]*1000            # min ms
+              printf "%.2f\n", times[n]*1000            # max ms
+              printf "%.0f\n", n/sum                    # req/s
+            }' | {
+            read MEAN; read P50; read P99; read MIN; read MAX; read RPS
+            echo "$MEAN" > "${PREFIX}-mean-ms"
+            echo "$P50"  > "${PREFIX}-p50-ms"
+            echo "$P99"  > "${PREFIX}-p99-ms"
+            echo "$MIN"  > "${PREFIX}-min-ms"
+            echo "$MAX"  > "${PREFIX}-max-ms"
+            echo "$RPS"  > "${PREFIX}-rps"
           }
-        done
+        }
+
+        extract_metrics bench-baseline.csv baseline
+        extract_metrics bench-pr.csv pr
 
     - name: Compare and post PR comment
       env:
@@ -103,18 +113,20 @@ jobs:
         ALLOC_CURRENT=$(cat ihp/Bench/result-pr/compile-allocations)
         ALLOC_PCT=$(awk "BEGIN { printf \"%.1f\", ($ALLOC_CURRENT - $ALLOC_BASELINE) / $ALLOC_BASELINE * 100 }")
 
-        # HTTP metrics (latency in ms)
+        # HTTP metrics
         BASELINE_MEAN=$(cat ihp/Bench/baseline-mean-ms)
         PR_MEAN=$(cat ihp/Bench/pr-mean-ms)
         LATENCY_PCT=$(awk "BEGIN { printf \"%.1f\", ($PR_MEAN - $BASELINE_MEAN) / $BASELINE_MEAN * 100 }")
-        BASELINE_MEDIAN=$(cat ihp/Bench/baseline-median-ms)
-        PR_MEDIAN=$(cat ihp/Bench/pr-median-ms)
-        BASELINE_STDDEV=$(cat ihp/Bench/baseline-stddev-ms)
-        PR_STDDEV=$(cat ihp/Bench/pr-stddev-ms)
+        BASELINE_P50=$(cat ihp/Bench/baseline-p50-ms)
+        PR_P50=$(cat ihp/Bench/pr-p50-ms)
+        BASELINE_P99=$(cat ihp/Bench/baseline-p99-ms)
+        PR_P99=$(cat ihp/Bench/pr-p99-ms)
         BASELINE_MIN=$(cat ihp/Bench/baseline-min-ms)
         PR_MIN=$(cat ihp/Bench/pr-min-ms)
         BASELINE_MAX=$(cat ihp/Bench/baseline-max-ms)
         PR_MAX=$(cat ihp/Bench/pr-max-ms)
+        BASELINE_RPS=$(cat ihp/Bench/baseline-rps)
+        PR_RPS=$(cat ihp/Bench/pr-rps)
 
         # Check for regressions
         FAILED=0
@@ -155,15 +167,16 @@ jobs:
           echo "$CORE_STATUS"
           echo "$ALLOC_STATUS"
           echo ""
-          echo "### HTTP Latency (GET /, 200 runs)"
+          echo "### HTTP Latency (GET /, 5000 reqs, 10 concurrent)"
           echo ""
           echo "| Metric | Baseline (master) | This PR | Change |"
           echo "|--------|-------------------|---------|--------|"
           echo "| Mean | ${BASELINE_MEAN}ms | ${PR_MEAN}ms | ${LATENCY_PCT}% |"
-          echo "| Median | ${BASELINE_MEDIAN}ms | ${PR_MEDIAN}ms | — |"
-          echo "| Stddev | ${BASELINE_STDDEV}ms | ${PR_STDDEV}ms | — |"
+          echo "| p50 | ${BASELINE_P50}ms | ${PR_P50}ms | — |"
+          echo "| p99 | ${BASELINE_P99}ms | ${PR_P99}ms | — |"
           echo "| Min | ${BASELINE_MIN}ms | ${PR_MIN}ms | — |"
           echo "| Max | ${BASELINE_MAX}ms | ${PR_MAX}ms | — |"
+          echo "| Req/s | ${BASELINE_RPS} | ${PR_RPS} | — |"
           echo ""
           echo "$HTTP_STATUS"
           echo ""
