@@ -12,12 +12,12 @@ import System.IO.Unsafe (unsafePerformIO)
 import Network.Wai (Request)
 import IHP.HSX.MarkupQQ (hsx)
 import IHP.Modal.Types
-import IHP.HSX.Markup (Markup)
+import IHP.HSX.Markup (Html)
 
-renderModal :: Modal -> Markup
+renderModal :: Modal -> Html
 renderModal modal = renderModal' modal True
 
-renderModal' :: Modal -> Bool -> Markup
+renderModal' :: Modal -> Bool -> Html
 renderModal' Modal { .. } show = [hsx|
         <div class={modalClassName} id="modal" tabindex="-1" role="dialog" aria-labelledby="modal-title" aria-hidden="true" style={displayStyle} onclick="if (event.target.id === 'modal') document.getElementById('modal-backdrop').click()">
             {modalInner}
@@ -47,7 +47,7 @@ renderModal' Modal { .. } show = [hsx|
                     Just modalFooter -> [hsx|<div class="modal-footer">{modalFooter}</div>|]
                     Nothing -> mempty
 
-renderModalHeader :: Text -> Text -> Markup
+renderModalHeader :: Text -> Text -> Html
 renderModalHeader title closeUrl = [hsx|
     <div class="modal-header">
       <h5 class="modal-title" id="modal-title">{title}</h5>
@@ -55,7 +55,7 @@ renderModalHeader title closeUrl = [hsx|
     </div>
 |]
 
-modal :: (?request :: Request) => Markup
+modal :: (?request :: Request) => Html
 modal =
     case unsafePerformIO (readIORef (lookupModalVault modalContainerVaultKey ?request)) of
         Just (ModalContainer html) -> html
