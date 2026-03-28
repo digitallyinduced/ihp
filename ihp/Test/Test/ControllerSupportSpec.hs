@@ -18,7 +18,7 @@ import qualified Data.Aeson as Aeson
 import qualified Network.Wai as Wai
 import qualified Data.ByteString.Lazy as LBS
 import qualified Data.ByteString as BS
-import Network.HTTP.Types (status400)
+import Network.HTTP.Types (status200, status400)
 
 tests = do
     describe "IHP.ControllerSupport" do
@@ -32,9 +32,9 @@ tests = do
                         let ?respond = respond
                         result <- requestBodyJSON
                         result `shouldBe` jsonValue
-                        respond (Wai.responseLBS (toEnum 200) [] "ok")
+                        respond (Wai.responseLBS (status200) [] "ok")
                 runSession (request req) (earlyReturnMiddleware app)
-                    `shouldReturn` SResponse (toEnum 200) [] "ok"
+                    `shouldReturn` SResponse (status200) [] "ok"
 
             it "should return 400 for FormBody" do
                 let requestBody = FormBody { params = [], files = [], rawPayload = "" }

@@ -168,7 +168,7 @@ tests = beforeAll (mockContextNoDatabase WebApplication config) do
                 let session =
                         AutoRefreshSession
                             { id = UUID.nil
-                            , renderView = \_ respond -> respond (Wai.responseLBS (toEnum 200) [] "")
+                            , renderView = \_ respond -> respond (Wai.responseLBS (status200) [] "")
                             , event
                             , tables = mempty
                             , lastResponse = "resolved"
