@@ -106,21 +106,7 @@ autoRefresh runAction = do
                     -- Otherwise you might try to guess session UUIDs to access other peoples auto refresh sessions
                     setSession "autoRefreshSessions" (map UUID.toText (id:availableSessions) |> Text.intercalate "")
 
-                    -- We wrap the respond callback to intercept the response and save it for auto refresh
-                    capturedResponseRef <- newIORef Nothing
-                    let originalRespond = ?respond
-                    let interceptingRespond response = do
-                            case response of
-                                Wai.ResponseBuilder status headers builder -> do
-                                    -- It's important that we evaluate the response to HNF here
-                                    -- Otherwise a response `error "fail"` will break auto refresh and cause
-                                    -- the action to be unreachable until the server is restarted.
-                                    let responseBody = ByteString.toLazyByteString builder
-                                    evaluatedBody <- Exception.evaluate responseBody
-                                    writeIORef capturedResponseRef (Just evaluatedBody)
-                                _ -> pure ()
-                            -- Forward to the original respond
-                            originalRespond response
+                    (interceptingRespond, capturedResponseRef) <- captureResponseBody ?respond
 
                     withTableReadTracker do
                         let ?respond = interceptingRespond
@@ -161,16 +147,7 @@ instance WSApp AutoRefreshWSApp where
             async $ forever do
                 MVar.takeMVar event
                 let currentRequest = ?request
-                -- Create a respond callback that captures the response instead of sending it
-                capturedResponseRef <- newIORef Nothing
-                let captureRespond response = do
-                        case response of
-                            Wai.ResponseBuilder _status _headers builder -> do
-                                let html = ByteString.toLazyByteString builder
-                                writeIORef capturedResponseRef (Just html)
-                            _ -> pure ()
-                        -- Return a dummy ResponseReceived
-                        pure (error "AutoRefresh: ResponseReceived placeholder" :: ResponseReceived)
+                (captureRespond, capturedResponseRef) <- captureResponseBody (\_ -> pure (error "AutoRefresh: ResponseReceived placeholder"))
 
                 (do
                     _ <- renderView currentRequest captureRespond
@@ -205,6 +182,22 @@ instance WSApp AutoRefreshWSApp where
                 modifyIORef' autoRefreshServer (\server -> server { sessions = filter (\AutoRefreshSession { id } -> id /= sessionId) server.sessions })
             AwaitingSessionID -> pure ()
 
+
+-- | Wraps a WAI respond callback to capture the response body.
+-- Returns a new respond callback and an IORef containing the captured body.
+-- Only captures ResponseBuilder responses (used by HSX/Blaze rendering).
+captureResponseBody :: Respond -> IO (Respond, IORef (Maybe LByteString))
+captureResponseBody originalRespond = do
+    bodyRef <- newIORef Nothing
+    let capturingRespond response = do
+            case response of
+                Wai.ResponseBuilder _status _headers builder -> do
+                    let body = ByteString.toLazyByteString builder
+                    evaluatedBody <- Exception.evaluate body
+                    writeIORef bodyRef (Just evaluatedBody)
+                _ -> pure ()
+            originalRespond response
+    pure (capturingRespond, bodyRef)
 
 registerNotificationTrigger :: (?modelContext :: ModelContext, ?context :: ControllerContext) => IORef (Set Text) -> IORef AutoRefreshServer -> IO ()
 registerNotificationTrigger touchedTablesVar autoRefreshServer = do
