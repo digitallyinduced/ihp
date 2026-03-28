@@ -90,13 +90,15 @@ autoRefresh runAction = do
                     frozenControllerContext <- freeze ?context
 
                     let originalRequest = ?request
-                    let renderView = \_waiRequest waiRespond -> do
-                            controllerContext <- unfreeze frozenControllerContext
-                            let ?context = controllerContext
-                            let ?request = originalRequest
-                            let ?respond = waiRespond
-                            putContext originalRequest
-                            action ?theAction
+                    let renderView = \waiRequest waiRespond -> do
+                            earlyReturnMiddleware (\_ respond -> do
+                                controllerContext <- unfreeze frozenControllerContext
+                                let ?context = controllerContext
+                                let ?request = originalRequest
+                                let ?respond = respond
+                                putContext originalRequest
+                                action ?theAction
+                                ) waiRequest waiRespond
 
                     -- We save the allowed session ids to the session cookie to only grant a client access
                     -- to sessions it initially opened itself
@@ -171,8 +173,7 @@ instance WSApp AutoRefreshWSApp where
                         pure (error "AutoRefresh: ResponseReceived placeholder" :: ResponseReceived)
 
                 (do
-                    let app _ _ = renderView currentRequest captureRespond
-                    _ <- earlyReturnMiddleware app currentRequest captureRespond
+                    _ <- renderView currentRequest captureRespond
 
                     -- Check if we captured a response and if it differs from the last one
                     capturedResponse <- readIORef capturedResponseRef

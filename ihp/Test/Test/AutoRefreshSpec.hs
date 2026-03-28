@@ -19,7 +19,6 @@ import qualified Control.Concurrent.MVar as MVar
 import qualified IHP.PGListener as PGListener
 import IHP.Log.Types (Logger(..), LogLevel(..))
 import IHP.Server (initMiddlewareStack)
-import Network.Wai.Middleware.EarlyReturn (earlyReturnMiddleware)
 import Network.Wai.Test (runSession, request, SResponse(..), simpleBody)
 import IHP.Test.Mocking
 import qualified Data.UUID as UUID
@@ -79,7 +78,7 @@ callActionWithQueryParams pgListener controller queryParams = do
             runActionWithNewContext controller
 
     middlewareStack <- initMiddlewareStack frameworkConfig modelContext (Just pgListener)
-    runSession (request baseRequest) (earlyReturnMiddleware (middlewareStack controllerApp))
+    runSession (request baseRequest) (middlewareStack controllerApp)
 
 testLogger :: Logger
 testLogger = Logger
@@ -117,7 +116,7 @@ tests = beforeAll (mockContextNoDatabase WebApplication config) do
 
                     -- 3. Call renderView with a bare request (simulating WebSocket re-render)
                     --    The WebSocket request has NO query params — this is the bug scenario
-                    reResponse <- runSession (request defaultRequest) (earlyReturnMiddleware session.renderView)
+                    reResponse <- runSession (request defaultRequest) session.renderView
                     -- If query params are NOT preserved, this would throw ParamNotFoundException
                     cs (simpleBody reResponse) `shouldBe` ("abc-123" :: Text)
 

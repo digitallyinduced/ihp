@@ -106,31 +106,21 @@ newContextForAction
        , Typeable application
        , Typeable controller
        )
-    => controller -> IO (Either (IO ResponseReceived) Context.ControllerContext)
+    => controller -> IO Context.ControllerContext
 newContextForAction controller = do
     let ?modelContext = ?request.modelContext
     controllerContext <- Context.newControllerContext
     let ?context = controllerContext
     Context.putContext ?application
-
-    try (initContext @application) >>= \case
-        Left (exception :: SomeException) -> do
-            case fromException exception of
-                Just (EarlyReturnException responseReceived) ->
-                    -- Early return is expected behavior, not an error
-                    pure $ Left $ pure responseReceived
-                Nothing ->
-                    -- Re-throw exception so the error handler middleware can catch it
-                    throwIO exception
-        Right _ -> pure $ Right ?context
+    initContext @application
+    pure ?context
 
 -- | Shared request context setup, specialized once per application type.
 -- Takes a pre-computed TypeRep to avoid per-controller-type code duplication.
 -- NOINLINE ensures GHC compiles one copy shared across all controllers.
 --
--- Returns @(controllerContext, Nothing)@ on success, or
--- @(controllerContext, Just exception)@ if 'initContext' failed.
--- The context is always returned so callers can use it for error rendering.
+-- Exceptions from 'initContext' (including 'EarlyReturnException') propagate
+-- to the caller, which is expected to catch them.
 {-# NOINLINE setupActionContext #-}
 setupActionContext
     :: forall application
@@ -139,7 +129,7 @@ setupActionContext
        , Typeable application
        )
     => Typeable.TypeRep -> Request -> Respond
-    -> IO (Context.ControllerContext, Maybe SomeException)
+    -> IO Context.ControllerContext
 setupActionContext controllerTypeRep waiRequest waiRespond = do
     let !request' = waiRequest { vault = Vault.insert actionTypeVaultKey (ActionType controllerTypeRep) waiRequest.vault }
     let ?request = request'
@@ -148,22 +138,21 @@ setupActionContext controllerTypeRep waiRequest waiRespond = do
     controllerContext <- Context.newControllerContext
     let ?context = controllerContext
     Context.putContext ?application
-    try (initContext @application) >>= \case
-        Left exception -> pure (?context, Just exception)
-        Right _ -> pure (?context, Nothing)
+    initContext @application
+    pure ?context
 
 {-# INLINE runActionWithNewContext #-}
 runActionWithNewContext :: forall application controller. (Controller controller, ?request :: Request, ?respond :: Respond, InitControllerContext application, ?application :: application, Typeable application, Typeable controller) => controller -> IO ResponseReceived
-runActionWithNewContext controller = do
-    let request' = setActionType controller ?request
-    let ?request = request'
-    contextOrResponse <- newContextForAction controller
-    case contextOrResponse of
-        Left response -> response
-        Right context -> do
-            let ?modelContext = requestModelContext ?request
-            let ?context = context
-            runAction controller
+runActionWithNewContext controller =
+    go `Exception.catch` \(EarlyReturnException r) -> pure r
+  where
+    go = do
+        let request' = setActionType controller ?request
+        let ?request = request'
+        context <- newContextForAction controller
+        let ?modelContext = requestModelContext ?request
+        let ?context = context
+        runAction controller
 
 -- | If 'IHP.LoginSupport.Helper.Controller.enableRowLevelSecurityIfLoggedIn' was called, this will copy the
 -- the prepared RowLevelSecurityContext from the controller context into the ModelContext.

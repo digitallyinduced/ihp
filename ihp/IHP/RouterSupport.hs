@@ -43,7 +43,7 @@ import Data.List (find, isPrefixOf)
 import Control.Monad (unless, join)
 import Control.Applicative ((<|>), empty)
 import Text.Read (readMaybe)
-import Control.Exception.Safe (SomeException, fromException, catch, throwIO)
+import Control.Exception.Safe (SomeException, catch, throwIO)
 import Control.Exception (evaluate)
 import qualified IHP.ModelSupport as ModelSupport
 import IHP.FrameworkConfig
@@ -82,7 +82,7 @@ import IHP.Controller.Context
 import IHP.Controller.Param
 import Data.Kind
 import qualified Data.TMap as TypeMap
-import IHP.Controller.Response (ResponseException(..), EarlyReturnException(..))
+import IHP.Controller.Response (EarlyReturnException(..))
 
 -- | Binds @?request@ and @?respond@ from WAI arguments, then runs the given action.
 --
@@ -103,22 +103,16 @@ runAction'
        , Typeable controller
        )
      => controller -> Application
-runAction' controller waiRequest waiRespond = do
-    (context, maybeException) <- setupActionContext @application (Typeable.typeOf controller) waiRequest waiRespond
-    let ?context = context
-    let ?respond = waiRespond
-    let ?request = context.request
-    case maybeException of
-        Just exception ->
-            case fromException exception of
-                Just (EarlyReturnException responseReceived) -> pure responseReceived
-                Nothing -> case fromException exception of
-                    Just (ResponseException response) -> waiRespond response
-                    -- Re-throw so the error handler middleware can catch it
-                    Nothing -> throwIO exception
-        Nothing -> do
-            let ?modelContext = ?request.modelContext
-            runAction controller
+runAction' controller waiRequest waiRespond =
+    go `catch` \(EarlyReturnException r) -> pure r
+  where
+    go = do
+        context <- setupActionContext @application (Typeable.typeOf controller) waiRequest waiRespond
+        let ?context = context
+        let ?respond = waiRespond
+        let ?request = context.request
+        let ?modelContext = ?request.modelContext
+        runAction controller
 {-# INLINE runAction' #-}
 
 class FrontController application where

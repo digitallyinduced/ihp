@@ -24,8 +24,6 @@ import qualified Data.ByteString.Char8 as ByteString
 import qualified Network.Wai.Middleware.Cors as Cors
 import qualified Network.Wai.Middleware.Approot as Approot
 import qualified Network.Wai.Middleware.AssetPath as AssetPath
-import Network.Wai.Middleware.EarlyReturn (earlyReturnMiddleware)
-
 import qualified System.Directory.OsPath as Directory
 import qualified GHC.IO.Encoding as IO
 import qualified System.IO as IO
@@ -78,7 +76,6 @@ run configBuilder = do
                         . runServer frameworkConfig useSystemd
                         . (if useSystemd then HealthCheckEndpoint.healthCheck else Function.id)
                         . ErrorController.errorHandlerMiddleware frameworkConfig
-                        . earlyReturnMiddleware
                         $ staticShortcut
 
 {-# INLINABLE run #-}
