@@ -35,15 +35,11 @@ import IHP.ModelSupport
 import IHP.QueryBuilder
 import IHP.Hasql.FromRow (FromRowHasql(..))
 import IHP.Fetch.Statement (buildQueryListStatement, buildQueryMaybeStatement, buildCountStatement, buildExistsStatement)
-import qualified Hasql.Decoders as Decoders
-import qualified Hasql.Encoders as Encoders
 import qualified Hasql.Pipeline as Pipeline
 import qualified Hasql.Session as HasqlSession
-import qualified Hasql.Statement as HasqlStatement
 import qualified IHP.Log as Log
 import IHP.Hasql.Pool (usePoolWithRetry)
-import Data.Functor.Contravariant (contramap)
-import Data.Functor.Contravariant.Divisible (conquer)
+import qualified IHP.RowLevelSecurity.Session as RLS
 
 -- | Convert a query builder into a 'Pipeline' step returning all matching rows.
 --
@@ -129,17 +125,8 @@ fetchExistsPipelined !queryBuilder = Pipeline.statement () (buildExistsStatement
 pipeline :: (?modelContext :: ModelContext) => Pipeline.Pipeline a -> IO a
 pipeline thePipeline = do
     let pool = ?modelContext.hasqlPool
-    -- When RLS is enabled and we're not already in a transaction, wrap the
-    -- pipeline with session-scoped set_config/reset statements.  These are
-    -- part of the same pipeline batch so they add no extra round trips.
-    -- In pipeline mode the server processes statements sequentially, so the
-    -- set_config takes effect before the user queries execute.
     let effectivePipeline = case (?modelContext.transactionRunner, ?modelContext.rowLevelSecurity) of
-            (Nothing, Just RowLevelSecurityContext { rlsAuthenticatedRole, rlsUserId }) ->
-                (\_ a _ -> a)
-                    <$> Pipeline.statement (rlsAuthenticatedRole, rlsUserId) setRLSConfigPipelineStatement
-                    <*> thePipeline
-                    <*> Pipeline.statement () resetRLSConfigPipelineStatement
+            (Nothing, Just rlsContext) -> RLS.withRLSPipeline rlsContext thePipeline
             _ -> thePipeline
     let session = HasqlSession.pipeline effectivePipeline
     let ?context = ?modelContext
@@ -149,26 +136,3 @@ pipeline thePipeline = do
             Nothing -> usePoolWithRetry pool session
     logQueryTiming currentLogLevel "🔍 Pipeline" runQuery
 {-# INLINABLE pipeline #-}
-
--- | Session-scoped RLS config for pipeline mode.
---
--- Uses @is_local = false@ (session-scoped) instead of @true@ (transaction-local)
--- because pipeline mode runs each statement in its own implicit transaction.
--- The companion 'resetRLSConfigPipelineStatement' resets these at the end of
--- the pipeline batch.
-setRLSConfigPipelineStatement :: HasqlStatement.Statement (Text, Text) ()
-setRLSConfigPipelineStatement = HasqlStatement.preparable
-    "SELECT set_config('role', $1, false), set_config('rls.ihp_user_id', $2, false)"
-    (contramap fst (Encoders.param (Encoders.nonNullable Encoders.text))
-     <> contramap snd (Encoders.param (Encoders.nonNullable Encoders.text)))
-    (Decoders.singleRow (Decoders.column (Decoders.nullable Decoders.text) *> Decoders.column (Decoders.nullable Decoders.text) *> pure ()))
-
--- | Reset role and RLS user to connection defaults after the pipeline completes.
---
--- Uses @session_user@ to restore the original connection role, matching
--- the behavior of @RESET ROLE@.
-resetRLSConfigPipelineStatement :: HasqlStatement.Statement () ()
-resetRLSConfigPipelineStatement = HasqlStatement.preparable
-    "SELECT set_config('role', session_user::text, false), set_config('rls.ihp_user_id', '', false)"
-    conquer
-    (Decoders.singleRow (Decoders.column (Decoders.nullable Decoders.text) *> Decoders.column (Decoders.nullable Decoders.text) *> pure ()))

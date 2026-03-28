@@ -71,6 +71,7 @@ let
             wai-request-params = hackageOrLocal "wai-request-params";
             ihp-imagemagick = hackageOrLocal "ihp-imagemagick";
             ihp-hspec = hackageOrLocal "ihp-hspec";
+            ihp-rowlevelsecurity = hackageOrLocal "ihp-rowlevelsecurity";
             ihp-welcome = hackageOrLocal "ihp-welcome";
 
             # Forks of wai-session / wai-session-clientsession with deferred

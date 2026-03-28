@@ -54,6 +54,7 @@ common shared-properties
             , ihp
             , ihp-log
             , ihp-hsx
+            , ihp-rowlevelsecurity
             , deepseq
             , safe-exceptions
             , http-types
