@@ -26,7 +26,7 @@ import qualified Control.Exception as Exception
 import Data.Text (Text)
 import Wai.Request.Params.Middleware (Respond)
 import Network.HTTP.Types (status500, status400)
-import Network.Wai (Request, Application, Middleware, Response, ResponseReceived, responseBuilder, queryString, vault)
+import Network.Wai (Request, Middleware, Response, ResponseReceived, responseBuilder, queryString, vault)
 import Network.HTTP.Types.Header
 
 import qualified Text.Blaze.Html5            as H
