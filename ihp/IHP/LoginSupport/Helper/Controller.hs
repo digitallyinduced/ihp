@@ -37,8 +37,6 @@ import IHP.AuthSupport.Authentication
 import IHP.Controller.Context
 import qualified IHP.FrameworkConfig as FrameworkConfig
 import Data.Typeable
-import Network.Wai.Middleware.EarlyReturn (earlyReturn)
-import IHP.Controller.Response (respondWith)
 
 currentRoleOrNothing :: forall user. (?context :: ControllerContext, HasNewSessionUrl user, Typeable user) => Maybe user
 currentRoleOrNothing = case unsafePerformIO (maybeFromContext @(Maybe user)) of
