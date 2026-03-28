@@ -92,7 +92,7 @@ renderHtmlOrJson !view = do
             let send406Error = respondWith $ responseLBS status406 [] "Could not find any acceptable response format"
             let formats =
                     [ ("text/html", renderHtmlView currentRequest view)
-                    , ("application/json", renderJson (ViewSupport.jsonView view))
+                    , ("application/json", renderJson (ViewSupport.json view))
                     ]
             fromMaybe send406Error (Accept.mapAcceptMedia formats accept)
 
