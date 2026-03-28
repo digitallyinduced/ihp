@@ -58,7 +58,11 @@ let
             ihp-migrate = (localPackage "ihp-migrate").overrideAttrs (old: { mainProgram = "migrate"; });
             ihp-openai = localPackage "ihp-openai";
             ihp-ssc = hackageOrLocal "ihp-ssc";
-            ihp-zip = fastBuild (super.callCabal2nix "ihp-zip" (final.fetchFromGitHub { owner = "digitallyinduced"; repo = "ihp-zip"; rev = "1c0d812d12d21269f83d6480a6ec7a8cdd054485"; sha256 = "0y0dj8ggi1jqzy74i0d6k9my8kdvfi516zfgnsl7znicwq9laald"; }) {});
+            ihp-zip = fastBuild ((super.callCabal2nix "ihp-zip" (final.fetchFromGitHub { owner = "digitallyinduced"; repo = "ihp-zip"; rev = "1c0d812d12d21269f83d6480a6ec7a8cdd054485"; sha256 = "0y0dj8ggi1jqzy74i0d6k9my8kdvfi516zfgnsl7znicwq9laald"; }) {}).overrideAttrs (old: {
+              postPatch = (old.postPatch or "") + ''
+                sed -i 's/(?context :: ControllerContext)/(?context :: ControllerContext, ?request :: Request, ?respond :: Respond)/' IHP/Zip/ControllerFunctions.hs
+              '';
+            }));
             ihp-hsx = localPackage "ihp-hsx";
             ihp-graphql = hackageOrLocal "ihp-graphql";
             ihp-datasync-typescript = hackageOrLocal "ihp-datasync-typescript";
