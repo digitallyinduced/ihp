@@ -1,5 +1,14 @@
 # IHP Changelog
 
+## Unreleased
+
+### Breaking Changes
+
+- Controller `action` now returns `IO ResponseReceived` instead of `IO ()` — response functions like `render`, `redirectTo`, `renderJson` return the WAI `ResponseReceived` directly instead of throwing exceptions. Use `earlyReturn` for conditional early exits (e.g. `when condition (earlyReturn $ redirectTo ...)`) ([#2205](https://github.com/digitallyinduced/ihp/pull/2205))
+- `ResponseException` removed — code that catches `ResponseException` will get a compiler error; use `earlyReturn`/`respondAndExit` instead
+- `respondAndExit` now requires `?request` and `?respond` implicit parameters (previously only needed `?context`)
+- `handleNoResponseReturned` and `handleRouterException` removed from `IHP.ErrorController` — error handling is now done via `errorHandlerMiddleware`
+
 ## v1.5.0 (2026-03-25)
 
 1,051 commits since v1.4.0. 607 files changed, 46,204 insertions, 27,040 deletions.
