@@ -7,7 +7,7 @@ module IHP.Modal.ControllerFunctions (setModal) where
 
 import Prelude
 import Data.IORef (writeIORef)
-import IHP.HSX.Markup (Html)
+import IHP.HSX.Markup (Markup)
 import Network.Wai (Request)
 import IHP.Modal.Types
 
@@ -17,5 +17,5 @@ import IHP.Modal.Types
 --
 -- > setModal (html MyModalView { .. })
 --
-setModal :: (?request :: Request) => Html -> IO ()
+setModal :: (?request :: Request) => Markup -> IO ()
 setModal modalHtml = writeIORef (lookupModalVault modalContainerVaultKey ?request) (Just (ModalContainer modalHtml))

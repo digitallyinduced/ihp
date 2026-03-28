@@ -12,7 +12,7 @@ import Data.Maybe (isJust)
 import Control.Monad (unless)
 import IHP.HaskellSupport (forEach)
 import IHP.InputValue (inputValue)
-import IHP.HSX.Markup (Html)
+import IHP.HSX.Markup (Markup)
 import IHP.HSX.MarkupQQ (hsx)
 import IHP.View.Types
 import IHP.View.Classes
@@ -49,7 +49,7 @@ tailwind = unstyled
 
         styledLabelClass = "font-medium text-gray-700"
 
-        styledCheckboxFormField :: CSSFramework -> FormField -> Html -> Html
+        styledCheckboxFormField :: CSSFramework -> FormField -> Markup -> Markup
         styledCheckboxFormField cssFramework@CSSFramework {styledInputInvalidClass, styledFormFieldHelp} formField@FormField {fieldType, fieldName, fieldLabel, fieldValue, fieldInputId, validatorResult, fieldClass, disabled, disableLabel, disableValidationResult, additionalAttributes, labelClass, required, autofocus } validationResult = do
             [hsx|<div class="form-check">{element}</div>|]
             where
@@ -101,7 +101,7 @@ tailwind = unstyled
                             </div>
                         |]
 
-        styledRadioFormField :: CSSFramework -> FormField -> Html -> Html
+        styledRadioFormField :: CSSFramework -> FormField -> Markup -> Markup
         styledRadioFormField cssFramework@CSSFramework {styledInputClass, styledInputInvalidClass, styledFormFieldHelp} formField@FormField {fieldType, fieldName, placeholder, fieldLabel, fieldValue, fieldInputId, validatorResult, fieldClass, disabled, disableLabel, disableValidationResult, additionalAttributes, labelClass, required, autofocus } validationResult =
             [hsx|
                 {label}
@@ -158,7 +158,7 @@ tailwind = unstyled
 
         styledValidationResultClass = "text-red-500 text-xs italic"
 
-        styledPagination :: CSSFramework -> PaginationView -> Html
+        styledPagination :: CSSFramework -> PaginationView -> Markup
         styledPagination _ paginationView@PaginationView {pageUrl, pagination} =
             let
                 currentPage = pagination.currentPage
@@ -216,7 +216,7 @@ tailwind = unstyled
                 </div>
             |]
 
-        styledPaginationLinkPrevious :: CSSFramework -> Pagination -> ByteString -> Html
+        styledPaginationLinkPrevious :: CSSFramework -> Pagination -> ByteString -> Markup
         styledPaginationLinkPrevious _ pagination@Pagination {currentPage} pageUrl =
             let
                 prevClass = classes
@@ -237,7 +237,7 @@ tailwind = unstyled
                     </a>
                 |]
 
-        styledPaginationLinkNext :: CSSFramework -> Pagination -> ByteString -> Html
+        styledPaginationLinkNext :: CSSFramework -> Pagination -> ByteString -> Markup
         styledPaginationLinkNext _ pagination@Pagination {currentPage} pageUrl =
             let
                 nextClass = classes
@@ -258,7 +258,7 @@ tailwind = unstyled
 
                 |]
 
-        styledPaginationPageLink :: CSSFramework -> Pagination -> ByteString -> Int -> Html
+        styledPaginationPageLink :: CSSFramework -> Pagination -> ByteString -> Int -> Markup
         styledPaginationPageLink _ pagination@Pagination {currentPage} pageUrl pageNumber =
             let
                 linkClass = classes
@@ -276,7 +276,7 @@ tailwind = unstyled
                 |]
 
 
-        styledPaginationDotDot :: CSSFramework -> Pagination -> Html
+        styledPaginationDotDot :: CSSFramework -> Pagination -> Markup
         styledPaginationDotDot _ _ =
             [hsx|
                 <span class="relative inline-flex items-center px-4 py-2 border border-gray-300 bg-white text-sm font-medium text-gray-700">
@@ -285,16 +285,16 @@ tailwind = unstyled
         |]
 
 
-        styledPaginationItemsPerPageSelector :: CSSFramework -> Pagination -> (Int -> ByteString) -> Html
+        styledPaginationItemsPerPageSelector :: CSSFramework -> Pagination -> (Int -> ByteString) -> Markup
         styledPaginationItemsPerPageSelector _ pagination@Pagination {pageSize} itemsPerPageUrl =
             let
-                oneOption :: Int -> Html
+                oneOption :: Int -> Markup
                 oneOption n = [hsx|<option value={show n} selected={n == pageSize} data-url={itemsPerPageUrl n}>{n} items per page</option>|]
             in
                 [hsx|{forEach [10,20,50,100,200] oneOption}|]
 
 
-        styledBreadcrumb :: CSSFramework -> [BreadcrumbItem]-> BreadcrumbsView -> Html
+        styledBreadcrumb :: CSSFramework -> [BreadcrumbItem]-> BreadcrumbsView -> Markup
         styledBreadcrumb _ _ breadcrumbsView = [hsx|
             <nav class="breadcrumbs bg-white my-4" aria-label="Breadcrumb">
                 <ol class="flex items-center space-x-2" role="list">
@@ -304,7 +304,7 @@ tailwind = unstyled
         |]
 
 
-        styledBreadcrumbItem :: CSSFramework -> [ BreadcrumbItem ]-> BreadcrumbItem -> Bool -> Html
+        styledBreadcrumbItem :: CSSFramework -> [ BreadcrumbItem ]-> BreadcrumbItem -> Bool -> Markup
         styledBreadcrumbItem _ breadcrumbItems breadcrumbItem@BreadcrumbItem {breadcrumbLabel, url} isLast =
             let
                 breadcrumbsClasses = classes ["flex flex-row space-x-2 text-gray-600 items-center", ("active", isLast)]

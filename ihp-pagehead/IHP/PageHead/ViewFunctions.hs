@@ -25,7 +25,7 @@ import Network.Wai (Request)
 import IHP.PageHead.Types
 import IHP.PageHead.ControllerFunctions
 import IHP.HSX.MarkupQQ (hsx)
-import IHP.HSX.Markup (Html)
+import IHP.HSX.Markup (Markup)
 
 -- | Returns the current page title. The title can be set using @setTitle "my title"@ from the action.
 --
@@ -106,7 +106,7 @@ pageTitleOrNothing = case (unsafePerformIO (readIORef (lookupPageHeadVault pageH
 -- >         setOGTitle "Custom title"
 -- >
 -- >     html ShowView { .. } = [hsx|..|]
-ogTitleOrDefault :: (?request :: Request) => Text -> Html
+ogTitleOrDefault :: (?request :: Request) => Text -> Markup
 ogTitleOrDefault defaultValue = [hsx|<meta property="og:title" content={content}/>|]
     where
         content = case (unsafePerformIO (readIORef (lookupPageHeadVault pageHeadVaultKey ?request))).ogTitle of
@@ -136,7 +136,7 @@ ogTitleOrDefault defaultValue = [hsx|<meta property="og:title" content={content}
 -- >         setDescription "The CO2 Footprint of beef is about 67kg CO2 per 1kg of beef."
 -- >
 -- >     html ShowView { .. } = [hsx|..|]
-descriptionOrDefault :: (?request :: Request) => Text -> Html
+descriptionOrDefault :: (?request :: Request) => Text -> Markup
 descriptionOrDefault defaultValue = [hsx|<meta name="description" content={content}/>|]
     where
         content = case (unsafePerformIO (readIORef (lookupPageHeadVault pageHeadVaultKey ?request))).description of
@@ -166,7 +166,7 @@ descriptionOrDefault defaultValue = [hsx|<meta name="description" content={conte
 -- >         setOGType "mytype"
 -- >
 -- >     html ShowView { .. } = [hsx|..|]
-ogTypeOrDefault :: (?request :: Request) => Text -> Html
+ogTypeOrDefault :: (?request :: Request) => Text -> Markup
 ogTypeOrDefault defaultValue = [hsx|<meta property="og:type" content={content}/>|]
     where
         content = case (unsafePerformIO (readIORef (lookupPageHeadVault pageHeadVaultKey ?request))).ogType of
@@ -196,7 +196,7 @@ ogTypeOrDefault defaultValue = [hsx|<meta property="og:type" content={content}/>
 -- >         setOGDescription "The CO2 Footprint of beef is about 67kg CO2 per 1kg of beef."
 -- >
 -- >     html ShowView { .. } = [hsx|..|]
-ogDescriptionOrDefault :: (?request :: Request) => Text -> Html
+ogDescriptionOrDefault :: (?request :: Request) => Text -> Markup
 ogDescriptionOrDefault defaultValue = [hsx|<meta property="og:description" content={content}/>|]
     where
         content = case (unsafePerformIO (readIORef (lookupPageHeadVault pageHeadVaultKey ?request))).ogDescription of
@@ -228,7 +228,7 @@ ogDescriptionOrDefault defaultValue = [hsx|<meta property="og:description" conte
 -- >         setOGUrl (urlTo ShowAction { .. })
 -- >
 -- >     html ShowView { .. } = [hsx|..|]
-ogUrl :: (?request :: Request) => Html
+ogUrl :: (?request :: Request) => Markup
 ogUrl = case (unsafePerformIO (readIORef (lookupPageHeadVault pageHeadVaultKey ?request))).ogUrl of
     Just (OGUrl url) -> [hsx|<meta property="og:url" content={url}/>|]
     Nothing -> mempty
@@ -258,7 +258,7 @@ ogUrl = case (unsafePerformIO (readIORef (lookupPageHeadVault pageHeadVaultKey ?
 -- >         setOGImage "https://example.com/image.png"
 -- >
 -- >     html ShowView { .. } = [hsx|..|]
-ogImage :: (?request :: Request) => Html
+ogImage :: (?request :: Request) => Markup
 ogImage = case (unsafePerformIO (readIORef (lookupPageHeadVault pageHeadVaultKey ?request))).ogImage of
     Just (OGImage url) -> [hsx|<meta property="og:image" content={url}/>|]
     Nothing -> mempty

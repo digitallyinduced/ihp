@@ -16,7 +16,7 @@ Copyright: (c) digitally induced GmbH, 2020
 module IHP.View.Form.Fields where
 
 import           IHP.HSX.ConvertibleStrings ()
-import           IHP.HSX.Markup (Html, ToHtml(..))
+import           IHP.HSX.Markup (Markup, ToHtml(..))
 import           IHP.ModelSupport (InputValue, getModelName, inputValue)
 import           IHP.Prelude
 import           IHP.ValidationSupport
@@ -481,7 +481,7 @@ checkboxField field = FormField
 
 instance ToHtml FormField where
     {-# INLINE toHtml #-}
-    toHtml ::  FormField -> Html
+    toHtml ::  FormField -> Markup
     toHtml formField@(FormField { cssFramework }) = styledFormField cssFramework cssFramework formField
 
 instance ToHtml SubmitButton where

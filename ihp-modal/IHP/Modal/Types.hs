@@ -14,20 +14,20 @@ import Data.IORef (IORef)
 import Data.Text (Text)
 import Data.Typeable (Typeable, typeRep)
 import Data.Proxy (Proxy(..))
-import IHP.HSX.Markup (Html)
+import IHP.HSX.Markup (Markup)
 import qualified Data.Vault.Lazy as Vault
 import Network.Wai
 import System.IO.Unsafe (unsafePerformIO)
 
 data Modal = Modal
-    { modalContent :: Html
-    , modalFooter :: Maybe Html
+    { modalContent :: Markup
+    , modalFooter :: Maybe Markup
     , modalCloseUrl :: Text
     , modalTitle :: Text
     }
 
 -- | Stores the current modal inside the request vault
-newtype ModalContainer = ModalContainer Html
+newtype ModalContainer = ModalContainer Markup
 
 modalContainerVaultKey :: Vault.Key (IORef (Maybe ModalContainer))
 modalContainerVaultKey = unsafePerformIO Vault.newKey

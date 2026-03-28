@@ -22,7 +22,7 @@ import Prelude
 import Data.Text (Text)
 import Data.ByteString (ByteString)
 import IHP.HaskellSupport (SetField(..))
-import IHP.HSX.Markup (Html)
+import IHP.HSX.Markup (Markup)
 import Network.Wai.Middleware.FlashMessages (FlashMessage (..))
 import IHP.ModelSupport.Types (Violation)
 import IHP.Breadcrumb.Types
@@ -30,7 +30,7 @@ import IHP.Pagination.Types
 import Network.Wai (Request)
 
 
-type HtmlWithContext context = (?context :: context, ?request :: Request) => Html
+type HtmlWithContext context = (?context :: context, ?request :: Request) => Markup
 
 -- | A layout is just a function taking a view and returning a new view.
 --
@@ -44,7 +44,7 @@ type HtmlWithContext context = (?context :: context, ?request :: Request) => Htm
 -- >         </body>
 -- >     </html>
 -- > |]
-type Layout = Html -> Html
+type Layout = Markup -> Markup
 
 data FormField = FormField
     { fieldType :: !InputType
@@ -68,7 +68,7 @@ data FormField = FormField
     }
 
 data SubmitButton = SubmitButton
-    { label :: Html
+    { label :: Markup
     , buttonClass :: Text
     , buttonDisabled :: Bool
     , cssFramework :: CSSFramework
@@ -111,7 +111,7 @@ data InputType
     | FileInput
 
 
-data BreadcrumbsView = BreadcrumbsView { breadcrumbItems :: !Html }
+data BreadcrumbsView = BreadcrumbsView { breadcrumbItems :: !Markup }
 
 data PaginationView =
     PaginationView
@@ -120,13 +120,13 @@ data PaginationView =
     -- Function used to get the page URL.
     , pageUrl :: Int -> ByteString
     -- Previous page link.
-    , linkPrevious :: !Html
+    , linkPrevious :: !Markup
     -- Next page link.
-    , linkNext :: !Html
+    , linkNext :: !Markup
     -- The page and dot dot as rendered by `styledPaginationPageLink` and `styledPaginationDotDot`.
-    , pageDotDotItems :: !Html
+    , pageDotDotItems :: !Markup
     -- Selector changing the number of allowed items per page.
-    , itemsPerPageSelector :: !Html
+    , itemsPerPageSelector :: !Markup
     }
 
 -- | Render functions to render with Bootstrap, Tailwind CSS etc.
@@ -181,22 +181,22 @@ data PaginationView =
 -- >
 -- > myPage = [hsx|{styledPagination customCSS customCSS}|]
 data CSSFramework = CSSFramework
-    { styledFlashMessage :: CSSFramework -> FlashMessage -> Html
-    , styledFlashMessages :: CSSFramework -> [FlashMessage] -> Html
+    { styledFlashMessage :: CSSFramework -> FlashMessage -> Markup
+    , styledFlashMessages :: CSSFramework -> [FlashMessage] -> Markup
     -- | Renders the full form field calling other functions below
-    , styledFormField :: CSSFramework -> FormField -> Html
-    , styledTextFormField :: CSSFramework -> Text -> FormField -> Html -> Html
-    , styledTextareaFormField :: CSSFramework -> FormField -> Html -> Html
-    , styledCheckboxFormField :: CSSFramework -> FormField -> Html -> Html
-    , styledSelectFormField :: CSSFramework -> FormField -> Html -> Html
-    , styledRadioFormField :: CSSFramework -> FormField -> Html -> Html
-    , styledFormGroup :: CSSFramework -> Text -> Html -> Html
+    , styledFormField :: CSSFramework -> FormField -> Markup
+    , styledTextFormField :: CSSFramework -> Text -> FormField -> Markup -> Markup
+    , styledTextareaFormField :: CSSFramework -> FormField -> Markup -> Markup
+    , styledCheckboxFormField :: CSSFramework -> FormField -> Markup -> Markup
+    , styledSelectFormField :: CSSFramework -> FormField -> Markup -> Markup
+    , styledRadioFormField :: CSSFramework -> FormField -> Markup -> Markup
+    , styledFormGroup :: CSSFramework -> Text -> Markup -> Markup
     -- | The primary form submit button
-    , styledSubmitButton :: CSSFramework -> SubmitButton -> Html
+    , styledSubmitButton :: CSSFramework -> SubmitButton -> Markup
     -- | Class for the primary form submit button
     , styledSubmitButtonClass :: Text
     -- | Renders the help text below an input field. Used with @[hsx|{(textField #firstname) { helpText = "Your first name" } }|]@
-    , styledFormFieldHelp :: CSSFramework -> FormField -> Html
+    , styledFormFieldHelp :: CSSFramework -> FormField -> Markup
     -- | First class attached to @<input/>@ elements, e.g. @<input class="form-control"/>@
     , styledInputClass :: CSSFramework -> FormField -> Text
     -- | When the form validation failed, invalid inputs will have this class
@@ -206,26 +206,26 @@ data CSSFramework = CSSFramework
     -- | Class applied to @<label>@ elements in form fields, e.g. @"form-label"@
     , styledLabelClass :: Text
     -- | Elements that containers the validation error message for a invalid form field
-    , styledValidationResult :: CSSFramework -> FormField -> Html
+    , styledValidationResult :: CSSFramework -> FormField -> Markup
     -- | Class name for container of validation error message
     , styledValidationResultClass :: Text
     -- | Renders a the entire pager, with all its elements.
-    , styledPagination :: CSSFramework -> PaginationView -> Html
+    , styledPagination :: CSSFramework -> PaginationView -> Markup
     -- | The pagination's previous link
-    , styledPaginationLinkPrevious :: CSSFramework -> Pagination -> ByteString -> Html
+    , styledPaginationLinkPrevious :: CSSFramework -> Pagination -> ByteString -> Markup
     -- | The pagination's next link
-    , styledPaginationLinkNext :: CSSFramework -> Pagination -> ByteString -> Html
+    , styledPaginationLinkNext :: CSSFramework -> Pagination -> ByteString -> Markup
     -- | Render the pagination links
-    , styledPaginationPageLink :: CSSFramework -> Pagination -> ByteString -> Int -> Html
+    , styledPaginationPageLink :: CSSFramework -> Pagination -> ByteString -> Int -> Markup
     -- | Render the dots between pagination numbers (e.g. 5 6 ... 7 8)
-    , styledPaginationDotDot :: CSSFramework -> Pagination -> Html
+    , styledPaginationDotDot :: CSSFramework -> Pagination -> Markup
     -- | Render the items per page selector for pagination.
     -- Note the (Int -> ByteString), we are passing the pageUrl function, so anyone that would like to override
     -- it the selector with different items per page could still use the pageUrl function to get the correct URL.
-    , styledPaginationItemsPerPageSelector :: CSSFramework -> Pagination -> (Int -> ByteString) -> Html
+    , styledPaginationItemsPerPageSelector :: CSSFramework -> Pagination -> (Int -> ByteString) -> Markup
     -- | Renders an entire breadcrumbs element.
-    , styledBreadcrumb :: CSSFramework -> [BreadcrumbItem] -> BreadcrumbsView -> Html
+    , styledBreadcrumb :: CSSFramework -> [BreadcrumbItem] -> BreadcrumbsView -> Markup
     -- | Render a single breadcrumb item. We pass the entire list of breadcrumbs, in case an item may change based on that list.
     -- The 'Bool' indicates if item is the last one.
-    , styledBreadcrumbItem :: CSSFramework -> [BreadcrumbItem]-> BreadcrumbItem -> Bool -> Html
+    , styledBreadcrumbItem :: CSSFramework -> [BreadcrumbItem]-> BreadcrumbItem -> Bool -> Markup
     }
