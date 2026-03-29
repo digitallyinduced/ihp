@@ -37,6 +37,7 @@ import IHP.QueryBuilder
 import IHP.Hasql.FromRow (FromRowHasql(..))
 import IHP.Fetch.Statement (buildQueryListStatement, buildQueryVectorStatement, buildQueryMaybeStatement, buildCountStatement, buildExistsStatement)
 import Data.Vector (Vector)
+import IHP.Fetch (AssertNotLabeled)
 import qualified Hasql.Decoders as Decoders
 import qualified Hasql.Encoders as Encoders
 import qualified Hasql.Pipeline as Pipeline
@@ -74,7 +75,8 @@ fetchPipelined !queryBuilder = Pipeline.statement () (buildQueryListStatement qu
 -- >     posts <- query @Post |> fetchVectorPipelined
 -- >     pure (users, posts)
 fetchVectorPipelined :: forall model table queryBuilderProvider joinRegister.
-    ( Table model
+    ( AssertNotLabeled queryBuilderProvider
+    , Table model
     , HasQueryBuilder queryBuilderProvider joinRegister
     , model ~ GetModelByTableName table
     , KnownSymbol table
