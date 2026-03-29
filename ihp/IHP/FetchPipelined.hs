@@ -23,6 +23,7 @@ in the same pipeline batch.
 -}
 module IHP.FetchPipelined
 ( fetchPipelined
+, fetchVectorPipelined
 , fetchOneOrNothingPipelined
 , fetchCountPipelined
 , fetchExistsPipelined
@@ -34,7 +35,8 @@ import IHP.Prelude
 import IHP.ModelSupport
 import IHP.QueryBuilder
 import IHP.Hasql.FromRow (FromRowHasql(..))
-import IHP.Fetch.Statement (buildQueryListStatement, buildQueryMaybeStatement, buildCountStatement, buildExistsStatement)
+import IHP.Fetch.Statement (buildQueryListStatement, buildQueryVectorStatement, buildQueryMaybeStatement, buildCountStatement, buildExistsStatement)
+import IHP.Fetch (AssertNotLabeled)
 import qualified Hasql.Decoders as Decoders
 import qualified Hasql.Encoders as Encoders
 import qualified Hasql.Pipeline as Pipeline
@@ -62,6 +64,25 @@ fetchPipelined :: forall model table queryBuilderProvider joinRegister.
     ) => queryBuilderProvider table -> Pipeline.Pipeline [model]
 fetchPipelined !queryBuilder = Pipeline.statement () (buildQueryListStatement queryBuilder)
 {-# INLINE fetchPipelined #-}
+
+-- | Like 'fetchPipelined', but returns a 'Vector' instead of a list.
+--
+-- __Example:__
+--
+-- > (users, posts) <- pipeline do
+-- >     users <- query @User |> fetchVectorPipelined
+-- >     posts <- query @Post |> fetchVectorPipelined
+-- >     pure (users, posts)
+fetchVectorPipelined :: forall model table queryBuilderProvider joinRegister.
+    ( AssertNotLabeled queryBuilderProvider
+    , Table model
+    , HasQueryBuilder queryBuilderProvider joinRegister
+    , model ~ GetModelByTableName table
+    , KnownSymbol table
+    , FromRowHasql model
+    ) => queryBuilderProvider table -> Pipeline.Pipeline (Vector model)
+fetchVectorPipelined !queryBuilder = Pipeline.statement () (buildQueryVectorStatement queryBuilder)
+{-# INLINE fetchVectorPipelined #-}
 
 -- | Convert a query builder into a 'Pipeline' step returning at most one row.
 --

@@ -21,6 +21,8 @@ module IHP.Fetch
 , genericFetchIdsOne
 , fetchCount
 , fetchExists
+, fetchVector
+, AssertNotLabeled
 , fetchLatest
 , fetchLatestBy
 )
@@ -33,7 +35,9 @@ import IHP.Hasql.FromRow (FromRowHasql(..), HasqlDecodeColumn(..))
 import IHP.QueryBuilder.HasqlCompiler (buildStatement)
 import qualified Hasql.Decoders as Decoders
 import Hasql.Implicits.Encoders (DefaultParamEncoder)
-import IHP.Fetch.Statement (buildQueryListStatement, buildQueryMaybeStatement, buildCountStatement, buildExistsStatement)
+import IHP.Fetch.Statement (buildQueryListStatement, buildQueryVectorStatement, buildQueryMaybeStatement, buildCountStatement, buildExistsStatement)
+import GHC.TypeError (TypeError, ErrorMessage(Text))
+import Data.Kind (Constraint)
 
 class Fetchable fetchable model | fetchable -> model where
     type FetchResult fetchable model
@@ -111,6 +115,30 @@ commonFetchOne !queryBuilder = do
         Just model -> pure model
         Nothing -> throwIO RecordNotFoundException { queryAndParams = toSQL queryBuilder }
 
+
+-- | Rejects 'LabeledQueryBuilderWrapper' at compile time.
+-- 'fetchVector' cannot decode the extra index column added by 'labelResults'.
+type family AssertNotLabeled (qb :: Symbol -> Type) :: Constraint where
+    AssertNotLabeled (LabeledQueryBuilderWrapper _ _ _) = TypeError ('Text "fetchVector cannot be used with labelResults. Use fetch instead.")
+    AssertNotLabeled _ = ()
+
+-- | Like 'fetch', but returns a 'Vector' instead of a list for better performance
+-- with large result sets.
+--
+-- __Example:__ Fetching all users as a Vector
+--
+-- > allUsers <- query @User |> fetchVector
+--
+-- __Example:__ Fetching with filters
+--
+-- > activeUsers <- query @User
+-- >     |> filterWhere (#active, True)
+-- >     |> fetchVector
+fetchVector :: forall model table queryBuilderProvider joinRegister. (AssertNotLabeled queryBuilderProvider, Table model, HasQueryBuilder queryBuilderProvider joinRegister, model ~ GetModelByTableName table, KnownSymbol table, FromRowHasql model, ?modelContext :: ModelContext) => queryBuilderProvider table -> IO (Vector model)
+fetchVector !queryBuilder = do
+    trackTableRead (tableName @model)
+    let pool = ?modelContext.hasqlPool
+    sqlStatementHasql pool () (buildQueryVectorStatement queryBuilder)
 
 -- | Returns the count of records selected by the query builder.
 --

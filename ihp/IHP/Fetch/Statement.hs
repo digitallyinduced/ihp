@@ -9,6 +9,7 @@ Internal module containing hasql 'Statement' definitions shared by
 -}
 module IHP.Fetch.Statement
 ( buildQueryListStatement
+, buildQueryVectorStatement
 , buildQueryMaybeStatement
 , buildCountStatement
 , buildExistsStatement
@@ -24,6 +25,7 @@ import IHP.QueryBuilder.Compiler (buildQuery)
 import IHP.QueryBuilder.HasqlCompiler (buildStatement, buildWrappedStatement)
 import GHC.TypeLits (KnownSymbol)
 import Data.Int (Int64)
+import Data.Vector (Vector)
 
 -- | Build a statement that fetches all rows matching a query builder.
 buildQueryListStatement :: forall model table queryBuilderProvider joinRegister.
@@ -32,6 +34,14 @@ buildQueryListStatement :: forall model table queryBuilderProvider joinRegister.
     ) => queryBuilderProvider table -> Hasql.Statement () [model]
 buildQueryListStatement !queryBuilder =
     buildStatement (buildQuery queryBuilder) (Decoders.rowList (hasqlRowDecoder @model))
+
+-- | Like 'buildQueryListStatement', but returns a 'Vector' instead of a list.
+buildQueryVectorStatement :: forall model table queryBuilderProvider joinRegister.
+    ( Table model, HasQueryBuilder queryBuilderProvider joinRegister
+    , model ~ GetModelByTableName table, KnownSymbol table, FromRowHasql model
+    ) => queryBuilderProvider table -> Hasql.Statement () (Vector model)
+buildQueryVectorStatement !queryBuilder =
+    buildStatement (buildQuery queryBuilder) (Decoders.rowVector (hasqlRowDecoder @model))
 
 -- | Build a statement that fetches at most one row (adds LIMIT 1).
 buildQueryMaybeStatement :: forall model table queryBuilderProvider joinRegister.
