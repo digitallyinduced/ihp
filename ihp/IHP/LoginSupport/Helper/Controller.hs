@@ -25,7 +25,6 @@ import IHP.Prelude
 import IHP.Controller.Redirect
 import IHP.Controller.Session
 import IHP.LoginSupport.Types
-import qualified IHP.Controller.Session as Session
 import IHP.FlashMessages
 import qualified IHP.ModelSupport as ModelSupport
 import IHP.ControllerSupport
@@ -33,7 +32,6 @@ import IHP.RequestVault.Helper (lookupRequestVault)
 import System.IO.Unsafe (unsafePerformIO)
 import IHP.AuthSupport.Authentication
 import qualified IHP.FrameworkConfig as FrameworkConfig
-import IHP.LoginSupport.Types (currentUserVaultKey, currentAdminVaultKey, currentUserIdVaultKey, currentAdminIdVaultKey, lookupAuthVault)
 import qualified Data.UUID as UUID
 
 -- | Returns the current user or 'Nothing' if not logged in.

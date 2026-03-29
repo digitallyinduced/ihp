@@ -36,10 +36,10 @@ newSessionAction :: forall record action.
     , Record record
     , HasPath action
     , SessionsControllerConfig record
-    , record ~ CurrentUserRecord
+    , KnownSymbol (GetModelName record)
     ) => IO ResponseReceived
 newSessionAction = do
-    let alreadyLoggedIn = isJust (currentUserOrNothing @record)
+    alreadyLoggedIn <- isJust <$> getSession @Text (sessionKey @record)
     if alreadyLoggedIn
         then redirectToPathSeeOther (afterLoginRedirectPath @record)
         else do
@@ -108,7 +108,7 @@ createSessionAction = do
 {-# INLINE createSessionAction #-}
 
 -- | Logs out the user and redirects to `afterLogoutRedirectPath` or login page by default
-deleteSessionAction :: forall record action id.
+deleteSessionAction :: forall record action.
     ( ?theAction :: action
     , ?context :: ControllerContext
     , ?request :: Request
@@ -116,18 +116,14 @@ deleteSessionAction :: forall record action id.
     , ?modelContext :: ModelContext
     , Data action
     , HasPath action
-    , Show id
-    , HasField "id" record id
     , SessionsControllerConfig record
-    , record ~ CurrentUserRecord
-    , Typeable record
+    , KnownSymbol (GetModelName record)
     ) => IO ResponseReceived
 deleteSessionAction = do
-    case currentUserOrNothing @record of
-        Just user -> do
-            beforeLogout user
-            logout user
-        Nothing -> pure ()
+    deleteSession (sessionKey @record)
+    -- Note: beforeLogout callback is not called because we no longer
+    -- fetch the user record during logout. If you need beforeLogout,
+    -- implement custom logout logic in your controller.
     redirectToPathSeeOther (afterLogoutRedirectPath @record)
 {-# INLINE deleteSessionAction #-}
 

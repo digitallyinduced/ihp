@@ -12,7 +12,6 @@ module IHP.LoginSupport.Types
 ) where
 
 import IHP.Prelude
-import Data.UUID (UUID)
 import qualified Data.Vault.Lazy as Vault
 import qualified Network.Wai as Wai
 import System.IO.Unsafe (unsafePerformIO)

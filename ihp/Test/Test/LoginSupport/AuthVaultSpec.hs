@@ -12,10 +12,10 @@ import qualified Data.UUID as UUID
 import qualified Network.Wai as Wai
 import Network.Wai.Test (defaultRequest, runSession, request)
 import Network.HTTP.Types.Status (status200)
-import IHP.LoginSupport.Types (CurrentUserRecord, CurrentAdminRecord, currentUserVaultKey, currentAdminVaultKey, currentUserIdVaultKey, currentAdminIdVaultKey)
+import IHP.LoginSupport.Types (CurrentUserRecord, CurrentAdminRecord, currentUserVaultKey, currentAdminVaultKey)
 import IHP.LoginSupport.Middleware (authMiddlewareWith, userIdMiddleware, adminIdMiddleware, parseSessionUUID)
 import IHP.Controller.Session (sessionVaultKey)
-import IHP.ModelSupport.Types (GetTableName, PrimaryKey, Id' (Id))
+import IHP.ModelSupport.Types (PrimaryKey, Id' (Id))
 import qualified IHP.LoginSupport.Helper.Controller as Controller
 import qualified IHP.LoginSupport.Helper.View as View
 import qualified Data.Vault.Lazy as Vault

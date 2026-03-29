@@ -16,7 +16,7 @@ import IHP.DataSync.RowLevelSecurity (makeCachedEnsureRLSEnabled)
 import qualified IHP.DataSync.ChangeNotifications as ChangeNotifications
 import IHP.RequestVault (pgListenerVaultKey, frameworkConfigVaultKey)
 import IHP.Controller.Context (newControllerContext, putContext, freeze)
-import IHP.LoginSupport.Types (HasNewSessionUrl(..), CurrentUserRecord)
+import IHP.LoginSupport.Types (HasNewSessionUrl(..), CurrentUserRecord, currentUserVaultKey)
 import qualified IHP.ModelSupport as ModelSupport
 import IHP.ModelSupport.Types (Id'(..), PrimaryKey)
 import qualified IHP.PGListener as PGListener
@@ -149,9 +149,11 @@ withDataSyncController connStr testUserId action = do
                 frameworkConfig <- buildFrameworkConfig (pure ())
                 let frameworkConfig' = frameworkConfig { databaseUrl = actualConnStr }
 
+                let testUser = Just (TestUser { id = Id testUserId }) :: Maybe TestUser
                 let v = Vault.empty
                         |> Vault.insert pgListenerVaultKey pgListener
                         |> Vault.insert frameworkConfigVaultKey frameworkConfig'
+                        |> Vault.insert currentUserVaultKey testUser
                 let request = defaultRequest { vault = v }
 
                 -- Set up ControllerContext with the request and current user
@@ -159,8 +161,8 @@ withDataSyncController connStr testUserId action = do
                 context <- newControllerContext
                 let ?context = context
 
-                -- Put the current user into context so currentUserOrNothing can find it
-                putContext (Just (TestUser { id = Id testUserId }) :: Maybe TestUser)
+                -- Put the current user into context for backward compatibility
+                putContext testUser
 
                 -- Freeze the context so it can be accessed from pure code
                 frozenContext <- freeze ?context
