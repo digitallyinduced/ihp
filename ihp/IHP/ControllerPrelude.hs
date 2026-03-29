@@ -85,7 +85,7 @@ import IHP.FileStorage.ControllerFunctions
 import IHP.FileStorage.Preprocessor.ImageMagick
 
 import IHP.Pagination.ControllerFunctions
-import IHP.HSX.MarkupQQ (hsx)
+import IHP.HSX.MarkupQQ (hsx, uncheckedHsx, customHsx)
 
 -- | Renders a view and stores it as modal HTML in the context for later rendering.
 --
