@@ -21,11 +21,8 @@ data-files:
     , static/*.js
     , static/*.svg
     
-    , static/vendor/*.min.css
-    , static/vendor/*.min.js
+    , static/vendor/*.css
     , static/vendor/*.js
-
-    , static/vendor/popper-2.11.6.min.js
 
     , static/vendor/src-min/*.js
     , static/vendor/src-min/snippets/*.js
