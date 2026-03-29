@@ -13,6 +13,7 @@ module IHP.HSX.Markup
 , renderMarkup
 , renderMarkupBS
 , renderMarkupText
+, renderMarkupLazyText
 , rawByteString
 , escapeHtml
 , textComment
@@ -31,6 +32,8 @@ import qualified Data.Text as Text
 import qualified Data.Text.Encoding as TE
 import Data.ByteString (ByteString)
 import qualified Data.ByteString.Lazy as LBS
+import qualified Data.Text.Lazy as LT
+import qualified Data.Text.Lazy.Encoding as LTE
 import Data.ByteString.Builder (Builder)
 import qualified Data.ByteString.Builder as Builder
 import qualified Data.ByteString.Builder.Extra as Extra
@@ -104,10 +107,15 @@ renderMarkupBS (Markup b) = LBS.toStrict
     $ Extra.toLazyByteStringWith (Extra.untrimmedStrategy 32768 32768) LBS.empty b
 {-# INLINE renderMarkupBS #-}
 
--- | Render markup to a lazy Text. Useful in tests and for mail rendering.
+-- | Render markup to a strict Text.
 renderMarkupText :: Markup -> Text
 renderMarkupText = TE.decodeUtf8 . renderMarkupBS
 {-# INLINE renderMarkupText #-}
+
+-- | Render markup to a lazy Text.
+renderMarkupLazyText :: Markup -> LT.Text
+renderMarkupLazyText = LTE.decodeUtf8 . renderMarkup
+{-# INLINE renderMarkupLazyText #-}
 
 -- | Emit pre-encoded bytes. Used for compile-time static HTML.
 rawByteString :: ByteString -> Markup
