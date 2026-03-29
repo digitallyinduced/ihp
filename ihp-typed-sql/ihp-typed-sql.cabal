@@ -51,6 +51,7 @@ library
         IHP.TypedSql.Metadata
         IHP.TypedSql.TypeMapping
         IHP.TypedSql.Decoders
+        IHP.TypedSql.RowType
     build-depends:
             base >= 4.17.0 && < 4.22
             , ihp

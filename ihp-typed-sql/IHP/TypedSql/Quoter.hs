@@ -25,7 +25,8 @@ import           IHP.TypedSql.ParamHints        (extractParamHintsFromAst, extra
                                                  parseSql, resolveParamHintTypes)
 import           IHP.TypedSql.Placeholders      (PlaceholderPlan (..), parseExpr,
                                                  planPlaceholders)
-import           IHP.TypedSql.TypeMapping       (hsTypeForColumns, hsTypeForParam)
+import           IHP.TypedSql.RowType           (SqlRow (..), sanitizeColumnName, deduplicateNames, sqlRowType)
+import           IHP.TypedSql.TypeMapping       (hsTypeForColumns, hsTypesForColumns, hsTypeForParam, detectFullTable)
 import           IHP.TypedSql.Types             (TypedQuery (..))
 
 -- | QuasiQuoter entry point for typed SQL.
@@ -79,8 +80,6 @@ typedSqlExp rawSql = do
 
     let nonNullableColumns = maybe Set.empty extractNonNullableComputedColumnsFromAst parsedAst
 
-    resultType <- hsTypeForColumns drTypes drTables joinNullableOids nonNullableColumns drColumns
-
     let isCompositeColumn =
             case drColumns of
                 [DescribeColumn { dcType }] ->
@@ -92,7 +91,27 @@ typedSqlExp rawSql = do
         fail
             ("typedSql: composite columns must be expanded (use SELECT table.* "
                 <> "or list columns explicitly)")
-    resultDecoder <- resultDecoderForColumns drTypes drTables joinNullableOids nonNullableColumns drColumns
+
+    let isFullTable = isJust (detectFullTable drTables drColumns)
+    let isMultiColumnAdhoc = not isFullTable && length drColumns > 1
+
+    (resultType, resultDecoder) <-
+        if isMultiColumnAdhoc
+            then do
+                -- Wrap the tuple in SqlRow for labeled field access
+                columnTypes <- hsTypesForColumns drTypes drTables joinNullableOids nonNullableColumns drColumns
+                let colNames = deduplicateNames (map (sanitizeColumnName . dcName) drColumns)
+                let fields = zip colNames columnTypes
+                let rowType = sqlRowType fields
+                tupleDecoder <- resultDecoderForColumns drTypes drTables joinNullableOids nonNullableColumns drColumns
+                -- fmap SqlRow tupleDecoder
+                let wrappedDecoder = TH.AppE (TH.AppE (TH.VarE 'fmap) (TH.ConE 'SqlRow)) tupleDecoder
+                pure (rowType, wrappedDecoder)
+            else do
+                rt <- hsTypeForColumns drTypes drTables joinNullableOids nonNullableColumns drColumns
+                decoder <- resultDecoderForColumns drTypes drTables joinNullableOids nonNullableColumns drColumns
+                pure (rt, decoder)
+
     snippetExpr <- buildSnippetExpression ppRuntimeSql annotatedParams
     let typedQueryExpr =
             TH.AppE

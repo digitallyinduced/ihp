@@ -4,6 +4,7 @@ module IHP.TypedSql.TypeMapping
     ( hsTypeForParam
     , hsTypeForColumns
     , hsTypeForColumn
+    , hsTypesForColumns
     , detectFullTable
     ) where
 
@@ -42,10 +43,16 @@ hsTypeForColumns typeInfo tables joinNullableOids nonNullableColumns cols = do
         Just tableName ->
             pure (TH.ConT (TH.mkName (CS.cs (tableNameToModelName tableName))))
         Nothing -> do
-            hsCols <- zipWithM (\i col -> hsTypeForColumn typeInfo tables joinNullableOids (i `Set.member` nonNullableColumns) col) [0..] cols
+            hsCols <- hsTypesForColumns typeInfo tables joinNullableOids nonNullableColumns cols
             case hsCols of
                 [single] -> pure single
                 _ -> pure $ foldl TH.AppT (TH.TupleT (length hsCols)) hsCols
+
+-- | Compute individual Haskell types for each column.
+-- Used by the record type generator which needs per-column types.
+hsTypesForColumns :: Map.Map PQ.Oid PgTypeInfo -> Map.Map PQ.Oid TableMeta -> Set.Set PQ.Oid -> Set.Set Int -> [DescribeColumn] -> TH.Q [TH.Type]
+hsTypesForColumns typeInfo tables joinNullableOids nonNullableColumns cols =
+    zipWithM (\i col -> hsTypeForColumn typeInfo tables joinNullableOids (i `Set.member` nonNullableColumns) col) [0..] cols
 
 -- | Detect whether the columns represent a full table selection (table.* with all columns in order).
 -- High-level: if yes, we can return the model type directly.

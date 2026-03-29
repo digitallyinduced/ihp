@@ -76,17 +76,12 @@ tests = do
                 "[typedSql| SELECT score FROM typed_sql_test_items LIMIT 1 |]")
             []
 
-        compileFailTest "fails when LEFT JOIN nullable side is not annotated as Maybe"
+        compileFailTest "fails when multi-column result is annotated as a tuple"
             (mkTestModule "TypedQuery (Text, Text)"
                 "[typedSql| SELECT i.name, a.name FROM typed_sql_test_items i LEFT JOIN typed_sql_test_authors a ON a.id = i.author_id LIMIT 1 |]")
             []
 
-        compileFailTest "fails when RIGHT JOIN nullable side is not annotated as Maybe"
-            (mkTestModule "TypedQuery (Text, Text)"
-                "[typedSql| SELECT i.name, a.name FROM typed_sql_test_items i RIGHT JOIN typed_sql_test_authors a ON a.id = i.author_id ORDER BY a.name LIMIT 1 |]")
-            []
-
-        compileFailTest "fails when tuple arity does not match selected columns"
+        compileFailTest "fails when multi-column result is annotated as a scalar"
             (mkTestModule "TypedQuery Text"
                 "[typedSql| SELECT name, views FROM typed_sql_test_items LIMIT 1 |]")
             []
@@ -106,7 +101,7 @@ tests = do
                 "[typedSql| SELECT COUNT(*) FROM typed_sql_test_items |]")
             []
 
-        compileFailTest "fails when COALESCE with non-null fallback is annotated as Maybe Text"
+        compileFailTest "fails when COALESCE multi-column result is annotated as a tuple"
             (mkTestModule "TypedQuery (Maybe Text, Text)"
                 "[typedSql| SELECT COALESCE(i.name, '(no-item)'), a.name FROM typed_sql_test_items i RIGHT JOIN typed_sql_test_authors a ON a.id = i.author_id LIMIT 1 |]")
             []
@@ -156,7 +151,7 @@ tests = do
                 "[typedSql| SELECT row_number() OVER (ORDER BY name) FROM typed_sql_test_items LIMIT 1 |]")
             []
 
-        compileFailTest "fails when grouped COUNT(*) result is annotated as (Text, Maybe Integer)"
+        compileFailTest "fails when grouped COUNT(*) result is annotated as a tuple"
             (mkTestModule "TypedQuery (Text, Maybe Integer)"
                 "[typedSql| SELECT name, COUNT(*) FROM typed_sql_test_items GROUP BY name ORDER BY name LIMIT 1 |]")
             []
@@ -181,15 +176,15 @@ tests = do
                 "[typedSql| SELECT score FROM typed_sql_test_items LIMIT 1 |]")
 
         compilePassTest "LEFT JOIN right side inferred as Maybe"
-            (mkTestModule "TypedQuery (Text, Maybe Text)"
+            (mkTestModule "TypedQuery _"
                 "[typedSql| SELECT i.name, a.name FROM typed_sql_test_items i LEFT JOIN typed_sql_test_authors a ON a.id = i.author_id LIMIT 1 |]")
 
         compilePassTest "RIGHT JOIN left side inferred as Maybe"
-            (mkTestModule "TypedQuery (Maybe Text, Text)"
+            (mkTestModule "TypedQuery _"
                 "[typedSql| SELECT i.name, a.name FROM typed_sql_test_items i RIGHT JOIN typed_sql_test_authors a ON a.id = i.author_id ORDER BY a.name LIMIT 1 |]")
 
-        compilePassTest "tuple arity matches selected columns"
-            (mkTestModule "TypedQuery (Text, Int)"
+        compilePassTest "multi-column ad-hoc returns record type"
+            (mkTestModule "TypedQuery _"
                 "[typedSql| SELECT name, views FROM typed_sql_test_items LIMIT 1 |]")
 
         compilePassTest "boolean expression inferred as Maybe Bool"
@@ -201,7 +196,7 @@ tests = do
                 "[typedSql| SELECT COUNT(*) FROM typed_sql_test_items |]")
 
         compilePassTest "COALESCE with non-null fallback inferred as non-Maybe"
-            (mkTestModule "TypedQuery (Text, Text)"
+            (mkTestModule "TypedQuery _"
                 "[typedSql| SELECT COALESCE(i.name, '(no-item)'), a.name FROM typed_sql_test_items i RIGHT JOIN typed_sql_test_authors a ON a.id = i.author_id LIMIT 1 |]")
 
         compilePassTest "literal expression inferred as Int"
@@ -240,8 +235,8 @@ tests = do
             (mkTestModule "TypedQuery Integer"
                 "[typedSql| SELECT row_number() OVER (ORDER BY name) FROM typed_sql_test_items LIMIT 1 |]")
 
-        compilePassTest "grouped COUNT(*) inferred as (Text, Integer)"
-            (mkTestModule "TypedQuery (Text, Integer)"
+        compilePassTest "grouped COUNT(*) returns record type"
+            (mkTestModule "TypedQuery _"
                 "[typedSql| SELECT name, COUNT(*) FROM typed_sql_test_items GROUP BY name ORDER BY name LIMIT 1 |]")
 
         compilePassTest "array literal inferred as Maybe [Text]"
@@ -261,7 +256,7 @@ tests = do
                 "let authorId = (\"00000000-0000-0000-0000-000000000001\" :: Id' \"typed_sql_test_authors\")\n      in [typedSql| SELECT name FROM typed_sql_test_items WHERE author_id = ${authorId} LIMIT 1 |]")
 
         compilePassTest "INNER JOIN columns are non-Maybe"
-            (mkTestModule "TypedQuery (Text, Text)"
+            (mkTestModule "TypedQuery _"
                 "[typedSql| SELECT i.name, a.name FROM typed_sql_test_items i INNER JOIN typed_sql_test_authors a ON a.id = i.author_id LIMIT 1 |]")
 
         compilePassTest "COUNT through subquery alias inferred as Integer"
@@ -628,7 +623,9 @@ runtimeTest description moduleText =
 mkTestModule :: Text -> Text -> Text
 mkTestModule typeSig body = Text.unlines
     [ "{-# LANGUAGE NoImplicitPrelude #-}"
+    , "{-# LANGUAGE NoFieldSelectors #-}"
     , "{-# LANGUAGE OverloadedStrings #-}"
+    , "{-# LANGUAGE PartialTypeSignatures #-}"
     , "{-# LANGUAGE QuasiQuotes #-}"
     , "module TypedSqlCase where"
     , ""
@@ -644,7 +641,9 @@ mkTestModuleWithPK :: [Text] -> Text -> Text -> Text
 mkTestModuleWithPK pkTables typeSig body = Text.unlines $
     [ "{-# LANGUAGE DataKinds #-}"
     , "{-# LANGUAGE NoImplicitPrelude #-}"
+    , "{-# LANGUAGE NoFieldSelectors #-}"
     , "{-# LANGUAGE OverloadedStrings #-}"
+    , "{-# LANGUAGE PartialTypeSignatures #-}"
     , "{-# LANGUAGE QuasiQuotes #-}"
     , "{-# LANGUAGE TypeFamilies #-}"
     , "module TypedSqlCase where"
@@ -667,13 +666,17 @@ compilePassModule :: Text
 compilePassModule = Text.unlines
     [ "{-# LANGUAGE DataKinds #-}"
     , "{-# LANGUAGE NoImplicitPrelude #-}"
+    , "{-# LANGUAGE NoFieldSelectors #-}"
+    , "{-# LANGUAGE OverloadedRecordDot #-}"
     , "{-# LANGUAGE OverloadedStrings #-}"
+    , "{-# LANGUAGE PartialTypeSignatures #-}"
     , "{-# LANGUAGE QuasiQuotes #-}"
     , "{-# LANGUAGE TypeApplications #-}"
     , "{-# LANGUAGE TypeFamilies #-}"
     , "module TypedSqlCompilePass where"
     , ""
     , "import IHP.Prelude"
+    , "import GHC.Records (HasField)"
     , "import IHP.ModelSupport (Id'(..), PrimaryKey)"
     , "import IHP.Hasql.FromRow (FromRowHasql (..))"
     , "import IHP.TypedSql (TypedQuery, typedSql)"
@@ -722,8 +725,12 @@ compilePassModule = Text.unlines
     , "qArray :: TypedQuery [Text]"
     , "qArray = [typedSql| SELECT tags FROM typed_sql_test_items LIMIT 1 |]"
     , ""
-    , "qTuple :: TypedQuery (Id' \"typed_sql_test_items\", Text, Int)"
-    , "qTuple = [typedSql| SELECT id, name, views FROM typed_sql_test_items LIMIT 1 |]"
+    , "qRecord :: TypedQuery _"
+    , "qRecord = [typedSql| SELECT id, name, views FROM typed_sql_test_items LIMIT 1 |]"
+    , ""
+    , "-- Verify .field access works on the generated record type"
+    , "qRecordAccess :: (HasField \"id\" row (Id' \"typed_sql_test_items\"), HasField \"name\" row Text, HasField \"views\" row Int) => row -> (Id' \"typed_sql_test_items\", Text, Int)"
+    , "qRecordAccess row = (row.id, row.name, row.views)"
     , ""
     , "qEqParam :: TypedQuery Text"
     , "qEqParam = [typedSql| SELECT name FROM typed_sql_test_items WHERE views = ${5 :: Int} LIMIT 1 |]"
@@ -746,7 +753,7 @@ compilePassModule = Text.unlines
     , "            ]"
     , "    in [typedSql| SELECT name FROM typed_sql_test_items WHERE id = ANY(${itemIds}) ORDER BY name LIMIT 1 |]"
     , ""
-    , "qCompositeExpanded :: TypedQuery (Maybe Text, Maybe Int)"
+    , "qCompositeExpanded :: TypedQuery _"
     , "qCompositeExpanded = [typedSql| SELECT (ROW(name, views)::typed_sql_test_pair).* FROM typed_sql_test_items LIMIT 1 |]"
     , ""
     , "qBoolExpr :: TypedQuery (Maybe Bool)"
@@ -782,7 +789,7 @@ compilePassModule = Text.unlines
     , "qWindow :: TypedQuery Integer"
     , "qWindow = [typedSql| SELECT row_number() OVER (ORDER BY name) FROM typed_sql_test_items LIMIT 1 |]"
     , ""
-    , "qGroupedCount :: TypedQuery (Text, Integer)"
+    , "qGroupedCount :: TypedQuery _"
     , "qGroupedCount = [typedSql| SELECT name, COUNT(*) FROM typed_sql_test_items GROUP BY name ORDER BY name LIMIT 1 |]"
     , ""
     , "qArrayLiteral :: TypedQuery (Maybe [Text])"
@@ -797,16 +804,16 @@ compilePassModule = Text.unlines
     , "qQuotedIdentifiers :: TypedQuery Text"
     , "qQuotedIdentifiers = [typedSql| SELECT \"name\" FROM \"typed_sql_test_items\" LIMIT 1 |]"
     , ""
-    , "qInnerJoin :: TypedQuery (Text, Text)"
+    , "qInnerJoin :: TypedQuery _"
     , "qInnerJoin = [typedSql| SELECT i.name, a.name FROM typed_sql_test_items i INNER JOIN typed_sql_test_authors a ON a.id = i.author_id LIMIT 1 |]"
     , ""
-    , "qLeftJoin :: TypedQuery (Text, Maybe Text)"
+    , "qLeftJoin :: TypedQuery _"
     , "qLeftJoin = [typedSql| SELECT i.name, a.name FROM typed_sql_test_items i LEFT JOIN typed_sql_test_authors a ON a.id = i.author_id LIMIT 1 |]"
     , ""
-    , "qRightJoin :: TypedQuery (Maybe Text, Text)"
+    , "qRightJoin :: TypedQuery _"
     , "qRightJoin = [typedSql| SELECT i.name, a.name FROM typed_sql_test_items i RIGHT JOIN typed_sql_test_authors a ON a.id = i.author_id LIMIT 1 |]"
     , ""
-    , "qRightJoinCoalesced :: TypedQuery (Text, Text)"
+    , "qRightJoinCoalesced :: TypedQuery _"
     , "qRightJoinCoalesced = [typedSql| SELECT COALESCE(i.name, '(no-item)'), a.name FROM typed_sql_test_items i RIGHT JOIN typed_sql_test_authors a ON a.id = i.author_id LIMIT 1 |]"
     ]
 
@@ -815,6 +822,8 @@ runtimeModule = Text.unlines
     [ "{-# LANGUAGE DataKinds #-}"
     , "{-# LANGUAGE ImplicitParams #-}"
     , "{-# LANGUAGE NoImplicitPrelude #-}"
+    , "{-# LANGUAGE NoFieldSelectors #-}"
+    , "{-# LANGUAGE OverloadedRecordDot #-}"
     , "{-# LANGUAGE OverloadedStrings #-}"
     , "{-# LANGUAGE QuasiQuotes #-}"
     , "{-# LANGUAGE TypeFamilies #-}"
@@ -993,7 +1002,8 @@ runtimeModule = Text.unlines
     , "            ORDER BY name"
     , "        |]"
     , ""
-    , "        when ((groupedCountRows :: [(Text, Integer)]) /= [(\"First\", 1), (\"Second\", 1)]) do"
+    , "        let groupedCountValues = map (\\r -> (r.name, r.count)) groupedCountRows"
+    , "        when (groupedCountValues /= [(\"First\", 1 :: Integer), (\"Second\", 1)]) do"
     , "            error (\"unexpected rows from grouped count: \" <> show groupedCountRows)"
     , ""
     , "        arrayLiteralRows <- sqlQueryTyped [typedSql| SELECT ARRAY['x','y']::text[] |]"
@@ -1017,7 +1027,8 @@ runtimeModule = Text.unlines
     , "            ORDER BY i.name"
     , "        |]"
     , ""
-    , "        when ((innerJoinRows :: [(Text, Text)]) /= [(\"First\", \"Alice\"), (\"Second\", \"Alice\")]) do"
+    , "        let innerJoinValues = map (\\r -> (r.name, r.name_1)) innerJoinRows"
+    , "        when (innerJoinValues /= [(\"First\", \"Alice\"), (\"Second\", \"Alice\")]) do"
     , "            error (\"unexpected rows from inner join: \" <> show innerJoinRows)"
     , ""
     , "        leftJoinRows <- sqlQueryTyped [typedSql|"
@@ -1027,7 +1038,8 @@ runtimeModule = Text.unlines
     , "            ORDER BY i.name"
     , "        |]"
     , ""
-    , "        when ((leftJoinRows :: [(Text, Maybe Text)]) /= [(\"First\", Just \"Alice\"), (\"Second\", Just \"Alice\")]) do"
+    , "        let leftJoinValues = map (\\r -> (r.name, r.name_1)) leftJoinRows"
+    , "        when (leftJoinValues /= [(\"First\", Just \"Alice\"), (\"Second\", Just \"Alice\")]) do"
     , "            error (\"unexpected rows from left join: \" <> show leftJoinRows)"
     , ""
     , "        rightJoinRows <- sqlQueryTyped [typedSql|"
@@ -1038,7 +1050,8 @@ runtimeModule = Text.unlines
     , "            ORDER BY a.name, i.name"
     , "        |]"
     , ""
-    , "        when ((rightJoinRows :: [(Maybe Text, Text)]) /= [(Just \"First\", \"Alice\"), (Just \"Second\", \"Alice\")]) do"
+    , "        let rightJoinValues = map (\\r -> (r.name, r.name_1)) rightJoinRows"
+    , "        when (rightJoinValues /= [(Just \"First\", \"Alice\"), (Just \"Second\", \"Alice\")]) do"
     , "            error (\"unexpected rows from right join: \" <> show rightJoinRows)"
     , ""
     , "        rightJoinCoalescedRows <- sqlQueryTyped [typedSql|"
@@ -1048,7 +1061,8 @@ runtimeModule = Text.unlines
     , "            ORDER BY a.name, i.name NULLS LAST"
     , "        |]"
     , ""
-    , "        when ((rightJoinCoalescedRows :: [(Text, Text)]) /= [(\"First\", \"Alice\"), (\"Second\", \"Alice\"), (\"(no-item)\", \"Bob\")]) do"
+    , "        let rightJoinCoalescedValues = map (\\r -> (r.coalesce, r.name)) rightJoinCoalescedRows"
+    , "        when (rightJoinCoalescedValues /= [(\"First\", \"Alice\"), (\"Second\", \"Alice\"), (\"(no-item)\", \"Bob\")]) do"
     , "            error (\"unexpected rows from right join with COALESCE: \" <> show rightJoinCoalescedRows)"
     , ""
     , "        putStrLn \"RUNTIME_OK\""
@@ -1059,6 +1073,8 @@ runtimeUpdateDeleteModule = Text.unlines
     [ "{-# LANGUAGE DataKinds #-}"
     , "{-# LANGUAGE ImplicitParams #-}"
     , "{-# LANGUAGE NoImplicitPrelude #-}"
+    , "{-# LANGUAGE NoFieldSelectors #-}"
+    , "{-# LANGUAGE OverloadedRecordDot #-}"
     , "{-# LANGUAGE OverloadedStrings #-}"
     , "{-# LANGUAGE QuasiQuotes #-}"
     , "{-# LANGUAGE TypeFamilies #-}"
@@ -1118,7 +1134,8 @@ runtimeUpdateDeleteModule = Text.unlines
     , "        assertTest \"UPDATE multiple columns rows affected\" (rowsUpdated2 == 1)"
     , ""
     , "        updated <- sqlQueryTyped [typedSql| SELECT name, views FROM typed_sql_test_items WHERE id = ${itemId2} |]"
-    , "        assertTest \"UPDATE multiple columns values\" ((updated :: [(Text, Int)]) == [(\"Updated\", 99)])"
+    , "        let updatedValues = map (\\r -> (r.name, r.views)) updated"
+    , "        assertTest \"UPDATE multiple columns values\" (updatedValues == [(\"Updated\" :: Text, 99 :: Int)])"
     , ""
     , "        -- UPDATE with no matching rows"
     , "        noMatch <- sqlExecTyped [typedSql|"
@@ -1147,6 +1164,8 @@ runtimeEdgeCasesModule = Text.unlines
     [ "{-# LANGUAGE DataKinds #-}"
     , "{-# LANGUAGE ImplicitParams #-}"
     , "{-# LANGUAGE NoImplicitPrelude #-}"
+    , "{-# LANGUAGE NoFieldSelectors #-}"
+    , "{-# LANGUAGE OverloadedRecordDot #-}"
     , "{-# LANGUAGE OverloadedStrings #-}"
     , "{-# LANGUAGE QuasiQuotes #-}"
     , "{-# LANGUAGE TypeFamilies #-}"
@@ -1197,13 +1216,14 @@ runtimeEdgeCasesModule = Text.unlines
     , "            VALUES (${itemId2}, ${authorId}, ${(\"Second\" :: Text)}, ${8 :: Int}, ${(2.0 :: Double)}, ${([\"green\"] :: [Text])})"
     , "        |]"
     , ""
-    , "        -- 5-tuple select"
-    , "        fiveTuple <- sqlQueryTyped [typedSql|"
-    , "            SELECT name, views, score, author_id IS NULL, tags"
+    , "        -- 5-column record select"
+    , "        fiveColRows <- sqlQueryTyped [typedSql|"
+    , "            SELECT name, views, score, author_id IS NULL AS is_orphan, tags"
     , "            FROM typed_sql_test_items"
     , "            WHERE id = ${itemId1}"
     , "        |]"
-    , "        assertTest \"5-tuple select\" ((fiveTuple :: [(Text, Int, Maybe Double, Maybe Bool, [Text])]) == [(\"First\", 5, Just 1.5, Just False, [\"red\", \"blue\"])])"
+    , "        let fiveColValues = map (\\r -> (r.name, r.views, r.score, r.is_orphan, r.tags)) fiveColRows"
+    , "        assertTest \"5-column record select\" (fiveColValues == [(\"First\" :: Text, 5 :: Int, Just (1.5 :: Double), Just False, [\"red\", \"blue\"] :: [Text])])"
     , ""
     , "        -- Multi-param WHERE with AND"
     , "        andRows <- sqlQueryTyped [typedSql|"
@@ -1229,6 +1249,8 @@ runtimeExtraTypesModule = Text.unlines
     [ "{-# LANGUAGE DataKinds #-}"
     , "{-# LANGUAGE ImplicitParams #-}"
     , "{-# LANGUAGE NoImplicitPrelude #-}"
+    , "{-# LANGUAGE NoFieldSelectors #-}"
+    , "{-# LANGUAGE OverloadedRecordDot #-}"
     , "{-# LANGUAGE OverloadedStrings #-}"
     , "{-# LANGUAGE QuasiQuotes #-}"
     , "{-# LANGUAGE TypeFamilies #-}"
@@ -1294,12 +1316,13 @@ runtimeExtraTypesModule = Text.unlines
     , "        let expectedJson = Aeson.object [(\"key\", Aeson.String \"value\")]"
     , "        assertTest \"jsonb -> Aeson.Value\" ((jsonRows :: [Maybe Aeson.Value]) == [Just expectedJson])"
     , ""
-    , "        -- multi-type tuple"
-    , "        tupleRows <- sqlQueryTyped [typedSql|"
+    , "        -- multi-type record"
+    , "        multiTypeRows <- sqlQueryTyped [typedSql|"
     , "            SELECT small_count, big_count, active"
     , "            FROM typed_sql_test_extras LIMIT 1"
     , "        |]"
-    , "        assertTest \"multi-type tuple\" ((tupleRows :: [(Int, Integer, Bool)]) == [(7, 1000000000, True)])"
+    , "        let multiTypeValues = map (\\r -> (r.small_count, r.big_count, r.active)) multiTypeRows"
+    , "        assertTest \"multi-type record\" (multiTypeValues == [(7 :: Int, 1000000000 :: Integer, True)])"
     , ""
     , "        putStrLn \"RUNTIME_OK\""
     ]
