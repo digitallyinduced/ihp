@@ -26,7 +26,7 @@ instance View LogsView where
             </div>
         </div>
         <script>
-            document.addEventListener('turbolinks:load', function() {
+            document.addEventListener('turbo:load', function() {
                 var output = document.querySelector('.logs-output');
                 if (output) output.scrollTop = output.scrollHeight;
             });

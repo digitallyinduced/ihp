@@ -304,12 +304,45 @@ window.morphPage = function (newHtml) {
     window.clearAllIntervals();
     window.clearAllTimeouts();
 
-    // Update auto-refresh meta tag
-    var ihpAutoRefreshId = newHtml.head && newHtml.head.querySelector('meta[property="ihp-auto-refresh-id"]');
-    if (ihpAutoRefreshId) {
-        var prev = document.head.querySelector('meta[property="ihp-auto-refresh-id"]');
-        if (prev) prev.remove();
-        document.head.appendChild(ihpAutoRefreshId);
+    // Morph the head: sync <title>, <meta>, and <link> tags from the new HTML
+    if (newHtml.head) {
+        // Update <title>
+        var newTitle = newHtml.head.querySelector('title');
+        if (newTitle && document.title !== newTitle.textContent) {
+            document.title = newTitle.textContent;
+        }
+
+        // Sync <meta> tags (keyed by name, property, or http-equiv)
+        var newMetas = newHtml.head.querySelectorAll('meta');
+        for (var i = 0; i < newMetas.length; i++) {
+            var m = newMetas[i];
+            var key = m.getAttribute('name') || m.getAttribute('property') || m.getAttribute('http-equiv');
+            if (!key) continue;
+            var selector = m.getAttribute('name') ? 'meta[name="' + key + '"]'
+                         : m.getAttribute('property') ? 'meta[property="' + key + '"]'
+                         : 'meta[http-equiv="' + key + '"]';
+            var existing = document.head.querySelector(selector);
+            if (existing) {
+                if (existing.getAttribute('content') !== m.getAttribute('content')) {
+                    existing.setAttribute('content', m.getAttribute('content'));
+                }
+            } else {
+                document.head.appendChild(m.cloneNode(true));
+            }
+        }
+
+        // Sync <link rel="stylesheet"> tags
+        var newLinks = newHtml.head.querySelectorAll('link[rel="stylesheet"]');
+        var oldLinks = document.head.querySelectorAll('link[rel="stylesheet"]');
+        var oldHrefs = new Set();
+        for (var i = 0; i < oldLinks.length; i++) {
+            oldHrefs.add(oldLinks[i].getAttribute('href'));
+        }
+        for (var i = 0; i < newLinks.length; i++) {
+            if (!oldHrefs.has(newLinks[i].getAttribute('href'))) {
+                document.head.appendChild(newLinks[i].cloneNode(true));
+            }
+        }
     }
 
     var event = new CustomEvent('turbo:load', {});

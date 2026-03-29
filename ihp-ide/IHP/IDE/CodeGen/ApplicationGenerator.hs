@@ -113,6 +113,7 @@ generateGenericApplication applicationName =
                 <> "        <script src={assetPath \"/vendor/flatpickr.js\"}></script>\n"
                 <> "        <script src={assetPath \"/vendor/turbo.js\"}></script>\n"
                 <> "        <script src={assetPath \"/helpers.js\"}></script>\n"
+                <> "        <script src={assetPath \"/ihp-bc.js\"}></script>\n"
                 <> "        <script src={assetPath \"/ihp-auto-refresh.js\"}></script>\n"
                 <> "        <script src={assetPath \"/app.js\"}></script>\n"
                 <> "    |]\n"

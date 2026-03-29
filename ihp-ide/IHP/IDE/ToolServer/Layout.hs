@@ -33,6 +33,7 @@ toolServerLayout inner = [hsx|
 
 
         <script src={assetPath "/helpers.js"}></script>
+        <script src={assetPath "/ihp-bc.js"}></script>
         <script src={assetPath "/IDE/contextmenu.js"}></script>
 
         <script src={assetPath "/vendor/select2.min.js"}></script>
