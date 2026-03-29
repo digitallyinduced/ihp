@@ -176,15 +176,15 @@ tests = do
                 "[typedSql| SELECT score FROM typed_sql_test_items LIMIT 1 |]")
 
         compilePassTest "LEFT JOIN right side inferred as Maybe"
-            (mkTestModule "TypedQuery _"
+            (mkTestModule "TypedQuery (SqlRow '[ '(\"name\", Text), '(\"name_1\", Maybe Text) ])"
                 "[typedSql| SELECT i.name, a.name FROM typed_sql_test_items i LEFT JOIN typed_sql_test_authors a ON a.id = i.author_id LIMIT 1 |]")
 
         compilePassTest "RIGHT JOIN left side inferred as Maybe"
-            (mkTestModule "TypedQuery _"
+            (mkTestModule "TypedQuery (SqlRow '[ '(\"name\", Maybe Text), '(\"name_1\", Text) ])"
                 "[typedSql| SELECT i.name, a.name FROM typed_sql_test_items i RIGHT JOIN typed_sql_test_authors a ON a.id = i.author_id ORDER BY a.name LIMIT 1 |]")
 
-        compilePassTest "multi-column ad-hoc returns record type"
-            (mkTestModule "TypedQuery _"
+        compilePassTest "multi-column ad-hoc returns SqlRow"
+            (mkTestModule "TypedQuery (SqlRow '[ '(\"name\", Text), '(\"views\", Int) ])"
                 "[typedSql| SELECT name, views FROM typed_sql_test_items LIMIT 1 |]")
 
         compilePassTest "boolean expression inferred as Maybe Bool"
@@ -196,7 +196,7 @@ tests = do
                 "[typedSql| SELECT COUNT(*) FROM typed_sql_test_items |]")
 
         compilePassTest "COALESCE with non-null fallback inferred as non-Maybe"
-            (mkTestModule "TypedQuery _"
+            (mkTestModule "TypedQuery (SqlRow '[ '(\"coalesce\", Text), '(\"name\", Text) ])"
                 "[typedSql| SELECT COALESCE(i.name, '(no-item)'), a.name FROM typed_sql_test_items i RIGHT JOIN typed_sql_test_authors a ON a.id = i.author_id LIMIT 1 |]")
 
         compilePassTest "literal expression inferred as Int"
@@ -235,8 +235,8 @@ tests = do
             (mkTestModule "TypedQuery Integer"
                 "[typedSql| SELECT row_number() OVER (ORDER BY name) FROM typed_sql_test_items LIMIT 1 |]")
 
-        compilePassTest "grouped COUNT(*) returns record type"
-            (mkTestModule "TypedQuery _"
+        compilePassTest "grouped COUNT(*) returns SqlRow"
+            (mkTestModule "TypedQuery (SqlRow '[ '(\"name\", Text), '(\"count\", Integer) ])"
                 "[typedSql| SELECT name, COUNT(*) FROM typed_sql_test_items GROUP BY name ORDER BY name LIMIT 1 |]")
 
         compilePassTest "array literal inferred as Maybe [Text]"
@@ -256,7 +256,7 @@ tests = do
                 "let authorId = (\"00000000-0000-0000-0000-000000000001\" :: Id' \"typed_sql_test_authors\")\n      in [typedSql| SELECT name FROM typed_sql_test_items WHERE author_id = ${authorId} LIMIT 1 |]")
 
         compilePassTest "INNER JOIN columns are non-Maybe"
-            (mkTestModule "TypedQuery _"
+            (mkTestModule "TypedQuery (SqlRow '[ '(\"name\", Text), '(\"name_1\", Text) ])"
                 "[typedSql| SELECT i.name, a.name FROM typed_sql_test_items i INNER JOIN typed_sql_test_authors a ON a.id = i.author_id LIMIT 1 |]")
 
         compilePassTest "COUNT through subquery alias inferred as Integer"
@@ -622,15 +622,16 @@ runtimeTest description moduleText =
 -- Used for both compile-pass and compile-fail tests.
 mkTestModule :: Text -> Text -> Text
 mkTestModule typeSig body = Text.unlines
-    [ "{-# LANGUAGE NoImplicitPrelude #-}"
+    [ "{-# LANGUAGE DataKinds #-}"
+    , "{-# LANGUAGE NoImplicitPrelude #-}"
     , "{-# LANGUAGE NoFieldSelectors #-}"
     , "{-# LANGUAGE OverloadedStrings #-}"
-    , "{-# LANGUAGE PartialTypeSignatures #-}"
     , "{-# LANGUAGE QuasiQuotes #-}"
     , "module TypedSqlCase where"
     , ""
     , "import IHP.Prelude"
     , "import IHP.TypedSql (TypedQuery, typedSql)"
+    , "import IHP.TypedSql.RowType (SqlRow)"
     , ""
     , "query :: " <> typeSig
     , "query = " <> body
@@ -643,7 +644,6 @@ mkTestModuleWithPK pkTables typeSig body = Text.unlines $
     , "{-# LANGUAGE NoImplicitPrelude #-}"
     , "{-# LANGUAGE NoFieldSelectors #-}"
     , "{-# LANGUAGE OverloadedStrings #-}"
-    , "{-# LANGUAGE PartialTypeSignatures #-}"
     , "{-# LANGUAGE QuasiQuotes #-}"
     , "{-# LANGUAGE TypeFamilies #-}"
     , "module TypedSqlCase where"
@@ -651,6 +651,7 @@ mkTestModuleWithPK pkTables typeSig body = Text.unlines $
     , "import IHP.Prelude"
     , "import IHP.ModelSupport (Id'(..), PrimaryKey)"
     , "import IHP.TypedSql (TypedQuery, typedSql)"
+    , "import IHP.TypedSql.RowType (SqlRow)"
     , ""
     ]
     <> map (\t -> "type instance PrimaryKey \"" <> t <> "\" = UUID") pkTables
@@ -669,7 +670,6 @@ compilePassModule = Text.unlines
     , "{-# LANGUAGE NoFieldSelectors #-}"
     , "{-# LANGUAGE OverloadedRecordDot #-}"
     , "{-# LANGUAGE OverloadedStrings #-}"
-    , "{-# LANGUAGE PartialTypeSignatures #-}"
     , "{-# LANGUAGE QuasiQuotes #-}"
     , "{-# LANGUAGE TypeApplications #-}"
     , "{-# LANGUAGE TypeFamilies #-}"
@@ -680,6 +680,7 @@ compilePassModule = Text.unlines
     , "import IHP.ModelSupport (Id'(..), PrimaryKey)"
     , "import IHP.Hasql.FromRow (FromRowHasql (..))"
     , "import IHP.TypedSql (TypedQuery, typedSql)"
+    , "import IHP.TypedSql.RowType (SqlRow)"
     , "import qualified Hasql.Decoders as HasqlDecoders"
     , ""
     , "type instance PrimaryKey \"typed_sql_test_items\" = UUID"
@@ -725,7 +726,7 @@ compilePassModule = Text.unlines
     , "qArray :: TypedQuery [Text]"
     , "qArray = [typedSql| SELECT tags FROM typed_sql_test_items LIMIT 1 |]"
     , ""
-    , "qRecord :: TypedQuery _"
+    , "qRecord :: TypedQuery (SqlRow '[ '(\"id\", Id' \"typed_sql_test_items\"), '(\"name\", Text), '(\"views\", Int) ])"
     , "qRecord = [typedSql| SELECT id, name, views FROM typed_sql_test_items LIMIT 1 |]"
     , ""
     , "-- Verify .field access works on the generated record type"
@@ -753,7 +754,7 @@ compilePassModule = Text.unlines
     , "            ]"
     , "    in [typedSql| SELECT name FROM typed_sql_test_items WHERE id = ANY(${itemIds}) ORDER BY name LIMIT 1 |]"
     , ""
-    , "qCompositeExpanded :: TypedQuery _"
+    , "qCompositeExpanded :: TypedQuery (SqlRow '[ '(\"name\", Maybe Text), '(\"views\", Maybe Int) ])"
     , "qCompositeExpanded = [typedSql| SELECT (ROW(name, views)::typed_sql_test_pair).* FROM typed_sql_test_items LIMIT 1 |]"
     , ""
     , "qBoolExpr :: TypedQuery (Maybe Bool)"
@@ -789,7 +790,7 @@ compilePassModule = Text.unlines
     , "qWindow :: TypedQuery Integer"
     , "qWindow = [typedSql| SELECT row_number() OVER (ORDER BY name) FROM typed_sql_test_items LIMIT 1 |]"
     , ""
-    , "qGroupedCount :: TypedQuery _"
+    , "qGroupedCount :: TypedQuery (SqlRow '[ '(\"name\", Text), '(\"count\", Integer) ])"
     , "qGroupedCount = [typedSql| SELECT name, COUNT(*) FROM typed_sql_test_items GROUP BY name ORDER BY name LIMIT 1 |]"
     , ""
     , "qArrayLiteral :: TypedQuery (Maybe [Text])"
@@ -804,16 +805,16 @@ compilePassModule = Text.unlines
     , "qQuotedIdentifiers :: TypedQuery Text"
     , "qQuotedIdentifiers = [typedSql| SELECT \"name\" FROM \"typed_sql_test_items\" LIMIT 1 |]"
     , ""
-    , "qInnerJoin :: TypedQuery _"
+    , "qInnerJoin :: TypedQuery (SqlRow '[ '(\"name\", Text), '(\"name_1\", Text) ])"
     , "qInnerJoin = [typedSql| SELECT i.name, a.name FROM typed_sql_test_items i INNER JOIN typed_sql_test_authors a ON a.id = i.author_id LIMIT 1 |]"
     , ""
-    , "qLeftJoin :: TypedQuery _"
+    , "qLeftJoin :: TypedQuery (SqlRow '[ '(\"name\", Text), '(\"name_1\", Maybe Text) ])"
     , "qLeftJoin = [typedSql| SELECT i.name, a.name FROM typed_sql_test_items i LEFT JOIN typed_sql_test_authors a ON a.id = i.author_id LIMIT 1 |]"
     , ""
-    , "qRightJoin :: TypedQuery _"
+    , "qRightJoin :: TypedQuery (SqlRow '[ '(\"name\", Maybe Text), '(\"name_1\", Text) ])"
     , "qRightJoin = [typedSql| SELECT i.name, a.name FROM typed_sql_test_items i RIGHT JOIN typed_sql_test_authors a ON a.id = i.author_id LIMIT 1 |]"
     , ""
-    , "qRightJoinCoalesced :: TypedQuery _"
+    , "qRightJoinCoalesced :: TypedQuery (SqlRow '[ '(\"coalesce\", Text), '(\"name\", Text) ])"
     , "qRightJoinCoalesced = [typedSql| SELECT COALESCE(i.name, '(no-item)'), a.name FROM typed_sql_test_items i RIGHT JOIN typed_sql_test_authors a ON a.id = i.author_id LIMIT 1 |]"
     ]
 
