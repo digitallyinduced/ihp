@@ -24,7 +24,6 @@ module IHP.Fetch
 , fetchVector
 , fetchLatest
 , fetchLatestBy
-, Vector
 )
 where
 
