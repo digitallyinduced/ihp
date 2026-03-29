@@ -47,7 +47,7 @@ instance IsString Markup where
     fromString = escapeHtml . Text.pack
 
 instance Show Markup where
-    show m = cs (renderMarkupBS m)
+    show m = Text.unpack (TE.decodeUtf8 (renderMarkupBS m))
 
 -- | Render markup to a lazy ByteString (for WAI compatibility).
 renderMarkup :: Markup -> LBS.ByteString

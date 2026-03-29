@@ -10,7 +10,7 @@ import IHP.HaskellSupport (SetField(..), modify, (|>))
 import Data.String.Conversions (cs)
 import IHP.ModelSupport.Types (Violation(..), MetaBag(..))
 import IHP.ModelSupport () -- for SetField instances on MetaBag
-import IHP.HSX.Markup (Markup, renderMarkup)
+import IHP.HSX.Markup (Markup, renderMarkupText)
 import qualified Data.List as List
 
 data ValidatorResult
@@ -80,8 +80,7 @@ attachFailureHtml :: (KnownSymbol field, HasField "meta" model MetaBag, SetField
 attachFailureHtml field !message = attachValidatorResult field (FailureHtml renderedHtml)
     where
         renderedHtml = message
-                |> renderMarkup
-                |> cs
+                |> renderMarkupText
 {-# INLINE attachFailureHtml #-}
 
 -- | Returns the validation failure for a field or Nothing

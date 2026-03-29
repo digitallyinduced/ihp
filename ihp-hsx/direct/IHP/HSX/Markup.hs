@@ -86,7 +86,7 @@ instance IsString Markup where
     fromString = escapeHtml . Text.pack
 
 instance Show Markup where
-    show m = cs (renderMarkup m)
+    show m = Text.unpack (renderMarkupText m)
 
 -- | Render markup to a lazy ByteString.
 -- Uses 32KB untrimmed buffers: fewer, larger chunks means less overhead for

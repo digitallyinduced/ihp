@@ -10,7 +10,7 @@ import IHP.ControllerPrelude
 import IHP.ServerSideComponent.Types as SSC
 
 import qualified Network.WebSockets as WebSocket
-import IHP.HSX.Markup (renderMarkup)
+import IHP.HSX.Markup (renderMarkupText)
 
 import qualified Data.Aeson as Aeson
 import qualified Data.Aeson.TH as Aeson
@@ -31,12 +31,10 @@ setState state = do
     oldState <- (.state) <$> readIORef ?instanceRef
     let oldHtml = oldState
             |> SSC.render
-            |> renderMarkup
-            |> cs
+            |> renderMarkupText
     let newHtml = state
             |> SSC.render
-            |> renderMarkup
-            |> cs
+            |> renderMarkupText
 
     modifyIORef' ?instanceRef (\componentInstance -> componentInstance { state })
 
