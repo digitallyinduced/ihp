@@ -11,6 +11,8 @@ module IHP.ViewPrelude (
     module IHP.View.Form,
     module IHP.View.Types,
     hsx,
+    uncheckedHsx,
+    customHsx,
     toHtml,
     preEscapedToHtml,
     preEscapedTextValue,
@@ -41,7 +43,7 @@ module IHP.ViewPrelude (
 import IHP.Prelude
 import IHP.ViewSupport
 import IHP.View.Form
-import IHP.HSX.MarkupQQ (hsx)
+import IHP.HSX.MarkupQQ (hsx, uncheckedHsx, customHsx)
 import IHP.HSX.Markup (ToHtml(..), preEscapedToHtml, preEscapedTextValue, stringValue)
 import IHP.View.TimeAgo
 import IHP.ValidationSupport
