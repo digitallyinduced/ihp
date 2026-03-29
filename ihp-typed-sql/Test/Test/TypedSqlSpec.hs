@@ -337,6 +337,46 @@ tests = do
             let Just ast = parseSql "SELECT name FROM items"
             extractNonNullableComputedColumnsFromAst ast `shouldBe` Set.empty
 
+        it "extractNonNullableComputedColumns detects EXISTS" do
+            let Just ast = parseSql "SELECT EXISTS(SELECT 1 FROM items)"
+            extractNonNullableComputedColumnsFromAst ast `shouldBe` Set.fromList [0]
+
+        it "extractNonNullableComputedColumns detects row_number()" do
+            let Just ast = parseSql "SELECT row_number() OVER (ORDER BY name) FROM items"
+            extractNonNullableComputedColumnsFromAst ast `shouldBe` Set.fromList [0]
+
+        it "extractNonNullableComputedColumns detects rank()" do
+            let Just ast = parseSql "SELECT rank() OVER (ORDER BY name) FROM items"
+            extractNonNullableComputedColumnsFromAst ast `shouldBe` Set.fromList [0]
+
+        it "extractNonNullableComputedColumns detects dense_rank()" do
+            let Just ast = parseSql "SELECT dense_rank() OVER (ORDER BY name) FROM items"
+            extractNonNullableComputedColumnsFromAst ast `shouldBe` Set.fromList [0]
+
+        it "extractNonNullableComputedColumns detects non-NULL literals" do
+            let Just ast = parseSql "SELECT 1, 'hello', TRUE"
+            extractNonNullableComputedColumnsFromAst ast `shouldBe` Set.fromList [0, 1, 2]
+
+        it "extractNonNullableComputedColumns does not mark NULL literal" do
+            let Just ast = parseSql "SELECT NULL"
+            extractNonNullableComputedColumnsFromAst ast `shouldBe` Set.empty
+
+        it "extractNonNullableComputedColumns detects COALESCE with non-null arg" do
+            let Just ast = parseSql "SELECT COALESCE(name, 'default') FROM items"
+            extractNonNullableComputedColumnsFromAst ast `shouldBe` Set.fromList [0]
+
+        it "extractNonNullableComputedColumns does not mark COALESCE with all nullable args" do
+            let Just ast = parseSql "SELECT COALESCE(a, b) FROM items"
+            extractNonNullableComputedColumnsFromAst ast `shouldBe` Set.empty
+
+        it "extractNonNullableComputedColumns detects typecast of non-null" do
+            let Just ast = parseSql "SELECT 1::bigint"
+            extractNonNullableComputedColumnsFromAst ast `shouldBe` Set.fromList [0]
+
+        it "extractNonNullableComputedColumns does not mark NULL::text" do
+            let Just ast = parseSql "SELECT NULL::text"
+            extractNonNullableComputedColumnsFromAst ast `shouldBe` Set.empty
+
 -- Test helpers ---------------------------------------------------------------
 
 requirePostgresTestHook :: IO ()

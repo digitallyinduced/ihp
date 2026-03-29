@@ -460,9 +460,16 @@ isTargetNonNullable sqMap = \case
 -- | Determine if an expression is known to be non-nullable.
 isExprNonNullable :: SubqueryTargetMap -> Ast.AExpr -> Bool
 isExprNonNullable sqMap = \case
-    -- count(*) or count(expr) — always non-null (returns 0 for empty groups)
+    -- Function calls: count(), row_number(), rank(), dense_rank()
     Ast.CExprAExpr (Ast.FuncCExpr (Ast.ApplicationFuncExpr (Ast.FuncApplication funcName _params) _withinGroup _filter _over)) ->
-        isCountFunction funcName
+        isNonNullableFunction funcName
+    -- Special syntax functions: EXISTS, COALESCE, CURRENT_DATE, etc.
+    Ast.CExprAExpr (Ast.FuncCExpr (Ast.SubexprFuncExpr subexpr)) ->
+        isSubexprNonNullable sqMap subexpr
+    -- EXISTS(...) — always returns Bool, never NULL
+    Ast.CExprAExpr (Ast.ExistsCExpr _) -> True
+    -- Non-NULL literal constants
+    Ast.CExprAExpr (Ast.AexprConstCExpr constant) -> not (isNullConstant constant)
     -- Column reference: alias.col where alias is a subquery/CTE
     Ast.CExprAExpr (Ast.ColumnrefCExpr (Ast.Columnref aliasId (Just indirection))) ->
         case toList indirection of
@@ -485,15 +492,52 @@ isExprNonNullable sqMap = \case
             _ -> False
     -- Parenthesized expression
     Ast.CExprAExpr (Ast.InParensCExpr inner Nothing) -> isExprNonNullable sqMap inner
+    -- Typecast preserves nullability of inner expression (e.g. 1::bigint)
+    Ast.TypecastAExpr inner _ -> isExprNonNullable sqMap inner
     _ -> False
 
-isCountFunction :: Ast.FuncName -> Bool
-isCountFunction = \case
-    Ast.TypeFuncName ident -> identToText ident == "count"
-    Ast.IndirectedFuncName schemaIdent indirection ->
+-- | Functions that are guaranteed to return a non-null value.
+-- count() always returns 0 for empty groups.
+-- row_number(), rank(), dense_rank() are window functions that never return NULL.
+isNonNullableFunction :: Ast.FuncName -> Bool
+isNonNullableFunction funcName =
+    funcNameToText funcName `elem` ["count", "row_number", "rank", "dense_rank"]
+
+-- | Special syntax expressions that are non-nullable.
+isSubexprNonNullable :: SubqueryTargetMap -> Ast.FuncExprCommonSubexpr -> Bool
+isSubexprNonNullable sqMap = \case
+    -- COALESCE(a, b, ...) is non-null when any argument is non-null
+    Ast.CoalesceFuncExprCommonSubexpr args ->
+        any (isExprNonNullable sqMap) (toList args)
+    -- CAST(expr AS type) preserves nullability
+    Ast.CastFuncExprCommonSubexpr inner _ -> isExprNonNullable sqMap inner
+    -- CURRENT_DATE, CURRENT_TIME, etc. are always non-null
+    Ast.CurrentDateFuncExprCommonSubexpr -> True
+    Ast.CurrentTimeFuncExprCommonSubexpr _ -> True
+    Ast.CurrentTimestampFuncExprCommonSubexpr _ -> True
+    Ast.LocalTimeFuncExprCommonSubexpr _ -> True
+    Ast.LocalTimestampFuncExprCommonSubexpr _ -> True
+    Ast.CurrentRoleFuncExprCommonSubexpr -> True
+    Ast.CurrentUserFuncExprCommonSubexpr -> True
+    Ast.SessionUserFuncExprCommonSubexpr -> True
+    Ast.UserFuncExprCommonSubexpr -> True
+    Ast.CurrentCatalogFuncExprCommonSubexpr -> True
+    Ast.CurrentSchemaFuncExprCommonSubexpr -> True
+    _ -> False
+
+-- | Check if a constant is the NULL literal.
+isNullConstant :: Ast.AexprConst -> Bool
+isNullConstant Ast.NullAexprConst = True
+isNullConstant _ = False
+
+-- | Extract the function name as lowercase text.
+funcNameToText :: Ast.FuncName -> Text
+funcNameToText = \case
+    Ast.TypeFuncName ident -> identToText ident
+    Ast.IndirectedFuncName _ indirection ->
         case toList indirection of
-            [Ast.AttrNameIndirectionEl funcIdent] -> identToText funcIdent == "count"
-            _ -> False
+            [Ast.AttrNameIndirectionEl funcIdent] -> identToText funcIdent
+            _ -> ""
 
 -- | Build SubqueryTargetMap entries from a CTE.
 buildSubqueryTargetMapFromCte :: Ast.CommonTableExpr -> SubqueryTargetMap
