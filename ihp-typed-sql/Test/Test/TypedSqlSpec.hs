@@ -106,13 +106,13 @@ tests = do
                 "[typedSql| SELECT COUNT(*) FROM typed_sql_test_items |]")
             []
 
-        compileFailTest "fails when COALESCE expression is annotated as non-Maybe Text"
-            (mkTestModule "TypedQuery (Text, Text)"
+        compileFailTest "fails when COALESCE with non-null fallback is annotated as Maybe Text"
+            (mkTestModule "TypedQuery (Maybe Text, Text)"
                 "[typedSql| SELECT COALESCE(i.name, '(no-item)'), a.name FROM typed_sql_test_items i RIGHT JOIN typed_sql_test_authors a ON a.id = i.author_id LIMIT 1 |]")
             []
 
-        compileFailTest "fails when literal expression result is annotated as non-Maybe Int"
-            (mkTestModule "TypedQuery Int"
+        compileFailTest "fails when literal expression result is annotated as Maybe Int"
+            (mkTestModule "TypedQuery (Maybe Int)"
                 "[typedSql| SELECT 1 |]")
             []
 
@@ -126,8 +126,8 @@ tests = do
                 "[typedSql| SELECT CASE WHEN views > 5 THEN name ELSE 'low' END FROM typed_sql_test_items LIMIT 1 |]")
             []
 
-        compileFailTest "fails when EXISTS expression result is annotated as non-Maybe Bool"
-            (mkTestModule "TypedQuery Bool"
+        compileFailTest "fails when EXISTS expression result is annotated as Maybe Bool"
+            (mkTestModule "TypedQuery (Maybe Bool)"
                 "[typedSql| SELECT EXISTS(SELECT 1 FROM typed_sql_test_items WHERE views > 7) |]")
             []
 
@@ -151,8 +151,8 @@ tests = do
                 "[typedSql| SELECT name FROM typed_sql_test_items WHERE views > 6 UNION ALL SELECT name FROM typed_sql_test_items WHERE views < 6 |]")
             []
 
-        compileFailTest "fails when window function result is annotated as non-Maybe Integer"
-            (mkTestModule "TypedQuery Integer"
+        compileFailTest "fails when window function result is annotated as Maybe Integer"
+            (mkTestModule "TypedQuery (Maybe Integer)"
                 "[typedSql| SELECT row_number() OVER (ORDER BY name) FROM typed_sql_test_items LIMIT 1 |]")
             []
 
@@ -200,12 +200,12 @@ tests = do
             (mkTestModule "TypedQuery Integer"
                 "[typedSql| SELECT COUNT(*) FROM typed_sql_test_items |]")
 
-        compilePassTest "COALESCE in RIGHT JOIN inferred as Maybe"
-            (mkTestModule "TypedQuery (Maybe Text, Text)"
+        compilePassTest "COALESCE with non-null fallback inferred as non-Maybe"
+            (mkTestModule "TypedQuery (Text, Text)"
                 "[typedSql| SELECT COALESCE(i.name, '(no-item)'), a.name FROM typed_sql_test_items i RIGHT JOIN typed_sql_test_authors a ON a.id = i.author_id LIMIT 1 |]")
 
-        compilePassTest "literal expression inferred as Maybe Int"
-            (mkTestModule "TypedQuery (Maybe Int)"
+        compilePassTest "literal expression inferred as Int"
+            (mkTestModule "TypedQuery Int"
                 "[typedSql| SELECT 1 |]")
 
         compilePassTest "arithmetic expression inferred as Maybe Int"
@@ -216,8 +216,8 @@ tests = do
             (mkTestModule "TypedQuery (Maybe Text)"
                 "[typedSql| SELECT CASE WHEN views > 5 THEN name ELSE 'low' END FROM typed_sql_test_items LIMIT 1 |]")
 
-        compilePassTest "EXISTS expression inferred as Maybe Bool"
-            (mkTestModule "TypedQuery (Maybe Bool)"
+        compilePassTest "EXISTS expression inferred as Bool"
+            (mkTestModule "TypedQuery Bool"
                 "[typedSql| SELECT EXISTS(SELECT 1 FROM typed_sql_test_items WHERE views > 7) |]")
 
         compilePassTest "NULL literal inferred as Maybe Text"
@@ -236,8 +236,8 @@ tests = do
             (mkTestModule "TypedQuery (Maybe Text)"
                 "[typedSql| SELECT name FROM typed_sql_test_items WHERE views > 6 UNION ALL SELECT name FROM typed_sql_test_items WHERE views < 6 |]")
 
-        compilePassTest "window function inferred as Maybe Integer"
-            (mkTestModule "TypedQuery (Maybe Integer)"
+        compilePassTest "window function inferred as Integer"
+            (mkTestModule "TypedQuery Integer"
                 "[typedSql| SELECT row_number() OVER (ORDER BY name) FROM typed_sql_test_items LIMIT 1 |]")
 
         compilePassTest "grouped COUNT(*) inferred as (Text, Integer)"
@@ -755,7 +755,7 @@ compilePassModule = Text.unlines
     , "qCountExpr :: TypedQuery Integer"
     , "qCountExpr = [typedSql| SELECT COUNT(*) FROM typed_sql_test_items |]"
     , ""
-    , "qLiteralInt :: TypedQuery (Maybe Int)"
+    , "qLiteralInt :: TypedQuery Int"
     , "qLiteralInt = [typedSql| SELECT 1 |]"
     , ""
     , "qArithmeticExpr :: TypedQuery (Maybe Int)"
@@ -764,7 +764,7 @@ compilePassModule = Text.unlines
     , "qCaseExpr :: TypedQuery (Maybe Text)"
     , "qCaseExpr = [typedSql| SELECT CASE WHEN views > 5 THEN name ELSE 'low' END FROM typed_sql_test_items LIMIT 1 |]"
     , ""
-    , "qExistsExpr :: TypedQuery (Maybe Bool)"
+    , "qExistsExpr :: TypedQuery Bool"
     , "qExistsExpr = [typedSql| SELECT EXISTS(SELECT 1 FROM typed_sql_test_items WHERE views > 7) |]"
     , ""
     , "qNullLiteral :: TypedQuery (Maybe Text)"
@@ -779,7 +779,7 @@ compilePassModule = Text.unlines
     , "qUnion :: TypedQuery (Maybe Text)"
     , "qUnion = [typedSql| SELECT name FROM typed_sql_test_items WHERE views > 6 UNION ALL SELECT name FROM typed_sql_test_items WHERE views < 6 |]"
     , ""
-    , "qWindow :: TypedQuery (Maybe Integer)"
+    , "qWindow :: TypedQuery Integer"
     , "qWindow = [typedSql| SELECT row_number() OVER (ORDER BY name) FROM typed_sql_test_items LIMIT 1 |]"
     , ""
     , "qGroupedCount :: TypedQuery (Text, Integer)"
@@ -806,7 +806,7 @@ compilePassModule = Text.unlines
     , "qRightJoin :: TypedQuery (Maybe Text, Text)"
     , "qRightJoin = [typedSql| SELECT i.name, a.name FROM typed_sql_test_items i RIGHT JOIN typed_sql_test_authors a ON a.id = i.author_id LIMIT 1 |]"
     , ""
-    , "qRightJoinCoalesced :: TypedQuery (Maybe Text, Text)"
+    , "qRightJoinCoalesced :: TypedQuery (Text, Text)"
     , "qRightJoinCoalesced = [typedSql| SELECT COALESCE(i.name, '(no-item)'), a.name FROM typed_sql_test_items i RIGHT JOIN typed_sql_test_authors a ON a.id = i.author_id LIMIT 1 |]"
     ]
 
@@ -921,7 +921,7 @@ runtimeModule = Text.unlines
     , ""
     , "        literalRows <- sqlQueryTyped [typedSql| SELECT 1 |]"
     , ""
-    , "        when ((literalRows :: [Maybe Int]) /= [Just 1]) do"
+    , "        when ((literalRows :: [Int]) /= [1]) do"
     , "            error (\"unexpected rows from literal query: \" <> show literalRows)"
     , ""
     , "        arithmeticRows <- sqlQueryTyped [typedSql|"
@@ -943,7 +943,7 @@ runtimeModule = Text.unlines
     , ""
     , "        existsRows <- sqlQueryTyped [typedSql| SELECT EXISTS(SELECT 1 FROM typed_sql_test_items WHERE views > 7) |]"
     , ""
-    , "        when ((existsRows :: [Maybe Bool]) /= [Just True]) do"
+    , "        when ((existsRows :: [Bool]) /= [True]) do"
     , "            error (\"unexpected rows from EXISTS query: \" <> show existsRows)"
     , ""
     , "        nullLiteralRows <- sqlQueryTyped [typedSql| SELECT NULL::text |]"
@@ -983,7 +983,7 @@ runtimeModule = Text.unlines
     , "            ORDER BY name"
     , "        |]"
     , ""
-    , "        when ((windowRows :: [Maybe Integer]) /= [Just 1, Just 2]) do"
+    , "        when ((windowRows :: [Integer]) /= [1, 2]) do"
     , "            error (\"unexpected rows from window function: \" <> show windowRows)"
     , ""
     , "        groupedCountRows <- sqlQueryTyped [typedSql|"
@@ -1048,7 +1048,7 @@ runtimeModule = Text.unlines
     , "            ORDER BY a.name, i.name NULLS LAST"
     , "        |]"
     , ""
-    , "        when ((rightJoinCoalescedRows :: [(Maybe Text, Text)]) /= [(Just \"First\", \"Alice\"), (Just \"Second\", \"Alice\"), (Just \"(no-item)\", \"Bob\")]) do"
+    , "        when ((rightJoinCoalescedRows :: [(Text, Text)]) /= [(\"First\", \"Alice\"), (\"Second\", \"Alice\"), (\"(no-item)\", \"Bob\")]) do"
     , "            error (\"unexpected rows from right join with COALESCE: \" <> show rightJoinCoalescedRows)"
     , ""
     , "        putStrLn \"RUNTIME_OK\""
