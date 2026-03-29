@@ -36,7 +36,6 @@ import IHP.QueryBuilder.HasqlCompiler (buildStatement)
 import qualified Hasql.Decoders as Decoders
 import Hasql.Implicits.Encoders (DefaultParamEncoder)
 import IHP.Fetch.Statement (buildQueryListStatement, buildQueryVectorStatement, buildQueryMaybeStatement, buildCountStatement, buildExistsStatement)
-import Data.Vector (Vector)
 import GHC.TypeError (TypeError, ErrorMessage(Text))
 import Data.Kind (Constraint)
 

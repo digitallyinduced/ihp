@@ -36,7 +36,6 @@ import IHP.ModelSupport
 import IHP.QueryBuilder
 import IHP.Hasql.FromRow (FromRowHasql(..))
 import IHP.Fetch.Statement (buildQueryListStatement, buildQueryVectorStatement, buildQueryMaybeStatement, buildCountStatement, buildExistsStatement)
-import Data.Vector (Vector)
 import IHP.Fetch (AssertNotLabeled)
 import qualified Hasql.Decoders as Decoders
 import qualified Hasql.Encoders as Encoders
