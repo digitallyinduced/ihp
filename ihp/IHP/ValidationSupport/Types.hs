@@ -7,7 +7,6 @@ import Data.Proxy (Proxy)
 import GHC.TypeLits (KnownSymbol, symbolVal)
 import GHC.Records (HasField(..))
 import IHP.HaskellSupport (SetField(..), modify, (|>))
-import Data.String.Conversions (cs)
 import IHP.ModelSupport.Types (Violation(..), MetaBag(..))
 import IHP.ModelSupport () -- for SetField instances on MetaBag
 import IHP.HSX.Markup (Markup, renderMarkupText)
