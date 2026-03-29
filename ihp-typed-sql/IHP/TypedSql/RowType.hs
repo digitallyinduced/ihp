@@ -25,6 +25,7 @@ import           IHP.Prelude
 import qualified Data.Char                    as Char
 import qualified Data.List                    as List
 import qualified Data.Map.Strict              as Map
+import qualified Data.Set                     as Set
 import qualified Data.String.Conversions      as CS
 import qualified Database.PostgreSQL.LibPQ    as PQ
 import qualified Language.Haskell.TH          as TH
@@ -185,21 +186,23 @@ sanitizeColumnName raw
         | otherwise = c : rest
 
 -- | Deduplicate field names by appending @_1@, @_2@, etc.
+--
+-- Tracks all used names (both original and generated suffixes) to avoid
+-- collisions like @["name", "name_1", "name"]@ → @["name", "name_1", "name_2"]@.
 deduplicateNames :: [String] -> [String]
-deduplicateNames names = go Map.empty [] names
+deduplicateNames names = go Set.empty [] names
   where
-    counts = foldl' (\acc n -> Map.insertWith (+) n (1 :: Int) acc) Map.empty names
-    needsDedup n = Map.findWithDefault 0 n counts > 1
     go _ acc [] = reverse acc
-    go seen acc (n:rest) =
-        case Map.lookup n seen of
-            Nothing ->
-                if needsDedup n
-                    then go (Map.insert n (1 :: Int) seen) (n : acc) rest
-                    else go seen (n : acc) rest
-            Just idx ->
-                let suffixed = n ++ "_" ++ Prelude.show idx
-                in go (Map.insert n (idx + 1) seen) (suffixed : acc) rest
+    go used acc (n:rest)
+        | n `Set.member` used =
+            let suffixed = findUnused used n 1
+            in go (Set.insert suffixed used) (suffixed : acc) rest
+        | otherwise = go (Set.insert n used) (n : acc) rest
+    findUnused used base i =
+        let candidate = base ++ "_" ++ Prelude.show i
+        in if candidate `Set.member` used
+            then findUnused used base (i + 1)
+            else candidate
 
 -- | Detect the primary table when all columns come from one table.
 detectPrimaryTable :: Map.Map PQ.Oid TableMeta -> [DescribeColumn] -> Maybe Text
