@@ -15,8 +15,8 @@ module IHP.QueryBuilder
   query
   -- * Core Types
 , QueryBuilder (..)
-, SQLQuery (..)
 , Condition (..)
+, ConditionValue (..)
 , Join (..)
 , OrderByClause (..)
 , OrderByDirection (..)
@@ -36,9 +36,9 @@ module IHP.QueryBuilder
   -- * Type-level Join Tracking
 , NoJoins
   -- * SQL Compilation
-, toSQL
-, toSQL'
 , buildQuery
+  -- * Hasql Compilation
+, toSQL
   -- * Filtering
 , filterWhere
 , filterWhereCaseInsensitive
@@ -97,14 +97,12 @@ module IHP.QueryBuilder
 , toEqOrIsOperator
 , compileOperator
 , negateFilterOperator
-  -- * Re-exports
-, In (In)
 ) where
 
 import IHP.QueryBuilder.Types
 import IHP.QueryBuilder.Compiler
+import IHP.QueryBuilder.HasqlCompiler (toSQL, compileOperator)
 import IHP.QueryBuilder.Filter
 import IHP.QueryBuilder.Join
 import IHP.QueryBuilder.Order
 import IHP.QueryBuilder.Union
-import Database.PostgreSQL.Simple.Types (In (In))

@@ -5,31 +5,17 @@ Tests for Access denied functions.
 {-# LANGUAGE AllowAmbiguousTypes #-}
 
 module Test.Controller.AccessDeniedSpec where
-import qualified Prelude
 import ClassyPrelude
 import Test.Hspec
-import IHP.Test.Mocking hiding (application)
+import IHP.Test.Mocking
 import IHP.Prelude
-import IHP.QueryBuilder
 import IHP.Environment
-import IHP.HaskellSupport
 import IHP.RouterSupport hiding (get)
 import IHP.FrameworkConfig
-import IHP.Job.Types
-import Wai.Request.Params.Middleware (RequestBody (..))
 import IHP.ViewPrelude
 import IHP.ControllerPrelude hiding (get, request)
-import qualified IHP.Server as Server
-import Data.Attoparsec.ByteString.Char8 (string, Parser, (<?>), parseOnly, take, endOfInput, choice, takeTill, takeByteString)
-import Network.Wai
 import Network.Wai.Test
 import Network.HTTP.Types
-import Data.String.Conversions
-import Data.Text as Text
-import Unsafe.Coerce
-
-import qualified Network.Wai.Session as Session
-import qualified Network.Wai.Session.Map as Session
 
 data WebApplication = WebApplication deriving (Eq, Show, Data)
 
@@ -70,18 +56,15 @@ config = do
     option Development
     option (AppPort 8000)
 
-application :: Application
-application = Server.application handleNotFound (\app -> app)
-
 assertAccessDenied :: SResponse -> IO ()
 assertAccessDenied response = do
     response.simpleStatus `shouldBe` status403
     response.simpleBody `shouldNotBe` "Test"
 
 tests :: Spec
-tests = beforeAll (mockContextNoDatabase WebApplication config) do
+tests = aroundAll (withMockContextAndApp WebApplication config) do
     describe "Access denied" $ do
-        it "should return show 403 page when acessDeniedWhen is True" $ withContext do
+        it "should return show 403 page when acessDeniedWhen is True" $ withContextAndApp \application -> do
             runSession (testGet "test/TestActionAccessDeniedWhen") application >>= assertAccessDenied
-        it "should return show 403 page when acessDeniedUnless is False" $ withContext do
+        it "should return show 403 page when acessDeniedUnless is False" $ withContextAndApp \application -> do
             runSession (testGet "test/TestActionAccessDeniedUnless") application >>= assertAccessDenied

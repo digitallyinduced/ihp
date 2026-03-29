@@ -32,7 +32,9 @@ Database name: `app`.
 
 Once you have created your project, the first step is to define a database schema. The database schema is a SQL file with a lot of `CREATE TABLE ...` statements. You can find it at `Application/Schema.sql`.
 
-In a new project, this file will be empty. The [`uuid-ossp`](https://www.postgresql.org/docs/current/uuid-ossp.html) extension is automatically enabled for the database by IHP.
+In a new project, this file will be empty.
+
+If you are using PostgreSQL 18 or newer, you can set the environment variable `IHP_POSTGRES_VERSION=18` to use the native `uuidv7()` function as the default for new tables and jobs instead of `uuid_generate_v4()`. UUIDv7 provides time-ordered UUIDs that are better for database indexing.
 
 To define your database schema add your `CREATE TABLE ...` statements to the `Schema.sql`. For a users table this can look like this:
 
@@ -289,6 +291,8 @@ do
 ## Raw SQL Queries
 
 The IHP query builder is designed to be able to easily express many basic sql queries. When your application is growing you will typically hit a point where a complex SQL query cannot be easily expressed with the IHP query builder. In that case it's recommended to use handwritten SQL to access your data.
+
+> **Tip:** For compile-time type-checked SQL queries, see the [Typed SQL Guide](typed-sql.html). Typed SQL automatically infers Haskell types from your SQL at compile time, eliminating the need for manual `FromRow` instances.
 
 Use the function [`sqlQuery`](https://ihp.digitallyinduced.com/api-docs/IHP-ModelSupport.html#v:sqlQuery) to run a raw SQL query:
 
@@ -820,18 +824,9 @@ withTransaction do
 In this example, when the creation of the User fails, the creation of the company will be rolled back. So that no
 incomplete data is left in the database when there's an error.
 
-The [`withTransaction`](https://ihp.digitallyinduced.com/api-docs/IHP-ModelSupport.html#v:withTransaction) function will automatically commit after it succesfully executed the passed do-block. When any exception is thrown, it will automatically rollback.
+The [`withTransaction`](https://ihp.digitallyinduced.com/api-docs/IHP-ModelSupport.html#v:withTransaction) function will automatically commit after it successfully executed the passed do-block. When any exception is thrown, it will automatically rollback.
 
-Keep in mind that some IHP functions like [`redirectTo`](https://ihp.digitallyinduced.com/api-docs/IHP-Controller-Redirect.html#v:redirectTo) or [`render`](https://ihp.digitallyinduced.com/api-docs/IHP-Controller-Render.html#v:render) throw a [`ResponseException`](https://ihp.digitallyinduced.com/api-docs/IHP-ControllerSupport.html#t:ResponseException). So code like below will not work as expected:
-
-```haskell
-action CreateUserAction = do
-    withTransaction do
-        user <- newRecord @User |> createRecord
-        redirectTo NewSessionAction
-```
-
-The [`redirectTo`](https://ihp.digitallyinduced.com/api-docs/IHP-Controller-Redirect.html#v:redirectTo) throws a [`ResponseException`](https://ihp.digitallyinduced.com/api-docs/IHP-ControllerSupport.html#t:ResponseException) and will cause a rollback. This code should be structured like this:
+It's good practice to keep your transaction blocks focused on database operations only:
 
 ```haskell
 action CreateUserAction = do
@@ -853,3 +848,82 @@ CREATE TABLE users (
     UNIQUE (email, username)
 );
 ```
+
+PostgreSQL constraint names have a **63-byte** limit.
+
+For a multi-column unique constraint, Postgres auto-generates a name from table + column names.  
+For `strategy_factor_regime_online` + `(symbol_id, timeframe, ts, version)`, this becomes a long name (truncated form: `strategy_factor_regime_online_symbol_id_timeframe_ts_version_ke`) and can trigger noisy migrations like:
+
+```sql
+ALTER TABLE strategy_factor_regime_online DROP CONSTRAINT strategy_factor_regime_online_symbol_id_timeframe_ts_version_ke;
+```
+
+Solution: use a short explicit constraint name after `CREATE TABLE strategy_factor_regime_online`:
+
+```sql
+ALTER TABLE strategy_factor_regime_online
+    ADD CONSTRAINT uq_sfr_on_main UNIQUE (symbol_id, timeframe, ts, version);
+```
+
+Alternative: use `CREATE UNIQUE INDEX ...`.
+
+## Troubleshooting
+
+### "relation does not exist"
+
+```
+QueryError "SELECT ... FROM posts" ... (PGRES_FATAL_ERROR,"ERROR:  relation \"posts\" does not exist")
+```
+
+The table has not been created in your database. This usually means you added a table to `Application/Schema.sql` but have not pushed the schema to the database yet. Run `make db` while the development server is running to re-create the database from your schema. Also check for typos in the table name.
+
+### "column does not exist"
+
+```
+QueryError "SELECT ... " ... (PGRES_FATAL_ERROR,"ERROR:  column \"my_column\" does not exist")
+```
+
+Your database schema is out of sync with the generated Haskell types. This happens when you add or rename a column in `Schema.sql` but the actual database has not been updated. Run `make db` to re-import the schema into the database, or use `Migrate DB` from the Schema Designer. If you renamed a column, also run the appropriate `ALTER TABLE` statement as described in the "Renaming a Column" section above.
+
+### Connection Refused
+
+```
+libpq: failed (connection to server on socket ... failed: No such file or directory)
+```
+
+The PostgreSQL database is not running. Make sure the IHP development server is started with `devenv up`. The built-in development server automatically manages a PostgreSQL instance -- it is not available until the dev server is running.
+
+### "Couldn't match type 'Maybe'" on a Column
+
+```
+Couldn't match type 'Maybe Text' with 'Text'
+```
+
+This happens when a column in your schema is nullable (no `NOT NULL` constraint) but your code treats it as a non-nullable value, or vice versa. Nullable columns generate `Maybe` types in Haskell. Either add `NOT NULL` to the column in `Schema.sql` if it should never be null, or handle the `Maybe` in your code:
+
+```haskell
+-- For a nullable column:
+case user.bio of
+    Just bio -> [hsx|{bio}|]
+    Nothing  -> [hsx|No bio provided|]
+```
+
+### N+1 Query Issues
+
+If you see many repeated queries in your server log like this:
+
+```
+Query (SELECT * FROM comments WHERE post_id = ?) ...
+Query (SELECT * FROM comments WHERE post_id = ?) ...
+Query (SELECT * FROM comments WHERE post_id = ?) ...
+```
+
+You have an N+1 query problem. This happens when you fetch a list of records and then individually fetch related records for each one inside a loop. Fix this by using `fetch` with `include` to eagerly load the related records in a single query. See the [Relationships guide](relationships.html) for details on how to use `include`.
+
+### Type Mismatch on Query Results
+
+```
+Couldn't match type 'Post' with '[Post]'
+```
+
+Check whether you are using the right fetch function. `fetch` on an `Id` returns a single record, while `query @Post |> fetch` returns a list `[Post]`. Use `fetchOne` if you want a single result from a query, or `fetchOrNothing` if you want `Maybe Post` when fetching by id.

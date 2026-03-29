@@ -1,16 +1,18 @@
 {-# LANGUAGE UndecidableInstances #-}
 module IHP.DataSync.ControllerImpl where
 
-import IHP.ControllerPrelude hiding (OrderByClause)
+import IHP.ControllerPrelude hiding (OrderByClause, sqlQuery, sqlExec, sqlQueryScalar)
 import qualified Control.Exception.Safe as Exception
 import qualified IHP.Log as Log
 import qualified Data.Aeson as Aeson
 import qualified Data.Aeson.Key as Aeson
 
 import Data.Aeson.TH
-import qualified Database.PostgreSQL.Simple as PG
-import qualified Database.PostgreSQL.Simple.ToField as PG
-import qualified Database.PostgreSQL.Simple.Types as PG
+import qualified Hasql.Decoders as Decoders
+import qualified Hasql.Statement as Hasql
+import qualified Hasql.Pool
+import qualified Hasql.Session as Session
+import IHP.DataSync.Hasql (runSession, runSessionOnConnection, withDedicatedConnection)
 import qualified Data.HashMap.Strict as HashMap
 import qualified Data.UUID.V4 as UUID
 import qualified Control.Concurrent.MVar as MVar
@@ -18,21 +20,19 @@ import IHP.DataSync.Types
 import IHP.DataSync.RowLevelSecurity
 import IHP.DataSync.DynamicQuery
 import IHP.DataSync.DynamicQueryCompiler
+import IHP.DataSync.TypedEncoder (makeCachedColumnTypeLookup, typedAesonValueToSnippet, lookupColumnType)
+import qualified Hasql.DynamicStatements.Snippet as Snippet
+import Hasql.DynamicStatements.Snippet (Snippet)
 import qualified IHP.DataSync.ChangeNotifications as ChangeNotifications
-import IHP.DataSync.REST.Controller (aesonValueToPostgresValue)
-import qualified Data.ByteString.Char8 as ByteString
 import qualified IHP.PGListener as PGListener
 import qualified Data.Set as Set
-import qualified Data.Pool as Pool
-import GHC.Conc (getNumCapabilities, ThreadId, myThreadId, atomically)
-import qualified Data.HashSet as HashSet
+import GHC.Conc (ThreadId, myThreadId, atomically)
 import Control.Concurrent.QSemN
 import Control.Concurrent.STM.TVar
-import Control.Monad (void)
-import IHP.RequestVault
+import qualified Data.List as List
 
 $(deriveFromJSON defaultOptions ''DataSyncMessage)
-$(deriveToJSON defaultOptions 'DataSyncResult)
+$(deriveToJSON defaultOptions { omitNothingFields = True } 'DataSyncResult)
 
 type EnsureRLSEnabledFn = Text -> IO TableWithRLS
 type InstallTableChangeTriggerFn = TableWithRLS -> IO ()
@@ -43,16 +43,17 @@ runDataSyncController ::
     ( HasField "id" CurrentUserRecord (Id' (GetTableName CurrentUserRecord))
     , ?context :: ControllerContext
     , ?modelContext :: ModelContext
+    , ?request :: Request
     , ?state :: IORef DataSyncController
-    , PG.ToField (PrimaryKey (GetTableName CurrentUserRecord))
     , Typeable CurrentUserRecord
     , HasNewSessionUrl CurrentUserRecord
     , Show (PrimaryKey (GetTableName CurrentUserRecord))
-    ) => EnsureRLSEnabledFn -> InstallTableChangeTriggerFn -> IO ByteString -> SendJSONFn -> HandleCustomMessageFn -> (Text -> Renamer) -> IO ()
-runDataSyncController ensureRLSEnabled installTableChangeTriggers receiveData sendJSON handleCustomMessage renamer = do
+    ) => Hasql.Pool.Pool -> EnsureRLSEnabledFn -> InstallTableChangeTriggerFn -> IO ByteString -> SendJSONFn -> HandleCustomMessageFn -> (Text -> Renamer) -> IO ()
+runDataSyncController hasqlPool ensureRLSEnabled installTableChangeTriggers receiveData sendJSON handleCustomMessage renamer = do
     setState DataSyncReady { subscriptions = HashMap.empty, transactions = HashMap.empty }
 
-    let handleMessage :: DataSyncMessage -> IO () = buildMessageHandler ensureRLSEnabled installTableChangeTriggers sendJSON handleCustomMessage renamer
+    columnTypeLookup <- makeCachedColumnTypeLookup hasqlPool
+    handleMessage :: DataSyncMessage -> IO () <- buildMessageHandler hasqlPool ensureRLSEnabled installTableChangeTriggers sendJSON handleCustomMessage renamer columnTypeLookup
 
 
     sem  <- newQSemN (maxSubscriptionsPerConnection * 2) -- needs to be larger than the subscriptions limit to trigger an error on overload. otherwise an overflow of connections might queue up silently
@@ -74,9 +75,7 @@ runDataSyncController ensureRLSEnabled installTableChangeTriggers receiveData se
                             case result of
                                 Left (e :: Exception.SomeException) -> do
                                     let requestId    = decodedMessage.requestId
-                                    let errorMessage = case fromException e of
-                                            Just (enhancedSqlError :: EnhancedSqlError) -> cs enhancedSqlError.sqlError.sqlErrorMsg
-                                            Nothing -> cs (displayException e)
+                                    let errorMessage = cs (displayException e)
                                     Log.error (tshow e)
                                     sendJSON DataSyncError { requestId, errorMessage }
                                 Right _ -> pure ()
@@ -109,28 +108,31 @@ buildMessageHandler ::
     ( HasField "id" CurrentUserRecord (Id' (GetTableName CurrentUserRecord))
     , ?context :: ControllerContext
     , ?modelContext :: ModelContext
+    , ?request :: Request
     , ?state :: IORef DataSyncController
-    , PG.ToField (PrimaryKey (GetTableName CurrentUserRecord))
     , Typeable CurrentUserRecord
     , HasNewSessionUrl CurrentUserRecord
     , Show (PrimaryKey (GetTableName CurrentUserRecord))
     )
-    => EnsureRLSEnabledFn -> InstallTableChangeTriggerFn -> SendJSONFn -> HandleCustomMessageFn -> (Text -> Renamer) -> (DataSyncMessage -> IO ())
-buildMessageHandler ensureRLSEnabled installTableChangeTriggers sendJSON handleCustomMessage renamer = handleMessage
+    => Hasql.Pool.Pool -> EnsureRLSEnabledFn -> InstallTableChangeTriggerFn -> SendJSONFn -> HandleCustomMessageFn -> (Text -> Renamer) -> (Text -> IO ColumnTypeInfo) -> IO (DataSyncMessage -> IO ())
+buildMessageHandler hasqlPool ensureRLSEnabled installTableChangeTriggers sendJSON handleCustomMessage renamer columnTypeLookup = do
+    getRLSColumns <- makeCachedRLSPolicyColumns hasqlPool
+    pure (handleMessage getRLSColumns)
     where
-            pgListener = ?context.request.pgListener
-            handleMessage :: DataSyncMessage -> IO ()
-            handleMessage DataSyncQuery { query, requestId, transactionId } = do
+            pgListener = ?request.pgListener
+            handleMessage :: (Text -> IO (Set.Set Text)) -> DataSyncMessage -> IO ()
+            handleMessage getRLSColumns DataSyncQuery { query, requestId, transactionId } = do
                 ensureRLSEnabled (query.table)
 
-                let (theQuery, theParams) = compileQueryWithRenamer (renamer query.table) query
+                columnTypes <- columnTypeLookup query.table
+                let querySnippet = compileQueryTyped (renamer query.table) columnTypes query
+                let stmt = compiledQueryStatement querySnippet
 
-                rawResult :: [[Field]] <- sqlQueryWithRLSAndTransactionId transactionId theQuery theParams
-                let result = map (map (renameField (renamer query.table))) rawResult
+                result :: [[Field]] <- sqlQueryWithRLSAndTransactionId hasqlPool transactionId stmt
 
                 sendJSON DataSyncResult { result, requestId }
-            
-            handleMessage CreateDataSubscription { query, requestId } = do
+
+            handleMessage getRLSColumns CreateDataSubscription { query, requestId } = do
                 ensureBelowSubscriptionsLimit
 
                 tableNameRLS <- ensureRLSEnabled (query.table)
@@ -143,23 +145,53 @@ buildMessageHandler ensureRLSEnabled installTableChangeTriggers sendJSON handleC
                 close <- MVar.newEmptyMVar
                 atomicModifyIORef'' ?state (\state -> state |> modify #subscriptions (HashMap.insert subscriptionId close))
 
-                let (theQuery, theParams) = compileQueryWithRenamer (renamer query.table) query
+                columnTypes <- columnTypeLookup query.table
+                let querySnippet = compileQueryTyped (renamer query.table) columnTypes query
+                let stmt = compiledQueryStatement querySnippet
 
-                rawResult :: [[Field]] <- sqlQueryWithRLS theQuery theParams
-                let result = map (map (renameField (renamer query.table))) rawResult
+                result :: [[Field]] <- sqlQueryWithRLS hasqlPool stmt
 
                 let tableName = query.table
+
+                -- Compute "sensitive columns": the union of columns referenced in the
+                -- WHERE clause and columns referenced in RLS policies. When an UPDATE
+                -- only touches columns outside this set, the record cannot leave the
+                -- result set or change RLS visibility, so we can skip the EXISTS check.
+                rlsCols <- getRLSColumns tableName
+                let whereColumns = maybe Set.empty conditionColumns (query.whereCondition)
+                let whereColumnsDb = Set.map (renamer tableName).fieldToColumn whereColumns
+                let sensitiveColumns = Set.union whereColumnsDb rlsCols
 
                 -- We need to keep track of all the ids of entities we're watching to make
                 -- sure that we only send update notifications to clients that can actually
                 -- access the record (e.g. if a RLS policy denies access)
-                let watchedRecordIds = recordIds rawResult
+                let watchedRecordIds = recordIds result
 
                 -- Store it in IORef as an INSERT requires us to add an id
                 watchedRecordIdsRef <- newIORef (Set.fromList watchedRecordIds)
 
                 -- Make sure the database triggers are there
                 installTableChangeTriggers tableNameRLS
+
+                let handleUpdate id getChanges = do
+                        isWatchingRecord <- Set.member id <$> readIORef watchedRecordIdsRef
+                        when isWatchingRecord do
+                            changes <- getChanges
+                            let changedCols = Set.fromList (map (.col) changes)
+                            let affectsFilterOrRLS = not (Set.disjoint changedCols sensitiveColumns)
+                            let (changeSetVal, appendSetVal) = changesToValue (renamer tableName) changes
+                            if affectsFilterOrRLS
+                                then do
+                                    let existsSnippet = Snippet.sql "SELECT EXISTS(SELECT * FROM (" <> querySnippet <> Snippet.sql ") AS records WHERE records.id = " <> uuidParam id <> Snippet.sql " LIMIT 1)"
+                                    let existsStmt = Snippet.toPreparableStatement existsSnippet (Decoders.singleRow (Decoders.column (Decoders.nonNullable Decoders.bool)))
+                                    isRecordInResultSet :: Bool <- sqlQueryScalarWithRLS hasqlPool existsStmt
+                                    if isRecordInResultSet
+                                        then sendJSON DidUpdate { subscriptionId, id, changeSet = changeSetVal, appendSet = appendSetVal }
+                                        else do
+                                            modifyIORef' watchedRecordIdsRef (Set.delete id)
+                                            sendJSON DidDelete { subscriptionId, id }
+                                else
+                                    sendJSON DidUpdate { subscriptionId, id, changeSet = changeSetVal, appendSet = appendSetVal }
 
                 let callback notification = case notification of
                             ChangeNotifications.DidInsert { id } -> do
@@ -172,30 +204,22 @@ buildMessageHandler ensureRLSEnabled installTableChangeTriggers sendJSON handleC
                                 --
                                 -- To honor the RLS policies we therefore need to fetch the record as the current user
                                 -- If the result set is empty, we know the record is not accesible to us
-                                newRecord :: [[Field]] <- sqlQueryWithRLS ("SELECT * FROM (" <> theQuery <> ") AS records WHERE records.id = ? LIMIT 1") (theParams <> [PG.toField id])
+                                let filterSnippet = Snippet.sql "SELECT * FROM (" <> querySnippet <> Snippet.sql ") AS records WHERE records.id = " <> uuidParam id <> Snippet.sql " LIMIT 1"
+                                let filterStmt = Snippet.toPreparableStatement (wrapDynamicQuery filterSnippet) dynamicRowDecoder
+                                newRecord :: [[Field]] <- sqlQueryWithRLS hasqlPool filterStmt
 
                                 case headMay newRecord of
-                                    Just rawRecord -> do
+                                    Just record -> do
                                         -- Add the new record to 'watchedRecordIdsRef'
                                         -- Otherwise the updates and deletes will not be dispatched to the client
                                         modifyIORef' watchedRecordIdsRef (Set.insert id)
 
-                                        let record = map (renameField (renamer tableName)) rawRecord
                                         sendJSON DidInsert { subscriptionId, record }
                                     Nothing -> pure ()
-                            ChangeNotifications.DidUpdate { id, changeSet } -> do
-                                -- Only send the notifcation if the deleted record was part of the initial
-                                -- results set
-                                isWatchingRecord <- Set.member id <$> readIORef watchedRecordIdsRef
-                                when isWatchingRecord do
-                                    -- The updated record could not be part of the query result set anymore
-                                    -- E.g. if it's not matched anymore by the WHERE condition after the update
-                                    [(PG.Only isRecordInResultSet)] <- sqlQueryWithRLS ("SELECT EXISTS(SELECT * FROM (" <> theQuery <> ") AS records WHERE records.id = ? LIMIT 1)") (theParams <> [PG.toField id])
-
-                                    changes <- ChangeNotifications.retrieveChanges changeSet
-                                    if isRecordInResultSet
-                                        then sendJSON DidUpdate { subscriptionId, id, changeSet = changesToValue (renamer tableName) changes }
-                                        else sendJSON DidDelete { subscriptionId, id }
+                            ChangeNotifications.DidUpdate { id, changeSet } ->
+                                handleUpdate id (ChangeNotifications.retrieveChanges hasqlPool changeSet)
+                            ChangeNotifications.DidUpdateLarge { id, payloadId } ->
+                                handleUpdate id (ChangeNotifications.retrieveChanges hasqlPool (ChangeNotifications.ExternalChangeSet { largePgNotificationId = payloadId }))
                             ChangeNotifications.DidDelete { id } -> do
                                 -- Only send the notifcation if the deleted record was part of the initial
                                 -- results set
@@ -211,7 +235,7 @@ buildMessageHandler ensureRLSEnabled installTableChangeTriggers sendJSON handleC
 
                     MVar.takeMVar close
 
-            handleMessage CreateCountSubscription { query, requestId } = do
+            handleMessage getRLSColumns CreateCountSubscription { query, requestId } = do
                 ensureBelowSubscriptionsLimit
 
                 tableNameRLS <- ensureRLSEnabled query.table
@@ -224,16 +248,14 @@ buildMessageHandler ensureRLSEnabled installTableChangeTriggers sendJSON handleC
                 close <- MVar.newEmptyMVar
                 atomicModifyIORef'' ?state (\state -> state |> modify #subscriptions (HashMap.insert subscriptionId close))
 
-                let (theQuery, theParams) = compileQueryWithRenamer (renamer query.table) query
+                columnTypes <- columnTypeLookup query.table
+                let querySnippet = compileQueryTyped (renamer query.table) columnTypes query
 
-                let countQuery = "SELECT COUNT(*) FROM (" <> theQuery <> ") AS _inner"
+                let countSnippet = Snippet.sql "SELECT COUNT(*) FROM (" <> querySnippet <> Snippet.sql ") AS _inner"
+                let countDecoder = Decoders.singleRow (Decoders.column (Decoders.nonNullable (fromIntegral <$> Decoders.int8)))
+                let countStmt = Snippet.toPreparableStatement countSnippet countDecoder
 
-                let
-                    unpackResult :: [(Only Int)] -> Int
-                    unpackResult [(Only value)] = value
-                    unpackResult otherwise = error "DataSync.unpackResult: Expected INT, but got something else"
-
-                count <- unpackResult <$> sqlQueryWithRLS countQuery theParams
+                count :: Int <- sqlQueryScalarWithRLS hasqlPool countStmt
                 countRef <- newIORef count
 
                 installTableChangeTriggers tableNameRLS
@@ -241,10 +263,12 @@ buildMessageHandler ensureRLSEnabled installTableChangeTriggers sendJSON handleC
                 let
                     callback :: ChangeNotifications.ChangeNotification -> IO ()
                     callback _ = do
-                        newCount <- unpackResult <$> sqlQueryWithRLS countQuery theParams
+                        newCount :: Int <- sqlQueryScalarWithRLS hasqlPool countStmt
                         lastCount <- readIORef countRef
 
-                        when (newCount /= count) (sendJSON DidChangeCount { subscriptionId, count = newCount })
+                        when (newCount /= lastCount) do
+                            writeIORef countRef newCount
+                            sendJSON DidChangeCount { subscriptionId, count = newCount }
 
                 let subscribe = PGListener.subscribeJSON (ChangeNotifications.channelName tableNameRLS) callback pgListener
                 let unsubscribe subscription = PGListener.unsubscribe subscription pgListener
@@ -254,7 +278,7 @@ buildMessageHandler ensureRLSEnabled installTableChangeTriggers sendJSON handleC
 
                     MVar.takeMVar close
 
-            handleMessage DeleteDataSubscription { requestId, subscriptionId } = do
+            handleMessage getRLSColumns DeleteDataSubscription { requestId, subscriptionId } = do
                 DataSyncReady { subscriptions } <- getState
                 case HashMap.lookup subscriptionId subscriptions of
                     Just closeSignalMVar -> do
@@ -264,160 +288,122 @@ buildMessageHandler ensureRLSEnabled installTableChangeTriggers sendJSON handleC
                         atomicModifyIORef'' ?state (\state -> state |> modify #subscriptions (HashMap.delete subscriptionId))
 
                         sendJSON DidDeleteDataSubscription { subscriptionId, requestId }
-                    Nothing -> error ("Failed to delete DataSubscription, could not find DataSubscription with id " <> tshow subscriptionId)
+                    Nothing -> sendJSON DataSyncError { requestId, errorMessage = "Failed to delete DataSubscription, could not find DataSubscription with id " <> tshow subscriptionId }
 
-            handleMessage CreateRecordMessage { table, record, requestId, transactionId }  = do
+            handleMessage getRLSColumns CreateRecordMessage { table, record, requestId, transactionId }  = do
                 ensureRLSEnabled table
 
-                let query = "INSERT INTO ? ? VALUES ? RETURNING *"
-                let columns = record
-                        |> HashMap.keys
-                        |> map (renamer table).fieldToColumn
+                columnTypes <- columnTypeLookup table
 
-                let values = record
-                        |> HashMap.elems
-                        |> map aesonValueToPostgresValue
+                let pairsList = record
+                        |> HashMap.toList
+                        |> map (\(fieldName, val) ->
+                            let col = (renamer table).fieldToColumn fieldName
+                            in (col, lookupColumnType columnTypes col, val)
+                        )
 
-                let params = (PG.Identifier table, PG.In (map PG.Identifier columns), PG.In values)
-                
-                result :: [[Field]] <- sqlQueryWithRLSAndTransactionId transactionId query params
+                let columns = map (\(c,_,_) -> c) pairsList
+                let valueSnippets = map (\(_, colType, val) -> typedAesonValueToSnippet colType val) pairsList
+                let insertResult = compileInsert table columns valueSnippets (renamer table) columnTypes
+                let stmt = compiledQueryStatement insertResult
+
+                result :: [[Field]] <- sqlQueryWriteWithRLSAndTransactionId hasqlPool transactionId stmt
 
                 case result of
-                    [rawRecord] ->
-                        let
-                            record = map (renameField (renamer table)) rawRecord
-                        in
-                            sendJSON DidCreateRecord { requestId, record }
-                    otherwise -> error "Unexpected result in CreateRecordMessage handler"
-
-                pure ()
-            
-            handleMessage CreateRecordsMessage { table, records, requestId, transactionId }  = do
-                ensureRLSEnabled table
-
-                let query = "INSERT INTO ? ? ? RETURNING *"
-                let columns = records
-                        |> head
-                        |> \case
-                            Just value -> value
-                            Nothing -> error "Atleast one record is required"
-                        |> HashMap.keys
-                        |> map (renamer table).fieldToColumn
-
-                let values = records
-                        |> map (\object ->
-                                object
-                                |> HashMap.elems
-                                |> map aesonValueToPostgresValue
-                            )
-                        
-
-                let params = (PG.Identifier table, PG.In (map PG.Identifier columns), PG.Values [] values)
-
-                rawRecords :: [[Field]] <- sqlQueryWithRLSAndTransactionId transactionId query params
-                let records = map (map (renameField (renamer table))) rawRecords
-
-                sendJSON DidCreateRecords { requestId, records }
+                    [record] ->
+                        sendJSON DidCreateRecord { requestId, record }
+                    otherwise -> sendJSON DataSyncError { requestId, errorMessage = "Unexpected result in CreateRecordMessage handler" }
 
                 pure ()
 
-            handleMessage UpdateRecordMessage { table, id, patch, requestId, transactionId } = do
+            handleMessage getRLSColumns CreateRecordsMessage { table, records, requestId, transactionId }  = do
                 ensureRLSEnabled table
 
-                let columns = patch
-                        |> HashMap.keys
-                        |> map (renamer table).fieldToColumn
-                        |> map PG.Identifier
+                columnTypes <- columnTypeLookup table
 
-                let values = patch
-                        |> HashMap.elems
-                        |> map aesonValueToPostgresValue
+                case head records of
+                    Nothing -> sendJSON DataSyncError { requestId, errorMessage = "At least one record is required" }
+                    Just firstRecord -> do
+                        let fieldNames = HashMap.keys firstRecord
+                        let columns = map (renamer table).fieldToColumn fieldNames
 
-                let keyValues = zip columns values
+                        let encodeRow object = map
+                                (\(fieldName, col) -> typedAesonValueToSnippet (lookupColumnType columnTypes col) (fromMaybe Aeson.Null (HashMap.lookup fieldName object)))
+                                (zip fieldNames columns)
+                        let valueRows = map encodeRow records
 
-                let setCalls = keyValues
-                        |> map (\_ -> "? = ?")
-                        |> ByteString.intercalate ", "
-                let query = "UPDATE ? SET " <> setCalls <> " WHERE id = ? RETURNING *"
+                        let insertResult = compileInsertMany table columns valueRows (renamer table) columnTypes
+                        let stmt = compiledQueryStatement insertResult
 
-                let params = [PG.toField (PG.Identifier table)]
-                        <> (join (map (\(key, value) -> [PG.toField key, value]) keyValues))
-                        <> [PG.toField id]
+                        records :: [[Field]] <- sqlQueryWriteWithRLSAndTransactionId hasqlPool transactionId stmt
 
-                result :: [[Field]] <- sqlQueryWithRLSAndTransactionId transactionId (PG.Query query) params
-                
+                        sendJSON DidCreateRecords { requestId, records }
+
+                        pure ()
+
+            handleMessage getRLSColumns UpdateRecordMessage { table, id, patch, requestId, transactionId } = do
+                ensureRLSEnabled table
+
+                columnTypes <- columnTypeLookup table
+
+                let setSql = encodePatchToSetSql (renamer table) columnTypes patch
+                let updateResult = compileUpdate table setSql (Snippet.sql "id = " <> uuidParam id) (renamer table) columnTypes
+                let stmt = compiledQueryStatement updateResult
+
+                result :: [[Field]] <- sqlQueryWriteWithRLSAndTransactionId hasqlPool transactionId stmt
+
                 case result of
-                    [rawRecord] ->
-                        let
-                            record = map (renameField (renamer table)) rawRecord
-                        in
-                            sendJSON DidUpdateRecord { requestId, record }
-                    otherwise -> error "Could not apply the update to the given record. Are you sure the record ID you passed is correct? If the record ID is correct, likely the row level security policy is not making the record visible to the UPDATE operation."
+                    [record] ->
+                        sendJSON DidUpdateRecord { requestId, record }
+                    otherwise -> sendJSON DataSyncError { requestId, errorMessage = "Could not apply the update to the given record. Are you sure the record ID you passed is correct? If the record ID is correct, likely the row level security policy is not making the record visible to the UPDATE operation." }
 
                 pure ()
 
-            handleMessage UpdateRecordsMessage { table, ids, patch, requestId, transactionId } = do
+            handleMessage getRLSColumns UpdateRecordsMessage { table, ids, patch, requestId, transactionId } = do
                 ensureRLSEnabled table
 
-                let columns = patch
-                        |> HashMap.keys
-                        |> map (renamer table).fieldToColumn
-                        |> map PG.Identifier
+                columnTypes <- columnTypeLookup table
 
-                let values = patch
-                        |> HashMap.elems
-                        |> map aesonValueToPostgresValue
+                let setSql = encodePatchToSetSql (renamer table) columnTypes patch
+                let inList = mconcat $ List.intersperse (Snippet.sql ", ") (map uuidParam ids)
+                let updateResult = compileUpdate table setSql (Snippet.sql "id IN (" <> inList <> Snippet.sql ")") (renamer table) columnTypes
+                let stmt = compiledQueryStatement updateResult
 
-                let keyValues = zip columns values
+                records <- sqlQueryWriteWithRLSAndTransactionId hasqlPool transactionId stmt
 
-                let setCalls = keyValues
-                        |> map (\_ -> "? = ?")
-                        |> ByteString.intercalate ", "
-                let query = "UPDATE ? SET " <> setCalls <> " WHERE id IN ? RETURNING *"
-
-                let params = [PG.toField (PG.Identifier table)]
-                        <> (join (map (\(key, value) -> [PG.toField key, value]) keyValues))
-                        <> [PG.toField (PG.In ids)]
-
-                rawRecords <- sqlQueryWithRLSAndTransactionId transactionId (PG.Query query) params
-                let records = map (map (renameField (renamer table))) rawRecords
-                
                 sendJSON DidUpdateRecords { requestId, records }
 
                 pure ()
-            
-            handleMessage DeleteRecordMessage { table, id, requestId, transactionId } = do
+
+            handleMessage getRLSColumns DeleteRecordMessage { table, id, requestId, transactionId } = do
                 ensureRLSEnabled table
 
-                sqlExecWithRLSAndTransactionId transactionId "DELETE FROM ? WHERE id = ?" (PG.Identifier table, id)
+                let deleteSnippet = Snippet.sql ("DELETE FROM " <> quoteIdentifier table <> " WHERE id = ") <> uuidParam id
+                let stmt = Snippet.toPreparableStatement deleteSnippet Decoders.noResult
+                sqlExecWithRLSAndTransactionId hasqlPool transactionId stmt
 
                 sendJSON DidDeleteRecord { requestId }
-            
-            handleMessage DeleteRecordsMessage { table, ids, requestId, transactionId } = do
+
+            handleMessage getRLSColumns DeleteRecordsMessage { table, ids, requestId, transactionId } = do
                 ensureRLSEnabled table
 
-                sqlExecWithRLSAndTransactionId transactionId "DELETE FROM ? WHERE id IN ?" (PG.Identifier table, PG.In ids)
+                let inList = mconcat $ List.intersperse (Snippet.sql ", ") (map uuidParam ids)
+                let stmt = Snippet.toPreparableStatement (Snippet.sql ("DELETE FROM " <> quoteIdentifier table <> " WHERE id IN (") <> inList <> Snippet.sql ")") Decoders.noResult
+                sqlExecWithRLSAndTransactionId hasqlPool transactionId stmt
 
                 sendJSON DidDeleteRecords { requestId }
 
-            handleMessage StartTransaction { requestId } = do
+            handleMessage getRLSColumns StartTransaction { requestId } = do
                 ensureBelowTransactionLimit
 
                 transactionId <- UUID.nextRandom
 
-
-                let takeConnection = ?modelContext.connectionPool
-                                    |> Pool.takeResource
-
-                let releaseConnection (connection, localPool) = do
-                        PG.execute connection "ROLLBACK" () -- Make sure there's no pending transaction in case something went wrong
-                        Pool.putResource localPool connection
-
-                Exception.bracket takeConnection releaseConnection \(connection, localPool) -> do
+                withDedicatedConnection ?context.frameworkConfig.databaseUrl \connection -> do
                     transactionSignal <- MVar.newEmptyMVar
 
-                    let globalModelContext = ?modelContext
-                    let ?modelContext = globalModelContext { transactionConnection = Just connection } in sqlExecWithRLS "BEGIN" ()
+                    runSessionOnConnection connection $ do
+                        Session.script "BEGIN"
+                        setRLSConfigSession
 
                     let transaction = DataSyncTransaction
                             { id = transactionId
@@ -433,51 +419,49 @@ buildMessageHandler ensureRLSEnabled installTableChangeTriggers sendJSON handleC
 
                     atomicModifyIORef'' ?state (\state -> state |> modify #transactions (HashMap.delete transactionId))
 
-            handleMessage RollbackTransaction { requestId, id } = do
-                DataSyncTransaction { id, close } <- findTransactionById id
+            handleMessage getRLSColumns RollbackTransaction { requestId, id } = do
+                DataSyncTransaction { id, close, connection } <- findTransactionById id
 
-                sqlExecWithRLSAndTransactionId (Just id) "ROLLBACK" ()
+                runSessionOnConnection connection (Session.script "ROLLBACK")
                 MVar.putMVar close ()
 
                 sendJSON DidRollbackTransaction { requestId, transactionId = id }
 
-            handleMessage CommitTransaction { requestId, id } = do
-                DataSyncTransaction { id, close } <- findTransactionById id
+            handleMessage getRLSColumns CommitTransaction { requestId, id } = do
+                DataSyncTransaction { id, close, connection } <- findTransactionById id
 
-                sqlExecWithRLSAndTransactionId (Just id) "COMMIT" ()
+                runSessionOnConnection connection (Session.script "COMMIT")
                 MVar.putMVar close ()
 
                 sendJSON DidCommitTransaction { requestId, transactionId = id }
 
-            handleMessage otherwise = handleCustomMessage sendJSON otherwise
+            handleMessage _getRLSColumns otherwise = handleCustomMessage sendJSON otherwise
 
-changesToValue :: Renamer -> [ChangeNotifications.Change] -> Value
-changesToValue renamer changes = object (map changeToPair changes)
+changesToValue :: Renamer -> [ChangeNotifications.Change] -> (Maybe Value, Maybe Value)
+changesToValue renamer changes = (maybeObject replacePairs, maybeObject appendPairs)
     where
-        changeToPair ChangeNotifications.Change { col, new } = (Aeson.fromText $ renamer.columnToField col) .= new
-
-runInModelContextWithTransaction :: (?state :: IORef DataSyncController, ?modelContext :: ModelContext) => ((?modelContext :: ModelContext) => IO result) -> Maybe UUID -> IO result
-runInModelContextWithTransaction function (Just transactionId) = do
-    let globalModelContext = ?modelContext
-
-    DataSyncTransaction { connection } <- findTransactionById transactionId
-    let
-            ?modelContext = globalModelContext { transactionConnection = Just connection }
-        in
-            function
-runInModelContextWithTransaction function Nothing = function
+        maybeObject [] = Nothing
+        maybeObject pairs = Just (object pairs)
+        replacePairs = mapMaybe toReplacePair changes
+        appendPairs  = mapMaybe toAppendPair changes
+        toReplacePair ChangeNotifications.Change { col, new } =
+            Just $ (Aeson.fromText $ renamer.columnToField col) .= new
+        toReplacePair _ = Nothing
+        toAppendPair ChangeNotifications.AppendChange { col, append } =
+            Just $ (Aeson.fromText $ renamer.columnToField col) .= append
+        toAppendPair _ = Nothing
 
 findTransactionById :: (?state :: IORef DataSyncController) => UUID -> IO DataSyncTransaction
 findTransactionById transactionId = do
     transactions <- (.transactions) <$> readIORef ?state
     case HashMap.lookup transactionId transactions of
         Just transaction -> pure transaction
-        Nothing -> error "No transaction with that id"
+        Nothing -> Exception.throwIO (userError ("No transaction with id " <> cs (tshow transactionId)))
 
 -- | Allow max 10 concurrent transactions per connection to avoid running out of database connections
 --
 -- Each transaction removes a database connection from the connection pool. If we don't limit the transactions,
--- a single user could take down the application by starting more than 'IHP.FrameworkConfig.DBPoolMaxConnections'
+-- a single user could take down the application by starting more than the pool size (HASQL_POOL_SIZE)
 -- concurrent transactions. Then all database connections are removed from the connection pool and further database
 -- queries for other users will fail.
 --
@@ -486,55 +470,88 @@ ensureBelowTransactionLimit = do
     transactions <- (.transactions) <$> readIORef ?state
     let transactionCount = HashMap.size transactions
     when (transactionCount >= maxTransactionsPerConnection) do
-        error ("You've reached the transaction limit of " <> tshow maxTransactionsPerConnection <> " transactions")
+        Exception.throwIO (userError ("You've reached the transaction limit of " <> cs (tshow maxTransactionsPerConnection) <> " transactions"))
 
 ensureBelowSubscriptionsLimit :: (?state :: IORef DataSyncController, ?context :: ControllerContext) => IO ()
 ensureBelowSubscriptionsLimit = do
     subscriptions <- (.subscriptions) <$> readIORef ?state
     let subscriptionsCount = HashMap.size subscriptions
     when (subscriptionsCount >= maxSubscriptionsPerConnection) do
-        error ("You've reached the subscriptions limit of " <> tshow maxSubscriptionsPerConnection <> " subscriptions")
+        Exception.throwIO (userError ("You've reached the subscriptions limit of " <> cs (tshow maxSubscriptionsPerConnection) <> " subscriptions"))
 
 maxTransactionsPerConnection :: (?context :: ControllerContext) => Int
-maxTransactionsPerConnection = 
+maxTransactionsPerConnection =
     case getAppConfig @DataSyncMaxTransactionsPerConnection of
         DataSyncMaxTransactionsPerConnection value -> value
 
 maxSubscriptionsPerConnection :: (?context :: ControllerContext) => Int
-maxSubscriptionsPerConnection = 
+maxSubscriptionsPerConnection =
     case getAppConfig @DataSyncMaxSubscriptionsPerConnection of
         DataSyncMaxSubscriptionsPerConnection value -> value
 
+-- | Encode a JSON patch (field name -> value) into a SQL SET clause 'Snippet' like @"col1" = $1, "col2" = $2@.
+encodePatchToSetSql :: Renamer -> ColumnTypeInfo -> HashMap Text Value -> Snippet
+encodePatchToSetSql ren columnTypes patch =
+    let pairsList = patch
+            |> HashMap.toList
+            |> map (\(fieldName, val) ->
+                let col = ren.fieldToColumn fieldName
+                in (col, lookupColumnType columnTypes col, val)
+            )
+        encodeSetClause (col, colType, val) =
+            Snippet.sql (quoteIdentifier col <> " = ") <> typedAesonValueToSnippet colType val
+        setSnippets = map encodeSetClause pairsList
+    in mconcat $ List.intersperse (Snippet.sql ", ") setSnippets
+
 sqlQueryWithRLSAndTransactionId ::
-    ( ?modelContext :: ModelContext
-    , PG.ToRow parameters
-    , ?context :: ControllerContext
-    , userId ~ Id CurrentUserRecord
+    ( ?context :: ControllerContext
     , Show (PrimaryKey (GetTableName CurrentUserRecord))
     , HasNewSessionUrl CurrentUserRecord
     , Typeable CurrentUserRecord
-    , ?context :: ControllerContext
     , HasField "id" CurrentUserRecord (Id' (GetTableName CurrentUserRecord))
-    , PG.ToField userId
-    , FromRow result
     , ?state :: IORef DataSyncController
-    ) => Maybe UUID -> PG.Query -> parameters -> IO [result]
-sqlQueryWithRLSAndTransactionId transactionId theQuery theParams = runInModelContextWithTransaction (sqlQueryWithRLS theQuery theParams) transactionId
+    ) => Hasql.Pool.Pool -> Maybe UUID -> Hasql.Statement () [result] -> IO [result]
+sqlQueryWithRLSAndTransactionId _pool (Just transactionId) statement = do
+    -- RLS role and user id were already set when the transaction was started
+    DataSyncTransaction { connection } <- findTransactionById transactionId
+    runSessionOnConnection connection
+        (Session.statement () statement)
+sqlQueryWithRLSAndTransactionId pool Nothing statement = runSession pool (sqlQueryWithRLSSession statement)
+
+-- | Like 'sqlQueryWithRLSAndTransactionId', but uses a write transaction when no transaction ID is provided.
+--
+-- Use this for INSERT, UPDATE, or DELETE statements with RETURNING that need
+-- to return results (e.g. wrapped with 'wrapDynamicQuery').
+sqlQueryWriteWithRLSAndTransactionId ::
+    ( ?context :: ControllerContext
+    , Show (PrimaryKey (GetTableName CurrentUserRecord))
+    , HasNewSessionUrl CurrentUserRecord
+    , Typeable CurrentUserRecord
+    , HasField "id" CurrentUserRecord (Id' (GetTableName CurrentUserRecord))
+    , ?state :: IORef DataSyncController
+    ) => Hasql.Pool.Pool -> Maybe UUID -> Hasql.Statement () [result] -> IO [result]
+sqlQueryWriteWithRLSAndTransactionId _pool (Just transactionId) statement = do
+    -- RLS role and user id were already set when the transaction was started
+    DataSyncTransaction { connection } <- findTransactionById transactionId
+    runSessionOnConnection connection
+        (Session.statement () statement)
+sqlQueryWriteWithRLSAndTransactionId pool Nothing statement = runSession pool (sqlQueryWriteWithRLSSession statement)
 
 sqlExecWithRLSAndTransactionId ::
-    ( ?modelContext :: ModelContext
-    , PG.ToRow parameters
-    , ?context :: ControllerContext
-    , userId ~ Id CurrentUserRecord
+    ( ?context :: ControllerContext
     , Show (PrimaryKey (GetTableName CurrentUserRecord))
     , HasNewSessionUrl CurrentUserRecord
     , Typeable CurrentUserRecord
-    , ?context :: ControllerContext
     , HasField "id" CurrentUserRecord (Id' (GetTableName CurrentUserRecord))
-    , PG.ToField userId
     , ?state :: IORef DataSyncController
-    ) => Maybe UUID -> PG.Query -> parameters -> IO Int64
-sqlExecWithRLSAndTransactionId transactionId theQuery theParams = runInModelContextWithTransaction (sqlExecWithRLS theQuery theParams) transactionId
+    ) => Hasql.Pool.Pool -> Maybe UUID -> Hasql.Statement () () -> IO ()
+sqlExecWithRLSAndTransactionId _pool (Just transactionId) statement = do
+    -- RLS role and user id were already set when the transaction was started
+    DataSyncTransaction { connection } <- findTransactionById transactionId
+    runSessionOnConnection connection
+        (Session.statement () statement)
+sqlExecWithRLSAndTransactionId pool Nothing statement = runSession pool (sqlExecWithRLSSession statement)
+
 
 instance SetField "subscriptions" DataSyncController (HashMap UUID (MVar.MVar ())) where
     setField subscriptions record = record { subscriptions }

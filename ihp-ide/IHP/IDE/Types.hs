@@ -1,7 +1,6 @@
 module IHP.IDE.Types where
 
 import ClassyPrelude
-import System.Process.Internals
 import qualified System.Process as Process
 import qualified GHC.IO.Handle as Handle
 import qualified Network.WebSockets as Websocket
@@ -11,15 +10,16 @@ import Data.String.Conversions (cs)
 import Data.UUID
 import qualified IHP.Log.Types as Log
 import qualified IHP.Log as Log
-import qualified Data.ByteString.Builder as ByteString
 import qualified Control.Concurrent.Chan.Unagi as Queue
 import qualified Network.Socket as Socket
+import System.OsPath (OsPath, decodeUtf)
 
-procDirenvAware :: (?context :: Context) => FilePath -> [String] -> Process.CreateProcess
-procDirenvAware command args =
-    if ?context.wrapWithDirenv
-        then Process.proc "direnv" (["exec", ".", command] <> args)
-        else Process.proc command args
+procDirenvAware :: (?context :: Context) => OsPath -> [String] -> IO Process.CreateProcess
+procDirenvAware command args = do
+    commandStr <- decodeUtf command
+    pure if ?context.wrapWithDirenv
+        then Process.proc "direnv" (["exec", ".", commandStr] <> args)
+        else Process.proc commandStr args
 
 sendGhciCommand :: (?context :: Context) => Handle -> ByteString -> IO ()
 sendGhciCommand inputHandle command = do

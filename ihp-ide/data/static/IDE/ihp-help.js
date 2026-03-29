@@ -1,11 +1,14 @@
-$(function () {
-    $('#nav-help').popover({
+document.addEventListener('turbolinks:load', function () {
+    var navHelp = document.getElementById('nav-help');
+    if (!navHelp) return;
+
+    new bootstrap.Popover(navHelp, {
         container: '#content',
         html: true,
         content: document.getElementById('help-content').innerHTML,
     });
 
-    document.getElementById('nav-help').addEventListener('click', event => {
+    navHelp.addEventListener('click', function (event) {
         event.preventDefault();
-    })
-})
+    });
+});

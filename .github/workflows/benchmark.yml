@@ -1,0 +1,206 @@
+name: Core Size Benchmark
+on:
+  pull_request:
+    branches: [master]
+jobs:
+  core-size:
+    runs-on: ARM64
+    steps:
+    - uses: actions/checkout@v6
+
+    - name: Build baseline (master IHP) and PR benchmark
+      working-directory: ihp/Bench
+      run: |
+        nix build .#baseline \
+          --impure \
+          --override-input ihp "github:digitallyinduced/ihp" \
+          -o result-baseline -L &
+        PID_BASELINE=$!
+        nix build .#default \
+          --impure \
+          --override-input ihp "github:${{ github.event.repository.full_name }}/${{ github.event.pull_request.head.sha }}" \
+          -o result-pr -L &
+        PID_PR=$!
+        wait $PID_BASELINE
+        wait $PID_PR
+
+    - name: Run HTTP latency benchmark
+      working-directory: ihp/Bench
+      run: |
+        set -euo pipefail
+
+        # Get hey and postgresql into PATH
+        export PATH="$(nix build nixpkgs#hey --print-out-paths --no-link)/bin:$PATH"
+        PG_OUTPUTS=$(nix build nixpkgs#postgresql --print-out-paths --no-link)
+        PG_OUT=$(echo "$PG_OUTPUTS" | grep -v '\-lib' | grep -v '\-man' | grep -v '\-doc' | head -1)
+        export PATH="$PG_OUT/bin:$PATH"
+
+        # Setup PostgreSQL (Unix socket only, no TCP)
+        PGHOST="$(mktemp -d)"
+        initdb -D pgdata --no-locale --encoding=UTF8
+        echo "unix_socket_directories = '$PGHOST'" >> pgdata/postgresql.conf
+        echo "listen_addresses = ''" >> pgdata/postgresql.conf
+        pg_ctl -D pgdata -l pg.log start
+
+        bench_one() {
+          local LABEL=$1 RESULT_DIR=$2 PORT=$3
+          dropdb -h "$PGHOST" --if-exists "forum_${LABEL}"
+          createdb -h "$PGHOST" "forum_${LABEL}"
+          psql -h "$PGHOST" -d "forum_${LABEL}" -f "$RESULT_DIR/IHPSchema.sql"
+          psql -h "$PGHOST" -d "forum_${LABEL}" -f "$RESULT_DIR/Application/Schema.sql"
+          psql -h "$PGHOST" -d "forum_${LABEL}" -f "$RESULT_DIR/Application/Fixtures.sql"
+
+          DATABASE_URL="postgresql:///forum_${LABEL}?host=$PGHOST" \
+          PORT=$PORT \
+          IHP_SESSION_SECRET="benchmarkkeybenchmarkkeybenchmarkkeybenchmarkkey" \
+          IHP_BASEURL="http://localhost:$PORT" \
+            "$RESULT_DIR/bin/forum-server" +RTS -N2 -A64m -RTS &
+          local PID=$!
+
+          # Wait for ready
+          for i in $(seq 1 30); do
+            curl -sf "http://localhost:$PORT/" >/dev/null 2>&1 && break
+            sleep 0.5
+          done
+
+          # Run benchmark with persistent connections
+          hey -n 5000 -c 10 -o csv "http://localhost:$PORT/" > "bench-${LABEL}.csv"
+
+          kill $PID 2>/dev/null; wait $PID 2>/dev/null || true
+        }
+
+        bench_one baseline "$(readlink -f result-baseline)" 8100
+        bench_one pr "$(readlink -f result-pr)" 8200
+
+        pg_ctl -D pgdata stop || true
+
+        # Extract metrics from hey CSV (response-time in seconds -> ms)
+        extract_metrics() {
+          local CSV=$1 PREFIX=$2
+          # Compute percentiles from sorted response times, and req/s from wall time
+          # CSV columns: response-time,DNS+dialup,DNS,Request-write,Response-delay,Response-read,status-code,offset
+          tail -n +2 "$CSV" | cut -d, -f1 | sort -n | awk '
+            { times[NR] = $1; sum += $1; n = NR }
+            END {
+              printf "%.2f\n", (sum/n)*1000            # mean ms
+              printf "%.2f\n", times[int(n*0.5)]*1000  # p50 ms
+              printf "%.2f\n", times[int(n*0.99)]*1000 # p99 ms
+              printf "%.2f\n", times[1]*1000            # min ms
+              printf "%.2f\n", times[n]*1000            # max ms
+            }' | {
+            read MEAN; read P50; read P99; read MIN; read MAX
+            echo "$MEAN" > "${PREFIX}-mean-ms"
+            echo "$P50"  > "${PREFIX}-p50-ms"
+            echo "$P99"  > "${PREFIX}-p99-ms"
+            echo "$MIN"  > "${PREFIX}-min-ms"
+            echo "$MAX"  > "${PREFIX}-max-ms"
+          }
+          # Compute req/s from wall time: max(offset + response_time) across all requests
+          tail -n +2 "$CSV" | awk -F, '
+            { end = $8 + $1; if (end > wall) wall = end; n = NR }
+            END { printf "%.0f\n", n / wall }
+          ' > "${PREFIX}-rps"
+        }
+
+        extract_metrics bench-baseline.csv baseline
+        extract_metrics bench-pr.csv pr
+
+    - name: Compare and post PR comment
+      env:
+        GH_TOKEN: ${{ github.token }}
+      run: |
+        BASELINE=$(cat ihp/Bench/result-baseline/core-size)
+        CURRENT=$(cat ihp/Bench/result-pr/core-size)
+        PCT=$(awk "BEGIN { printf \"%.1f\", ($CURRENT - $BASELINE) / $BASELINE * 100 }")
+
+        ALLOC_BASELINE=$(cat ihp/Bench/result-baseline/compile-allocations)
+        ALLOC_CURRENT=$(cat ihp/Bench/result-pr/compile-allocations)
+        ALLOC_PCT=$(awk "BEGIN { printf \"%.1f\", ($ALLOC_CURRENT - $ALLOC_BASELINE) / $ALLOC_BASELINE * 100 }")
+
+        # HTTP metrics
+        BASELINE_MEAN=$(cat ihp/Bench/baseline-mean-ms)
+        PR_MEAN=$(cat ihp/Bench/pr-mean-ms)
+        LATENCY_PCT=$(awk "BEGIN { printf \"%.1f\", ($PR_MEAN - $BASELINE_MEAN) / $BASELINE_MEAN * 100 }")
+        BASELINE_P50=$(cat ihp/Bench/baseline-p50-ms)
+        PR_P50=$(cat ihp/Bench/pr-p50-ms)
+        BASELINE_P99=$(cat ihp/Bench/baseline-p99-ms)
+        PR_P99=$(cat ihp/Bench/pr-p99-ms)
+        BASELINE_MIN=$(cat ihp/Bench/baseline-min-ms)
+        PR_MIN=$(cat ihp/Bench/pr-min-ms)
+        BASELINE_MAX=$(cat ihp/Bench/baseline-max-ms)
+        PR_MAX=$(cat ihp/Bench/pr-max-ms)
+        BASELINE_RPS=$(cat ihp/Bench/baseline-rps)
+        PR_RPS=$(cat ihp/Bench/pr-rps)
+
+        # Check for regressions
+        FAILED=0
+        if awk "BEGIN { exit !(($CURRENT - $BASELINE) / $BASELINE > 0.10) }"; then
+          CORE_STATUS="> **REGRESSION**: Core size +${PCT}% exceeds 10% threshold"
+          FAILED=1
+        elif awk "BEGIN { exit !(($CURRENT - $BASELINE) / $BASELINE < -0.05) }"; then
+          CORE_STATUS="> **Improvement**: Core size ${PCT}% reduction"
+        else
+          CORE_STATUS="> Core size within threshold"
+        fi
+        if awk "BEGIN { exit !(($ALLOC_CURRENT - $ALLOC_BASELINE) / $ALLOC_BASELINE > 0.10) }"; then
+          ALLOC_STATUS="> **REGRESSION**: Compile allocations +${ALLOC_PCT}% exceeds 10% threshold"
+          FAILED=1
+        elif awk "BEGIN { exit !(($ALLOC_CURRENT - $ALLOC_BASELINE) / $ALLOC_BASELINE < -0.05) }"; then
+          ALLOC_STATUS="> **Improvement**: Compile allocations ${ALLOC_PCT}% reduction"
+        else
+          ALLOC_STATUS="> Compile allocations within threshold"
+        fi
+        if awk "BEGIN { exit !(($PR_MEAN - $BASELINE_MEAN) / $BASELINE_MEAN > 0.20) }"; then
+          HTTP_STATUS="> **Warning**: Mean latency increased ${LATENCY_PCT}% (>20% threshold)"
+        elif awk "BEGIN { exit !(($PR_MEAN - $BASELINE_MEAN) / $BASELINE_MEAN < -0.10) }"; then
+          HTTP_STATUS="> **Improvement**: Mean latency decreased ${LATENCY_PCT}%"
+        else
+          HTTP_STATUS="> HTTP latency within threshold"
+        fi
+
+        # Build markdown report
+        {
+          echo "<!-- core-size-benchmark -->"
+          echo "## Core Size & Compile Allocations Benchmark"
+          echo ""
+          echo "| Metric | Baseline (master) | This PR | Change |"
+          echo "|--------|-------------------|---------|--------|"
+          echo "| Core size | $BASELINE bytes | $CURRENT bytes | ${PCT}% |"
+          echo "| Compile allocations | $ALLOC_BASELINE bytes | $ALLOC_CURRENT bytes | ${ALLOC_PCT}% |"
+          echo ""
+          echo "$CORE_STATUS"
+          echo "$ALLOC_STATUS"
+          echo ""
+          echo "### HTTP Latency (GET /, 5000 reqs, 10 concurrent)"
+          echo ""
+          echo "| Metric | Baseline (master) | This PR | Change |"
+          echo "|--------|-------------------|---------|--------|"
+          echo "| Mean | ${BASELINE_MEAN}ms | ${PR_MEAN}ms | ${LATENCY_PCT}% |"
+          echo "| p50 | ${BASELINE_P50}ms | ${PR_P50}ms | — |"
+          echo "| p99 | ${BASELINE_P99}ms | ${PR_P99}ms | — |"
+          echo "| Min | ${BASELINE_MIN}ms | ${PR_MIN}ms | — |"
+          echo "| Max | ${BASELINE_MAX}ms | ${PR_MAX}ms | — |"
+          echo "| Req/s | ${BASELINE_RPS} | ${PR_RPS} | — |"
+          echo ""
+          echo "$HTTP_STATUS"
+          echo ""
+          echo "### Top 10 modules (this PR)"
+          echo ""
+          echo "| Module | Size (bytes) |"
+          echo "|--------|-------------|"
+          head -10 ihp/Bench/result-pr/modules.csv | awk -F, '{ printf "| %s | %s |\n", $1, $2 }'
+        } > comment-body.md
+
+        # Post/update PR comment
+        COMMENT_ID=$(gh api "repos/${{ github.repository }}/issues/${{ github.event.pull_request.number }}/comments" \
+          --jq '.[] | select(.body | startswith("<!-- core-size-benchmark -->")) | .id' 2>/dev/null || true)
+        if [ -n "$COMMENT_ID" ]; then
+          gh api "repos/${{ github.repository }}/issues/comments/$COMMENT_ID" -X DELETE 2>/dev/null || true
+        fi
+        gh pr comment "${{ github.event.pull_request.number }}" --body-file comment-body.md
+
+        # Fail if either metric regresses >10%
+        if [ "$FAILED" = "1" ]; then
+          echo "::error::Benchmark regression detected (core size: ${PCT}%, allocations: ${ALLOC_PCT}%)"
+          exit 1
+        fi

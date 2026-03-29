@@ -1,30 +1,34 @@
 module IHP.Controller.Response
-( respondAndExit
-, respondAndExitWithHeaders
+( respondWith
+, respondAndExit
 , addResponseHeaders
 , addResponseHeadersFromContext
-, ResponseException (..)
+-- Re-exported from Network.Wai.Middleware.EarlyReturn
+, earlyReturn
+, EarlyReturnException (..)
+, responseHeadersVaultKey
 )
 where
 
 import ClassyPrelude
 import Network.HTTP.Types.Header
-import qualified IHP.Controller.Context as Context
 import qualified Network.Wai
-import Network.Wai (Response)
-import qualified Control.Exception as Exception
+import Network.Wai (Response, Request, ResponseReceived)
+import Wai.Request.Params.Middleware (Respond)
+import qualified Data.Vault.Lazy as Vault
+import System.IO.Unsafe (unsafePerformIO)
+import IHP.RequestVault.Helper (lookupRequestVault)
+import Network.Wai.Middleware.EarlyReturn (earlyReturn, EarlyReturnException(..))
 
--- | Simple version - just throws the response, no context needed
-respondAndExit :: Response -> IO ()
-respondAndExit response = Exception.throwIO (ResponseException response)
-{-# INLINE respondAndExit #-}
-
--- | Version that adds headers from context (for render, etc.)
-respondAndExitWithHeaders :: (?context :: Context.ControllerContext) => Response -> IO ()
-respondAndExitWithHeaders response = do
+-- | Sends a response to the client. Used by render functions.
+--
+-- This is the normal way to respond - it calls the WAI respond callback directly
+-- and returns the ResponseReceived.
+respondWith :: (?request :: Request, ?respond :: Respond) => Response -> IO ResponseReceived
+respondWith response = do
     responseWithHeaders <- addResponseHeadersFromContext response
-    Exception.throwIO (ResponseException responseWithHeaders)
-{-# INLINE respondAndExitWithHeaders #-}
+    ?respond responseWithHeaders
+{-# INLINE respondWith #-}
 
 -- | Add headers to current response
 -- | Returns a Response with headers
@@ -33,26 +37,28 @@ respondAndExitWithHeaders response = do
 --
 addResponseHeaders :: [Header] -> Response -> Response
 addResponseHeaders headers = Network.Wai.mapResponseHeaders (\hs -> headers <> hs)
-{-# INLINABLE addResponseHeaders #-}
+{-# INLINE addResponseHeaders #-}
 
--- | Add headers to current response, getting the headers from ControllerContext
+-- | Add headers to current response, getting the headers from the request vault
 -- | Returns a Response with headers
 --
 -- > addResponseHeadersFromContext response
 -- You probabaly want `setHeader`
 --
-addResponseHeadersFromContext :: (?context :: Context.ControllerContext) => Response -> IO Response
+addResponseHeadersFromContext :: (?request :: Request) => Response -> IO Response
 addResponseHeadersFromContext response = do
-    maybeHeaders <- Context.maybeFromContext @[Header]
-    let headers = fromMaybe [] maybeHeaders
+    headers <- readIORef (lookupRequestVault responseHeadersVaultKey ?request)
     let responseWithHeaders = addResponseHeaders headers response
     pure responseWithHeaders
-{-# INLINABLE addResponseHeadersFromContext #-}
+{-# INLINE addResponseHeadersFromContext #-}
 
--- Can be thrown from inside the action to abort the current action execution.
--- Does not indicates a runtime error. It's just used for control flow management.
-newtype ResponseException = ResponseException Response
+responseHeadersVaultKey :: Vault.Key (IORef [Header])
+responseHeadersVaultKey = unsafePerformIO Vault.newKey
+{-# NOINLINE responseHeadersVaultKey #-}
 
-instance Show ResponseException where show _ = "ResponseException { .. }"
-
-instance Exception ResponseException
+-- | Sends a response and exits the current action via early return.
+-- Sends the response via 'respondWith' then throws 'EarlyReturnException'
+-- so the action short-circuits.
+respondAndExit :: (?request :: Request, ?respond :: Respond) => Response -> IO a
+respondAndExit response = earlyReturn (respondWith response)
+{-# INLINE respondAndExit #-}

@@ -3,8 +3,11 @@
 :set -iihp-context
 :set -iihp-pagehead
 :set -iihp-log
+:set -iihp-pglistener
 :set -iihp-modal
 :set -iihp
+:set -iihp-typed-sql
+:set -iihp-typed-sql/Test
 :set -iihp/Test
 :set -iihp-ide
 :set -iihp-schema-compiler
@@ -17,6 +20,7 @@
 :set -iwai-asset-path
 :set -iwai-flash-messages
 :set -iwai-request-params
+:set -iwai-early-return
 :set -threaded
 
 :set -XGHC2021
@@ -46,7 +50,7 @@
 
 :set -Wno-unsafe -Wno-name-shadowing -Wno-monomorphism-restriction -Wno-safe -Wno-missing-local-signatures -Wno-missing-home-modules
 :set -Werror=missing-fields
-:set -fwarn-incomplete-patterns
+:set -Werror=incomplete-patterns
 :set -Wno-ambiguous-fields
 :set -fprefer-byte-code
 :set -fbyte-code-and-object-code

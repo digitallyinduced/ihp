@@ -16,6 +16,11 @@ module IHP.HSX.Parser
 , AttributeValue (..)
 , collapseSpace
 , HsxSettings (..)
+, isStaticTree
+, isStaticAttribute
+, isNonTrivialStaticNode
+, renderStaticHtml
+, renderStaticAttribute
 ) where
 
 import Prelude
@@ -28,12 +33,14 @@ import qualified Data.Char as Char
 import qualified Data.Text as Text
 import Data.String.Conversions
 import qualified Data.List as List
+import Data.List (sortOn)
 import Control.Monad (unless)
 import qualified "template-haskell" Language.Haskell.TH.Syntax as Haskell
 import qualified "template-haskell" Language.Haskell.TH as TH
 import qualified Data.Set as Set
-import qualified Data.Containers.ListUtils as List
+import qualified Data.Map as Map
 import qualified IHP.HSX.HaskellParser as HaskellParser
+import IHP.HSX.HaskellParser (HaskellExprParser, mkHaskellExprParser)
 
 data HsxSettings = HsxSettings
     { checkMarkup :: Bool
@@ -68,12 +75,12 @@ data Node = Node !Text ![Attribute] ![Node] !Bool
 parseHsx :: HsxSettings -> SourcePos -> [TH.Extension] -> Text -> Either (ParseErrorBundle Text Void) Node
 parseHsx settings position extensions code =
     let
-        ?extensions = extensions
+        ?haskellParser = mkHaskellExprParser extensions
         ?settings = settings
     in
         runParser (setPosition position *> parser) "" code
 
-type Parser a = (?extensions :: [TH.Extension], ?settings :: HsxSettings) => Parsec Void Text a
+type Parser a = (?haskellParser :: HaskellExprParser, ?settings :: HsxSettings) => Parsec Void Text a
 
 setPosition pstateSourcePos = updateParserState (\state -> state {
         statePosState = (statePosState state) { pstateSourcePos }
@@ -82,40 +89,70 @@ setPosition pstateSourcePos = updateParserState (\state -> state {
 parser :: Parser Node
 parser = do
     space
-    node <- manyHsxElement <|> hsxElement
+    node <- manyHsxElement <|> hsxOpenTag
     space
     eof
     pure node
-
-hsxElement :: Parser Node
-hsxElement = try hsxNoRenderComment <|> try hsxComment <|> try hsxSelfClosingElement <|> hsxNormalElement
 
 manyHsxElement :: Parser Node
 manyHsxElement = do
     children <- many hsxChild
     pure (Children (stripTextNodeWhitespaces children))
 
-hsxSelfClosingElement :: Parser Node
-hsxSelfClosingElement = do
+-- | Parses any element starting with @<@ (comments or tags).
+-- After consuming @<@, dispatches to comment or tag parser without backtracking.
+hsxOpenTag :: Parser Node
+hsxOpenTag = do
     _ <- char '<'
+    hsxCommentContent <|> hsxTagContent
+
+-- | Parses an HTML comment after the opening @<@ has been consumed.
+hsxCommentContent :: Parser Node
+hsxCommentContent = do
+    _ <- string "!--"
+    body <- hsxCommentBody
+    space
+    pure (CommentNode body)
+
+-- | Scans for @-->@ producing Text directly (avoids intermediate String).
+hsxCommentBody :: Parser Text
+hsxCommentBody = Text.concat . reverse <$> go []
+    where
+        go acc = do
+            chunk <- takeWhileP Nothing (/= '-')
+            let acc' = chunk : acc
+            (string "-->" *> pure acc') <|> do
+                c <- anySingle
+                go (Text.singleton c : acc')
+
+hsxNoRenderComment :: Parser Node
+hsxNoRenderComment = do
+    string "{-"
+    skipUntil "-}"
+    space
+    pure NoRenderCommentNode
+    where
+        skipUntil end = do
+            _ <- takeWhileP Nothing (/= Text.head end)
+            (string end *> pure ()) <|> (anySingle *> skipUntil end)
+
+-- | Parses a tag element after the opening @<@ has been consumed.
+-- Handles both self-closing (@/>@) and normal elements (@>...children...</tag>@)
+-- in a single pass, avoiding backtracking over the tag name and attributes.
+hsxTagContent :: Parser Node
+hsxTagContent = do
     name <- hsxElementName
     let isLeaf = name `Set.member` leafs
-    attributes <-
-      if isLeaf
-        then hsxNodeAttributes (string ">" <|> string "/>")
-        else hsxNodeAttributes (string "/>")
-    space
-    pure (Node name attributes [] isLeaf)
+    attributes <- hsxAttributes
+    -- Determine self-closing vs opening tag from the closing delimiter
+    (string "/>" >> space >> pure (Node name attributes [] isLeaf))
+        <|> (char '>' >> if isLeaf
+                then space >> pure (Node name attributes [] True)
+                else hsxTagChildren name attributes)
 
-hsxNormalElement :: Parser Node
-hsxNormalElement = do
-    (name, attributes) <- hsxOpeningElement
-    let parsePreEscapedTextChildren transformText = do
-                    let closingElement = "</" <> name <> ">"
-                    text <- cs <$> manyTill anySingle (string closingElement)
-                    pure [PreEscapedTextNode (transformText text)]
-    let parseNormalHSXChildren = stripTextNodeWhitespaces <$> (space >> (manyTill (try hsxChild) (try (space >> hsxClosingElement name))))
-
+-- | Parses the children and closing tag of a normal (non-self-closing) element.
+hsxTagChildren :: Text -> [Attribute] -> Parser Node
+hsxTagChildren name attributes = do
     -- script and style tags have special handling for their children. Inside those tags
     -- we allow any kind of content. Using a haskell expression like @<script>{myHaskellExpr}</script>@
     -- will just literally output the string @{myHaskellExpr}@ without evaluating the haskell expression itself.
@@ -127,38 +164,50 @@ hsxNormalElement = do
     -- Additionally we don't do the usual escaping for style and script bodies, as this will make e.g. the
     -- javascript unusuable.
     children <- case name of
-            "script" -> parsePreEscapedTextChildren Text.strip
-            "style" -> parsePreEscapedTextChildren (collapseSpace . Text.strip)
-            otherwise -> parseNormalHSXChildren
+        "script" -> parsePreEscapedTextChildren name Text.strip
+        "style" -> parsePreEscapedTextChildren name (collapseSpace . Text.strip)
+        _ -> space >> collectChildren name []
     pure (Node name attributes children False)
 
-hsxOpeningElement :: Parser (Text, [Attribute])
-hsxOpeningElement = do
-    char '<'
-    name <- hsxElementName
-    space
-    attributes <- hsxNodeAttributes (char '>')
-    pure (name, attributes)
+-- | Collect children until closing tag is found.
+-- Uses 'getInput' to peek for @<\/@ without backtracking, eliminating two @try@ wrappers per child.
+collectChildren :: Text -> [Node] -> Parser [Node]
+collectChildren name !acc = do
+    input <- getInput
+    if Text.isPrefixOf "</" (Text.dropWhile Char.isSpace input)
+        then do
+            space
+            hsxClosingElement name
+            pure (stripTextNodeWhitespaces (reverse acc))
+        else do
+            child <- hsxChild
+            collectChildren name (child : acc)
 
-hsxComment :: Parser Node
-hsxComment = do
-    string "<!--"
-    body :: String <- manyTill (satisfy (const True)) (string "-->")
-    space
-    pure (CommentNode (cs body))
+-- | Parses pre-escaped text (for script/style bodies) by scanning for the closing tag.
+-- Produces Text directly without an intermediate String allocation.
+parsePreEscapedTextChildren :: Text -> (Text -> Text) -> Parser [Node]
+parsePreEscapedTextChildren name transformText = do
+    body <- scanUntilTag ("</" <> name <> ">")
+    pure [PreEscapedTextNode (transformText body)]
 
-hsxNoRenderComment :: Parser Node
-hsxNoRenderComment = do
-    string "{-"
-    manyTill (satisfy (const True)) (string "-}")
-    space
-    pure NoRenderCommentNode
+-- | Efficiently scans for a closing tag, producing Text directly.
+scanUntilTag :: Text -> Parser Text
+scanUntilTag closingTag = Text.concat . reverse <$> go []
+    where
+        firstChar = Text.head closingTag
+        go acc = do
+            chunk <- takeWhileP Nothing (/= firstChar)
+            let acc' = chunk : acc
+            (string closingTag *> pure acc') <|> do
+                c <- anySingle
+                go (Text.singleton c : acc')
 
-
-hsxNodeAttributes :: Parser a -> Parser [Attribute]
-hsxNodeAttributes end = do
-    attributes <- manyTill (hsxNodeAttribute <|> hsxSplicedAttributes) end
-    -- Single-pass duplicate detection using a Set
+-- | Parses tag attributes until a non-attribute token (like @>@ or @/>@) is encountered.
+-- Uses 'many' instead of 'manyTill' since attribute parsers naturally fail
+-- on non-identifier characters like @>@ and @/@.
+hsxAttributes :: Parser [Attribute]
+hsxAttributes = do
+    attributes <- many (hsxNodeAttribute <|> hsxSplicedAttributes)
     case findDuplicateKey Set.empty attributes of
         Just dupKey -> fail $ "Duplicate attribute found in tag: " <> show dupKey
         Nothing -> pure attributes
@@ -169,9 +218,6 @@ hsxNodeAttributes end = do
             | name `Set.member` seen = Just name
             | otherwise = findDuplicateKey (Set.insert name seen) rest
         findDuplicateKey !seen (_ : rest) = findDuplicateKey seen rest
-
-isStaticAttribute (StaticAttribute _ _) = True
-isStaticAttribute _ = False
 
 hsxSplicedAttributes :: Parser Attribute
 hsxSplicedAttributes = do
@@ -185,7 +231,7 @@ hsxSplicedAttributes = do
 
 parseHaskellExpression :: SourcePos -> Text -> Parser Haskell.Exp
 parseHaskellExpression sourcePos input = do
-    case HaskellParser.parseHaskellExpression sourcePos ?extensions (cs input) of
+    case HaskellParser.parseHaskellExpression ?haskellParser sourcePos (cs input) of
         Right expression -> pure expression
         Left (line, col, error) -> do
             pos <- getSourcePos
@@ -224,17 +270,26 @@ hsxAttributeName :: Parser Text
 hsxAttributeName = do
         name <- rawAttribute
         let checkingMarkup = ?settings.checkMarkup
-        unless (isValidAttributeName name || not checkingMarkup) (fail $ "Invalid attribute name: " <> cs name)
+        unless (isValidAttributeName name || not checkingMarkup) do
+            let allAttrs = attributes `Set.union` ?settings.additionalAttributeNames
+            let suggestions = findSuggestions name allAttrs
+            let prefixHint = missingPrefixHint name
+            fail $ "Invalid attribute name: " <> cs name <> cs (formatSuggestions suggestions) <> cs prefixHint
         pure name
     where
         isValidAttributeName name =
             "data-" `Text.isPrefixOf` name
             || "aria-" `Text.isPrefixOf` name
             || "hx-" `Text.isPrefixOf` name
+            -- "_" is a valid HTML attribute name per the WHATWG spec, and is useful
+            -- syntax for inline scripting libraries such as hyperscript
+            || name == "_"
             || name `Set.member` attributes
             || name `Set.member` ?settings.additionalAttributeNames
 
-        rawAttribute = takeWhile1P Nothing (\c -> Char.isAlphaNum c || c == '-' || c == '_')
+        -- '_' is included as it is a valid HTML attribute name character, needed
+        -- to parse the "_" attribute used by inline scripting libraries such as hyperscript
+        rawAttribute = takeWhile1P Nothing (\c -> Char.isAlphaNum c || c == '-' || c == '_' || c == ':')
 
 
 hsxQuotedValue :: Parser AttributeValue
@@ -253,15 +308,49 @@ hsxSplicedValue = do
 
 hsxClosingElement name = (hsxClosingElement' name) <?> friendlyErrorMessage
     where
-        friendlyErrorMessage = show (Text.unpack ("</" <> name <> ">"))
+        friendlyErrorMessage = "closing tag </" <> Text.unpack name <> "> (to match opening <" <> Text.unpack name <> "> tag)"
         hsxClosingElement' name = do
             _ <- string ("</" <> name)
             space
             char ('>')
             pure ()
 
+-- | Dispatch on first character to avoid sequential backtracking.
 hsxChild :: Parser Node
-hsxChild = hsxElement <|> hsxSplicedNode <|> try (space >> hsxElement) <|> hsxText
+hsxChild = do
+    c <- lookAhead anySingle
+    case c of
+        '<' -> hsxOpenTag
+        '{' -> hsxNoRenderCommentOrSplice
+        _ | Char.isSpace c -> hsxSpaceThenChild
+          | otherwise -> hsxText
+
+-- | Peek at second char to distinguish @{- comment -}@ from @{expr}@ splice.
+hsxNoRenderCommentOrSplice :: Parser Node
+hsxNoRenderCommentOrSplice = do
+    mc <- optional (lookAhead (string "{-"))
+    case mc of
+        Just _  -> hsxNoRenderComment
+        Nothing -> hsxSplicedNode
+
+-- | Whitespace in child position: consume it, then dispatch.
+-- Space before element/comment is discarded (matches old @try (space >> hsxElement)@ behavior).
+-- Space before splice/text/eof becomes a text node (matches old @hsxText@ fallback).
+hsxSpaceThenChild :: Parser Node
+hsxSpaceThenChild = do
+    sp <- takeWhileP Nothing Char.isSpace
+    mc <- optional (lookAhead anySingle)
+    case mc of
+        Nothing -> pure (buildTextNode sp)           -- eof: text node (stripped later)
+        Just '<' -> hsxOpenTag                       -- element: discard space
+        Just '{' -> do
+            mc2 <- optional (lookAhead (string "{-"))
+            case mc2 of
+                Just _  -> hsxNoRenderComment        -- {- comment: discard space
+                Nothing -> pure (buildTextNode sp)   -- {expr}: space is text node
+        Just _ -> do                                 -- more text: combine space + content
+            rest <- takeWhileP Nothing (\c -> c /= '{' && c /= '}' && c /= '<' && c /= '>')
+            pure (buildTextNode (sp <> rest))
 
 -- | Parses a hsx text node
 --
@@ -273,34 +362,26 @@ hsxText = buildTextNode <$> takeWhile1P (Just "text") (\c -> c /= '{' && c /= '}
 buildTextNode :: Text -> Node
 buildTextNode value = TextNode (collapseSpace value)
 
-data TokenTree = TokenLeaf Text | TokenNode [TokenTree] deriving (Show)
-
 hsxSplicedNode :: Parser Node
 hsxSplicedNode = do
-        (pos, expression) <- doParse
-        haskellExpression <- parseHaskellExpression pos (cs expression)
-        pure (SplicedNode haskellExpression)
-    where
-        doParse = do
-            (pos, tree) <- node
-            let value = (treeToString "" tree)
-            pure (pos, Text.init $ Text.tail value)
+    _ <- char '{'
+    pos <- getSourcePos
+    expression <- scanBracedExpression 0 []
+    haskellExpression <- parseHaskellExpression pos (cs expression)
+    pure (SplicedNode haskellExpression)
 
-        parseTree = (snd <$> node) <|> leaf
-        node = between (char '{') (char '}') do
-                pos <- getSourcePos
-                tree <- many parseTree
-                pure (pos, TokenNode tree)
-        leaf = TokenLeaf <$> takeWhile1P Nothing (\c -> c /= '{' && c /= '}')
-
-        -- Build result using difference lists (O(1) append) then convert once
-        treeToString :: Text -> TokenTree -> Text
-        treeToString acc tree = acc <> Text.concat (treeToList tree [])
-
-        treeToList :: TokenTree -> [Text] -> [Text]
-        treeToList (TokenLeaf value) rest = value : rest
-        treeToList (TokenNode []) rest = rest
-        treeToList (TokenNode children) rest = "{" : List.foldr treeToList ("}" : rest) children
+-- | Scan brace-balanced expression, tracking nesting depth.
+-- Accumulates text chunks in reverse for O(n) final concat.
+scanBracedExpression :: Int -> [Text] -> Parser Text
+scanBracedExpression !depth !acc = do
+    chunk <- takeWhileP Nothing (\c -> c /= '{' && c /= '}')
+    let acc' = if Text.null chunk then acc else chunk : acc
+    c <- anySingle  -- must be '{' or '}'
+    case c of
+        '{' -> scanBracedExpression (depth + 1) ("{" : acc')
+        '}' | depth > 0 -> scanBracedExpression (depth - 1) ("}" : acc')
+            | otherwise -> pure (Text.concat (reverse acc'))
+        _ -> error "impossible: takeWhileP guarantees '{' or '}'"
 
 
 
@@ -314,7 +395,10 @@ hsxElementName = do
                                   && not (Char.isNumber (Text.head name))
     let isValidAdditionalTag = name `Set.member` ?settings.additionalTagNames
     let checkingMarkup = ?settings.checkMarkup
-    unless (isValidParent || isValidLeaf || isValidCustomWebComponent || isValidAdditionalTag || not checkingMarkup) (fail $ "Invalid tag name: " <> cs name)
+    unless (isValidParent || isValidLeaf || isValidCustomWebComponent || isValidAdditionalTag || not checkingMarkup) do
+        let allTags = parents `Set.union` leafs `Set.union` ?settings.additionalTagNames
+        let suggestions = findSuggestions name allTags
+        fail $ "Invalid tag name: " <> cs name <> cs (formatSuggestions suggestions)
     space
     pure name
 
@@ -365,6 +449,8 @@ attributes = Set.fromList
         , "d", "viewBox", "cx", "cy", "r", "x", "y", "text-anchor", "alignment-baseline"
         , "line-spacing", "letter-spacing"
         , "integrity", "crossorigin", "poster"
+        , "decoding", "fr", "mask-type", "paint-order", "side"
+        , "text-overflow", "transform-origin", "vector-effect", "white-space"
         , "accent-height", "accumulate", "additive", "alphabetic", "amplitude"
         , "arabic-form", "ascent", "attributeName", "attributeType", "azimuth"
         , "baseFrequency", "baseProfile", "bbox", "begin", "bias", "by", "calcMode"
@@ -512,6 +598,7 @@ parents = Set.fromList
           , "html"
           , "i"
           , "iframe"
+          , "image"
           , "ins"
           , "ion-icon"
           , "kbd"
@@ -621,22 +708,112 @@ stripTextNodeWhitespaces nodes = stripLastTextNodeWhitespaces (stripFirstTextNod
 
 stripLastTextNodeWhitespaces :: [Node] -> [Node]
 stripLastTextNodeWhitespaces [] = []
-stripLastTextNodeWhitespaces nodes =
-    case List.last nodes of
-        TextNode text -> List.init nodes <> [TextNode (Text.stripEnd text)]
-        _ -> nodes
+stripLastTextNodeWhitespaces [TextNode text] = [TextNode (Text.stripEnd text)]
+stripLastTextNodeWhitespaces [node] = [node]
+stripLastTextNodeWhitespaces (x:xs) = x : stripLastTextNodeWhitespaces xs
 
 stripFirstTextNodeWhitespaces :: [Node] -> [Node]
 stripFirstTextNodeWhitespaces [] = []
 stripFirstTextNodeWhitespaces (TextNode text : rest) = TextNode (Text.stripStart text) : rest
 stripFirstTextNodeWhitespaces nodes = nodes
 
+-- | Computes the Damerau-Levenshtein edit distance between two texts.
+-- Counts insertions, deletions, substitutions, and adjacent transpositions.
+editDistance :: Text -> Text -> Int
+editDistance a b = d Map.! (m, n)
+    where
+        m = Text.length a
+        n = Text.length b
+        d = Map.fromList [((i, j), cost i j) | i <- [0..m], j <- [0..n]]
+        cost 0 j = j
+        cost i 0 = i
+        cost i j = minimum $
+            [ (d Map.! (i-1, j)) + 1
+            , (d Map.! (i, j-1)) + 1
+            , (d Map.! (i-1, j-1)) + if Text.index a (i-1) == Text.index b (j-1) then 0 else 1
+            ] ++
+            [ (d Map.! (i-2, j-2)) + 1
+            | i > 1, j > 1
+            , Text.index a (i-1) == Text.index b (j-2)
+            , Text.index a (i-2) == Text.index b (j-1)
+            ]
+
+-- | Find up to 3 closest suggestions from a set of valid names
+findSuggestions :: Text -> Set Text -> [Text]
+findSuggestions name validNames =
+    let maxDist = max 2 (Text.length name `div` 2)
+        candidates = [(n, editDistance name n) | n <- Set.toList validNames, n /= name]
+        close = List.filter (\(_, d) -> d <= maxDist) candidates
+    in List.map fst $ List.take 3 $ sortOn snd close
+
+-- | Format a "Did you mean" suggestion string
+formatSuggestions :: [Text] -> Text
+formatSuggestions [] = ""
+formatSuggestions [x] = "\n\nDid you mean: " <> x <> "?"
+formatSuggestions xs = "\n\nDid you mean one of these: " <> Text.intercalate ", " xs <> "?"
+
+-- | Hint when an attribute name looks like it's missing a prefix hyphen
+missingPrefixHint :: Text -> Text
+missingPrefixHint name
+    | hasPrefix "data" && not (hasPrefix "data-") = hint "data-" 4
+    | hasPrefix "aria" && not (hasPrefix "aria-") = hint "aria-" 4
+    | hasPrefix "hx"   && not (hasPrefix "hx-")   = hint "hx-"   2
+    | otherwise = ""
+    where
+        hasPrefix p = p `Text.isPrefixOf` name
+        hint prefix dropLen = "\nDid you mean to use a " <> prefix <> " attribute (e.g. " <> prefix <> Text.drop dropLen name <> ")?"
+
+-- | Returns True if the entire subtree is static (no dynamic content).
+isStaticTree :: Node -> Bool
+isStaticTree (Node _ attributes children _) =
+    all isStaticAttribute attributes && all isStaticTree children
+isStaticTree (TextNode _)          = True
+isStaticTree (PreEscapedTextNode _) = True
+isStaticTree (SplicedNode _)       = False
+isStaticTree (Children children)   = all isStaticTree children
+isStaticTree (CommentNode _)       = True
+isStaticTree NoRenderCommentNode   = True
+
+isStaticAttribute :: Attribute -> Bool
+isStaticAttribute (StaticAttribute _ (TextValue _))      = True
+isStaticAttribute (StaticAttribute _ (ExpressionValue _)) = False
+isStaticAttribute (SpreadAttributes _)                    = False
+
+-- | Returns True if a node is worth pre-rendering.
+-- Bare TextNode/PreEscapedTextNode already compile to raw byte strings.
+isNonTrivialStaticNode :: Node -> Bool
+isNonTrivialStaticNode (TextNode _)          = False
+isNonTrivialStaticNode (PreEscapedTextNode _) = False
+isNonTrivialStaticNode NoRenderCommentNode   = False
+isNonTrivialStaticNode _                     = True
+
+-- | Render a static Node tree to HTML Text at compile time.
+renderStaticHtml :: Node -> Text
+renderStaticHtml (Node "!DOCTYPE" _ _ _) = "<!DOCTYPE HTML>\n"
+renderStaticHtml (Node name attributes children isLeaf) =
+    let openTag = "<" <> name <> foldMap renderStaticAttribute attributes <> ">"
+    in if isLeaf
+        then openTag
+        else openTag <> foldMap renderStaticHtml children <> "</" <> name <> ">"
+renderStaticHtml (TextNode value)          = value
+renderStaticHtml (PreEscapedTextNode value) = value
+renderStaticHtml (SplicedNode _)           = error "renderStaticHtml: unexpected SplicedNode"
+renderStaticHtml (Children children)       = foldMap renderStaticHtml children
+renderStaticHtml (CommentNode value)       = "<!-- " <> value <> " -->"
+renderStaticHtml NoRenderCommentNode       = ""
+
+renderStaticAttribute :: Attribute -> Text
+renderStaticAttribute (StaticAttribute name (TextValue value)) =
+    " " <> name <> "=\"" <> value <> "\""
+renderStaticAttribute _ = error "renderStaticAttribute: unexpected dynamic attribute"
+
 -- | Replaces multiple space characters with a single one
 collapseSpace :: Text -> Text
-collapseSpace text = Text.concat $ go $ Text.groupBy bothSpace text
-    where
-        bothSpace a b = Char.isSpace a && Char.isSpace b
-        go [] = []
-        go (t:ts)
-            | Text.any Char.isSpace t = Text.singleton ' ' : go ts
-            | otherwise = t : go ts
+collapseSpace text
+    | Text.null text = text
+    | otherwise = Text.concat (go text)
+  where
+    go t
+        | Text.null t = []
+        | Char.isSpace (Text.head t) = " " : go (Text.dropWhile Char.isSpace t)
+        | otherwise = let (w, rest) = Text.span (not . Char.isSpace) t in w : go rest

@@ -1,6 +1,6 @@
 cabal-version:       2.2
 name:                ihp-pagehead
-version:             1.4.0
+version:             1.0.0
 synopsis:            Page title and meta tags for IHP
 description:
     Manage page titles and Open Graph meta tags in IHP applications.
@@ -30,6 +30,8 @@ common shared-properties
         , BlockArguments
         , LambdaCase
         , QuasiQuotes
+        , OverloadedRecordDot
+    ghc-options: -Werror=incomplete-patterns -Werror=unused-imports -Werror=missing-fields
 
 library
     import: shared-properties
@@ -40,6 +42,8 @@ library
         , ihp-hsx
         , text
         , blaze-html
+        , vault
+        , wai
     exposed-modules:
         IHP.PageHead.Types
         , IHP.PageHead.ControllerFunctions

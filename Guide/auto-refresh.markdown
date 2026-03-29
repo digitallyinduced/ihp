@@ -4,6 +4,38 @@
 
 ```
 
+## Setup
+
+Auto Refresh requires no global configuration. Just make sure these two components are in your layout:
+
+### 1. Add Meta Tag to Layout
+
+In your `Web/View/Layout.hs`, add `{autoRefreshMeta}` inside the `<head>` section:
+
+```haskell
+metaTags :: Html
+metaTags = [hsx|
+    <meta charset="utf-8"/>
+    <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no"/>
+    {autoRefreshMeta}
+|]
+```
+
+### 2. Include Required JavaScript
+
+In your `Web/View/Layout.hs`, ensure these scripts are included (order matters - morphdom must come before ihp-auto-refresh):
+
+```haskell
+scripts :: Html
+scripts = [hsx|
+        <script src={assetPath "/vendor/morphdom-umd.min.js"}></script>
+        <script src={assetPath "/ihp-auto-refresh.js"}></script>
+        <!-- ... other scripts ... -->
+    |]
+```
+
+Once these two components are in place, you can use `autoRefresh` in your actions — no middleware setup needed. The auto-refresh server is created lazily on first use.
+
 ## Introduction
 
 Auto Refresh offers a way to re-render views of your application when the underlying data changes. This is useful when you want your views to always reflect the live database state. Auto Refresh can be an easy replacement for manually polling for changes using AJAX.

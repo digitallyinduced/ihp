@@ -5,14 +5,12 @@ import IHP.ControllerPrelude hiding (OrderByClause)
 
 import IHP.DataSync.Types
 import IHP.DataSync.RowLevelSecurity
-import qualified Database.PostgreSQL.Simple.ToField as PG
 import qualified IHP.DataSync.ChangeNotifications as ChangeNotifications
 import IHP.DataSync.ControllerImpl (runDataSyncController)
 import IHP.DataSync.DynamicQueryCompiler (camelCaseRenamer)
 
 instance (
-    PG.ToField (PrimaryKey (GetTableName CurrentUserRecord))
-    , Show (PrimaryKey (GetTableName CurrentUserRecord))
+    Show (PrimaryKey (GetTableName CurrentUserRecord))
     , HasNewSessionUrl CurrentUserRecord
     , Typeable CurrentUserRecord
     , HasField "id" CurrentUserRecord (Id' (GetTableName CurrentUserRecord))
@@ -20,6 +18,7 @@ instance (
     initialState = DataSyncController
 
     run = do
-        ensureRLSEnabled <- makeCachedEnsureRLSEnabled
-        installTableChangeTriggers <- ChangeNotifications.makeCachedInstallTableChangeTriggers
-        runDataSyncController ensureRLSEnabled installTableChangeTriggers (receiveData @ByteString) sendJSON (\_ _ -> pure ()) (\_ -> camelCaseRenamer)
+        let hasqlPool = ?modelContext.hasqlPool
+        ensureRLSEnabled <- makeCachedEnsureRLSEnabled hasqlPool
+        installTableChangeTriggers <- ChangeNotifications.makeInstallTableChangeTriggers ?context.frameworkConfig.environment hasqlPool
+        runDataSyncController hasqlPool ensureRLSEnabled installTableChangeTriggers (receiveData @ByteString) sendJSON (\_ _ -> pure ()) (\_ -> camelCaseRenamer)

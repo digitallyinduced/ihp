@@ -16,6 +16,7 @@ module IHP.Log
 , error
 , fatal
 , unknown
+, writeLog
 , makeRequestLogger
 , defaultRequestLogger
 ) where

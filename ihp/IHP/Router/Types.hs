@@ -9,6 +9,26 @@ import Prelude
 import Data.ByteString (ByteString)
 import Control.Exception (Exception)
 import Network.HTTP.Types.Method
+import qualified Data.HashMap.Strict as HashMap
+import Data.Attoparsec.ByteString.Char8 (Parser)
+import Network.Wai (Application)
+
+-- | A controller route entry — either a pre-built HashMap for O(1) dispatch,
+-- or a custom Attoparsec parser for dynamic URL patterns.
+--
+-- 'ControllerRouteMap' carries both an auto-route HashMap and a fallback parser
+-- for custom routes. 'ControllerRouteParser' wraps standalone parsers like 'get', 'post',
+-- 'webSocketApp', 'startPage', etc.
+--
+-- 'frontControllerToWAIApp' scans all 'ControllerRouteMap' HashMaps directly (no Attoparsec)
+-- for O(1) dispatch, and only falls back to Attoparsec for custom/dynamic route parsers.
+data ControllerRoute application
+    = ControllerRouteMap
+        !(HashMap.HashMap ByteString (application -> Application))
+        (Parser Application)
+        -- ^ Auto-route HashMap + custom routes fallback parser (lazy — only evaluated on HashMap miss)
+    | ControllerRouteParser !(Parser Application)
+        -- ^ Custom route parser (for get, post, webSocketApp, startPage, etc.)
 
 data TypedAutoRouteError
     = BadType

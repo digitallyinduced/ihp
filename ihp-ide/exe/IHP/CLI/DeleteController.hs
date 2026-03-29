@@ -1,7 +1,7 @@
 module Main where
 
 import IHP.Prelude
-import qualified System.Directory as Directory
+import qualified System.Directory.OsPath as Directory
 import qualified System.Posix.Env.ByteString as Posix
 import IHP.IDE.CodeGen.ControllerGenerator
 import IHP.IDE.CodeGen.Controller (undoPlan)
@@ -22,8 +22,7 @@ main = withUtf8 do
         _ -> usage
 
 deleteController applicationName controllerName = do
-    let paginationEnabled = False
-    planOrError <- buildPlan applicationName controllerName paginationEnabled
+    planOrError <- buildPlan controllerName defaultControllerConfig { applicationName }
     case planOrError of
         Left error -> putStrLn error
         Right plan -> undoPlan $ reverse plan

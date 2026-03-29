@@ -6,13 +6,6 @@ module Test.GraphQL.SchemaCompilerSpec where
 
 import Test.Hspec
 import IHP.Prelude
-import qualified IHP.GraphQL.Compiler as Compiler
-import IHP.GraphQL.Types
-import qualified Data.Attoparsec.Text as Attoparsec
-import Test.GraphQL.ParserSpec (parseGQL, parseValue)
-import qualified Database.PostgreSQL.Simple.Types as PG
-import qualified Database.PostgreSQL.Simple.ToField as PG
-import qualified Data.Text as Text
 
 import qualified IHP.GraphQL.ToText as GraphQL
 import qualified IHP.GraphQL.SchemaCompiler as GraphQL

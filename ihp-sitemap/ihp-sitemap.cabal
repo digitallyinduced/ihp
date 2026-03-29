@@ -1,14 +1,18 @@
 cabal-version:       2.2
 name:                ihp-sitemap
-version:             1.4.0
+version:             1.5.0
 synopsis:            SEO
 description:         Render sitemaps with IHP
 license:             MIT
+license-file:        LICENSE
 author:              digitally induced GmbH
 maintainer:          support@digitallyinduced.com
+homepage:            https://ihp.digitallyinduced.com/
 bug-reports:         https://github.com/digitallyinduced/ihp/issues
+copyright:           (c) digitally induced GmbH
 category:            SEO
 build-type:          Simple
+extra-source-files:  changelog.md
 
 source-repository head
     type:     git
@@ -30,6 +34,7 @@ common ihp-std
         BlockArguments
         OverloadedStrings
         ImplicitParams
+    ghc-options: -Werror=incomplete-patterns -Werror=unused-imports -Werror=missing-fields
 
 library
     import: ihp-std
@@ -39,6 +44,7 @@ library
         , ihp
         , blaze-html
         , blaze-markup
+        , wai
     hs-source-dirs: .
     exposed-modules:
         IHP.SEO.Sitemap.ControllerFunctions
@@ -58,4 +64,5 @@ test-suite tests
         , wai-extra
         , http-types
         , ihp-hsx
+        , ihp-log
     hs-source-dirs: Test

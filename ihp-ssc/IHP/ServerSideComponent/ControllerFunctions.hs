@@ -10,8 +10,7 @@ import IHP.ControllerPrelude
 import IHP.ServerSideComponent.Types as SSC
 
 import qualified Network.WebSockets as WebSocket
-import qualified Network.Wai as Wai
-import qualified Text.Blaze.Html.Renderer.Text as Blaze
+import IHP.HSX.Markup (renderMarkupText)
 
 import qualified Data.Aeson as Aeson
 import qualified Data.Aeson.TH as Aeson
@@ -19,28 +18,36 @@ import qualified Data.Aeson.TH as Aeson
 import IHP.ServerSideComponent.HtmlParser
 import IHP.ServerSideComponent.HtmlDiff
 
+import qualified IHP.Log as Log
+
 $(Aeson.deriveJSON Aeson.defaultOptions { sumEncoding = defaultTaggedObject { tagFieldName = "type" }} ''Attribute)
 $(Aeson.deriveJSON Aeson.defaultOptions { sumEncoding = defaultTaggedObject { tagFieldName = "type" }} ''AttributeOperation)
 $(Aeson.deriveJSON Aeson.defaultOptions { sumEncoding = defaultTaggedObject { tagFieldName = "type" }} ''Node)
 $(Aeson.deriveJSON Aeson.defaultOptions { sumEncoding = defaultTaggedObject { tagFieldName = "type" }} ''NodeOperation)
+$(Aeson.deriveJSON Aeson.defaultOptions { sumEncoding = defaultTaggedObject { tagFieldName = "type" }} ''SSCError)
 
-setState :: (?instanceRef :: IORef (ComponentInstance state), ?connection :: WebSocket.Connection, Component state action, ?context :: ControllerContext, ?request :: Wai.Request) => state -> IO ()
+setState :: (?instanceRef :: IORef (ComponentInstance state), ?connection :: WebSocket.Connection, Component state action, ?context :: ControllerContext, ?request :: Request) => state -> IO ()
 setState state = do
     oldState <- (.state) <$> readIORef ?instanceRef
     let oldHtml = oldState
             |> SSC.render
-            |> Blaze.renderHtml
-            |> cs
+            |> renderMarkupText
     let newHtml = state
             |> SSC.render
-            |> Blaze.renderHtml
-            |> cs
+            |> renderMarkupText
 
     modifyIORef' ?instanceRef (\componentInstance -> componentInstance { state })
-    
+
     case diffHtml oldHtml newHtml of
-        Left error -> putStrLn (tshow error)
+        Left parseError -> do
+            let errorText = tshow parseError
+            Log.error ("SSC HTML diff failed: " <> errorText)
+            sendError (SSCDiffError { errorMessage = errorText })
         Right patches -> sendTextData (Aeson.encode patches)
+
+-- | Send an error message to the client
+sendError :: (?connection :: WebSocket.Connection) => SSCError -> IO ()
+sendError error = sendTextData (Aeson.encode error)
 
 
 getState :: (?instanceRef :: IORef (ComponentInstance state)) => IO state

@@ -1,6 +1,6 @@
 cabal-version:       2.2
 name:                ihp-mail
-version:             1.4.0
+version:             1.5.0
 synopsis:            Email support for IHP
 description:         Provides email sending functionality for IHP applications
 license:             MIT
@@ -41,6 +41,7 @@ common shared-properties
         , TemplateHaskell
         , OverloadedRecordDot
         , DeepSubsumption
+    ghc-options: -Werror=incomplete-patterns -Werror=unused-imports -Werror=missing-fields
 
 library
     import: shared-properties
@@ -57,7 +58,7 @@ library
         , smtp-mail
         , http-client
         , http-client-tls
-        , blaze-html
+        , ihp-hsx
         , text
         , bytestring
         , network

@@ -1,15 +1,12 @@
 module IHP.IDE.ToolServer.Types where
 
 import IHP.Prelude
-import qualified IHP.IDE.Types as DevServer
-import Control.Concurrent.MVar
-import qualified Data.ByteString.Builder as ByteString
 import Network.Socket (PortNumber)
+import qualified Data.Vault.Lazy as Vault
+import System.IO.Unsafe (unsafePerformIO)
 
 data ToolServerApplication = ToolServerApplication
-        { postgresStandardOutput :: !(IORef ByteString.Builder)
-        , postgresErrorOutput :: !(IORef ByteString.Builder)
-        , appStandardOutput :: !(IORef [ByteString])
+        { appStandardOutput :: !(IORef [ByteString])
         , appErrorOutput :: !(IORef [ByteString])
         , appPort :: !PortNumber
         , databaseNeedsMigration :: !(IORef Bool)
@@ -94,6 +91,7 @@ data DataController
 data LogsController
     = AppLogsAction
     | PostgresLogsAction
+    | ServiceLogsAction { serviceName :: Text }
     | OpenEditorAction
     deriving (Eq, Show, Data)
 
@@ -162,6 +160,37 @@ newtype WebControllers = WebControllers [Text]
 
 newtype DatabaseNeedsMigration = DatabaseNeedsMigration Bool
 
+-- | Wrapper to pass the Hoogle URL to the layout.
+-- Contains Nothing when Hoogle is not enabled.
+newtype HoogleUrl = HoogleUrl (Maybe Text)
+
+availableAppsVaultKey :: Vault.Key AvailableApps
+availableAppsVaultKey = unsafePerformIO Vault.newKey
+{-# NOINLINE availableAppsVaultKey #-}
+
+webControllersVaultKey :: Vault.Key WebControllers
+webControllersVaultKey = unsafePerformIO Vault.newKey
+{-# NOINLINE webControllersVaultKey #-}
+
+appUrlVaultKey :: Vault.Key AppUrl
+appUrlVaultKey = unsafePerformIO Vault.newKey
+{-# NOINLINE appUrlVaultKey #-}
+
+databaseNeedsMigrationVaultKey :: Vault.Key DatabaseNeedsMigration
+databaseNeedsMigrationVaultKey = unsafePerformIO Vault.newKey
+{-# NOINLINE databaseNeedsMigrationVaultKey #-}
+
+hoogleUrlVaultKey :: Vault.Key HoogleUrl
+hoogleUrlVaultKey = unsafePerformIO Vault.newKey
+{-# NOINLINE hoogleUrlVaultKey #-}
+
 data SqlConsoleResult
     = SelectQueryResult ![[DynamicField]]
     | InsertOrUpdateResult !Int64
+
+data SqlConsoleError = SqlConsoleError
+    { errorMessage :: Text
+    , errorDetail :: Text
+    , errorHint :: Text
+    , errorState :: Text
+    }

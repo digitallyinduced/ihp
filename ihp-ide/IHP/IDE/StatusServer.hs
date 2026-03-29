@@ -6,9 +6,8 @@ import qualified Network.Wai.Handler.Warp as Warp
 import qualified Network.WebSockets as Websocket
 import qualified Network.Wai.Handler.WebSockets as Websocket
 import qualified Control.Concurrent as Concurrent
-import qualified Text.Blaze.Html.Renderer.Utf8 as Blaze
+import IHP.HSX.Markup (Markup, MarkupM(..), renderMarkup)
 import qualified Network.HTTP.Types.Header as HTTP
-import qualified Text.Blaze.Html5 as Html5
 import qualified Network.HTTP.Types as HTTP
 import qualified Data.ByteString.Char8 as ByteString
 import IHP.IDE.Types
@@ -63,7 +62,7 @@ httpApp ghciIsLoadingVar standardOutput errorOutput req respond = do
     currentStandardOutput <- readIORef standardOutput
     currentErrorOutput <- readIORef errorOutput
     lastSchemaCompilerError <- readIORef ?context.lastSchemaCompilerError
-    let responseBody = Blaze.renderHtmlBuilder (renderErrorView currentStandardOutput currentErrorOutput isCompiling lastSchemaCompilerError)
+    let responseBody = getBuilder (renderErrorView currentStandardOutput currentErrorOutput isCompiling lastSchemaCompilerError)
     let responseHeaders = [(HTTP.hContentType, "text/html")]
     respond $ Wai.responseBuilder HTTP.status200 responseHeaders responseBody
 
@@ -102,7 +101,7 @@ notifyOutput stateRef = do
 
 data CompilerError = CompilerError { errorMessage :: [ByteString], isWarning :: Bool } deriving (Show)
 
-renderErrorView :: (?context :: Context) => [ByteString] -> [ByteString] -> Bool -> Maybe SomeException -> Html5.Html
+renderErrorView :: (?context :: Context) => [ByteString] -> [ByteString] -> Bool -> Maybe SomeException -> Markup
 renderErrorView standardOutput errorOutput' isCompiling lastSchemaCompilerError = [hsx|
         <html lang="en">
             <head>
@@ -202,7 +201,7 @@ renderErrorView standardOutput errorOutput' isCompiling lastSchemaCompilerError 
                         <a href={("https://github.com/digitallyinduced/ihp/issues/new?body=" :: Text) <> cs (URI.escapeURIString URI.isUnescapedInURI (cs $ ByteString.unlines errorOutput))} target="_blank">Open a GitHub Issue</a>
                     </div>
 
-                    <pre style="font-family: Menlo, monospace; font-size: 10px" id="stdout">{ByteString.unlines (reverse standardOutput)}</pre>
+                    <pre style="font-family: Menlo, monospace; font-size: 10px" id="stdout">{ByteString.unlines (reverse (take 5000 standardOutput))}</pre>
                 </div>
             |]
                 where
@@ -256,7 +255,7 @@ renderErrorView standardOutput errorOutput' isCompiling lastSchemaCompilerError 
                             otherwise -> (filePath, "0", "0")
             renderLine (i, line) = [hsx|<div>{line}</div>|]
 
-            renderTroubleshooting :: [ByteString] -> [Html5.Html]
+            renderTroubleshooting :: [ByteString] -> [Markup]
             renderTroubleshooting lines = [ modelContextTroubleshooting ]
                     |> map (\f -> f lines)
                     |> catMaybes
@@ -283,7 +282,7 @@ wsApp ghciIsLoadingVar stateRef standardOutput errorOutput pendingConnection = d
             lastSchemaCompilerError <- readIORef ?context.lastSchemaCompilerError
 
             let errorContainer = renderErrorView standardOutput' errorOutput' isCompiling lastSchemaCompilerError
-            let html = Blaze.renderHtml errorContainer
+            let html = renderMarkup errorContainer
 
             result <- Exception.try (Websocket.sendTextData connection html)
             case result of
@@ -296,7 +295,7 @@ wsApp ghciIsLoadingVar stateRef standardOutput errorOutput pendingConnection = d
 
 
 
-modelContextTroubleshooting :: [ByteString] -> Maybe Html5.Html
+modelContextTroubleshooting :: [ByteString] -> Maybe Markup
 modelContextTroubleshooting lines =
     lines
     |> map (\line -> "Unbound implicit parameter (?modelContext::" `ByteString.isInfixOf` line)

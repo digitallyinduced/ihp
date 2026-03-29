@@ -10,7 +10,7 @@ IHP has first class support for WebSockets.
 
 **When you only want to use WebSockets to update the UI:** Check out [Auto Refresh](https://ihp.digitallyinduced.com/Guide/auto-refresh.html). The Auto Refresh API provides a high-level approach for pushing HTML/UI updates from the server-side build on top of WebSockets.
 
-The entry points for your WebSocket servers are similiar to the typical IHP controllers, and are also stored in the `Web/Controller/` directory. Similiar to normal IHP controllers, the WebSocket servers are also added to the [`FrontController`](https://ihp.digitallyinduced.com/api-docs/IHP-RouterSupport.html#t:FrontController) later on.
+The entry points for your WebSocket servers are similar to the typical IHP controllers, and are also stored in the `Web/Controller/` directory. Similar to normal IHP controllers, the WebSocket servers are also added to the [`FrontController`](https://ihp.digitallyinduced.com/api-docs/IHP-RouterSupport.html#t:FrontController) later on.
 
 ## Creating a WebSocket Controller
 

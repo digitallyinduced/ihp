@@ -19,6 +19,13 @@ import qualified Test.RouterSupportSpec
 import qualified Test.ViewSupportSpec
 import qualified Test.FileStorage.ControllerFunctionsSpec
 import qualified Test.PGListenerSpec
+import qualified Test.MockingSpec
+import qualified Test.HasqlEncoderSpec
+import qualified Test.ControllerSupportSpec
+import qualified Test.AutoRefreshSpec
+import qualified Test.Pagination.ControllerFunctionsSpec
+import qualified Test.FetchPipelinedSpec
+import qualified Test.JobQueueSpec
 
 main :: IO ()
 main = hspec do
@@ -38,3 +45,10 @@ main = hspec do
     Test.FileStorage.ControllerFunctionsSpec.tests
     Test.Controller.CookieSpec.tests
     Test.PGListenerSpec.tests
+    Test.MockingSpec.tests
+    Test.HasqlEncoderSpec.tests
+    Test.ControllerSupportSpec.tests
+    Test.AutoRefreshSpec.tests
+    Test.Pagination.ControllerFunctionsSpec.tests
+    Test.FetchPipelinedSpec.tests
+    Test.JobQueueSpec.tests

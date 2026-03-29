@@ -1,6 +1,6 @@
 cabal-version:       2.2
 name:                ihp-context
-version:             1.4.0
+version:             1.0.0
 synopsis:            Minimal typed context container for IHP
 description:
     This package provides ControllerContext, a typed key-value container with minimal dependencies.
@@ -32,6 +32,7 @@ common shared-properties
         , ImplicitParams
         , BlockArguments
         , LambdaCase
+    ghc-options: -Werror=incomplete-patterns -Werror=unused-imports -Werror=missing-fields
 
 library
     import: shared-properties

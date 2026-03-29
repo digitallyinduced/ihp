@@ -1,6 +1,6 @@
 cabal-version:       2.2
 name:                ihp-openai
-version:             1.4.0
+version:             1.5.0
 synopsis:            Call GPT4 from your Haskell apps
 description:         Streaming functions to access the OpenAI APIs, with Retry and Function Calling
 license:             MIT
@@ -49,10 +49,11 @@ library
         -Wredundant-constraints
         -Wunused-imports
         -Wunused-foralls
-        -Wmissing-fields
+        -Werror=missing-fields
         -Winaccessible-code
         -Wmissed-specialisations
         -fexpose-all-unfoldings
+        -Werror=incomplete-patterns
     hs-source-dirs: .
     exposed-modules:
         IHP.OpenAI

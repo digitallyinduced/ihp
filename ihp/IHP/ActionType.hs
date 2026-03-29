@@ -8,12 +8,15 @@ in the WAI request vault.
 -}
 module IHP.ActionType
 ( ActionType(..)
+, actionTypeVaultKey
 , requestActionType
 , setActionType
 , isActiveController
 ) where
 
-import IHP.Prelude
+import Prelude
+import GHC.Records (HasField(..))
+import Data.Typeable (Typeable)
 import Network.Wai
 import System.IO.Unsafe (unsafePerformIO)
 import qualified Data.Vault.Lazy as Vault
@@ -34,6 +37,7 @@ requestActionType req =
         Nothing -> error "requestActionType: ActionType not found in request vault"
 
 -- | Insert the ActionType into the request vault
+{-# INLINE setActionType #-}
 setActionType :: Typeable controller => controller -> Request -> Request
 setActionType controller req = req { vault = Vault.insert actionTypeVaultKey (ActionType (Typeable.typeOf controller)) req.vault }
 

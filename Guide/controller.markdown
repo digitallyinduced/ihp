@@ -288,7 +288,7 @@ Inside a controller, you have several ways of sending a response. The most commo
 render ShowPostView { .. }
 ```
 
-The [`render`](https://ihp.digitallyinduced.com/api-docs/IHP-Controller-Render.html#v:render) function automatically picks the right response format based on the `Accept` header of the browser. It will try to send an HTML response when HTML is requested, and will also try to send a JSON response when a JSON response is expected. A [`406 Not Acceptable`](https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/406) will be send when the [`render`](https://ihp.digitallyinduced.com/api-docs/IHP-Controller-Render.html#v:render) function cannot fulfill the requested `Accept` formats.
+The [`render`](https://ihp.digitallyinduced.com/api-docs/IHP-Controller-Render.html#v:render) function renders the view as HTML. If you need to serve both HTML and JSON from the same action based on the `Accept` header, use [`renderHtmlOrJson`](https://ihp.digitallyinduced.com/api-docs/IHP-Controller-Render.html#v:renderHtmlOrJson) instead — this requires your view to implement both `View` and `JsonView`. See the [JSON API guide](json-api.html) for details.
 
 ### Rendering Plain Text
 
@@ -398,19 +398,37 @@ action ExampleAction = do
 
 ## Action Execution
 
-When calling a function to send the response, IHP will stop executing the action. Internally this is implemented by throwing and catching a [`ResponseException`](https://ihp.digitallyinduced.com/api-docs/src/IHP.ControllerSupport.html#ResponseException). Any code after e.g. a `render SomeView { .. }` call will not be called. This also applies to all redirect helpers.
-
-Here is an example of this behavior:
+Response functions like `render`, `redirectTo`, and `renderJson` send the response to the client and return `IO ResponseReceived`. Since `action` returns `IO ResponseReceived`, the response function is typically the last expression in the action:
 
 ```haskell
 action ExampleAction = do
-    redirectTo SomeOtherAction
-    putStrLn "This line here is not reachable"
+    post <- fetch postId
+    render ShowView { .. }
 ```
 
-The [`putStrLn`](https://ihp.digitallyinduced.com/api-docs/IHP-Prelude.html#v:putStrLn) will never be called because the [`redirectTo`](https://ihp.digitallyinduced.com/api-docs/IHP-Controller-Redirect.html#v:redirectTo) already stops execution.
+### Early Return
 
-When you have created a [`Response`](https://hackage.haskell.org/package/wai-3.2.2.1/docs/Network-Wai.html#t:Response) manually, you can use [`respondAndExit`](https://ihp.digitallyinduced.com/api-docs/src/IHP.ControllerSupport.html#respondAndExit) to send your response and stop action execution.
+When you need to exit an action early, use `earlyReturn`. This sends the response and stops execution of the rest of the action:
+
+```haskell
+action ExampleAction = do
+    when (not loggedIn) do
+        earlyReturn (redirectTo LoginAction)
+
+    -- This code runs only if loggedIn is True
+    render MyView
+```
+
+For access control specifically, use the built-in helpers [`accessDeniedUnless`](https://ihp.digitallyinduced.com/api-docs/IHP-Controller-AccessDenied.html#v:accessDeniedUnless) and [`accessDeniedWhen`](https://ihp.digitallyinduced.com/api-docs/IHP-Controller-AccessDenied.html#v:accessDeniedWhen) which handle the early return for you:
+
+```haskell
+action EditPostAction { postId } = do
+    post <- fetch postId
+    accessDeniedUnless (post.authorId == currentUserId)
+    render EditView { .. }
+```
+
+When you have created a `Response` manually, you can use `respondAndExit` to send your response and stop execution.
 
 ## Controller Context
 
@@ -429,3 +447,89 @@ The Request Context provides access to the Wai request as well as information li
 ## File Uploads
 
 [See File Storage & Uploads](file-storage.html)
+
+## Troubleshooting
+
+### "Variable not in scope: action"
+
+```
+Variable not in scope: action :: ShowPostAction -> IO ()
+```
+
+You forgot to add the action constructor to your controller's data type in `Web/Types.hs`. Every action your controller handles must be listed as a constructor:
+
+```haskell
+data PostsController
+    = ShowPostAction { postId :: !(Id Post) }
+    | PostsAction -- Don't forget to add new actions here
+    deriving (Eq, Show, Data)
+```
+
+### Missing Parameter Error
+
+```
+param: Parameter 'title' not found in the request
+```
+
+This happens when you call `param @Text "title"` but the request does not contain a `title` parameter. Use `paramOrDefault` to provide a fallback value, or `paramOrNothing` to handle the missing case explicitly:
+
+```haskell
+let title = paramOrDefault @Text "" "title"
+let title = paramOrNothing @Text "title" -- Returns Maybe Text
+```
+
+### "No instance for (Controller ...)"
+
+```
+No instance for (Controller PostsController)
+```
+
+You defined the controller type in `Web/Types.hs` but forgot to implement the `Controller` instance in `Web/Controller/Posts.hs`:
+
+```haskell
+instance Controller PostsController where
+    action ShowPostAction { postId } = do
+        ...
+```
+
+### "Ambiguous type variable" When Using `param`
+
+```
+Ambiguous type variable 'a0' arising from a use of 'param'
+```
+
+The compiler cannot figure out what type the parameter should be parsed as. Add a type annotation:
+
+```haskell
+-- Wrong: let value = param "id"
+let value = param @Int "id"       -- Correct
+let value = param @(Id Post) "id" -- Correct
+```
+
+### Action Not Being Called (404 Not Found)
+
+If your action returns a 404, check two things:
+
+1. **Route missing in `Web/Routes.hs`**: Make sure your controller type has an `AutoRoute` instance:
+
+    ```haskell
+    instance AutoRoute PostsController
+    ```
+
+2. **Controller not listed in `Web/FrontController.hs`**: Your controller must be added to the front controller's `controllers` list:
+
+    ```haskell
+    instance FrontController WebApplication where
+        controllers =
+            [ -- ...
+            , parseRoute @PostsController -- Add this line
+            ]
+    ```
+
+### Type Error When Doing IO in the Wrong Context
+
+```
+Couldn't match type 'IO' with 'IO'
+```
+
+This confusing error often means you are trying to run a plain `IO` action where a controller action is expected, or vice versa. Controller actions run in a special context that has access to the request and response. Make sure you use `liftIO` if you need to call a plain IO function from within a controller, or check that your function signatures match the expected types.

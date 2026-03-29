@@ -51,12 +51,12 @@ instance View HtmlView where
     html (HtmlView html) = [hsx|{html}|]
 
 renderStatus job = case job.status of
-    JobStatusNotStarted -> [hsx|<span class="badge badge-secondary">Not Started</span>|]
-    JobStatusRunning -> [hsx|<span class="badge badge-primary">Running</span>|]
-    JobStatusFailed -> [hsx|<span class="badge badge-danger" title="Last Error" data-container="body" data-toggle="popover" data-placement="left" data-content={fromMaybe "" (job.lastError)}>Failed</span>|]
-    JobStatusSucceeded -> [hsx|<span class="badge badge-success">Succeeded</span>|]
-    JobStatusRetry -> [hsx|<span class="badge badge-warning" title="Last Error" data-container="body" data-toggle="popover" data-placement="left" data-content={fromMaybe "" (job.lastError)}>Retry</span>|]
-    JobStatusTimedOut -> [hsx|<span class="badge badge-danger" >Timed Out</span>|]
+    JobStatusNotStarted -> [hsx|<span class="badge text-bg-secondary">Not Started</span>|]
+    JobStatusRunning -> [hsx|<span class="badge text-bg-primary">Running</span>|]
+    JobStatusFailed -> [hsx|<span class="badge text-bg-danger" title="Last Error" data-bs-container="body" data-bs-toggle="popover" data-bs-placement="left" data-bs-content={fromMaybe "" (job.lastError)}>Failed</span>|]
+    JobStatusSucceeded -> [hsx|<span class="badge text-bg-success">Succeeded</span>|]
+    JobStatusRetry -> [hsx|<span class="badge text-bg-warning" title="Last Error" data-bs-container="body" data-bs-toggle="popover" data-bs-placement="left" data-bs-content={fromMaybe "" (job.lastError)}>Retry</span>|]
+    JobStatusTimedOut -> [hsx|<span class="badge text-bg-danger" >Timed Out</span>|]
 
 -- BASE JOB VIEW HELPERS --------------------------------
 
@@ -181,7 +181,7 @@ renderBaseJobDetailView job = let table = job.table in [hsx|
     </table>
 
     <div class="d-flex flex-row">
-        <form class="mr-2" action="/jobs/DeleteJob" method="POST">
+        <form class="me-2" action="/jobs/DeleteJob" method="POST">
             <input type="hidden" id="tableName" name="tableName" value={table}>
             <input type="hidden" id="id" name="id" value={tshow $ job.id}>
             <button type="submit" class="btn btn-danger">Delete</button>
@@ -285,7 +285,7 @@ renderTableViewableTablePaginated jobs page totalPages =
                 <li class="page-item">
                     <a class="page-link" href={ListJobAction table (page - 1)} aria-label="Previous">
                         <span aria-hidden="true">&laquo;</span>
-                        <span class="sr-only">Previous</span>
+                        <span class="visually-hidden">Previous</span>
                     </a>
                 </li>
         |]
@@ -295,7 +295,7 @@ renderTableViewableTablePaginated jobs page totalPages =
                 <li class="page-item">
                     <a class="page-link" href={ListJobAction table (page + 1)} aria-label="Next">
                         <span aria-hidden="true">&raquo;</span>
-                        <span class="sr-only">Next</span>
+                        <span class="visually-hidden">Next</span>
                     </a>
                 </li>
             |]

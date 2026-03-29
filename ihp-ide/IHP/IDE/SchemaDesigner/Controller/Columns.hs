@@ -33,6 +33,8 @@ instance Controller ColumnsController where
         case validationResult of
             Failure message ->
                 setErrorMessage message
+            FailureHtml message ->
+                setErrorMessage message
             Success -> do
                 let options = SchemaOperations.AddColumnOptions
                         { tableName
@@ -71,6 +73,8 @@ instance Controller ColumnsController where
 
         case validationResult of
             Failure message ->
+                setErrorMessage message
+            FailureHtml message ->
                 setErrorMessage message
             Success -> do
                 let options = SchemaOperations.UpdateColumnOptions

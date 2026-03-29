@@ -7,16 +7,17 @@ module IHP.Controller.NotFound
 )
  where
 
-import IHP.Prelude hiding (displayException)
+import Prelude
+import Control.Monad (when, unless)
 import Wai.Request.Params.Middleware (Respond)
 import Network.HTTP.Types (status404)
 import Network.Wai
 import Network.HTTP.Types.Header
-import qualified Text.Blaze.Html.Renderer.Utf8 as Blaze
+import IHP.HSX.Markup (MarkupM(..))
 import qualified Data.ByteString.Lazy as LBS
-import IHP.HSX.QQ (hsx)
+import IHP.HSX.MarkupQQ (hsx)
 import qualified System.Directory as Directory
-import IHP.Controller.Response (respondAndExit)
+import IHP.Controller.Response (respondWith, earlyReturn)
 
 
 -- | Stops the action execution with a not found message (404) when the access condition is True.
@@ -30,8 +31,8 @@ import IHP.Controller.Response (respondAndExit)
 -- >     renderHtml EditView { .. }
 --
 -- This will throw an error and prevent the view from being rendered when the current user is not the author of the post.
-notFoundWhen :: Bool -> IO ()
-notFoundWhen condition = when condition renderNotFound
+notFoundWhen :: (?request :: Request, ?respond :: Respond) => Bool -> IO ()
+notFoundWhen condition = when condition (earlyReturn renderNotFound)
 
 -- | Stops the action execution with a not found message (404) when the access condition is False.
 --
@@ -44,8 +45,8 @@ notFoundWhen condition = when condition renderNotFound
 -- >     renderHtml EditView { .. }
 --
 -- This will throw an error and prevent the view from being rendered when the current user is not the author of the post.
-notFoundUnless :: Bool -> IO ()
-notFoundUnless condition = unless condition renderNotFound
+notFoundUnless :: (?request :: Request, ?respond :: Respond) => Bool -> IO ()
+notFoundUnless condition = unless condition (earlyReturn renderNotFound)
 
 
 -- | Renders a 404 not found response. If a static/404.html exists, that is rendered instead of the IHP not found page
@@ -63,7 +64,7 @@ buildNotFoundResponse = do
 
 -- | The default IHP 404 not found page
 defaultNotFoundResponse :: Response
-defaultNotFoundResponse = responseBuilder status404 [(hContentType, "text/html")] $ Blaze.renderHtmlBuilder [hsx|
+defaultNotFoundResponse = responseBuilder status404 [(hContentType, "text/html")] $ getBuilder [hsx|
 <!DOCTYPE html>
 <html lang="en">
     <head>
@@ -150,9 +151,9 @@ customNotFoundResponse = do
 -- > action ExampleAction = do
 -- >     renderNotFound
 --
--- You can override the default access denied page by creating a new file at @static/403.html@. Then IHP will render that HTML file instead of displaying the default IHP access denied page.
+-- You can override the default access denied page by creating a new file at @static/404.html@. Then IHP will render that HTML file instead of displaying the default IHP not found page.
 --
-renderNotFound :: IO ()
+renderNotFound :: (?request :: Request, ?respond :: Respond) => IO ResponseReceived
 renderNotFound = do
     response <- buildNotFoundResponse
-    respondAndExit response
+    respondWith response

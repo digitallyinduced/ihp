@@ -10,7 +10,7 @@ You can use the IHP Stripe Integration to accept payments within your IHP applic
 
 The IHP Stripe integration is available [with IHP Pro and IHP Business](ihp-pro.html). If you're not on IHP Pro yet, now is a good time to try it out. By switching to Pro, you're supporting the sustainable development of IHP.
 
-This guide asumes you've read through the basics of the stripe documentation to get a gist of how the stripe api works.
+This guide assumes you've read through the basics of the stripe documentation to get a gist of how the stripe api works.
 
 ## Setup
 
@@ -81,7 +81,7 @@ Replace the `whsec_...` and `pk_test_...` with your stripe api keys. It's best t
 
 ## Subscriptions
 
-In this guide we'll deal with how to set up a typical SaaS subscription. We also asume you're using [stripe tax to collect VAT](https://stripe.com/en-de/tax).
+In this guide we'll deal with how to set up a typical SaaS subscription. We also assume you're using [stripe tax to collect VAT](https://stripe.com/en-de/tax).
 
 ### Plans
 

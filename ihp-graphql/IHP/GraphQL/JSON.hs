@@ -9,6 +9,7 @@ import qualified Data.Aeson.Key as Aeson
 import Data.Aeson ((.:))
 import qualified Data.HashMap.Strict as HashMap
 import qualified Data.Attoparsec.Text as Attoparsec
+import qualified Data.Scientific
 
 instance Aeson.FromJSON GraphQL.GraphQLRequest where
     parseJSON = Aeson.withObject "GraphQLRequest" \v -> do
@@ -35,3 +36,7 @@ aesonValueToGraphQLValue (Aeson.String text) = GraphQL.StringValue text
 aesonValueToGraphQLValue (Aeson.Bool bool) = GraphQL.BooleanValue bool
 aesonValueToGraphQLValue (Aeson.Object keyMap) = GraphQL.ObjectValue (HashMap.map aesonValueToGraphQLValue (keyMap |> Aeson.toHashMap |> HashMap.mapKeys Aeson.toText))
 aesonValueToGraphQLValue Aeson.Null = GraphQL.NullValue
+aesonValueToGraphQLValue (Aeson.Number num) = case Data.Scientific.toBoundedInteger num of
+        Just int -> GraphQL.IntValue (int :: Int)
+        Nothing  -> GraphQL.FloatValue (Data.Scientific.toRealFloat num)
+aesonValueToGraphQLValue (Aeson.Array _) = error "GraphQL ListValue not yet supported"

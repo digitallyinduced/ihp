@@ -1,9 +1,10 @@
 cabal-version:       2.2
 name:                ihp-imagemagick
-version:             1.4.0
+version:             1.0.0
 synopsis:            ImageMagick preprocessing for IHP file uploads
 description:         Preprocess uploaded images with ImageMagick in IHP apps
 license:             MIT
+license-file:        LICENSE
 author:              digitally induced GmbH
 maintainer:          support@digitallyinduced.com
 bug-reports:         https://github.com/digitallyinduced/ihp/issues
@@ -30,6 +31,7 @@ common ihp-std
         BlockArguments
         OverloadedStrings
         ImplicitParams
+    ghc-options: -Werror=incomplete-patterns -Werror=unused-imports -Werror=missing-fields
 
 library
     import: ihp-std

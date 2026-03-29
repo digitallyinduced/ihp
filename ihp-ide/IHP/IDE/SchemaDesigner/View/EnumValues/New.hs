@@ -12,7 +12,7 @@ data NewEnumValueView = NewEnumValueView
 
 instance View NewEnumValueView where
     html NewEnumValueView { .. } = [hsx|
-        <div class="row no-gutters bg-white" id="schema-designer-viewer">
+        <div class="row g-0 bg-white" id="schema-designer-viewer">
             {renderObjectSelector (zip [0..] statements) (Just enumName)}
             {renderEnumSelector enumName (zip [0..] values)}
         </div>
@@ -27,7 +27,7 @@ instance View NewEnumValueView where
                 <form method="POST" action={CreateEnumValueAction}>
                     <input type="hidden" name="enumName" value={enumName}/>
 
-                    <div class="form-group row">
+                    <div class="mb-3 row">
                         <label class="col-sm-2 col-form-label">Name:</label>
                         <div class="col-sm-10">
                             <input name="enumValueName" type="text" class="form-control" autofocus="autofocus"/>
@@ -38,8 +38,8 @@ instance View NewEnumValueView where
                         </div>
                     </div>
 
-                    <div class="text-right">
-                        <input type="submit" name="submit" value="Save" class="btn btn-secondary mr-2">
+                    <div class="text-end">
+                        <input type="submit" name="submit" value="Save" class="btn btn-secondary me-2">
                         <input type="submit" name="submit" value="Save & Add Another" class="btn btn-primary">
                     </div>
                 </form>

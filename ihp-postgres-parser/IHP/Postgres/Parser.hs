@@ -13,7 +13,7 @@ module IHP.Postgres.Parser
 ) where
 
 import Prelude
-import IHP.Postgres.Types
+import IHP.Postgres.Types hiding (table)
 import Data.Text (Text)
 import qualified Data.Text as Text
 import qualified Data.Text.IO as Text
@@ -28,6 +28,7 @@ import Text.Megaparsec
 import Data.Void
 import Text.Megaparsec.Char
 import qualified Text.Megaparsec.Char.Lexer as Lexer
+import System.OsPath (OsPath, decodeUtf)
 import Control.Monad.Combinators.Expr
 
 -- | Helper to convert Int parsing results
@@ -36,10 +37,11 @@ textToInt text = case reads (Text.unpack text) of
     [(n, "")] -> Just n
     _ -> Nothing
 
-parseSqlFile :: FilePath -> IO (Either ByteString [Statement])
+parseSqlFile :: OsPath -> IO (Either ByteString [Statement])
 parseSqlFile schemaFilePath = do
-    schemaSql <- Text.readFile schemaFilePath
-    let result = runParser parseDDL (cs schemaFilePath) schemaSql
+    fp <- decodeUtf schemaFilePath
+    schemaSql <- Text.readFile fp
+    let result = runParser parseDDL fp schemaSql
     case result of
         Left error -> pure (Left (cs $ errorBundlePretty error))
         Right r -> pure (Right r)
@@ -103,6 +105,10 @@ createTable = do
         columnsAndConstraints <- ((Right <$> parseTableConstraint) <|> (Left <$> parseColumn)) `sepBy` (char ',' >> space)
         pure (lefts columnsAndConstraints, rights columnsAndConstraints)
 
+    inherits <- optional do
+        lexeme "INHERITS"
+        between (char '(' >> space) (char ')' >> space) qualifiedIdentifier
+
     char ';'
 
     -- Check that either there is a single column with a PRIMARY KEY constraint,
@@ -121,7 +127,7 @@ createTable = do
             _ -> fail ("Primary key defined in both column and table constraints on table " <> cs name)
         _ -> fail "Multiple columns with PRIMARY KEY constraint"
 
-    pure CreateTable { name, columns, primaryKeyConstraint, constraints, unlogged }
+    pure CreateTable { name, columns, primaryKeyConstraint, constraints, unlogged, inherits }
 
 createEnumType = do
     lexeme "CREATE"
@@ -227,20 +233,42 @@ parseColumn = do
     name <- identifier
     columnType <- sqlType
     space
-    defaultValue <- optional do
-        lexeme "DEFAULT"
-        expression
-    generator <- optional do
-        lexeme "GENERATED"
-        lexeme "ALWAYS"
-        lexeme "AS"
-        generate <- expression
-        stored <- isJust <$> optional (lexeme "STORED")
-        pure ColumnGenerator { generate, stored }
-    primaryKey <- isJust <$> optional (lexeme "PRIMARY" >> lexeme "KEY")
-    notNull <- isJust <$> optional (lexeme "NOT" >> lexeme "NULL")
-    isUnique <- isJust <$> optional (lexeme "UNIQUE")
-    pure (primaryKey, Column { name, columnType, defaultValue, notNull, isUnique, generator })
+    let
+        column = Column
+            { name
+            , columnType
+            , defaultValue = Nothing
+            , notNull = False
+            , isUnique = False
+            , generator = Nothing
+            }
+    parseColumnAttributes column False
+    where
+        parseColumnAttributes column primaryKey = choice
+            [ do
+                lexeme "DEFAULT"
+                value <- expression
+                parseColumnAttributes column { defaultValue = Just value } primaryKey
+            , do
+                lexeme "GENERATED"
+                lexeme "ALWAYS"
+                lexeme "AS"
+                generate <- expression
+                stored <- isJust <$> optional (lexeme "STORED")
+                parseColumnAttributes column { generator = Just ColumnGenerator { generate, stored } } primaryKey
+            , do
+                lexeme "PRIMARY"
+                lexeme "KEY"
+                parseColumnAttributes column True
+            , do
+                lexeme "NOT"
+                lexeme "NULL"
+                parseColumnAttributes column { notNull = True } primaryKey
+            , do
+                lexeme "UNIQUE"
+                parseColumnAttributes column { isUnique = True } primaryKey
+            , pure (primaryKey, column)
+            ]
 
 sqlType :: Parser PostgresType
 sqlType = choice $ map optionalArray
@@ -618,6 +646,10 @@ createFunction = do
         lexeme "language" <|> lexeme "LANGUAGE"
         symbol' "plpgsql" <|> symbol' "SQL"
 
+    securityDefiner <- isJust <$> optional do
+        lexeme "SECURITY"
+        lexeme "DEFINER"
+
     lexeme "AS"
     space
     functionBody <- cs <$> between (char '$' >> char '$') (char '$' >> char '$') (many (anySingleBut '$'))
@@ -629,7 +661,7 @@ createFunction = do
             lexeme "language" <|> lexeme "LANGUAGE"
             symbol' "plpgsql" <|> symbol' "SQL"
     char ';'
-    pure CreateFunction { functionName, functionArguments, functionBody, orReplace, returns, language }
+    pure CreateFunction { functionName, functionArguments, functionBody, orReplace, returns, language, securityDefiner }
     where
         functionArgument = do
             argumentName <- qualifiedIdentifier
@@ -675,7 +707,7 @@ createTrigger' = do
 
     name <- qualifiedIdentifier
     eventWhen <- (lexeme "AFTER" >> pure After) <|> (lexeme "BEFORE" >> pure Before) <|> (lexeme "INSTEAD OF" >> pure InsteadOf)
-    event <- (lexeme "INSERT" >> pure TriggerOnInsert) <|> (lexeme "UPDATE" >> pure TriggerOnUpdate) <|> (lexeme "DELETE" >> pure TriggerOnDelete) <|> (lexeme "TRUNCATE" >> pure TriggerOnTruncate)
+    event <- triggerEvent `sepBy1` lexeme "OR"
 
     lexeme "ON"
     tableName <- qualifiedIdentifier
@@ -706,6 +738,9 @@ createTrigger' = do
         , functionName
         , arguments
         }
+
+triggerEvent :: Parser TriggerEvent
+triggerEvent = (lexeme "INSERT" >> pure TriggerOnInsert) <|> (lexeme "UPDATE" >> pure TriggerOnUpdate) <|> (lexeme "DELETE" >> pure TriggerOnDelete) <|> (lexeme "TRUNCATE" >> pure TriggerOnTruncate)
 
 alterTable = do
     lexeme "TABLE"

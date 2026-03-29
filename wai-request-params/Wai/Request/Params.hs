@@ -38,14 +38,13 @@ import Prelude
 import Data.ByteString (ByteString)
 import qualified Data.ByteString.Char8 as Char8
 import Data.Text (Text)
-import qualified Data.Text as Text
-import qualified Data.Text.Encoding as Text
 import Data.UUID (UUID)
 import qualified Data.UUID as UUID
 import Data.Time.Clock (UTCTime)
 import Data.Time.LocalTime (LocalTime, TimeOfDay)
 import Data.Time.Calendar (Day)
-import Data.Time.Format (parseTimeM, defaultTimeLocale)
+import Data.Time.Format (parseTimeM, defaultTimeLocale, ParseTime)
+import Control.Applicative ((<|>))
 import qualified Data.Attoparsec.ByteString.Char8 as Attoparsec
 import qualified GHC.Float as Float
 import qualified Control.Exception as Exception
@@ -342,41 +341,38 @@ instance ParamReader UUID where
             Nothing -> Left "Invalid UUID"
     readParameterJSON _ = Left "Expected String with an UUID"
 
--- | Accepts values such as @2020-11-08T12:03:35Z@ or @2020-11-08@
+-- | Accepts values such as @2020-11-08T12:03:35Z@, @2020-11-08T12:03:35.123@ (fractional seconds without Z),
+-- @2020-11-08T12:03:35@ (seconds without Z), @2020-11-08T12:03@ (datetime-local), or @2020-11-08@
 instance ParamReader UTCTime where
     {-# INLINABLE readParameter #-}
-    readParameter "" = Left "This field cannot be empty"
-    readParameter byteString =
-        let
-            input = (cs byteString)
-            dateTime = parseTimeM True defaultTimeLocale "%Y-%m-%dT%H:%M:%S%QZ" input
-            date = parseTimeM True defaultTimeLocale "%Y-%-m-%-d" input
-        in case dateTime of
-            Nothing -> case date of
-                Just value -> Right value
-                Nothing -> Left "has to be a valid date and time, e.g. 2020-11-08T12:03:35Z"
-            Just value -> Right value
-
+    readParameter = readDateTimeParameter
     readParameterJSON (Aeson.String string) = readParameter (cs string)
     readParameterJSON _ = Left "Expected String"
 
--- | Accepts values such as @2020-11-08T12:03:35Z@ or @2020-11-08@
+-- | Accepts values such as @2020-11-08T12:03:35Z@, @2020-11-08T12:03:35.123@ (fractional seconds without Z),
+-- @2020-11-08T12:03:35@ (seconds without Z), @2020-11-08T12:03@ (datetime-local), or @2020-11-08@
 instance ParamReader LocalTime where
     {-# INLINABLE readParameter #-}
-    readParameter "" = Left "This field cannot be empty"
-    readParameter byteString =
-        let
-            input = (cs byteString)
-            dateTime = parseTimeM True defaultTimeLocale "%Y-%m-%dT%H:%M:%S%QZ" input
-            date = parseTimeM True defaultTimeLocale "%Y-%-m-%-d" input
-        in case dateTime of
-            Nothing -> case date of
-                Just value -> Right value
-                Nothing -> Left "has to be a valid date and time, e.g. 2020-11-08T12:03:35Z"
-            Just value -> Right value
-
+    readParameter = readDateTimeParameter
     readParameterJSON (Aeson.String string) = readParameter (cs string)
     readParameterJSON _ = Left "Expected String"
+
+-- | Shared parser for 'UTCTime' and 'LocalTime'. Tries ISO 8601 with Z,
+-- fractional seconds with Z, fractional seconds without Z, seconds without Z,
+-- datetime-local (no seconds), and date-only formats.
+readDateTimeParameter :: ParseTime a => ByteString -> Either ByteString a
+readDateTimeParameter "" = Left "This field cannot be empty"
+readDateTimeParameter byteString =
+    case parseTimeM True defaultTimeLocale "%Y-%m-%dT%H:%M:%S%QZ" input
+            <|> parseTimeM True defaultTimeLocale "%Y-%m-%dT%H:%M:%S%Q" input
+            <|> parseTimeM True defaultTimeLocale "%Y-%m-%dT%H:%M:%S" input
+            <|> parseTimeM True defaultTimeLocale "%Y-%m-%dT%H:%M" input
+            <|> parseTimeM True defaultTimeLocale "%Y-%-m-%-d" input
+        of
+            Just value -> Right value
+            Nothing -> Left "has to be a valid date and time, e.g. 2020-11-08T12:03:35Z or 2020-11-08T12:03"
+    where
+        input = cs byteString
 
 -- | Accepts values such as @2020-11-08@
 instance ParamReader Day where

@@ -1,6 +1,9 @@
 # Testing
 
-This section provides some guidelines for testing your IHP applications. It is highly recommended to write a test for your Controller and Views to assert the logic, and reach better code quality.
+This section provides some guidelines for testing your IHP applications. IHP supports two kinds of tests:
+
+- **Unit tests** (`Test/Main.hs`) — Pure tests and tests that don't need a database.
+- **Integration tests** (`Test/Integration.hs`) — Tests that use `withIHPApp` and need a running PostgreSQL database.
 
 ```toc
 
@@ -13,19 +16,70 @@ The following setup and tests can be viewed in the [Blog example](https://github
 1. Add `hspec` and `ihp-hspec` in `flake.nix`
 ```nix
         haskellPackages = p: with p; [
-            cabal-install
             # ...
             p.ihp
-            
+
             hspec
             ihp-hspec
         ];
 ```
 2. Rebuild environment with `devenv up`
-3. Create a new `Test/Main.hs` module. Here you will import all your test specs.
+
+## Unit Tests
+
+Unit tests live in `Test/Main.hs` and don't require a database. Use these for testing pure logic, view rendering, or anything that doesn't need `withIHPApp`.
+
+### Setting Up Unit Tests
+
+Create a `Test/Main.hs` module:
 
 ```haskell
-# Test/Main.hs
+-- Test/Main.hs
+
+module Main where
+
+import Test.Hspec
+import IHP.Prelude
+
+import Test.MySpec
+
+main :: IO ()
+main = hspec do
+    Test.MySpec.tests
+```
+
+### Running Unit Tests
+
+**Interactively with ghci:**
+
+```
+ghci
+:l Test/Main
+main
+```
+
+**With runghc** (useful for CI, while `devenv up` is running in another tab):
+
+```
+runghc $(make print-ghc-extensions) -i. -ibuild -iConfig Test/Main.hs
+```
+
+**Via nix** (runs automatically as part of `nix flake check`):
+
+```
+nix flake check
+```
+
+## Integration Tests
+
+Integration tests live in `Test/Integration.hs` and use `withIHPApp`, which needs a PostgreSQL database with your app's schema loaded.
+
+### Setting Up Integration Tests
+
+Create a `Test/Integration.hs` module:
+
+```haskell
+-- Test/Integration.hs
 
 module Main where
 
@@ -38,9 +92,11 @@ main :: IO ()
 main = hspec do
     Test.Controller.PostsSpec.tests
 ```
-4. Add a new spec file for your controller.
+
+Add a spec file for your controller:
+
 ```haskell
-# Test/Controller/PostsSpec.hs
+-- Test/Controller/PostsSpec.hs
 module Test.Controller.PostsSpec where
 
 import Network.HTTP.Types.Status
@@ -107,44 +163,34 @@ tests = aroundAll (withIHPApp WebApplication config) do
                 body <- responseBody response
                 putStrLn (cs body)
 ```
-5. Execute the tests:
+
+### Running Integration Tests
+
+**Interactively with ghci** (requires `devenv up` running in another tab to provide PostgreSQL):
+
 ```
-nix-shell
 ghci
-:l Test/Main
+:l Test/Integration
 main
 ```
 
-Please note that when entering `ghci` it might give a warning:
+**With runghc** (requires `devenv up` running in another tab):
 
 ```
-ghci
-GHCi, version 8.10.3: https://www.haskell.org/ghc/  :? for help
-*** WARNING: . is writable by someone else, IGNORING!
-Suggested fix: execute 'chmod go-w .'
+runghc $(make print-ghc-extensions) -i. -ibuild -iConfig Test/Integration.hs
 ```
 
-In this case, follow the suggested fix, exist ghci (`:q`) and execute `chmod go-w .`. Then you can resume the process. When ghci loads correctly it should show
+**Via nix** (runs automatically as part of `nix flake check` — a temporary PostgreSQL is started automatically, no `devenv up` needed):
 
 ```
-GHCi, version 8.10.3: https://www.haskell.org/ghc/  :? for help
-package flags have changed, resetting and loading new packages...
-Loaded GHCi configuration from /home/amitaibu/Sites/Haskell/ihp/blog/.ghci
+nix flake check
 ```
 
-Another way of executing the tests, that we'll use on [CI](https://github.com/digitallyinduced/ihp-boilerplate/blob/master/.github/workflows/test.yml), is to use the `runghc` command, while running `devenv up` on another tab:
+To run a particular set of tests, use `--match`:
 
 ```
-runghc $(make print-ghc-extensions) -i. -ibuild -iConfig Test/Main.hs
+runghc $(make print-ghc-extensions) -i. -ibuild -iConfig Test/Integration.hs --match "Posts"
 ```
-
-To run a particular set of tests, use `--match`.
-
-```
-runghc $(make print-ghc-extensions) -i. -ibuild -iConfig Test/Main.hs --match "Posts"
-```
-
-This command will execute all tests which are described under describe "Posts controller functionality".
 
 ## Setting the Current User During Testing
 
@@ -199,11 +245,9 @@ perSystem = { pkgs, ... }: {
         haskellPackages = p: with p; [
             # Haskell dependencies go here
             p.ihp
-            cabal-install
             base
             wai
             text
-            hlint
             hspec
         ];
     };

@@ -5,7 +5,11 @@ Copyright: (c) digitally induced GmbH, 2020
 -}
 module IHP.View.Classes where
 
-import IHP.Prelude
+import Prelude hiding (unwords)
+import Data.Text (Text, unwords)
+import Data.String (IsString(..))
+import Data.String.Conversions (cs)
+import IHP.HaskellSupport ((|>))
 
 -- | Helper for dynamically generating the @class=".."@ attribute.
 -- 

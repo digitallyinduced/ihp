@@ -14,7 +14,6 @@ import GHC.Hs.Expr as Expr
 import GHC.Hs.Extension as Ext
 import GHC.Hs.Pat as Pat
 import GHC.Hs.Lit
-import qualified GHC.Hs.Utils as Utils
 import qualified Data.ByteString as B
 import qualified Language.Haskell.TH.Syntax as TH
 import GHC.Types.SrcLoc
@@ -22,7 +21,9 @@ import GHC.Types.Name
 import GHC.Types.Name.Reader
 import GHC.Data.FastString
 import GHC.Utils.Outputable (Outputable, ppr, showSDocUnsafe)
+#if __GLASGOW_HASKELL__ < 912
 import GHC.Types.Basic (Boxity(..))
+#endif
 import GHC.Types.SourceText (il_value, rationalFromFractionalLit)
 import qualified GHC.Unit.Module as Module
 import GHC.Stack
@@ -49,6 +50,17 @@ toLit (HsInteger _ i _) = TH.IntegerL i
 toLit (HsRat _ f _) = TH.FloatPrimL (fl_value f)
 toLit (HsFloatPrim _ f) = TH.FloatPrimL (fl_value f)
 toLit (HsDoublePrim _ f) = TH.DoublePrimL (fl_value f)
+#if __GLASGOW_HASKELL__ >= 912
+toLit (HsMultilineString _ s) = TH.StringL (unpackFS s)
+#endif
+#if __GLASGOW_HASKELL__ >= 910
+toLit (HsInt8Prim _ i) = TH.IntPrimL i
+toLit (HsInt16Prim _ i) = TH.IntPrimL i
+toLit (HsInt32Prim _ i) = TH.IntPrimL i
+toLit (HsWord8Prim _ i) = TH.WordPrimL i
+toLit (HsWord16Prim _ i) = TH.WordPrimL i
+toLit (HsWord32Prim _ i) = TH.WordPrimL i
+#endif
 
 toLit' :: OverLitVal -> TH.Lit
 toLit' (HsIntegral i) = TH.IntegerL (il_value i)
@@ -85,7 +97,7 @@ toPat (ParPat xP _ lP _) = (toPat . unLoc) lP
 toPat (ConPat pat_con_ext ((unLoc -> name)) pat_args) = TH.ConP (toName name) (map toType []) (map (toPat . unLoc) (Pat.hsConPatArgs pat_args))
 toPat (ViewPat pat_con pat_args pat_con_ext) = error "TH.ViewPattern not implemented"
 toPat (SumPat _ _ _ _) = error "TH.SumPat not implemented"
-toPat (WildPat _ ) = error "TH.WildPat not implemented"
+toPat (WildPat _) = TH.WildP
 toPat (NPat _ _ _ _ ) = error "TH.NPat not implemented"
 toPat p = todo "toPat" p
 
@@ -197,6 +209,7 @@ toExp (Expr.RecordUpd _ (unLoc -> e) xs)                 = TH.RecUpdE (toExp e) 
 #else
                             Unambiguous _ (unLoc -> name) -> toName name
                             Ambiguous _ (unLoc -> name) -> toName name
+                            XAmbiguousFieldOcc {} -> error "XAmbiguousFieldOcc"
 #endif
         in
             map f fields

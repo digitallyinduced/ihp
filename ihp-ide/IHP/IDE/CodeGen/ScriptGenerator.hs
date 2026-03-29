@@ -7,11 +7,11 @@ buildPlan :: Text -> Either Text [GeneratorAction]
 buildPlan scriptName =
     if null scriptName
         then Left "Script name cannot be empty"
-        else do 
-            let filePath = "Application/Script/" <> cs scriptName <> ".hs"
+        else do
+            let filePath = textToOsPath ("Application/Script/" <> cs scriptName <> ".hs")
             let fileContent = renderScript scriptName
             Right [ CreateFile { filePath, fileContent }
-                  , RunShellCommand { shellCommand = "chmod +x " <> filePath }
+                  , RunShellCommand { shellCommand = "chmod +x " <> osPathToText filePath }
                   ]
 
 renderScript :: Text -> Text

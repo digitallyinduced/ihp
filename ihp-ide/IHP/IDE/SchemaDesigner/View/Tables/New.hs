@@ -10,7 +10,7 @@ data NewTableView = NewTableView { statements :: [Statement] }
 
 instance View NewTableView where
     html NewTableView { .. } = [hsx|
-        <div class="row no-gutters bg-white" id="schema-designer-viewer">
+        <div class="row g-0 bg-white" id="schema-designer-viewer">
             {renderObjectSelector (zip [0..] statements) Nothing}
             {emptyColumnSelectorContainer}
         </div>
@@ -21,7 +21,7 @@ instance View NewTableView where
             modalContent = [hsx|
                 <form method="POST" action={CreateTableAction}>
 
-                    <div class="form-group row">
+                    <div class="mb-3 row">
                         <label class="col-sm-2 col-form-label">Name:</label>
                         <div class="col-sm-10">
                             <input id="nameInput" name="tableName" type="text" class="form-control" autofocus="autofocus"/>
@@ -31,7 +31,7 @@ instance View NewTableView where
                         </div>
                     </div>
 
-                    <div class="text-right">
+                    <div class="text-end">
                         <button type="submit" class="btn btn-primary">Create Table</button>
                     </div>
                 </form>

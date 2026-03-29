@@ -1,6 +1,6 @@
 cabal-version:       2.2
 name:                ihp-postgres-parser
-version:             1.4.0
+version:             1.0.0
 synopsis:            PostgreSQL DDL parser and compiler
 description:         A standalone PostgreSQL DDL parser and SQL compiler extracted from IHP.
 license:             MIT
@@ -22,6 +22,7 @@ common shared-properties
     default-language: GHC2021
     build-depends:
             base >= 4.17.0 && < 4.22
+          , filepath >= 1.5
           , text
           , megaparsec
           , parser-combinators
@@ -41,9 +42,10 @@ common shared-properties
         ghc-options:
             -Wunused-imports
             -Wunused-foralls
-            -Wmissing-fields
+            -Werror=missing-fields
             -Winaccessible-code
             -Wno-ambiguous-fields
+            -Werror=incomplete-patterns
     else
         ghc-options:
             -fstatic-argument-transformation
@@ -52,10 +54,11 @@ common shared-properties
 
             -Wunused-imports
             -Wunused-foralls
-            -Wmissing-fields
+            -Werror=missing-fields
             -Winaccessible-code
             -fspecialise-aggressively
             -Wno-ambiguous-fields
+            -Werror=incomplete-patterns
 
 library
     import: shared-properties

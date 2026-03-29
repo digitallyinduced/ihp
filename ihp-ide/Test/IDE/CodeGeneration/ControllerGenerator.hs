@@ -7,12 +7,9 @@ module Test.IDE.CodeGeneration.ControllerGenerator where
 import Test.Hspec
 import IHP.Prelude
 import qualified IHP.IDE.CodeGen.ControllerGenerator as ControllerGenerator
-import IHP.ViewPrelude (cs, plain)
-import qualified Text.Megaparsec as Megaparsec
 import IHP.IDE.CodeGen.Types
 import IHP.Postgres.Types
-import IHP.NameSupport
-import Test.IDE.SchemaDesigner.ParserSpec (col, table)
+
 
 tests = do
     describe "Controller Generator Tests:" do
@@ -30,8 +27,22 @@ tests = do
                             , (col "email" PText) { notNull = True }
                         ]
                         , primaryKeyConstraint = PrimaryKeyConstraint ["id"]
+                    },
+                    StatementCreateTable (table "page_comments") {
+                        columns = [
+                            (col "id" PUUID) { defaultValue = Just (CallExpression "uuid_generate_v4" []), notNull = True }
+                        ]
+                        , primaryKeyConstraint = PrimaryKeyConstraint ["id"]
                     }
                 ]
+
+        let makeConfig controllerName modelName applicationName paginationEnabled =
+                ControllerGenerator.defaultControllerConfig
+                    { ControllerGenerator.controllerName = controllerName
+                    , ControllerGenerator.modelName = modelName
+                    , ControllerGenerator.applicationName = applicationName
+                    , ControllerGenerator.paginationEnabled = paginationEnabled
+                    }
 
         it "should build a controller with name \"pages\"" do
             let rawControllerName = "pages"
@@ -39,7 +50,7 @@ tests = do
             let modelName = tableNameToModelName rawControllerName
             let applicationName = "Web"
             let pagination = False
-            let builtPlan = ControllerGenerator.buildPlan' schema applicationName controllerName modelName pagination
+            let builtPlan = ControllerGenerator.buildPlan' schema (makeConfig controllerName modelName applicationName pagination)
 
             builtPlan `shouldBe`
                 [ CreateFile {filePath = "Web/Controller/Pages.hs", fileContent = "module Web.Controller.Pages where\n\nimport Web.Controller.Prelude\nimport Web.View.Pages.Index\nimport Web.View.Pages.New\nimport Web.View.Pages.Edit\nimport Web.View.Pages.Show\n\ninstance Controller PagesController where\n    action PagesAction = do\n        pages <- query @Page |> fetch\n        render IndexView { .. }\n\n    action NewPageAction = do\n        let page = newRecord\n        render NewView { .. }\n\n    action ShowPageAction { pageId } = do\n        page <- fetch pageId\n        render ShowView { .. }\n\n    action EditPageAction { pageId } = do\n        page <- fetch pageId\n        render EditView { .. }\n\n    action UpdatePageAction { pageId } = do\n        page <- fetch pageId\n        page\n            |> buildPage\n            |> ifValid \\case\n                Left page -> render EditView { .. }\n                Right page -> do\n                    page <- page |> updateRecord\n                    setSuccessMessage \"Page updated\"\n                    redirectTo EditPageAction { .. }\n\n    action CreatePageAction = do\n        let page = newRecord @Page\n        page\n            |> buildPage\n            |> ifValid \\case\n                Left page -> render NewView { .. } \n                Right page -> do\n                    page <- page |> createRecord\n                    setSuccessMessage \"Page created\"\n                    redirectTo PagesAction\n\n    action DeletePageAction { pageId } = do\n        page <- fetch pageId\n        deleteRecord page\n        setSuccessMessage \"Page deleted\"\n        redirectTo PagesAction\n\nbuildPage page = page\n    |> fill @'[]\n"}
@@ -67,7 +78,7 @@ tests = do
             let modelName = tableNameToModelName rawControllerName
             let applicationName = "Web"
             let pagination = False
-            let builtPlan = ControllerGenerator.buildPlan' schema applicationName controllerName modelName pagination
+            let builtPlan = ControllerGenerator.buildPlan' schema (makeConfig controllerName modelName applicationName pagination)
 
             builtPlan `shouldBe`
                 [ CreateFile {filePath = "Web/Controller/Page.hs", fileContent = "module Web.Controller.Page where\n\nimport Web.Controller.Prelude\nimport Web.View.Page.Index\nimport Web.View.Page.New\nimport Web.View.Page.Edit\nimport Web.View.Page.Show\n\ninstance Controller PageController where\n    action PagesAction = do\n        page <- query @Page |> fetch\n        render IndexView { .. }\n\n    action NewPageAction = do\n        let page = newRecord\n        render NewView { .. }\n\n    action ShowPageAction { pageId } = do\n        page <- fetch pageId\n        render ShowView { .. }\n\n    action EditPageAction { pageId } = do\n        page <- fetch pageId\n        render EditView { .. }\n\n    action UpdatePageAction { pageId } = do\n        page <- fetch pageId\n        page\n            |> buildPage\n            |> ifValid \\case\n                Left page -> render EditView { .. }\n                Right page -> do\n                    page <- page |> updateRecord\n                    setSuccessMessage \"Page updated\"\n                    redirectTo EditPageAction { .. }\n\n    action CreatePageAction = do\n        let page = newRecord @Page\n        page\n            |> buildPage\n            |> ifValid \\case\n                Left page -> render NewView { .. } \n                Right page -> do\n                    page <- page |> createRecord\n                    setSuccessMessage \"Page created\"\n                    redirectTo PagesAction\n\n    action DeletePageAction { pageId } = do\n        page <- fetch pageId\n        deleteRecord page\n        setSuccessMessage \"Page deleted\"\n        redirectTo PagesAction\n\nbuildPage page = page\n    |> fill @'[]\n"}
@@ -95,7 +106,7 @@ tests = do
             let modelName = tableNameToModelName rawControllerName
             let applicationName = "Web"
             let pagination = False
-            let builtPlan = ControllerGenerator.buildPlan' schema applicationName controllerName modelName pagination
+            let builtPlan = ControllerGenerator.buildPlan' schema (makeConfig controllerName modelName applicationName pagination)
 
             builtPlan `shouldBe`
                 [ CreateFile {filePath = "Web/Controller/PageComment.hs", fileContent = "module Web.Controller.PageComment where\n\nimport Web.Controller.Prelude\nimport Web.View.PageComment.Index\nimport Web.View.PageComment.New\nimport Web.View.PageComment.Edit\nimport Web.View.PageComment.Show\n\ninstance Controller PageCommentController where\n    action PageCommentsAction = do\n        pageComment <- query @PageComment |> fetch\n        render IndexView { .. }\n\n    action NewPageCommentAction = do\n        let pageComment = newRecord\n        render NewView { .. }\n\n    action ShowPageCommentAction { pageCommentId } = do\n        pageComment <- fetch pageCommentId\n        render ShowView { .. }\n\n    action EditPageCommentAction { pageCommentId } = do\n        pageComment <- fetch pageCommentId\n        render EditView { .. }\n\n    action UpdatePageCommentAction { pageCommentId } = do\n        pageComment <- fetch pageCommentId\n        pageComment\n            |> buildPageComment\n            |> ifValid \\case\n                Left pageComment -> render EditView { .. }\n                Right pageComment -> do\n                    pageComment <- pageComment |> updateRecord\n                    setSuccessMessage \"PageComment updated\"\n                    redirectTo EditPageCommentAction { .. }\n\n    action CreatePageCommentAction = do\n        let pageComment = newRecord @PageComment\n        pageComment\n            |> buildPageComment\n            |> ifValid \\case\n                Left pageComment -> render NewView { .. } \n                Right pageComment -> do\n                    pageComment <- pageComment |> createRecord\n                    setSuccessMessage \"PageComment created\"\n                    redirectTo PageCommentsAction\n\n    action DeletePageCommentAction { pageCommentId } = do\n        pageComment <- fetch pageCommentId\n        deleteRecord pageComment\n        setSuccessMessage \"PageComment deleted\"\n        redirectTo PageCommentsAction\n\nbuildPageComment pageComment = pageComment\n    |> fill @'[]\n"}
@@ -125,7 +136,7 @@ tests = do
             let modelName = tableNameToModelName rawControllerName
             let applicationName = "Web"
             let pagination = False
-            let builtPlan = ControllerGenerator.buildPlan' schema applicationName controllerName modelName pagination
+            let builtPlan = ControllerGenerator.buildPlan' schema (makeConfig controllerName modelName applicationName pagination)
 
             builtPlan `shouldBe`
                 [ CreateFile {filePath = "Web/Controller/PageComment.hs", fileContent = "module Web.Controller.PageComment where\n\nimport Web.Controller.Prelude\nimport Web.View.PageComment.Index\nimport Web.View.PageComment.New\nimport Web.View.PageComment.Edit\nimport Web.View.PageComment.Show\n\ninstance Controller PageCommentController where\n    action PageCommentsAction = do\n        pageComment <- query @PageComment |> fetch\n        render IndexView { .. }\n\n    action NewPageCommentAction = do\n        let pageComment = newRecord\n        render NewView { .. }\n\n    action ShowPageCommentAction { pageCommentId } = do\n        pageComment <- fetch pageCommentId\n        render ShowView { .. }\n\n    action EditPageCommentAction { pageCommentId } = do\n        pageComment <- fetch pageCommentId\n        render EditView { .. }\n\n    action UpdatePageCommentAction { pageCommentId } = do\n        pageComment <- fetch pageCommentId\n        pageComment\n            |> buildPageComment\n            |> ifValid \\case\n                Left pageComment -> render EditView { .. }\n                Right pageComment -> do\n                    pageComment <- pageComment |> updateRecord\n                    setSuccessMessage \"PageComment updated\"\n                    redirectTo EditPageCommentAction { .. }\n\n    action CreatePageCommentAction = do\n        let pageComment = newRecord @PageComment\n        pageComment\n            |> buildPageComment\n            |> ifValid \\case\n                Left pageComment -> render NewView { .. } \n                Right pageComment -> do\n                    pageComment <- pageComment |> createRecord\n                    setSuccessMessage \"PageComment created\"\n                    redirectTo PageCommentsAction\n\n    action DeletePageCommentAction { pageCommentId } = do\n        pageComment <- fetch pageCommentId\n        deleteRecord pageComment\n        setSuccessMessage \"PageComment deleted\"\n        redirectTo PageCommentsAction\n\nbuildPageComment pageComment = pageComment\n    |> fill @'[]\n"}
@@ -153,24 +164,137 @@ tests = do
             let modelName = tableNameToModelName rawControllerName
             let applicationName = "Web"
             let pagination = False
-            let builtPlan = ControllerGenerator.buildPlan' schema applicationName controllerName modelName pagination
+            let builtPlan = ControllerGenerator.buildPlan' schema (makeConfig controllerName modelName applicationName pagination)
 
             builtPlan `shouldBe`
-                [ CreateFile {filePath = "Web/Controller/People.hs", fileContent = "module Web.Controller.People where\n\nimport Web.Controller.Prelude\nimport Web.View.People.Index\nimport Web.View.People.New\nimport Web.View.People.Edit\nimport Web.View.People.Show\n\ninstance Controller PeopleController where\n    action PeopleAction = do\n        people <- query @Person |> fetch\n        render IndexView { .. }\n\n    action NewPersonAction = do\n        let person = newRecord\n        render NewView { .. }\n\n    action ShowPersonAction { personId } = do\n        person <- fetch personId\n        render ShowView { .. }\n\n    action EditPersonAction { personId } = do\n        person <- fetch personId\n        render EditView { .. }\n\n    action UpdatePersonAction { personId } = do\n        person <- fetch personId\n        person\n            |> buildPerson\n            |> ifValid \\case\n                Left person -> render EditView { .. }\n                Right person -> do\n                    person <- person |> updateRecord\n                    setSuccessMessage \"Person updated\"\n                    redirectTo EditPersonAction { .. }\n\n    action CreatePersonAction = do\n        let person = newRecord @Person\n        person\n            |> buildPerson\n            |> ifValid \\case\n                Left person -> render NewView { .. } \n                Right person -> do\n                    person <- person |> createRecord\n                    setSuccessMessage \"Person created\"\n                    redirectTo PeopleAction\n\n    action DeletePersonAction { personId } = do\n        person <- fetch personId\n        deleteRecord person\n        setSuccessMessage \"Person deleted\"\n        redirectTo PeopleAction\n\nbuildPerson person = person\n    |> fill @'[\"name\", \"email\"]\n"}
+                [ CreateFile {filePath = "Web/Controller/People.hs", fileContent = "module Web.Controller.People where\n\nimport Web.Controller.Prelude\nimport Web.View.People.Index\nimport Web.View.People.New\nimport Web.View.People.Edit\nimport Web.View.People.Show\n\ninstance Controller PeopleController where\n    action PeopleAction = do\n        people <- query @Person |> fetch\n        render IndexView { .. }\n\n    action NewPersonAction = do\n        let person = newRecord\n        render NewView { .. }\n\n    action ShowPersonAction { personId } = do\n        person <- fetch personId\n        render ShowView { .. }\n\n    action EditPersonAction { personId } = do\n        person <- fetch personId\n        render EditView { .. }\n\n    action UpdatePersonAction { personId } = do\n        person <- fetch personId\n        person\n            |> buildPerson\n            |> ifValid \\case\n                Left person -> render EditView { .. }\n                Right person -> do\n                    person <- person |> updateRecord\n                    setSuccessMessage \"Person updated\"\n                    redirectTo EditPersonAction { .. }\n\n    action CreatePersonAction = do\n        let person = newRecord @Person\n        person\n            |> buildPerson\n            |> ifValid \\case\n                Left person -> render NewView { .. } \n                Right person -> do\n                    person <- person |> createRecord\n                    setSuccessMessage \"Person created\"\n                    redirectTo PeopleAction\n\n    action DeletePersonAction { personId } = do\n        person <- fetch personId\n        deleteRecord person\n        setSuccessMessage \"Person deleted\"\n        redirectTo PeopleAction\n\nbuildPerson person = person\n    |> fill @'[\"name\", \"email\"]\n    |> validateField #name nonEmpty\n    |> validateField #email nonEmpty\n    |> validateField #email isEmail\n"}
                 , AppendToFile {filePath = "Web/Routes.hs", fileContent = "\ninstance AutoRoute PeopleController\n\n"}
                 , AppendToFile {filePath = "Web/Types.hs", fileContent = "\ndata PeopleController\n    = PeopleAction\n    | NewPersonAction\n    | ShowPersonAction { personId :: !(Id Person) }\n    | CreatePersonAction\n    | EditPersonAction { personId :: !(Id Person) }\n    | UpdatePersonAction { personId :: !(Id Person) }\n    | DeletePersonAction { personId :: !(Id Person) }\n    deriving (Eq, Show, Data)\n"}
                 , AppendToMarker {marker = "-- Controller Imports", filePath = "Web/FrontController.hs", fileContent = "import Web.Controller.People"}
                 , AppendToMarker {marker = "-- Generator Marker", filePath = "Web/FrontController.hs", fileContent = "        , parseRoute @PeopleController"}
                 , EnsureDirectory {directory = "Web/View/People"}
-                , CreateFile {filePath = "Web/View/People/Index.hs", fileContent = "module Web.View.People.Index where\nimport Web.View.Prelude\n\ndata IndexView = IndexView { people :: [Person] }\n\ninstance View IndexView where\n    html IndexView { .. } = [hsx|\n        {breadcrumb}\n\n        <h1>Index<a href={pathTo NewPersonAction} class=\"btn btn-primary ms-4\">+ New</a></h1>\n        <div class=\"table-responsive\">\n            <table class=\"table\">\n                <thead>\n                    <tr>\n                        <th>Person</th>\n                        <th></th>\n                        <th></th>\n                        <th></th>\n                    </tr>\n                </thead>\n                <tbody>{forEach people renderPerson}</tbody>\n            </table>\n            \n        </div>\n    |]\n        where\n            breadcrumb = renderBreadcrumb\n                [ breadcrumbLink \"People\" PeopleAction\n                ]\n\nrenderPerson :: Person -> Html\nrenderPerson person = [hsx|\n    <tr>\n        <td>{person}</td>\n        <td><a href={ShowPersonAction person.id}>Show</a></td>\n        <td><a href={EditPersonAction person.id} class=\"text-muted\">Edit</a></td>\n        <td><a href={DeletePersonAction person.id} class=\"js-delete text-muted\">Delete</a></td>\n    </tr>\n|]"}
+                , CreateFile {filePath = "Web/View/People/Index.hs", fileContent = "module Web.View.People.Index where\nimport Web.View.Prelude\n\ndata IndexView = IndexView { people :: [Person] }\n\ninstance View IndexView where\n    html IndexView { .. } = [hsx|\n        {breadcrumb}\n\n        <h1>Index<a href={pathTo NewPersonAction} class=\"btn btn-primary ms-4\">+ New</a></h1>\n        <div class=\"table-responsive\">\n            <table class=\"table\">\n                <thead>\n                    <tr>\n                        <th>Name</th>\n                        <th>Email</th>\n                        <th></th>\n                        <th></th>\n                        <th></th>\n                    </tr>\n                </thead>\n                <tbody>{forEach people renderPerson}</tbody>\n            </table>\n            \n        </div>\n    |]\n        where\n            breadcrumb = renderBreadcrumb\n                [ breadcrumbLink \"People\" PeopleAction\n                ]\n\nrenderPerson :: Person -> Html\nrenderPerson person = [hsx|\n    <tr>\n        <td>{person.name}</td>\n        <td>{person.email}</td>\n        <td><a href={ShowPersonAction person.id}>Show</a></td>\n        <td><a href={EditPersonAction person.id} class=\"text-muted\">Edit</a></td>\n        <td><a href={DeletePersonAction person.id} class=\"js-delete text-muted\">Delete</a></td>\n    </tr>\n|]"}
                 , AddImport {filePath = "Web/Controller/People.hs", fileContent = "import Web.View.People.Index"}
                 , EnsureDirectory {directory = "Web/View/People"}
                 , CreateFile {filePath = "Web/View/People/New.hs", fileContent = "module Web.View.People.New where\nimport Web.View.Prelude\n\ndata NewView = NewView { person :: Person }\n\ninstance View NewView where\n    html NewView { .. } = [hsx|\n        {breadcrumb}\n        <h1>New Person</h1>\n        {renderForm person}\n    |]\n        where\n            breadcrumb = renderBreadcrumb\n                [ breadcrumbLink \"People\" PeopleAction\n                , breadcrumbText \"New Person\"\n                ]\n\nrenderForm :: Person -> Html\nrenderForm person = formFor person [hsx|\n    {(textField #name)}\n    {(textField #email)}\n    {submitButton}\n\n|]"}
                 , AddImport {filePath = "Web/Controller/People.hs", fileContent = "import Web.View.People.New"}
                 , EnsureDirectory {directory = "Web/View/People"}
-                , CreateFile {filePath = "Web/View/People/Show.hs", fileContent = "module Web.View.People.Show where\nimport Web.View.Prelude\n\ndata ShowView = ShowView { person :: Person }\n\ninstance View ShowView where\n    html ShowView { .. } = [hsx|\n        {breadcrumb}\n        <h1>Show Person</h1>\n        <p>{person}</p>\n\n    |]\n        where\n            breadcrumb = renderBreadcrumb\n                            [ breadcrumbLink \"People\" PeopleAction\n                            , breadcrumbText \"Show Person\"\n                            ]"}
+                , CreateFile {filePath = "Web/View/People/Show.hs", fileContent = "module Web.View.People.Show where\nimport Web.View.Prelude\n\ndata ShowView = ShowView { person :: Person }\n\ninstance View ShowView where\n    html ShowView { .. } = [hsx|\n        {breadcrumb}\n        <h1>Show Person</h1>\n        <dl>\n            <dt>Name</dt><dd>{person.name}</dd>\n            <dt>Email</dt><dd>{person.email}</dd>\n        </dl>\n\n    |]\n        where\n            breadcrumb = renderBreadcrumb\n                            [ breadcrumbLink \"People\" PeopleAction\n                            , breadcrumbText \"Show Person\"\n                            ]"}
                 , AddImport {filePath = "Web/Controller/People.hs", fileContent = "import Web.View.People.Show"}
                 , EnsureDirectory {directory = "Web/View/People"}
                 , CreateFile {filePath = "Web/View/People/Edit.hs", fileContent = "module Web.View.People.Edit where\nimport Web.View.Prelude\n\ndata EditView = EditView { person :: Person }\n\ninstance View EditView where\n    html EditView { .. } = [hsx|\n        {breadcrumb}\n        <h1>Edit Person</h1>\n        {renderForm person}\n    |]\n        where\n            breadcrumb = renderBreadcrumb\n                [ breadcrumbLink \"People\" PeopleAction\n                , breadcrumbText \"Edit Person\"\n                ]\n\nrenderForm :: Person -> Html\nrenderForm person = formFor person [hsx|\n    {(textField #name)}\n    {(textField #email)}\n    {submitButton}\n\n|]"}
                 , AddImport {filePath = "Web/Controller/People.hs", fileContent = "import Web.View.People.Edit"}
                 ]
+
+        it "should generate type-aware validation for a rich schema" do
+            let richSchema = [
+                        StatementCreateTable (table "projects") {
+                            columns = [
+                                (col "id" PUUID) { defaultValue = Just (CallExpression "uuid_generate_v4" []), notNull = True }
+                                , (col "title" PText) { notNull = True }
+                                , (col "is_active" PBoolean) { notNull = True }
+                                , (col "budget" PInt) { notNull = False }
+                                , (col "started_on" PDate) { notNull = False }
+                                , (col "contact_email" PText) { notNull = True }
+                                , (col "user_id" PUUID) { notNull = True }
+                            ]
+                            , primaryKeyConstraint = PrimaryKeyConstraint ["id"]
+                            , constraints = [
+                                ForeignKeyConstraint { name = Nothing, columnName = "user_id", referenceTable = "users", referenceColumn = Nothing, onDelete = Nothing }
+                              ]
+                        }
+                        , AddConstraint { tableName = "projects", constraint = UniqueConstraint { name = Nothing, columnNames = ["contact_email"] }, deferrable = Nothing, deferrableType = Nothing }
+                    ]
+            let rawControllerName = "projects"
+            let controllerName = tableNameToControllerName rawControllerName
+            let modelName = tableNameToModelName rawControllerName
+            let applicationName = "Web"
+            let pagination = False
+            let builtPlan = ControllerGenerator.buildPlan' richSchema (makeConfig controllerName modelName applicationName pagination)
+            let (CreateFile { fileContent = controllerContent }):_ = builtPlan
+            -- buildProject should have fill + validations
+            (cs controllerContent :: String) `shouldContain` "|> fill @'[\"title\", \"isActive\", \"budget\", \"startedOn\", \"contactEmail\", \"userId\"]"
+            (cs controllerContent :: String) `shouldContain` "|> validateField #title nonEmpty"
+            (cs controllerContent :: String) `shouldContain` "|> validateField #contactEmail nonEmpty"
+            (cs controllerContent :: String) `shouldContain` "|> validateField #contactEmail isEmail"
+            (cs controllerContent :: String) `shouldContain` "-- TODO: |> validateIsUnique #contactEmail"
+            -- budget is nullable int, should not get nonEmpty
+            (cs controllerContent :: String) `shouldNotContain` "validateField #budget nonEmpty"
+            -- is_active is boolean, should not get nonEmpty
+            (cs controllerContent :: String) `shouldNotContain` "validateField #isActive nonEmpty"
+
+        it "should build a controller with only Index and Show actions" do
+            let rawControllerName = "pages"
+            let controllerName = tableNameToControllerName rawControllerName
+            let modelName = tableNameToModelName rawControllerName
+            let applicationName = "Web"
+            let config = (makeConfig controllerName modelName applicationName False)
+                    { ControllerGenerator.indexActionEnabled = True
+                    , ControllerGenerator.newActionEnabled = False
+                    , ControllerGenerator.showActionEnabled = True
+                    , ControllerGenerator.createActionEnabled = False
+                    , ControllerGenerator.editActionEnabled = False
+                    , ControllerGenerator.updateActionEnabled = False
+                    , ControllerGenerator.deleteActionEnabled = False
+                    }
+            let builtPlan = ControllerGenerator.buildPlan' schema config
+
+            -- Types.hs should only have Index and Show constructors
+            let [AppendToFile { fileContent = typesFileContent }] = builtPlan
+                    |> filter (\case AppendToFile { filePath } -> osPathToText filePath == "Web/Types.hs"; _ -> False)
+            let typesContent = cs typesFileContent :: String
+            typesContent `shouldContain` "PagesAction"
+            typesContent `shouldContain` "ShowPageAction"
+            typesContent `shouldNotContain` "NewPageAction"
+            typesContent `shouldNotContain` "CreatePageAction"
+            typesContent `shouldNotContain` "EditPageAction"
+            typesContent `shouldNotContain` "UpdatePageAction"
+            typesContent `shouldNotContain` "DeletePageAction"
+
+            -- Controller file should only have Index and Show action bodies
+            let (CreateFile { fileContent = controllerContent }):_ = builtPlan
+            (cs controllerContent :: String) `shouldContain` "action PagesAction"
+            (cs controllerContent :: String) `shouldContain` "action ShowPageAction"
+            (cs controllerContent :: String) `shouldNotContain` "action NewPageAction"
+            (cs controllerContent :: String) `shouldNotContain` "action CreatePageAction"
+            (cs controllerContent :: String) `shouldNotContain` "action EditPageAction"
+            (cs controllerContent :: String) `shouldNotContain` "action UpdatePageAction"
+            (cs controllerContent :: String) `shouldNotContain` "action DeletePageAction"
+            -- No buildPage helper since Create/Update are disabled
+            (cs controllerContent :: String) `shouldNotContain` "buildPage"
+            -- Only Index and Show view imports
+            (cs controllerContent :: String) `shouldContain` "import Web.View.Pages.Index"
+            (cs controllerContent :: String) `shouldContain` "import Web.View.Pages.Show"
+            (cs controllerContent :: String) `shouldNotContain` "import Web.View.Pages.New"
+            (cs controllerContent :: String) `shouldNotContain` "import Web.View.Pages.Edit"
+
+            -- Only Index and Show view files should be generated
+            let viewFiles = builtPlan
+                    |> filter (\case CreateFile { filePath } -> "View" `isInfixOf` osPathToText filePath; _ -> False)
+                    |> map (\(CreateFile { filePath }) -> osPathToText filePath)
+            viewFiles `shouldBe` ["Web/View/Pages/Index.hs", "Web/View/Pages/Show.hs"]
+
+        it "should not generate Id fields when table doesn't exist in schema" do
+            let emptySchema = []
+            let rawControllerName = "bars"
+            let controllerName = tableNameToControllerName rawControllerName
+            let modelName = tableNameToModelName rawControllerName
+            let applicationName = "Web"
+            let pagination = False
+            let builtPlan = ControllerGenerator.buildPlan' emptySchema (makeConfig controllerName modelName applicationName pagination)
+
+            -- Types.hs should not contain barId or Id Bar
+            let [AppendToFile { fileContent = typesFileContent }] = builtPlan
+                    |> filter (\case AppendToFile { filePath } -> osPathToText filePath == "Web/Types.hs"; _ -> False)
+            let typesContent = cs typesFileContent :: String
+            typesContent `shouldNotContain` "barId"
+            typesContent `shouldNotContain` "Id Bar"
+            typesContent `shouldContain` "ShowBarAction\n"
+            typesContent `shouldContain` "EditBarAction\n"
+            typesContent `shouldContain` "UpdateBarAction\n"
+            typesContent `shouldContain` "DeleteBarAction\n"
+
+            -- Controller file should not contain { barId } destructuring or fetch barId
+            let (CreateFile { fileContent = controllerContent }):_ = builtPlan
+            (cs controllerContent :: String) `shouldNotContain` "barId"
+            (cs controllerContent :: String) `shouldNotContain` "fetch barId"

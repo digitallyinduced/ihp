@@ -15,6 +15,7 @@ import IHP.IDE.SchemaDesigner.Controller.Helper
 import IHP.IDE.SchemaDesigner.Controller.Validation
 import IHP.IDE.SchemaDesigner.Controller.Columns (updateForeignKeyConstraint)
 import qualified IHP.IDE.SchemaDesigner.SchemaOperations as SchemaOperations
+import IHP.IDE.CodeGen.Types (defaultUuidFunction)
 
 instance Controller TablesController where
     beforeAction = setLayout schemaDesignerLayout
@@ -49,8 +50,12 @@ instance Controller TablesController where
             Failure message -> do
                 setErrorMessage message
                 redirectTo TablesAction
+            FailureHtml message -> do
+                setErrorMessage message
+                redirectTo TablesAction
             Success -> do
-                updateSchema (SchemaOperations.addTable tableName)
+                uuidFunction <- defaultUuidFunction
+                updateSchema (SchemaOperations.addTable tableName uuidFunction)
                 redirectTo ShowTableAction { .. }
 
     action EditTableAction { .. } = do
@@ -67,6 +72,9 @@ instance Controller TablesController where
         let validationResult = tableName |> validateTable statements (Just oldTableName)
         case validationResult of
             Failure message -> do
+                setErrorMessage message
+                redirectTo ShowTableAction { tableName = oldTableName }
+            FailureHtml message -> do
                 setErrorMessage message
                 redirectTo ShowTableAction { tableName = oldTableName }
             Success -> do

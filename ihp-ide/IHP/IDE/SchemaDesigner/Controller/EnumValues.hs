@@ -28,6 +28,8 @@ instance Controller EnumValuesController where
         case validationResult of
             Failure message ->
                 setErrorMessage message
+            FailureHtml message ->
+                setErrorMessage message
             Success -> do
                 updateSchema $ SchemaOperations.addValueToEnum enumName enumValueName
 
@@ -37,8 +39,8 @@ instance Controller EnumValuesController where
         -- 2. Save & Add another
         --
         case paramOrDefault @Text "Save" "submit" of
-            "Save" -> redirectTo ShowEnumAction { .. }
             "Save & Add Another" -> redirectTo NewEnumValueAction { .. }
+            _ -> redirectTo ShowEnumAction { .. }
 
     action EditEnumValueAction { .. } = do
         statements <- readSchema
@@ -60,6 +62,8 @@ instance Controller EnumValuesController where
         let validationResult = newValue |> validateEnumValue statements (Just value)
         case validationResult of
             Failure message ->
+                setErrorMessage message
+            FailureHtml message ->
                 setErrorMessage message
             Success ->
                 updateSchema (map (updateValueInEnum enumName newValue valueId))

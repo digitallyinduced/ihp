@@ -7,13 +7,11 @@ module Test.View.FormSpec where
 import Test.Hspec
 import IHP.FrameworkConfig as FrameworkConfig
 import Wai.Request.Params.Middleware (RequestBody (..))
-import qualified Text.Blaze.Renderer.Text as Blaze
+import IHP.HSX.Markup (renderMarkupText)
 import IHP.ModelSupport
+import Data.Bits ((.|.))
 import qualified Network.Wai as Wai
 import IHP.ViewPrelude
-import Data.Default
-import qualified IHP.QueryBuilder as QueryBuilder
-import qualified Data.Text.Lazy as LT
 import qualified Data.Vault.Lazy as Vault
 import qualified IHP.RequestVault
 import qualified Data.TMap as TypeMap
@@ -60,8 +58,7 @@ tests = do
                 
                 -- The date input should have value="" (not omit the value attribute)
                 -- This is necessary for HTML5 required validation to work properly
-                let rendered = Blaze.renderMarkup form
-                let renderedText = LT.toStrict rendered
+                let renderedText = renderMarkupText form
                 renderedText `shouldSatisfy` (\t -> "type=\"date\"" `isInfixOf` t)
                 renderedText `shouldSatisfy` (\t -> "required=\"required\"" `isInfixOf` t)
                 renderedText `shouldSatisfy` (\t -> "value=\"\"" `isInfixOf` t)
@@ -77,18 +74,17 @@ tests = do
                 |]
                 
                 -- The datetime input should have value="" (not omit the value attribute)
-                let rendered = Blaze.renderMarkup form
-                let renderedText = LT.toStrict rendered
+                let renderedText = renderMarkupText form
                 renderedText `shouldSatisfy` (\t -> "type=\"datetime-local\"" `isInfixOf` t)
                 renderedText `shouldSatisfy` (\t -> "required=\"required\"" `isInfixOf` t)
                 renderedText `shouldSatisfy` (\t -> "value=\"\"" `isInfixOf` t)
 
-shouldRenderTo renderFunction expectedHtml = Blaze.renderMarkup renderFunction `shouldBe` expectedHtml
+shouldRenderTo renderFunction expectedHtml = renderMarkupText renderFunction `shouldBe` expectedHtml
 
 createControllerContext :: IO ControllerContext
 createControllerContext = do
     frameworkConfig <- FrameworkConfig.buildFrameworkConfig (pure ())
-    let requestBody = FormBody { params = [], files = [] }
+    let requestBody = FormBody { params = [], files = [], rawPayload = "" }
     let request = Wai.defaultRequest { Wai.vault = Vault.insert IHP.RequestVault.frameworkConfigVaultKey frameworkConfig
                                                  $ Vault.insert IHP.RequestVault.requestBodyVaultKey requestBody Vault.empty }
     let customFields = TypeMap.insert request TypeMap.empty
@@ -112,24 +108,26 @@ instance Default (Id' "projects") where def = Id def
 instance SetField "id" (Project' ) (Id' "projects") where
     {-# INLINE setField #-}
     setField newValue (Project id title meta) =
-        Project newValue title (meta { touchedFields = "id" : touchedFields meta })
+        Project newValue title (meta { touchedFields = touchedFields meta .|. 1 })
 instance SetField "title" (Project' ) Text where
     {-# INLINE setField #-}
     setField newValue (Project id title meta) =
-        Project id newValue (meta { touchedFields = "title" : touchedFields meta })
+        Project id newValue (meta { touchedFields = touchedFields meta .|. 2 })
 instance SetField "meta" (Project' ) MetaBag where
     {-# INLINE setField #-}
     setField newValue (Project id title meta) =
         Project id title newValue
 instance UpdateField "id" (Project' ) (Project' ) (Id' "projects") (Id' "projects") where
     {-# INLINE updateField #-}
-    updateField newValue (Project id title meta) = Project newValue title (meta { touchedFields = "id" : touchedFields meta })
+    updateField newValue (Project id title meta) = Project newValue title (meta { touchedFields = touchedFields meta .|. 1 })
 instance UpdateField "title" (Project' ) (Project' ) Text Text where
     {-# INLINE updateField #-}
-    updateField newValue (Project id title meta) = Project id newValue (meta { touchedFields = "title" : touchedFields meta })
+    updateField newValue (Project id title meta) = Project id newValue (meta { touchedFields = touchedFields meta .|. 2 })
 instance UpdateField "meta" (Project' ) (Project' ) MetaBag MetaBag where
     {-# INLINE updateField #-}
     updateField newValue (Project id title meta) = Project id title newValue
+instance FieldBit "id" (Project' ) where fieldBit = 1
+instance FieldBit "title" (Project' ) where fieldBit = 2
 
 -- Event model for testing date fields
 data Event' = Event 
@@ -156,15 +154,15 @@ instance Default (Id' "events") where def = Id def
 instance SetField "id" (Event' ) (Id' "events") where
     {-# INLINE setField #-}
     setField newValue (Event id date createdAt meta) =
-        Event newValue date createdAt (meta { touchedFields = "id" : touchedFields meta })
+        Event newValue date createdAt (meta { touchedFields = touchedFields meta .|. 1 })
 instance SetField "date" (Event' ) (Maybe Day) where
     {-# INLINE setField #-}
     setField newValue (Event id date createdAt meta) =
-        Event id newValue createdAt (meta { touchedFields = "date" : touchedFields meta })
+        Event id newValue createdAt (meta { touchedFields = touchedFields meta .|. 2 })
 instance SetField "createdAt" (Event' ) (Maybe UTCTime) where
     {-# INLINE setField #-}
     setField newValue (Event id date createdAt meta) =
-        Event id date newValue (meta { touchedFields = "createdAt" : touchedFields meta })
+        Event id date newValue (meta { touchedFields = touchedFields meta .|. 4 })
 instance SetField "meta" (Event' ) MetaBag where
     {-# INLINE setField #-}
     setField newValue (Event id date createdAt meta) =
@@ -172,16 +170,19 @@ instance SetField "meta" (Event' ) MetaBag where
 
 instance UpdateField "id" (Event' ) (Event' ) (Id' "events") (Id' "events") where
     {-# INLINE updateField #-}
-    updateField newValue (Event id date createdAt meta) = Event newValue date createdAt (meta { touchedFields = "id" : touchedFields meta })
+    updateField newValue (Event id date createdAt meta) = Event newValue date createdAt (meta { touchedFields = touchedFields meta .|. 1 })
 instance UpdateField "date" (Event' ) (Event' ) (Maybe Day) (Maybe Day) where
     {-# INLINE updateField #-}
-    updateField newValue (Event id date createdAt meta) = Event id newValue createdAt (meta { touchedFields = "date" : touchedFields meta })
+    updateField newValue (Event id date createdAt meta) = Event id newValue createdAt (meta { touchedFields = touchedFields meta .|. 2 })
 instance UpdateField "createdAt" (Event' ) (Event' ) (Maybe UTCTime) (Maybe UTCTime) where
     {-# INLINE updateField #-}
-    updateField newValue (Event id date createdAt meta) = Event id date newValue (meta { touchedFields = "createdAt" : touchedFields meta })
+    updateField newValue (Event id date createdAt meta) = Event id date newValue (meta { touchedFields = touchedFields meta .|. 4 })
 instance UpdateField "meta" (Event' ) (Event' ) MetaBag MetaBag where
     {-# INLINE updateField #-}
     updateField newValue (Event id date createdAt meta) = Event id date createdAt newValue
+instance FieldBit "id" (Event' ) where fieldBit = 1
+instance FieldBit "date" (Event' ) where fieldBit = 2
+instance FieldBit "createdAt" (Event' ) where fieldBit = 4
 
 
 

@@ -9,7 +9,7 @@ import qualified IHP.DataSync.TypeScript.Compiler as Compiler
 main :: IO ()
 main = withUtf8 do
     (sqlPath, tsPath) <- decodeArgs
-    errorOrSchema <- Parser.parseSqlFile sqlPath
+    errorOrSchema <- Parser.parseSqlFile (textToOsPath (cs sqlPath))
 
     case errorOrSchema of
         Left error -> fail (cs error)

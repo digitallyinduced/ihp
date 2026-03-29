@@ -1,6 +1,6 @@
 cabal-version:       2.2
 name:                ihp
-version:             1.4.0
+version:             1.5.0
 synopsis:            Haskell Web Framework
 description:         The Integrated Haskell Platform is a full stack framework focused on rapid application development while striving for robust code quality.
                      Full guide available at: <https://ihp.digitallyinduced.com/Guide/index.html>
@@ -22,19 +22,10 @@ data-files:
     , static/*.svg
     
     , static/vendor/*.min.css
-    , static/vendor/*.min.css.map
     , static/vendor/*.min.js
-    , static/vendor/*.min.js.map
     , static/vendor/*.js
 
-    , static/vendor/jquery-3.2.1.slim.min.js
-    , static/vendor/jquery-3.5.0.min.js
-    , static/vendor/jquery-3.6.0.min.js
-    , static/vendor/jquery-3.6.0.slim.min.js
     , static/vendor/popper-2.11.6.min.js
-
-    , static/vendor/bootstrap-5.2.1/*.min.css
-    , static/vendor/bootstrap-5.2.1/*.min.js
 
     , static/vendor/src-min/*.js
     , static/vendor/src-min/snippets/*.js
@@ -47,11 +38,13 @@ common shared-properties
             , classy-prelude
             , mono-traversable
             , transformers
-            , directory
+            , directory >= 1.3.8.0
+            , filepath >= 1.5
             , string-conversions
             , warp
             , warp-systemd
             , wai
+            , wai-early-return
             , mtl
             , blaze-html
             , blaze-markup
@@ -60,14 +53,15 @@ common shared-properties
             , inflections
             , text
             , postgresql-simple
+            , ihp-pglistener
             , wai-app-static
             , wai-util
             , bytestring
             , network-uri
             , uri-encode
             , aeson
-            , wai-session
-            , wai-session-clientsession
+            , wai-session-maybe
+            , wai-session-clientsession-deferred
             , clientsession
             , pwstore-fast
             , vault
@@ -107,7 +101,6 @@ common shared-properties
             , wreq
             , deepseq
             , parser-combinators
-            , ip
             , fast-logger
             , minio-hs
             , temporary
@@ -122,7 +115,6 @@ common shared-properties
             , unagi-chan
             , with-utf8
             , ihp-hsx
-            , ihp-postgresql-simple-extra
             , ihp-context
             , ihp-pagehead
             , ihp-log
@@ -137,6 +129,16 @@ common shared-properties
             , slugger
             , ihp-imagemagick
             , wai-request-params
+            , hasql
+            , hasql-pool
+            , hasql-dynamic-statements
+            , hasql-implicits
+            , hasql-mapping
+            , hasql-postgresql-types
+            , hasql-transaction
+            , postgresql-types
+            , postgresql-simple-postgresql-types
+            , contravariant
     default-extensions:
         OverloadedStrings
         , NoImplicitPrelude
@@ -157,6 +159,7 @@ common shared-properties
         , TemplateHaskell
         , OverloadedRecordDot
         , DeepSubsumption
+    ghc-options: -Werror=incomplete-patterns -Werror=unused-imports -Werror=missing-fields
 
 library
     import: shared-properties
@@ -185,8 +188,13 @@ library
         , IHP.ValidationSupport.ValidateField
         , IHP.ValidationSupport.ValidateIsUnique
         , IHP.View.Form
+        , IHP.View.Form.Fields
+        , IHP.View.Form.FormFor
+        , IHP.View.Form.Select
         , IHP.View.TimeAgo
         , IHP.RequestVault
+        , IHP.RequestVault.Helper
+        , IHP.RequestVault.ModelContext
         , IHP.ControllerPrelude
         , IHP.ControllerSupport
         , IHP.Environment
@@ -206,9 +214,14 @@ library
         , IHP.QueryBuilder.Join
         , IHP.QueryBuilder.Order
         , IHP.QueryBuilder.Union
+        , IHP.QueryBuilder.HasqlCompiler
+        , IHP.QueryBuilder.HasqlHelpers
         , IHP.Fetch
+        , IHP.Fetch.Statement
+        , IHP.FetchPipelined
         , IHP.RouterPrelude
         , IHP.Server
+        , IHP.Static
         , IHP.ValidationSupport
         , IHP.ViewPrelude
         , IHP.ViewSupport
@@ -235,6 +248,18 @@ library
         , IHP.Job.Queue
         , IHP.Job.Runner
         , IHP.Job.Types
+        , IHP.Job.Types.BackoffStrategy
+        , IHP.Job.Types.Class
+        , IHP.Job.Types.Status
+        , IHP.Job.Types.Worker
+        , IHP.Job.Queue.Pool
+        , IHP.Job.Queue.Fetch
+        , IHP.Job.Queue.Watch
+        , IHP.Job.Queue.Result
+        , IHP.Job.Queue.StatusInstances
+        , IHP.Job.Queue.STM
+        , IHP.Job.Runner.MainLoop
+        , IHP.Job.Runner.WorkerLoop
         , IHP.Breadcrumb.Types
         , IHP.Breadcrumb.ViewFunctions
         , IHP.FileStorage.Types
@@ -244,10 +269,16 @@ library
         , IHP.Pagination.ViewFunctions
         , IHP.Pagination.Types
         , IHP.Pagination.Helpers
-        , IHP.PGListener
         , IHP.EnvVar
+        , IHP.Hasql.FromRow
+        , IHP.Hasql.Encoders
+        , IHP.Hasql.Pool
+        , IHP.PGSimpleCompat
+        , IHP.PGVersion
+    reexported-modules: IHP.PGListener
     autogen-modules: Paths_ihp
-    other-modules: Paths_ihp
+    other-modules:
+        Paths_ihp
 
 source-repository head
     type:     git
@@ -258,7 +289,8 @@ test-suite tests
     type: exitcode-stdio-1.0
     main-is: Test/Main.hs
     hs-source-dirs: Test
-    build-depends: ihp 
+    ghc-options: -threaded
+    build-depends: ihp
     other-modules:
         Test.ValidationSupport.ValidateFieldSpec
         Test.NameSupportSpec
@@ -276,3 +308,23 @@ test-suite tests
         Test.FileStorage.ControllerFunctionsSpec
         Test.Controller.CookieSpec
         Test.PGListenerSpec
+        Test.MockingSpec
+        Test.ControllerSupportSpec
+        Test.HasqlEncoderSpec
+        Test.AutoRefreshSpec
+        Test.Pagination.ControllerFunctionsSpec
+        Test.FetchPipelinedSpec
+        Test.JobQueueSpec
+        Test.ModelFixtures
+
+benchmark ihp-router-bench
+    import: shared-properties
+    type: exitcode-stdio-1.0
+    hs-source-dirs: .
+    main-is: Test/RouterBench.hs
+    -- tasty-bench requires -fno-static-argument-transformation to prevent
+    -- GHC from defeating the re-evaluation trick used for measurement
+    ghc-options: -fno-static-argument-transformation
+    build-depends:
+        , ihp
+        , tasty-bench

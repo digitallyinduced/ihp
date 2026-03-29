@@ -1,7 +1,7 @@
 module Main where
 
 import IHP.Prelude
-import qualified System.Directory as Directory
+import qualified System.Directory.OsPath as Directory
 import qualified System.Posix.Env.ByteString as Posix
 import IHP.IDE.CodeGen.ControllerGenerator
 import IHP.IDE.CodeGen.Controller (executePlan)
@@ -17,6 +17,7 @@ main = withUtf8 do
         Just "" -> usage
         Just appAndControllerName -> do
             generateController appAndControllerName
+        Nothing -> usage
 
 usage :: IO ()
 usage = putStrLn "Usage: new-controller RESOURCE_NAME"
@@ -29,15 +30,14 @@ ensureIsInAppDirectory = do
     
 generateController :: Text -> IO ()
 generateController appAndControllerName = do
-    let paginationEnabled = False
     case Text.splitOn "." appAndControllerName of
         [controllerName] -> do
-            planOrError <- buildPlan controllerName "Web" paginationEnabled
+            planOrError <- buildPlan controllerName defaultControllerConfig
             case planOrError of
                 Left error -> putStrLn error
                 Right plan -> executePlan plan
         [applicationName, controllerName] -> do
-            planOrError <- buildPlan controllerName applicationName paginationEnabled
+            planOrError <- buildPlan controllerName defaultControllerConfig { applicationName }
             case planOrError of
                 Left error -> putStrLn error
                 Right plan -> executePlan plan

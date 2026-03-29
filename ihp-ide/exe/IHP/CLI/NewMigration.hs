@@ -2,7 +2,7 @@ module Main where
 
 import IHP.Prelude
 import qualified System.Posix.Env.ByteString as Posix
-import qualified System.Directory as Directory
+import qualified System.Directory.OsPath as Directory
 import IHP.IDE.ToolServer.Helper.Controller (openEditor)
 import qualified IHP.IDE.CodeGen.MigrationGenerator as MigrationGenerator
 import IHP.IDE.CodeGen.Controller (executePlan)

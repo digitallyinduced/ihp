@@ -8,8 +8,7 @@ import Test.Hspec
 import Prelude
 import IHP.SchemaMigration
 import qualified System.Directory as Directory
-import qualified Data.List as List
-import System.FilePath.Posix
+import System.FilePath ((</>))
 import System.IO.Temp
 
 main :: IO ()
@@ -27,6 +26,7 @@ tests = do
                             [ Migration { revision = 1605721927, migrationFile = "1605721927.sql"}
                             , Migration { revision = 1605721940, migrationFile = "1605721940-create-users.sql" }
                             ]
+
 
 withTempApp :: IO a -> IO a
 withTempApp action =

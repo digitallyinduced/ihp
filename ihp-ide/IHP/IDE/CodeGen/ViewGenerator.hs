@@ -1,9 +1,7 @@
-module IHP.IDE.CodeGen.ViewGenerator (buildPlan, buildPlan', ViewConfig (..)) where
+module IHP.IDE.CodeGen.ViewGenerator (buildPlan, buildPlan', ViewConfig (..), postgresTypeToFieldHelper) where
 
 import IHP.Prelude
-import qualified Data.Text as Text
 import IHP.IDE.CodeGen.Types
-import qualified IHP.SchemaCompiler.Parser as SchemaDesigner
 import IHP.Postgres.Types
 import Text.Countable (singularize, pluralize)
 
@@ -20,9 +18,7 @@ buildPlan viewName' applicationName controllerName' =
     if (null viewName' || null controllerName')
         then pure $ Left "Neither view name nor controller name can be empty"
         else do
-            schema <- SchemaDesigner.parseSchemaSql >>= \case
-                Left parserError -> pure []
-                Right statements -> pure statements
+            schema <- loadAppSchema
             let modelName = tableNameToModelName controllerName'
             let controllerName = tableNameToControllerName controllerName'
             let viewName = tableNameToViewName viewName'
@@ -33,7 +29,7 @@ buildPlan viewName' applicationName controllerName' =
 -- E.g. qualifiedViewModuleName config "Edit" == "Web.View.Users.Edit"
 qualifiedViewModuleName :: ViewConfig -> Text -> Text
 qualifiedViewModuleName config viewName =
-    config.applicationName <> ".View." <> config.controllerName <> "." <> viewName
+    qualifiedModuleName config.applicationName "View" config.controllerName viewName
 
 buildPlan' :: [Statement] -> ViewConfig -> [GeneratorAction]
 buildPlan' schema config =
@@ -44,12 +40,7 @@ buildPlan' schema config =
             pluralName = singularName |> lcfirst |> pluralize |> ucfirst -- TODO: `pluralize` Should Support Lower-Cased Words
             singularVariableName = lcfirst singularName
             pluralVariableName = lcfirst controllerName
-            nameWithSuffix = if "View" `isSuffixOf` name
-                then name
-                else name <> "View" --e.g. "Test" -> "TestView"
-            nameWithoutSuffix = if "View" `isSuffixOf` name
-                then Text.replace "View" "" name
-                else name --e.g. "TestView" -> "Test"
+            (nameWithSuffix, nameWithoutSuffix) = ensureSuffix "View" name
 
             indexAction = pluralName <> "Action"
             specialCases = [
@@ -61,11 +52,22 @@ buildPlan' schema config =
 
             paginationEnabled = config.paginationEnabled
 
-            modelFields :: [Text]
-            modelFields =  [ modelNameToTableName pluralVariableName, pluralVariableName ]
-                    |> mapMaybe (fieldsForTable schema)
+            tableFound :: Bool
+            tableFound = [ modelNameToTableName pluralVariableName, pluralVariableName ]
+                    |> mapMaybe (columnsForTable schema)
+                    |> headMay
+                    |> isJust
+
+            modelColumns :: [Column]
+            modelColumns = [ modelNameToTableName pluralVariableName, pluralVariableName ]
+                    |> mapMaybe (columnsForTable schema)
                     |> head
                     |> fromMaybe []
+
+            foreignKeySet :: [(Text, Text)]
+            foreignKeySet = [ modelNameToTableName pluralVariableName, pluralVariableName ]
+                    |> map (foreignKeysForTable schema)
+                    |> concat
 
             -- when using the trimming quasiquoter we can't have another |] closure, like for the one we use with hsx.
             qqClose = "|]"
@@ -99,6 +101,16 @@ buildPlan' schema config =
                     pluralizedName = pluralize name
 
 
+            showViewBody =
+                if null modelColumns
+                then "<p>{" <> singularVariableName <> "}</p>"
+                else "<dl>" <> mconcat (map showColumn modelColumns) <> "\n</dl>"
+                where
+                    showColumn column =
+                        let fieldName = columnNameToFieldName column.name
+                            label = columnNameToFieldLabel column.name
+                        in "\n    <dt>" <> label <> "</dt><dd>{" <> singularVariableName <> "." <> fieldName <> "}</dd>"
+
             showView = [trimming|
                 ${viewHeader}
 
@@ -108,7 +120,7 @@ buildPlan' schema config =
                     html ShowView { .. } = [hsx|
                         {breadcrumb}
                         <h1>Show ${singularName}</h1>
-                        <p>{${singularVariableName}}</p>
+                        ${showViewBody}
 
                     ${qqClose}
                         where
@@ -129,7 +141,14 @@ buildPlan' schema config =
             |]
                 where
                     formFields =
-                        intercalate "\n" (map (\field -> "{(textField #" <> field <> ")}") modelFields)
+                        intercalate "\n" (map columnToFormField modelColumns)
+                    columnToFormField column =
+                        let fieldName = columnNameToFieldName column.name
+                            isForeignKey = any (\(colName, _) -> colName == column.name) foreignKeySet
+                            helper = postgresTypeToFieldHelper column.columnType
+                        in if isForeignKey
+                            then "{- " <> fieldName <> " needs to be a selectField -}\n    {(" <> helper <> " #" <> fieldName <> ")}"
+                            else "{(" <> helper <> " #" <> fieldName <> ")}"
 
 
             newView = [trimming|
@@ -172,6 +191,16 @@ buildPlan' schema config =
                 ${renderForm}
             |]
 
+            indexHeaders =
+                if null modelColumns
+                then "<th>" <> singularName <> "</th>"
+                else intercalate "\n" (map (\c -> "<th>" <> columnNameToFieldLabel c.name <> "</th>") modelColumns)
+
+            indexCells =
+                if null modelColumns
+                then "<td>{" <> singularVariableName <> "}</td>"
+                else intercalate "\n" (map (\c -> "<td>{" <> singularVariableName <> "." <> columnNameToFieldName c.name <> "}</td>") modelColumns)
+
             indexView = [trimming|
                 ${viewHeader}
 
@@ -186,7 +215,7 @@ buildPlan' schema config =
                             <table class="table">
                                 <thead>
                                     <tr>
-                                        <th>${singularName}</th>
+                                        ${indexHeaders}
                                         <th></th>
                                         <th></th>
                                         <th></th>
@@ -205,22 +234,43 @@ buildPlan' schema config =
                 render${singularName} :: ${singularName} -> Html
                 render${singularName} ${singularVariableName} = [hsx|
                     <tr>
-                        <td>{${singularVariableName}}</td>
-                        <td><a href={Show${singularName}Action ${singularVariableName}.id}>Show</a></td>
-                        <td><a href={Edit${singularName}Action ${singularVariableName}.id} class="text-muted">Edit</a></td>
-                        <td><a href={Delete${singularName}Action ${singularVariableName}.id} class="js-delete text-muted">Delete</a></td>
+                        ${indexCells}
+                        <td><a href={${showLink}}>Show</a></td>
+                        <td><a href={${editLink}} class="text-muted">Edit</a></td>
+                        <td><a href={${deleteLink}} class="js-delete text-muted">Delete</a></td>
                     </tr>
                 ${qqClose}
             |]
                 where
                     importPagination = if paginationEnabled then ", pagination :: Pagination" else ""
                     renderPagination = if paginationEnabled then "{renderPagination pagination}" else ""
+                    idSuffix = if tableFound then " " <> singularVariableName <> ".id" else ""
+                    showLink = "Show" <> singularName <> "Action" <> idSuffix
+                    editLink = "Edit" <> singularName <> "Action" <> idSuffix
+                    deleteLink = "Delete" <> singularName <> "Action" <> idSuffix
 
 
 
             chosenView = fromMaybe genericView (lookup nameWithSuffix specialCases)
         in
-            [ EnsureDirectory { directory = config.applicationName <> "/View/" <> controllerName }
-            , CreateFile { filePath = config.applicationName <> "/View/" <> controllerName <> "/" <> nameWithoutSuffix <> ".hs", fileContent = chosenView }
-            , AddImport { filePath = config.applicationName <> "/Controller/" <> controllerName <> ".hs", fileContent = "import " <> qualifiedViewModuleName config nameWithoutSuffix }
+            [ EnsureDirectory { directory = textToOsPath (config.applicationName <> "/View/" <> controllerName) }
+            , CreateFile { filePath = textToOsPath (config.applicationName <> "/View/" <> controllerName <> "/" <> nameWithoutSuffix <> ".hs"), fileContent = chosenView }
+            , AddImport { filePath = textToOsPath (config.applicationName <> "/Controller/" <> controllerName <> ".hs"), fileContent = "import " <> qualifiedViewModuleName config nameWithoutSuffix }
             ]
+
+-- | Maps a Postgres column type to the appropriate IHP form field helper name.
+postgresTypeToFieldHelper :: PostgresType -> Text
+postgresTypeToFieldHelper PBoolean = "checkboxField"
+postgresTypeToFieldHelper PInt = "numberField"
+postgresTypeToFieldHelper PSmallInt = "numberField"
+postgresTypeToFieldHelper PBigInt = "numberField"
+postgresTypeToFieldHelper PSerial = "numberField"
+postgresTypeToFieldHelper PBigserial = "numberField"
+postgresTypeToFieldHelper PReal = "numberField"
+postgresTypeToFieldHelper PDouble = "numberField"
+postgresTypeToFieldHelper (PNumeric _ _) = "numberField"
+postgresTypeToFieldHelper PDate = "dateField"
+postgresTypeToFieldHelper PTimestamp = "dateTimeField"
+postgresTypeToFieldHelper PTimestampWithTimezone = "dateTimeField"
+postgresTypeToFieldHelper PTime = "timeField"
+postgresTypeToFieldHelper _ = "textField"

@@ -14,10 +14,6 @@ import IHP.Prelude
 import IHP.ControllerPrelude
 import IHP.ViewPrelude (Html)
 import IHP.RouterPrelude hiding (get, tshow, error, map, putStrLn, elem)
-import Database.PostgreSQL.Simple.FromRow (FromRow(..), field)
-import IHP.Job.Queue () -- get FromField definition for JobStatus
-
-
 data BaseJob = BaseJob {
     table :: Text
   , id :: UUID
@@ -46,8 +42,6 @@ class TableViewable a where
     -- | Gets paginated records for displaying in the list page
     getPage :: (?context :: ControllerContext, ?modelContext :: ModelContext) => Int -> Int -> IO [a]
 
-instance FromRow BaseJob where
-    fromRow = BaseJob <$> field <*> field <*> field <*> field <*> field <*> field
 
 -- | Often, jobs are related to some model type. These relations are modeled through the type system.
 -- For example, the type 'Include "userId" UpdateUserJob' models an 'UpdateUserJob' type that can access

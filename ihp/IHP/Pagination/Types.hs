@@ -1,6 +1,7 @@
 module IHP.Pagination.Types where
 
-import IHP.Prelude
+import Prelude
+import IHP.HaskellSupport (SetField(..))
 
 data Pagination = 
     Pagination

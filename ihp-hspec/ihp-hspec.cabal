@@ -1,14 +1,22 @@
 cabal-version:       2.2
 name:                ihp-hspec
-version:             1.4.0
+version:             1.5.0
 synopsis:            Test helpers for IHP apps
 description:         Provides the withIHPApp function for hspec tests
 license:             MIT
+license-file:        LICENSE
 author:              digitally induced GmbH
 maintainer:          support@digitallyinduced.com
+homepage:            https://ihp.digitallyinduced.com/
 bug-reports:         https://github.com/digitallyinduced/ihp/issues
+copyright:           (c) digitally induced GmbH
 category:            Testing
 build-type:          Simple
+extra-source-files:  changelog.md
+
+source-repository head
+    type:     git
+    location: https://github.com/digitallyinduced/ihp
 
 library
     default-language: GHC2021
@@ -27,6 +35,7 @@ library
         OverloadedStrings
         ImplicitParams
         RecordWildCards
-    build-depends: base >= 4.17.0 && < 4.22, ihp, ihp-log, wai, process, text, ihp-ide, vault, uuid, postgresql-simple, wai-request-params
+    ghc-options: -Werror=incomplete-patterns -Werror=unused-imports -Werror=missing-fields
+    build-depends: base >= 4.17.0 && < 4.22, ihp, ihp-log, wai, process, text, ihp-ide, vault, uuid, hasql, wai-request-params
     hs-source-dirs: .
     exposed-modules: IHP.Hspec

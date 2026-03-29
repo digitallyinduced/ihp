@@ -12,7 +12,7 @@ A new version is usually announced first via the [IHP Newsletter](http://eepurl.
 
 ## Upgrade Instructions
 
-[See UPGRADE.md](https://github.com/digitallyinduced/ihp/blob/master/UPGRADE.md) for intructions on how to upgrade your IHP project to a newer version of IHP.
+[See UPGRADE.md](https://github.com/digitallyinduced/ihp/blob/master/UPGRADE.md) for instructions on how to upgrade your IHP project to a newer version of IHP.
 
 ## Updating to the Latest Release
 

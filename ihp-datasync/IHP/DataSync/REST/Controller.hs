@@ -4,9 +4,6 @@ module IHP.DataSync.REST.Controller where
 import IHP.ControllerPrelude hiding (OrderByClause)
 import IHP.DataSync.REST.Types
 import Data.Aeson
-import qualified Database.PostgreSQL.Simple.ToField as PG
-import qualified Database.PostgreSQL.Simple.Types as PG
-import qualified Database.PostgreSQL.Simple as PG
 import qualified Data.Vector as Vector
 import qualified Data.ByteString.Char8 as ByteString
 import qualified Control.Exception.Safe as Exception
@@ -15,124 +12,131 @@ import IHP.DataSync.DynamicQuery
 import IHP.DataSync.Types
 import Network.HTTP.Types (status400)
 import IHP.DataSync.DynamicQueryCompiler
+import IHP.DataSync.TypedEncoder (makeCachedColumnTypeLookup, typedAesonValueToSnippet, lookupColumnType)
+import qualified Hasql.DynamicStatements.Snippet as Snippet
+import Hasql.DynamicStatements.Snippet (Snippet)
 import qualified Data.Text as Text
-import qualified Data.Scientific as Scientific
+import qualified Data.List as List
 
 import qualified Data.ByteString.Builder as ByteString
 import qualified Data.Aeson.Encoding.Internal as Aeson
 import qualified Data.Aeson.KeyMap as Aeson
 import qualified Data.Aeson.Key as Aeson
-
+import qualified Hasql.Decoders as Decoders
 
 instance (
-    PG.ToField (PrimaryKey (GetTableName CurrentUserRecord))
-    , Show (PrimaryKey (GetTableName CurrentUserRecord))
+    Show (PrimaryKey (GetTableName CurrentUserRecord))
     , HasNewSessionUrl CurrentUserRecord
     , Typeable CurrentUserRecord
     , HasField "id" CurrentUserRecord (Id' (GetTableName CurrentUserRecord))
     ) => Controller ApiController where
     action CreateRecordAction { table } = do
-        ensureRLSEnabled table
+        let hasqlPool = ?modelContext.hasqlPool
+        ensureRLSEnabled hasqlPool table
 
-        let payload = requestBodyJSON
+        columnTypeLookup <- makeCachedColumnTypeLookup hasqlPool
+        columnTypes <- columnTypeLookup table
+
+        payload <- requestBodyJSON
 
         case payload of
             Object hashMap -> do
-                let query = "INSERT INTO ? ? VALUES ? RETURNING *"
-                let columns = hashMap
-                        |> Aeson.keys
-                        |> map (fieldNameToColumnName . Aeson.toText)
+                let pairsList = hashMap
+                        |> Aeson.toList
+                        |> map (\(key, val) ->
+                            let col = fieldNameToColumnName (Aeson.toText key)
+                            in (col, lookupColumnType columnTypes col, val)
+                        )
 
-                let values = hashMap
-                        |> Aeson.elems
-                        |> map aesonValueToPostgresValue
+                let columns = map (\(c,_,_) -> c) pairsList
+                let valueSnippets = map (\(_, colType, val) -> typedAesonValueToSnippet colType val) pairsList
 
-                let params = (PG.Identifier table, PG.In (map PG.Identifier columns), PG.In values)
+                let insertResult = compileInsert table columns valueSnippets camelCaseRenamer columnTypes
+                let stmt = compiledQueryStatement insertResult
 
-                result :: Either EnhancedSqlError [[Field]] <- Exception.try do
-                    sqlQueryWithRLS query params
+                result :: Either SomeException [[Field]] <- Exception.try do
+                    sqlQueryWriteWithRLS hasqlPool stmt
 
                 case result of
-                    Left error -> renderErrorJson error
+                    Left e -> renderErrorJson (show e :: Text)
                     Right result -> renderJson result
 
             Array objects -> do
-                let query = "INSERT INTO ? ? ? RETURNING *"
-                let columns = objects
-                        |> Vector.toList
-                        |> head
-                        |> \case
-                            Just value -> value
-                            Nothing -> error "Atleast one record is required"
-                        |> \case
-                            Object hashMap -> hashMap
-                            otherwise -> error "Expected object"
-                        |> Aeson.keys
-                        |> map (fieldNameToColumnName . Aeson.toText)
+                let objectList = Vector.toList objects
+                case objectList of
+                    [] -> renderErrorJson ("At least one record is required" :: Text)
+                    (firstElement:_) -> case firstElement of
+                        Object firstHashMap -> do
+                            let columns = firstHashMap
+                                    |> Aeson.keys
+                                    |> map (fieldNameToColumnName . Aeson.toText)
 
-                let values = objects
-                        |> Vector.toList
-                        |> map (\object ->
-                                object
-                                |> \case
-                                    Object hashMap -> hashMap
-                                    otherwise -> error "Expected object"
-                                |> Aeson.elems
-                                |> map aesonValueToPostgresValue
-                            )
+                            let parseObject value = case value of
+                                    Object hashMap -> Right hashMap
+                                    _otherwise -> Left ("Expected object, got: " <> show value)
 
+                            case mapM parseObject objectList of
+                                Left err -> renderErrorJson (cs err :: Text)
+                                Right hashMaps -> do
+                                    let encodeRow hashMap = map
+                                            (\col ->
+                                                let fieldName = columnNameToFieldName col
+                                                    val = fromMaybe Data.Aeson.Null (Aeson.lookup (Aeson.fromText fieldName) hashMap)
+                                                in typedAesonValueToSnippet (lookupColumnType columnTypes col) val)
+                                            columns
+                                    let valueRows = map encodeRow hashMaps
 
-                let params = (PG.Identifier table, PG.In (map PG.Identifier columns), PG.Values [] values)
+                                    let insertResult = compileInsertMany table columns valueRows camelCaseRenamer columnTypes
+                                    let stmt = compiledQueryStatement insertResult
 
-                result :: [[Field]] <- sqlQueryWithRLS query params
-                renderJson result
+                                    result :: [[Field]] <- sqlQueryWriteWithRLS hasqlPool stmt
+                                    renderJson result
+                        _otherwise -> renderErrorJson ("Expected object" :: Text)
 
-
+            _ -> error "Expected JSON object or array"
 
     action UpdateRecordAction { table, id } = do
-        ensureRLSEnabled table
+        let hasqlPool = ?modelContext.hasqlPool
+        ensureRLSEnabled hasqlPool table
 
-        let payload = requestBodyJSON
-                |> \case
-                    Object hashMap -> hashMap
+        columnTypeLookup <- makeCachedColumnTypeLookup hasqlPool
+        columnTypes <- columnTypeLookup table
 
-        let columns = payload
-                |> Aeson.keys
-                |> map (fieldNameToColumnName . Aeson.toText)
-                |> map PG.Identifier
+        payload <- requestBodyJSON
+        let hashMap = case payload of
+                Object hm -> hm
+                _ -> error "Expected JSON object"
 
-        let values = payload
-                |> Aeson.elems
-                |> map aesonValueToPostgresValue
+        let setSql = encodeKeyMapToSetSql columnTypes hashMap
+        let updateResult = compileUpdate table setSql (Snippet.sql "id = " <> uuidParam id) camelCaseRenamer columnTypes
+        let stmt = compiledQueryStatement updateResult
 
-        let keyValues = zip columns values
-
-        let setCalls = keyValues
-                |> map (\_ -> "? = ?")
-                |> ByteString.intercalate ", "
-        let query = "UPDATE ? SET " <> setCalls <> " WHERE id = ? RETURNING *"
-
-        let params = [PG.toField (PG.Identifier table)]
-                <> (join (map (\(key, value) -> [PG.toField key, value]) keyValues))
-                <> [PG.toField id]
-
-        result :: [[Field]] <- sqlQueryWithRLS (PG.Query query) params
+        result :: [[Field]] <- sqlQueryWriteWithRLS hasqlPool stmt
 
         renderJson (head result)
 
     -- DELETE /api/:table/:id
     action DeleteRecordAction { table, id } = do
-        ensureRLSEnabled table
+        let hasqlPool = ?modelContext.hasqlPool
+        ensureRLSEnabled hasqlPool table
 
-        sqlExecWithRLS "DELETE FROM ? WHERE id = ?" (PG.Identifier table, id)
+        let deleteSnippet = Snippet.sql ("DELETE FROM " <> quoteIdentifier table <> " WHERE id = ") <> uuidParam id
+        let stmt = Snippet.toPreparableStatement deleteSnippet Decoders.noResult
+        sqlExecWithRLS hasqlPool stmt
 
         renderJson True
 
     -- GET /api/:table/:id
     action ShowRecordAction { table, id } = do
-        ensureRLSEnabled table
+        let hasqlPool = ?modelContext.hasqlPool
+        ensureRLSEnabled hasqlPool table
 
-        result :: [[Field]] <- sqlQueryWithRLS "SELECT * FROM ? WHERE id = ?" (PG.Identifier table, id)
+        columnTypeLookup <- makeCachedColumnTypeLookup hasqlPool
+        columnTypes <- columnTypeLookup table
+        let selectColumns = compileSelectedColumns camelCaseRenamer columnTypes SelectAll
+        let selectSnippet = Snippet.sql ("SELECT " <> selectColumns <> " FROM " <> quoteIdentifier table <> " WHERE id = ") <> uuidParam id
+        let stmt = Snippet.toPreparableStatement (wrapDynamicQuery selectSnippet) dynamicRowDecoder
+        result :: [[Field]] <- sqlQueryWithRLS hasqlPool stmt
 
         renderJson (head result)
 
@@ -140,12 +144,19 @@ instance (
     -- GET /api/:table?orderBy=createdAt
     -- GET /api/:table?fields=id,title
     action ListRecordsAction { table } = do
-        ensureRLSEnabled table
+        let hasqlPool = ?modelContext.hasqlPool
+        ensureRLSEnabled hasqlPool table
 
-        let (theQuery, theParams) = compileQuery (buildDynamicQueryFromRequest table)
-        result :: [[Field]] <- sqlQueryWithRLS theQuery theParams
+        columnTypeLookup <- makeCachedColumnTypeLookup hasqlPool
+        columnTypes <- columnTypeLookup table
+        let querySnippet = compileQueryTyped camelCaseRenamer columnTypes (buildDynamicQueryFromRequest table)
+        let stmt = compiledQueryStatement querySnippet
+        result :: [[Field]] <- sqlQueryWithRLS hasqlPool stmt
 
         renderJson result
+
+    action GraphQLQueryAction = do
+        error "GraphQLQueryAction is handled by the GraphQL middleware"
 
 buildDynamicQueryFromRequest table = DynamicSQLQuery
     { table
@@ -170,60 +181,29 @@ instance ParamReader OrderByClause where
                 orderByDirection <- parseOrder order
                 pure OrderByClause { orderByColumn, orderByDirection }
             [orderByColumn] -> pure OrderByClause { orderByColumn, orderByDirection = Asc }
+            _ -> Left "Invalid order by clause"
         where
             parseOrder "asc" = Right Asc
             parseOrder "desc" = Right Desc
             parseOrder otherwise = Left ("Invalid order " <> cs otherwise)
 
-instance ToJSON PG.SqlError where
-    toJSON PG.SqlError { sqlState, sqlErrorMsg, sqlErrorDetail, sqlErrorHint } = object
-                [ "state" .= ((cs sqlState) :: Text)
-                , "errorMsg" .= ((cs sqlErrorMsg) :: Text)
-                , "errorDetail" .= ((cs sqlErrorDetail) :: Text)
-                , "errorHint" .= ((cs sqlErrorHint) :: Text)
-                ]
-        where
-            fieldValueToJSON (IntValue value) = toJSON value
-            fieldValueToJSON (TextValue value) = toJSON value
-            fieldValueToJSON (BoolValue value) = toJSON value
-            fieldValueToJSON (UUIDValue value) = toJSON value
-            fieldValueToJSON (DateTimeValue value) = toJSON value
+-- | Encode an Aeson KeyMap (from REST JSON payload) into a SQL SET clause 'Snippet'.
+encodeKeyMapToSetSql :: ColumnTypeInfo -> Aeson.KeyMap Value -> Snippet
+encodeKeyMapToSetSql columnTypes hashMap =
+    let pairsList = hashMap
+            |> Aeson.toList
+            |> map (\(key, val) ->
+                let col = fieldNameToColumnName (Aeson.toText key)
+                in (col, lookupColumnType columnTypes col, val)
+            )
+        encodeSetClause (col, colType, val) =
+            Snippet.sql (quoteIdentifier col <> " = ") <> typedAesonValueToSnippet colType val
+        setSnippets = map encodeSetClause pairsList
+    in mconcat $ List.intersperse (Snippet.sql ", ") setSnippets
 
-instance ToJSON EnhancedSqlError where
-    toJSON EnhancedSqlError { sqlError } = toJSON sqlError
-
-renderErrorJson :: (?context :: ControllerContext) => Data.Aeson.ToJSON json => json -> IO ()
+renderErrorJson :: (?context :: ControllerContext, ?request :: Request, ?respond :: Respond) => ToJSON json => json -> IO ResponseReceived
 renderErrorJson json = renderJsonWithStatusCode status400 json
 {-# INLINABLE renderErrorJson #-}
-
-aesonValueToPostgresValue :: Value -> PG.Action
-aesonValueToPostgresValue (String text) = PG.toField text
-aesonValueToPostgresValue (Bool value) = PG.toField value
-aesonValueToPostgresValue (Number value) = case Scientific.floatingOrInteger value of -- Hacky, we should make this function "Schema.sql"-aware in the future
-    Left (floating :: Double) -> PG.toField floating
-    Right (integer :: Integer) -> PG.toField integer
-aesonValueToPostgresValue Data.Aeson.Null = PG.toField PG.Null
-aesonValueToPostgresValue (Data.Aeson.Array values) = PG.toField (PG.PGArray (map aesonValueToPostgresValue (Vector.toList values)))
-aesonValueToPostgresValue object@(Object values) =
-    let
-        tryDecodeAsPoint :: Maybe Point
-        tryDecodeAsPoint = do
-                xValue <- Aeson.lookup "x" values
-                yValue <- Aeson.lookup "y" values
-                x <- case xValue of
-                        Number number -> pure (Scientific.toRealFloat number)
-                        otherwise -> Nothing
-                y <- case yValue of
-                        Number number -> pure (Scientific.toRealFloat number)
-                        otherwise -> Nothing
-                pure Point { x, y }
-    in
-        -- This is really hacky and is mostly duck typing. We should refactor this in the future to
-        -- become more type aware by passing the DDL of the table to 'aesonValueToPostgresValue'.
-        if Aeson.size values == 2
-            then fromMaybe (PG.toField $ toJSON object) (PG.toField <$> tryDecodeAsPoint)
-            else PG.toField (toJSON object)
-
 
 instance ToJSON GraphQLResult where
     toJSON GraphQLResult { requestId, graphQLResult } = object [ "tag" .= ("GraphQLResult" :: Text), "requestId" .= requestId, "graphQLResult" .= ("" :: Text) ]

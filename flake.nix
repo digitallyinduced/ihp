@@ -3,7 +3,8 @@
 
     inputs = {
         # "github:NixOS/nixpkgs/nixos-unstable"
-        nixpkgs.url = "github:NixOS/nixpkgs/nixos-25.11";
+        nixpkgs.url = "github:NixOS/nixpkgs/nixos-25.11";           # for Haskell packages
+        nixpkgs-nixos.url = "github:NixOS/nixpkgs/nixos-25.11";     # for NixOS deployments (pin independently)
 
         # pre-defined set of default target systems
         systems.url = "github:nix-systems/default";
@@ -13,7 +14,7 @@
         flake-parts.inputs.nixpkgs-lib.follows = "nixpkgs";
 
         # used for setting up development environments
-        devenv.url = "github:cachix/devenv/v1.11.2";
+        devenv.url = "github:cachix/devenv";
         devenv.inputs.nixpkgs.follows = "nixpkgs";
 
         # TODO use a corresponding release branch
@@ -40,7 +41,7 @@
                 overlays.default = import ./NixSupport/overlay.nix { inherit inputs self; };
                 flakeModules.default = flake-parts-lib.importApply ./flake-module.nix { inherit inputs; };
                 templates.default = {
-                    path = inputs.ihp-boilerplate;
+                    path = /. + builtins.unsafeDiscardStringContext (toString inputs.ihp-boilerplate);
                     description = "Template for an IHP project";
                     welcomeText = ''
                         TODO this is shown when running nix init, could contain instruction to get started
@@ -58,7 +59,6 @@
                     options = ./NixSupport/nixosModules/options.nix;
                     binaryCache = ./NixSupport/nixosModules/binaryCache.nix;
                 };
-                nix-ci.impure = true;
             };
         }
     );

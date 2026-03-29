@@ -1,10 +1,15 @@
 module IHP.ValidationSupport.Types where
 
-import IHP.Prelude
+import Prelude
+import Data.Text (Text)
 import qualified Data.Text as Text
-import IHP.ModelSupport (Violation (..))
-import Text.Blaze.Html5 (Html)
-import qualified Text.Blaze.Html.Renderer.Text as Blaze
+import Data.Proxy (Proxy)
+import GHC.TypeLits (KnownSymbol, symbolVal)
+import GHC.Records (HasField(..))
+import IHP.HaskellSupport (SetField(..), modify, (|>))
+import IHP.ModelSupport.Types (Violation(..), MetaBag(..))
+import IHP.ModelSupport () -- for SetField instances on MetaBag
+import IHP.HSX.Markup (Markup, renderMarkupText)
 import qualified Data.List as List
 
 data ValidatorResult
@@ -70,12 +75,11 @@ attachFailure field !message = attachValidatorResult field (Failure message)
 -- >     |> getValidationViolation #email
 -- >
 -- > --  Returns: Just (HtmlViolation "should be a valid email. <a href="https://example.com/docs#email">Check out the documentation</a>")
-attachFailureHtml :: (KnownSymbol field, HasField "meta" model MetaBag, SetField "meta" model MetaBag) => Proxy field -> Html -> model -> model
+attachFailureHtml :: (KnownSymbol field, HasField "meta" model MetaBag, SetField "meta" model MetaBag) => Proxy field -> Markup -> model -> model
 attachFailureHtml field !message = attachValidatorResult field (FailureHtml renderedHtml)
     where
         renderedHtml = message
-                |> Blaze.renderHtml
-                |> cs
+                |> renderMarkupText
 {-# INLINE attachFailureHtml #-}
 
 -- | Returns the validation failure for a field or Nothing

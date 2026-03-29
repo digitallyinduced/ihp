@@ -3,7 +3,7 @@ module IHP.DataSync.Types where
 import IHP.Prelude
 import Data.Aeson
 import IHP.DataSync.DynamicQuery
-import qualified Database.PostgreSQL.Simple as PG
+import qualified Hasql.Connection as Hasql
 import Control.Concurrent.MVar as MVar
 
 
@@ -35,7 +35,7 @@ data DataSyncResponse
     | DidCreateCountSubscription { requestId :: !Int, subscriptionId :: !UUID, count :: !Int }
     | DidDeleteDataSubscription { requestId :: !Int, subscriptionId :: !UUID }
     | DidInsert { subscriptionId :: !UUID, record :: ![Field] }
-    | DidUpdate { subscriptionId :: !UUID, id :: UUID, changeSet :: !Value }
+    | DidUpdate { subscriptionId :: !UUID, id :: UUID, changeSet :: !(Maybe Value), appendSet :: !(Maybe Value) }
     | DidDelete { subscriptionId :: !UUID, id :: !UUID }
     | DidChangeCount { subscriptionId :: !UUID, count :: !Int }
     | DidCreateRecord { requestId :: !Int, record :: ![Field] } -- ^ Response to 'CreateRecordMessage'
@@ -64,7 +64,7 @@ data GraphQLResult = GraphQLResult { graphQLResult :: !UndecodedJSON, requestId 
 data DataSyncTransaction
     = DataSyncTransaction
     { id :: !UUID
-    , connection :: !PG.Connection
+    , connection :: !Hasql.Connection
     , close :: MVar ()
     }
 

@@ -15,7 +15,7 @@ module IHP.QueryBuilder.Join
 import IHP.Prelude
 import IHP.ModelSupport
 import IHP.QueryBuilder.Types
-import qualified Data.Text.Encoding as Text
+import IHP.QueryBuilder.Compiler (qualifiedColumnName)
 
 -- | Joins a table to an existing QueryBuilder (or something holding a QueryBuilder) on the specified columns. Example:
 -- >    query @Posts
@@ -35,12 +35,15 @@ innerJoin :: forall model' table' name' value' model table name value queryBuild
                                 model ~ GetModelByTableName table,
                                 table' ~ GetTableName model'
                             ) => (Proxy name, Proxy name') -> queryBuilderProvider table -> JoinQueryBuilderWrapper (ConsModelList model' joinRegister) table
-innerJoin (name, name') queryBuilderProvider = injectQueryBuilder $ JoinQueryBuilder (getQueryBuilder queryBuilderProvider) $ Join joinTableName leftJoinColumn rightJoinColumn
+innerJoin (name, name') queryBuilderProvider =
+    let QueryBuilder sq = getQueryBuilder queryBuilderProvider
+        joinInfo = Join joinTableName leftJoinColumn rightJoinColumn
+    in injectQueryBuilder $ QueryBuilder sq { joins = joinInfo : joins sq }
     where
-        baseTableName = symbolToByteString @table
-        joinTableName = symbolToByteString @table'
-        leftJoinColumn = baseTableName <> "." <> (Text.encodeUtf8 . fieldNameToColumnName) (symbolToText @name)
-        rightJoinColumn = (Text.encodeUtf8 . fieldNameToColumnName) (symbolToText @name')
+        baseTableName = symbolToText @table
+        joinTableName = symbolToText @table'
+        leftJoinColumn = qualifiedColumnName baseTableName (symbolToText @name)
+        rightJoinColumn = fieldNameToColumnName (symbolToText @name')
 {-# INLINE innerJoin #-}
 
 -- | Index the values from a table with values of a field from a table joined by 'innerJoin' or 'innerJoinThirdTable'. Useful to get, e.g., the tags to a set of posts in such a way that the assignment of tags to posts is preserved.
@@ -92,10 +95,13 @@ innerJoinThirdTable :: forall model model' name name' value value' table table' 
                             table' ~ GetTableName model',
                             baseModel ~ GetModelByTableName baseTable
                         ) => (Proxy name, Proxy name') -> queryBuilderProvider baseTable -> JoinQueryBuilderWrapper (ConsModelList model joinRegister) baseTable
-innerJoinThirdTable (name, name') queryBuilderProvider = injectQueryBuilder $ JoinQueryBuilder (getQueryBuilder queryBuilderProvider) $ Join joinTableName leftJoinColumn rightJoinColumn
+innerJoinThirdTable (name, name') queryBuilderProvider =
+    let QueryBuilder sq = getQueryBuilder queryBuilderProvider
+        joinInfo = Join joinTableName leftJoinColumn rightJoinColumn
+    in injectQueryBuilder $ QueryBuilder sq { joins = joinInfo : joins sq }
      where
-        baseTableName = symbolToByteString @table'
-        joinTableName = symbolToByteString @table
-        leftJoinColumn = baseTableName <> "." <> (Text.encodeUtf8 . fieldNameToColumnName) (symbolToText @name')
-        rightJoinColumn = (Text.encodeUtf8 . fieldNameToColumnName) (symbolToText @name)
+        baseTableName = symbolToText @table'
+        joinTableName = symbolToText @table
+        leftJoinColumn = qualifiedColumnName baseTableName (symbolToText @name')
+        rightJoinColumn = fieldNameToColumnName (symbolToText @name)
 {-# INLINE innerJoinThirdTable #-}

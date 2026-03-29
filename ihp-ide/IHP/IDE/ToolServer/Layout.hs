@@ -5,6 +5,9 @@ import IHP.IDE.ToolServer.Types
 import IHP.IDE.ToolServer.Routes ()
 import qualified IHP.Version as Version
 import IHP.IDE.ToolServer.Helper.View
+import System.IO.Unsafe (unsafePerformIO)
+import IHP.RequestVault.Helper (lookupRequestVault)
+import IHP.IDE.CodeGen.Types (defaultUuidFunction)
 
 toolServerLayout :: Html -> Html
 toolServerLayout inner = [hsx|
@@ -20,9 +23,10 @@ toolServerLayout inner = [hsx|
         <link rel="stylesheet" href={assetPath "/IDE/schema-designer.css"}/>
         <link rel="stylesheet" href={assetPath "/vendor/select2.min.css"}/>
 
-        <script src={assetPath "/vendor/jquery-3.6.0.min.js"}></script>
+        <script src={assetPath "/vendor/morphdom-umd.min.js"}></script>
+        <script src={assetPath "/vendor/jquery-4.0.0.min.js"}></script>
         <script src={assetPath "/vendor/timeago.js"}></script>
-        <script src={assetPath "/vendor/popper.min.js"}></script>
+        <script src={assetPath "/vendor/popper-2.11.6.min.js"}></script>
         <script src={assetPath "/vendor/bootstrap.min.js"}></script>
 
 
@@ -46,7 +50,7 @@ toolServerLayout inner = [hsx|
 
         <title>IHP IDE</title>
     </head>
-    <body class="d-flex h-100 flex-row">
+    <body class="d-flex h-100 flex-row" data-default-uuid-function={defaultUuidFn <> "()"}>
         <div id="nav">
             <img id="nav-logo" src="/ihp-icon.svg" alt="IHP: Integrated Haskell Platform">
             <div id="ihp-plan">{ihpEditionTitle}</div>
@@ -56,6 +60,7 @@ toolServerLayout inner = [hsx|
             {codegen}
             {logs}
             {docu}
+            {hpiHoogle}
 
             {when isBasicEdition getPro}
             {help}
@@ -67,7 +72,10 @@ toolServerLayout inner = [hsx|
     </body>
 </html>
 |]  where
-        (AvailableApps appNames) = fromFrozenContext @AvailableApps
+        defaultUuidFn :: Text
+        defaultUuidFn = unsafePerformIO defaultUuidFunction
+        {-# NOINLINE defaultUuidFn #-}
+        (AvailableApps appNames) = lookupRequestVault availableAppsVaultKey ?request
         apps = forEach appNames appNavItem
         schema = navItem "SCHEMA" schemaIcon (pathTo TablesAction) (isSchemaEditorController)
         data_ = navItem "DATA" dataIcon (pathTo ShowDatabaseAction) (isActiveController @DataController)
@@ -76,6 +84,12 @@ toolServerLayout inner = [hsx|
         logs = navItem "LOGS" serverIcon (pathTo AppLogsAction) (isActiveController @LogsController)
         lint = navItem "LINT" flagIcon "#" False
         docu = navItem "DOCS" docsIcon "https://ihp.digitallyinduced.com/Guide/" False
+
+        (HoogleUrl hoogleUrl) = lookupRequestVault hoogleUrlVaultKey ?request
+        hpiHoogle = case hoogleUrl of
+            Just url -> navItem "HOOGLE" searchIcon url False
+            Nothing -> mempty
+
 
         isSchemaEditorController =
                     (  isActiveController @SchemaController
@@ -90,11 +104,12 @@ toolServerLayout inner = [hsx|
             <a
                 href="#"
                 class="nav-item"
-                data-container="body"
-                data-toggle="popover"
-                data-placement="right"
-                data-title="Questions, or need help with Haskell type errors?"
-                data-trigger="focus"
+                data-bs-container="body"
+                data-bs-toggle="popover"
+                data-bs-placement="right"
+                data-bs-title="Questions, or need help with Haskell type errors?"
+                data-bs-trigger="focus"
+                tabindex="0"
                 id="nav-help"
             >
                 {helpIcon}
@@ -150,8 +165,8 @@ toolServerLayout inner = [hsx|
                 target :: Maybe Text
                 target = if isExternal then "_blank" else Nothing
 
-appUrl :: (?context :: ControllerContext) => Text
-appUrl = let (AppUrl url) = fromFrozenContext @AppUrl in url
+appUrl :: (?context :: ControllerContext, ?request :: Request) => Text
+appUrl = let (AppUrl url) = lookupRequestVault appUrlVaultKey ?request in url
 
 -- | https://github.com/encharm/Font-Awesome-SVG-PNG/blob/master/white/svg/terminal.svg
 terminalIcon = preEscapedToHtml [plain|<svg viewBox="0 0 1792 1792" xmlns="http://www.w3.org/2000/svg"><path d="M649 983l-466 466q-10 10-23 10t-23-10l-50-50q-10-10-10-23t10-23l393-393-393-393q-10-10-10-23t10-23l50-50q10-10 23-10t23 10l466 466q10 10 10 23t-10 23zm1079 457v64q0 14-9 23t-23 9h-960q-14 0-23-9t-9-23v-64q0-14 9-23t23-9h960q14 0 23 9t9 23z" fill="#fff"/></svg>|]

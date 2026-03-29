@@ -49,14 +49,18 @@ function initSchemaDesigner() {
             $('#typeSelector').val('DATE').trigger('change');
         }
     });
-    $('.select2').select2({ tags: true });
-    $('.select2-simple').select2();
+    var $modal = $('.modal');
+    var select2Options = $modal.length ? { tags: true, dropdownParent: $modal } : { tags: true };
+    var select2SimpleOptions = $modal.length ? { dropdownParent: $modal } : {};
+    $('.select2').select2(select2Options);
+    $('.select2-simple').select2(select2SimpleOptions);
     $('#typeSelector').change(function () {
         switch (this.value) {
             case "UUID":
                 if ($('div[data-attribute="' + $("#colName").val() +'"]').length == 0) {
+                    var defaultUuidFn = document.body.getAttribute('data-default-uuid-function') || 'uuid_generate_v4()';
                     $('#defaultSelector').empty()
-                    .append(new Option("uuid_generate_v4()", 'uuid_generate_v4()', true, true))
+                    .append(new Option(defaultUuidFn, defaultUuidFn, true, true))
                     .append(new Option("no default", "", false, false))
                     .trigger('change');
                 } else {
@@ -186,7 +190,14 @@ function initCodeEditor() {
 }
 
 function initTooltip() {
-    $('[data-toggle="tooltip"]').tooltip('dispose').tooltip({ container: 'body'});
+    // Remove any orphaned tooltip elements left over from Turbolinks/morphdom transitions
+    document.querySelectorAll('body > .tooltip').forEach(function (el) { el.remove(); });
+
+    document.querySelectorAll('[data-bs-toggle="tooltip"]').forEach(function (el) {
+        var existing = bootstrap.Tooltip.getInstance(el);
+        if (existing) existing.dispose();
+        new bootstrap.Tooltip(el, { container: 'body', popperConfig: { strategy: 'fixed' } });
+    });
 }
 
 document.addEventListener('ihp:load', initSchemaDesigner);
@@ -194,6 +205,14 @@ document.addEventListener('ihp:load', initCodeEditor);
 document.addEventListener('ihp:load', initQueryAce);
 document.addEventListener('ihp:load', initTooltip);
 document.addEventListener('ihp:load', initDataEditorForeignKeyAutocomplete);
+
+// Dispose all tooltips before Turbolinks replaces the page to prevent orphaned tooltip elements
+document.addEventListener('turbolinks:before-render', function () {
+    document.querySelectorAll('[data-bs-toggle="tooltip"]').forEach(function (el) {
+        var existing = bootstrap.Tooltip.getInstance(el);
+        if (existing) existing.dispose();
+    });
+});
 
 function initQueryAce() {
     var editorEl = document.getElementById('queryInput');
@@ -248,7 +267,7 @@ function sqlModeCheckbox(id, checkbox, isBoolean) {
 function setSqlMode(id, sqlMode) {
     var inputField = document.getElementById(id + "-input");
     if (sqlMode) {
-        inputField.className = "form-control text-monospace text-secondary bg-light"
+        inputField.className = "form-control font-monospace text-secondary bg-light"
     } else {
         inputField.className = "form-control";
     }
@@ -269,7 +288,7 @@ function setCheckboxSqlMode(id, sqlMode) {
         inputField.className = "d-none";
         inputField.name = id + "-inactive";
         hiddenField.name = id + "-inactive";
-        altField.className = "form-control text-monospace text-secondary bg-light";
+        altField.className = "form-control font-monospace text-secondary bg-light";
         altField.name = id;
         checkBoxContainer.className = "d-none";
         
@@ -336,18 +355,25 @@ function checkBeforeUnload() {
 function initDataEditorForeignKeyAutocomplete() {
     const elements = document.querySelectorAll('.form-control.is-foreign-key-column');
 
+    var $modal = $('.modal');
     for (const element of elements) {
-        $(element).select2({
+        var options = {
             ajax: {
                 url: element.dataset.selectUrl,
-                processResults: data => ({ results: data }),
+                processResults: data => ({
+                    results: data.map(row => {
+                        row._originalKeys = Object.keys(row);
+                        return row;
+                    })
+                }),
                 cache: true
             },
             templateResult: row => {
                 const result = document.createElement('div');
                 result.classList.add('record');
 
-                for (const key in row) {
+                const keys = row._originalKeys || Object.keys(row);
+                for (const key of keys) {
                     const keyValueContainer = document.createElement('span');
                     keyValueContainer.classList.add('key-value-container');
 
@@ -378,6 +404,8 @@ function initDataEditorForeignKeyAutocomplete() {
                 return row.id;
             },
             placeholder:' Search ...'
-        })
+        };
+        if ($modal.length) options.dropdownParent = $modal;
+        $(element).select2(options);
     }
 }

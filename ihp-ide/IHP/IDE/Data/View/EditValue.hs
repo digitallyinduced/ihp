@@ -18,7 +18,7 @@ instance View EditValueView where
     html EditValueView { .. } = [hsx|
         <div class="h-100">
             {headerNav}
-            <div class="h-100 row no-gutters">
+            <div class="h-100 row g-0">
                 {renderTableSelector tableNames tableName}
                 <div class="col" style="overflow: scroll; max-height: 80vh">
                     {renderRows rows tableBody tableName}
@@ -35,7 +35,7 @@ instance View EditValueView where
             </tr>
             <div class="custom-menu menu-for-column shadow backdrop-blur" id={contextMenuId}>
                 <a href={EditRowAction tableName id}>Edit Row</a>
-                <a href={DeleteEntryAction tableName id} class="js-delete">Delete Row</a>
+                <a href={DeleteEntryAction id tableName} class="js-delete">Delete Row</a>
                 <div></div>
                 <a href={NewRowAction tableName}>Add Row</a>
             </div>|]

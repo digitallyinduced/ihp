@@ -1,6 +1,6 @@
 cabal-version:       2.2
 name:                ihp-log
-version:             1.4.0
+version:             1.0.0
 synopsis:            Lightweight logging for IHP applications
 description:         Provides structured logging with configurable levels, formatters, and destinations.
                      Can be used standalone or with the full IHP framework.
@@ -17,6 +17,7 @@ common shared-properties
     default-language: GHC2021
     build-depends:
           base >= 4.17.0 && < 4.22
+        , filepath >= 1.5
         , text
         , bytestring
         , data-default
@@ -30,6 +31,8 @@ common shared-properties
         , RecordWildCards
         , OverloadedRecordDot
         , DuplicateRecordFields
+        , LambdaCase
+    ghc-options: -Werror=incomplete-patterns -Werror=unused-imports -Werror=missing-fields
 
 library
     import: shared-properties

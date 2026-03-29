@@ -29,6 +29,7 @@ module IHP.Log.Types
 , withLevelFormatter
 , withTimeFormatter
 , withTimeAndLevelFormatter
+, OsPath
 ) where
 
 import Prelude
@@ -54,6 +55,7 @@ import System.Log.FastLogger (
 
 import qualified System.Log.FastLogger as FastLogger (FormattedTime)
 import GHC.Records
+import System.OsPath (OsPath, encodeUtf, decodeUtf)
 
 
 -- some functions brought over from IHP.Prelude
@@ -168,7 +170,7 @@ data RotateSettings
     --          defaultBufSize
     --        }
     -- @
-    | TimedRotate !TimeFormat (FastLogger.FormattedTime -> FastLogger.FormattedTime -> Bool) (FilePath -> IO ())
+    | TimedRotate !TimeFormat (FastLogger.FormattedTime -> FastLogger.FormattedTime -> Bool) (OsPath -> IO ())
 
 -- | Where logged messages will be delivered to.
 data LogDestination
@@ -178,7 +180,7 @@ data LogDestination
     -- | Log messages to standard error.
     | Stderr !BufSize
     -- | Log message to a file. Rotate the log file with the behavior given by 'RotateSettings'.
-    | File !FilePath !RotateSettings !BufSize
+    | File !OsPath !RotateSettings !BufSize
     -- | Send logged messages to a callback. Flush action called after every log.
     | Callback !(LogStr -> IO ()) !(IO ())
 
@@ -219,17 +221,24 @@ newLogger LoggerSettings { .. } = do
     (write, cleanup) <- makeFastLogger timeCache destination
     pure Logger { .. }
     where
-        makeFastLogger timeCache destination = newTimedFastLogger timeCache $
-            case destination of
-                None                    -> LogNone
-                Stdout buf              -> LogStdout buf
-                Stderr buf              -> LogStderr buf
-                File path settings buf  -> makeFileLogger path settings buf
-                Callback callback flush -> LogCallback callback flush
+        makeFastLogger timeCache = \case
+                None                    -> newTimedFastLogger timeCache LogNone
+                Stdout buf              -> newTimedFastLogger timeCache (LogStdout buf)
+                Stderr buf              -> newTimedFastLogger timeCache (LogStderr buf)
+                File path settings buf  -> do
+                    logType <- makeFileLogger path settings buf
+                    newTimedFastLogger timeCache logType
+                Callback callback flush -> newTimedFastLogger timeCache (LogCallback callback flush)
 
-        makeFileLogger path NoRotate = LogFileNoRotate path
-        makeFileLogger path (SizeRotate (Bytes size) count) = LogFile (FileLogSpec path size count)
-        makeFileLogger path (TimedRotate fmt cmp post) = LogFileTimedRotate (TimedFileLogSpec path fmt cmp post)
+        makeFileLogger path NoRotate buf = do
+            fp <- decodeUtf path
+            pure (LogFileNoRotate fp buf)
+        makeFileLogger path (SizeRotate (Bytes size) count) buf = do
+            fp <- decodeUtf path
+            pure (LogFile (FileLogSpec fp size count) buf)
+        makeFileLogger path (TimedRotate fmt cmp post) buf = do
+            fp <- decodeUtf path
+            pure (LogFileTimedRotate (TimedFileLogSpec fp fmt cmp (\fpStr -> post =<< encodeUtf fpStr)) buf)
 
 -- | Formats logs as-is to stdout.
 defaultLogger :: IO Logger

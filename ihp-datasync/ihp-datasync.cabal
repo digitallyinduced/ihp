@@ -1,9 +1,10 @@
 cabal-version:       2.2
 name:                ihp-datasync
-version:             1.4.0
+version:             1.5.0
 synopsis:            IHP DataSync Framework
 description:         DataSync module for the Integrated Haskell Platform, enabling real-time data synchronization and RESTful API capabilities for IHP applications.
 license:             MIT
+license-file:        LICENSE
 author:              digitally induced GmbH
 maintainer:          hello@digitallyinduced.com
 homepage:            https://ihp.digitallyinduced.com/
@@ -13,6 +14,7 @@ category:            Web, IHP, DataSync
 stability:           Stable
 tested-with:         GHC == 9.8.4
 build-type:          Simple
+extra-source-files:  changelog.md
 
 Flag FastBuild
     Default: False
@@ -27,7 +29,10 @@ common shared-properties
             , transformers
             , mtl
             , text
-            , postgresql-simple
+            , hasql
+            , hasql-dynamic-statements
+            , hasql-pool
+            , hasql-transaction
             , bytestring
             , aeson
             , uuid
@@ -49,15 +54,18 @@ common shared-properties
             , ihp
             , ihp-log
             , ihp-hsx
-            , ihp-postgresql-simple-extra
             , deepseq
             , safe-exceptions
             , http-types
             , scientific
             , vector
             , stm
-            , resource-pool
             , unordered-containers
+            , vault
+            , typerep-map
+            , postgresql-types
+            , hasql-mapping
+            , hasql-postgresql-types
     default-extensions:
         OverloadedStrings
         , NoImplicitPrelude
@@ -80,28 +88,29 @@ common shared-properties
         , DeepSubsumption
     if flag(FastBuild)
         ghc-options:
-            -threaded
-            +RTS -A256m -n4m -H512m -qg -N -RTS
             -Wunused-imports
             -Wunused-foralls
-            -Wmissing-fields
+            -Werror=missing-fields
             -Winaccessible-code
             -Wmissed-specialisations
             -Wall-missed-specialisations
             -Wno-ambiguous-fields
+            -Werror=incomplete-patterns
+            -Werror=unused-imports
     else
         ghc-options:
             -fstatic-argument-transformation
             -funbox-strict-fields
             -haddock
-            +RTS -A256m -n4m -H512m -qg -N -RTS
             -Wunused-imports
             -Wunused-foralls
-            -Wmissing-fields
+            -Werror=missing-fields
             -Winaccessible-code
             -Wmissed-specialisations
             -Wall-missed-specialisations
             -Wno-ambiguous-fields
+            -Werror=incomplete-patterns
+            -Werror=unused-imports
 
 library
     import: shared-properties
@@ -111,13 +120,16 @@ library
         , IHP.DataSync.RowLevelSecurity
         , IHP.DataSync.DynamicQuery
         , IHP.DataSync.DynamicQueryCompiler
+        , IHP.DataSync.TypedEncoder
         , IHP.DataSync.ChangeNotifications
         , IHP.DataSync.Controller
         , IHP.DataSync.ControllerImpl
         , IHP.DataSync.REST.Types
         , IHP.DataSync.REST.Routes
         , IHP.DataSync.REST.Controller
+        , IHP.DataSync.Pool
         , IHP.DataSync.Role
+        , IHP.DataSync.Hasql
     other-modules:
         Paths_ihp_datasync
     autogen-modules:
@@ -129,7 +141,12 @@ test-suite ihp-datasync-hspec
     type:                exitcode-stdio-1.0
     hs-source-dirs:      .
     main-is:             Test/Main.hs
+    ghc-options:         -threaded
     other-modules: Test.DataSync.DynamicQueryCompiler
+                 , Test.DataSync.TypedEncoder
+                 , Test.DataSync.ChangeNotifications
+                 , Test.DataSync.RLSIntegrationSpec
+                 , Test.DataSync.DataSyncIntegrationSpec
     build-depends: hspec
 
 source-repository head

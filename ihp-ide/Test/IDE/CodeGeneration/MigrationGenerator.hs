@@ -10,9 +10,7 @@ import IHP.IDE.CodeGen.MigrationGenerator
 import Data.String.Interpolate.IsString (i)
 import qualified Text.Megaparsec as Megaparsec
 import qualified IHP.Postgres.Parser as Parser
-import IHP.IDE.CodeGen.Types
 import IHP.Postgres.Types
-import IHP.NameSupport
 
 tests = do
     describe "MigrationGenerator" do
@@ -1298,7 +1296,7 @@ CREATE POLICY "Users can read and edit their own record" ON public.users USING (
 
             it "should normalize function body whitespace" do
                 -- https://github.com/digitallyinduced/ihp/issues/1628
-                let (Just function) = head $ sql $ cs [trimming|
+                let (Just fn) = head $ sql $ cs [trimming|
                     CREATE FUNCTION public.set_updated_at_to_now() RETURNS trigger
                         LANGUAGE plpgsql
                         AS $$$$BEGIN
@@ -1307,12 +1305,8 @@ CREATE POLICY "Users can read and edit their own record" ON public.users USING (
                         END;$$$$;
                 |]
 
-                (normalizeStatement function) `shouldBe` [CreateFunction
-                    { functionName = "set_updated_at_to_now"
-                    , functionArguments = []
-                    , functionBody = "BEGIN\n    NEW.updated_at = NOW();\n    RETURN NEW;\nEND;"
-                    , orReplace = False
-                    , returns = PTrigger
+                (normalizeStatement fn) `shouldBe` [(function "set_updated_at_to_now")
+                    { functionBody = "BEGIN\n    NEW.updated_at = NOW();\n    RETURN NEW;\nEND;"
                     , language = "PLPGSQL"
                     }]
 

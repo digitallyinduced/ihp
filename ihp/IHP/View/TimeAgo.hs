@@ -5,12 +5,15 @@ Copyright: (c) digitally induced GmbH, 2020
 -}
 module IHP.View.TimeAgo (timeAgo, dateTime, date, time) where
 
-import IHP.Prelude
+import Prelude
+import Data.Text (Text)
+import Data.Time.Clock (UTCTime)
+import Data.Time.Format (formatTime, defaultTimeLocale)
+import Data.String.Conversions (cs)
 import Data.Time.Format.ISO8601 (iso8601Show)
 import IHP.HSX.ConvertibleStrings ()
-import Text.Blaze.Html5 (Html, (!))
-import qualified Text.Blaze.Html5 as H
-import qualified Text.Blaze.Html5.Attributes as A
+import IHP.HSX.Markup (Html)
+import IHP.HSX.MarkupQQ (hsx)
 
 -- | __Display time like @5 minutes ago@__
 --
@@ -97,7 +100,10 @@ time :: UTCTime -> Html
 time = timeElement "time"
 
 timeElement :: Text -> UTCTime -> Html
-timeElement className dateTime = H.time ! A.class_ (cs className) ! A.datetime (cs $ iso8601Show dateTime) $ cs (beautifyUtcTime dateTime)
+timeElement className dateTime =
+    let dateTimeAttr = cs (iso8601Show dateTime) :: Text
+        content = cs (beautifyUtcTime dateTime) :: Text
+    in [hsx|<time class={className} datetime={dateTimeAttr}>{content}</time>|]
 
 beautifyUtcTime :: UTCTime -> String
 beautifyUtcTime utcTime = formatTime defaultTimeLocale "%d.%m.%Y, %H:%M" utcTime

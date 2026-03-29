@@ -4,7 +4,8 @@ Description: Unstyled CSSFramework (base implementation)
 Copyright: (c) digitally induced GmbH, 2020
 -}
 module IHP.View.CSSFramework.Unstyled
-( styledFlashMessageDefault
+( unstyled
+, styledFlashMessageDefault
 , styledFlashMessagesDefault
 , styledFormFieldDefault
 , styledFormGroupDefault
@@ -28,24 +29,28 @@ module IHP.View.CSSFramework.Unstyled
 , styledBreadcrumbItemDefault
 ) where
 
-import IHP.Prelude
+import Prelude hiding (null)
+import Data.Text (Text, null)
+import Data.ByteString (ByteString)
+import Data.Maybe (isJust)
+import Control.Monad (unless)
+import IHP.HaskellSupport (forEach)
+import IHP.ModelSupport.Types (Violation(..))
+import IHP.InputValue (inputValue)
 import Network.Wai.Middleware.FlashMessages (FlashMessage (..))
-import qualified Text.Blaze.Html5 as Blaze
-import IHP.HSX.QQ (hsx)
-import IHP.HSX.ToHtml ()
+import IHP.HSX.Markup (Html, preEscapedToHtml)
+import IHP.HSX.MarkupQQ (hsx)
 import IHP.View.Types
 import IHP.View.Classes
-
-import IHP.ModelSupport
 import IHP.Breadcrumb.Types
 import IHP.Pagination.Helpers
 import IHP.Pagination.Types
 
--- | Provides an unstyled CSSFramework
+-- | Provides a truly unstyled CSSFramework with no CSS classes
 --
 -- This way we can later add more properties to the CSSFramework without having to update all the CSS Frameworks manually
-instance Default CSSFramework where
-    def = CSSFramework
+unstyled :: CSSFramework
+unstyled = CSSFramework
             { styledFlashMessage = styledFlashMessageDefault
             , styledFlashMessages = styledFlashMessagesDefault
             , styledFormField = styledFormFieldDefault
@@ -61,6 +66,7 @@ instance Default CSSFramework where
             , styledInputClass = styledInputClassDefault
             , styledInputInvalidClass = styledInputInvalidClassDefault
             , styledFormGroupClass = ""
+            , styledLabelClass = ""
             , styledValidationResult = styledValidationResultDefault
             , styledValidationResultClass = ""
             , styledPagination = styledPaginationDefault
@@ -73,18 +79,23 @@ instance Default CSSFramework where
             , styledBreadcrumbItem = styledBreadcrumbItemDefault
             }
 
-styledFlashMessageDefault :: CSSFramework -> FlashMessage -> Blaze.Html
+styledFlashMessageDefault :: CSSFramework -> FlashMessage -> Html
 styledFlashMessageDefault cssFramework = \case
     SuccessFlashMessage message -> [hsx|<div>{message}</div>|]
     ErrorFlashMessage message -> [hsx|<div>{message}</div>|]
 
-styledFlashMessagesDefault :: CSSFramework -> [FlashMessage] -> Blaze.Html
+styledFlashMessagesDefault :: CSSFramework -> [FlashMessage] -> Html
 styledFlashMessagesDefault cssFramework flashMessages = forEach flashMessages (cssFramework.styledFlashMessage cssFramework)
 
-styledFormFieldDefault :: CSSFramework -> FormField -> Blaze.Html
-styledFormFieldDefault cssFramework@CSSFramework {styledValidationResult, styledTextFormField, styledCheckboxFormField, styledSelectFormField, styledRadioFormField, styledTextareaFormField, styledFormGroup} formField =
+styledFormFieldDefault :: CSSFramework -> FormField -> Html
+styledFormFieldDefault cssFramework@CSSFramework {styledValidationResult, styledTextFormField, styledCheckboxFormField, styledSelectFormField, styledRadioFormField, styledTextareaFormField, styledFormGroup} formField0 =
     formGroup renderInner
     where
+        -- Hidden inputs don't need labels, groups, or validation display
+        formField = case formField0.fieldType of
+            HiddenInput -> formField0 { disableLabel = True, disableGroup = True, disableValidationResult = True }
+            _ -> formField0
+
         renderInner = case formField.fieldType of
             TextInput -> styledTextFormField cssFramework "text" formField validationResult
             NumberInput -> styledTextFormField cssFramework "number" formField validationResult
@@ -101,22 +112,22 @@ styledFormFieldDefault cssFramework@CSSFramework {styledValidationResult, styled
             RadioInput {} -> styledRadioFormField cssFramework formField validationResult
             FileInput -> styledTextFormField cssFramework "file" formField validationResult
 
-        validationResult :: Blaze.Html
+        validationResult :: Html
         validationResult = unless formField.disableValidationResult (styledValidationResult cssFramework formField)
 
         -- | Wraps the input inside a @<div class="form-group">...</div>@ (unless @disableGroup = True@)
-        formGroup :: Blaze.Html -> Blaze.Html
+        formGroup :: Html -> Html
         formGroup renderInner = case formField of
             FormField { disableGroup = True } -> renderInner
             FormField { fieldInputId } -> styledFormGroup cssFramework fieldInputId renderInner
 
-styledFormGroupDefault :: CSSFramework -> Text -> Blaze.Html -> Blaze.Html
+styledFormGroupDefault :: CSSFramework -> Text -> Html -> Html
 styledFormGroupDefault cssFramework@CSSFramework {styledFormGroupClass} fieldInputId renderInner =
     [hsx|<div class={styledFormGroupClass} id={"form-group-" <> fieldInputId}>{renderInner}</div>|]
 
-styledCheckboxFormFieldDefault :: CSSFramework -> FormField -> Blaze.Html -> Blaze.Html
+styledCheckboxFormFieldDefault :: CSSFramework -> FormField -> Html -> Html
 styledCheckboxFormFieldDefault cssFramework@CSSFramework {styledInputInvalidClass, styledFormFieldHelp} formField@FormField {fieldType, fieldName, fieldLabel, fieldValue, fieldInputId, validatorResult, fieldClass, disabled, disableLabel, disableValidationResult, additionalAttributes, labelClass, required, autofocus } validationResult = do
-    [hsx|<div class="form-check">{element}</div>|]
+    [hsx|<div>{element}</div>|]
     where
         inputInvalidClass = styledInputInvalidClass cssFramework formField
         helpText = styledFormFieldHelp cssFramework formField
@@ -125,7 +136,7 @@ styledCheckboxFormFieldDefault cssFramework@CSSFramework {styledInputInvalidClas
                         <input
                             type="checkbox"
                             name={fieldName}
-                            class={classes ["form-check-input", (inputInvalidClass, isJust validatorResult), (fieldClass, not (null fieldClass))]}
+                            class={classes [(inputInvalidClass, isJust validatorResult), (fieldClass, not (null fieldClass))]}
                             id={fieldInputId}
                             checked={fieldValue == "yes"}
                             required={required}
@@ -147,7 +158,7 @@ styledCheckboxFormFieldDefault cssFramework@CSSFramework {styledInputInvalidClas
             else [hsx|
                     {theInput}
                     <label
-                        class={classes [("form-check-label", labelClass == ""), (labelClass, labelClass /= "")]}
+                        class={classes [(labelClass, labelClass /= "")]}
                         for={fieldInputId}
                     >
                         {fieldLabel}
@@ -157,7 +168,7 @@ styledCheckboxFormFieldDefault cssFramework@CSSFramework {styledInputInvalidClas
                     {helpText}
                 |]
 
-styledTextFormFieldDefault :: CSSFramework -> Text -> FormField -> Blaze.Html -> Blaze.Html
+styledTextFormFieldDefault :: CSSFramework -> Text -> FormField -> Html -> Html
 styledTextFormFieldDefault cssFramework@CSSFramework {styledInputClass, styledInputInvalidClass, styledFormFieldHelp} inputType formField@FormField {fieldType, fieldName, fieldLabel, fieldValue, fieldInputId, validatorResult, fieldClass, disabled, disableLabel, disableValidationResult, additionalAttributes, labelClass, placeholder, required, autofocus } validationResult =
     [hsx|
         {label}
@@ -178,7 +189,7 @@ styledTextFormFieldDefault cssFramework@CSSFramework {styledInputClass, styledIn
         {helpText}
   |]
     where
-        label = unless (disableLabel || null fieldLabel) [hsx|<label class={classes ["form-label", (labelClass, labelClass /= "")]} for={fieldInputId}>{fieldLabel}</label>|]
+        label = unless (disableLabel || null fieldLabel) [hsx|<label class={classes [(cssFramework.styledLabelClass, True), (labelClass, labelClass /= "")]} for={fieldInputId}>{fieldLabel}</label>|]
         inputClass = (styledInputClass cssFramework formField, True)
         inputInvalidClass = styledInputInvalidClass cssFramework formField
         helpText = styledFormFieldHelp cssFramework formField
@@ -186,7 +197,7 @@ styledTextFormFieldDefault cssFramework@CSSFramework {styledInputClass, styledIn
             then Nothing
             else Just fieldValue
 
-styledSelectFormFieldDefault :: CSSFramework -> FormField -> Blaze.Html -> Blaze.Html
+styledSelectFormFieldDefault :: CSSFramework -> FormField -> Html -> Html
 styledSelectFormFieldDefault cssFramework@CSSFramework {styledInputClass, styledInputInvalidClass, styledFormFieldHelp} formField@FormField {fieldType, fieldName, placeholder, fieldLabel, fieldValue, fieldInputId, validatorResult, fieldClass, disabled, disableLabel, disableValidationResult, additionalAttributes, labelClass, required, autofocus } validationResult =
     [hsx|
         {label}
@@ -208,7 +219,7 @@ styledSelectFormFieldDefault cssFramework@CSSFramework {styledInputClass, styled
         {helpText}
     |]
     where
-        label = unless disableLabel [hsx|<label class={classes ["form-label", (labelClass, labelClass /= "")]} for={fieldInputId}>{fieldLabel}</label>|]
+        label = unless disableLabel [hsx|<label class={classes [(cssFramework.styledLabelClass, True), (labelClass, labelClass /= "")]} for={fieldInputId}>{fieldLabel}</label>|]
         inputClass = (styledInputClass cssFramework formField, True)
         inputInvalidClass = styledInputInvalidClass cssFramework formField
         helpText = styledFormFieldHelp cssFramework formField
@@ -221,7 +232,7 @@ styledSelectFormFieldDefault cssFramework@CSSFramework {styledInputClass, styled
             </option>
         |]
 
-styledRadioFormFieldDefault :: CSSFramework -> FormField -> Blaze.Html -> Blaze.Html
+styledRadioFormFieldDefault :: CSSFramework -> FormField -> Html -> Html
 styledRadioFormFieldDefault cssFramework@CSSFramework {styledInputClass, styledInputInvalidClass, styledFormFieldHelp} formField@FormField {fieldType, fieldName, placeholder, fieldLabel, fieldValue, fieldInputId, validatorResult, fieldClass, disabled, disableLabel, disableValidationResult, additionalAttributes, labelClass, required, autofocus } validationResult =
     [hsx|
         {label}
@@ -233,14 +244,14 @@ styledRadioFormFieldDefault cssFramework@CSSFramework {styledInputClass, styledI
         {helpText}
     |]
     where
-        label = unless disableLabel [hsx|<label class={classes ["form-label", (labelClass, labelClass /= "")]} for={fieldInputId}>{fieldLabel}</label>|]
+        label = unless disableLabel [hsx|<label class={classes [(cssFramework.styledLabelClass, True), (labelClass, labelClass /= "")]} for={fieldInputId}>{fieldLabel}</label>|]
         inputInvalidClass = styledInputInvalidClass cssFramework formField
         helpText = styledFormFieldHelp cssFramework formField
 
         getRadio (optionLabel, optionValue) = [hsx|
-            <div class="form-check">
+            <div>
                 <input
-                    class={classes ["form-check-input", (inputInvalidClass, isJust validatorResult), (fieldClass, not (null fieldClass))]}
+                    class={classes [(inputInvalidClass, isJust validatorResult), (fieldClass, not (null fieldClass))]}
                     type="radio"
                     id={optionId}
                     name={fieldName}
@@ -256,9 +267,9 @@ styledRadioFormFieldDefault cssFramework@CSSFramework {styledInputClass, styledI
         |]
             where
                 optionId = fieldInputId <> "_" <> optionValue
-                radioLabel = unless disableLabel [hsx|<label class={classes ["form-check-label", (labelClass, labelClass /= "")]} for={optionId}>{optionLabel}</label>|]
+                radioLabel = unless disableLabel [hsx|<label class={classes [(labelClass, labelClass /= "")]} for={optionId}>{optionLabel}</label>|]
 
-styledTextareaFormFieldDefault :: CSSFramework -> FormField -> Blaze.Html -> Blaze.Html
+styledTextareaFormFieldDefault :: CSSFramework -> FormField -> Html -> Html
 styledTextareaFormFieldDefault cssFramework@CSSFramework {styledInputClass, styledInputInvalidClass, styledFormFieldHelp} formField@FormField {fieldType, fieldName, fieldLabel, fieldValue, fieldInputId, validatorResult, fieldClass, disabled, disableLabel, disableValidationResult, additionalAttributes, labelClass, placeholder, required, autofocus } validationResult =
     [hsx|
         {label}
@@ -273,28 +284,28 @@ styledTextareaFormFieldDefault cssFramework@CSSFramework {styledInputClass, styl
             {...additionalAttributes}
         >{fieldValue}</textarea>{validationResult}{helpText}|]
     where
-        label = unless (disableLabel || null fieldLabel) [hsx|<label class={classes ["form-label", (labelClass, labelClass /= "")]} for={fieldInputId}>{fieldLabel}</label>|]
+        label = unless (disableLabel || null fieldLabel) [hsx|<label class={classes [(cssFramework.styledLabelClass, True), (labelClass, labelClass /= "")]} for={fieldInputId}>{fieldLabel}</label>|]
         inputClass = (styledInputClass cssFramework formField, True)
         inputInvalidClass = styledInputInvalidClass cssFramework formField
         helpText = styledFormFieldHelp cssFramework formField
 
-styledValidationResultDefault :: CSSFramework -> FormField -> Blaze.Html
+styledValidationResultDefault :: CSSFramework -> FormField -> Html
 styledValidationResultDefault cssFramework formField@FormField { validatorResult = Just violation } =
     let
         className :: Text = cssFramework.styledValidationResultClass
         message = case violation of
             TextViolation text -> [hsx|{text}|]
-            HtmlViolation html -> Blaze.preEscapedToHtml html
+            HtmlViolation html -> preEscapedToHtml html
     in
         [hsx|<div class={className}>{message}</div>|]
 styledValidationResultDefault _ _ = mempty
 
-styledSubmitButtonDefault :: CSSFramework -> SubmitButton -> Blaze.Html
+styledSubmitButtonDefault :: CSSFramework -> SubmitButton -> Html
 styledSubmitButtonDefault cssFramework SubmitButton { label, buttonClass, buttonDisabled } =
     let className :: Text = cssFramework.styledSubmitButtonClass
     in [hsx|<button class={classes [(className, True), (buttonClass, not (null buttonClass))]} disabled={buttonDisabled} type="submit">{label}</button>|]
 
-styledFormFieldHelpDefault :: CSSFramework -> FormField -> Blaze.Html
+styledFormFieldHelpDefault :: CSSFramework -> FormField -> Html
 styledFormFieldHelpDefault _ FormField { helpText = "" } = mempty
 styledFormFieldHelpDefault _ FormField { helpText } = [hsx|<p>{helpText}</p>|]
 
@@ -304,93 +315,85 @@ styledInputClassDefault _ _ = ""
 styledInputInvalidClassDefault :: CSSFramework -> FormField -> Text
 styledInputInvalidClassDefault _ _ = "invalid"
 
-styledPaginationDefault :: CSSFramework -> PaginationView -> Blaze.Html
+styledPaginationDefault :: CSSFramework -> PaginationView -> Html
 styledPaginationDefault _ paginationView =
     [hsx|
 
-    <div class="d-flex justify-content-md-center">
-        <nav aria-label="Page Navigator" class="mr-2">
-            <ul class="pagination">
-                {paginationView.linkPrevious}
-                {paginationView.pageDotDotItems}
-                {paginationView.linkNext}
-            </ul>
-        </nav>
+    <nav aria-label="Page Navigator">
+        <ul>
+            {paginationView.linkPrevious}
+            {paginationView.pageDotDotItems}
+            {paginationView.linkNext}
+        </ul>
+    </nav>
 
-        <div class="form-row">
-            <div class="col-auto mr-2">
-                <select class="custom-select" id="maxItemsSelect" onchange="window.location.href = this.options[this.selectedIndex].dataset.url">
-                    {paginationView.itemsPerPageSelector}
-                </select>
-            </div>
-        </div>
+    <select id="maxItemsSelect" onchange="window.location.href = this.options[this.selectedIndex].dataset.url">
+        {paginationView.itemsPerPageSelector}
+    </select>
 
-    </div>
     |]
 
-styledPaginationPageLinkDefault :: CSSFramework -> Pagination -> ByteString -> Int -> Blaze.Html
+styledPaginationPageLinkDefault :: CSSFramework -> Pagination -> ByteString -> Int -> Html
 styledPaginationPageLinkDefault _ pagination@Pagination {currentPage} pageUrl pageNumber =
     let
-        linkClass = classes ["page-item", ("active", pageNumber == currentPage)]
+        linkClass = classes [("active", pageNumber == currentPage)]
     in
-        [hsx|<li class={linkClass}><a class="page-link" href={pageUrl}>{show pageNumber}</a></li>|]
+        [hsx|<li class={linkClass}><a href={pageUrl}>{show pageNumber}</a></li>|]
 
-styledPaginationDotDotDefault :: CSSFramework -> Pagination -> Blaze.Html
+styledPaginationDotDotDefault :: CSSFramework -> Pagination -> Html
 styledPaginationDotDotDefault _ _ =
-    [hsx|<li class="page-item"><a class="page-link">…</a></li>|]
+    [hsx|<li><a>…</a></li>|]
 
-styledPaginationItemsPerPageSelectorDefault :: CSSFramework -> Pagination -> (Int -> ByteString) -> Blaze.Html
+styledPaginationItemsPerPageSelectorDefault :: CSSFramework -> Pagination -> (Int -> ByteString) -> Html
 styledPaginationItemsPerPageSelectorDefault _ pagination@Pagination {pageSize} itemsPerPageUrl =
     let
-        oneOption :: Int -> Blaze.Html
+        oneOption :: Int -> Html
         oneOption n = [hsx|<option value={show n} selected={n == pageSize} data-url={itemsPerPageUrl n}>{n} items per page</option>|]
     in
         [hsx|{forEach [10,20,50,100,200] oneOption}|]
 
-styledPaginationLinkPreviousDefault :: CSSFramework -> Pagination -> ByteString -> Blaze.Html
+styledPaginationLinkPreviousDefault :: CSSFramework -> Pagination -> ByteString -> Html
 styledPaginationLinkPreviousDefault _ pagination@Pagination {currentPage} pageUrl =
     let
-        prevClass = classes ["page-item", ("disabled", not $ hasPreviousPage pagination)]
+        prevClass = classes [("disabled", not $ hasPreviousPage pagination)]
         url = if hasPreviousPage pagination then pageUrl else "#"
     in
         [hsx|
             <li class={prevClass}>
-                <a class="page-link" href={url} aria-label="Previous">
+                <a href={url} aria-label="Previous">
                     <span aria-hidden="true">&laquo;</span>
-                    <span class="sr-only">Previous</span>
                 </a>
             </li>
         |]
 
-styledPaginationLinkNextDefault :: CSSFramework -> Pagination -> ByteString -> Blaze.Html
+styledPaginationLinkNextDefault :: CSSFramework -> Pagination -> ByteString -> Html
 styledPaginationLinkNextDefault _ pagination@Pagination {currentPage} pageUrl =
     let
-        nextClass = classes ["page-item", ("disabled", not $ hasNextPage pagination)]
+        nextClass = classes [("disabled", not $ hasNextPage pagination)]
         url = if hasNextPage pagination then pageUrl else "#"
     in
         [hsx|
             <li class={nextClass}>
-                <a class="page-link" href={url} aria-label="Next">
+                <a href={url} aria-label="Next">
                     <span aria-hidden="true">&raquo;</span>
-                    <span class="sr-only">Next</span>
                 </a>
             </li>
         |]
 
-styledBreadcrumbDefault :: CSSFramework -> [BreadcrumbItem]-> BreadcrumbsView -> Blaze.Html
+styledBreadcrumbDefault :: CSSFramework -> [BreadcrumbItem]-> BreadcrumbsView -> Html
 styledBreadcrumbDefault _ _ breadcrumbsView = [hsx|
     <nav>
-        <ol class="breadcrumb">
+        <ol>
             {breadcrumbsView.breadcrumbItems}
 
         </ol>
     </nav>
 |]
 
-styledBreadcrumbItemDefault :: CSSFramework -> [ BreadcrumbItem ]-> BreadcrumbItem -> Bool -> Blaze.Html
+styledBreadcrumbItemDefault :: CSSFramework -> [ BreadcrumbItem ]-> BreadcrumbItem -> Bool -> Html
 styledBreadcrumbItemDefault _ breadcrumbItems breadcrumbItem@BreadcrumbItem {breadcrumbLabel, url} isLast =
     let
-        breadcrumbsClasses = classes ["breadcrumb-item", ("active", isLast)]
+        breadcrumbsClasses = classes [("active", isLast)]
     in
     case url of
         Nothing ->  [hsx|<li class={breadcrumbsClasses}>{breadcrumbLabel}</li>|]

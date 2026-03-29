@@ -18,10 +18,13 @@ import IHP.Controller.Param ( paramOrDefault, paramOrNothing )
 import IHP.Pagination.Types ( Options(..), Pagination(..) )
 import IHP.QueryBuilder ( HasQueryBuilder, filterWhereILike, limit, offset )
 import IHP.Fetch (fetchCount)
-import IHP.ModelSupport (GetModelByTableName, sqlQuery, sqlQueryScalar, Table)
-import qualified Network.Wai as Wai
-
-import Database.PostgreSQL.Simple (FromRow, ToRow, Query(..), Only(Only), (:.)(..))
+import IHP.ModelSupport (GetModelByTableName, sqlQueryHasql, Table)
+import IHP.Hasql.FromRow (FromRowHasql(..))
+import IHP.Hasql.Encoders (ToSnippetParams(..), sqlToSnippet)
+import Network.Wai (Request)
+import qualified Hasql.Decoders as Decoders
+import qualified Hasql.DynamicStatements.Snippet as Snippet
+import Data.Text.Encoding (encodeUtf8)
 
 -- | Paginate a query, with the following default options:
 --
@@ -50,7 +53,7 @@ paginate :: forall controller table queryBuilderProvider joinRegister .
     (?context::ControllerContext
     , ?modelContext :: ModelContext
     , ?theAction :: controller
-    , ?request :: Wai.Request
+    , ?request :: Request
     , KnownSymbol table
     , HasQueryBuilder queryBuilderProvider joinRegister) =>
     queryBuilderProvider table
@@ -82,7 +85,7 @@ paginateWithOptions :: forall controller table queryBuilderProvider joinRegister
     (?context::ControllerContext
     , ?modelContext :: ModelContext
     , ?theAction :: controller
-    , ?request :: Wai.Request
+    , ?request :: Request
     , KnownSymbol table
     , HasQueryBuilder queryBuilderProvider joinRegister) =>
     Options
@@ -124,7 +127,7 @@ paginateWithOptions options query = do
 -- >    render IndexView { .. }
 filterList :: forall name table model queryBuilderProvider joinRegister .
     (?context::ControllerContext
-    , ?request :: Wai.Request
+    , ?request :: Request
     , KnownSymbol name
     , HasField name model Text
     , model ~ GetModelByTableName table
@@ -177,13 +180,13 @@ defaultPaginationOptions =
 --
 -- *AutoRefresh:* When using 'paginatedSqlQuery' with AutoRefresh, you need to use 'trackTableRead' to let AutoRefresh know that you have accessed a certain table. Otherwise AutoRefresh will not watch table of your custom sql query.
 paginatedSqlQuery
-  :: ( FromRow model
-     , ToRow parameters
+  :: ( FromRowHasql model
+     , ToSnippetParams parameters
      , ?context :: ControllerContext
      , ?modelContext :: ModelContext
-     , ?request :: Wai.Request
+     , ?request :: Request
      )
-  => Query -> parameters -> IO ([model], Pagination)
+  => Text -> parameters -> IO ([model], Pagination)
 paginatedSqlQuery = paginatedSqlQueryWithOptions defaultPaginationOptions
 
 -- | Runs a raw sql query and adds pagination to it.
@@ -201,15 +204,19 @@ paginatedSqlQuery = paginatedSqlQueryWithOptions defaultPaginationOptions
 --
 -- *AutoRefresh:* When using 'paginatedSqlQuery' with AutoRefresh, you need to use 'trackTableRead' to let AutoRefresh know that you have accessed a certain table. Otherwise AutoRefresh will not watch table of your custom sql query.
 paginatedSqlQueryWithOptions
-  :: ( FromRow model
-     , ToRow parameters
+  :: ( FromRowHasql model
+     , ToSnippetParams parameters
      , ?context :: ControllerContext
      , ?modelContext :: ModelContext
-     , ?request :: Wai.Request
+     , ?request :: Request
      )
-  => Options -> Query -> parameters -> IO ([model], Pagination)
+  => Options -> Text -> parameters -> IO ([model], Pagination)
 paginatedSqlQueryWithOptions options sql placeholders = do
-    count :: Int <- sqlQueryScalar ("SELECT count(subquery.*) FROM (" <> sql <> ") as subquery") placeholders
+    let pool = ?modelContext.hasqlPool
+    let baseParams = toSnippetParams placeholders
+
+    let countSnippet = sqlToSnippet ("SELECT count(subquery.*) FROM (" <> encodeUtf8 sql <> ") as subquery") baseParams
+    count :: Int <- sqlQueryHasql pool countSnippet (Decoders.singleRow (Decoders.column (Decoders.nonNullable (fromIntegral <$> Decoders.int8))))
 
     let pageSize = pageSize' options
         pagination = Pagination
@@ -219,20 +226,19 @@ paginatedSqlQueryWithOptions options sql placeholders = do
             , window = windowSize options
             }
 
-    results :: [model] <- sqlQuery
-        ("SELECT subquery.* FROM (" <> sql <> ") as subquery LIMIT ? OFFSET ?")
-        (placeholders :. Only pageSize :. Only (offset' pageSize page))
+    let resultsSnippet = sqlToSnippet ("SELECT subquery.* FROM (" <> encodeUtf8 sql <> ") as subquery LIMIT ? OFFSET ?") (baseParams <> [Snippet.param pageSize, Snippet.param (offset' pageSize page)])
+    results :: [model] <- sqlQueryHasql pool resultsSnippet (Decoders.rowList hasqlRowDecoder)
 
     pure (results, pagination)
 
 -- We limit the page size to a maximum of 200, to prevent users from
 -- passing in query params with a value that could overload the
 -- database (e.g. maxItems=100000)
-pageSize' :: (?request :: Wai.Request) => Options -> Int
+pageSize' :: (?request :: Request) => Options -> Int
 pageSize' options = min (max 1 $ paramOrDefault @Int (maxItems options) "maxItems") 200
 
 -- Page and page size shouldn't be lower than 1.
-page :: (?request :: Wai.Request) => Int
+page :: (?request :: Request) => Int
 page = max 1 $ paramOrDefault @Int 1 "page"
 
 offset' :: Int -> Int -> Int

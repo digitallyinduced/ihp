@@ -5,11 +5,14 @@ import Control.Exception
 import Control.Concurrent (threadDelay)
 import Control.Concurrent.MVar
 import Control.Monad (filterM)
-import System.Directory (listDirectory, doesDirectoryExist)
+import qualified System.Directory.OsPath as Directory
 import qualified Data.Map as Map
 import qualified System.FSNotify as FS
 import qualified Data.List as List
 import qualified Control.Debounce as Debounce
+import System.OsPath (encodeUtf, decodeUtf)
+import qualified System.Process as Process
+import qualified System.IO as IO
 
 data FileWatcherParams
     = FileWatcherParams
@@ -81,16 +84,39 @@ stopWatchingSubDirectory state path = do
 
 listWatchableDirectories :: IO [String]
 listWatchableDirectories = do
-    rootDirectoryContents <- listDirectory "."
-    filterM shouldWatchDirectory rootDirectoryContents
+    osEntries <- Directory.listDirectory "."
+    rootDirectoryContents <- mapM decodeUtf osEntries
+    directories <- filterM shouldWatchDirectory rootDirectoryContents
+    filterGitIgnored directories
 
 shouldWatchDirectory :: String -> IO Bool
 shouldWatchDirectory path = do
-    isDirectory <- doesDirectoryExist path
-    pure $ isDirectory && isDirectoryWatchable path
+    osPath <- encodeUtf path
+    Directory.doesDirectoryExist osPath
+
+-- | Filter out directories that are git-ignored.
+-- Falls back to the old hardcoded exclusion list if git is not available
+-- or the project is not a git repo.
+filterGitIgnored :: [String] -> IO [String]
+filterGitIgnored [] = pure []
+filterGitIgnored dirs = do
+    result <- try @SomeException $ do
+        let process = (Process.proc "git" ("check-ignore" : "--no-index" : dirs))
+                { Process.std_out = Process.CreatePipe
+                , Process.std_err = Process.CreatePipe
+                }
+        Process.withCreateProcess process \_ (Just stdout) _ processHandle -> do
+            output <- IO.hGetContents stdout
+            _ <- evaluate (length output)
+            let ignored = List.lines output
+            _ <- Process.waitForProcess processHandle
+            pure ignored
+    case result of
+        Right ignored -> pure (filter (`notElem` ignored) dirs)
+        Left _ -> pure (filter isDirectoryWatchable dirs)
 
 isDirectoryWatchable :: String -> Bool
-isDirectoryWatchable path = 
+isDirectoryWatchable path =
     path /= ".devenv" && path /= ".direnv"
 
 fileWatcherConfig :: FS.WatchConfig

@@ -40,15 +40,27 @@ ihpFlake:
                 haskellPackages = lib.mkOption {
                     description = ''
                         Function returning a list of Haskell packages to be installed in the IHP environment.
+                        These packages are included in both the development shell and production builds.
+                        The set of Haskell packages is passed to the function.
+                    '';
+                    default = p: [
+                        p.base
+                        p.wai
+                        p.text
+                        p.ihp
+                        p.hasql # Required for generated Types.hs (FromRowHasql instances)
+                    ];
+                };
+
+                devHaskellPackages = lib.mkOption {
+                    description = ''
+                        Function returning a list of Haskell packages that are only available in the
+                        development shell (ghci, etc.) but NOT included in production builds.
                         The set of Haskell packages is passed to the function.
                     '';
                     default = p: [
                         p.cabal-install
-                        p.base
-                        p.wai
-                        p.text
                         p.hlint
-                        p.ihp
                     ];
                 };
 
@@ -69,10 +81,11 @@ ihpFlake:
 
                 withHoogle = lib.mkOption {
                     description = ''
-                        Enable Hoogle support. Adds `hoogle` command to PATH.
+                        Enable Hoogle support. Adds `hoogle` command to PATH
+                        and auto-starts a Hoogle server on port 8002.
                     '';
                     type = lib.types.bool;
-                    default = false;
+                    default = true;
                 };
 
                 dontCheckPackages = lib.mkOption {
@@ -115,6 +128,16 @@ ihpFlake:
                     default = "1";
                 };
 
+                relationSupport = lib.mkOption {
+                    description = ''
+                        Enable relation support (Include/fetchRelated type machinery).
+                        Set to false for simpler generated types without type parameters,
+                        which compiles significantly faster.
+                    '';
+                    type = lib.types.bool;
+                    default = true;
+                };
+
                 static.extraDirs = lib.mkOption {
                     type = lib.types.attrsOf (lib.types.oneOf [ lib.types.path lib.types.package ]);
                     default = {};
@@ -135,6 +158,7 @@ ihpFlake:
                         If your app doesn't use the Makefile to bundle the CSS, you can disable this for faster builds.
                     '';
                 };
+
             };
         }
     );
@@ -144,6 +168,8 @@ ihpFlake:
             cfg = config.ihp;
             ihp = ihpFlake.inputs.self;
             ghcCompiler = pkgs.ghc;
+            # Auto-detect whether a build-time PostgreSQL is needed (e.g. ihp-typed-sql)
+            buildWithPostgres = builtins.any (p: (p.pname or "") == "ihp-typed-sql") (cfg.haskellPackages ghcCompiler);
             hsDataDir = package:
                     let
                         ghcName   = package.passthru.compiler.haskellCompilerName;         # e.g. "ghc-9.10.1"
@@ -154,7 +180,7 @@ ihpFlake:
                     in
                         "${shareRoot}/${sys}/${package.name}";
         in lib.mkIf cfg.enable {
-            _module.args.pkgs = import inputs.nixpkgs { inherit system; overlays = config.devenv.shells.default.overlays; config = { }; };
+            _module.args.pkgs = lib.mkDefault (import inputs.nixpkgs { inherit system; overlays = config.devenv.shells.default.overlays; config = { }; });
 
             # release build package
             packages = {
@@ -171,10 +197,15 @@ ihpFlake:
                     pkgs = pkgs;
                     rtsFlags = cfg.rtsFlags;
                     optimizationLevel = cfg.optimizationLevel;
+                    relationSupport = cfg.relationSupport;
                     appName = cfg.appName;
                     filter = ihpFlake.inputs.nix-filter.lib;
                     ihp-env-var-backwards-compat = ihpFlake.inputs.self.packages.${system}.ihp-env-var-backwards-compat;
+                    ihp-static = ihpFlake.inputs.self.packages.${system}.ihp-static;
                     static = self'.packages.static;
+                    inherit buildWithPostgres;
+                    appSchemaSql = "${self'.packages.schema}/Schema.sql";
+                    ihpSchemaSql = "${self'.packages.ihp-schema}/IHPSchema.sql";
                 };
 
                 unoptimized-prod-server = import "${ihp}/NixSupport/default.nix" {
@@ -187,10 +218,15 @@ ihpFlake:
                     pkgs = pkgs;
                     rtsFlags = cfg.rtsFlags;
                     optimizationLevel = "0";
+                    relationSupport = cfg.relationSupport;
                     appName = cfg.appName;
                     filter = ihpFlake.inputs.nix-filter.lib;
                     ihp-env-var-backwards-compat = ihpFlake.inputs.self.packages.${system}.ihp-env-var-backwards-compat;
+                    ihp-static = ihpFlake.inputs.self.packages.${system}.ihp-static;
                     static = self'.packages.static;
+                    inherit buildWithPostgres;
+                    appSchemaSql = "${self'.packages.schema}/Schema.sql";
+                    ihpSchemaSql = "${self'.packages.ihp-schema}/IHPSchema.sql";
                 };
 
                 static =
@@ -219,6 +255,15 @@ ihpFlake:
                     config = { Cmd = [ "${self'.packages.optimized-prod-server}/bin/RunProdServer" ]; };
                 };
 
+                unoptimized-docker-image-worker = pkgs.dockerTools.buildImage {
+                    name = "ihp-worker";
+                    config = { Cmd = [ "${self'.packages.unoptimized-prod-server}/bin/RunJobs" ]; };
+                };
+
+                optimized-docker-image-worker = pkgs.dockerTools.buildImage {
+                    name = "ihp-worker";
+                    config = { Cmd = [ "${self'.packages.optimized-prod-server}/bin/RunJobs" ]; };
+                };
 
                 migrate = ghcCompiler.ihp-migrate;
 
@@ -260,7 +305,7 @@ ihpFlake:
                         export IHP_LIB=${ihpFlake.inputs.self.packages.${system}.ihp-env-var-backwards-compat}
                         export IHP=${ihpFlake.inputs.self.packages.${system}.ihp-env-var-backwards-compat}
 
-                        make -j static/app.css static/app.js
+                        make -j static/prod.css static/prod.js
                         runHook postBuild
                     '';
                     installPhase = ''
@@ -283,7 +328,7 @@ ihpFlake:
                     tests = pkgs.stdenv.mkDerivation {
                             name = "${config.ihp.appName}-tests";
                             src = builtins.path { path = config.ihp.projectPath; name = "source"; };
-                            nativeBuildInputs = with pkgs; [ (ghcCompiler.ghcWithPackages (p: cfg.haskellPackages p ++ [p.ihp-ide p.ihp-schema-compiler])) ];
+                            nativeBuildInputs = with pkgs; [ (ghcCompiler.ghcWithPackages (p: cfg.haskellPackages p ++ cfg.devHaskellPackages p ++ [p.ihp-ide p.ihp-schema-compiler])) ];
                             buildPhase = ''
                                 # shellcheck disable=SC2046
                                 make -f ${hsDataDir ghcCompiler.ihp-ide.data}/lib/IHP/Makefile.dist build/Generated/Types.hs
@@ -292,6 +337,45 @@ ihpFlake:
                                 runghc $(make -f ${hsDataDir ghcCompiler.ihp-ide.data}/lib/IHP/Makefile.dist print-ghc-extensions) -i. -ibuild -iConfig Test/Main.hs
                                 touch $out
                             '';
+                            installPhase = "true";
+                        };
+                } else {})
+            // (if builtins.pathExists "${cfg.projectPath}/Test/Integration.hs"
+                then {
+                    "integration-tests" = pkgs.stdenv.mkDerivation {
+                            name = "${config.ihp.appName}-integration-tests";
+                            src = builtins.path { path = config.ihp.projectPath; name = "source"; };
+                            nativeBuildInputs = with pkgs; [
+                                (ghcCompiler.ghcWithPackages (p: cfg.haskellPackages p ++ cfg.devHaskellPackages p ++ [p.ihp-ide p.ihp-schema-compiler]))
+                                gnumake
+                                postgresql
+                            ];
+                            buildPhase = ''
+                                export IHP_LIB=${hsDataDir ghcCompiler.ihp-ide.data}
+
+                                # Start temporary PostgreSQL
+                                export PGDATA="$TMPDIR/pgdata"
+                                export PGHOST="$TMPDIR/pghost"
+                                mkdir -p "$PGHOST"
+                                initdb -D "$PGDATA" --no-locale --encoding=UTF8
+                                echo "unix_socket_directories = '$PGHOST'" >> "$PGDATA/postgresql.conf"
+                                echo "listen_addresses = '''" >> "$PGDATA/postgresql.conf"
+                                pg_ctl -D "$PGDATA" -l "$TMPDIR/pg.log" start
+
+                                createdb -h "$PGHOST" app
+                                export DATABASE_URL="postgresql:///app?host=$PGHOST"
+
+                                # Generate types and run integration tests
+                                make -f $IHP_LIB/lib/IHP/Makefile.dist build/Generated/Types.hs
+
+                                # shellcheck disable=SC2046
+                                runghc $(make -f $IHP_LIB/lib/IHP/Makefile.dist print-ghc-extensions) -i. -ibuild -iConfig Test/Integration.hs
+
+                                # Cleanup
+                                pg_ctl -D "$PGDATA" stop || true
+                                touch $out
+                            '';
+                            installPhase = "true";
                         };
                 } else {});
 
@@ -323,13 +407,15 @@ ihpFlake:
                 languages.haskell.enable = true;
                 languages.haskell.package = (if cfg.withHoogle
                                              then ghcCompiler.ghc.withHoogle
-                                             else ghcCompiler.ghc.withPackages) cfg.haskellPackages;
+                                             else ghcCompiler.ghc.withPackages) (p: cfg.haskellPackages p ++ cfg.devHaskellPackages p);
 
                 languages.haskell.stack.enable = false; # Stack is not used in IHP
 
                 scripts.start.exec = ''
-                    IHP_STATIC=${hsDataDir ghcCompiler.ihp.data}/static ${ghcCompiler.ihp-ide}/bin/RunDevServer
+                    exec env IHP_STATIC=${ihpFlake.inputs.self.packages.${system}.ihp-static} ${ghcCompiler.ihp-ide}/bin/RunDevServer
                 '';
+
+                process.manager.implementation = "process-compose";
 
                 processes.ihp.exec = "start";
 
@@ -337,11 +423,16 @@ ihpFlake:
                 # Can be re-enabled once postgres is provided by devenv instead of IHP
                 env.IHP_DEVENV = "1";
                 env.DATABASE_URL = "postgres:///app?host=${config.devenv.shells.default.env.PGHOST}";
+                env.PGDATABASE = "app";
 
-                # Disabled for now
-                # As the devenv postgres uses a different location for the socket
-                # this would break lots of known commands such as `make db`
                 services.postgres.enable = true;
+                services.postgres.settings = {
+                    logging_collector = true;
+                    log_directory = "log";
+                    log_filename = "postgresql.log";
+                    log_rotation_age = 0;
+                    log_rotation_size = 0;
+                };
                 services.postgres.initialDatabases = [
                     {
                     name = "app";
@@ -364,11 +455,26 @@ ihpFlake:
                     }
                 ];
 
+
                 # Used in the Makefile https://github.com/digitallyinduced/ihp-boilerplate/blob/master/Makefile
                 env.IHP = ihpFlake.inputs.self.packages.${system}.ihp-env-var-backwards-compat;
 
                 # Used by .ghci https://github.com/digitallyinduced/ihp-boilerplate/blob/master/.ghci
                 env.IHP_LIB = config.devenv.shells.default.env.IHP;
+
+                env.IHP_RELATION_SUPPORT = if cfg.relationSupport then "1" else "0";
+
+                # Set env var so IDE knows Hoogle port (empty when disabled)
+                env.IHP_HOOGLE_PORT = if cfg.withHoogle then "8002" else "";
+
+                # Auto-start Hoogle search server when withHoogle is enabled
+                # Disable CSP security headers: Hoogle v5.0.18.4 sends `upgrade-insecure-requests`
+                # even over plain HTTP, which causes Safari to try loading CSS/JS over HTTPS and fail.
+                # Fixed upstream (github.com/ndmitchell/hoogle/issues/432) but not yet released.
+                # Since Hoogle only runs on localhost for development, these headers aren't needed.
+                processes.hoogle = lib.mkIf cfg.withHoogle {
+                    exec = "hoogle server --local -p 8002 --no-security-headers";
+                };
 
                 scripts.deploy-to-nixos.exec = ''
                     if [[ $# -eq 0 || $1 == "--help" ]]; then
@@ -387,14 +493,18 @@ ihpFlake:
                         --option sandbox false \
                         --option extra-substituters "https://digitallyinduced.cachix.org" \
                         --option extra-trusted-public-keys "digitallyinduced.cachix.org-1:y+wQvrnxQ+PdEsCt91rmvv39qRCYzEgGQaldK26hCKE="
-                    ssh $1 systemctl start migrate
+                    
+                    # Only start migrate service if it exists
+                    if ssh $1 systemctl cat migrate.service >/dev/null 2>&1; then
+                        ssh $1 systemctl start migrate
+                    fi
                 '';
 
                 overlays = [ihp.overlays.default];
             };
 
             checks = (lib.filterAttrs (n: v:
-                   n != "unoptimized-docker-image" && n != "optimized-docker-image" # Docker imagee builds are very slow, so we ignore them
+                   n != "unoptimized-docker-image" && n != "optimized-docker-image" && n != "unoptimized-docker-image-worker" && n != "optimized-docker-image-worker" # Docker image builds are very slow, so we ignore them
                 && n != "migrate"
                 && lib.isDerivation v
                 ) self.packages.${system});

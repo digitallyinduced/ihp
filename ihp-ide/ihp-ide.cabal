@@ -1,9 +1,10 @@
 cabal-version:       2.2
 name:                ihp-ide
-version:             1.4.0
+version:             1.5.0
 synopsis:            Dev tools for IHP
 description:         The Integrated Haskell Platform is a full stack framework focused on rapid application development while striving for robust code quality.
 license:             MIT
+license-file:        LICENSE
 author:              digitally induced GmbH
 maintainer:          hello@digitallyinduced.com
 homepage:            https://ihp.digitallyinduced.com/
@@ -13,6 +14,7 @@ category:            Web, IHP
 stability:           Stable
 tested-with:         GHC == 9.8.4
 build-type:          Simple
+extra-source-files:  changelog.md
 data-dir: data
 data-files:
       lib/IHP/Makefile.dist
@@ -38,7 +40,8 @@ common shared-properties
             , classy-prelude
             , mono-traversable
             , transformers
-            , directory
+            , directory >= 1.3.8.0
+            , filepath >= 1.5
             , string-conversions
             , warp
             , wai
@@ -47,15 +50,14 @@ common shared-properties
             , wai-extra
             , inflections
             , text
-            , postgresql-simple
             , wai-app-static
             , wai-util
             , bytestring
             , network-uri
             , uri-encode
             , aeson
-            , wai-session
-            , wai-session-clientsession
+            , wai-session-maybe
+            , wai-session-clientsession-deferred
             , clientsession
             , vault
             , data-default
@@ -89,6 +91,10 @@ common shared-properties
             , safe-exceptions
             , countable-inflections
             , ihp-migrate
+            , hasql
+            , hasql-pool
+            , hasql-dynamic-statements
+            , hasql-implicits
     default-extensions:
         OverloadedStrings
         , NoImplicitPrelude
@@ -112,15 +118,15 @@ common shared-properties
     if flag(FastBuild)
         ghc-options:
             -threaded
-            +RTS -A256m -n4m -H512m -qg -N -RTS
 
             -Wunused-imports
             -Wunused-foralls
-            -Wmissing-fields
+            -Werror=missing-fields
             -Winaccessible-code
             -Wmissed-specialisations
             -Wall-missed-specialisations
             -Wno-ambiguous-fields
+            -Werror=incomplete-patterns
     else
         ghc-options:
             -fstatic-argument-transformation
@@ -130,12 +136,13 @@ common shared-properties
 
             -Wunused-imports
             -Wunused-foralls
-            -Wmissing-fields
+            -Werror=missing-fields
             -Winaccessible-code
             -Wmissed-specialisations
             -Wall-missed-specialisations
             -fspecialise-aggressively
             -Wno-ambiguous-fields
+            -Werror=incomplete-patterns
 
 library
     import: shared-properties
@@ -196,6 +203,7 @@ library
         , IHP.IDE.CodeGen.View.NewMigration
         , IHP.IDE.Logs.View.Logs
         , IHP.IDE.Logs.Controller
+        , IHP.IDE.Logs.ServiceLog
         , IHP.IDE.CodeGen.View.NewMail
         , IHP.IDE.ToolServer
         , IHP.IDE.ToolServer.Helper.Controller
@@ -210,6 +218,7 @@ library
         , IHP.IDE.CodeGen.ControllerGenerator
         , IHP.IDE.CodeGen.ScriptGenerator
         , IHP.IDE.CodeGen.Types
+        , IHP.IDE.CodeGen.DefaultUuidFunction
         , IHP.IDE.CodeGen.ViewGenerator
         , IHP.IDE.CodeGen.JobGenerator
         , IHP.IDE.CodeGen.View.NewJob
@@ -232,11 +241,17 @@ executable RunDevServer
     build-depends: ihp, ihp-log, ihp-ide, ihp-schema-compiler
     hs-source-dirs: exe
     main-is: IHP/IDE/DevServer.hs
+    ghc-options: -rtsopts=all
     if flag(FastBuild)
         ghc-options:
             -threaded
-            +RTS -A512m -n4m -H512m -G3 -qg -N -RTS
+            -with-rtsopts=-A512m
+            -with-rtsopts=-N
+            -with-rtsopts=-n4m
+            -with-rtsopts=--nonmoving-gc
+            -with-rtsopts=-Iw60
             -Wno-ambiguous-fields
+            -Werror=incomplete-patterns
     else
         ghc-options:
             -fconstraint-solver-iterations=100
@@ -255,8 +270,9 @@ executable RunDevServer
             -with-rtsopts=-N
             -with-rtsopts=-n4m
             -with-rtsopts=--nonmoving-gc
-            +RTS -A256m -n4m -H512m -G3 -qg -N -RTS
+            -with-rtsopts=-Iw60
             -Wno-ambiguous-fields
+            -Werror=incomplete-patterns
     autogen-modules: Paths_ihp_ide
     other-modules: Paths_ihp_ide
 
@@ -313,7 +329,7 @@ test-suite tests
     type: exitcode-stdio-1.0
     main-is: Test/Main.hs
     hs-source-dirs: .
-    build-depends: ihp, ihp-log, ihp-modal, ihp-schema-compiler, hspec, wai-request-params
+    build-depends: ihp, ihp-log, ihp-modal, ihp-schema-compiler, hspec, wai-request-params, wai-asset-path
     other-modules:
         Test.IDE.SchemaDesigner.CompilerSpec
         Test.IDE.SchemaDesigner.ParserSpec
@@ -327,3 +343,4 @@ test-suite tests
         Test.IDE.SchemaDesigner.SchemaOperationsSpec
         Test.IDE.CodeGeneration.MigrationGenerator
         Test.SchemaCompilerSpec
+        Test.ServerSpec

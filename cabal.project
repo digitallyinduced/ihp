@@ -1,0 +1,14 @@
+packages:
+    ihp/
+    ihp-context/
+    ihp-hsx/
+    ihp-log/
+    ihp-modal/
+    ihp-pagehead/
+    ihp-pglistener/
+    ihp-imagemagick/
+    ihp-postgres-parser/
+    ihp-schema-compiler/
+    wai-asset-path/
+    wai-flash-messages/
+    wai-request-params/

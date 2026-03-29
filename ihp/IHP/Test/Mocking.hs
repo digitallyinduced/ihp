@@ -10,16 +10,15 @@ import           Data.ByteString.Builder                   (toLazyByteString)
 import qualified Data.ByteString.Lazy                      as LBS
 import qualified Data.Vault.Lazy                           as Vault
 import qualified Network.HTTP.Types                        as HTTP
-import qualified Network.HTTP.Types.Status                 as HTTP
 import           Network.Wai
 import           Network.Wai.Internal                      (ResponseReceived (..))
 import           Network.Wai.Parse                         (Param (..))
 
 import           Wai.Request.Params.Middleware                 (Respond)
 import           IHP.ControllerSupport                     (InitControllerContext, Controller, runActionWithNewContext)
-import           IHP.FrameworkConfig                       (ConfigBuilder (..), FrameworkConfig (..))
+import           IHP.FrameworkConfig                       (ConfigBuilder (..), FrameworkConfig (..), RootApplication (..))
 import qualified IHP.FrameworkConfig                       as FrameworkConfig
-import           IHP.ModelSupport                          (createModelContext, Id')
+import           IHP.ModelSupport                          (createModelContext, withModelContext, Id')
 import           IHP.Prelude
 import           IHP.Log.Types
 import           IHP.Job.Types
@@ -27,10 +26,15 @@ import Test.Hspec
 import qualified Data.Text as Text
 import qualified Network.Wai as Wai
 import qualified IHP.LoginSupport.Helper.Controller as Session
-import qualified Network.Wai.Session
+import qualified Network.Wai.Session.Maybe
 import qualified Data.Serialize as Serialize
 import IHP.Controller.Session (sessionVaultKey)
 import IHP.Server (initMiddlewareStack)
+import qualified IHP.Server as Server
+import IHP.Controller.NotFound (handleNotFound)
+import IHP.RouterSupport (FrontController)
+import qualified IHP.PGListener as PGListener
+import qualified IHP.ErrorController as ErrorController
 
 type ContextParameters application = (?request :: Request, ?respond :: Respond, ?modelContext :: ModelContext, ?application :: application, InitControllerContext application, ?mocking :: MockContext application)
 
@@ -40,39 +44,96 @@ data MockContext application = InitControllerContext application => MockContext
     , mockRequest :: Request
     , mockRespond :: Respond
     , application :: application
+    , pgListener :: Maybe PGListener.PGListener
     }
 
 -- | Run a request through the test middleware stack.
--- This applies the same middlewares that IHP.Server uses (with PGListener disabled).
+-- This applies the same middlewares that IHP.Server uses.
 -- Used for initial setup only - actual request params are handled in callActionWithParams.
-runTestMiddlewares :: FrameworkConfig -> ModelContext -> Request -> IO Request
-runTestMiddlewares frameworkConfig modelContext baseRequest = do
+runTestMiddlewares :: FrameworkConfig -> ModelContext -> Maybe PGListener.PGListener -> Request -> IO Request
+runTestMiddlewares frameworkConfig modelContext maybePgListener baseRequest = do
     -- Capture the modified request after running through middlewares
     resultRef <- newIORef baseRequest
     let captureApp req respond = do
             writeIORef resultRef req
             respond (responseLBS HTTP.status200 [] "")
 
-    -- Use the same middleware stack as production, but without PGListener
-    middlewareStack <- initMiddlewareStack frameworkConfig modelContext Nothing
+    middlewareStack <- initMiddlewareStack frameworkConfig modelContext maybePgListener
 
     -- Run request through middleware stack
     _ <- middlewareStack captureApp baseRequest (\_ -> pure ResponseReceived)
 
     readIORef resultRef
 
+{-# DEPRECATED mockContextNoDatabase "Use withMockContext instead for bracket-style resource management" #-}
 mockContextNoDatabase :: (InitControllerContext application) => application -> ConfigBuilder -> IO (MockContext application)
 mockContextNoDatabase application configBuilder = do
-   frameworkConfig@(FrameworkConfig {dbPoolMaxConnections, dbPoolIdleTime, databaseUrl}) <- FrameworkConfig.buildFrameworkConfig configBuilder
-   logger <- newLogger def { level = Warn } -- don't log queries
-   modelContext <- createModelContext dbPoolIdleTime dbPoolMaxConnections databaseUrl logger
+   frameworkConfig@(FrameworkConfig {databaseUrl}) <- FrameworkConfig.buildFrameworkConfig configBuilder
+   logger <- newLogger (def :: LoggerSettings) { level = Warn } -- don't log queries
+   modelContext <- createModelContext databaseUrl logger
 
    -- Start with a minimal request - the middleware stack will set up session, etc.
    let baseRequest = defaultRequest
-   mockRequest <- runTestMiddlewares frameworkConfig modelContext baseRequest
+   let pgListener = Nothing
+   mockRequest <- runTestMiddlewares frameworkConfig modelContext pgListener baseRequest
    let mockRespond = const (pure ResponseReceived)
 
    pure MockContext{..}
+
+-- | Bracket-style mock context creation with proper resource cleanup.
+--
+-- Uses 'withModelContext' to ensure the database pool is released when done.
+-- Prefer this over 'mockContextNoDatabase'.
+--
+-- __Example:__ Use with hspec's 'aroundAll':
+--
+-- > tests :: Spec
+-- > tests = aroundAll (withMockContext WebApplication config) do
+-- >     it "should work" $ withContext do
+-- >         ...
+--
+withMockContext :: (InitControllerContext application) => application -> ConfigBuilder -> (MockContext application -> IO a) -> IO a
+withMockContext application configBuilder action =
+    FrameworkConfig.withFrameworkConfig configBuilder \frameworkConfig -> do
+        withModelContext frameworkConfig.databaseUrl frameworkConfig.logger \modelContext -> do
+            PGListener.withPGListener frameworkConfig.databaseUrl frameworkConfig.logger \pgListener' -> do
+                let baseRequest = defaultRequest
+                let pgListener = Just pgListener'
+                mockRequest <- runTestMiddlewares frameworkConfig modelContext pgListener baseRequest
+                let mockRespond = const (pure ResponseReceived)
+                action MockContext{..}
+
+-- | Build a WAI 'Application' from a 'MockContext' for use with @runSession@.
+--
+-- This mirrors the middleware stack from 'IHP.Server.run':
+-- errorHandlerMiddleware wraps the app to catch exceptions and render error pages.
+-- EarlyReturnException is caught inside runAction/runActionWithNewContext.
+initTestApplication :: (FrontController RootApplication) => MockContext application -> IO Application
+initTestApplication MockContext { frameworkConfig, modelContext, pgListener } = do
+    middleware <- initMiddlewareStack frameworkConfig modelContext pgListener
+    pure $ ErrorController.errorHandlerMiddleware frameworkConfig
+         $ middleware
+         $ Server.application handleNotFound (\app -> app)
+
+-- | Combines 'withMockContext' and 'initTestApplication' into a single bracket.
+--
+-- __Example:__ Use with hspec's 'aroundAll':
+--
+-- > tests :: Spec
+-- > tests = aroundAll (withMockContextAndApp WebApplication config) do
+-- >     it "should work" $ withContextAndApp \application -> do
+-- >         runSession (testGet "/foo") application >>= assertSuccess "bar"
+--
+withMockContextAndApp :: (InitControllerContext application, FrontController RootApplication) => application -> ConfigBuilder -> ((MockContext application, Application) -> IO a) -> IO a
+withMockContextAndApp application configBuilder action =
+    withMockContext application configBuilder \ctx -> do
+        app <- initTestApplication ctx
+        action (ctx, app)
+
+-- | Like 'withContext' but for specs using 'withMockContextAndApp'.
+-- The WAI 'Application' is passed to the callback.
+withContextAndApp :: (ContextParameters application => Application -> IO a) -> (MockContext application, Application) -> IO a
+withContextAndApp action (ctx, app) = withContext (action app) ctx
 
 -- | Run a IO action, setting implicit params based on supplied mock context
 withContext :: (ContextParameters application => IO a) -> MockContext application -> IO a
@@ -104,8 +165,8 @@ callActionWithParams controller params = do
     -- Build request with real form body (let middleware parse it)
     requestBody <- newIORef (HTTP.renderSimpleQuery False params)
     let readBody = atomicModifyIORef requestBody (\body -> ("", body))
-    let baseRequest = ?request
-            { Wai.requestBody = readBody
+    let baseRequest = (Wai.setRequestBodyChunks readBody ?request)
+            { Wai.requestMethod = "POST"
             , Wai.requestHeaders = (HTTP.hContentType, "application/x-www-form-urlencoded") : filter ((/= HTTP.hContentType) . fst) (Wai.requestHeaders ?request)
             }
 
@@ -129,7 +190,8 @@ callActionWithParams controller params = do
             runActionWithNewContext controller
 
     -- Run through middleware stack (like the real server does)
-    middlewareStack <- initMiddlewareStack frameworkConfig modelContext Nothing
+    let MockContext { pgListener } = ?mocking
+    middlewareStack <- initMiddlewareStack frameworkConfig modelContext pgListener
     _ <- middlewareStack controllerApp baseRequest captureRespond
 
     readIORef responseRef >>= \case
@@ -223,7 +285,7 @@ withUser user callback =
     where
         newRequest = currentRequest { Wai.vault = newVault }
 
-        newSession :: Network.Wai.Session.Session IO ByteString ByteString
+        newSession :: Network.Wai.Session.Maybe.Session IO ByteString ByteString
         newSession = (lookupSession, insertSession)
 
         lookupSession key = if key == sessionKey

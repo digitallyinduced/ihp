@@ -40,11 +40,9 @@ Let's say we want to use [mmark](https://hackage.haskell.org/package/mmark) for 
                     haskellPackages = p: with p; [
                         # Haskell dependencies go here
                         p.ihp
-                        cabal-install
                         base
                         wai
                         text
-                        hlint
                     ];
                 };
             };
@@ -81,11 +79,9 @@ In the list following `haskellPackages` we can see a few haskell dependencies al
                     haskellPackages = p: with p; [
                         # Haskell dependencies go here
                         p.ihp
-                        cabal-install
                         base
                         wai
                         text
-                        hlint
                         mmark
                     ];
                 };
@@ -98,6 +94,36 @@ In the list following `haskellPackages` we can see a few haskell dependencies al
 Stop the development server by hitting CTRL + C. Your terminal should now automatically start rebuilding the development environment. This is triggered by `direnv` detecting that the `flake.nix` has changed.
 
 Run `devenv up` again to start the development server, and `mmark` should now be used as expected.
+
+## Dev-Only Haskell Packages
+
+Some Haskell packages are only needed during development (e.g. `cabal-install`, `hlint`, `stylish-haskell`) and should not be included in production builds. IHP provides a `devHaskellPackages` option for this purpose.
+
+By default, `devHaskellPackages` includes `cabal-install` and `hlint`. These are available in your development shell (ghci, devenv) but are **not** included when building production binaries via `nix build`.
+
+To add additional dev-only packages, set `devHaskellPackages` in your `flake.nix`:
+
+```nix
+perSystem = { pkgs, ... }: {
+    ihp = {
+        enable = true;
+        projectPath = ./.;
+        haskellPackages = p: with p; [
+            p.ihp
+            base
+            wai
+            text
+        ];
+        devHaskellPackages = p: with p; [
+            cabal-install
+            hlint
+            stylish-haskell
+        ];
+    };
+};
+```
+
+Packages in `haskellPackages` are included in both development and production. Packages in `devHaskellPackages` are only available during development. If you don't set `devHaskellPackages`, it defaults to `cabal-install` and `hlint`.
 
 
 ## Using a Native Dependency
@@ -135,11 +161,9 @@ All dependencies of our project are listed in `flake.nix` at the root of the pro
                     haskellPackages = p: with p; [
                         # Haskell dependencies go here
                         p.ihp
-                        cabal-install
                         base
                         wai
                         text
-                        hlint
                     ];
                 };
             };
@@ -178,11 +202,9 @@ We now just have to add `imagemagick` to `packages`:
                     haskellPackages = p: with p; [
                         # Haskell dependencies go here
                         p.ihp
-                        cabal-install
                         base
                         wai
                         text
-                        hlint
                     ];
                 };
             };
@@ -229,11 +251,9 @@ Let's say we want to use [the google-oauth2 package from hackage](https://hackag
                     haskellPackages = p: with p; [
                         # Haskell dependencies go here
                         p.ihp
-                        cabal-install
                         base
                         wai
                         text
-                        hlint
                         google-oauth2
                     ];
                 };
@@ -406,11 +426,9 @@ To jailbreak the package open `flake.nix` and append `"google-oauth2"` to the `d
                     haskellPackages = p: with p; [
                         # Haskell dependencies go here
                         p.ihp
-                        cabal-install
                         base
                         wai
                         text
-                        hlint
                     ];
                     doJailbreakPackages = [ "google-oauth2" ];
                 };
@@ -504,11 +522,9 @@ Open `flake.nix` and append the package name to the `dontCheckPackages` list:
                     haskellPackages = p: with p; [
                         # Haskell dependencies go here
                         p.ihp
-                        cabal-install
                         base
                         wai
                         text
-                        hlint
                     ];
                     dontCheckPackages = [ "my-failing-package" ]; # <------- ADD YOUR PACKAGE HERE
                 };
@@ -541,6 +557,26 @@ By default, all projects use a specific version of nixpkgs pinned by IHP. You ca
 Run `nix flake update` to rebuild the development environment.
 
 We highly recommend only using nixpkgs versions which are provided by IHP because these are usually verified to be working well with all the packages used by IHP. Additionally, you will need to build a lot of packages from source code as they will not be available in the digitally induced binary cache.
+
+### Switching GHC Versions
+
+IHP ships with GHC 9.10 by default. This is the recommended version and all IHP packages are binary-cached for it.
+
+GHC 9.12 is available as an experimental opt-in. To switch, add an overlay in your project's `flake.nix` that remaps `ghc` to `ghc912`:
+
+```nix
+devenv.shells.default = {
+    overlays = lib.mkAfter [
+        (final: prev: { ghc = prev.ghc912; })
+    ];
+};
+```
+
+This works because IHP's overlay provides both `pkgs.ghc` (GHC 9.10) and `pkgs.ghc912` (GHC 9.12) with all IHP packages. The extra overlay swaps the default. After adding the overlay, run `direnv reload` to rebuild the development environment.
+
+**Note:** GHC 9.12 is not yet binary-cached. Everything will build from source, which takes significantly longer on the first build. We recommend setting up your own [cachix binary cache](https://cachix.org/) if you use GHC 9.12 regularly.
+
+To switch back to GHC 9.10, remove the overlay and run `direnv reload`.
 
 ### Binary Cache
 

@@ -12,12 +12,13 @@ module IHP.ControllerSupport
 , getFiles
 , Controller (..)
 , runAction
-, ControllerContext
+, Context.ControllerContext
 , InitControllerContext (..)
 , runActionWithNewContext
 , newContextForAction
+, respondWith
 , respondAndExit
-, respondAndExitWithHeaders
+, earlyReturn
 , jumpToAction
 , requestBodyJSON
 , startWebSocketApp
@@ -25,49 +26,58 @@ module IHP.ControllerSupport
 , setHeader
 , getAppConfig
 , Respond
+, Request
+, rlsContextVaultKey
+, setupActionContext
+, ResponseReceived
 ) where
 
 import Prelude
+import Data.IORef (IORef, modifyIORef', readIORef)
 import Data.ByteString (ByteString)
 import qualified Data.ByteString.Lazy as LBS
 import Data.Maybe (fromMaybe)
-import Control.Exception.Safe (SomeException, fromException, try, catches, Handler(..))
+import Control.Exception.Safe (SomeException, fromException, try, throwIO)
+import qualified Control.Exception as Exception
+import qualified IHP.ErrorController as ErrorController
 import Data.Typeable (Typeable)
-import qualified Data.Text as Text
 import IHP.HaskellSupport
-import Network.Wai (Request, ResponseReceived, responseLBS, requestHeaders)
+import Network.Wai
 import qualified Network.HTTP.Types as HTTP
-import qualified Network.Wai
 import IHP.ModelSupport
 import Network.Wai.Parse as WaiParse
 import qualified Data.ByteString.Lazy
-import Wai.Request.Params.Middleware (Respond, RequestBody (..))
+import Wai.Request.Params.Middleware (Respond)
 import qualified Data.CaseInsensitive
-import qualified IHP.ErrorController as ErrorController
 import qualified Data.Typeable as Typeable
 import IHP.FrameworkConfig.Types (FrameworkConfig (..), ConfigProvider)
 import qualified IHP.Controller.Context as Context
-import IHP.Controller.Context (ControllerContext(ControllerContext), customFieldsRef)
 import IHP.Controller.Response
+import Network.Wai.Middleware.EarlyReturn (earlyReturnMiddleware)
 import Network.HTTP.Types.Header
 import qualified Data.Aeson as Aeson
 import qualified Network.Wai.Handler.WebSockets as WebSockets
 import qualified Network.WebSockets as WebSockets
 import qualified IHP.WebSocket as WebSockets
 import qualified Data.TMap as TypeMap
-import IHP.RequestVault
-import IHP.ActionType (setActionType)
+import IHP.RequestVault.ModelContext
+import IHP.ActionType (setActionType, actionTypeVaultKey, ActionType(..))
+import IHP.RequestVault.Helper (lookupRequestVault)
+import qualified IHP.Environment as Environment
+import qualified Data.Vault.Lazy as Vault
+import qualified Data.Text as Text
+import System.IO.Unsafe (unsafePerformIO)
 
 type Action' = IO ResponseReceived
 
 class (Show controller, Eq controller) => Controller controller where
-    beforeAction :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?theAction :: controller, ?respond :: Respond, ?request :: Network.Wai.Request) => IO ()
+    beforeAction :: (?context :: Context.ControllerContext, ?modelContext :: ModelContext, ?theAction :: controller, ?respond :: Respond, ?request :: Request) => IO ()
     beforeAction = pure ()
     {-# INLINABLE beforeAction #-}
-    action :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?theAction :: controller, ?respond :: Respond, ?request :: Network.Wai.Request) => controller -> IO ()
+    action :: (?context :: Context.ControllerContext, ?modelContext :: ModelContext, ?theAction :: controller, ?respond :: Respond, ?request :: Request) => controller -> IO ResponseReceived
 
 class InitControllerContext application where
-    initContext :: (?modelContext :: ModelContext, ?request :: Request, ?respond :: Respond, ?context :: ControllerContext) => IO ()
+    initContext :: (?modelContext :: ModelContext, ?request :: Request, ?respond :: Respond, ?context :: Context.ControllerContext) => IO ()
     initContext = pure ()
     {-# INLINABLE initContext #-}
 
@@ -75,22 +85,17 @@ instance InitControllerContext () where
     initContext = pure ()
 
 {-# INLINE runAction #-}
-runAction :: forall controller. (Controller controller, ?context :: ControllerContext, ?modelContext :: ModelContext, ?respond :: Respond) => controller -> IO ResponseReceived
+runAction :: forall controller. (Controller controller, ?context :: Context.ControllerContext, ?modelContext :: ModelContext, ?respond :: Respond) => controller -> IO ResponseReceived
 runAction controller = do
     let ?theAction = controller
     let ?request = ?context.request
 
-    let doRunAction = do
-            authenticatedModelContext <- prepareRLSIfNeeded ?modelContext
+    -- Exceptions are now caught by the error handler middleware
+    authenticatedModelContext <- prepareRLSIfNeeded ?modelContext
 
-            let ?modelContext = authenticatedModelContext
-            beforeAction
-            (action controller)
-            ErrorController.handleNoResponseReturned controller
-
-    let handleResponseException (ResponseException response) = ?respond response
-
-    doRunAction `catches` [ Handler handleResponseException, Handler (\exception -> ErrorController.displayException exception controller "")]
+    let ?modelContext = authenticatedModelContext
+    beforeAction
+    action controller
 
 {-# INLINE newContextForAction #-}
 newContextForAction
@@ -103,46 +108,80 @@ newContextForAction
        , Typeable application
        , Typeable controller
        )
-    => controller -> IO (Either (IO ResponseReceived) ControllerContext)
+    => controller -> IO Context.ControllerContext
 newContextForAction controller = do
     let ?modelContext = ?request.modelContext
     controllerContext <- Context.newControllerContext
     let ?context = controllerContext
     Context.putContext ?application
+    wrapInitContextException (initContext @application)
+    pure ?context
 
-    try (initContext @application) >>= \case
-        Left (exception :: SomeException) -> do
-            pure $ Left $ case fromException exception of
-                Just (ResponseException response) -> ?respond response
-                Nothing -> ErrorController.displayException exception controller " while calling initContext"
-        Right _ -> pure $ Right ?context
+-- | Shared request context setup, specialized once per application type.
+-- Takes a pre-computed TypeRep to avoid per-controller-type code duplication.
+-- NOINLINE ensures GHC compiles one copy shared across all controllers.
+--
+-- Exceptions from 'initContext' (including 'EarlyReturnException') propagate
+-- to the caller, which is expected to catch them.
+{-# NOINLINE setupActionContext #-}
+setupActionContext
+    :: forall application
+     . ( InitControllerContext application
+       , ?application :: application
+       , Typeable application
+       )
+    => Typeable.TypeRep -> Request -> Respond
+    -> IO Context.ControllerContext
+setupActionContext controllerTypeRep waiRequest waiRespond = do
+    let !request' = waiRequest { vault = Vault.insert actionTypeVaultKey (ActionType controllerTypeRep) waiRequest.vault }
+    let ?request = request'
+    let ?respond = waiRespond
+    let ?modelContext = request'.modelContext
+    controllerContext <- Context.newControllerContext
+    let ?context = controllerContext
+    Context.putContext ?application
+    wrapInitContextException (initContext @application)
+    pure ?context
+
+-- | Wraps non-EarlyReturn exceptions from initContext in InitContextException
+-- so the error handler middleware can show "while calling initContext".
+wrapInitContextException :: IO () -> IO ()
+wrapInitContextException action =
+    action `Exception.catch` \(e :: SomeException) ->
+        case fromException e of
+            Just (EarlyReturnException _) -> throwIO e  -- pass through early returns
+            Nothing -> throwIO (ErrorController.InitContextException e)
 
 {-# INLINE runActionWithNewContext #-}
 runActionWithNewContext :: forall application controller. (Controller controller, ?request :: Request, ?respond :: Respond, InitControllerContext application, ?application :: application, Typeable application, Typeable controller) => controller -> IO ResponseReceived
-runActionWithNewContext controller = do
-    let request' = setActionType controller ?request
-    let ?request = request'
-    contextOrResponse <- newContextForAction controller
-    case contextOrResponse of
-        Left response -> response
-        Right context -> do
-            let ?modelContext = requestModelContext ?request
-            let ?context = context
-            runAction controller
+runActionWithNewContext controller =
+    earlyReturnMiddleware (\request respond -> do
+        let ?request = setActionType controller request
+        let ?respond = respond
+        context <- newContextForAction controller
+        let ?modelContext = requestModelContext ?request
+        let ?context = context
+        runAction controller
+        ) ?request ?respond
 
 -- | If 'IHP.LoginSupport.Helper.Controller.enableRowLevelSecurityIfLoggedIn' was called, this will copy the
 -- the prepared RowLevelSecurityContext from the controller context into the ModelContext.
 --
 -- If row leve security wasn't enabled, this will just return the current model context.
-prepareRLSIfNeeded :: (?context :: ControllerContext) => ModelContext -> IO ModelContext
+prepareRLSIfNeeded :: (?request :: Request) => ModelContext -> IO ModelContext
 prepareRLSIfNeeded modelContext = do
-    rowLevelSecurityContext <- Context.maybeFromContext
+    rowLevelSecurityContext <- readIORef (lookupRequestVault rlsContextVaultKey ?request)
     case rowLevelSecurityContext of
         Just context -> pure modelContext { rowLevelSecurity = Just context }
         Nothing -> pure modelContext
+{-# INLINE prepareRLSIfNeeded #-}
+
+rlsContextVaultKey :: Vault.Key (IORef (Maybe RowLevelSecurityContext))
+rlsContextVaultKey = unsafePerformIO Vault.newKey
+{-# NOINLINE rlsContextVaultKey #-}
 
 {-# INLINE startWebSocketApp #-}
-startWebSocketApp :: forall webSocketApp application. (?request :: Request, ?respond :: Respond, InitControllerContext application, ?application :: application, Typeable application, WebSockets.WSApp webSocketApp) => webSocketApp -> IO ResponseReceived -> Network.Wai.Application
+startWebSocketApp :: forall webSocketApp application. (?request :: Request, ?respond :: Respond, InitControllerContext application, ?application :: application, Typeable application, WebSockets.WSApp webSocketApp) => webSocketApp -> IO ResponseReceived -> Application
 startWebSocketApp initialState onHTTP waiRequest waiRespond = do
     let ?modelContext = requestModelContext ?request
     let ?request = waiRequest
@@ -169,30 +208,27 @@ startWebSocketApp initialState onHTTP waiRequest waiRespond = do
             Just response -> waiRespond response
             Nothing -> onHTTP
 {-# INLINE startWebSocketAppAndFailOnHTTP #-}
-startWebSocketAppAndFailOnHTTP :: forall webSocketApp application. (?request :: Request, ?respond :: Respond, InitControllerContext application, ?application :: application, Typeable application, WebSockets.WSApp webSocketApp) => webSocketApp -> Network.Wai.Application
+startWebSocketAppAndFailOnHTTP :: forall webSocketApp application. (?request :: Request, ?respond :: Respond, InitControllerContext application, ?application :: application, Typeable application, WebSockets.WSApp webSocketApp) => webSocketApp -> Application
 startWebSocketAppAndFailOnHTTP initialState = startWebSocketApp @webSocketApp @application initialState (?respond $ responseLBS HTTP.status400 [(hContentType, "text/plain")] "This endpoint is only available via a WebSocket")
 
 
-jumpToAction :: forall action. (Controller action, ?context :: ControllerContext, ?modelContext :: ModelContext, ?respond :: Respond, ?request :: Network.Wai.Request) => action -> IO ()
+jumpToAction :: forall action. (Controller action, ?context :: Context.ControllerContext, ?modelContext :: ModelContext, ?respond :: Respond, ?request :: Request) => action -> IO ResponseReceived
 jumpToAction theAction = do
     let ?theAction = theAction
     beforeAction @action
     action theAction
 
-{-# INLINE getRequestBody #-}
-getRequestBody :: (?request :: Network.Wai.Request) => IO LBS.ByteString
+getRequestBody :: (?request :: Request) => IO LBS.ByteString
 getRequestBody =
-    case ?request.parsedBody of
-        JSONBody { rawPayload } -> pure rawPayload
-        _ -> Network.Wai.lazyRequestBody ?request
+    pure ?request.parsedBody.rawPayload
 
 -- | Returns the request path, e.g. @/Users@ or @/CreateUser@
-getRequestPath :: (?request :: Network.Wai.Request) => ByteString
+getRequestPath :: (?request :: Request) => ByteString
 getRequestPath = ?request.rawPathInfo
 {-# INLINABLE getRequestPath #-}
 
 -- | Returns the request path and the query params, e.g. @/ShowUser?userId=9bd6b37b-2e53-40a4-bb7b-fdba67d6af42@
-getRequestPathAndQuery :: (?request :: Network.Wai.Request) => ByteString
+getRequestPathAndQuery :: (?request :: Request) => ByteString
 getRequestPathAndQuery = ?request.rawPathInfo <> ?request.rawQueryString
 {-# INLINABLE getRequestPathAndQuery #-}
 
@@ -206,7 +242,7 @@ getRequestPathAndQuery = ?request.rawPathInfo <> ?request.rawQueryString
 -- >>> getHeader "X-My-Custom-Header"
 -- Nothing
 --
-getHeader :: (?request :: Network.Wai.Request) => ByteString -> Maybe ByteString
+getHeader :: (?request :: Request) => ByteString -> Maybe ByteString
 getHeader name = lookup (Data.CaseInsensitive.mk name) ?request.requestHeaders
 {-# INLINABLE getHeader #-}
 
@@ -214,32 +250,50 @@ getHeader name = lookup (Data.CaseInsensitive.mk name) ?request.requestHeaders
 --
 -- >>> setHeader ("Content-Language", "en")
 --
-setHeader :: (?context :: ControllerContext) => Header -> IO ()
+setHeader :: (?request :: Request) => Header -> IO ()
 setHeader header = do
-    maybeHeaders <- Context.maybeFromContext @[Header]
-    let headers = fromMaybe [] maybeHeaders
-    Context.putContext (header : headers)
+    let headersRef = lookupRequestVault responseHeadersVaultKey ?request
+    modifyIORef' headersRef (header :)
 {-# INLINABLE setHeader #-}
 
 -- | Returns the current HTTP request.
 --
 -- See https://hackage.haskell.org/package/wai-3.2.2.1/docs/Network-Wai.html#t:Request
-request :: (?request :: Network.Wai.Request) => Network.Wai.Request
+request :: (?request :: Request) => Request
 request = ?request
 {-# INLINE request #-}
 
 {-# INLINE getFiles #-}
-getFiles :: (?request :: Network.Wai.Request) => [File Data.ByteString.Lazy.ByteString]
+getFiles :: (?request :: Request) => [File Data.ByteString.Lazy.ByteString]
 getFiles =
     case ?request.parsedBody of
         FormBody { files } -> files
         _ -> []
 
-requestBodyJSON :: (?request :: Network.Wai.Request) => Aeson.Value
+requestBodyJSON :: (?request :: Request, ?respond :: Respond) => IO Aeson.Value
 requestBodyJSON =
     case ?request.parsedBody of
-        JSONBody { jsonPayload = Just value } -> value
-        _ -> error "Expected JSON body"
+        JSONBody { jsonPayload = Just value } -> pure value
+        JSONBody { jsonPayload = Nothing, rawPayload } -> do
+            let isDev = ?request.frameworkConfig.environment == Environment.Development
+            let errorMessage = "Expected JSON body, but could not decode the request body"
+                    <> (if LBS.null rawPayload
+                        then ". The request body is empty."
+                        else if isDev
+                            then ". The raw request body was: " <> truncatePayload rawPayload
+                            else ".")
+            respondAndExit $ responseLBS HTTP.status400 [(hContentType, "application/json")] $
+                Aeson.encode $ Aeson.object [("error", Aeson.String errorMessage)]
+            where
+                truncatePayload payload =
+                    let shown = show payload
+                        maxLen = 200
+                    in if length shown > maxLen
+                        then Text.pack (take maxLen shown) <> "... (truncated)"
+                        else Text.pack shown
+        FormBody {} ->
+            respondAndExit $ responseLBS HTTP.status400 [(hContentType, "application/json")] $
+                Aeson.encode $ Aeson.object [("error", Aeson.String "Expected JSON body, but the request has a form content type. Make sure to set 'Content-Type: application/json' in the request header.")]
 
 -- | Returns a custom config parameter
 --

@@ -53,7 +53,7 @@ instance View NewActionView where
                             name="doGenerateView"
                             id="doGenerateView"
                             />
-                        <label class="pl-1" for="doGenerateView">With View</label>
+                        <label class="ps-1" for="doGenerateView">With View</label>
                     </div>
                 </form>|]
             renderControllerOptions = forM_ controllers (\x -> [hsx|<option>{x}</option>|])
@@ -86,7 +86,7 @@ instance View NewActionView where
                             checked = {doGenerateView}
                             onchange = "this.form.submit()"
                             />
-                        <label class="pl-1" for="doGenerateView">With View</label>
+                        <label class="ps-1" for="doGenerateView">With View</label>
                         <input type="hidden" name="name" value={actionName}/>
                         <input type="hidden" name="controllerName" value={controllerName}/>
                     </form>

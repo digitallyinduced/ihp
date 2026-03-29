@@ -1,0 +1,1 @@
+-- Empty fixtures file (required by withIHPApp)
