@@ -214,6 +214,11 @@ instance ApplyAttribute Bool where
             Markup (TE.encodeUtf8Builder prefix <> Builder.byteString "false\"")
         | otherwise = mempty
 
+instance ApplyAttribute Markup where
+    {-# INLINE applyAttribute #-}
+    applyAttribute _name prefix (Markup b) =
+        Markup (TE.encodeUtf8Builder prefix <> b <> Builder.char8 '"')
+
 instance ApplyAttribute a => ApplyAttribute (Maybe a) where
     {-# INLINE applyAttribute #-}
     applyAttribute name prefix (Just value) = applyAttribute name prefix value
