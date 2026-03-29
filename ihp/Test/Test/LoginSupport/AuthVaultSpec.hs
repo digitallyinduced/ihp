@@ -19,7 +19,7 @@ import IHP.ModelSupport.Types (GetTableName, PrimaryKey, Id' (Id))
 import qualified IHP.LoginSupport.Helper.Controller as Controller
 import qualified IHP.LoginSupport.Helper.View as View
 import qualified Data.Vault.Lazy as Vault
-import qualified Network.Wai.Session as WaiSession
+import qualified Network.Wai.Session.Maybe as WaiSession
 
 tests :: Spec
 tests = do

@@ -24,6 +24,7 @@ import IHP.Controller.Session
 import IHP.QueryBuilder
 import IHP.Fetch
 import IHP.ModelSupport
+import IHP.Hasql.FromRow (FromRowHasql)
 import qualified Network.Wai as Wai
 import qualified Data.Vault.Lazy as Vault
 import qualified Data.UUID as UUID
@@ -98,7 +99,7 @@ fetchUserMiddleware :: forall user normalizedModel.
     , normalizedModel ~ CurrentUserRecord
     , Typeable normalizedModel
     , Table normalizedModel
-    , FromRow normalizedModel
+    , FromRowHasql normalizedModel
     , PrimaryKey (GetTableName normalizedModel) ~ UUID
     , GetTableName normalizedModel ~ GetTableName user
     , FilterPrimaryKey (GetTableName normalizedModel)
@@ -118,7 +119,7 @@ fetchAdminMiddleware :: forall admin normalizedModel.
     , normalizedModel ~ CurrentAdminRecord
     , Typeable normalizedModel
     , Table normalizedModel
-    , FromRow normalizedModel
+    , FromRowHasql normalizedModel
     , PrimaryKey (GetTableName normalizedModel) ~ UUID
     , GetTableName normalizedModel ~ GetTableName admin
     , FilterPrimaryKey (GetTableName normalizedModel)
@@ -132,7 +133,7 @@ fetchUserMiddlewareFor :: forall user normalizedModel.
     ( normalizedModel ~ NormalizeModel user
     , Typeable normalizedModel
     , Table normalizedModel
-    , FromRow normalizedModel
+    , FromRowHasql normalizedModel
     , PrimaryKey (GetTableName normalizedModel) ~ UUID
     , GetTableName normalizedModel ~ GetTableName user
     , FilterPrimaryKey (GetTableName normalizedModel)
@@ -168,7 +169,7 @@ authMiddleware :: forall user normalizedModel.
     , normalizedModel ~ CurrentUserRecord
     , Typeable normalizedModel
     , Table normalizedModel
-    , FromRow normalizedModel
+    , FromRowHasql normalizedModel
     , PrimaryKey (GetTableName normalizedModel) ~ UUID
     , GetTableName normalizedModel ~ GetTableName user
     , FilterPrimaryKey (GetTableName normalizedModel)
@@ -189,7 +190,7 @@ adminAuthMiddleware :: forall admin normalizedModel.
     , normalizedModel ~ CurrentAdminRecord
     , Typeable normalizedModel
     , Table normalizedModel
-    , FromRow normalizedModel
+    , FromRowHasql normalizedModel
     , PrimaryKey (GetTableName normalizedModel) ~ UUID
     , GetTableName normalizedModel ~ GetTableName admin
     , FilterPrimaryKey (GetTableName normalizedModel)

@@ -41,7 +41,7 @@ import qualified Data.UUID as UUID
 -- Reads from the WAI request vault, populated by 'authMiddleware'.
 --
 -- Requires @AuthMiddleware (authMiddleware \@User)@ in Config.hs.
-currentUserOrNothing :: forall user. (?request :: Wai.Request, user ~ CurrentUserRecord, Typeable user) => Maybe user
+currentUserOrNothing :: forall user. (?request :: Request, user ~ CurrentUserRecord, Typeable user) => Maybe user
 currentUserOrNothing = lookupAuthVault currentUserVaultKey ?request
 {-# INLINE currentUserOrNothing #-}
 
@@ -68,7 +68,7 @@ ensureIsUser =
 -- This only requires 'userIdMiddleware', no database query is needed.
 --
 -- > userId <- currentUserIdOrNothing
-currentUserIdOrNothing :: (?request :: Wai.Request, ModelSupport.PrimaryKey (ModelSupport.GetTableName CurrentUserRecord) ~ UUID) => Maybe (ModelSupport.Id CurrentUserRecord)
+currentUserIdOrNothing :: (?request :: Request, ModelSupport.PrimaryKey (ModelSupport.GetTableName CurrentUserRecord) ~ UUID) => Maybe (ModelSupport.Id CurrentUserRecord)
 currentUserIdOrNothing = ModelSupport.Id <$> lookupAuthVault currentUserIdVaultKey ?request
 {-# INLINE currentUserIdOrNothing #-}
 
@@ -77,7 +77,7 @@ currentUserIdOrNothing = ModelSupport.Id <$> lookupAuthVault currentUserIdVaultK
 -- Reads from the WAI request vault, populated by 'authMiddleware'.
 --
 -- Requires @AdminAuthMiddleware (adminAuthMiddleware \@Admin)@ in Config.hs.
-currentAdminOrNothing :: forall admin. (?request :: Wai.Request, admin ~ CurrentAdminRecord, Typeable admin) => Maybe admin
+currentAdminOrNothing :: forall admin. (?request :: Request, admin ~ CurrentAdminRecord, Typeable admin) => Maybe admin
 currentAdminOrNothing = lookupAuthVault currentAdminVaultKey ?request
 {-# INLINE currentAdminOrNothing #-}
 
@@ -94,7 +94,7 @@ currentAdminId = (currentAdmin @admin).id
 -- | Returns the current admin's UUID or 'Nothing' if not logged in.
 --
 -- This only requires 'adminIdMiddleware', no database query is needed.
-currentAdminIdOrNothing :: (?request :: Wai.Request, ModelSupport.PrimaryKey (ModelSupport.GetTableName CurrentAdminRecord) ~ UUID) => Maybe (ModelSupport.Id CurrentAdminRecord)
+currentAdminIdOrNothing :: (?request :: Request, ModelSupport.PrimaryKey (ModelSupport.GetTableName CurrentAdminRecord) ~ UUID) => Maybe (ModelSupport.Id CurrentAdminRecord)
 currentAdminIdOrNothing = ModelSupport.Id <$> lookupAuthVault currentAdminIdVaultKey ?request
 {-# INLINE currentAdminIdOrNothing #-}
 
