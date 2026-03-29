@@ -47,6 +47,7 @@ module IHP.Prelude
 , module GHC.Stack
 , module Data.Kind
 , type (~)
+, Vector
 , OsPath
 , textToOsPath
 , osPathToText
@@ -89,6 +90,7 @@ import NeatInterpolation (trimming)
 import GHC.Stack (HasCallStack, CallStack)
 import Data.Kind (Type)
 import Data.Type.Equality (type (~))
+import Data.Vector (Vector)
 import System.OsPath (OsPath)
 import qualified System.OsPath as OsPath
 import System.IO.Unsafe (unsafePerformIO)
