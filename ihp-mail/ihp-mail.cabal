@@ -58,7 +58,7 @@ library
         , smtp-mail
         , http-client
         , http-client-tls
-        , blaze-html
+        , ihp-hsx
         , text
         , bytestring
         , network

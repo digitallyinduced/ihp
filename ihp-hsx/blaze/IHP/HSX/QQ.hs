@@ -15,6 +15,8 @@ module IHP.HSX.QQ
 import           Prelude
 import Data.Text (Text)
 import           IHP.HSX.Parser
+import           IHP.HSX.QQCompiler (Part(..))
+import qualified IHP.HSX.QQCompiler as QQ
 import qualified "template-haskell" Language.Haskell.TH           as TH
 import qualified "template-haskell" Language.Haskell.TH.Syntax           as TH
 import           Language.Haskell.TH.Quote
@@ -23,54 +25,38 @@ import Text.Blaze.Html (Html)
 import Text.Blaze.Internal (MarkupM (Parent, Leaf), StaticString (..), unsafeByteString, textComment, attribute, (!))
 import Data.String.Conversions
 import IHP.HSX.ToHtml
-import qualified Text.Megaparsec as Megaparsec
 import qualified Text.Blaze.Html.Renderer.String as BlazeString
 import qualified Data.Text as Text
 import qualified Data.Text.Encoding as Text
+import Data.ByteString (ByteString)
 import IHP.HSX.Attribute
 import qualified Data.Set as Set
 
 hsx :: QuasiQuoter
-hsx = customHsx
+hsx = QQ.hsxQuasiQuoter
         (HsxSettings
             { checkMarkup = True
             , additionalTagNames = Set.empty
             , additionalAttributeNames = Set.empty
             }
         )
+        compileToHaskell
 
 uncheckedHsx :: QuasiQuoter
-uncheckedHsx = customHsx
+uncheckedHsx = QQ.hsxQuasiQuoter
         (HsxSettings
             { checkMarkup = False
             , additionalTagNames = Set.empty
             , additionalAttributeNames = Set.empty
             }
         )
+        compileToHaskell
 
 customHsx :: HsxSettings -> QuasiQuoter
-customHsx settings =
-    QuasiQuoter
-        { quoteExp = quoteHsxExpression settings
-        , quotePat = error "quotePat: not defined"
-        , quoteDec = error "quoteDec: not defined"
-        , quoteType = error "quoteType: not defined"
-        }
+customHsx settings = QQ.hsxQuasiQuoter settings compileToHaskell
 
 quoteHsxExpression :: HsxSettings -> String -> TH.ExpQ
-quoteHsxExpression settings code = do
-        hsxPosition <- findHSXPosition
-        extensions <- TH.extsEnabled
-        expression <- case parseHsx settings hsxPosition extensions (cs code) of
-                Left error   -> fail (Megaparsec.errorBundlePretty error)
-                Right result -> pure result
-        compileToHaskell expression
-    where
-
-        findHSXPosition = do
-            loc <- TH.location
-            let (line, col) = TH.loc_start loc
-            pure $ Megaparsec.SourcePos (TH.loc_filename loc) (Megaparsec.mkPos line) (Megaparsec.mkPos col)
+quoteHsxExpression settings = QQ.quoteHsxExpression settings compileToHaskell
 
 compileToHaskell :: Node -> TH.ExpQ
 -- Pre-render fully static subtrees to a single unsafeByteString at compile time
@@ -81,14 +67,14 @@ compileToHaskell node
 -- Elements with only static attributes: flatten to Parts for merging
 compileToHaskell (Node name attributes children isLeaf)
     | all isStaticAttribute attributes =
-        emitParts (flattenNode name attributes children isLeaf)
+        QQ.emitParts rawEmit (flattenNode name attributes children isLeaf)
     | otherwise =
         -- Has dynamic/spread attributes: use Parent/Leaf + AddAttribute
         let element = if isLeaf then makeLeaf name else makeParentEl name
         in if isLeaf
             then applyDynAttrs element attributes
-            else applyDynAttrs [| $element $(compileChildList children) |] attributes
-compileToHaskell (Children children) = compileChildList children
+            else applyDynAttrs [| $element $(QQ.compileChildList compileToHaskell rawEmit children) |] attributes
+compileToHaskell (Children children) = QQ.compileChildList compileToHaskell rawEmit children
 compileToHaskell (TextNode value) =
     let bs = Text.encodeUtf8 value
     in [| unsafeByteString $(TH.lift bs) |]
@@ -99,8 +85,8 @@ compileToHaskell (SplicedNode expression) = [| toHtml $(pure expression) |]
 compileToHaskell (CommentNode value) = [| textComment value |]
 compileToHaskell (NoRenderCommentNode) = [| mempty |]
 
--- | A part is either static text (merged at compile time) or a dynamic expression.
-data Part = S !Text | D TH.ExpQ
+rawEmit :: ByteString -> TH.ExpQ
+rawEmit bs = [| unsafeByteString $(TH.lift bs) |]
 
 -- | Flatten a static-attribute node into parts, recursing into children.
 -- Adjacent static parts are merged into single ByteString literals.
@@ -123,92 +109,12 @@ flattenChild (Node name attributes children isLeaf)
     | otherwise = [D (compileToHaskell (Node name attributes children isLeaf))]
 flattenChild node = [S (renderStaticHtml node)]
 
--- | Merge adjacent S parts and emit as a chain of @<>@.
-emitParts :: [Part] -> TH.ExpQ
-emitParts parts = case mergeParts parts of
-    []      -> [| mempty |]
-    [single] -> single
-    exprs   -> foldl1 (\a b -> [| $a <> $b |]) exprs
-  where
-    mergeParts [] = []
-    mergeParts (S a : S b : rest) = mergeParts (S (a <> b) : rest)
-    mergeParts (S t : rest) = let bs = Text.encodeUtf8 t in [| unsafeByteString $(TH.lift bs) |] : mergeParts rest
-    mergeParts (D e : rest) = e : mergeParts rest
-
 -- | Apply dynamic attributes to an element using the AddAttribute approach.
 applyDynAttrs :: TH.ExpQ -> [Attribute] -> TH.ExpQ
 applyDynAttrs element [] = element
 applyDynAttrs element attributes =
     let stringAttributes = TH.listE $ map toStringAttribute attributes
     in [| applyAttributes $element $stringAttributes |]
-
--- | Compile a child list to a single expression.
-compileChildList :: [Node] -> TH.ExpQ
-compileChildList children = case compileChildren children of
-    []      -> [| mempty |]
-    [single] -> single
-    compiled -> let xs = TH.listE compiled in [| mconcat $xs |]
-
--- | Returns True if the entire subtree is static (no dynamic content).
-isStaticTree :: Node -> Bool
-isStaticTree (Node _ attributes children _) =
-    all isStaticAttribute attributes && all isStaticTree children
-isStaticTree (TextNode _)          = True
-isStaticTree (PreEscapedTextNode _) = True
-isStaticTree (SplicedNode _)       = False
-isStaticTree (Children children)   = all isStaticTree children
-isStaticTree (CommentNode _)       = True
-isStaticTree (NoRenderCommentNode) = True
-
-isStaticAttribute :: Attribute -> Bool
-isStaticAttribute (StaticAttribute _ (TextValue _))      = True
-isStaticAttribute (StaticAttribute _ (ExpressionValue _)) = False
-isStaticAttribute (SpreadAttributes _)                    = False
-
--- | Returns True if a node is worth pre-rendering.
--- Bare TextNode/PreEscapedTextNode already compile to unsafeByteString.
-isNonTrivialStaticNode :: Node -> Bool
-isNonTrivialStaticNode (TextNode _)          = False
-isNonTrivialStaticNode (PreEscapedTextNode _) = False
-isNonTrivialStaticNode (NoRenderCommentNode) = False
-isNonTrivialStaticNode _                     = True
-
--- | Render a static Node tree to HTML Text at compile time.
-renderStaticHtml :: Node -> Text
-renderStaticHtml (Node "!DOCTYPE" _ _ _) = "<!DOCTYPE HTML>\n"
-renderStaticHtml (Node name attributes children isLeaf) =
-    let openTag = "<" <> name <> foldMap renderStaticAttribute attributes <> ">"
-    in if isLeaf
-        then openTag
-        else openTag <> foldMap renderStaticHtml children <> "</" <> name <> ">"
-renderStaticHtml (TextNode value)          = value
-renderStaticHtml (PreEscapedTextNode value) = value
-renderStaticHtml (SplicedNode _)           = error "renderStaticHtml: unexpected SplicedNode"
-renderStaticHtml (Children children)       = foldMap renderStaticHtml children
-renderStaticHtml (CommentNode value)       = "<!-- " <> value <> " -->"
-renderStaticHtml (NoRenderCommentNode)     = ""
-
-renderStaticAttribute :: Attribute -> Text
-renderStaticAttribute (StaticAttribute name (TextValue value)) =
-    " " <> name <> "=\"" <> value <> "\""
-renderStaticAttribute _ = error "renderStaticAttribute: unexpected dynamic attribute"
-
--- | Compile a list of children, coalescing adjacent static siblings
--- into single unsafeByteString chunks.
-compileChildren :: [Node] -> [TH.ExpQ]
-compileChildren [] = []
-compileChildren nodes =
-    case span isStaticTree nodes of
-        -- Leading dynamic node: compile it, continue
-        ([], x:xs) -> compileToHaskell x : compileChildren xs
-        -- Leading static batch worth coalescing
-        (statics, rest)
-            | any isNonTrivialStaticNode statics ->
-                let bs = Text.encodeUtf8 (foldMap renderStaticHtml statics)
-                in [| unsafeByteString $(TH.lift bs) |] : compileChildren rest
-            -- Trivial statics (bare text nodes): compile individually
-            | otherwise ->
-                map compileToHaskell statics ++ compileChildren rest
 
 -- | Create a Parent element for the AddAttribute approach.
 makeParentEl :: Text -> TH.ExpQ

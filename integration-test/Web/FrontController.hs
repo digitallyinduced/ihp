@@ -8,7 +8,7 @@ import Web.Types
 import Web.Routes ()
 import Web.Controller.Posts ()
 import Web.Job.UpdatePostViews ()
-import Text.Blaze.Html (Html)
+import IHP.HSX.Markup (Html)
 
 instance FrontController WebApplication where
     controllers = [ parseRoute @PostsController ]

@@ -4,15 +4,13 @@ import ClassyPrelude
 import Network.Wai (responseLBS, responseBuilder, responseFile)
 import Network.HTTP.Types (Status, status200, status406)
 import Network.HTTP.Types.Header
-import qualified Data.ByteString.Lazy
 import qualified IHP.ViewSupport as ViewSupport
 import qualified Data.Aeson
 import IHP.ControllerSupport
 import qualified Network.HTTP.Media as Accept
 
 
-import qualified Text.Blaze.Html.Renderer.Utf8 as Blaze
-import Text.Blaze.Html (Html)
+import IHP.HSX.Markup (Markup, MarkupM(..))
 import qualified IHP.Controller.Context as Context
 import IHP.Controller.Layout
 import IHP.FlashMessages (consumeFlashMessagesMiddleware)
@@ -21,23 +19,19 @@ renderPlain :: (?request :: Request, ?respond :: Respond) => LByteString -> IO R
 renderPlain text = respondWith $ responseLBS status200 [(hContentType, "text/plain")] text
 {-# INLINE renderPlain #-}
 
-respondHtml :: (?request :: Request, ?respond :: Respond) => Html -> IO ResponseReceived
-respondHtml html = do
-        let !bs = Blaze.renderHtml html
-        -- We force the full evaluation of the blaze html to catch any runtime errors
-        -- with the IHP error middleware. Without this, certain thunks might only cause
-        -- an error when warp is building the response string. But then it's already too
-        -- late to catch the exception and the user will only get the default warp error
-        -- message instead of our nice IHP error message design.
-        _ <- evaluate (Data.ByteString.Lazy.length bs)
-        respondWith $ responseLBS status200 [(hContentType, "text/html; charset=utf-8"), (hConnection, "keep-alive")] bs
+respondHtml :: (?request :: Request, ?respond :: Respond) => Markup -> IO ResponseReceived
+respondHtml (Markup builder) = do
+        -- Pass the Builder directly to WAI, avoiding the intermediate lazy
+        -- ByteString allocation that responseLBS would require.
+        respondWith $ responseBuilder status200 [(hContentType, "text/html; charset=utf-8"), (hConnection, "keep-alive")] builder
 {-# INLINE respondHtml #-}
 
-respondSvg :: (?request :: Request, ?respond :: Respond) => Html -> IO ResponseReceived
-respondSvg html = respondWith $ responseBuilder status200 [(hContentType, "image/svg+xml"), (hConnection, "keep-alive")] (Blaze.renderHtmlBuilder html)
+respondSvg :: (?request :: Request, ?respond :: Respond) => Markup -> IO ResponseReceived
+respondSvg (Markup builder) =
+        respondWith $ responseBuilder status200 [(hContentType, "image/svg+xml"), (hConnection, "keep-alive")] builder
 {-# INLINABLE respondSvg #-}
 
-renderHtml :: forall view. (ViewSupport.View view, ?context :: ControllerContext, ?request :: Request) => view -> IO Html
+renderHtml :: forall view. (ViewSupport.View view, ?context :: ControllerContext, ?request :: Request) => view -> IO Markup
 renderHtml !view = do
     let ?view = view
     ViewSupport.beforeRender view

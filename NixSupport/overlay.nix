@@ -46,37 +46,37 @@ let
         in {
             ihp = localPackage "ihp";
             ihp-with-docs = localPackageWithHaddock "ihp";
-            ihp-context = hackageOrLocal "ihp-context";
-            ihp-pagehead = hackageOrLocal "ihp-pagehead";
-            ihp-log = hackageOrLocal "ihp-log";
-            ihp-pglistener = hackageOrLocal "ihp-pglistener";
-            ihp-modal = hackageOrLocal "ihp-modal";
+            ihp-context = localPackage "ihp-context";
+            ihp-pagehead = localPackage "ihp-pagehead";
+            ihp-log = localPackage "ihp-log";
+            ihp-pglistener = localPackage "ihp-pglistener";
+            ihp-modal = localPackage "ihp-modal";
             ihp-ide = localPackage "ihp-ide";
-            ihp-schema-compiler = hackageOrLocal "ihp-schema-compiler";
-            ihp-postgres-parser = hackageOrLocal "ihp-postgres-parser";
-            ihp-mail = hackageOrLocal "ihp-mail";
+            ihp-schema-compiler = localPackage "ihp-schema-compiler";
+            ihp-postgres-parser = localPackage "ihp-postgres-parser";
+            ihp-mail = localPackage "ihp-mail";
             ihp-migrate = (localPackage "ihp-migrate").overrideAttrs (old: { mainProgram = "migrate"; });
             ihp-openai = localPackage "ihp-openai";
-            ihp-ssc = hackageOrLocal "ihp-ssc";
+            ihp-ssc = localPackage "ihp-ssc";
             ihp-zip = fastBuild ((super.callCabal2nix "ihp-zip" (final.fetchFromGitHub { owner = "digitallyinduced"; repo = "ihp-zip"; rev = "1c0d812d12d21269f83d6480a6ec7a8cdd054485"; sha256 = "0y0dj8ggi1jqzy74i0d6k9my8kdvfi516zfgnsl7znicwq9laald"; }) {}).overrideAttrs (old: {
               postPatch = (old.postPatch or "") + ''
                 sed -i 's/(?context :: ControllerContext)/(?context :: ControllerContext, ?request :: Request, ?respond :: Respond)/' IHP/Zip/ControllerFunctions.hs
               '';
             }));
             ihp-hsx = localPackage "ihp-hsx";
-            ihp-graphql = hackageOrLocal "ihp-graphql";
-            ihp-datasync-typescript = hackageOrLocal "ihp-datasync-typescript";
-            ihp-sitemap = hackageOrLocal "ihp-sitemap";
-            ihp-typed-sql = hackageOrLocal "ihp-typed-sql";
-            ihp-datasync = hackageOrLocal "ihp-datasync";
-            ihp-job-dashboard = hackageOrLocal "ihp-job-dashboard";
-            wai-asset-path = hackageOrLocal "wai-asset-path";
-            wai-flash-messages = hackageOrLocal "wai-flash-messages";
-            wai-request-params = hackageOrLocal "wai-request-params";
-            wai-early-return = hackageOrLocal "wai-early-return";
-            ihp-imagemagick = hackageOrLocal "ihp-imagemagick";
-            ihp-hspec = hackageOrLocal "ihp-hspec";
-            ihp-welcome = hackageOrLocal "ihp-welcome";
+            ihp-graphql = localPackage "ihp-graphql";
+            ihp-datasync-typescript = localPackage "ihp-datasync-typescript";
+            ihp-sitemap = localPackage "ihp-sitemap";
+            ihp-typed-sql = localPackage "ihp-typed-sql";
+            ihp-datasync = localPackage "ihp-datasync";
+            ihp-job-dashboard = localPackage "ihp-job-dashboard";
+            wai-asset-path = localPackage "wai-asset-path";
+            wai-flash-messages = localPackage "wai-flash-messages";
+            wai-request-params = localPackage "wai-request-params";
+            wai-early-return = localPackage "wai-early-return";
+            ihp-imagemagick = localPackage "ihp-imagemagick";
+            ihp-hspec = localPackage "ihp-hspec";
+            ihp-welcome = localPackage "ihp-welcome";
 
             # Forks of wai-session / wai-session-clientsession with deferred
             # session decryption and optional Set-Cookie (Maybe ByteString).

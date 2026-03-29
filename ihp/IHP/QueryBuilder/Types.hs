@@ -37,7 +37,7 @@ module IHP.QueryBuilder.Types
 
 import IHP.Prelude
 import IHP.ModelSupport
-import IHP.HSX.ToHtml
+import IHP.HSX.Markup (ToHtml(..))
 import qualified Control.DeepSeq as DeepSeq
 import qualified GHC.Generics
 import qualified Hasql.Encoders as Encoders
