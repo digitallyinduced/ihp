@@ -22,7 +22,7 @@ import qualified Network.Mail.Mime.SES                as Mailer
 import qualified Network.Mail.SMTP                    as SMTP
 import qualified Network.HTTP.Client
 import qualified Network.HTTP.Client.TLS
-import IHP.HSX.Markup (Markup, renderMarkup)
+import IHP.HSX.Markup (Markup, renderMarkup, renderMarkupText)
 import qualified Data.Text as Text
 import Data.Maybe
 import qualified Data.TMap as TMap
@@ -153,7 +153,7 @@ class BuildMail mail where
 
     -- | When no plain text version of the email is specified it falls back to using the html version but striping out all the html tags
     text :: (?context :: context, ConfigProvider context) => mail -> Text
-    text mail = stripTags (cs $ renderMarkup (html mail))
+    text mail = stripTags (renderMarkupText (html mail))
 
     -- | Optional, mail attachments
     --

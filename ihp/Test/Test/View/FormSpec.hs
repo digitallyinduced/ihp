@@ -7,14 +7,11 @@ module Test.View.FormSpec where
 import Test.Hspec
 import IHP.FrameworkConfig as FrameworkConfig
 import Wai.Request.Params.Middleware (RequestBody (..))
-import IHP.HSX.Markup (Markup, renderMarkup)
-import qualified Data.Text.Encoding as TE
-import qualified Data.ByteString.Lazy as LBS
+import IHP.HSX.Markup (Markup, renderMarkupText)
 import IHP.ModelSupport
 import Data.Bits ((.|.))
 import qualified Network.Wai as Wai
 import IHP.ViewPrelude
-import qualified Data.Text.Lazy as LT
 import qualified Data.Vault.Lazy as Vault
 import qualified IHP.RequestVault
 import qualified Data.TMap as TypeMap
@@ -61,8 +58,7 @@ tests = do
                 
                 -- The date input should have value="" (not omit the value attribute)
                 -- This is necessary for HTML5 required validation to work properly
-                let rendered = renderMarkupLT form
-                let renderedText = LT.toStrict rendered
+                let renderedText = renderMarkupText form
                 renderedText `shouldSatisfy` (\t -> "type=\"date\"" `isInfixOf` t)
                 renderedText `shouldSatisfy` (\t -> "required=\"required\"" `isInfixOf` t)
                 renderedText `shouldSatisfy` (\t -> "value=\"\"" `isInfixOf` t)
@@ -78,16 +74,12 @@ tests = do
                 |]
                 
                 -- The datetime input should have value="" (not omit the value attribute)
-                let rendered = renderMarkupLT form
-                let renderedText = LT.toStrict rendered
+                let renderedText = renderMarkupText form
                 renderedText `shouldSatisfy` (\t -> "type=\"datetime-local\"" `isInfixOf` t)
                 renderedText `shouldSatisfy` (\t -> "required=\"required\"" `isInfixOf` t)
                 renderedText `shouldSatisfy` (\t -> "value=\"\"" `isInfixOf` t)
 
-shouldRenderTo renderFunction expectedHtml = renderMarkupLT renderFunction `shouldBe` expectedHtml
-
-renderMarkupLT :: Markup -> LT.Text
-renderMarkupLT = LT.fromStrict . TE.decodeUtf8 . LBS.toStrict . renderMarkup
+shouldRenderTo renderFunction expectedHtml = renderMarkupText renderFunction `shouldBe` expectedHtml
 
 createControllerContext :: IO ControllerContext
 createControllerContext = do

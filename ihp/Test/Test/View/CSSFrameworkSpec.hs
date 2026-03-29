@@ -12,8 +12,7 @@ import Wai.Request.Params.Middleware (RequestBody (..))
 import IHP.View.Types
 import IHP.View.CSSFramework
 import Network.Wai.Middleware.FlashMessages (FlashMessage (..))
-import IHP.HSX.Markup (Markup, renderMarkup)
-import qualified Data.ByteString.Lazy as LBS
+import IHP.HSX.Markup (Markup, renderMarkupText)
 import IHP.ModelSupport
 import IHP.Breadcrumb.ViewFunctions (breadcrumbLinkExternal, breadcrumbText, renderBreadcrumb)
 import IHP.Pagination.Types
@@ -321,7 +320,7 @@ tests = do
                             , itemsPerPageSelector = mempty
                             }
 
-                    let render = renderMarkupLT $ styledPagination cssFramework cssFramework paginationView
+                    let render = renderMarkupText $ styledPagination cssFramework cssFramework paginationView
                     Text.isInfixOf "<div class=\"d-flex justify-content-md-center\">" (cs render) `shouldBe` True
 
                 it "should render the pagination if there are enough elements" do
@@ -336,7 +335,7 @@ tests = do
                     let ?context = context
                     let ?request = ?context.request
 
-                    let render = renderMarkupLT $ renderPagination pagination
+                    let render = renderMarkupText $ renderPagination pagination
                     Text.isInfixOf "<nav aria-label=\"Page Navigator\"" (cs render) `shouldBe` True
 
 
@@ -620,7 +619,7 @@ tests = do
                             , itemsPerPageSelector = mempty
                             }
 
-                    let render = renderMarkupLT $ styledPagination cssFramework cssFramework paginationView
+                    let render = renderMarkupText $ styledPagination cssFramework cssFramework paginationView
                     Text.isInfixOf "<div class=\"d-flex justify-content-md-center\">" (cs render) `shouldBe` True
 
                 it "should render the pagination if there are enough elements" do
@@ -635,7 +634,7 @@ tests = do
                     let ?context = context
                     let ?request = ?context.request
 
-                    let render = renderMarkupLT $ renderPagination pagination
+                    let render = renderMarkupText $ renderPagination pagination
                     Text.isInfixOf "<nav aria-label=\"Page Navigator\"" (cs render) `shouldBe` True
 
 
@@ -715,10 +714,7 @@ tests = do
 
 
 
-shouldRenderTo renderFunction expectedHtml = renderMarkupLT renderFunction `shouldBe` expectedHtml
-
-renderMarkupLT :: Markup -> LText
-renderMarkupLT = cs . LBS.toStrict . renderMarkup
+shouldRenderTo renderFunction expectedHtml = renderMarkupText renderFunction `shouldBe` expectedHtml
 
 {-| Mock a Controller context with CSSFramework.
 -}

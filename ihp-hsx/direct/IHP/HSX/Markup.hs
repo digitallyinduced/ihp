@@ -12,6 +12,7 @@ module IHP.HSX.Markup
 , Html
 , renderMarkup
 , renderMarkupBS
+, renderMarkupText
 , rawByteString
 , escapeHtml
 , textComment
@@ -102,6 +103,11 @@ renderMarkupBS :: Markup -> ByteString
 renderMarkupBS (Markup b) = LBS.toStrict
     $ Extra.toLazyByteStringWith (Extra.untrimmedStrategy 32768 32768) LBS.empty b
 {-# INLINE renderMarkupBS #-}
+
+-- | Render markup to a lazy Text. Useful in tests and for mail rendering.
+renderMarkupText :: Markup -> Text
+renderMarkupText = TE.decodeUtf8 . renderMarkupBS
+{-# INLINE renderMarkupText #-}
 
 -- | Emit pre-encoded bytes. Used for compile-time static HTML.
 rawByteString :: ByteString -> Markup
