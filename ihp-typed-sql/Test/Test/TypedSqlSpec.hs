@@ -269,7 +269,7 @@ tests = do
                 "[typedSql| SELECT p.c FROM (SELECT count(*) AS c FROM typed_sql_test_items) AS p |]")
 
         compilePassTest "SUM through subquery alias remains Maybe"
-            (mkTestModule "TypedQuery (Maybe Int)"
+            (mkTestModule "TypedQuery (Maybe Integer)"
                 "[typedSql| SELECT p.s FROM (SELECT sum(views) AS s FROM typed_sql_test_items) AS p |]")
 
         compilePassTest "COUNT through CTE inferred as Integer"
