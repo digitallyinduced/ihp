@@ -12,7 +12,7 @@ import Wai.Request.Params.Middleware (RequestBody (..))
 import IHP.View.Types
 import IHP.View.CSSFramework
 import Network.Wai.Middleware.FlashMessages (FlashMessage (..))
-import IHP.HSX.Markup (Markup, renderMarkupText)
+import IHP.HSX.Markup (renderMarkupText)
 import IHP.ModelSupport
 import IHP.Breadcrumb.ViewFunctions (breadcrumbLinkExternal, breadcrumbText, renderBreadcrumb)
 import IHP.Pagination.Types

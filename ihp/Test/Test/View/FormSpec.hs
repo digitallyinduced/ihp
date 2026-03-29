@@ -7,7 +7,7 @@ module Test.View.FormSpec where
 import Test.Hspec
 import IHP.FrameworkConfig as FrameworkConfig
 import Wai.Request.Params.Middleware (RequestBody (..))
-import IHP.HSX.Markup (Markup, renderMarkupText)
+import IHP.HSX.Markup (renderMarkupText)
 import IHP.ModelSupport
 import Data.Bits ((.|.))
 import qualified Network.Wai as Wai
