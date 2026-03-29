@@ -59,6 +59,11 @@ createNotificationFunction :: Text -> RLS.TableWithRLS -> Text
 createNotificationFunction uuidFunction table = [i|
     DO $$
     BEGIN
+        -- Serialize concurrent trigger installation for the same table across
+        -- multiple server processes. Without this, concurrent CREATE OR REPLACE
+        -- FUNCTION calls cause "tuple concurrently updated" errors (XX000).
+        PERFORM pg_advisory_xact_lock(hashtext('ihp_datasync_install_' || '#{tableName}'));
+
         -- Always update the function body. CREATE OR REPLACE FUNCTION only locks
         -- the function in pg_proc, not the table, so this is safe to run
         -- unconditionally and ensures the function stays up to date.
