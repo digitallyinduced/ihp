@@ -9,7 +9,8 @@ import           IHP.ModelSupport                  (createModelContext,
                                                     releaseModelContext,
                                                     sqlExecDiscardResult)
 import           IHP.Prelude
-import           IHP.TypedSql.ParamHints           (parseSql, extractJoinNullableTables)
+import           IHP.TypedSql.ParamHints           (parseSql, extractJoinNullableTables,
+                                                    extractNonNullableComputedColumnsFromAst)
 import           System.Directory                  (doesFileExist,
                                                     getCurrentDirectory)
 import           System.Environment                (getEnvironment, lookupEnv)
@@ -100,18 +101,18 @@ tests = do
                 "[typedSql| SELECT author_id IS NULL FROM typed_sql_test_items LIMIT 1 |]")
             []
 
-        compileFailTest "fails when COUNT(*) result is annotated as non-Maybe Integer"
-            (mkTestModule "TypedQuery Integer"
+        compileFailTest "fails when COUNT(*) result is annotated as Maybe Integer"
+            (mkTestModule "TypedQuery (Maybe Integer)"
                 "[typedSql| SELECT COUNT(*) FROM typed_sql_test_items |]")
             []
 
-        compileFailTest "fails when COALESCE expression is annotated as non-Maybe Text"
-            (mkTestModule "TypedQuery (Text, Text)"
+        compileFailTest "fails when COALESCE with non-null fallback is annotated as Maybe Text"
+            (mkTestModule "TypedQuery (Maybe Text, Text)"
                 "[typedSql| SELECT COALESCE(i.name, '(no-item)'), a.name FROM typed_sql_test_items i RIGHT JOIN typed_sql_test_authors a ON a.id = i.author_id LIMIT 1 |]")
             []
 
-        compileFailTest "fails when literal expression result is annotated as non-Maybe Int"
-            (mkTestModule "TypedQuery Int"
+        compileFailTest "fails when literal expression result is annotated as Maybe Int"
+            (mkTestModule "TypedQuery (Maybe Int)"
                 "[typedSql| SELECT 1 |]")
             []
 
@@ -125,8 +126,8 @@ tests = do
                 "[typedSql| SELECT CASE WHEN views > 5 THEN name ELSE 'low' END FROM typed_sql_test_items LIMIT 1 |]")
             []
 
-        compileFailTest "fails when EXISTS expression result is annotated as non-Maybe Bool"
-            (mkTestModule "TypedQuery Bool"
+        compileFailTest "fails when EXISTS expression result is annotated as Maybe Bool"
+            (mkTestModule "TypedQuery (Maybe Bool)"
                 "[typedSql| SELECT EXISTS(SELECT 1 FROM typed_sql_test_items WHERE views > 7) |]")
             []
 
@@ -150,13 +151,13 @@ tests = do
                 "[typedSql| SELECT name FROM typed_sql_test_items WHERE views > 6 UNION ALL SELECT name FROM typed_sql_test_items WHERE views < 6 |]")
             []
 
-        compileFailTest "fails when window function result is annotated as non-Maybe Integer"
-            (mkTestModule "TypedQuery Integer"
+        compileFailTest "fails when window function result is annotated as Maybe Integer"
+            (mkTestModule "TypedQuery (Maybe Integer)"
                 "[typedSql| SELECT row_number() OVER (ORDER BY name) FROM typed_sql_test_items LIMIT 1 |]")
             []
 
-        compileFailTest "fails when grouped COUNT(*) result is annotated as non-Maybe Integer"
-            (mkTestModule "TypedQuery (Text, Integer)"
+        compileFailTest "fails when grouped COUNT(*) result is annotated as (Text, Maybe Integer)"
+            (mkTestModule "TypedQuery (Text, Maybe Integer)"
                 "[typedSql| SELECT name, COUNT(*) FROM typed_sql_test_items GROUP BY name ORDER BY name LIMIT 1 |]")
             []
 
@@ -195,16 +196,16 @@ tests = do
             (mkTestModule "TypedQuery (Maybe Bool)"
                 "[typedSql| SELECT author_id IS NULL FROM typed_sql_test_items LIMIT 1 |]")
 
-        compilePassTest "COUNT(*) inferred as Maybe Integer"
-            (mkTestModule "TypedQuery (Maybe Integer)"
+        compilePassTest "COUNT(*) inferred as Integer"
+            (mkTestModule "TypedQuery Integer"
                 "[typedSql| SELECT COUNT(*) FROM typed_sql_test_items |]")
 
-        compilePassTest "COALESCE in RIGHT JOIN inferred as Maybe"
-            (mkTestModule "TypedQuery (Maybe Text, Text)"
+        compilePassTest "COALESCE with non-null fallback inferred as non-Maybe"
+            (mkTestModule "TypedQuery (Text, Text)"
                 "[typedSql| SELECT COALESCE(i.name, '(no-item)'), a.name FROM typed_sql_test_items i RIGHT JOIN typed_sql_test_authors a ON a.id = i.author_id LIMIT 1 |]")
 
-        compilePassTest "literal expression inferred as Maybe Int"
-            (mkTestModule "TypedQuery (Maybe Int)"
+        compilePassTest "literal expression inferred as Int"
+            (mkTestModule "TypedQuery Int"
                 "[typedSql| SELECT 1 |]")
 
         compilePassTest "arithmetic expression inferred as Maybe Int"
@@ -215,8 +216,8 @@ tests = do
             (mkTestModule "TypedQuery (Maybe Text)"
                 "[typedSql| SELECT CASE WHEN views > 5 THEN name ELSE 'low' END FROM typed_sql_test_items LIMIT 1 |]")
 
-        compilePassTest "EXISTS expression inferred as Maybe Bool"
-            (mkTestModule "TypedQuery (Maybe Bool)"
+        compilePassTest "EXISTS expression inferred as Bool"
+            (mkTestModule "TypedQuery Bool"
                 "[typedSql| SELECT EXISTS(SELECT 1 FROM typed_sql_test_items WHERE views > 7) |]")
 
         compilePassTest "NULL literal inferred as Maybe Text"
@@ -235,12 +236,12 @@ tests = do
             (mkTestModule "TypedQuery (Maybe Text)"
                 "[typedSql| SELECT name FROM typed_sql_test_items WHERE views > 6 UNION ALL SELECT name FROM typed_sql_test_items WHERE views < 6 |]")
 
-        compilePassTest "window function inferred as Maybe Integer"
-            (mkTestModule "TypedQuery (Maybe Integer)"
+        compilePassTest "window function inferred as Integer"
+            (mkTestModule "TypedQuery Integer"
                 "[typedSql| SELECT row_number() OVER (ORDER BY name) FROM typed_sql_test_items LIMIT 1 |]")
 
-        compilePassTest "grouped COUNT(*) inferred as (Text, Maybe Integer)"
-            (mkTestModule "TypedQuery (Text, Maybe Integer)"
+        compilePassTest "grouped COUNT(*) inferred as (Text, Integer)"
+            (mkTestModule "TypedQuery (Text, Integer)"
                 "[typedSql| SELECT name, COUNT(*) FROM typed_sql_test_items GROUP BY name ORDER BY name LIMIT 1 |]")
 
         compilePassTest "array literal inferred as Maybe [Text]"
@@ -262,6 +263,18 @@ tests = do
         compilePassTest "INNER JOIN columns are non-Maybe"
             (mkTestModule "TypedQuery (Text, Text)"
                 "[typedSql| SELECT i.name, a.name FROM typed_sql_test_items i INNER JOIN typed_sql_test_authors a ON a.id = i.author_id LIMIT 1 |]")
+
+        compilePassTest "COUNT through subquery alias inferred as Integer"
+            (mkTestModule "TypedQuery Integer"
+                "[typedSql| SELECT p.c FROM (SELECT count(*) AS c FROM typed_sql_test_items) AS p |]")
+
+        compilePassTest "SUM through subquery alias remains Maybe"
+            (mkTestModule "TypedQuery (Maybe Integer)"
+                "[typedSql| SELECT p.s FROM (SELECT sum(views) AS s FROM typed_sql_test_items) AS p |]")
+
+        compilePassTest "COUNT through CTE inferred as Integer"
+            (mkTestModule "TypedQuery Integer"
+                "[typedSql| WITH item_counts AS (SELECT count(*) AS c FROM typed_sql_test_items) SELECT c FROM item_counts |]")
 
     describe "TypedSql macro runtime execution" do
         runtimeTest "executes typedSql queries end-to-end via ghci" runtimeModule
@@ -295,6 +308,74 @@ tests = do
         it "extractJoinNullableTables returns empty for plain FROM" do
             let sql = " SELECT name FROM items LIMIT 1 "
             extractJoinNullableTables sql `shouldBe` Set.empty
+
+        it "extractNonNullableComputedColumns detects count(*)" do
+            let Just ast = parseSql "SELECT count(*) FROM items"
+            extractNonNullableComputedColumnsFromAst ast `shouldBe` Set.fromList [0]
+
+        it "extractNonNullableComputedColumns detects count(expr)" do
+            let Just ast = parseSql "SELECT count(id) FROM items"
+            extractNonNullableComputedColumnsFromAst ast `shouldBe` Set.fromList [0]
+
+        it "extractNonNullableComputedColumns does not mark sum as non-nullable" do
+            let Just ast = parseSql "SELECT sum(x) FROM items"
+            extractNonNullableComputedColumnsFromAst ast `shouldBe` Set.empty
+
+        it "extractNonNullableComputedColumns handles mixed columns" do
+            let Just ast = parseSql "SELECT name, count(*) FROM items GROUP BY name"
+            extractNonNullableComputedColumnsFromAst ast `shouldBe` Set.fromList [1]
+
+        it "extractNonNullableComputedColumns detects count through subquery alias" do
+            let Just ast = parseSql "SELECT p.c FROM (SELECT count(*) AS c FROM items) AS p"
+            extractNonNullableComputedColumnsFromAst ast `shouldBe` Set.fromList [0]
+
+        it "extractNonNullableComputedColumns detects count through CTE" do
+            let Just ast = parseSql "WITH x AS (SELECT count(*) AS c FROM items) SELECT c FROM x"
+            extractNonNullableComputedColumnsFromAst ast `shouldBe` Set.fromList [0]
+
+        it "extractNonNullableComputedColumns does not mark regular columns" do
+            let Just ast = parseSql "SELECT name FROM items"
+            extractNonNullableComputedColumnsFromAst ast `shouldBe` Set.empty
+
+        it "extractNonNullableComputedColumns detects EXISTS" do
+            let Just ast = parseSql "SELECT EXISTS(SELECT 1 FROM items)"
+            extractNonNullableComputedColumnsFromAst ast `shouldBe` Set.fromList [0]
+
+        it "extractNonNullableComputedColumns detects row_number()" do
+            let Just ast = parseSql "SELECT row_number() OVER (ORDER BY name) FROM items"
+            extractNonNullableComputedColumnsFromAst ast `shouldBe` Set.fromList [0]
+
+        it "extractNonNullableComputedColumns detects rank()" do
+            let Just ast = parseSql "SELECT rank() OVER (ORDER BY name) FROM items"
+            extractNonNullableComputedColumnsFromAst ast `shouldBe` Set.fromList [0]
+
+        it "extractNonNullableComputedColumns detects dense_rank()" do
+            let Just ast = parseSql "SELECT dense_rank() OVER (ORDER BY name) FROM items"
+            extractNonNullableComputedColumnsFromAst ast `shouldBe` Set.fromList [0]
+
+        it "extractNonNullableComputedColumns detects non-NULL literals" do
+            let Just ast = parseSql "SELECT 1, 'hello', TRUE"
+            extractNonNullableComputedColumnsFromAst ast `shouldBe` Set.fromList [0, 1, 2]
+
+        it "extractNonNullableComputedColumns does not mark NULL literal" do
+            let Just ast = parseSql "SELECT NULL"
+            extractNonNullableComputedColumnsFromAst ast `shouldBe` Set.empty
+
+        it "extractNonNullableComputedColumns detects COALESCE with non-null arg" do
+            let Just ast = parseSql "SELECT COALESCE(name, 'default') FROM items"
+            extractNonNullableComputedColumnsFromAst ast `shouldBe` Set.fromList [0]
+
+        it "extractNonNullableComputedColumns does not mark COALESCE with all nullable args" do
+            let Just ast = parseSql "SELECT COALESCE(a, b) FROM items"
+            extractNonNullableComputedColumnsFromAst ast `shouldBe` Set.empty
+
+        it "extractNonNullableComputedColumns detects typecast of non-null" do
+            let Just ast = parseSql "SELECT 1::bigint"
+            extractNonNullableComputedColumnsFromAst ast `shouldBe` Set.fromList [0]
+
+        it "extractNonNullableComputedColumns does not mark NULL::text" do
+            let Just ast = parseSql "SELECT NULL::text"
+            extractNonNullableComputedColumnsFromAst ast `shouldBe` Set.empty
 
 -- Test helpers ---------------------------------------------------------------
 
@@ -671,10 +752,10 @@ compilePassModule = Text.unlines
     , "qBoolExpr :: TypedQuery (Maybe Bool)"
     , "qBoolExpr = [typedSql| SELECT author_id IS NULL FROM typed_sql_test_items LIMIT 1 |]"
     , ""
-    , "qCountExpr :: TypedQuery (Maybe Integer)"
+    , "qCountExpr :: TypedQuery Integer"
     , "qCountExpr = [typedSql| SELECT COUNT(*) FROM typed_sql_test_items |]"
     , ""
-    , "qLiteralInt :: TypedQuery (Maybe Int)"
+    , "qLiteralInt :: TypedQuery Int"
     , "qLiteralInt = [typedSql| SELECT 1 |]"
     , ""
     , "qArithmeticExpr :: TypedQuery (Maybe Int)"
@@ -683,7 +764,7 @@ compilePassModule = Text.unlines
     , "qCaseExpr :: TypedQuery (Maybe Text)"
     , "qCaseExpr = [typedSql| SELECT CASE WHEN views > 5 THEN name ELSE 'low' END FROM typed_sql_test_items LIMIT 1 |]"
     , ""
-    , "qExistsExpr :: TypedQuery (Maybe Bool)"
+    , "qExistsExpr :: TypedQuery Bool"
     , "qExistsExpr = [typedSql| SELECT EXISTS(SELECT 1 FROM typed_sql_test_items WHERE views > 7) |]"
     , ""
     , "qNullLiteral :: TypedQuery (Maybe Text)"
@@ -698,10 +779,10 @@ compilePassModule = Text.unlines
     , "qUnion :: TypedQuery (Maybe Text)"
     , "qUnion = [typedSql| SELECT name FROM typed_sql_test_items WHERE views > 6 UNION ALL SELECT name FROM typed_sql_test_items WHERE views < 6 |]"
     , ""
-    , "qWindow :: TypedQuery (Maybe Integer)"
+    , "qWindow :: TypedQuery Integer"
     , "qWindow = [typedSql| SELECT row_number() OVER (ORDER BY name) FROM typed_sql_test_items LIMIT 1 |]"
     , ""
-    , "qGroupedCount :: TypedQuery (Text, Maybe Integer)"
+    , "qGroupedCount :: TypedQuery (Text, Integer)"
     , "qGroupedCount = [typedSql| SELECT name, COUNT(*) FROM typed_sql_test_items GROUP BY name ORDER BY name LIMIT 1 |]"
     , ""
     , "qArrayLiteral :: TypedQuery (Maybe [Text])"
@@ -725,7 +806,7 @@ compilePassModule = Text.unlines
     , "qRightJoin :: TypedQuery (Maybe Text, Text)"
     , "qRightJoin = [typedSql| SELECT i.name, a.name FROM typed_sql_test_items i RIGHT JOIN typed_sql_test_authors a ON a.id = i.author_id LIMIT 1 |]"
     , ""
-    , "qRightJoinCoalesced :: TypedQuery (Maybe Text, Text)"
+    , "qRightJoinCoalesced :: TypedQuery (Text, Text)"
     , "qRightJoinCoalesced = [typedSql| SELECT COALESCE(i.name, '(no-item)'), a.name FROM typed_sql_test_items i RIGHT JOIN typed_sql_test_authors a ON a.id = i.author_id LIMIT 1 |]"
     ]
 
@@ -835,12 +916,12 @@ runtimeModule = Text.unlines
     , ""
     , "        countRows <- sqlQueryTyped [typedSql| SELECT COUNT(*) FROM typed_sql_test_items |]"
     , ""
-    , "        when ((countRows :: [Maybe Integer]) /= [Just 2]) do"
+    , "        when ((countRows :: [Integer]) /= [2]) do"
     , "            error (\"unexpected rows from count query: \" <> show countRows)"
     , ""
     , "        literalRows <- sqlQueryTyped [typedSql| SELECT 1 |]"
     , ""
-    , "        when ((literalRows :: [Maybe Int]) /= [Just 1]) do"
+    , "        when ((literalRows :: [Int]) /= [1]) do"
     , "            error (\"unexpected rows from literal query: \" <> show literalRows)"
     , ""
     , "        arithmeticRows <- sqlQueryTyped [typedSql|"
@@ -862,7 +943,7 @@ runtimeModule = Text.unlines
     , ""
     , "        existsRows <- sqlQueryTyped [typedSql| SELECT EXISTS(SELECT 1 FROM typed_sql_test_items WHERE views > 7) |]"
     , ""
-    , "        when ((existsRows :: [Maybe Bool]) /= [Just True]) do"
+    , "        when ((existsRows :: [Bool]) /= [True]) do"
     , "            error (\"unexpected rows from EXISTS query: \" <> show existsRows)"
     , ""
     , "        nullLiteralRows <- sqlQueryTyped [typedSql| SELECT NULL::text |]"
@@ -902,7 +983,7 @@ runtimeModule = Text.unlines
     , "            ORDER BY name"
     , "        |]"
     , ""
-    , "        when ((windowRows :: [Maybe Integer]) /= [Just 1, Just 2]) do"
+    , "        when ((windowRows :: [Integer]) /= [1, 2]) do"
     , "            error (\"unexpected rows from window function: \" <> show windowRows)"
     , ""
     , "        groupedCountRows <- sqlQueryTyped [typedSql|"
@@ -912,7 +993,7 @@ runtimeModule = Text.unlines
     , "            ORDER BY name"
     , "        |]"
     , ""
-    , "        when ((groupedCountRows :: [(Text, Maybe Integer)]) /= [(\"First\", Just 1), (\"Second\", Just 1)]) do"
+    , "        when ((groupedCountRows :: [(Text, Integer)]) /= [(\"First\", 1), (\"Second\", 1)]) do"
     , "            error (\"unexpected rows from grouped count: \" <> show groupedCountRows)"
     , ""
     , "        arrayLiteralRows <- sqlQueryTyped [typedSql| SELECT ARRAY['x','y']::text[] |]"
@@ -967,7 +1048,7 @@ runtimeModule = Text.unlines
     , "            ORDER BY a.name, i.name NULLS LAST"
     , "        |]"
     , ""
-    , "        when ((rightJoinCoalescedRows :: [(Maybe Text, Text)]) /= [(Just \"First\", \"Alice\"), (Just \"Second\", \"Alice\"), (Just \"(no-item)\", \"Bob\")]) do"
+    , "        when ((rightJoinCoalescedRows :: [(Text, Text)]) /= [(\"First\", \"Alice\"), (\"Second\", \"Alice\"), (\"(no-item)\", \"Bob\")]) do"
     , "            error (\"unexpected rows from right join with COALESCE: \" <> show rightJoinCoalescedRows)"
     , ""
     , "        putStrLn \"RUNTIME_OK\""
@@ -1104,7 +1185,7 @@ runtimeEdgeCasesModule = Text.unlines
     , ""
     , "        -- COUNT on empty table"
     , "        countEmpty <- sqlQueryTyped [typedSql| SELECT COUNT(*) FROM typed_sql_test_items |]"
-    , "        assertTest \"COUNT on empty table\" ((countEmpty :: [Maybe Integer]) == [Just 0])"
+    , "        assertTest \"COUNT on empty table\" ((countEmpty :: [Integer]) == [0])"
     , ""
     , "        -- Re-insert rows for further tests"
     , "        _ <- sqlExecTyped [typedSql|"

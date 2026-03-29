@@ -7,7 +7,7 @@ module IHP.TypedSql.TypeMapping
     , detectFullTable
     ) where
 
-import           Control.Monad            (guard)
+import           Control.Monad            (guard, zipWithM)
 import qualified Data.Aeson               as Aeson
 import qualified Data.ByteString          as BS
 import qualified Data.List                as List
@@ -36,13 +36,13 @@ hsTypeForParam typeInfo oid = maybe (fail (CS.cs unknown)) (hsTypeForPg typeInfo
 
 -- | Build the result type for the described columns.
 -- High-level: pick a model type for table.* or a tuple type for ad-hoc select lists.
-hsTypeForColumns :: Map.Map PQ.Oid PgTypeInfo -> Map.Map PQ.Oid TableMeta -> Set.Set PQ.Oid -> [DescribeColumn] -> TH.TypeQ
-hsTypeForColumns typeInfo tables joinNullableOids cols = do
+hsTypeForColumns :: Map.Map PQ.Oid PgTypeInfo -> Map.Map PQ.Oid TableMeta -> Set.Set PQ.Oid -> Set.Set Int -> [DescribeColumn] -> TH.TypeQ
+hsTypeForColumns typeInfo tables joinNullableOids nonNullableColumns cols = do
     case detectFullTable tables cols of
         Just tableName ->
             pure (TH.ConT (TH.mkName (CS.cs (tableNameToModelName tableName))))
         Nothing -> do
-            hsCols <- mapM (hsTypeForColumn typeInfo tables joinNullableOids) cols
+            hsCols <- zipWithM (\i col -> hsTypeForColumn typeInfo tables joinNullableOids (i `Set.member` nonNullableColumns) col) [0..] cols
             case hsCols of
                 [single] -> pure single
                 _ -> pure $ foldl TH.AppT (TH.TupleT (length hsCols)) hsCols
@@ -69,8 +69,10 @@ detectFullTable tables cols = do
         _ -> Nothing
 
 -- | Map a single column into a Haskell type, with key-aware rules.
-hsTypeForColumn :: Map.Map PQ.Oid PgTypeInfo -> Map.Map PQ.Oid TableMeta -> Set.Set PQ.Oid -> DescribeColumn -> TH.TypeQ
-hsTypeForColumn typeInfo tables joinNullableOids DescribeColumn { dcType, dcTable, dcAttnum } =
+-- The @forceNonNull@ flag overrides the nullable fallback for computed columns
+-- when AST analysis determines the expression is non-nullable (e.g. count()).
+hsTypeForColumn :: Map.Map PQ.Oid PgTypeInfo -> Map.Map PQ.Oid TableMeta -> Set.Set PQ.Oid -> Bool -> DescribeColumn -> TH.TypeQ
+hsTypeForColumn typeInfo tables joinNullableOids forceNonNull DescribeColumn { dcType, dcTable, dcAttnum } =
     case (Map.lookup dcTable tables, dcAttnum) of
         (Just TableMeta { tmName = tableName, tmPrimaryKeys, tmForeignKeys, tmColumns }, Just attnum) -> do
             let baseType = Map.lookup attnum tmColumns >>= \ColumnMeta { cmTypeOid } -> Map.lookup cmTypeOid typeInfo
@@ -90,7 +92,8 @@ hsTypeForColumn typeInfo tables joinNullableOids DescribeColumn { dcType, dcTabl
           where
             missingType = "typedSql: missing type info for column " <> show attnum <> " of table " <> tableName
         _ ->
-            maybe (fail (CS.cs ("typedSql: missing type info for column oid " <> show dcType))) (hsTypeForPg typeInfo True) (Map.lookup dcType typeInfo)
+            let nullable = not forceNonNull
+            in maybe (fail (CS.cs ("typedSql: missing type info for column oid " <> show dcType))) (hsTypeForPg typeInfo nullable) (Map.lookup dcType typeInfo)
 
 -- | Wrap a type in Maybe when nullable.
 wrapNull :: Bool -> TH.Type -> TH.Type
