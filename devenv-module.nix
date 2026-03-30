@@ -61,7 +61,8 @@ that is defined in flake-module.nix
             # Add all ihp-boilerplate packages to the checks
             // (lib.mapAttrs' (n: v: { name = "boilerplate-${n}"; value = v; }) (lib.filterAttrs (n: v: lib.isDerivation v
                         && n != "default"
-                        && n != "unoptimized-docker-image" && n != "optimized-docker-image" # Docker imagee builds are very slow, so we ignore them
+                        && n != "unoptimized-docker-image" && n != "optimized-docker-image" # Docker image builds are very slow, so we ignore them
+                        && n != "unoptimized-docker-image-worker" && n != "optimized-docker-image-worker"
                     ) inputs.ihp-boilerplate.packages.${system}))
 
             # Override checks that need a running PostgreSQL for integration tests
