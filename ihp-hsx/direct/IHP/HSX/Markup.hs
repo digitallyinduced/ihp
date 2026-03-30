@@ -249,11 +249,11 @@ instance AttributeValue Integer where
 
 instance AttributeValue Double where
     {-# INLINE attributeValue #-}
-    attributeValue = Builder.string8 . show
+    attributeValue = Builder.doubleDec
 
 instance AttributeValue Float where
     {-# INLINE attributeValue #-}
-    attributeValue = Builder.string8 . show
+    attributeValue = Builder.floatDec
 
 instance {-# OVERLAPPABLE #-} AttributeValue a => ApplyAttribute a where
     {-# INLINE applyAttribute #-}
