@@ -19,6 +19,7 @@ module IHP.HSX.Markup
 , textComment
 , ToHtml (..)
 , ApplyAttribute (..)
+, AttributeValue (..)
 , spreadAttributes
 -- * Blaze compatibility
 , preEscapedToHtml
@@ -224,9 +225,40 @@ instance ApplyAttribute a => ApplyAttribute (Maybe a) where
     applyAttribute name prefix (Just value) = applyAttribute name prefix value
     applyAttribute _name _prefix Nothing = mempty
 
-instance {-# OVERLAPPABLE #-} Show a => ApplyAttribute a where
+-- | Converts a value to 'Text' for use as an HTML attribute value.
+-- This class serves as an indirection layer (similar to how the Blaze implementation
+-- used 'ConvertibleStrings') so that packages like @ihp@ can provide more specific
+-- instances (e.g. for 'HasPath' action types) that override the concrete type instances.
+class AttributeValue a where
+    attributeValue :: a -> Text
+
+instance AttributeValue Text where
+    {-# INLINE attributeValue #-}
+    attributeValue = id
+
+instance AttributeValue String where
+    {-# INLINE attributeValue #-}
+    attributeValue = Text.pack
+
+instance AttributeValue Int where
+    {-# INLINE attributeValue #-}
+    attributeValue = Text.pack . show
+
+instance AttributeValue Integer where
+    {-# INLINE attributeValue #-}
+    attributeValue = Text.pack . show
+
+instance AttributeValue Double where
+    {-# INLINE attributeValue #-}
+    attributeValue = Text.pack . show
+
+instance AttributeValue Float where
+    {-# INLINE attributeValue #-}
+    attributeValue = Text.pack . show
+
+instance {-# OVERLAPPABLE #-} AttributeValue a => ApplyAttribute a where
     {-# INLINE applyAttribute #-}
-    applyAttribute name prefix value = applyAttribute name prefix (show value)
+    applyAttribute name prefix value = applyAttribute name prefix (attributeValue value)
 
 -- | Apply spread attributes.
 spreadAttributes :: ApplyAttribute value => [(Text, value)] -> Markup
