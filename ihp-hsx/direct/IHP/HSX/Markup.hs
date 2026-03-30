@@ -225,40 +225,40 @@ instance ApplyAttribute a => ApplyAttribute (Maybe a) where
     applyAttribute name prefix (Just value) = applyAttribute name prefix value
     applyAttribute _name _prefix Nothing = mempty
 
--- | Converts a value to 'Text' for use as an HTML attribute value.
--- This class serves as an indirection layer (similar to how the Blaze implementation
--- used 'ConvertibleStrings') so that packages like @ihp@ can provide more specific
--- instances (e.g. for 'HasPath' action types) that override the concrete type instances.
+-- | Converts a value to a 'Builder' for use as an HTML attribute value.
+-- Returns an HTML-escaped ByteString Builder so the result can be spliced
+-- directly into the markup without an intermediate Text allocation.
 class AttributeValue a where
-    attributeValue :: a -> Text
+    attributeValue :: a -> Builder
 
 instance AttributeValue Text where
     {-# INLINE attributeValue #-}
-    attributeValue = id
+    attributeValue = TE.encodeUtf8BuilderEscaped htmlEscapedW8
 
 instance AttributeValue String where
     {-# INLINE attributeValue #-}
-    attributeValue = Text.pack
+    attributeValue = TE.encodeUtf8BuilderEscaped htmlEscapedW8 . Text.pack
 
 instance AttributeValue Int where
     {-# INLINE attributeValue #-}
-    attributeValue = Text.pack . show
+    attributeValue = Builder.intDec
 
 instance AttributeValue Integer where
     {-# INLINE attributeValue #-}
-    attributeValue = Text.pack . show
+    attributeValue = Builder.integerDec
 
 instance AttributeValue Double where
     {-# INLINE attributeValue #-}
-    attributeValue = Text.pack . show
+    attributeValue = Builder.string8 . show
 
 instance AttributeValue Float where
     {-# INLINE attributeValue #-}
-    attributeValue = Text.pack . show
+    attributeValue = Builder.string8 . show
 
 instance {-# OVERLAPPABLE #-} AttributeValue a => ApplyAttribute a where
     {-# INLINE applyAttribute #-}
-    applyAttribute name prefix value = applyAttribute name prefix (attributeValue value)
+    applyAttribute _name prefix value =
+        Markup (TE.encodeUtf8Builder prefix <> attributeValue value <> Builder.char8 '"')
 
 -- | Apply spread attributes.
 spreadAttributes :: ApplyAttribute value => [(Text, value)] -> Markup

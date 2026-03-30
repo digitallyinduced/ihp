@@ -226,7 +226,7 @@ instance InputValue (PrimaryKey table) => ApplyAttribute (Id' table) where
     applyAttribute attr attr' value = applyAttribute attr attr' (inputValue value)
 
 instance {-# OVERLAPPABLE #-} HasPath action => AttributeValue action where
-    attributeValue = pathTo
+    attributeValue = attributeValue . pathTo
 
 instance {-# OVERLAPPABLE #-} HasPath action => Blaze.AttributeValue action where
     attributeValue = pathTo
