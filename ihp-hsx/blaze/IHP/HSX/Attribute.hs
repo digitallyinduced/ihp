@@ -5,44 +5,16 @@ Copyright: (c) digitally induced GmbH, 2023
 -}
 module IHP.HSX.Attribute
 ( ApplyAttribute (..)
-, AttributeValue (..)
 ) where
 
 import Prelude
 import Text.Blaze.Html5 ((!))
 import qualified Text.Blaze.Html5 as Html5
 import Text.Blaze.Internal (attribute, MarkupM (Parent, Leaf), StaticString (..))
+import Data.String.Conversions
 import IHP.HSX.ToHtml
 import qualified Data.Text as Text
 import Data.Text (Text)
-
--- | Converts a value to 'Text' for use as a Blaze HTML attribute value.
-class AttributeValue a where
-    attributeValue :: a -> Text
-
-instance AttributeValue Text where
-    {-# INLINE attributeValue #-}
-    attributeValue = id
-
-instance AttributeValue String where
-    {-# INLINE attributeValue #-}
-    attributeValue = Text.pack
-
-instance AttributeValue Int where
-    {-# INLINE attributeValue #-}
-    attributeValue = Text.pack . show
-
-instance AttributeValue Integer where
-    {-# INLINE attributeValue #-}
-    attributeValue = Text.pack . show
-
-instance AttributeValue Double where
-    {-# INLINE attributeValue #-}
-    attributeValue = Text.pack . show
-
-instance AttributeValue Float where
-    {-# INLINE attributeValue #-}
-    attributeValue = Text.pack . show
 
 class ApplyAttribute value where
     applyAttribute :: Text -> Text -> value -> (Html5.Html -> Html5.Html)
@@ -66,6 +38,6 @@ instance ApplyAttribute Html5.AttributeValue where
     applyAttribute attr attr' value h = h ! (attribute (Html5.textTag attr) (Html5.textTag attr') value)
     {-# INLINE applyAttribute #-}
 
-instance {-# OVERLAPPABLE #-} AttributeValue value => ApplyAttribute value where
-    applyAttribute attr attr' value h = applyAttribute attr attr' (Html5.textValue (attributeValue value)) h
+instance {-# OVERLAPPABLE #-} ConvertibleStrings value Html5.AttributeValue => ApplyAttribute value where
+    applyAttribute attr attr' value h = applyAttribute attr attr' ((cs value) :: Html5.AttributeValue) h
     {-# INLINE applyAttribute #-}
