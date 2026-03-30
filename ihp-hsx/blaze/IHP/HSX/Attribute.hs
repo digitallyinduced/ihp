@@ -11,8 +11,8 @@ import Prelude
 import Text.Blaze.Html5 ((!))
 import qualified Text.Blaze.Html5 as Html5
 import Text.Blaze.Internal (attribute, MarkupM (Parent, Leaf), StaticString (..))
-import Data.String.Conversions
 import IHP.HSX.ToHtml
+import IHP.HSX.Markup (AttributeValue(..))
 import qualified Data.Text as Text
 import Data.Text (Text)
 
@@ -38,6 +38,6 @@ instance ApplyAttribute Html5.AttributeValue where
     applyAttribute attr attr' value h = h ! (attribute (Html5.textTag attr) (Html5.textTag attr') value)
     {-# INLINE applyAttribute #-}
 
-instance {-# OVERLAPPABLE #-} ConvertibleStrings value Html5.AttributeValue => ApplyAttribute value where
-    applyAttribute attr attr' value h = applyAttribute attr attr' ((cs value) :: Html5.AttributeValue) h
+instance {-# OVERLAPPABLE #-} AttributeValue value => ApplyAttribute value where
+    applyAttribute attr attr' value h = applyAttribute attr attr' (Html5.textValue (attributeValue value)) h
     {-# INLINE applyAttribute #-}
