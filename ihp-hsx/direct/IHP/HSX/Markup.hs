@@ -19,6 +19,7 @@ module IHP.HSX.Markup
 , textComment
 , ToHtml (..)
 , ApplyAttribute (..)
+, AttributeValue (..)
 , spreadAttributes
 -- * Blaze compatibility
 , preEscapedToHtml
@@ -224,9 +225,40 @@ instance ApplyAttribute a => ApplyAttribute (Maybe a) where
     applyAttribute name prefix (Just value) = applyAttribute name prefix value
     applyAttribute _name _prefix Nothing = mempty
 
-instance {-# OVERLAPPABLE #-} Show a => ApplyAttribute a where
+-- | Converts a value to a 'Builder' for use as an HTML attribute value.
+-- Returns an HTML-escaped ByteString Builder so the result can be spliced
+-- directly into the markup without an intermediate Text allocation.
+class AttributeValue a where
+    attributeValue :: a -> Builder
+
+instance AttributeValue Text where
+    {-# INLINE attributeValue #-}
+    attributeValue = TE.encodeUtf8BuilderEscaped htmlEscapedW8
+
+instance AttributeValue String where
+    {-# INLINE attributeValue #-}
+    attributeValue = TE.encodeUtf8BuilderEscaped htmlEscapedW8 . Text.pack
+
+instance AttributeValue Int where
+    {-# INLINE attributeValue #-}
+    attributeValue = Builder.intDec
+
+instance AttributeValue Integer where
+    {-# INLINE attributeValue #-}
+    attributeValue = Builder.integerDec
+
+instance AttributeValue Double where
+    {-# INLINE attributeValue #-}
+    attributeValue = Builder.doubleDec
+
+instance AttributeValue Float where
+    {-# INLINE attributeValue #-}
+    attributeValue = Builder.floatDec
+
+instance {-# OVERLAPPABLE #-} AttributeValue a => ApplyAttribute a where
     {-# INLINE applyAttribute #-}
-    applyAttribute name prefix value = applyAttribute name prefix (show value)
+    applyAttribute _name prefix value =
+        Markup (TE.encodeUtf8Builder prefix <> attributeValue value <> Builder.char8 '"')
 
 -- | Apply spread attributes.
 spreadAttributes :: ApplyAttribute value => [(Text, value)] -> Markup
