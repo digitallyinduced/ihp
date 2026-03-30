@@ -47,6 +47,7 @@ import IHP.Router.UrlGenerator (HasPath(..))
 import Network.Wai
 import IHP.HSX.MarkupQQ (hsx)
 import IHP.HSX.Markup (ApplyAttribute(..), AttributeValue(..))
+import qualified IHP.HSX.Attribute as Blaze
 import qualified Data.Sequences as Sequences
 import qualified IHP.View.CSSFramework as CSSFramework ()
 import IHP.View.Types
@@ -225,6 +226,9 @@ instance InputValue (PrimaryKey table) => ApplyAttribute (Id' table) where
     applyAttribute attr attr' value = applyAttribute attr attr' (inputValue value)
 
 instance {-# OVERLAPPABLE #-} HasPath action => AttributeValue action where
+    attributeValue = pathTo
+
+instance {-# OVERLAPPABLE #-} HasPath action => Blaze.AttributeValue action where
     attributeValue = pathTo
 
 

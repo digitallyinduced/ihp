@@ -5,6 +5,7 @@ Copyright: (c) digitally induced GmbH, 2023
 -}
 module IHP.HSX.Attribute
 ( ApplyAttribute (..)
+, AttributeValue (..)
 ) where
 
 import Prelude
@@ -12,9 +13,36 @@ import Text.Blaze.Html5 ((!))
 import qualified Text.Blaze.Html5 as Html5
 import Text.Blaze.Internal (attribute, MarkupM (Parent, Leaf), StaticString (..))
 import IHP.HSX.ToHtml
-import IHP.HSX.Markup (AttributeValue(..))
 import qualified Data.Text as Text
 import Data.Text (Text)
+
+-- | Converts a value to 'Text' for use as a Blaze HTML attribute value.
+class AttributeValue a where
+    attributeValue :: a -> Text
+
+instance AttributeValue Text where
+    {-# INLINE attributeValue #-}
+    attributeValue = id
+
+instance AttributeValue String where
+    {-# INLINE attributeValue #-}
+    attributeValue = Text.pack
+
+instance AttributeValue Int where
+    {-# INLINE attributeValue #-}
+    attributeValue = Text.pack . show
+
+instance AttributeValue Integer where
+    {-# INLINE attributeValue #-}
+    attributeValue = Text.pack . show
+
+instance AttributeValue Double where
+    {-# INLINE attributeValue #-}
+    attributeValue = Text.pack . show
+
+instance AttributeValue Float where
+    {-# INLINE attributeValue #-}
+    attributeValue = Text.pack . show
 
 class ApplyAttribute value where
     applyAttribute :: Text -> Text -> value -> (Html5.Html -> Html5.Html)
