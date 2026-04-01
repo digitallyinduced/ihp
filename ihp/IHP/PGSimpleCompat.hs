@@ -15,7 +15,6 @@ import Data.Data (Typeable)
 import GHC.TypeLits (KnownSymbol, symbolVal)
 import Database.PostgreSQL.Simple.FromField (FromField(..))
 import Database.PostgreSQL.Simple.ToField (ToField(..), Action(..))
-import qualified Database.PostgreSQL.Simple.FromRow as PGFR
 import qualified Database.PostgreSQL.Simple.Types as PG
 import IHP.ModelSupport.Types (Id'(..), PrimaryKey, FieldWithDefault(..), FieldWithUpdate(..))
 import IHP.NameSupport (fieldNameToColumnName)
