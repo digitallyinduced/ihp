@@ -244,8 +244,11 @@ Of course, you can change this using the Schema Designer by clicking on the fore
 
 For queries involving joins, use [`typedSql`](/guide/typed-sql) which provides full SQL expressiveness with compile-time type safety. The `typedSql` quasiquoter connects to your development database at compile time to infer parameter and result types.
 
+### Inner Joins with Filters
+
+To retrieve all posts by users from department 5:
+
 ```haskell
--- Fetch all posts by users from department 5
 posts <- sqlQueryTyped [typedSql|
     SELECT posts.* FROM posts
     INNER JOIN users ON posts.author_id = users.id
@@ -254,7 +257,64 @@ posts <- sqlQueryTyped [typedSql|
 |]
 ```
 
-See the [Typed SQL guide](/guide/typed-sql) for more details and examples.
+To find all posts by a specific user:
+
+```haskell
+tomPosts <- sqlQueryTyped [typedSql|
+    SELECT posts.* FROM posts
+    INNER JOIN users ON posts.created_by = users.id
+    WHERE users.name = ${"Tom" :: Text}
+|]
+```
+
+### Many-to-many Relationships
+
+Joins are useful for many-to-many relationships. For example, the relationship between blog posts and tags: each post can have multiple tags and each tag can be attached to any number of posts. The following code retrieves all posts with the tag 'haskell' or 'ihp':
+
+```haskell
+posts <- sqlQueryTyped [typedSql|
+    SELECT posts.* FROM posts
+    INNER JOIN taggings ON posts.id = taggings.post_id
+    INNER JOIN tags ON taggings.tag_id = tags.id
+    WHERE tags.tag_text = ANY(${["haskell", "ihp"] :: [Text]})
+|]
+```
+
+To preserve the relationship between tags and posts (i.e. know which post has which tag), select extra columns:
+
+```haskell
+rows <- sqlQueryTyped [typedSql|
+    SELECT tags.id, posts.* FROM posts
+    INNER JOIN taggings ON posts.id = taggings.post_id
+    INNER JOIN tags ON taggings.tag_id = tags.id
+|]
+-- rows :: [(Id' "tags", Post)]
+```
+
+### Ordering on Joined Tables
+
+```haskell
+posts <- sqlQueryTyped [typedSql|
+    SELECT posts.* FROM posts
+    INNER JOIN users ON posts.author_id = users.id
+    ORDER BY users.name ASC
+|]
+```
+
+### Outer Joins
+
+`typedSql` also supports outer joins, which are useful when you want to include rows even when the join condition is not met:
+
+```haskell
+deskStudents <- sqlQueryTyped [typedSql|
+    SELECT desks.id, desks.location, students.name FROM desks
+    LEFT OUTER JOIN student_desk_combos ON student_desk_combos.desk_id = desks.id
+    LEFT OUTER JOIN students ON student_desk_combos.student_id = students.id
+|]
+-- deskStudents :: [(Id' "desks", Text, Maybe Text)]
+```
+
+See the [Typed SQL guide](/guide/typed-sql) for more details on parameters, result types, and production builds.
 
 ### Multiple Nested Records
 
