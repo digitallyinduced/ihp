@@ -132,7 +132,7 @@ rows <- sqlQueryTyped [typedSql|
 -- rows :: [(Id' "tags", Post)]
 ```
 
-The following types have also been removed: `HasQueryBuilder`, `JoinQueryBuilderWrapper`, `NoJoinQueryBuilderWrapper`, `LabeledQueryBuilderWrapper`, `NoJoins`. If your code references these types, replace with `QueryBuilder table` directly.
+The following types have also been removed: `HasQueryBuilder`, `JoinQueryBuilderWrapper`, `NoJoinQueryBuilderWrapper`, `LabeledQueryBuilderWrapper`, `LabeledData`, `NoJoins`. If your code references these types, replace with `QueryBuilder table` directly. For `LabeledData`, use a tuple with `typedSql` instead (see `labelResults` example above).
 
 # Upgrade to 1.5.0 from 1.4.0
 

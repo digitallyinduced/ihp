@@ -23,7 +23,7 @@ import qualified Hasql.Decoders as Decoders
 import qualified Hasql.Mapping.IsScalar as Mapping
 import qualified Database.PostgreSQL.Simple.Types as PG
 import Data.Functor.Contravariant (contramap)
-import IHP.ModelSupport.Types (LabeledData(..), Id'(..), PrimaryKey)
+import IHP.ModelSupport.Types (Id'(..), PrimaryKey)
 
 -- | Typeclass for types that can be decoded from a hasql result row
 --
@@ -84,5 +84,4 @@ instance (HasqlDecodeColumn a, HasqlDecodeColumn b, HasqlDecodeColumn c, HasqlDe
 instance (HasqlDecodeColumn a, HasqlDecodeColumn b, HasqlDecodeColumn c, HasqlDecodeColumn d, HasqlDecodeColumn e) => FromRowHasql (a, b, c, d, e) where
     hasqlRowDecoder = (,,,,) <$> hasqlColumnDecoder <*> hasqlColumnDecoder <*> hasqlColumnDecoder <*> hasqlColumnDecoder <*> hasqlColumnDecoder
 
-instance (HasqlDecodeColumn label, FromRowHasql a) => FromRowHasql (LabeledData label a) where
-    hasqlRowDecoder = LabeledData <$> hasqlColumnDecoder <*> hasqlRowDecoder
+

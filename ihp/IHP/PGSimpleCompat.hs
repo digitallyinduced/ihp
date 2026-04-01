@@ -17,7 +17,7 @@ import Database.PostgreSQL.Simple.FromField (FromField(..))
 import Database.PostgreSQL.Simple.ToField (ToField(..), Action(..))
 import qualified Database.PostgreSQL.Simple.FromRow as PGFR
 import qualified Database.PostgreSQL.Simple.Types as PG
-import IHP.ModelSupport.Types (Id'(..), PrimaryKey, LabeledData(..), FieldWithDefault(..), FieldWithUpdate(..))
+import IHP.ModelSupport.Types (Id'(..), PrimaryKey, FieldWithDefault(..), FieldWithUpdate(..))
 import IHP.NameSupport (fieldNameToColumnName)
 
 -- Import postgresql-simple-postgresql-types for FromField/ToField instances
@@ -39,11 +39,6 @@ instance ToField (PrimaryKey model) => ToField (Id' model) where
 instance (ToField (Id' a), ToField (Id' b)) => ToField (Id' a, Id' b) where
     {-# INLINE toField #-}
     toField (a, b) = Many [Plain "(", toField a, Plain ",", toField b, Plain ")"]
-
--- LabeledData instance
-
-instance (FromField label, PGFR.FromRow a) => PGFR.FromRow (LabeledData label a) where
-    fromRow = LabeledData <$> PGFR.field <*> PGFR.fromRow
 
 -- FieldWithDefault / FieldWithUpdate instances
 
