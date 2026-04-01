@@ -3,7 +3,8 @@
 
     inputs = {
         ihp.url = "github:digitallyinduced/ihp";
-        ihp-forum.url = "github:digitallyinduced/ihp-forum/feature/remove-blaze-imports";
+        ihp-forum.url = "github:digitallyinduced/ihp-forum";
+        ihp-forum.flake = false;
         nixpkgs.follows = "ihp/nixpkgs";
     };
 
