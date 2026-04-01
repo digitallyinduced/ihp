@@ -250,21 +250,27 @@ To retrieve all posts by users from department 5:
 
 ```haskell
 posts <- sqlQueryTyped [typedSql|
-    SELECT posts.* FROM posts
+    SELECT posts.id, posts.title, posts.body, posts.author_id
+    FROM posts
     INNER JOIN users ON posts.author_id = users.id
     INNER JOIN departments ON users.department_id = departments.id
     WHERE departments.number = ${5 :: Int}
 |]
+
+forEach posts \post -> putStrLn post.title
 ```
 
 To find all posts by a specific user:
 
 ```haskell
 tomPosts <- sqlQueryTyped [typedSql|
-    SELECT posts.* FROM posts
+    SELECT posts.id, posts.title, posts.created_at
+    FROM posts
     INNER JOIN users ON posts.created_by = users.id
     WHERE users.name = ${"Tom" :: Text}
 |]
+
+forEach tomPosts \post -> putStrLn (post.title <> " created at " <> show post.createdAt)
 ```
 
 ### Many-to-many Relationships
@@ -273,29 +279,35 @@ Joins are useful for many-to-many relationships. For example, the relationship b
 
 ```haskell
 posts <- sqlQueryTyped [typedSql|
-    SELECT posts.* FROM posts
+    SELECT posts.id, posts.title
+    FROM posts
     INNER JOIN taggings ON posts.id = taggings.post_id
     INNER JOIN tags ON taggings.tag_id = tags.id
     WHERE tags.tag_text = ANY(${["haskell", "ihp"] :: [Text]})
 |]
+
+forEach posts \post -> putStrLn post.title
 ```
 
 To preserve the relationship between tags and posts (i.e. know which post has which tag), select extra columns:
 
 ```haskell
 rows <- sqlQueryTyped [typedSql|
-    SELECT tags.id, posts.* FROM posts
+    SELECT tags.id, posts.id, posts.title
+    FROM posts
     INNER JOIN taggings ON posts.id = taggings.post_id
     INNER JOIN tags ON taggings.tag_id = tags.id
 |]
--- rows :: [(Id' "tags", Post)]
+
+forEach rows \row -> putStrLn (show row.id <> ": " <> row.title)
 ```
 
 ### Ordering on Joined Tables
 
 ```haskell
 posts <- sqlQueryTyped [typedSql|
-    SELECT posts.* FROM posts
+    SELECT posts.id, posts.title
+    FROM posts
     INNER JOIN users ON posts.author_id = users.id
     ORDER BY users.name ASC
 |]
@@ -307,11 +319,14 @@ posts <- sqlQueryTyped [typedSql|
 
 ```haskell
 deskStudents <- sqlQueryTyped [typedSql|
-    SELECT desks.id, desks.location, students.name FROM desks
+    SELECT desks.id, desks.location, students.name
+    FROM desks
     LEFT OUTER JOIN student_desk_combos ON student_desk_combos.desk_id = desks.id
     LEFT OUTER JOIN students ON student_desk_combos.student_id = students.id
 |]
--- deskStudents :: [(Id' "desks", Text, Maybe Text)]
+
+forEach deskStudents \row ->
+    putStrLn (row.location <> ": " <> fromMaybe "unassigned" row.name)
 ```
 
 See the [Typed SQL guide](/guide/typed-sql) for more details on parameters, result types, and production builds.

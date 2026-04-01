@@ -49,12 +49,14 @@ query @Post
     |> filterWhereJoinedTable @User (#name, "Tom" :: Text)
     |> fetch
 
--- After
+-- After: results have named field access via OverloadedRecordDot
 posts <- sqlQueryTyped [typedSql|
-    SELECT posts.* FROM posts
+    SELECT posts.id, posts.title, posts.created_at
+    FROM posts
     INNER JOIN users ON posts.author_id = users.id
     WHERE users.name = ${"Tom" :: Text}
 |]
+forEach posts \post -> putStrLn post.title
 ```
 
 **Three-table join:**
@@ -69,7 +71,8 @@ query @Post
 
 -- After
 posts <- sqlQueryTyped [typedSql|
-    SELECT posts.* FROM posts
+    SELECT posts.id, posts.title, posts.body
+    FROM posts
     INNER JOIN users ON posts.author_id = users.id
     INNER JOIN departments ON users.department_id = departments.id
     WHERE departments.number = ${5 :: Int}
@@ -88,7 +91,8 @@ query @Post
 
 -- After
 posts <- sqlQueryTyped [typedSql|
-    SELECT posts.* FROM posts
+    SELECT posts.id, posts.title
+    FROM posts
     INNER JOIN taggings ON posts.id = taggings.post_id
     INNER JOIN tags ON taggings.tag_id = tags.id
     WHERE tags.tag_text = ANY(${["haskell", "ihp"] :: [Text]})
@@ -106,7 +110,8 @@ query @Post
 
 -- After
 posts <- sqlQueryTyped [typedSql|
-    SELECT posts.* FROM posts
+    SELECT posts.id, posts.title
+    FROM posts
     INNER JOIN users ON posts.author_id = users.id
     ORDER BY users.name ASC
 |]
@@ -123,13 +128,14 @@ labeledPosts <- query @Post
     |> fetch
 -- labeledPosts :: [LabeledData (Id' "tags") Post]
 
--- After: select both the tag id and the post columns
+-- After: select the columns you need, access via named fields
 rows <- sqlQueryTyped [typedSql|
-    SELECT tags.id, posts.* FROM posts
+    SELECT tags.id, posts.id, posts.title
+    FROM posts
     INNER JOIN taggings ON posts.id = taggings.post_id
     INNER JOIN tags ON taggings.tag_id = tags.id
 |]
--- rows :: [(Id' "tags", Post)]
+forEach rows \row -> putStrLn (show row.id <> ": " <> row.title)
 ```
 
 The following types have also been removed: `HasQueryBuilder`, `JoinQueryBuilderWrapper`, `NoJoinQueryBuilderWrapper`, `LabeledQueryBuilderWrapper`, `LabeledData`, `NoJoins`. If your code references these types, replace with `QueryBuilder table` directly. For `LabeledData`, use a tuple with `typedSql` instead (see `labelResults` example above).
