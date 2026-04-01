@@ -27,18 +27,16 @@ import IHP.QueryBuilder.Compiler (query)
 -- > let teamPages = query @Page |> filterWhere (#teamId, currentTeamId)
 -- > pages <- queryUnion userPages teamPages |> fetch
 -- > -- SELECT * FROM pages WHERE (owner_id = '..') OR (team_id = '..')
-queryUnion :: (HasQueryBuilder queryBuilderProvider joinRegister, HasQueryBuilder r joinRegister') => queryBuilderProvider model -> r model -> NoJoinQueryBuilderWrapper model
-queryUnion firstQueryBuilderProvider secondQueryBuilderProvider =
-    let QueryBuilder first = getQueryBuilder firstQueryBuilderProvider
-        QueryBuilder second = getQueryBuilder secondQueryBuilderProvider
-        isSimple q = null (orderByClause q) && isNothing (limitClause q) && isNothing (offsetClause q) && null (joins q)
+queryUnion :: QueryBuilder model -> QueryBuilder model -> QueryBuilder model
+queryUnion (QueryBuilder first) (QueryBuilder second) =
+    let isSimple q = null (orderByClause q) && isNothing (limitClause q) && isNothing (offsetClause q)
         unionWhere = case (whereCondition first, whereCondition second) of
             (Nothing, wc) -> wc
             (wc, Nothing) -> wc
             (Just a, Just b) -> Just (OrCondition a b)
     in if isSimple first && isSimple second
-        then NoJoinQueryBuilderWrapper $ QueryBuilder first { whereCondition = unionWhere }
-        else error "queryUnion: Union of complex queries (with ORDER BY, LIMIT, OFFSET, or JOINs) not supported"
+        then QueryBuilder first { whereCondition = unionWhere }
+        else error "queryUnion: Union of complex queries (with ORDER BY, LIMIT, or OFFSET) not supported"
 {-# INLINE queryUnion #-}
 
 -- | Like 'queryUnion', but applied on all the elements on the list
@@ -63,14 +61,14 @@ queryUnionList [single] = single
 queryUnionList (first:rest) =
     let QueryBuilder firstSq = first
         QueryBuilder restSq = queryUnionList @table rest
-        isSimple q = null (orderByClause q) && isNothing (limitClause q) && isNothing (offsetClause q) && null (joins q)
+        isSimple q = null (orderByClause q) && isNothing (limitClause q) && isNothing (offsetClause q)
         unionWhere = case (whereCondition firstSq, whereCondition restSq) of
             (Nothing, wc) -> wc
             (wc, Nothing) -> wc
             (Just a, Just b) -> Just (OrCondition a b)
     in if isSimple firstSq && isSimple restSq
         then QueryBuilder firstSq { whereCondition = unionWhere }
-        else error "queryUnionList: Union of complex queries (with ORDER BY, LIMIT, OFFSET, or JOINs) not supported"
+        else error "queryUnionList: Union of complex queries (with ORDER BY, LIMIT, or OFFSET) not supported"
 
 
 -- | Adds an @a OR b@ condition
@@ -83,14 +81,14 @@ queryUnionList (first:rest) =
 -- >         (filterWhere (#public, True))
 -- >     |> fetch
 -- > -- SELECT * FROM pages WHERE created_by = '..' OR public = True
-queryOr :: (HasQueryBuilder queryBuilderProvider joinRegister, HasQueryBuilder queryBuilderProvider'' joinRegister'', HasQueryBuilder queryBuilderProvider''' joinRegister''') => (queryBuilderProvider model -> queryBuilderProvider''' model) -> (queryBuilderProvider model -> queryBuilderProvider'' model) -> queryBuilderProvider model -> queryBuilderProvider model
-queryOr firstQuery secondQuery queryBuilderProvider =
-    let QueryBuilder firstSq = getQueryBuilder $ firstQuery queryBuilderProvider
-        QueryBuilder secondSq = getQueryBuilder $ secondQuery queryBuilderProvider
+queryOr :: (QueryBuilder model -> QueryBuilder model) -> (QueryBuilder model -> QueryBuilder model) -> QueryBuilder model -> QueryBuilder model
+queryOr firstQuery secondQuery queryBuilder =
+    let QueryBuilder firstSq = firstQuery queryBuilder
+        QueryBuilder secondSq = secondQuery queryBuilder
         unionWhere = case (whereCondition firstSq, whereCondition secondSq) of
             (Nothing, wc) -> wc
             (wc, Nothing) -> wc
             (Just a, Just b) -> Just (OrCondition a b)
-        QueryBuilder baseSq = getQueryBuilder queryBuilderProvider
-    in injectQueryBuilder $ QueryBuilder baseSq { whereCondition = unionWhere }
+        QueryBuilder baseSq = queryBuilder
+    in QueryBuilder baseSq { whereCondition = unionWhere }
 {-# INLINE queryOr #-}

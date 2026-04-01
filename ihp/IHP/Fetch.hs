@@ -22,7 +22,6 @@ module IHP.Fetch
 , fetchCount
 , fetchExists
 , fetchVector
-, AssertNotLabeled
 , fetchLatest
 , fetchLatestBy
 )
@@ -36,8 +35,6 @@ import IHP.QueryBuilder.HasqlCompiler (buildStatement)
 import qualified Hasql.Decoders as Decoders
 import Hasql.Implicits.Encoders (DefaultParamEncoder)
 import IHP.Fetch.Statement (buildQueryListStatement, buildQueryVectorStatement, buildQueryMaybeStatement, buildCountStatement, buildExistsStatement)
-import GHC.TypeError (TypeError, ErrorMessage(Text))
-import Data.Kind (Constraint)
 
 class Fetchable fetchable model | fetchable -> model where
     type FetchResult fetchable model
@@ -45,82 +42,27 @@ class Fetchable fetchable model | fetchable -> model where
     fetchOneOrNothing :: (Table model, FromRowHasql model, ?modelContext :: ModelContext) => fetchable -> IO (Maybe model)
     fetchOne :: (Table model, FromRowHasql model, ?modelContext :: ModelContext) => fetchable -> IO model
 
--- The instance declaration had to be split up because a type variable ranging over HasQueryBuilder instances is not allowed in the declaration of the associated type. The common*-functions reduce the redundancy to the necessary minimum.
 instance (model ~ GetModelByTableName table, KnownSymbol table) => Fetchable (QueryBuilder table) model where
     type instance FetchResult (QueryBuilder table) model = [model]
     fetch :: (Table model, FromRowHasql model, ?modelContext :: ModelContext) => QueryBuilder table -> IO [model]
-    fetch = commonFetch
-
-    fetchOneOrNothing :: (?modelContext :: ModelContext) => (Table model, FromRowHasql model) => QueryBuilder table -> IO (Maybe model)
-    fetchOneOrNothing = commonFetchOneOrNothing
-
-    fetchOne :: (?modelContext :: ModelContext) => (Table model, FromRowHasql model) => QueryBuilder table -> IO model
-    fetchOne = commonFetchOne
-
-instance (model ~ GetModelByTableName table, KnownSymbol table) => Fetchable (JoinQueryBuilderWrapper r table) model where
-    type instance FetchResult (JoinQueryBuilderWrapper r table) model = [model]
-    fetch :: (Table model, FromRowHasql model, ?modelContext :: ModelContext) => JoinQueryBuilderWrapper r table -> IO [model]
-    fetch = commonFetch
-
-    fetchOneOrNothing :: (?modelContext :: ModelContext) => (Table model, FromRowHasql model) => JoinQueryBuilderWrapper r table -> IO (Maybe model)
-    fetchOneOrNothing = commonFetchOneOrNothing
-
-    fetchOne :: (?modelContext :: ModelContext) => (Table model, FromRowHasql model) => JoinQueryBuilderWrapper r table -> IO model
-    fetchOne = commonFetchOne
-
-instance (model ~ GetModelByTableName table, KnownSymbol table) => Fetchable (NoJoinQueryBuilderWrapper table) model where
-    type instance FetchResult (NoJoinQueryBuilderWrapper table) model = [model]
-    fetch :: (Table model, FromRowHasql model, ?modelContext :: ModelContext) => NoJoinQueryBuilderWrapper table -> IO [model]
-    fetch = commonFetch
-
-    fetchOneOrNothing :: (?modelContext :: ModelContext) => (Table model, FromRowHasql model) => NoJoinQueryBuilderWrapper table -> IO (Maybe model)
-    fetchOneOrNothing = commonFetchOneOrNothing
-
-    fetchOne :: (?modelContext :: ModelContext) => (Table model, FromRowHasql model) => NoJoinQueryBuilderWrapper table -> IO model
-    fetchOne = commonFetchOne
-
-instance (model ~ GetModelByTableName table, KnownSymbol table, HasqlDecodeColumn value, KnownSymbol foreignTable, foreignModel ~ GetModelByTableName foreignTable, KnownSymbol columnName, HasField columnName foreignModel value, HasQueryBuilder (LabeledQueryBuilderWrapper foreignTable columnName value) NoJoins) => Fetchable (LabeledQueryBuilderWrapper foreignTable columnName value table) model where
-    type instance FetchResult (LabeledQueryBuilderWrapper foreignTable columnName value table) model = [LabeledData value model]
-    fetch :: (Table model, FromRowHasql model, ?modelContext :: ModelContext) => LabeledQueryBuilderWrapper foreignTable columnName value table -> IO [LabeledData value model]
-    fetch !queryBuilderProvider = do
+    fetch !queryBuilder = do
         trackTableRead (tableName @model)
         let pool = ?modelContext.hasqlPool
-        let statement = buildStatement (buildQuery queryBuilderProvider) (Decoders.rowList (hasqlRowDecoder @(LabeledData value model)))
-        sqlStatementHasql pool () statement
+        sqlStatementHasql pool () (buildQueryListStatement queryBuilder)
 
-    fetchOneOrNothing :: (?modelContext :: ModelContext) => (Table model, FromRowHasql model) => LabeledQueryBuilderWrapper foreignTable columnName value table -> IO (Maybe model)
-    fetchOneOrNothing = commonFetchOneOrNothing
+    fetchOneOrNothing :: (?modelContext :: ModelContext) => (Table model, FromRowHasql model) => QueryBuilder table -> IO (Maybe model)
+    fetchOneOrNothing !queryBuilder = do
+        trackTableRead (tableName @model)
+        let pool = ?modelContext.hasqlPool
+        sqlStatementHasql pool () (buildQueryMaybeStatement queryBuilder)
 
-    fetchOne :: (?modelContext :: ModelContext) => (Table model, FromRowHasql model) => LabeledQueryBuilderWrapper foreignTable columnName value table -> IO model
-    fetchOne = commonFetchOne
+    fetchOne :: (?modelContext :: ModelContext) => (Table model, FromRowHasql model) => QueryBuilder table -> IO model
+    fetchOne !queryBuilder = do
+        maybeModel <- fetchOneOrNothing queryBuilder
+        case maybeModel of
+            Just model -> pure model
+            Nothing -> throwIO RecordNotFoundException { queryAndParams = toSQL queryBuilder }
 
-
-
-commonFetch :: forall model table queryBuilderProvider joinRegister. (Table model, HasQueryBuilder queryBuilderProvider joinRegister, model ~ GetModelByTableName table, KnownSymbol table, FromRowHasql model, ?modelContext :: ModelContext) => queryBuilderProvider table -> IO [model]
-commonFetch !queryBuilder = do
-    trackTableRead (tableName @model)
-    let pool = ?modelContext.hasqlPool
-    sqlStatementHasql pool () (buildQueryListStatement queryBuilder)
-
-commonFetchOneOrNothing :: forall model table queryBuilderProvider joinRegister. (?modelContext :: ModelContext) => (Table model, KnownSymbol table, HasQueryBuilder queryBuilderProvider joinRegister, FromRowHasql model, model ~ GetModelByTableName table) => queryBuilderProvider table -> IO (Maybe model)
-commonFetchOneOrNothing !queryBuilder = do
-    trackTableRead (tableName @model)
-    let pool = ?modelContext.hasqlPool
-    sqlStatementHasql pool () (buildQueryMaybeStatement queryBuilder)
-
-commonFetchOne :: forall model table queryBuilderProvider joinRegister. (?modelContext :: ModelContext) => (Table model, KnownSymbol table, Fetchable (queryBuilderProvider table) model, HasQueryBuilder queryBuilderProvider joinRegister, FromRowHasql model) => queryBuilderProvider table -> IO model
-commonFetchOne !queryBuilder = do
-    maybeModel <- fetchOneOrNothing queryBuilder
-    case maybeModel of
-        Just model -> pure model
-        Nothing -> throwIO RecordNotFoundException { queryAndParams = toSQL queryBuilder }
-
-
--- | Rejects 'LabeledQueryBuilderWrapper' at compile time.
--- 'fetchVector' cannot decode the extra index column added by 'labelResults'.
-type family AssertNotLabeled (qb :: Symbol -> Type) :: Constraint where
-    AssertNotLabeled (LabeledQueryBuilderWrapper _ _ _) = TypeError ('Text "fetchVector cannot be used with labelResults. Use fetch instead.")
-    AssertNotLabeled _ = ()
 
 -- | Like 'fetch', but returns a 'Vector' instead of a list for better performance
 -- with large result sets.
@@ -134,7 +76,7 @@ type family AssertNotLabeled (qb :: Symbol -> Type) :: Constraint where
 -- > activeUsers <- query @User
 -- >     |> filterWhere (#active, True)
 -- >     |> fetchVector
-fetchVector :: forall model table queryBuilderProvider joinRegister. (AssertNotLabeled queryBuilderProvider, Table model, HasQueryBuilder queryBuilderProvider joinRegister, model ~ GetModelByTableName table, KnownSymbol table, FromRowHasql model, ?modelContext :: ModelContext) => queryBuilderProvider table -> IO (Vector model)
+fetchVector :: forall model table. (Table model, model ~ GetModelByTableName table, KnownSymbol table, FromRowHasql model, ?modelContext :: ModelContext) => QueryBuilder table -> IO (Vector model)
 fetchVector !queryBuilder = do
     trackTableRead (tableName @model)
     let pool = ?modelContext.hasqlPool
@@ -153,7 +95,7 @@ fetchVector !queryBuilder = do
 -- >         |> filterWhere (#isActive, True)
 -- >         |> fetchCount
 -- >     -- SELECT COUNT(*) FROM projects WHERE is_active = true
-fetchCount :: forall table queryBuilderProvider joinRegister. (?modelContext :: ModelContext, KnownSymbol table, HasQueryBuilder queryBuilderProvider joinRegister) => queryBuilderProvider table -> IO Int
+fetchCount :: forall table. (?modelContext :: ModelContext, KnownSymbol table) => QueryBuilder table -> IO Int
 fetchCount !queryBuilder = do
     trackTableRead (symbolToText @table)
     let pool = ?modelContext.hasqlPool
@@ -169,7 +111,7 @@ fetchCount !queryBuilder = do
 -- >         |> filterWhere (#isUnread, True)
 -- >         |> fetchExists
 -- >     -- SELECT EXISTS (SELECT * FROM messages WHERE is_unread = true)
-fetchExists :: forall table queryBuilderProvider joinRegister. (?modelContext :: ModelContext, KnownSymbol table, HasQueryBuilder queryBuilderProvider joinRegister) => queryBuilderProvider table -> IO Bool
+fetchExists :: forall table. (?modelContext :: ModelContext, KnownSymbol table) => QueryBuilder table -> IO Bool
 fetchExists !queryBuilder = do
     trackTableRead (symbolToText @table)
     let pool = ?modelContext.hasqlPool
@@ -238,16 +180,14 @@ instance (model ~ GetModelById (Id' table), GetModelByTableName table ~ model, G
 -- >         |> orderByDesc #createdAt
 -- >         |> fetchOneOrNothing
 --
-fetchLatest :: forall table queryBuilderProvider joinRegister model.
+fetchLatest :: forall table model.
     ( ?modelContext :: ModelContext
     , model ~ GetModelByTableName table
     , KnownSymbol table
-    , HasQueryBuilder queryBuilderProvider joinRegister
     , HasField "createdAt" model UTCTime
-    , Fetchable (queryBuilderProvider table) model
     , Table model
     , FromRowHasql model
-    ) => queryBuilderProvider table -> IO (Maybe model)
+    ) => QueryBuilder table -> IO (Maybe model)
 fetchLatest queryBuilder = queryBuilder |> fetchLatestBy #createdAt
 
 -- | Provided a field name, it returns the latest record or Nothing
@@ -268,17 +208,15 @@ fetchLatest queryBuilder = queryBuilder |> fetchLatestBy #createdAt
 -- >         |> orderByDesc #trialStartedAt
 -- >         |> fetchOneOrNothing
 --
-fetchLatestBy :: forall table createdAt queryBuilderProvider joinRegister model.
+fetchLatestBy :: forall table createdAt model.
     ( ?modelContext :: ModelContext
     , KnownSymbol createdAt
     , model ~ GetModelByTableName table
     , KnownSymbol table
-    , HasQueryBuilder queryBuilderProvider joinRegister
     , HasField createdAt model UTCTime
-    , Fetchable (queryBuilderProvider table) model
     , Table model
     , FromRowHasql model
-    ) => Proxy createdAt -> queryBuilderProvider table -> IO (Maybe model)
+    ) => Proxy createdAt -> QueryBuilder table -> IO (Maybe model)
 fetchLatestBy field queryBuilder =
     queryBuilder
     |> orderByDesc field

@@ -242,100 +242,19 @@ Of course, you can change this using the Schema Designer by clicking on the fore
 
 ## Joins
 
-It is possible to join tables to a given primary table (the one associated with the queried type) and use the joined table to select rows from the primary table. For instance, the following code could be used to retrieve all posts by users from department 5:
+For queries involving joins, use [`typedSql`](/guide/typed-sql) which provides full SQL expressiveness with compile-time type safety. The `typedSql` quasiquoter connects to your development database at compile time to infer parameter and result types.
 
 ```haskell
-query @Post
-        |> innerJoin @User (#authorId, #id)
-        |> innerJoinThirdTable @Department @User (#id, #departmentId)
-        |> filterWhereJoinedTable @Department (#number, 5)
-        |> fetch
+-- Fetch all posts by users from department 5
+posts <- sqlQueryTyped [typedSql|
+    SELECT posts.* FROM posts
+    INNER JOIN users ON posts.author_id = users.id
+    INNER JOIN departments ON users.department_id = departments.id
+    WHERE departments.number = ${5 :: Int}
+|]
 ```
 
-[`innerJoin`](https://ihp.digitallyinduced.com/api-docs/IHP-QueryBuilder.html#v:innerJoin) is used to join the `users` table (for type `User`) to the primary table `posts` (for type `Posts`) on the columns `posts.author_id` and `users.id`. Type checks ascertain that both tables actually have the pertinent columns.
-
-The function [`innerJoinThirdTable`](https://ihp.digitallyinduced.com/api-docs/IHP-QueryBuilder.html#v:innerJoinThirdTable) is used to join a third table on a column of some previously joined table. In the example, the table is `departments` and it is joined on `departments.id = users.department_id`. Again, the type system ascertains that the columns actually exist on the pertinent tables. It is furthermore ascertained that the table associated with the second type `User` has been joined before.
-
-To add `WHERE` clauses involving a joined table, there is a family of functions named like the ordinary filter functions, but suffixed with "JoinedTable". Where the normal filter functions use columns from the primary table, the table that the JoinedTable-functions operate on is specified by the type they are called with. In the example, the [`filterWhereJoinedTable`](https://ihp.digitallyinduced.com/api-docs/IHP-QueryBuilder.html#v:filterWhereJoinedTable) filters all rows where `department.number` equals 5.
-
-### Many-to-many relationships and labeled results
-
-Joins are also useful when it comes to many-to-many relationships. An example is the relationship between blog posts and tags: each post can have multiple tags and each tag can be attached to any number of posts. The following code could be used to obtain all posts with the tag 'haskell' or 'ihp'.
-
-```haskell
-query @Post
-        |> innerJoin @Tagging (#id, #postId)
-        |> innerJoinThirdTable @Tag @Tagging (#id, #tagId)
-        |> filterWhereInJoinedTable @Tag (#tagText, ["haskell", "ihp"])
-        |> fetch
-```
-
-In the above example, the relationship between tags and posts will be lost after executing the query and it is impossible to find out, from the list of results alone, which post bears which tag. The function labelResults can be used to make this relationship transparent. The following code could be used to obtain a list of all posts together with the ids of the tags they are attached to.
-
-```haskell
-labeledComments <-
-   query @Post
-      |> innerJoin @Tagging (#id, #postId)
-      |> innerJoinThirdTable @Tag @Tagging (#id, #tagId)
-      |> labelResults @Tag #id
-      |> fetch
-```
-
-`labeledComments` will be a list of objects of type LabeledData:
-
-```haskell
-data LabeledData a b = LabeledData { labelValue :: a, contentValue :: b }
-```
-
-In the case above, `a` would be instantiated by (Id' "tags") and `b` by `Post`.
-
-### Simple Joins and Outer Joins
-An alternative approach to joining data in IHP can be accomplished by using the [postresql-simple (:.)](https://hackage.haskell.org/package/postgresql-simple-0.6.4/docs/Database-PostgreSQL-Simple-Types.html#t::.)
-and a custom sql query.
-
-For example say there is a `Student`, `StudentDeskCombo`, and `Desk` data type derived by IHP from
-`students`, `student_desk_combos`, and `desks` tables.
-
-If the application wished to get a list of all the desks and whether a student
-is associated with that desk a `left outer join` on the three tables would be a simple
-way of accomplishing this. The postgresql data type `(:.)` allows for a compound data
-structure to be created without having to define any `newtype` wrappers or define
-functions that do any type level computations.
-
-All that is required is that a `FromRow` instance for any potentially nullable return value in the query, e.g. `Maybe Student`,
-is manually defined in the IHP application:
-
-```haskell
-instance FromRow (Maybe Student) where
-    fromRow =  (null *> null *> null *> pure Nothing) <|> (Just <$> fromRow)
-       where null = field :: RowParser Null
-```
-
-At the moment the postgresql-simple library does not derive this instance generically.
-
-Once you define this instance, preferably in `Application.Helper.Controller`, you can then
-access the IHP derived data types directly by writing a custom sql query:
-
-```
-deskStudentCombos :: [Desk :. Maybe StudentDeskCombo :. Maybe Student] <- sqlQuery [select * from desks
-                      left outer join on studentdeskcombo.desk_id = desks.id
-                      left outer join on studentdeskcombo.student_id = students.id
-                      ]()
-```
-
-
-the result data type can be unpacked and rendered using straight forward pattern matching with the `(:.)`
-data type/type constructor:
-```
-renderStudentDesk :: (Desk :. Maybe StudentDeskCombo :. Student) -> Html
-renderStudentDesk (desk :. Just studentDeskCombo :. Just student) = [hsx|{student.name} {desk.id}|]
-renderStudentDesk (desk :. Nothing :. Nothing) = [hsx|<p>No student assigned to this Desk:  {desk.id}.</p>|]
-```
-
-In the case of inner joins the process is even simpler and does not require
-defining the `instance FromRow Maybe a`. This approach to joins allows
-for custom queries to leverage the autogenerated schema/IHP derived data types directly
-and cuts down on clutter from `newtype` definitions.
+See the [Typed SQL guide](/guide/typed-sql) for more details and examples.
 
 ### Multiple Nested Records
 

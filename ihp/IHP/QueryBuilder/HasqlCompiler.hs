@@ -56,9 +56,9 @@ buildWrappedStatement prefix sqlQuery suffix decoder =
 
 -- | Compile a QueryBuilder to SQL text (for testing / error messages).
 -- Discards the encoder.
-toSQL :: forall table queryBuilderProvider joinRegister. (KnownSymbol table, HasQueryBuilder queryBuilderProvider joinRegister) => queryBuilderProvider table -> Text
-toSQL queryBuilderProvider =
-    let (sql, _) = compileQuery emptyCompilerState (buildQuery queryBuilderProvider)
+toSQL :: forall table. KnownSymbol table => QueryBuilder table -> Text
+toSQL queryBuilder =
+    let (sql, _) = compileQuery emptyCompilerState (buildQuery queryBuilder)
     in sql
 
 -- | Compile a full SQLQuery to SQL text + updated compile context.
@@ -66,31 +66,22 @@ toSQL queryBuilderProvider =
 -- Structured so that the Nothing/empty branches contribute no concatenation;
 -- GHC can see through the case alternatives and eliminate dead appends.
 compileQuery :: CompilerState -> SQLQuery -> (Text, CompilerState)
-compileQuery cc0 sqlQuery@SQLQuery { queryIndex, selectFrom, distinctClause, distinctOnClause, orderByClause, limitClause, offsetClause, columnsSql } =
-    let -- Build the fixed prefix: SELECT [DISTINCT] [DISTINCT ON (...)] cols FROM table [JOINs]
+compileQuery cc0 SQLQuery { selectFrom, distinctClause, distinctOnClause, whereCondition, orderByClause, limitClause, offsetClause, columnsSql } =
+    let -- Build the fixed prefix: SELECT [DISTINCT] [DISTINCT ON (...)] cols FROM table
         selectPart = case distinctClause of
             True -> case distinctOnClause of
-                Just col -> "SELECT DISTINCT DISTINCT ON (" <> col <> ") " <> selectorsPart <> " FROM " <> selectFrom
-                Nothing  -> "SELECT DISTINCT " <> selectorsPart <> " FROM " <> selectFrom
+                Just col -> "SELECT DISTINCT DISTINCT ON (" <> col <> ") " <> columnsSql <> " FROM " <> selectFrom
+                Nothing  -> "SELECT DISTINCT " <> columnsSql <> " FROM " <> selectFrom
             False -> case distinctOnClause of
-                Just col -> "SELECT DISTINCT ON (" <> col <> ") " <> selectorsPart <> " FROM " <> selectFrom
-                Nothing  -> "SELECT " <> selectorsPart <> " FROM " <> selectFrom
-
-        selectorsPart = case queryIndex of
-            Just idx -> idx <> ", " <> columnsSql
-            Nothing  -> columnsSql
-
-        -- Joins: non-recursive, pattern-match on the list to avoid a function call for []
-        withJoins = case joins sqlQuery of
-            [] -> selectPart
-            js -> selectPart <> compileJoinList (reverse js)
+                Just col -> "SELECT DISTINCT ON (" <> col <> ") " <> columnsSql <> " FROM " <> selectFrom
+                Nothing  -> "SELECT " <> columnsSql <> " FROM " <> selectFrom
 
         -- WHERE: only append when there is a condition
-        (withWhere, cc1) = case whereCondition sqlQuery of
-            Nothing -> (withJoins, cc0)
+        (withWhere, cc1) = case whereCondition of
+            Nothing -> (selectPart, cc0)
             Just condition ->
                 let (condText, cc') = compileCondition cc0 condition
-                in (withJoins <> " WHERE " <> condText, cc')
+                in (selectPart <> " WHERE " <> condText, cc')
 
         -- ORDER BY: only append when there are clauses
         withOrderBy = case orderByClause of
@@ -114,12 +105,6 @@ compileQuery cc0 sqlQuery@SQLQuery { queryIndex, selectFrom, distinctClause, dis
                 in (withLimit <> " OFFSET " <> placeholder, cc')
 
     in (result, cc3)
-
--- | Compile a non-empty list of joins. Not called for empty join lists —
--- the caller pattern-matches on @[]@ directly.
-compileJoinList :: [Join] -> Text
-compileJoinList [] = ""
-compileJoinList (j:js) = " INNER JOIN " <> table j <> " ON " <> tableJoinColumn j <> " = " <> table j <> "." <> otherJoinColumn j <> compileJoinList js
 
 compileCondition :: CompilerState -> Condition -> (Text, CompilerState)
 compileCondition cc (ColumnCondition column operator value applyLeft applyRight) =

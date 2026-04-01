@@ -36,6 +36,104 @@ If your `View` instances only defined `html` (the common case), no changes are n
 
 The `renderJson` function is unchanged and can still be used directly in controllers.
 
+## Join Support Removed from QueryBuilder
+
+The query builder's join functions (`innerJoin`, `innerJoinThirdTable`, `labelResults`) and all `*JoinedTable` filter/order functions have been removed. Use `typedSql` instead, which provides full SQL expressiveness with compile-time type safety.
+
+**Simple inner join with filter:**
+
+```haskell
+-- Before
+query @Post
+    |> innerJoin @User (#authorId, #id)
+    |> filterWhereJoinedTable @User (#name, "Tom" :: Text)
+    |> fetch
+
+-- After
+posts <- sqlQueryTyped [typedSql|
+    SELECT posts.* FROM posts
+    INNER JOIN users ON posts.author_id = users.id
+    WHERE users.name = ${"Tom" :: Text}
+|]
+```
+
+**Three-table join:**
+
+```haskell
+-- Before
+query @Post
+    |> innerJoin @User (#authorId, #id)
+    |> innerJoinThirdTable @Department @User (#id, #departmentId)
+    |> filterWhereJoinedTable @Department (#number, 5)
+    |> fetch
+
+-- After
+posts <- sqlQueryTyped [typedSql|
+    SELECT posts.* FROM posts
+    INNER JOIN users ON posts.author_id = users.id
+    INNER JOIN departments ON users.department_id = departments.id
+    WHERE departments.number = ${5 :: Int}
+|]
+```
+
+**Many-to-many with filter:**
+
+```haskell
+-- Before
+query @Post
+    |> innerJoin @Tagging (#id, #postId)
+    |> innerJoinThirdTable @Tag @Tagging (#id, #tagId)
+    |> filterWhereInJoinedTable @Tag (#tagText, ["haskell", "ihp"])
+    |> fetch
+
+-- After
+posts <- sqlQueryTyped [typedSql|
+    SELECT posts.* FROM posts
+    INNER JOIN taggings ON posts.id = taggings.post_id
+    INNER JOIN tags ON taggings.tag_id = tags.id
+    WHERE tags.tag_text = ANY(${["haskell", "ihp"] :: [Text]})
+|]
+```
+
+**Ordering on joined table:**
+
+```haskell
+-- Before
+query @Post
+    |> innerJoin @User (#authorId, #id)
+    |> orderByAscJoinedTable @User #name
+    |> fetch
+
+-- After
+posts <- sqlQueryTyped [typedSql|
+    SELECT posts.* FROM posts
+    INNER JOIN users ON posts.author_id = users.id
+    ORDER BY users.name ASC
+|]
+```
+
+**`labelResults` (indexed many-to-many):**
+
+```haskell
+-- Before
+labeledPosts <- query @Post
+    |> innerJoin @Tagging (#id, #postId)
+    |> innerJoinThirdTable @Tag @Tagging (#id, #tagId)
+    |> labelResults @Tag #id
+    |> fetch
+-- labeledPosts :: [LabeledData (Id' "tags") Post]
+
+-- After: select both the tag id and the post columns
+rows <- sqlQueryTyped [typedSql|
+    SELECT tags.id, posts.* FROM posts
+    INNER JOIN taggings ON posts.id = taggings.post_id
+    INNER JOIN tags ON taggings.tag_id = tags.id
+|]
+-- rows :: [(Id' "tags", Post)]
+```
+
+The following types have also been removed: `HasQueryBuilder`, `JoinQueryBuilderWrapper`, `NoJoinQueryBuilderWrapper`, `LabeledQueryBuilderWrapper`, `NoJoins`. If your code references these types, replace with `QueryBuilder table` directly.
+
 # Upgrade to 1.5.0 from 1.4.0
 
 ## 1. Switch IHP version
