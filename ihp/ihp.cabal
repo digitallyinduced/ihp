@@ -103,7 +103,6 @@ common shared-properties
             , parser-combinators
             , fast-logger
             , minio-hs
-            , temporary
             , conduit-extra
             , wai-cors
             , lens

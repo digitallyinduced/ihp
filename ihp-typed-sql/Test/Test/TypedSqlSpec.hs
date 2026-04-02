@@ -17,7 +17,8 @@ import           System.Environment                (getEnvironment, lookupEnv)
 import           System.FilePath                   (takeDirectory)
 import           System.Process                    (CreateProcess (..), proc,
                                                     readCreateProcessWithExitCode)
-import           System.IO.Temp                    (withSystemTempDirectory)
+import           System.IO.Temp.OsPath              (withSystemTempDirectory)
+import           System.OsPath                     (encodeUtf, decodeUtf)
 import           Test.Hspec
 import qualified Prelude
 
@@ -443,8 +444,10 @@ ghciRunModule source =
     ghciRun source [] ["main"]
 
 ghciRun :: Text -> [Text] -> [Text] -> IO Text
-ghciRun source preLoadCommands postLoadCommands =
-    withSystemTempDirectory "typed-sql-ghci" \tempDir -> do
+ghciRun source preLoadCommands postLoadCommands = do
+    template <- encodeUtf "typed-sql-ghci"
+    withSystemTempDirectory template \tempOsDir -> do
+        tempDir <- decodeUtf tempOsDir
         packageRoot <- findIhpPackageRoot
         let repoRoot = takeDirectory packageRoot
         useRepoGhci <- doesFileExist (repoRoot </> ".ghci")

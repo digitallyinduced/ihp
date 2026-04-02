@@ -13,7 +13,8 @@ import Data.Text (Text)
 import qualified Data.Text as Text
 import qualified Network.Wai.Parse as Wai
 import qualified Data.ByteString.Lazy as LBS
-import qualified System.IO.Temp as Temp
+import qualified System.IO.Temp.OsPath as Temp
+import qualified System.OsPath as OsPath
 import qualified System.Process as Process
 
 
@@ -52,7 +53,10 @@ import qualified System.Process as Process
 --
 applyImageMagick :: Text -> [String] -> Wai.FileInfo LBS.LazyByteString -> IO (Wai.FileInfo LBS.LazyByteString)
 applyImageMagick convertTo otherParams fileInfo = do
-    Temp.withTempDirectory "/tmp" "ihp-upload" $ \tempPath -> do
+    tmpDir <- OsPath.encodeUtf "/tmp"
+    template <- OsPath.encodeUtf "ihp-upload"
+    Temp.withTempDirectory tmpDir template $ \tempOsPath -> do
+        tempPath <- OsPath.decodeUtf tempOsPath
         let tempFilePath = tempPath <> "/image"
         let convertedFilePath = tempPath <> "/converted." <> Text.unpack convertTo
 
