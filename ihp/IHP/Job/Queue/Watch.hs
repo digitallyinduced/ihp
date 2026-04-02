@@ -60,15 +60,15 @@ watchForJobWithPollerTriggerRepair enablePollerTriggerRepair pool pgListener tab
         PGListener.onReconnect (\connection -> do
             result <- HasqlConnection.use connection (HasqlSession.script (createNotificationTriggerSQL tableNameBS))
             case result of
-                Left err -> ?context.logger (toLogStr ("Failed to recreate notification triggers for " <> tableName <> ": " <> tshow err <> ". Falling back to poller.") <> "\n")
-                Right _ -> ?context.logger (toLogStr ("Recreated notification triggers for " <> tableName) <> "\n")
+                Left err -> ?context.logger (toLogStr ("Failed to recreate notification triggers for " <> tableName <> ": " <> tshow err <> ". Falling back to poller."))
+                Right _ -> ?context.logger (toLogStr ("Recreated notification triggers for " <> tableName))
             ) pgListener
 
     poller <- pollForJob enablePollerTriggerRepair pool tableName pollInterval onNewJob
     subscription <- liftIO $ pgListener |> PGListener.subscribe (channelName tableNameBS) (const (do
-            ?context.logger (toLogStr ("Received pg_notify for " <> tableName) <> "\n")
+            ?context.logger (toLogStr ("Received pg_notify for " <> tableName))
             didWrite <- atomically $ tryWriteTBQueue onNewJob JobAvailable
-            unless didWrite (?context.logger (toLogStr ("Job queue full for " <> tableName) <> "\n"))
+            unless didWrite (?context.logger (toLogStr ("Job queue full for " <> tableName)))
             ))
 
     pure (subscription, poller)
@@ -101,7 +101,7 @@ pollForJob enablePollerTriggerRepair pool tableName pollInterval onNewJob = do
                         _ <- atomically $ tryWriteTBQueue onNewJob JobAvailable
                         pure ()
                 case result of
-                    Left exception -> ?context.logger (toLogStr ("Job poller: " <> tshow exception) <> "\n")
+                    Left exception -> ?context.logger (toLogStr ("Job poller: " <> tshow exception))
                     Right _ -> pure ()
 
                 -- Add up to 2 seconds of jitter to avoid all job queues polling at the same time
@@ -138,9 +138,9 @@ ensureNotificationTriggers pool tableName = do
     unless healthy do
         let insertTriggerName = "did_insert_job_" <> tableName
         let updateTriggerName = "did_update_job_" <> tableName
-        ?context.logger (toLogStr ("Job poller: Missing notification triggers for " <> tableName <> " (" <> insertTriggerName <> ", " <> updateTriggerName <> "). Recreating.") <> "\n")
+        ?context.logger (toLogStr ("Job poller: Missing notification triggers for " <> tableName <> " (" <> insertTriggerName <> ", " <> updateTriggerName <> "). Recreating."))
         runPool pool (HasqlSession.script (createNotificationTriggerSQL (cs tableName)))
-        ?context.logger (toLogStr ("Job poller: Recreated notification triggers for " <> tableName) <> "\n")
+        ?context.logger (toLogStr ("Job poller: Recreated notification triggers for " <> tableName))
 
 -- | Returns a SQL script to create the notification trigger.
 --

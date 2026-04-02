@@ -265,7 +265,7 @@ notifyLoop logger databaseUrl listeningToVar listenToVar subscriptions reconnect
                     callbacks <- readIORef reconnectCallbacksRef
                     forM_ callbacks \callback ->
                         Exception.tryAny (callback connection) >>= \case
-                            Left e -> logger (toLogStr ("PGListener reconnect callback failed: " <> displayException e) <> "\n")
+                            Left e -> logger (toLogStr ("PGListener reconnect callback failed: " <> displayException e))
                             Right _ -> pure ()
 
                 -- We use 'race' to alternate between waiting for notifications and
@@ -327,12 +327,12 @@ notifyLoop logger databaseUrl listeningToVar listenToVar subscriptions reconnect
             case result of
                 Left error -> do
                     if isFirstError then do
-                        logger (toLogStr ("PGListener is going to restart, loop failed with exception: " <> (displayException error) <> ". Retrying immediately.") <> "\n")
+                        logger (toLogStr ("PGListener is going to restart, loop failed with exception: " <> (displayException error) <> ". Retrying immediately."))
                         retryLoop delay False -- Retry with no delay interval on first error, but will increase delay interval in subsequent retries
                     else do
                         let increasedDelay = delay * 2 -- Double current delay
                         let nextDelay = min increasedDelay maxDelay -- Picks whichever delay is lowest of increasedDelay * 2 or maxDelay
-                        logger (toLogStr ("PGListener is going to restart, loop failed with exception: " <> (displayException error) <> ". Retrying in " <> cs (printTimeToNextRetry delay) <> ".") <> "\n")
+                        logger (toLogStr ("PGListener is going to restart, loop failed with exception: " <> (displayException error) <> ". Retrying in " <> cs (printTimeToNextRetry delay) <> "."))
                         Control.Concurrent.threadDelay delay -- Sleep for the current delay
                         retryLoop nextDelay False -- Retry with longer interval
                 Right _ ->
@@ -351,4 +351,4 @@ listenToChannel connection channel = do
     HasqlNotifications.listen connection (HasqlNotifications.toPgIdentifier (cs channel))
 
 logError :: PGListener -> Text -> IO ()
-logError pgListener message = pgListener.logger (toLogStr message <> "\n")
+logError pgListener message = pgListener.logger (toLogStr message)

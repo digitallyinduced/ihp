@@ -81,7 +81,7 @@ callActionWithQueryParams pgListener controller queryParams = do
     runSession (request baseRequest) (middlewareStack controllerApp)
 
 testLogger :: FastLogger
-testLogger = \_ -> pure ()
+testLogger = noopLogger
 
 tests :: Spec
 tests = beforeAll (mockContextNoDatabase WebApplication config) do

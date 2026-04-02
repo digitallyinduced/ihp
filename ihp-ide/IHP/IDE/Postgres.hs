@@ -20,6 +20,6 @@ waitPostgres = do
     case exitCode of
         ExitSuccess -> pure ()
         ExitFailure _ -> do
-            when isDebugMode (?context.logger (toLogStr ("Waiting for postgres to start" :: Text) <> "\n"))
+            when isDebugMode (?context.logger (toLogStr ("Waiting for postgres to start" :: Text)))
             threadDelay 100000  -- 100ms between checks
             waitPostgres

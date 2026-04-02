@@ -62,11 +62,11 @@ jobWorkerFetchAndRunLoop JobWorkerArgs { .. } = do
             fetchResult <- Exception.tryAny (Queue.fetchNextJob @job pool workerId)
             case fetchResult of
                 Left exception -> do
-                    ?context.logger (toLogStr ("Job worker: Failed to fetch next job: " <> tshow exception) <> "\n")
+                    ?context.logger (toLogStr ("Job worker: Failed to fetch next job: " <> tshow exception))
                     Concurrent.threadDelay 1000000  -- 1s backoff to avoid tight error loops
                     runJobLoop -- retry after transient error
                 Right (Just job) -> do
-                    ?context.logger (toLogStr ("Starting job: " <> tshow job) <> "\n")
+                    ?context.logger (toLogStr ("Starting job: " <> tshow job))
 
                     let ?job = job
                     let timeout :: Int = fromMaybe (-1) (timeoutInMicroseconds @job)

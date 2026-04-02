@@ -430,7 +430,7 @@ Controls log level, format, and destination.
 
 IHP uses [fast-logger](https://hackage.haskell.org/package/fast-logger) directly. The logger is a `FastLogger` (`LogStr -> IO ()`) created at startup and available via `?context.logger` in controllers.
 
-Log via `?context.logger (toLogStr "message" <> "\n")`. See the [Logging Guide](logging.html) for details.
+Log via `?context.logger (toLogStr "message")`. See the [Logging Guide](logging.html) for details.
 
 #### Request Logger IP Source
 

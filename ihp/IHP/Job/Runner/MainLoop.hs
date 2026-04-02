@@ -35,7 +35,7 @@ dedicatedProcessMainLoop jobWorkers = do
     exitSignalsCount <- newIORef 0
     workerId <- UUID.nextRandom
 
-    ?context.logger (toLogStr ("Starting worker " <> tshow workerId) <> "\n")
+    ?context.logger (toLogStr ("Starting worker " <> tshow workerId))
 
     -- The job workers use their own dedicated PG listener as e.g. AutoRefresh or DataSync
     -- could overload the main PGListener connection. In that case we still want jobs to be
@@ -53,7 +53,7 @@ dedicatedProcessMainLoop jobWorkers = do
 
             liftIO waitForExitSignal
 
-            liftIO $ ?context.logger (toLogStr ("Waiting for jobs to complete. CTRL+C again to force exit" :: Text) <> "\n")
+            liftIO $ ?context.logger (toLogStr ("Waiting for jobs to complete. CTRL+C again to force exit" :: Text))
 
             -- Stop subscriptions and poller already
             -- This will stop all producers for the queue
@@ -73,7 +73,7 @@ dedicatedProcessMainLoop jobWorkers = do
             liftIO $ async do
                 waitForExitSignal
 
-                ?context.logger (toLogStr ("Canceling all running jobs. CTRL+C again to force exit" :: Text) <> "\n")
+                ?context.logger (toLogStr ("Canceling all running jobs. CTRL+C again to force exit" :: Text))
 
                 forEach processes \JobWorkerProcess { dispatcher = (dispatcherKey, _) } -> do
                     release dispatcherKey  -- cancels dispatcher, whose finally cancels all workers
@@ -93,7 +93,7 @@ devServerMainLoop frameworkConfig pgListener jobWorkers = do
     workerId <- UUID.nextRandom
     let ?context = frameworkConfig
 
-    ?context.logger (toLogStr ("Starting worker " <> tshow workerId) <> "\n")
+    ?context.logger (toLogStr ("Starting worker " <> tshow workerId))
 
     runResourceT do
         let jobWorkerArgs = JobWorkerArgs { workerId, modelContext = ?modelContext, frameworkConfig = ?context, pgListener }

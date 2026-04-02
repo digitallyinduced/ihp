@@ -22,7 +22,7 @@ procDirenvAware command args = do
 
 sendGhciCommand :: (?context :: Context) => Handle -> ByteString -> IO ()
 sendGhciCommand inputHandle command = do
-    when (isDebugMode ?context) (?context.logger (toLogStr ("GHCI: " <> cs command :: Text) <> "\n"))
+    when (isDebugMode ?context) (?context.logger (toLogStr ("GHCI: " <> cs command :: Text)))
     ByteString.hPutStrLn inputHandle command
     Handle.hFlush inputHandle
 

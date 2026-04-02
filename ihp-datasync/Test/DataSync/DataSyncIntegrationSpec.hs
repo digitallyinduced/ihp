@@ -18,6 +18,7 @@ import IHP.RequestVault (pgListenerVaultKey, frameworkConfigVaultKey)
 import IHP.Controller.Context (newControllerContext, putContext, freeze)
 import IHP.LoginSupport.Types (HasNewSessionUrl(..), CurrentUserRecord)
 import qualified IHP.ModelSupport as ModelSupport
+import IHP.ModelSupport (noopLogger)
 import IHP.ModelSupport.Types (Id'(..), PrimaryKey)
 import qualified IHP.PGListener as PGListener
 import IHP.FrameworkConfig (buildFrameworkConfig)
@@ -34,7 +35,6 @@ import Data.Aeson (Value(..), object, (.=))
 import qualified Data.Aeson as Aeson
 import Control.Concurrent.STM
 import Control.Concurrent (threadDelay)
-import System.Log.FastLogger (FastLogger)
 
 -- | Define CurrentUserRecord for this test module
 data TestUser = TestUser { id :: Id' "test_users" }
@@ -143,7 +143,7 @@ withDataSyncController connStr testUserId action = do
         let actualConnStr = if "dbname=" `Text.isPrefixOf` connStr
                 then cs connStr
                 else cs ("dbname=" <> connStr)
-        let logger = (\_ -> pure ()) :: FastLogger
+        let logger = noopLogger
         ModelSupport.withModelContext actualConnStr logger \modelContext -> do
             PGListener.withPGListener actualConnStr logger \pgListener -> do
                 frameworkConfig <- buildFrameworkConfig logger (pure ())

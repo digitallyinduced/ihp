@@ -37,11 +37,11 @@ reportTelemetry = do
     unless isDisabled do
         let logger = ?context.logger
         payload <- toPayload <$> getTelemetryInfo
-        logger (toLogStr (tshow payload) <> "\n")
+        logger (toLogStr (tshow payload))
         result <- Exception.try (Wreq.post "https://ihp-telemetry.digitallyinduced.com/CreateEvent" payload)
         case result of
-            Left (e :: IOException) -> logger (toLogStr ("Telemetry failed: " <> show e) <> "\n")
-            Right _ -> logger (toLogStr ("IHP Telemetry is activated. This can be disabled by setting env variable IHP_TELEMETRY_DISABLED=1" :: Text) <> "\n")
+            Left (e :: IOException) -> logger (toLogStr ("Telemetry failed: " <> show e))
+            Right _ -> logger (toLogStr ("IHP Telemetry is activated. This can be disabled by setting env variable IHP_TELEMETRY_DISABLED=1" :: Text))
 
 getTelemetryInfo :: IO TelemetryInfo
 getTelemetryInfo = do

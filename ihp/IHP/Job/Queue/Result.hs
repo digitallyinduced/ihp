@@ -35,7 +35,7 @@ jobDidFail :: forall job context.
 jobDidFail pool job exception = do
     now <- getCurrentTime
 
-    ?context.logger (toLogStr ("Failed job with exception: " <> tshow exception) <> "\n")
+    ?context.logger (toLogStr ("Failed job with exception: " <> tshow exception))
 
     let ?job = job
     let canRetry = job.attemptsCount < maxAttempts
@@ -69,7 +69,7 @@ jobDidTimeout :: forall job context.
 jobDidTimeout pool job = do
     now <- getCurrentTime
 
-    ?context.logger (toLogStr ("Job timed out" :: Text) <> "\n")
+    ?context.logger (toLogStr ("Job timed out" :: Text))
 
     let ?job = job
     let canRetry = job.attemptsCount < maxAttempts
@@ -100,7 +100,7 @@ jobDidSucceed :: forall job context.
     , HasField "logger" context FastLogger
     ) => HasqlPool.Pool -> job -> IO ()
 jobDidSucceed pool job = do
-    ?context.logger (toLogStr ("Succeeded job" :: Text) <> "\n")
+    ?context.logger (toLogStr ("Succeeded job" :: Text))
     updatedAt <- getCurrentTime
     let Id jobId = job.id
     let tableNameText = tableName @job

@@ -83,14 +83,15 @@ mainWithOptions wrapWithDirenv = withUtf8 do
     -- ensuring seamless transitions during app restarts (no connection refused errors)
     appSocket <- createListeningSocket portConfig.appPort
 
-    withFastLogger (LogStdout defaultBufSize) \logger -> do
+    withFastLogger (LogStdout defaultBufSize) \rawLogger -> do
+        let logger msg = rawLogger (msg <> "\n")
         (ghciInChan, ghciOutChan) <- Queue.newChan
         liveReloadClients <- newIORef mempty
         lastSchemaCompilerError <- newIORef Nothing
         let ?context = Context { portConfig, isDebugMode, logger, ghciInChan, ghciOutChan, wrapWithDirenv, liveReloadClients, lastSchemaCompilerError, appSocket }
 
         -- Print IHP Version when in debug mode
-        when isDebugMode (logger (toLogStr ("IHP Version: " <> Version.ihpVersion) <> "\n"))
+        when isDebugMode (logger (toLogStr ("IHP Version: " <> Version.ihpVersion)))
 
         ghciIsLoadingVar <- newIORef False
         reloadGhciVar :: MVar () <- newEmptyMVar
@@ -362,7 +363,7 @@ updateDatabaseIsOutdated databaseNeedsMigrationRef = do
             writeIORef databaseNeedsMigrationRef databaseNeedsMigration
 
     case result of
-        Left exception -> ?context.logger (toLogStr (tshow exception) <> "\n")
+        Left exception -> ?context.logger (toLogStr (tshow exception))
         Right _ -> pure ()
 
 tryCompileSchema :: (?context :: Context) => MVar () -> MVar () -> IO ()
@@ -371,7 +372,7 @@ tryCompileSchema reloadGhciVar startStatusServer = do
 
     case result of
         Left exception -> do
-            ?context.logger (toLogStr (tshow exception) <> "\n")
+            ?context.logger (toLogStr (tshow exception))
             receiveAppOutput (ErrorOutput (cs $ displayException exception))
 
             writeIORef ?context.lastSchemaCompilerError (Just exception)

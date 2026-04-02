@@ -111,7 +111,7 @@ genericHandler exception controller additionalInfo = do
     let devErrorMessage = [hsx|{errorMessageText}|]
     let devTitle = [hsx|{errorMessageTitle}|]
 
-    ?context.logger (toLogStr (errorMessageText <> ": " <> cs errorMessageTitle) <> "\n")
+    ?context.logger (toLogStr (errorMessageText <> ": " <> cs errorMessageTitle))
 
     let prodErrorMessage = [hsx|An exception was raised while running the action|]
     let prodTitle = [hsx|An error happened|]
@@ -502,7 +502,7 @@ genericHandlerMiddleware frameworkConfig request exception actionDescription = d
     let devErrorMessage = [hsx|{errorMessageText}|]
     let devTitle = [hsx|{errorMessageTitle}|]
 
-    frameworkConfig.logger (toLogStr (errorMessageText <> ": " <> cs errorMessageTitle) <> "\n")
+    frameworkConfig.logger (toLogStr (errorMessageText <> ": " <> cs errorMessageTitle))
 
     let prodErrorMessage = [hsx|An exception was raised while running the action|]
     let prodTitle = [hsx|An error happened|]

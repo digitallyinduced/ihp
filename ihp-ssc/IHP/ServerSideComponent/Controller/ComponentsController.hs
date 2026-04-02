@@ -19,7 +19,7 @@ instance (Component component controller, FromJSON controller, Typeable componen
         let ?instanceRef = instanceRef
 
         let componentName = tshow (typeOf state)
-        let log msg = ?modelContext.logger (toLogStr msg <> "\n")
+        let log msg = ?modelContext.logger (toLogStr msg)
         log ("SSC: Component " <> componentName <> " connected")
 
         -- Handle componentDidMount with exception handling

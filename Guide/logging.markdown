@@ -14,11 +14,11 @@ In any controller or model code, you can log a message by calling the logger dir
 
 ```haskell
 action TopPerformancesAction {collection} = do
-    ?context.logger (toLogStr ("starting TopPerformancesAction" :: Text) <> "\n")
+    ?context.logger (toLogStr ("starting TopPerformancesAction" :: Text))
     let n = paramOrDefault 5 "numPerformances"
     band <- fetchBand collection
     topPerformances <- fetchTopPerformances collection n
-    ?context.logger (toLogStr (show (length topPerformances) <> " top performances received." :: Text) <> "\n")
+    ?context.logger (toLogStr (show (length topPerformances) <> " top performances received." :: Text))
     render TopPerformancesView {..}
 ```
 

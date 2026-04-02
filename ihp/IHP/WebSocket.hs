@@ -72,7 +72,7 @@ startWSApp initialState connection = do
                 (Just Websocket.ConnectionClosed) -> pure ()
                 (Just (Websocket.CloseRequest {})) -> pure ()
                 (Just other) -> error ("Unhandled Websocket exception: " <> show other)
-                Nothing -> ?context.logger (toLogStr (tshow e) <> "\n")
+                Nothing -> ?context.logger (toLogStr (tshow e))
         Right _ -> pure ()
 
 setState :: (?state :: IORef state) => state -> IO ()

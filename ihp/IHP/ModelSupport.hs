@@ -79,7 +79,7 @@ notConnectedModelContext logger = ModelContext
     { hasqlPool = error "Not connected"
     , transactionRunner = Nothing
     , logger = logger
-    , debugMode = False
+    , queryLoggingEnabled = False
     , trackTableReadCallback = Nothing
     , rowLevelSecurity = Nothing
     }
@@ -102,7 +102,7 @@ createModelContext databaseUrl logger = do
     let trackTableReadCallback = Nothing
     let transactionRunner = Nothing
     let rowLevelSecurity = Nothing
-    debugMode <- envOrDefault "DEBUG" False
+    queryLoggingEnabled <- envOrDefault "DEBUG" False
     pure ModelContext { .. }
 
 releaseModelContext :: ModelContext -> IO ()
@@ -444,13 +444,13 @@ runSessionHasql pool session = do
 {-# INLINE logQueryTiming #-}
 logQueryTiming :: (?context :: ModelContext) => Text -> IO a -> IO a
 logQueryTiming label runQuery =
-    if ?context.debugMode
+    if ?context.queryLoggingEnabled
         then do
             start <- getCurrentTime
             runQuery `finally` do
                 end <- getCurrentTime
                 let queryTimeInMs = round (realToFrac (end `diffUTCTime` start) * 1000 :: Double) :: Int
-                ?context.logger (toLogStr (label <> " (" <> Text.pack (show queryTimeInMs) <> "ms)\n"))
+                ?context.logger (toLogStr (label <> " (" <> Text.pack (show queryTimeInMs) <> "ms)"))
         else runQuery
 
 -- | Existential wrapper for sub-session requests in a transaction
@@ -557,7 +557,7 @@ withTransaction block
             case blockResult of
                 Left exc -> do
                     catchError (Hasql.script "ROLLBACK") (\rollbackErr -> liftIO $
-                        ?context.logger (toLogStr ("withTransaction: ROLLBACK failed: " <> Text.pack (show rollbackErr)) <> "\n"))
+                        ?context.logger (toLogStr ("withTransaction: ROLLBACK failed: " <> Text.pack (show rollbackErr))))
                     liftIO (throwIO exc)
                 Right a -> do
                     Hasql.script "COMMIT"
@@ -1007,8 +1007,8 @@ withoutQueryLogging :: (?modelContext :: ModelContext) => ((?modelContext :: Mod
 withoutQueryLogging callback =
     let
         modelContext = ?modelContext
-        nullLogger = \_ -> pure ()
     in
-        let ?modelContext = modelContext { logger = nullLogger }
+        let ?modelContext = modelContext { logger = noopLogger }
         in
             callback
+

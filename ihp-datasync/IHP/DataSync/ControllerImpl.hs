@@ -76,7 +76,7 @@ runDataSyncController hasqlPool ensureRLSEnabled installTableChangeTriggers rece
                                 Left (e :: Exception.SomeException) -> do
                                     let requestId    = decodedMessage.requestId
                                     let errorMessage = cs (displayException e)
-                                    ?modelContext.logger (toLogStr (tshow e) <> "\n")
+                                    ?modelContext.logger (toLogStr (tshow e))
                                     sendJSON DataSyncError { requestId, errorMessage }
                                 Right _ -> pure ()
                         )

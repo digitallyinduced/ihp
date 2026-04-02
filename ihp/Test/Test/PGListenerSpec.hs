@@ -7,12 +7,12 @@ module Test.PGListenerSpec where
 import Test.Hspec
 import IHP.Prelude
 import qualified IHP.PGListener as PGListener
-import System.Log.FastLogger (FastLogger)
+import IHP.ModelSupport (noopLogger)
 import Data.HashMap.Strict as HashMap
 
 tests = do
     describe "IHP.PGListener" do
-        let logger = (\_ -> pure ()) :: FastLogger
+        let logger = noopLogger
 
         describe "subscribe" do
             it "should add a subscriber" do

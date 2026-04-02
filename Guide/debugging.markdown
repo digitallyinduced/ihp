@@ -239,9 +239,9 @@ Then log via `?context.logger`:
 
 ```haskell
 action ShowPostAction { postId } = do
-    ?context.logger (toLogStr ("ShowPostAction called with postId: " <> show postId :: Text) <> "\n")
+    ?context.logger (toLogStr ("ShowPostAction called with postId: " <> show postId :: Text))
     post <- fetch postId
-    ?context.logger (toLogStr ("Rendering post: " <> post.title) <> "\n")
+    ?context.logger (toLogStr ("Rendering post: " <> post.title))
     render ShowView { .. }
 ```
 

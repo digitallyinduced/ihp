@@ -164,7 +164,8 @@ findOptionOrNothing = do
 {-# INLINABLE findOptionOrNothing #-}
 
 buildFrameworkConfig :: FastLogger -> ConfigBuilder -> IO FrameworkConfig
-buildFrameworkConfig logger appConfig = do
+buildFrameworkConfig rawLogger appConfig = do
+    let logger msg = rawLogger (msg <> "\n")
     let resolve = do
             (AppHostname appHostname) <- findOption @AppHostname
             environment <- findOption @Environment
@@ -187,7 +188,7 @@ buildFrameworkConfig logger appConfig = do
 
             pure FrameworkConfig { .. }
 
-    (frameworkConfig, _) <- State.runStateT (appConfig >> ihpDefaultConfig logger >> resolve) TMap.empty
+    (frameworkConfig, _) <- State.runStateT (appConfig >> ihpDefaultConfig rawLogger >> resolve) TMap.empty
 
     pure frameworkConfig
 {-# INLINABLE buildFrameworkConfig #-}
@@ -254,8 +255,8 @@ defaultCorsResourcePolicy = Nothing
 --
 withFrameworkConfig :: ConfigBuilder -> (FrameworkConfig -> IO result) -> IO result
 withFrameworkConfig configBuilder callback =
-    withFastLogger (LogStdout defaultBufSize) \logger -> do
-        frameworkConfig <- buildFrameworkConfig logger configBuilder
+    withFastLogger (LogStdout defaultBufSize) \rawLogger -> do
+        frameworkConfig <- buildFrameworkConfig rawLogger configBuilder
         callback frameworkConfig
 
 -- | Wraps an Exception thrown during the config process, but adds a CallStack
