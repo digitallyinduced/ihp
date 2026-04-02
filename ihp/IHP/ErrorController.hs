@@ -40,9 +40,7 @@ import IHP.FrameworkConfig
 import qualified IHP.Environment as Environment
 import IHP.Controller.Context
 import IHP.Controller.NotFound (handleNotFound, buildNotFoundResponse)
-import qualified IHP.Log as Log
-import IHP.Log (writeLog)
-import IHP.Log.Types (LogLevel(..))
+import System.Log.FastLogger (toLogStr)
 import IHP.ActionType (actionTypeVaultKey)
 import qualified Data.Vault.Lazy as Vault
 
@@ -113,7 +111,7 @@ genericHandler exception controller additionalInfo = do
     let devErrorMessage = [hsx|{errorMessageText}|]
     let devTitle = [hsx|{errorMessageTitle}|]
 
-    Log.error (errorMessageText <> ": " <> cs errorMessageTitle)
+    ?context.logger (toLogStr (errorMessageText <> ": " <> cs errorMessageTitle) <> "\n")
 
     let prodErrorMessage = [hsx|An exception was raised while running the action|]
     let prodTitle = [hsx|An error happened|]
@@ -504,7 +502,7 @@ genericHandlerMiddleware frameworkConfig request exception actionDescription = d
     let devErrorMessage = [hsx|{errorMessageText}|]
     let devTitle = [hsx|{errorMessageTitle}|]
 
-    writeLog Error frameworkConfig.logger (errorMessageText <> ": " <> cs errorMessageTitle)
+    frameworkConfig.logger (toLogStr (errorMessageText <> ": " <> cs errorMessageTitle) <> "\n")
 
     let prodErrorMessage = [hsx|An exception was raised while running the action|]
     let prodTitle = [hsx|An error happened|]

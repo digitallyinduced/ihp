@@ -4,7 +4,7 @@ import IHP.IDE.Types
 import IHP.Prelude
 import Control.Concurrent (threadDelay)
 
-import qualified IHP.Log as Log
+import System.Log.FastLogger (toLogStr)
 import qualified IHP.EnvVar as EnvVar
 
 import qualified System.Process as Process
@@ -20,6 +20,6 @@ waitPostgres = do
     case exitCode of
         ExitSuccess -> pure ()
         ExitFailure _ -> do
-            when isDebugMode (Log.debug ("Waiting for postgres to start" :: Text))
+            when isDebugMode (?context.logger (toLogStr ("Waiting for postgres to start" :: Text) <> "\n"))
             threadDelay 100000  -- 100ms between checks
             waitPostgres

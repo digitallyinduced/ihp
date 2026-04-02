@@ -57,8 +57,7 @@ import PostgresqlTypes.Polygon
 import PostgresqlTypes.Inet
 import PostgresqlTypes.Interval
 import PostgresqlTypes.Tsvector
-import IHP.Log.Types
-import qualified IHP.Log as Log
+import System.Log.FastLogger (FastLogger, toLogStr)
 import Data.Dynamic
 import IHP.EnvVar
 import Data.Scientific
@@ -75,16 +74,17 @@ import IHP.Hasql.Pool (usePoolWithRetry)
 import IHP.PGSimpleCompat ()
 
 -- | Provides a mock ModelContext to be used when a database connection is not available
-notConnectedModelContext :: Logger -> ModelContext
+notConnectedModelContext :: FastLogger -> ModelContext
 notConnectedModelContext logger = ModelContext
     { hasqlPool = error "Not connected"
     , transactionRunner = Nothing
     , logger = logger
+    , debugMode = False
     , trackTableReadCallback = Nothing
     , rowLevelSecurity = Nothing
     }
 
-createModelContext :: ByteString -> Logger -> IO ModelContext
+createModelContext :: ByteString -> FastLogger -> IO ModelContext
 createModelContext databaseUrl logger = do
     -- Create hasql pool for prepared statement-based queries
     -- HASQL_POOL_SIZE: pool size (default: 20). Set to 1 for consistent prepared statement caching.
@@ -102,6 +102,7 @@ createModelContext databaseUrl logger = do
     let trackTableReadCallback = Nothing
     let transactionRunner = Nothing
     let rowLevelSecurity = Nothing
+    debugMode <- envOrDefault "DEBUG" False
     pure ModelContext { .. }
 
 releaseModelContext :: ModelContext -> IO ()
@@ -110,7 +111,7 @@ releaseModelContext modelContext = do
 
 -- | Bracket-style wrapper around 'createModelContext' that ensures the database
 -- pool is released when the callback completes (or throws an exception).
-withModelContext :: ByteString -> Logger -> (ModelContext -> IO a) -> IO a
+withModelContext :: ByteString -> FastLogger -> (ModelContext -> IO a) -> IO a
 withModelContext databaseUrl logger =
     bracket (createModelContext databaseUrl logger) releaseModelContext
 
@@ -336,7 +337,6 @@ setRLSConfigStatement = Hasql.preparable
 sqlStatementHasql :: (?modelContext :: ModelContext) => HasqlPool.Pool -> a -> Hasql.Statement a b -> IO b
 sqlStatementHasql pool input statement = do
     let ?context = ?modelContext
-    let currentLogLevel = ?modelContext.logger.level
     let session = case (?modelContext.transactionRunner, ?modelContext.rowLevelSecurity) of
             (Nothing, Just RowLevelSecurityContext { rlsAuthenticatedRole, rlsUserId }) ->
                 Tx.transaction Tx.ReadCommitted Tx.Read $ do
@@ -347,7 +347,7 @@ sqlStatementHasql pool input statement = do
     let runQuery = case ?modelContext.transactionRunner of
             Just (TransactionRunner runner) -> runner session
             Nothing -> usePoolWithRetry pool session
-    logQueryTiming currentLogLevel ("🔍 " <> truncateQuery (cs (Hasql.toSql statement))) runQuery
+    logQueryTiming ("🔍 " <> truncateQuery (cs (Hasql.toSql statement))) runQuery
 {-# INLINABLE sqlStatementHasql #-}
 
 -- | Runs a query built from a dynamic 'Snippet'.
@@ -376,7 +376,6 @@ sqlQueryHasql pool snippet decoder =
 sqlExecStatement :: (?modelContext :: ModelContext) => HasqlPool.Pool -> a -> Hasql.Statement a () -> IO ()
 sqlExecStatement pool input statement = do
     let ?context = ?modelContext
-    let currentLogLevel = ?modelContext.logger.level
     let session = case (?modelContext.transactionRunner, ?modelContext.rowLevelSecurity) of
             (Just _, _) ->
                 Hasql.statement input statement
@@ -389,7 +388,7 @@ sqlExecStatement pool input statement = do
     let runQuery = case ?modelContext.transactionRunner of
             Just (TransactionRunner runner) -> runner session
             Nothing -> usePoolWithRetry pool session
-    logQueryTiming currentLogLevel ("💾 " <> truncateQuery (cs (Hasql.toSql statement))) runQuery
+    logQueryTiming ("💾 " <> truncateQuery (cs (Hasql.toSql statement))) runQuery
 {-# INLINABLE sqlExecStatement #-}
 
 -- | Like 'sqlQueryHasql' but for statements that don't return results (DELETE, etc.)
@@ -407,7 +406,6 @@ sqlExecHasql pool snippet = sqlExecStatement pool () (Snippet.toPreparableStatem
 sqlExecHasqlCount :: (?modelContext :: ModelContext) => HasqlPool.Pool -> Snippet.Snippet -> IO Int64
 sqlExecHasqlCount pool snippet = do
     let ?context = ?modelContext
-    let currentLogLevel = ?modelContext.logger.level
     let statement = Snippet.toPreparableStatement snippet Decoders.rowsAffected
     let session = case (?modelContext.transactionRunner, ?modelContext.rowLevelSecurity) of
             (Nothing, Just RowLevelSecurityContext { rlsAuthenticatedRole, rlsUserId }) ->
@@ -419,7 +417,7 @@ sqlExecHasqlCount pool snippet = do
     let runQuery = case ?modelContext.transactionRunner of
             Just (TransactionRunner runner) -> runner session
             Nothing -> usePoolWithRetry pool session
-    logQueryTiming currentLogLevel ("💾 " <> cs (Hasql.toSql statement)) runQuery
+    logQueryTiming ("💾 " <> cs (Hasql.toSql statement)) runQuery
 {-# INLINABLE sqlExecHasqlCount #-}
 
 -- | Like 'sqlExecHasql' but for raw 'Hasql.Session' values (e.g. multi-statement DDL via 'Hasql.sql')
@@ -434,26 +432,25 @@ sqlExecHasqlCount pool snippet = do
 runSessionHasql :: (?modelContext :: ModelContext) => HasqlPool.Pool -> Hasql.Session () -> IO ()
 runSessionHasql pool session = do
     let ?context = ?modelContext
-    let currentLogLevel = ?modelContext.logger.level
     let runQuery = case ?modelContext.transactionRunner of
             Just (TransactionRunner runner) -> runner session
             Nothing -> usePoolWithRetry pool session
-    logQueryTiming currentLogLevel "💾 runSessionHasql" runQuery
+    logQueryTiming "💾 runSessionHasql" runQuery
 {-# INLINABLE runSessionHasql #-}
 
 
--- | Run an IO action, logging its duration when the log level is 'Debug'.
+-- | Run an IO action, logging its duration when debug mode is enabled.
 -- The label is prepended to the timing message, e.g. @"🔍 SELECT ..."@.
 {-# INLINE logQueryTiming #-}
-logQueryTiming :: (?context :: ModelContext) => LogLevel -> Text -> IO a -> IO a
-logQueryTiming currentLogLevel label runQuery =
-    if currentLogLevel == Debug
+logQueryTiming :: (?context :: ModelContext) => Text -> IO a -> IO a
+logQueryTiming label runQuery =
+    if ?context.debugMode
         then do
             start <- getCurrentTime
             runQuery `finally` do
                 end <- getCurrentTime
                 let queryTimeInMs = round (realToFrac (end `diffUTCTime` start) * 1000 :: Double) :: Int
-                Log.debug (label <> " (" <> Text.pack (show queryTimeInMs) <> "ms)")
+                ?context.logger (toLogStr (label <> " (" <> Text.pack (show queryTimeInMs) <> "ms)\n"))
         else runQuery
 
 -- | Existential wrapper for sub-session requests in a transaction
@@ -560,7 +557,7 @@ withTransaction block
             case blockResult of
                 Left exc -> do
                     catchError (Hasql.script "ROLLBACK") (\rollbackErr -> liftIO $
-                        Log.warn ("withTransaction: ROLLBACK failed: " <> Text.pack (show rollbackErr)))
+                        ?context.logger (toLogStr ("withTransaction: ROLLBACK failed: " <> Text.pack (show rollbackErr)) <> "\n"))
                     liftIO (throwIO exc)
                 Right a -> do
                     Hasql.script "COMMIT"
@@ -1010,7 +1007,7 @@ withoutQueryLogging :: (?modelContext :: ModelContext) => ((?modelContext :: Mod
 withoutQueryLogging callback =
     let
         modelContext = ?modelContext
-        nullLogger = modelContext.logger { write = \_ -> pure ()}
+        nullLogger = \_ -> pure ()
     in
         let ?modelContext = modelContext { logger = nullLogger }
         in

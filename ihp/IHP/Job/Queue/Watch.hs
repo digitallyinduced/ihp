@@ -14,7 +14,7 @@ import IHP.Job.Queue.Fetch (pendingJobConditionSQL)
 import IHP.Job.Queue.STM (tryWriteTBQueue)
 import IHP.Job.Types (JobWorkerProcessMessage (..))
 import qualified IHP.PGListener as PGListener
-import qualified IHP.Log as Log
+import System.Log.FastLogger (FastLogger, toLogStr)
 import Control.Monad.Trans.Resource
 import qualified Control.Exception.Safe as Exception
 import qualified Control.Concurrent as Concurrent
@@ -44,13 +44,13 @@ import Data.Functor.Contravariant (contramap)
 --
 -- Now insert something into the @projects@ table. E.g. by running @make psql@ and then running @INSERT INTO projects (id, name) VALUES (DEFAULT, 'New project');@
 -- You will see that @"Something changed in the projects table"@ is printed onto the screen.
-watchForJob :: (?context :: context, HasField "logger" context Log.Logger) => HasqlPool.Pool -> PGListener.PGListener -> Text -> Int -> TBQueue JobWorkerProcessMessage -> ResourceT IO (PGListener.Subscription, ReleaseKey)
+watchForJob :: (?context :: context, HasField "logger" context FastLogger) => HasqlPool.Pool -> PGListener.PGListener -> Text -> Int -> TBQueue JobWorkerProcessMessage -> ResourceT IO (PGListener.Subscription, ReleaseKey)
 watchForJob pool pgListener tableName pollInterval onNewJob =
     watchForJobWithPollerTriggerRepair False pool pgListener tableName pollInterval onNewJob
 
 -- | Like 'watchForJob' but allows enabling a poller-side trigger integrity check.
 -- Useful in development to recover from missing triggers after `make db`.
-watchForJobWithPollerTriggerRepair :: (?context :: context, HasField "logger" context Log.Logger) => Bool -> HasqlPool.Pool -> PGListener.PGListener -> Text -> Int -> TBQueue JobWorkerProcessMessage -> ResourceT IO (PGListener.Subscription, ReleaseKey)
+watchForJobWithPollerTriggerRepair :: (?context :: context, HasField "logger" context FastLogger) => Bool -> HasqlPool.Pool -> PGListener.PGListener -> Text -> Int -> TBQueue JobWorkerProcessMessage -> ResourceT IO (PGListener.Subscription, ReleaseKey)
 watchForJobWithPollerTriggerRepair enablePollerTriggerRepair pool pgListener tableName pollInterval onNewJob = do
     let tableNameBS = cs tableName
     liftIO do
@@ -60,15 +60,15 @@ watchForJobWithPollerTriggerRepair enablePollerTriggerRepair pool pgListener tab
         PGListener.onReconnect (\connection -> do
             result <- HasqlConnection.use connection (HasqlSession.script (createNotificationTriggerSQL tableNameBS))
             case result of
-                Left err -> Log.warn ("Failed to recreate notification triggers for " <> tableName <> ": " <> tshow err <> ". Falling back to poller.")
-                Right _ -> Log.info ("Recreated notification triggers for " <> tableName)
+                Left err -> ?context.logger (toLogStr ("Failed to recreate notification triggers for " <> tableName <> ": " <> tshow err <> ". Falling back to poller.") <> "\n")
+                Right _ -> ?context.logger (toLogStr ("Recreated notification triggers for " <> tableName) <> "\n")
             ) pgListener
 
     poller <- pollForJob enablePollerTriggerRepair pool tableName pollInterval onNewJob
     subscription <- liftIO $ pgListener |> PGListener.subscribe (channelName tableNameBS) (const (do
-            Log.debug ("Received pg_notify for " <> tableName)
+            ?context.logger (toLogStr ("Received pg_notify for " <> tableName) <> "\n")
             didWrite <- atomically $ tryWriteTBQueue onNewJob JobAvailable
-            unless didWrite (Log.warn ("Job queue full for " <> tableName))
+            unless didWrite (?context.logger (toLogStr ("Job queue full for " <> tableName) <> "\n"))
             ))
 
     pure (subscription, poller)
@@ -80,7 +80,7 @@ watchForJobWithPollerTriggerRepair enablePollerTriggerRepair pool pgListener tab
 -- will not run, and so 'watchForJob' cannot pick up the job even when 'runAt' is now in the past.
 --
 -- This function returns a Async. Call 'cancel' on the async to stop polling the database.
-pollForJob :: (?context :: context, HasField "logger" context Log.Logger) => Bool -> HasqlPool.Pool -> Text -> Int -> TBQueue JobWorkerProcessMessage -> ResourceT IO ReleaseKey
+pollForJob :: (?context :: context, HasField "logger" context FastLogger) => Bool -> HasqlPool.Pool -> Text -> Int -> TBQueue JobWorkerProcessMessage -> ResourceT IO ReleaseKey
 pollForJob enablePollerTriggerRepair pool tableName pollInterval onNewJob = do
     let sql = "SELECT COUNT(*) FROM " <> tableName
             <> " WHERE " <> pendingJobConditionSQL
@@ -101,7 +101,7 @@ pollForJob enablePollerTriggerRepair pool tableName pollInterval onNewJob = do
                         _ <- atomically $ tryWriteTBQueue onNewJob JobAvailable
                         pure ()
                 case result of
-                    Left exception -> Log.error ("Job poller: " <> tshow exception)
+                    Left exception -> ?context.logger (toLogStr ("Job poller: " <> tshow exception) <> "\n")
                     Right _ -> pure ()
 
                 -- Add up to 2 seconds of jitter to avoid all job queues polling at the same time
@@ -132,15 +132,15 @@ notificationTriggersHealthy pool tableName = do
     count :: Int <- fromIntegral <$> runPool pool (HasqlSession.statement (tableName, insertTriggerName, updateTriggerName) statement)
     pure (count == 2)
 
-ensureNotificationTriggers :: (?context :: context, HasField "logger" context Log.Logger) => HasqlPool.Pool -> Text -> IO ()
+ensureNotificationTriggers :: (?context :: context, HasField "logger" context FastLogger) => HasqlPool.Pool -> Text -> IO ()
 ensureNotificationTriggers pool tableName = do
     healthy <- notificationTriggersHealthy pool tableName
     unless healthy do
         let insertTriggerName = "did_insert_job_" <> tableName
         let updateTriggerName = "did_update_job_" <> tableName
-        Log.warn ("Job poller: Missing notification triggers for " <> tableName <> " (" <> insertTriggerName <> ", " <> updateTriggerName <> "). Recreating.")
+        ?context.logger (toLogStr ("Job poller: Missing notification triggers for " <> tableName <> " (" <> insertTriggerName <> ", " <> updateTriggerName <> "). Recreating.") <> "\n")
         runPool pool (HasqlSession.script (createNotificationTriggerSQL (cs tableName)))
-        Log.info ("Job poller: Recreated notification triggers for " <> tableName)
+        ?context.logger (toLogStr ("Job poller: Recreated notification triggers for " <> tableName) <> "\n")
 
 -- | Returns a SQL script to create the notification trigger.
 --

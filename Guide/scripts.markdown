@@ -97,8 +97,6 @@ You can define custom configurations in your `Config.hs`:
 
 ```haskell
 -- Config.hs
-import IHP.Log.Types
-
 appConfig :: ConfigBuilder
 appConfig = do
     option Development

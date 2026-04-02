@@ -17,7 +17,7 @@ import qualified System.Exit as Exit
 import qualified IHP.PGListener as PGListener
 import Control.Monad.Trans.Resource
 import qualified Control.Exception.Safe as Exception
-import qualified IHP.Log as Log
+import System.Log.FastLogger (toLogStr)
 import Control.Concurrent.STM (atomically, writeTBQueue)
 
 -- | Used by the RunJobs binary
@@ -34,9 +34,8 @@ dedicatedProcessMainLoop jobWorkers = do
     threadId <- Concurrent.myThreadId
     exitSignalsCount <- newIORef 0
     workerId <- UUID.nextRandom
-    let logger = ?context.logger
 
-    Log.info ("Starting worker " <> tshow workerId)
+    ?context.logger (toLogStr ("Starting worker " <> tshow workerId) <> "\n")
 
     -- The job workers use their own dedicated PG listener as e.g. AutoRefresh or DataSync
     -- could overload the main PGListener connection. In that case we still want jobs to be
@@ -54,7 +53,7 @@ dedicatedProcessMainLoop jobWorkers = do
 
             liftIO waitForExitSignal
 
-            liftIO $ Log.info ("Waiting for jobs to complete. CTRL+C again to force exit" :: Text)
+            liftIO $ ?context.logger (toLogStr ("Waiting for jobs to complete. CTRL+C again to force exit" :: Text) <> "\n")
 
             -- Stop subscriptions and poller already
             -- This will stop all producers for the queue
@@ -74,7 +73,7 @@ dedicatedProcessMainLoop jobWorkers = do
             liftIO $ async do
                 waitForExitSignal
 
-                Log.info ("Canceling all running jobs. CTRL+C again to force exit" :: Text)
+                ?context.logger (toLogStr ("Canceling all running jobs. CTRL+C again to force exit" :: Text) <> "\n")
 
                 forEach processes \JobWorkerProcess { dispatcher = (dispatcherKey, _) } -> do
                     release dispatcherKey  -- cancels dispatcher, whose finally cancels all workers
@@ -93,9 +92,8 @@ devServerMainLoop :: (?modelContext :: ModelContext) => FrameworkConfig -> PGLis
 devServerMainLoop frameworkConfig pgListener jobWorkers = do
     workerId <- UUID.nextRandom
     let ?context = frameworkConfig
-    let logger = frameworkConfig.logger
 
-    Log.info ("Starting worker " <> tshow workerId)
+    ?context.logger (toLogStr ("Starting worker " <> tshow workerId) <> "\n")
 
     runResourceT do
         let jobWorkerArgs = JobWorkerArgs { workerId, modelContext = ?modelContext, frameworkConfig = ?context, pgListener }

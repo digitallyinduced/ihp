@@ -13,7 +13,6 @@ module IHP.FrameworkConfig
 , RootApplication (..)
 , defaultPort
 , defaultDatabaseUrl
-, defaultLoggerForEnv
 , isEnvironment
 , isDevelopment
 , isProduction
@@ -36,8 +35,7 @@ import qualified Data.TMap as TMap
 import qualified Data.Typeable as Typeable
 import IHP.View.Types
 import IHP.View.CSSFramework.Bootstrap (bootstrap)
-import IHP.Log.Types
-import IHP.Log (makeRequestLogger, defaultRequestLogger)
+import System.Log.FastLogger (FastLogger, LogStr, toLogStr, LogType'(..), withFastLogger, newFastLogger, defaultBufSize)
 import qualified Network.Wai.Handler.Warp as Warp
 import qualified Network.Wai.Middleware.Cors as Cors
 import qualified Network.Wai.Parse as WaiParse
@@ -77,8 +75,8 @@ addInitializer onStartup = do
             |> TMap.insert newInitializers
         )
 
-ihpDefaultConfig :: ConfigBuilder
-ihpDefaultConfig = do
+ihpDefaultConfig :: FastLogger -> ConfigBuilder
+ihpDefaultConfig logger = do
     ihpEnv <- envOrDefault "IHP_ENV" Development
     option ihpEnv
 
@@ -91,19 +89,15 @@ ihpDefaultConfig = do
 
     environment <- findOption @Environment
 
-    defaultLogger <- configIO (defaultLoggerForEnv environment)
-    option defaultLogger
-    logger <- findOption @Logger
-
     requestLoggerIpAddrSource <- envOrDefault "IHP_REQUEST_LOGGER_IP_ADDR_SOURCE" RequestLogger.FromSocket
 
     reqLoggerMiddleware <- configIO $
             case environment of
                 Development -> do
-                                    reqLogger <- (logger |> defaultRequestLogger)
+                                    reqLogger <- RequestLogger.mkRequestLogger def { RequestLogger.destination = RequestLogger.Callback logger }
                                     pure (RequestLoggerMiddleware reqLogger)
                 Production  ->  do
-                                    reqLogger <- (logger |> makeRequestLogger def { RequestLogger.outputFormat = RequestLogger.Apache requestLoggerIpAddrSource })
+                                    reqLogger <- RequestLogger.mkRequestLogger def { RequestLogger.outputFormat = RequestLogger.Apache requestLoggerIpAddrSource, RequestLogger.destination = RequestLogger.Callback logger }
                                     pure (RequestLoggerMiddleware reqLogger)
 
 
@@ -169,8 +163,8 @@ findOptionOrNothing = do
         |> pure
 {-# INLINABLE findOptionOrNothing #-}
 
-buildFrameworkConfig :: ConfigBuilder -> IO FrameworkConfig
-buildFrameworkConfig appConfig = do
+buildFrameworkConfig :: FastLogger -> ConfigBuilder -> IO FrameworkConfig
+buildFrameworkConfig logger appConfig = do
     let resolve = do
             (AppHostname appHostname) <- findOption @AppHostname
             environment <- findOption @Environment
@@ -180,7 +174,6 @@ buildFrameworkConfig appConfig = do
             (SessionCookie sessionCookie) <- findOption @SessionCookie
             (DatabaseUrl databaseUrl) <- findOption @DatabaseUrl
             cssFramework <- findOption @CSSFramework
-            logger <- findOption @Logger
             exceptionTracker <- findOption @ExceptionTracker
             corsResourcePolicy <- findOptionOrNothing @Cors.CorsResourcePolicy
             parseRequestBodyOptions <- findOption @WaiParse.ParseRequestBodyOptions
@@ -194,7 +187,7 @@ buildFrameworkConfig appConfig = do
 
             pure FrameworkConfig { .. }
 
-    (frameworkConfig, _) <- State.runStateT (appConfig >> ihpDefaultConfig >> resolve) TMap.empty
+    (frameworkConfig, _) <- State.runStateT (appConfig >> ihpDefaultConfig logger >> resolve) TMap.empty
 
     pure frameworkConfig
 {-# INLINABLE buildFrameworkConfig #-}
@@ -220,12 +213,6 @@ defaultDatabaseUrl = do
     currentDirectory <- decodeUtf currentDirectoryOsPath
     let defaultDatabaseUrl = "postgresql:///app?host=" <> cs currentDirectory <> "/build/db"
     envOrDefault "DATABASE_URL" defaultDatabaseUrl
-
-defaultLoggerForEnv :: HasCallStack => Environment -> IO Logger
-defaultLoggerForEnv = \case
-    Development -> defaultLogger
-    Production -> newLogger def { level = Info }
-
 
 -- Returns 'True' when the application is running in a given environment
 isEnvironment :: (?context :: context, ConfigProvider context) => Environment -> Bool
@@ -266,7 +253,10 @@ defaultCorsResourcePolicy = Nothing
 -- >     -- Do something with the FrameworkConfig here
 --
 withFrameworkConfig :: ConfigBuilder -> (FrameworkConfig -> IO result) -> IO result
-withFrameworkConfig configBuilder = Exception.bracket (buildFrameworkConfig configBuilder) (\frameworkConfig -> frameworkConfig.logger.cleanup)
+withFrameworkConfig configBuilder callback =
+    withFastLogger (LogStdout defaultBufSize) \logger -> do
+        frameworkConfig <- buildFrameworkConfig logger configBuilder
+        callback frameworkConfig
 
 -- | Wraps an Exception thrown during the config process, but adds a CallStack
 --

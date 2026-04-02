@@ -18,8 +18,7 @@ import System.OsPath (decodeUtf)
 import qualified Data.Text as T
 import qualified Data.Text.IO as TIO
 
-import qualified IHP.Log.Types as Log
-import qualified IHP.Log as Log
+import System.Log.FastLogger (FastLogger, toLogStr)
 import qualified IHP.EnvVar as EnvVar
 
 data TelemetryInfo = TelemetryInfo
@@ -32,16 +31,17 @@ data TelemetryInfo = TelemetryInfo
 -- | Reports telemetry info to the IHP Telemetry server
 --
 -- This can be disabled by setting the env var IHP_TELEMETRY_DISABLED=1
-reportTelemetry :: (?context :: context, Log.LoggingProvider context) => IO ()
+reportTelemetry :: (?context :: context, HasField "logger" context FastLogger) => IO ()
 reportTelemetry = do
     isDisabled <- EnvVar.envOrDefault "IHP_TELEMETRY_DISABLED" False
     unless isDisabled do
+        let logger = ?context.logger
         payload <- toPayload <$> getTelemetryInfo
-        Log.info (tshow payload)
+        logger (toLogStr (tshow payload) <> "\n")
         result <- Exception.try (Wreq.post "https://ihp-telemetry.digitallyinduced.com/CreateEvent" payload)
         case result of
-            Left (e :: IOException) -> Log.warn ("Telemetry failed: " <> show e)
-            Right _ -> Log.info ("IHP Telemetry is activated. This can be disabled by setting env variable IHP_TELEMETRY_DISABLED=1" :: Text)
+            Left (e :: IOException) -> logger (toLogStr ("Telemetry failed: " <> show e) <> "\n")
+            Right _ -> logger (toLogStr ("IHP Telemetry is activated. This can be disabled by setting env variable IHP_TELEMETRY_DISABLED=1" :: Text) <> "\n")
 
 getTelemetryInfo :: IO TelemetryInfo
 getTelemetryInfo = do

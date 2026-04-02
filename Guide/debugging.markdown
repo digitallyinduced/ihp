@@ -37,14 +37,13 @@ Web/Controller/Posts.hs:10:14: error:
 
 This means GHC cannot find a variable or function with the name `postsz`. Usually this is a typo. In this case, you probably meant `posts` instead of `postsz`.
 
-It can also mean you forgot to import a module. For example, if you use `Log.debug` without importing the logging module, you will see:
+It can also mean you forgot to import a module. For example, if you use `toLogStr` without importing it, you will see:
 
 ```
-Not in scope: `Log.debug'
-No module named `Log' is imported.
+Not in scope: `toLogStr'
 ```
 
-**Fix:** Add `import qualified IHP.Log as Log` to the top of your module.
+**Fix:** Add `import System.Log.FastLogger (toLogStr)` to the top of your module.
 
 ### Couldn't Match Type
 
@@ -228,25 +227,25 @@ action ShowPostAction { postId } = do
 
 The output appears in the terminal where `devenv up` is running.
 
-### Using `Log.debug` (Recommended)
+### Using the Logger (Recommended)
 
-For more structured output, use the IHP logging system. Import it at the top of your module:
+For more structured output, use the fast-logger based logging system. Import it at the top of your module:
 
 ```haskell
-import qualified IHP.Log as Log
+import System.Log.FastLogger (toLogStr)
 ```
 
-Then use `Log.debug`, `Log.info`, `Log.warn`, or `Log.error`:
+Then log via `?context.logger`:
 
 ```haskell
 action ShowPostAction { postId } = do
-    Log.debug ("ShowPostAction called with postId: " <> show postId)
+    ?context.logger (toLogStr ("ShowPostAction called with postId: " <> show postId :: Text) <> "\n")
     post <- fetch postId
-    Log.info ("Rendering post: " <> post.title)
+    ?context.logger (toLogStr ("Rendering post: " <> post.title) <> "\n")
     render ShowView { .. }
 ```
 
-The advantage of `Log.debug` over `putStrLn` is that log levels can be configured. In production, debug messages are hidden by default while errors are always shown. See the [Logging Guide](logging.html) for details on configuration.
+See the [Logging Guide](logging.html) for more details.
 
 ### Quick Reference: Which Logging Tool to Use
 
@@ -254,7 +253,7 @@ The advantage of `Log.debug` over `putStrLn` is that log levels can be configure
 |-----------|------|---------------------|
 | Quick throwaway debugging | `traceShowId` / `debug` | Terminal (stderr) |
 | Debugging in controller actions | `putStrLn` | Terminal (stdout) |
-| Structured, permanent logging | `Log.debug` / `Log.info` | Terminal + configurable destination |
+| Structured, permanent logging | `?context.logger` | Terminal (stdout) |
 | Inspecting a value inline without changing code flow | `traceShowId` | Terminal (stderr) |
 
 ## Using the Dev Server Error Overlay

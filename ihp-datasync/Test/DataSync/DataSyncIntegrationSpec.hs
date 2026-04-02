@@ -34,7 +34,7 @@ import Data.Aeson (Value(..), object, (.=))
 import qualified Data.Aeson as Aeson
 import Control.Concurrent.STM
 import Control.Concurrent (threadDelay)
-import qualified IHP.Log as Log
+import System.Log.FastLogger (FastLogger)
 
 -- | Define CurrentUserRecord for this test module
 data TestUser = TestUser { id :: Id' "test_users" }
@@ -143,10 +143,10 @@ withDataSyncController connStr testUserId action = do
         let actualConnStr = if "dbname=" `Text.isPrefixOf` connStr
                 then cs connStr
                 else cs ("dbname=" <> connStr)
-        logger <- Log.newLogger def { Log.level = Log.Error }
+        let logger = (\_ -> pure ()) :: FastLogger
         ModelSupport.withModelContext actualConnStr logger \modelContext -> do
             PGListener.withPGListener actualConnStr logger \pgListener -> do
-                frameworkConfig <- buildFrameworkConfig (pure ())
+                frameworkConfig <- buildFrameworkConfig logger (pure ())
                 let frameworkConfig' = frameworkConfig { databaseUrl = actualConnStr }
 
                 let v = Vault.empty

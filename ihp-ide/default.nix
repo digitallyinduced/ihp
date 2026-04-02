@@ -4,7 +4,7 @@
 , containers, countable-inflections, cryptohash, data-default
 , directory, filepath, fsnotify, hasql, hasql-dynamic-statements
 , hasql-implicits, hasql-pool, hspec, http-types, ihp, ihp-hsx
-, ihp-log, ihp-migrate, ihp-modal, ihp-postgres-parser
+, fast-logger, ihp-migrate, ihp-modal, ihp-postgres-parser
 , ihp-schema-compiler, inflections, interpolate, lib, megaparsec
 , mono-traversable, neat-interpolation, network, network-uri
 , process, safe-exceptions, split, string-conversions, text, time
@@ -27,7 +27,7 @@ mkDerivation {
     clientsession containers countable-inflections cryptohash
     data-default directory filepath fsnotify hasql
     hasql-dynamic-statements hasql-implicits hasql-pool http-types ihp
-    ihp-hsx ihp-log ihp-migrate ihp-modal ihp-postgres-parser
+    ihp-hsx fast-logger ihp-migrate ihp-modal ihp-postgres-parser
     ihp-schema-compiler inflections interpolate megaparsec
     mono-traversable neat-interpolation network network-uri process
     safe-exceptions split string-conversions text time transformers
@@ -42,7 +42,7 @@ mkDerivation {
     classy-prelude clientsession containers countable-inflections
     cryptohash data-default directory filepath fsnotify hasql
     hasql-dynamic-statements hasql-implicits hasql-pool http-types ihp
-    ihp-hsx ihp-log ihp-migrate ihp-postgres-parser ihp-schema-compiler
+    ihp-hsx fast-logger ihp-migrate ihp-postgres-parser ihp-schema-compiler
     inflections interpolate megaparsec mono-traversable
     neat-interpolation network network-uri process safe-exceptions
     split string-conversions text time transformers unagi-chan unix
@@ -56,7 +56,7 @@ mkDerivation {
     clientsession containers countable-inflections cryptohash
     data-default directory filepath fsnotify hasql
     hasql-dynamic-statements hasql-implicits hasql-pool hspec
-    http-types ihp ihp-hsx ihp-log ihp-migrate ihp-modal
+    http-types ihp ihp-hsx fast-logger ihp-migrate ihp-modal
     ihp-postgres-parser ihp-schema-compiler inflections interpolate
     megaparsec mono-traversable neat-interpolation network network-uri
     process safe-exceptions split string-conversions text time

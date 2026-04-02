@@ -64,7 +64,7 @@ import GHC.TypeLits
 import GHC.Types
 import Data.Data
 import Data.Dynamic
-import IHP.Log.Types (Logger)
+import System.Log.FastLogger (FastLogger)
 
 -- | Runner that executes a hasql Session on the current transaction's connection
 newtype TransactionRunner = TransactionRunner
@@ -86,8 +86,8 @@ instance Exception HasqlError
 data ModelContext = ModelContext
     { hasqlPool :: Hasql.Pool -- ^ Hasql pool for prepared statement-based queries
     , transactionRunner :: Maybe TransactionRunner -- ^ When set, queries are sent through this runner instead of 'HasqlPool.use' directly
-    -- | Logs all queries to this logger at log level info
-    , logger :: Logger
+    , logger :: FastLogger
+    , debugMode :: !Bool
     -- | A callback that is called whenever a specific table is accessed using a SELECT query
     , trackTableReadCallback :: Maybe (Text -> IO ())
     -- | Is set to a value if row level security was enabled at runtime

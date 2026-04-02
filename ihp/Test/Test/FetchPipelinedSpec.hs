@@ -14,8 +14,7 @@ import IHP.Hasql.FromRow (FromRowHasql(..), HasqlDecodeColumn(..))
 import IHP.FetchPipelined
 import qualified Hasql.Pool as HasqlPool
 import qualified Hasql.Session as Session
-import qualified IHP.Log as Log
-import IHP.Log.Types (LogLevel(..), LoggerSettings(..))
+import System.Log.FastLogger (FastLogger)
 import System.Environment (lookupEnv)
 import qualified Control.Exception as Exception
 
@@ -48,7 +47,7 @@ withDB :: (ModelContext -> IO ()) -> IO ()
 withDB action = do
     envUrl <- lookupEnv "DATABASE_URL"
     let databaseUrl = maybe "postgresql:///postgres" cs envUrl
-    logger <- Log.newLogger def { level = Warn }
+    let logger = (\_ -> pure ()) :: FastLogger
     modelContext <- createModelContext databaseUrl logger
     let pool = modelContext.hasqlPool
     let setup = do

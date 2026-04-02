@@ -20,7 +20,7 @@ import           IHP.FrameworkConfig                       (ConfigBuilder (..), 
 import qualified IHP.FrameworkConfig                       as FrameworkConfig
 import           IHP.ModelSupport                          (createModelContext, withModelContext, Id')
 import           IHP.Prelude
-import           IHP.Log.Types
+import           System.Log.FastLogger (FastLogger)
 import           IHP.Job.Types
 import Test.Hspec
 import qualified Data.Text as Text
@@ -68,8 +68,8 @@ runTestMiddlewares frameworkConfig modelContext maybePgListener baseRequest = do
 {-# DEPRECATED mockContextNoDatabase "Use withMockContext instead for bracket-style resource management" #-}
 mockContextNoDatabase :: (InitControllerContext application) => application -> ConfigBuilder -> IO (MockContext application)
 mockContextNoDatabase application configBuilder = do
-   frameworkConfig@(FrameworkConfig {databaseUrl}) <- FrameworkConfig.buildFrameworkConfig configBuilder
-   logger <- newLogger (def :: LoggerSettings) { level = Warn } -- don't log queries
+   let logger = (\_ -> pure ()) :: FastLogger -- don't log queries
+   frameworkConfig@(FrameworkConfig {databaseUrl}) <- FrameworkConfig.buildFrameworkConfig logger configBuilder
    modelContext <- createModelContext databaseUrl logger
 
    -- Start with a minimal request - the middleware stack will set up session, etc.

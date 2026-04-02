@@ -13,7 +13,7 @@ import IHP.Job.Queue.Pool (runPool)
 import IHP.Job.Queue.StatusInstances ()
 import IHP.ModelSupport (Table (..), InputValue (..))
 import IHP.ModelSupport.Types (Id' (..), PrimaryKey)
-import qualified IHP.Log as Log
+import System.Log.FastLogger (FastLogger, toLogStr)
 import qualified Hasql.Pool as HasqlPool
 import qualified Hasql.Session as HasqlSession
 import qualified Hasql.Statement as Hasql
@@ -30,12 +30,12 @@ jobDidFail :: forall job context.
     , HasField "runAt" job UTCTime
     , Job job
     , ?context :: context
-    , HasField "logger" context Log.Logger
+    , HasField "logger" context FastLogger
     ) => HasqlPool.Pool -> job -> SomeException -> IO ()
 jobDidFail pool job exception = do
     now <- getCurrentTime
 
-    Log.warn ("Failed job with exception: " <> tshow exception)
+    ?context.logger (toLogStr ("Failed job with exception: " <> tshow exception) <> "\n")
 
     let ?job = job
     let canRetry = job.attemptsCount < maxAttempts
@@ -64,12 +64,12 @@ jobDidTimeout :: forall job context.
     , HasField "runAt" job UTCTime
     , Job job
     , ?context :: context
-    , HasField "logger" context Log.Logger
+    , HasField "logger" context FastLogger
     ) => HasqlPool.Pool -> job -> IO ()
 jobDidTimeout pool job = do
     now <- getCurrentTime
 
-    Log.warn ("Job timed out" :: Text)
+    ?context.logger (toLogStr ("Job timed out" :: Text) <> "\n")
 
     let ?job = job
     let canRetry = job.attemptsCount < maxAttempts
@@ -97,10 +97,10 @@ jobDidSucceed :: forall job context.
     , HasField "id" job (Id' (GetTableName job))
     , PrimaryKey (GetTableName job) ~ UUID
     , ?context :: context
-    , HasField "logger" context Log.Logger
+    , HasField "logger" context FastLogger
     ) => HasqlPool.Pool -> job -> IO ()
 jobDidSucceed pool job = do
-    Log.info ("Succeeded job" :: Text)
+    ?context.logger (toLogStr ("Succeeded job" :: Text) <> "\n")
     updatedAt <- getCurrentTime
     let Id jobId = job.id
     let tableNameText = tableName @job

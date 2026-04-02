@@ -4,7 +4,7 @@ import qualified Control.Exception                 as Exception
 import qualified Data.Set                          as Set
 import qualified Data.Text                         as Text
 import qualified Data.Text.IO                      as Text
-import           IHP.Log.Types
+import           System.Log.FastLogger (FastLogger)
 import           IHP.ModelSupport                  (createModelContext,
                                                     releaseModelContext,
                                                     sqlExecDiscardResult)
@@ -383,7 +383,7 @@ requirePostgresTestHook = do
 
 withTestModelContext :: ((?modelContext :: ModelContext) => IO a) -> IO a
 withTestModelContext action = do
-    logger <- newLogger def { level = Warn }
+    let logger = (\_ -> pure ()) :: FastLogger
     databaseUrl <- cs . fromMaybe "" <$> lookupEnv "DATABASE_URL"
     modelContext <- createModelContext databaseUrl logger
     let ?modelContext = modelContext
@@ -835,7 +835,7 @@ runtimeModule = Text.unlines
     , ""
     , "import qualified Control.Exception as Exception"
     , "import IHP.Prelude"
-    , "import IHP.Log.Types"
+    , "import System.Log.FastLogger (FastLogger)"
     , "import IHP.ModelSupport (Id'(..), ModelContext, PrimaryKey, createModelContext, releaseModelContext)"
     , "import IHP.Hasql.FromRow (FromRowHasql (..))"
     , "import IHP.TypedSql (sqlExecTyped, sqlQueryTyped, typedSql)"
@@ -866,7 +866,7 @@ runtimeModule = Text.unlines
     , ""
     , "main :: IO ()"
     , "main = do"
-    , "    logger <- newLogger def { level = Warn }"
+    , "    let logger = (\\_ -> pure ()) :: FastLogger"
     , "    databaseUrl <- cs . fromMaybe \"\" <$> lookupEnv \"DATABASE_URL\""
     , "    modelContext <- createModelContext databaseUrl logger"
     , "    let ?modelContext = modelContext"
@@ -1086,7 +1086,7 @@ runtimeUpdateDeleteModule = Text.unlines
     , ""
     , "import qualified Control.Exception as Exception"
     , "import IHP.Prelude"
-    , "import IHP.Log.Types"
+    , "import System.Log.FastLogger (FastLogger)"
     , "import IHP.ModelSupport (Id'(..), ModelContext, PrimaryKey, createModelContext, releaseModelContext)"
     , "import IHP.TypedSql (sqlExecTyped, sqlQueryTyped, typedSql)"
     , "import System.Environment (lookupEnv)"
@@ -1100,7 +1100,7 @@ runtimeUpdateDeleteModule = Text.unlines
     , ""
     , "main :: IO ()"
     , "main = do"
-    , "    logger <- newLogger def { level = Warn }"
+    , "    let logger = (\\_ -> pure ()) :: FastLogger"
     , "    databaseUrl <- cs . fromMaybe \"\" <$> lookupEnv \"DATABASE_URL\""
     , "    modelContext <- createModelContext databaseUrl logger"
     , "    let ?modelContext = modelContext"
@@ -1177,7 +1177,7 @@ runtimeEdgeCasesModule = Text.unlines
     , ""
     , "import qualified Control.Exception as Exception"
     , "import IHP.Prelude"
-    , "import IHP.Log.Types"
+    , "import System.Log.FastLogger (FastLogger)"
     , "import IHP.ModelSupport (Id'(..), ModelContext, PrimaryKey, createModelContext, releaseModelContext)"
     , "import IHP.TypedSql (sqlExecTyped, sqlQueryTyped, typedSql)"
     , "import System.Environment (lookupEnv)"
@@ -1191,7 +1191,7 @@ runtimeEdgeCasesModule = Text.unlines
     , ""
     , "main :: IO ()"
     , "main = do"
-    , "    logger <- newLogger def { level = Warn }"
+    , "    let logger = (\\_ -> pure ()) :: FastLogger"
     , "    databaseUrl <- cs . fromMaybe \"\" <$> lookupEnv \"DATABASE_URL\""
     , "    modelContext <- createModelContext databaseUrl logger"
     , "    let ?modelContext = modelContext"
@@ -1262,7 +1262,7 @@ runtimeExtraTypesModule = Text.unlines
     , ""
     , "import qualified Control.Exception as Exception"
     , "import IHP.Prelude"
-    , "import IHP.Log.Types"
+    , "import System.Log.FastLogger (FastLogger)"
     , "import IHP.ModelSupport (ModelContext, PrimaryKey, createModelContext, releaseModelContext)"
     , "import IHP.TypedSql (sqlQueryTyped, typedSql)"
     , "import Data.Time (UTCTime, Day, parseTimeM, defaultTimeLocale)"
@@ -1279,7 +1279,7 @@ runtimeExtraTypesModule = Text.unlines
     , ""
     , "main :: IO ()"
     , "main = do"
-    , "    logger <- newLogger def { level = Warn }"
+    , "    let logger = (\\_ -> pure ()) :: FastLogger"
     , "    databaseUrl <- cs . fromMaybe \"\" <$> lookupEnv \"DATABASE_URL\""
     , "    modelContext <- createModelContext databaseUrl logger"
     , "    let ?modelContext = modelContext"

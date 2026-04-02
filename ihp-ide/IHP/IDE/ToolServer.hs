@@ -1,6 +1,7 @@
 module IHP.IDE.ToolServer (runToolServer, withToolServerApplication, ToolServerApplicationWithConfig(..)) where
 
 import IHP.Prelude
+import System.Log.FastLogger (LogType'(..), withFastLogger, defaultBufSize)
 import qualified Network.Wai as Wai
 import qualified Network.Wai.Handler.Warp as Warp
 import IHP.IDE.Types
@@ -92,65 +93,66 @@ data ToolServerApplicationWithConfig = ToolServerApplicationWithConfig
 -- - websocket support (for live reload)
 withToolServerApplication :: ToolServerApplication -> Int -> _ -> (ToolServerApplicationWithConfig -> IO result) -> IO result
 withToolServerApplication toolServerApplication port liveReloadClients action = do
-    frameworkConfig <- Config.buildFrameworkConfig do
-        Config.option $ Config.AppHostname "localhost"
-        Config.option $ Config.AppPort port
-        Config.option $ Config.AssetVersion Version.ihpVersion
+    withFastLogger (LogStdout defaultBufSize) \logger -> do
+        frameworkConfig <- Config.buildFrameworkConfig logger do
+            Config.option $ Config.AppHostname "localhost"
+            Config.option $ Config.AppPort port
+            Config.option $ Config.AssetVersion Version.ihpVersion
 
-        ihpIdeBaseUrlEnvVar <- EnvVar.envOrNothing "IHP_IDE_BASEURL"
-        case ihpIdeBaseUrlEnvVar of
-            Just baseUrl -> Config.option $ Config.BaseUrl baseUrl
-            Nothing -> pure ()
+            ihpIdeBaseUrlEnvVar <- EnvVar.envOrNothing "IHP_IDE_BASEURL"
+            case ihpIdeBaseUrlEnvVar of
+                Just baseUrl -> Config.option $ Config.BaseUrl baseUrl
+                Nothing -> pure ()
 
-    withModelContext frameworkConfig.databaseUrl frameworkConfig.logger \modelContext -> do
-        store <- fmap clientsessionStore (ClientSession.getKey "Config/client_session_key.aes")
-        let sessionMiddleware :: Wai.Middleware = withSession store "SESSION" (frameworkConfig.sessionCookie) sessionVaultKey
+        withModelContext frameworkConfig.databaseUrl frameworkConfig.logger \modelContext -> do
+            store <- fmap clientsessionStore (ClientSession.getKey "Config/client_session_key.aes")
+            let sessionMiddleware :: Wai.Middleware = withSession store "SESSION" (frameworkConfig.sessionCookie) sessionVaultKey
 
-        approotMiddleware <- Approot.envFallbackNamed "IDE_APPROOT"
+            approotMiddleware <- Approot.envFallbackNamed "IDE_APPROOT"
 
-        staticApp <- initStaticApp
+            staticApp <- initStaticApp
 
-        let innerApplication :: Wai.Application = \request respond -> do
-                frontControllerToWAIApp @ToolServerApplication @AutoRefresh.AutoRefreshWSApp (\app -> app) toolServerApplication staticApp request respond
+            let innerApplication :: Wai.Application = \request respond -> do
+                    frontControllerToWAIApp @ToolServerApplication @AutoRefresh.AutoRefreshWSApp (\app -> app) toolServerApplication staticApp request respond
 
-        let responseHeadersMiddleware = insertNewIORefVaultMiddleware responseHeadersVaultKey []
-        let rlsContextMiddleware = insertNewIORefVaultMiddleware rlsContextVaultKey Nothing
-        let modalMiddleware = insertNewIORefVaultMiddleware modalContainerVaultKey Nothing
+            let responseHeadersMiddleware = insertNewIORefVaultMiddleware responseHeadersVaultKey []
+            let rlsContextMiddleware = insertNewIORefVaultMiddleware rlsContextVaultKey Nothing
+            let modalMiddleware = insertNewIORefVaultMiddleware modalContainerVaultKey Nothing
 
-        let toolServerVaultMiddleware app req respond = do
-                availableApps <- AvailableApps <$> findApplications
-                webControllers <- WebControllers <$> findWebControllers
-                let defaultAppUrl = "http://localhost:" <> tshow toolServerApplication.appPort
-                appUrl <- AppUrl <$> EnvVar.envOrDefault "IHP_BASEURL" defaultAppUrl
-                databaseNeedsMigration <- DatabaseNeedsMigration <$> readIORef toolServerApplication.databaseNeedsMigration
-                hooglePort <- EnvVar.envOrNothing "IHP_HOOGLE_PORT"
-                let hoogleUrl = HoogleUrl $ case hooglePort of
-                        Just port | port /= "" -> Just ("http://localhost:" <> port)
-                        _ -> Nothing
-                let req' = req { Wai.vault = Vault.insert availableAppsVaultKey availableApps
-                                       . Vault.insert webControllersVaultKey webControllers
-                                       . Vault.insert appUrlVaultKey appUrl
-                                       . Vault.insert databaseNeedsMigrationVaultKey databaseNeedsMigration
-                                       . Vault.insert hoogleUrlVaultKey hoogleUrl
-                                       $ req.vault }
-                app req' respond
+            let toolServerVaultMiddleware app req respond = do
+                    availableApps <- AvailableApps <$> findApplications
+                    webControllers <- WebControllers <$> findWebControllers
+                    let defaultAppUrl = "http://localhost:" <> tshow toolServerApplication.appPort
+                    appUrl <- AppUrl <$> EnvVar.envOrDefault "IHP_BASEURL" defaultAppUrl
+                    databaseNeedsMigration <- DatabaseNeedsMigration <$> readIORef toolServerApplication.databaseNeedsMigration
+                    hooglePort <- EnvVar.envOrNothing "IHP_HOOGLE_PORT"
+                    let hoogleUrl = HoogleUrl $ case hooglePort of
+                            Just port | port /= "" -> Just ("http://localhost:" <> port)
+                            _ -> Nothing
+                    let req' = req { Wai.vault = Vault.insert availableAppsVaultKey availableApps
+                                           . Vault.insert webControllersVaultKey webControllers
+                                           . Vault.insert appUrlVaultKey appUrl
+                                           . Vault.insert databaseNeedsMigrationVaultKey databaseNeedsMigration
+                                           . Vault.insert hoogleUrlVaultKey hoogleUrl
+                                           $ req.vault }
+                    app req' respond
 
-        let application =
-                methodOverridePost $ sessionMiddleware $ approotMiddleware
-                    $ viewLayoutMiddleware
-                    $ responseHeadersMiddleware
-                    $ rlsContextMiddleware
-                    $ modalMiddleware
-                    $ toolServerVaultMiddleware
-                    $ modelContextMiddleware modelContext
-                    $ frameworkConfigMiddleware frameworkConfig
-                    $ requestBodyMiddleware frameworkConfig.parseRequestBodyOptions
-                    $ Websocket.websocketsOr
-                        Websocket.defaultConnectionOptions
-                        (LiveReloadNotificationServer.app liveReloadClients)
-                        innerApplication
+            let application =
+                    methodOverridePost $ sessionMiddleware $ approotMiddleware
+                        $ viewLayoutMiddleware
+                        $ responseHeadersMiddleware
+                        $ rlsContextMiddleware
+                        $ modalMiddleware
+                        $ toolServerVaultMiddleware
+                        $ modelContextMiddleware modelContext
+                        $ frameworkConfigMiddleware frameworkConfig
+                        $ requestBodyMiddleware frameworkConfig.parseRequestBodyOptions
+                        $ Websocket.websocketsOr
+                            Websocket.defaultConnectionOptions
+                            (LiveReloadNotificationServer.app liveReloadClients)
+                            innerApplication
 
-        action ToolServerApplicationWithConfig { application, frameworkConfig }
+            action ToolServerApplicationWithConfig { application, frameworkConfig }
 
 initStaticApp :: IO Wai.Application
 initStaticApp = do

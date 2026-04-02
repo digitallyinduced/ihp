@@ -425,62 +425,12 @@ Controls log level, format, and destination.
 
 | | |
 |---|---|
-| **Type** | `Logger` |
-| **Default (Development)** | Debug level, default format, stdout |
-| **Default (Production)** | Info level, default format, stdout |
+| **Type** | `FastLogger` (from `System.Log.FastLogger`) |
+| **Default** | Logs to stdout |
 
-```haskell
--- Config.hs
-import IHP.Log as Log
-import IHP.Log.Types
+IHP uses [fast-logger](https://hackage.haskell.org/package/fast-logger) directly. The logger is a `FastLogger` (`LogStr -> IO ()`) created at startup and available via `?context.logger` in controllers.
 
-config = do
-    -- Log only warnings and above
-    logger <- liftIO $ newLogger def { level = Warn }
-    option logger
-```
-
-##### Log Levels
-
-Log levels from lowest to highest: `Debug`, `Info`, `Warn`, `Error`, `Fatal`, `Unknown`. Messages below the configured level are discarded.
-
-| Level | Description |
-|-------|-------------|
-| `Debug` | General debugging messages, SQL queries. Default in Development. |
-| `Info` | Informational messages for monitoring. Default in Production. |
-| `Warn` | Potential problems. |
-| `Error` | Recoverable application errors. |
-| `Fatal` | Unrecoverable errors (does not exit the program). |
-| `Unknown` | Always logged regardless of level setting. |
-
-##### Log Destinations
-
-```haskell
--- Log to a file without rotation
-logger <- liftIO $ newLogger def { destination = File "Log/production.log" NoRotate defaultBufSize }
-
--- Log to a file with size-based rotation (4 MB, keep 7 rotated files)
-logger <- liftIO $ newLogger def { destination = File "Log/production.log" (SizeRotate (Bytes (4 * 1024 * 1024)) 7) defaultBufSize }
-
--- Log to stderr
-logger <- liftIO $ newLogger def { destination = Stderr defaultBufSize }
-
--- Disable logging
-logger <- liftIO $ newLogger def { destination = None }
-```
-
-##### Log Formatters
-
-```haskell
--- Include timestamps
-logger <- liftIO $ newLogger def { formatter = withTimeFormatter }
-
--- Include log level
-logger <- liftIO $ newLogger def { formatter = withLevelFormatter }
-
--- Include both timestamp and log level
-logger <- liftIO $ newLogger def { formatter = withTimeAndLevelFormatter }
-```
+Log via `?context.logger (toLogStr "message" <> "\n")`. See the [Logging Guide](logging.html) for details.
 
 #### Request Logger IP Source
 
