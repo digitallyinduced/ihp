@@ -6,248 +6,48 @@
 
 ## Introduction
 
-IHP applications and the framework itself can log output using the `IHP.Log` module.
-
-**Note:** since the logging system is multi-threaded for optimal performance, it is not guaranteed that messages will be printed in order.
-If you need to know exact ordering it's recommended you rely on the timestamp.
-
-### Log levels
-IHP logging uses log levels to determine which messages should be printed.
-This way, you can log messages to help in development without flooding production logs.
-
-The available log levels are [`debug`](https://ihp.digitallyinduced.com/api-docs/IHP-Log.html#v:debug), [`info`](https://ihp.digitallyinduced.com/api-docs/IHP-Log.html#v:info), [`warn`](https://ihp.digitallyinduced.com/api-docs/IHP-Log.html#v:warn), [`error`](https://ihp.digitallyinduced.com/api-docs/IHP-Log.html#v:error), [`fatal`](https://ihp.digitallyinduced.com/api-docs/IHP-Log.html#v:fatal), and [`unknown`](https://ihp.digitallyinduced.com/api-docs/IHP-Log.html#v:unknown).
-In development, the default log level is debug. In production, the default log level is info.
-Log messages will only be output if their log level is greater than or equal to the logger's configured log level.
+IHP uses [fast-logger](https://hackage.haskell.org/package/fast-logger) for logging. A `FastLogger` (which is just `LogStr -> IO ()`) is available via `?context.logger` in controllers and `?modelContext.logger` in model code.
 
 ### Sending messages
 
-In any controller or model code, you can log a message at a given log level by simply calling
-[`Log.debug`](https://ihp.digitallyinduced.com/api-docs/IHP-Log.html#v:debug), [`Log.info`](https://ihp.digitallyinduced.com/api-docs/IHP-Log.html#v:info), or any of the other available log levels.
+In any controller or model code, you can log a message by calling the logger directly:
 
-Example:
 ```haskell
 action TopPerformancesAction {collection} = do
-    Log.debug "starting TopPerformancesAction"
+    ?context.logger (toLogStr ("starting TopPerformancesAction" :: Text))
     let n = paramOrDefault 5 "numPerformances"
     band <- fetchBand collection
     topPerformances <- fetchTopPerformances collection n
-    Log.debug $ show (length topPerformances) <> " top performances received."
-    whenEmpty topPerformances $ Log.warn "No performances found! Something might be wrong"
+    ?context.logger (toLogStr (show (length topPerformances) <> " top performances received." :: Text))
     render TopPerformancesView {..}
 ```
 
-Make sure you have the `IHP.Log` module imported qualified as `Log`:
+Make sure you have `System.Log.FastLogger` imported:
 
 ```haskell
-import qualified IHP.Log as Log
+import System.Log.FastLogger (toLogStr)
 ```
 
-### Configuration
+### How it works
 
-Configure the IHP logger in `Config/Config.hs`. First, make sure you have imported the `IHP.Log` modules:
+IHP creates a `FastLogger` at startup using `withFastLogger` from the fast-logger package. This logger writes to stdout by default. It is stored in `FrameworkConfig.logger` and `ModelContext.logger`, and is accessible via implicit parameters in controllers and models.
+
+The `FastLogger` type is just a function:
 
 ```haskell
-import qualified IHP.Log as Log
-import IHP.Log.Types
+type FastLogger = LogStr -> IO ()
 ```
 
-Using the [`newLogger`](https://ihp.digitallyinduced.com/api-docs/IHP-Log-Types.html#v:newLogger) function, create a logger with the desired options. For example, here is a logger that formats
-logs with a timestamp at the `Debug` log level:
+You convert text to `LogStr` using `toLogStr` and append a newline with `<> "\n"`.
+
+### Query timing
+
+In development mode (when the `DEBUG` environment variable is set), IHP automatically logs query timing information. This is controlled by the `debugMode` field on `ModelContext`, which is set based on the `DEBUG` environment variable.
+
+### Suppressing query logging
+
+Use `withoutQueryLogging` to suppress query logs for a specific block:
 
 ```haskell
-logger <- liftIO $ newLogger def {
-  level = Debug,
-  formatter = withTimeFormatter
-  }
-option logger
-```
-
-The available configuration options can be found in the [`LoggerSettings`](https://ihp.digitallyinduced.com/api-docs/IHP-Log-Types.html#t:LoggerSettings) record.
-
-```haskell
-data LoggerSettings = LoggerSettings {
-  level       :: LogLevel,
-  formatter   :: LogFormatter,
-  destination :: LogDestination,
-  timeFormat  :: TimeFormat
-}
-```
-
-#### Configuring log level
-
-Set [`level`](https://ihp.digitallyinduced.com/api-docs/IHP-Log-Types.html#t:LoggerSettings) to one of the available constructors for the [`LogLevel`](https://ihp.digitallyinduced.com/api-docs/IHP-Log-Types.html#t:LogLevel) type:
-
-```haskell
-data LogLevel
-  = Debug
-  | Info
-  | Warn
-  | Error
-  | Fatal
-  | Unknown
-```
-
-#### Configuring log format
-
-IHP ships with four available log formats.
-
-- [`defaultFormatter`](https://ihp.digitallyinduced.com/api-docs/IHP-Log-Types.html#v:defaultFormatter) simply prints the log message with a newline.
-  - `Server started`
-- [`withTimeFormatter`](https://ihp.digitallyinduced.com/api-docs/IHP-Log-Types.html#v:withTimeFormatter) prepends a timestamp.
-  - `[28-Jan-2021 10:07:58] Server started`
-- [`withLevelFormatter`](https://ihp.digitallyinduced.com/api-docs/IHP-Log-Types.html#v:withLevelFormatter) prepends the message's log level
-  - `[INFO] Server started`
-- [`withTimeAndLevelFormatter`](https://ihp.digitallyinduced.com/api-docs/IHP-Log-Types.html#v:withTimeAndLevelFormatter) prepends both a timestamp and log level.
-  - `[INFO] [28-Jan-2021 10:07:58] Server started`
-
-You can also define your own formatter. Since a LogFormatter is just a type alias:
-
-```haskell
-type LogFormatter = FormattedTime -> LogLevel -> Text -> Text
-```
-
-you can define a formatter as a simple function:
-
-```haskell
--- | For when debugging is getting you down
-withTimeAndLevelFormatterUpcaseAndHappy :: LogFormatter
-withTimeAndLevelFormatterUpcaseAndHappy time level msg =
-    "[" <> toUpper (show level) <> "]"
-    <> "[" <> time <> "] "
-    <> toUpper msg <> " :) \n"
-```
-
-Which logs a message like:
-
-    [INFO] [28-Jan-2021 10:07:58] SERVER STARTED :)
-
-#### Configuring log destination
-
-By default, messages are logged to standard out.
-IHP includes all the destinations included in `fast-logger` wrapped in a custom API.
-
-```haskell
-data LogDestination
-    = None
-    -- | Log messages to standard output.
-    | Stdout BufSize
-    -- | Log messages to standard error.
-    | Stderr BufSize
-    -- | Log message to a file. Rotate the log file with the behavior given by 'RotateSettings'.
-    | File FilePath RotateSettings BufSize
-    -- | Send logged messages to a callback. Flush action called after every log.
-    | Callback (LogStr -> IO ()) (IO ())
-```
-
-##### Logging to a file
-
-When logging to a file, it is common to rotate the file logged to in order to prevent
-the log file from getting too big. IHP allows for this in three ways, through the [`RotateSettings`](https://ihp.digitallyinduced.com/api-docs/IHP-Log-Types.html#t:RotateSettings) record.
-
-- [`NoRotate`](https://ihp.digitallyinduced.com/api-docs/IHP-Log-Types.html#t:RotateSettings) never rotates the file, meaning the log file can become arbitrarily large.
-  Use with caution. The following example will log all messages to a file at `Log/production.log`.
-
-```haskell
-newLogger def {
-    destination = File "Log/production.log" NoRotate defaultBufSize
-}
-```
-
-- [`SizeRotate`](https://ihp.digitallyinduced.com/api-docs/IHP-Log-Types.html#t:RotateSettings) rotates the file after reaching a specified size (in bytes).
-  The following example will log all messages to a file at `Log/production.log`,
-  and rotate the file once it reaches 4 megabytes in size. It will
-  keep 7 log files before overwriting the first file.
-
-```haskell
-newLogger def {
-    destination = File "Log/production.log" (SizeRotate (Bytes (4 * 1024 * 1024)) 7) defaultBufSize
-}
-```
-
-- [`TimedRotate`](https://ihp.digitallyinduced.com/api-docs/IHP-Log-Types.html#t:RotateSettings) rotates the file based on a time format string and a function which compares two times formatted by said format string. It also passes the rotated log's file path to a function, which can be used to compress old logs as in this example which rotates once per day:
-
-```haskell
-let
-    filePath = "Log/production.log"
-    formatString = "%FT%H%M%S"
-    timeCompare = (==) on C8.takeWhile (/=T))
-    compressFile fp = void . forkIO $
-        callProcess "tar" [ "--remove-files", "-caf", fp <> ".gz", fp ]
-in
-  newLogger def {
-     destination = File
-       filePath
-       (TimedRotate formatString timeCompare compressFile)
-       defaultBufSize
-     }
-```
-
-#### Configuring timestamp format
-
-[`timeFormat`](https://ihp.digitallyinduced.com/api-docs/IHP-Log-Types.html#t:TimeFormat) expects a time format string as defined [here](https://man7.org/linux/man-pages/man3/strptime.3.html).
-
-Example:
-
-```haskell
-newLogger def {
-    timeFormat = "%A, %Y-%m-%d %H:%M:%S"
-}
-```
-
-Would log a timestamp as:
-
-> Sunday, 2020-1-31 22:10:21
-
-### Decorating the Logs with the User ID
-
-You can override the default logger and have it decorated with additional information. A typical use case is adding the current user's ID or name to the log messages.
-
-
-```haskell
--- Web/FrontController.hs
-
--- Add imports
-import IHP.Log.Types as Log
-import IHP.Controller.Context
-
-instance InitControllerContext WebApplication where
-    initContext = do
-        initAuthentication @User
-        -- ... your other initContext code
-
-        putContext userIdLogger
-
-userIdLogger :: (?context :: ControllerContext) => Logger
-userIdLogger =
-    defaultLogger { Log.formatter = userIdFormatter defaultLogger.formatter }
-    where
-        defaultLogger = ?context.frameworkConfig.logger
-
-
-userIdFormatter :: (?context :: ControllerContext) => Log.LogFormatter -> Log.LogFormatter
-userIdFormatter existingFormatter time level string =
-    existingFormatter time level (prependUserId string)
-
-prependUserId :: (?context :: ControllerContext) => LogStr -> LogStr
-prependUserId string =
-    toLogStr $ userInfo <> show string
-    where
-        userInfo =
-            case currentUserOrNothing of
-                Just currentUser -> "Authenticated user ID: " <> show currentUser.id <> " "
-                Nothing -> "Anonymous user: "
-```
-
-From your controller you can now add a log message
-
-```haskell
-    action PostsAction = do
-        Log.debug ("This log message should have user info" :: Text)
-        -- Rest of the action code.
-```
-
-In your log output, you will see the user info prepended to the log message.
-
-```
-[30-Mar-2024 18:28:29] Authenticated user ID: 5f32a9e3-da09-48d8-9712-34c935a72c7a "This log message should have user info"
+users <- withoutQueryLogging (sqlQuery "SELECT * FROM users" ())
 ```

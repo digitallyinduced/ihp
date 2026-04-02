@@ -24,7 +24,7 @@ import GHC.Records (HasField(..))
 import Data.Maybe (fromMaybe)
 import qualified Data.TMap as TypeMap
 import IHP.FrameworkConfig.Types (FrameworkConfig(..))
-import IHP.Log.Types
+import System.Log.FastLogger (FastLogger)
 import System.IO.Unsafe (unsafePerformIO)
 import Network.Wai (Request)
 import IHP.RequestVault (requestFrameworkConfig)
@@ -66,43 +66,7 @@ instance HasField "frameworkConfig" ControllerContext FrameworkConfig where
     getField controllerContext = requestFrameworkConfig controllerContext.request
     {-# INLINABLE getField #-}
 
--- The following hack is bad, but allows us to override the logger using 'putContext'
--- The alternative would be https://github.com/digitallyinduced/ihp/pull/1921 which is also not very nice
---
--- This can be useful to customize the log formatter for all actions of an app:
---
--- > -- Web/FrontController.hs
--- >
--- > import IHP.Log.Types as Log
--- > import IHP.Controller.Context
--- >
--- > instance InitControllerContext WebApplication where
--- >     initContext = do
--- >     -- ... your other initContext code
--- >
--- >     putContext userIdLogger
--- >
--- > userIdLogger :: (?context :: ControllerContext) => Logger
--- > userIdLogger =
--- >     defaultLogger { Log.formatter = userIdFormatter defaultLogger.formatter }
--- >     where
--- >         defaultLogger = ?context.frameworkConfig.logger
--- >
--- >
--- > userIdFormatter :: (?context :: ControllerContext) => Log.LogFormatter -> Log.LogFormatter
--- > userIdFormatter existingFormatter time level string =
--- >     existingFormatter time level (prependUserId string)
--- >
--- > prependUserId :: (?context :: ControllerContext) => LogStr -> LogStr
--- > prependUserId string =
--- >     toLogStr $ userInfo <> show string
--- >     where
--- >         userInfo =
--- >             case currentUserOrNothing of
--- >                 Just currentUser -> "Authenticated user ID: " <> show currentUser.id <> " "
--- >                 Nothing -> "Anonymous user: "
---
--- This design mistake should be fixed in IHP v2
-instance HasField "logger" ControllerContext Logger where
-    getField context@(FrozenControllerContext { customFields }) = fromMaybe context.frameworkConfig.logger (TypeMap.lookup @Logger customFields)
-    getField context = (unsafePerformIO (freeze context)).logger -- Hacky, but there's no better way. The only way to retrieve the logger here, is by reading from the IORef in an unsafe way
+-- | Allows overriding the logger per-controller via 'putContext'
+instance HasField "logger" ControllerContext FastLogger where
+    getField context@(FrozenControllerContext { customFields }) = fromMaybe context.frameworkConfig.logger (TypeMap.lookup @FastLogger customFields)
+    getField context = (unsafePerformIO (freeze context)).logger

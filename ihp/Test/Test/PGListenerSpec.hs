@@ -7,18 +7,12 @@ module Test.PGListenerSpec where
 import Test.Hspec
 import IHP.Prelude
 import qualified IHP.PGListener as PGListener
-import IHP.Log.Types (Logger(..), LogLevel(..))
+import IHP.ModelSupport (noopLogger)
 import Data.HashMap.Strict as HashMap
 
 tests = do
     describe "IHP.PGListener" do
-        let logger = Logger
-                { write = \_ -> pure ()
-                , level = Debug
-                , formatter = \_ _ msg -> msg
-                , timeCache = pure ""
-                , cleanup = pure ()
-                }
+        let logger = noopLogger
 
         describe "subscribe" do
             it "should add a subscriber" do

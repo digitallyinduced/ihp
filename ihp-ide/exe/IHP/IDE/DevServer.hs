@@ -18,9 +18,7 @@ import Data.String.Conversions (cs)
 import qualified IHP.Telemetry as Telemetry
 import qualified IHP.Version as Version
 
-import qualified IHP.Log.Types as Log
-import qualified IHP.Log as Log
-import Data.Default (def, Default (..))
+import System.Log.FastLogger (FastLogger, toLogStr, LogType'(..), withFastLogger, defaultBufSize)
 import qualified IHP.IDE.CodeGen.MigrationGenerator as MigrationGenerator
 import Main.Utf8 (withUtf8)
 import qualified IHP.FrameworkConfig as FrameworkConfig
@@ -85,14 +83,15 @@ mainWithOptions wrapWithDirenv = withUtf8 do
     -- ensuring seamless transitions during app restarts (no connection refused errors)
     appSocket <- createListeningSocket portConfig.appPort
 
-    bracket (Log.newLogger def) (\logger -> logger.cleanup) \logger -> do
+    withFastLogger (LogStdout defaultBufSize) \rawLogger -> do
+        let logger msg = rawLogger (msg <> "\n")
         (ghciInChan, ghciOutChan) <- Queue.newChan
         liveReloadClients <- newIORef mempty
         lastSchemaCompilerError <- newIORef Nothing
         let ?context = Context { portConfig, isDebugMode, logger, ghciInChan, ghciOutChan, wrapWithDirenv, liveReloadClients, lastSchemaCompilerError, appSocket }
 
         -- Print IHP Version when in debug mode
-        when isDebugMode (Log.debug ("IHP Version: " <> Version.ihpVersion))
+        when isDebugMode (logger (toLogStr ("IHP Version: " <> Version.ihpVersion)))
 
         ghciIsLoadingVar <- newIORef False
         reloadGhciVar :: MVar () <- newEmptyMVar
@@ -364,7 +363,7 @@ updateDatabaseIsOutdated databaseNeedsMigrationRef = do
             writeIORef databaseNeedsMigrationRef databaseNeedsMigration
 
     case result of
-        Left exception -> Log.error (tshow exception)
+        Left exception -> ?context.logger (toLogStr (tshow exception))
         Right _ -> pure ()
 
 tryCompileSchema :: (?context :: Context) => MVar () -> MVar () -> IO ()
@@ -373,7 +372,7 @@ tryCompileSchema reloadGhciVar startStatusServer = do
 
     case result of
         Left exception -> do
-            Log.error (tshow exception)
+            ?context.logger (toLogStr (tshow exception))
             receiveAppOutput (ErrorOutput (cs $ displayException exception))
 
             writeIORef ?context.lastSchemaCompilerError (Just exception)

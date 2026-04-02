@@ -18,9 +18,8 @@ import           Wai.Request.Params.Middleware                 (Respond)
 import           IHP.ControllerSupport                     (InitControllerContext, Controller, runActionWithNewContext)
 import           IHP.FrameworkConfig                       (ConfigBuilder (..), FrameworkConfig (..), RootApplication (..))
 import qualified IHP.FrameworkConfig                       as FrameworkConfig
-import           IHP.ModelSupport                          (createModelContext, withModelContext, Id')
+import           IHP.ModelSupport                          (createModelContext, withModelContext, Id', noopLogger)
 import           IHP.Prelude
-import           IHP.Log.Types
 import           IHP.Job.Types
 import Test.Hspec
 import qualified Data.Text as Text
@@ -68,8 +67,8 @@ runTestMiddlewares frameworkConfig modelContext maybePgListener baseRequest = do
 {-# DEPRECATED mockContextNoDatabase "Use withMockContext instead for bracket-style resource management" #-}
 mockContextNoDatabase :: (InitControllerContext application) => application -> ConfigBuilder -> IO (MockContext application)
 mockContextNoDatabase application configBuilder = do
-   frameworkConfig@(FrameworkConfig {databaseUrl}) <- FrameworkConfig.buildFrameworkConfig configBuilder
-   logger <- newLogger (def :: LoggerSettings) { level = Warn } -- don't log queries
+   let logger = noopLogger -- don't log queries
+   frameworkConfig@(FrameworkConfig {databaseUrl}) <- FrameworkConfig.buildFrameworkConfig logger configBuilder
    modelContext <- createModelContext databaseUrl logger
 
    -- Start with a minimal request - the middleware stack will set up session, etc.

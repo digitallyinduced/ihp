@@ -17,7 +17,7 @@ import IHP.AutoRefresh (globalAutoRefreshServerVar, sessionResponseHasChanged, u
 import IHP.AutoRefresh.Types
 import qualified Control.Concurrent.MVar as MVar
 import qualified IHP.PGListener as PGListener
-import IHP.Log.Types (Logger(..), LogLevel(..))
+import System.Log.FastLogger (FastLogger)
 import IHP.Server (initMiddlewareStack)
 import Network.Wai.Test (runSession, request, SResponse(..), simpleBody)
 import IHP.Test.Mocking
@@ -80,14 +80,8 @@ callActionWithQueryParams pgListener controller queryParams = do
     middlewareStack <- initMiddlewareStack frameworkConfig modelContext (Just pgListener)
     runSession (request baseRequest) (middlewareStack controllerApp)
 
-testLogger :: Logger
-testLogger = Logger
-    { write = \_ -> pure ()
-    , level = Debug
-    , formatter = \_ _ msg -> msg
-    , timeCache = pure ""
-    , cleanup = pure ()
-    }
+testLogger :: FastLogger
+testLogger = noopLogger
 
 tests :: Spec
 tests = beforeAll (mockContextNoDatabase WebApplication config) do

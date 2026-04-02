@@ -116,7 +116,6 @@ common shared-properties
             , ihp-hsx
             , ihp-context
             , ihp-pagehead
-            , ihp-log
             , ihp-modal
             , mime-types
             , safe-exceptions

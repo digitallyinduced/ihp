@@ -43,7 +43,7 @@ import qualified Network.Wai.Parse as WaiParse
 import Network.Wai (Middleware, Request)
 import IHP.Environment (Environment)
 import IHP.View.Types (CSSFramework)
-import IHP.Log.Types (Logger)
+import System.Log.FastLogger (FastLogger)
 import IHP.ModelSupport.Types (ModelContext)
 
 newtype AppHostname = AppHostname Text
@@ -132,7 +132,7 @@ data FrameworkConfig = FrameworkConfig
     --
     -- Override this if you use a CSS framework that is not bootstrap
     , cssFramework :: !CSSFramework
-    , logger :: !Logger
+    , logger :: !FastLogger
     , exceptionTracker :: !ExceptionTracker
 
     -- | Custom 'option's from @Config.hs@ are stored here

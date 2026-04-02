@@ -37,7 +37,7 @@ import Control.Exception (SomeException, displayException, uninterruptibleMask_)
 import Control.Concurrent.Async (Async, async, cancel, uninterruptibleCancel)
 import Data.Function ((&))
 
-import IHP.Log.Types (Logger)
+import System.Log.FastLogger (FastLogger, toLogStr)
 import Data.Set (Set)
 import qualified Data.Set as Set
 import Control.Concurrent.MVar (MVar)
@@ -46,7 +46,6 @@ import Data.HashMap.Strict as HashMap
 import qualified Control.Concurrent.Async as Async
 import qualified Data.List as List
 import qualified Data.Aeson as Aeson
-import qualified IHP.Log as Log
 import qualified Control.Exception.Safe as Exception
 import qualified Control.Concurrent.Chan.Unagi as Queue
 import qualified Control.Concurrent
@@ -59,8 +58,8 @@ import qualified Hasql.Notifications as HasqlNotifications
 tshow :: Prelude.Show a => a -> Text
 tshow = Text.pack . Prelude.show
 
--- | Wrapper to satisfy 'LoggingProvider' constraint for standalone logging
-data LogContext = LogContext { logger :: !Logger }
+-- | Logger type alias for PGListener
+type Logger = FastLogger
 
 -- TODO: How to deal with timeout of the connection?
 
@@ -266,7 +265,7 @@ notifyLoop logger databaseUrl listeningToVar listenToVar subscriptions reconnect
                     callbacks <- readIORef reconnectCallbacksRef
                     forM_ callbacks \callback ->
                         Exception.tryAny (callback connection) >>= \case
-                            Left e -> let ?context = LogContext logger in Log.info ("PGListener reconnect callback failed: " <> displayException e)
+                            Left e -> logger (toLogStr ("PGListener reconnect callback failed: " <> displayException e))
                             Right _ -> pure ()
 
                 -- We use 'race' to alternate between waiting for notifications and
@@ -327,14 +326,13 @@ notifyLoop logger databaseUrl listeningToVar listenToVar subscriptions reconnect
             result <- Exception.tryAny innerLoop
             case result of
                 Left error -> do
-                    let ?context = LogContext logger
                     if isFirstError then do
-                        Log.info ("PGListener is going to restart, loop failed with exception: " <> (displayException error) <> ". Retrying immediately.")
+                        logger (toLogStr ("PGListener is going to restart, loop failed with exception: " <> (displayException error) <> ". Retrying immediately."))
                         retryLoop delay False -- Retry with no delay interval on first error, but will increase delay interval in subsequent retries
                     else do
                         let increasedDelay = delay * 2 -- Double current delay
                         let nextDelay = min increasedDelay maxDelay -- Picks whichever delay is lowest of increasedDelay * 2 or maxDelay
-                        Log.info ("PGListener is going to restart, loop failed with exception: " <> (displayException error) <> ". Retrying in " <> cs (printTimeToNextRetry delay) <> ".")
+                        logger (toLogStr ("PGListener is going to restart, loop failed with exception: " <> (displayException error) <> ". Retrying in " <> cs (printTimeToNextRetry delay) <> "."))
                         Control.Concurrent.threadDelay delay -- Sleep for the current delay
                         retryLoop nextDelay False -- Retry with longer interval
                 Right _ ->
@@ -353,4 +351,4 @@ listenToChannel connection channel = do
     HasqlNotifications.listen connection (HasqlNotifications.toPgIdentifier (cs channel))
 
 logError :: PGListener -> Text -> IO ()
-logError pgListener message = let ?context = LogContext pgListener.logger in Log.error message
+logError pgListener message = pgListener.logger (toLogStr message)

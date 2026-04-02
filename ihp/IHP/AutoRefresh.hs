@@ -24,7 +24,7 @@ import IHP.Controller.Context
 import Network.Wai.Middleware.EarlyReturn (earlyReturnMiddleware)
 import qualified IHP.PGListener as PGListener
 import qualified Hasql.Session as HasqlSession
-import qualified IHP.Log as Log
+import System.Log.FastLogger (toLogStr)
 import qualified Data.Vault.Lazy as Vault
 import System.IO.Unsafe (unsafePerformIO)
 import Network.Wai
@@ -140,7 +140,7 @@ instance WSApp AutoRefreshWSApp where
             AutoRefreshSession { renderView, event } <- getSessionById autoRefreshServer sessionId
 
             let handleOtherException :: SomeException -> IO ()
-                handleOtherException ex = Log.error ("AutoRefresh: Failed to re-render view: " <> tshow ex)
+                handleOtherException ex = ?context.logger (toLogStr ("AutoRefresh: Failed to re-render view: " <> tshow ex))
 
             async $ forever do
                 MVar.takeMVar event

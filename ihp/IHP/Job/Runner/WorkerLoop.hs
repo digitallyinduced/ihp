@@ -13,7 +13,7 @@ import qualified Control.Concurrent as Concurrent
 import qualified Control.Concurrent.Async as Async
 import qualified System.Timeout as Timeout
 import Control.Monad.Trans.Resource
-import qualified IHP.Log as Log
+import System.Log.FastLogger (toLogStr)
 import IHP.Hasql.FromRow (FromRowHasql)
 import Control.Concurrent.STM (atomically, newTBQueue, readTBQueue, writeTBQueue, newTVarIO, readTVar, readTVarIO, writeTVar, modifyTVar', check)
 import IHP.Job.Queue (tryWriteTBQueue)
@@ -62,11 +62,11 @@ jobWorkerFetchAndRunLoop JobWorkerArgs { .. } = do
             fetchResult <- Exception.tryAny (Queue.fetchNextJob @job pool workerId)
             case fetchResult of
                 Left exception -> do
-                    Log.error ("Job worker: Failed to fetch next job: " <> tshow exception)
+                    ?context.logger (toLogStr ("Job worker: Failed to fetch next job: " <> tshow exception))
                     Concurrent.threadDelay 1000000  -- 1s backoff to avoid tight error loops
                     runJobLoop -- retry after transient error
                 Right (Just job) -> do
-                    Log.info ("Starting job: " <> tshow job)
+                    ?context.logger (toLogStr ("Starting job: " <> tshow job))
 
                     let ?job = job
                     let timeout :: Int = fromMaybe (-1) (timeoutInMicroseconds @job)
