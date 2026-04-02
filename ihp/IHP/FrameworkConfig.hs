@@ -35,11 +35,10 @@ import qualified Data.TMap as TMap
 import qualified Data.Typeable as Typeable
 import IHP.View.Types
 import IHP.View.CSSFramework.Bootstrap (bootstrap)
-import System.Log.FastLogger (FastLogger, LogStr, toLogStr, LogType'(..), withFastLogger, newFastLogger, defaultBufSize)
+import System.Log.FastLogger (FastLogger, LogType'(..), withFastLogger, defaultBufSize)
 import qualified Network.Wai.Handler.Warp as Warp
 import qualified Network.Wai.Middleware.Cors as Cors
 import qualified Network.Wai.Parse as WaiParse
-import qualified Control.Exception as Exception
 import IHP.EnvVar
 
 import qualified Prelude
