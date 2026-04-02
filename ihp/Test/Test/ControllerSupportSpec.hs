@@ -5,6 +5,7 @@ module Test.ControllerSupportSpec where
 
 import IHP.Prelude
 import Test.Hspec
+import IHP.ModelSupport (noopLogger)
 import IHP.ControllerSupport (requestBodyJSON)
 import IHP.Controller.Response (responseHeadersVaultKey)
 import IHP.Environment (Environment (..))
@@ -80,7 +81,7 @@ runRequestBodyJSON requestBody environment = do
 
 buildRequest :: RequestBody -> Environment -> IO Wai.Request
 buildRequest requestBody environment = do
-    frameworkConfig <- FrameworkConfig.buildFrameworkConfig (FrameworkConfig.option environment)
+    frameworkConfig <- FrameworkConfig.buildFrameworkConfig noopLogger (FrameworkConfig.option environment)
     headersRef <- newIORef []
     pure Wai.defaultRequest
         { Wai.vault = Vault.insert RequestVault.frameworkConfigVaultKey frameworkConfig
