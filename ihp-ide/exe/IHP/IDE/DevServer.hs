@@ -33,6 +33,7 @@ import qualified Control.Exception.Safe as Exception
 import qualified Data.ByteString.Builder as ByteString
 import qualified Network.Socket as Socket
 import qualified System.IO as IO
+import qualified System.Exit as Exit
 import System.OsPath (OsPath, encodeUtf, decodeUtf)
 import qualified System.Posix.Signals as Signals
 
@@ -127,7 +128,7 @@ withSigTermCleanup callback = do
     previousSigTermHandler <- Signals.installHandler Signals.sigTERM (Signals.Catch sigTermHandler) Nothing
     sigTermThread <- async do
         Concurrent.takeMVar sigTermReceived
-        Concurrent.throwTo mainThreadId UserInterrupt
+        Concurrent.throwTo mainThreadId Exit.ExitSuccess
 
     callback `Exception.finally` do
         cancel sigTermThread
