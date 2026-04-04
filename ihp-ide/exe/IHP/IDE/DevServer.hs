@@ -34,9 +34,7 @@ import qualified Data.ByteString.Builder as ByteString
 import qualified Network.Socket as Socket
 import qualified System.IO as IO
 import System.OsPath (OsPath, encodeUtf, decodeUtf)
-#if !mingw32_HOST_OS
 import qualified System.Posix.Signals as Signals
-#endif
 
 
 mainInParentDirectory :: IO ()
@@ -122,9 +120,6 @@ mainWithOptions wrapWithDirenv = withUtf8 $ withSigTermCleanup do
                     <*> Concurrently (runAppGhci ghciIsLoadingVar startStatusServer stopStatusServer statusServerStandardOutput statusServerErrorOutput statusServerClients reloadGhciVar)
 
 withSigTermCleanup :: IO a -> IO a
-#if mingw32_HOST_OS
-withSigTermCleanup callback = callback
-#else
 withSigTermCleanup callback = do
     mainThreadId <- Concurrent.myThreadId
     sigTermReceived <- Concurrent.newEmptyMVar
@@ -137,7 +132,6 @@ withSigTermCleanup callback = do
     callback `Exception.finally` do
         cancel sigTermThread
         void (Signals.installHandler Signals.sigTERM previousSigTermHandler Nothing)
-#endif
 
 fileWatcherParams liveReloadClients databaseNeedsMigration reloadGhciVar startStatusServer =
     FileWatcherParams
