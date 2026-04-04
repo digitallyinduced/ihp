@@ -22,6 +22,8 @@ jobs:
         determinate: true
         extra-conf: "lazy-trees = true"
       if: matrix.os != 'ARM64'
+    - uses: DeterminateSystems/magic-nix-cache-action@main
+      if: matrix.os != 'ARM64'
     - uses: cachix/cachix-action@v17
       with:
         name: digitallyinduced
