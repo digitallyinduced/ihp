@@ -5,6 +5,7 @@ import qualified System.Process as Process
 import IHP.HaskellSupport
 import qualified Data.ByteString.Char8 as ByteString
 import Control.Concurrent (threadDelay)
+import qualified Control.Concurrent as Concurrent
 import IHP.IDE.Types
 import IHP.IDE.Postgres
 import IHP.IDE.StatusServer
@@ -33,6 +34,9 @@ import qualified Data.ByteString.Builder as ByteString
 import qualified Network.Socket as Socket
 import qualified System.IO as IO
 import System.OsPath (OsPath, encodeUtf, decodeUtf)
+#if !mingw32_HOST_OS
+import qualified System.Posix.Signals as Signals
+#endif
 
 
 mainInParentDirectory :: IO ()
@@ -66,7 +70,7 @@ main :: IO ()
 main = mainWithOptions False
 
 mainWithOptions :: Bool -> IO ()
-mainWithOptions wrapWithDirenv = withUtf8 do
+mainWithOptions wrapWithDirenv = withUtf8 $ withSigTermCleanup do
     -- https://github.com/digitallyinduced/ihp/issues/2134
     -- devenv will redirect the standard handles to a pipe, causing block buffering by default
     -- We need to override this so that `putStrLn` etc. works as expected
@@ -116,6 +120,24 @@ mainWithOptions wrapWithDirenv = withUtf8 do
                     <*> Concurrently Telemetry.reportTelemetry
                     <*> Concurrently (runFileWatcherWithDebounce (fileWatcherParams liveReloadClients databaseNeedsMigration reloadGhciVar startStatusServer))
                     <*> Concurrently (runAppGhci ghciIsLoadingVar startStatusServer stopStatusServer statusServerStandardOutput statusServerErrorOutput statusServerClients reloadGhciVar)
+
+withSigTermCleanup :: IO a -> IO a
+#if mingw32_HOST_OS
+withSigTermCleanup callback = callback
+#else
+withSigTermCleanup callback = do
+    mainThreadId <- Concurrent.myThreadId
+    sigTermReceived <- Concurrent.newEmptyMVar
+    let sigTermHandler = void (Concurrent.tryPutMVar sigTermReceived ())
+    previousSigTermHandler <- Signals.installHandler Signals.sigTERM (Signals.Catch sigTermHandler) Nothing
+    sigTermThread <- async do
+        Concurrent.takeMVar sigTermReceived
+        Concurrent.throwTo mainThreadId UserInterrupt
+
+    callback `Exception.finally` do
+        cancel sigTermThread
+        void (Signals.installHandler Signals.sigTERM previousSigTermHandler Nothing)
+#endif
 
 fileWatcherParams liveReloadClients databaseNeedsMigration reloadGhciVar startStatusServer =
     FileWatcherParams
