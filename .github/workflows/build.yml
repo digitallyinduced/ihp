@@ -28,4 +28,22 @@ jobs:
         signingKey: '${{ secrets.CACHIX_SIGNING_KEY }}'
         authToken: '${{ secrets.CACHIX_AUTH_TOKEN }}'
       if: matrix.os != 'ARM64'
+    # ARM64 (self-hosted) runs the full check suite including multi-GHC checks
     - run: nix flake check --impure --override-input ihp-boilerplate/ihp "github:${{ github.event.repository.full_name }}/${{ github.sha }}" -L
+      if: matrix.os == 'ARM64'
+    # GitHub-hosted runners build all checks except multi-GHC ones to populate
+    # the cachix cache. The GHC 9.12/9.14 checks build IHP 3x in parallel which
+    # exceeds the 16GB RAM on these runners. ARM64 already covers those checks.
+    - run: |
+        system=$(nix eval --impure --expr builtins.currentSystem --raw)
+        override="--override-input ihp-boilerplate/ihp github:${{ github.event.repository.full_name }}/${{ github.sha }}"
+
+        checks=$(nix eval --impure $override --json ".#checks.$system" --apply builtins.attrNames \
+          | jq -r '.[] | select(startswith("ghc9") | not)')
+
+        targets=""
+        for c in $checks; do
+          targets="$targets .#checks.$system.$c"
+        done
+        nix build --impure $override -L $targets
+      if: matrix.os != 'ARM64'
