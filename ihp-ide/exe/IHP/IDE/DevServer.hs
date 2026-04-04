@@ -94,7 +94,7 @@ mainWithOptions wrapWithDirenv = withUtf8 do
             (ghciInChan, ghciOutChan) <- Queue.newChan
             liveReloadClients <- newIORef mempty
             lastSchemaCompilerError <- newIORef Nothing
-            let ?context = Context { portConfig, isDebugMode, logger, ghciInChan, ghciOutChan, wrapWithDirenv, liveReloadClients, lastSchemaCompilerError, appSocket, mainThreadId }
+            let ?context = Context { portConfig, isDebugMode, logger, ghciInChan, ghciOutChan, wrapWithDirenv, liveReloadClients, lastSchemaCompilerError, appSocket }
 
             -- Print IHP Version when in debug mode
             when isDebugMode (Log.debug ("IHP Version: " <> Version.ihpVersion))
@@ -120,7 +120,7 @@ mainWithOptions wrapWithDirenv = withUtf8 do
                         <*> Concurrently (consumeGhciOutput statusServerStandardOutput statusServerErrorOutput statusServerClients)
                         <*> Concurrently Telemetry.reportTelemetry
                         <*> Concurrently (runFileWatcherWithDebounce (fileWatcherParams liveReloadClients databaseNeedsMigration reloadGhciVar startStatusServer))
-                        <*> Concurrently (runAppGhci ghciIsLoadingVar startStatusServer stopStatusServer statusServerStandardOutput statusServerErrorOutput statusServerClients reloadGhciVar)
+                        <*> Concurrently (runAppGhci mainThreadId ghciIsLoadingVar startStatusServer stopStatusServer statusServerStandardOutput statusServerErrorOutput statusServerClients reloadGhciVar)
 
 withSigTermHandler :: IO () -> IO a -> IO a
 withSigTermHandler sigTermHandler callback = Exception.bracket
@@ -151,8 +151,8 @@ ghciArguments =
     , "+RTS", "-A64m", "-n4m", "-H256m", "--nonmoving-gc", "-Iw60", "-N4"
     ]
 
-withGHCI :: (?context :: Context) => (Handle -> Handle -> Handle -> Process.ProcessHandle -> IO a) -> IO a
-withGHCI callback = do
+withGHCI :: (?context :: Context) => Concurrent.ThreadId -> (Handle -> Handle -> Handle -> Process.ProcessHandle -> IO a) -> IO a
+withGHCI mainThreadId callback = do
     baseParams <- procDirenvAware "ghci" ghciArguments
     let params = baseParams
             { Process.std_in = Process.CreatePipe
@@ -164,7 +164,7 @@ withGHCI callback = do
     Process.withCreateProcess params \(Just input) (Just output) (Just error) processHandle -> do
         let sigTermHandler = do
                 Process.terminateProcess processHandle `Exception.catchAny` \_ -> pure ()
-                Concurrent.throwTo ?context.mainThreadId Exit.ExitSuccess
+                Concurrent.throwTo mainThreadId Exit.ExitSuccess
         withSigTermHandler sigTermHandler (callback input output error processHandle)
 
 initGHCICommands = 
@@ -173,8 +173,8 @@ initGHCICommands =
     , "import qualified ClassyPrelude"
     ]
 
-runAppGhci :: (?context :: Context) => IORef Bool -> MVar () -> MVar (MVar ()) -> IORef [ByteString] -> IORef [ByteString] -> Clients -> MVar () -> IO ()
-runAppGhci ghciIsLoadingVar startStatusServer stopStatusServer statusServerStandardOutput statusServerErrorOutput statusServerClients reloadGhciVar = do
+runAppGhci :: (?context :: Context) => Concurrent.ThreadId -> IORef Bool -> MVar () -> MVar (MVar ()) -> IORef [ByteString] -> IORef [ByteString] -> Clients -> MVar () -> IO ()
+runAppGhci mainThreadId ghciIsLoadingVar startStatusServer stopStatusServer statusServerStandardOutput statusServerErrorOutput statusServerClients reloadGhciVar = do
     -- The app is using the `PORT` env variable for its web server
     let appPort :: Int = fromIntegral ?context.portConfig.appPort
     Env.setEnv "PORT" (show appPort)
@@ -232,7 +232,7 @@ runAppGhci ghciIsLoadingVar startStatusServer stopStatusServer statusServerStand
 
             processResult inputHandle outputHandle errorHandle processHandle result
 
-    withGHCI \inputHandle outputHandle errorHandle processHandle -> do
+    withGHCI mainThreadId \inputHandle outputHandle errorHandle processHandle -> do
         writeIORef ghciIsLoadingVar True
         withLoadedApp inputHandle outputHandle errorHandle receiveAppOutput \result -> do
             processResult inputHandle outputHandle errorHandle processHandle result
