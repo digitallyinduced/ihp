@@ -128,6 +128,15 @@ withSigTermHandler sigTermHandler callback = Exception.bracket
     (\previousSigTermHandler -> void (Signals.installHandler Signals.sigTERM previousSigTermHandler Nothing))
     (\_ -> callback)
 
+stopProcessHandle :: Process.ProcessHandle -> IO ()
+stopProcessHandle processHandle = do
+    Process.terminateProcess processHandle `Exception.catchAny` \_ -> pure ()
+    exitedOnSigTerm <- isJust <$> timeout (1 * 1000000) (Process.waitForProcess processHandle `Exception.catchAny` \_ -> pure Exit.ExitSuccess)
+    unless exitedOnSigTerm do
+        maybePid <- Process.getPid processHandle `Exception.catchAny` \_ -> pure Nothing
+        for_ maybePid \pid -> Signals.signalProcess Signals.sigKILL pid `Exception.catchAny` \_ -> pure ()
+        void (timeout (1 * 1000000) (Process.waitForProcess processHandle `Exception.catchAny` \_ -> pure Exit.ExitSuccess))
+
 fileWatcherParams liveReloadClients databaseNeedsMigration reloadGhciVar startStatusServer =
     FileWatcherParams
         { onHaskellFileChanged = do
@@ -163,7 +172,7 @@ withGHCI mainThreadId callback = do
 
     Process.withCreateProcess params \(Just input) (Just output) (Just error) processHandle -> do
         let sigTermHandler = do
-                Process.terminateProcess processHandle `Exception.catchAny` \_ -> pure ()
+                stopProcessHandle processHandle
                 Concurrent.throwTo mainThreadId Exit.ExitSuccess
         withSigTermHandler sigTermHandler (callback input output error processHandle)
 
