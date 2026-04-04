@@ -31,19 +31,20 @@ jobs:
     # ARM64 (self-hosted) runs the full check suite including multi-GHC checks
     - run: nix flake check --impure --override-input ihp-boilerplate/ihp "github:${{ github.event.repository.full_name }}/${{ github.sha }}" -L
       if: matrix.os == 'ARM64'
-    # GitHub-hosted runners build all checks except multi-GHC ones to populate
-    # the cachix cache. The GHC 9.12/9.14 checks build IHP 3x in parallel which
-    # exceeds the 16GB RAM on these runners. ARM64 already covers those checks.
+    # GitHub-hosted runners only build packages to populate the cachix cache.
+    # All checks (tests, benchmarks, multi-GHC) are already covered by ARM64.
+    # Uses --max-jobs 1 to build one derivation at a time, preventing OOM on
+    # the 16GB ubuntu-latest runners where nothing-but-nix reduces available memory.
     - run: |
         system=$(nix eval --impure --expr builtins.currentSystem --raw)
         override="--override-input ihp-boilerplate/ihp github:${{ github.event.repository.full_name }}/${{ github.sha }}"
 
-        checks=$(nix eval --impure $override --json ".#checks.$system" --apply builtins.attrNames \
-          | jq -r '.[] | select(startswith("ghc9") | not)')
+        packages=$(nix eval --impure $override --json ".#packages.$system" --apply builtins.attrNames \
+          | jq -r '.[]')
 
         targets=""
-        for c in $checks; do
-          targets="$targets .#checks.$system.$c"
+        for p in $packages; do
+          targets="$targets .#packages.$system.$p"
         done
-        nix build --impure $override -L $targets
+        nix build --impure --max-jobs 1 $override -L $targets
       if: matrix.os != 'ARM64'
