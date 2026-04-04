@@ -70,8 +70,8 @@ main = mainWithOptions False
 
 mainWithOptions :: Bool -> IO ()
 mainWithOptions wrapWithDirenv = withUtf8 do
-    sigTermCleanupRef <- newIORef (pure ())
-    withSigTermCleanup sigTermCleanupRef do
+    mainThreadId <- Concurrent.myThreadId
+    withSigTermHandler (Concurrent.throwTo mainThreadId Exit.ExitSuccess) do
         -- https://github.com/digitallyinduced/ihp/issues/2134
         -- devenv will redirect the standard handles to a pipe, causing block buffering by default
         -- We need to override this so that `putStrLn` etc. works as expected
@@ -94,7 +94,7 @@ mainWithOptions wrapWithDirenv = withUtf8 do
             (ghciInChan, ghciOutChan) <- Queue.newChan
             liveReloadClients <- newIORef mempty
             lastSchemaCompilerError <- newIORef Nothing
-            let ?context = Context { portConfig, isDebugMode, logger, ghciInChan, ghciOutChan, wrapWithDirenv, liveReloadClients, lastSchemaCompilerError, appSocket, sigTermCleanupRef }
+            let ?context = Context { portConfig, isDebugMode, logger, ghciInChan, ghciOutChan, wrapWithDirenv, liveReloadClients, lastSchemaCompilerError, appSocket, mainThreadId }
 
             -- Print IHP Version when in debug mode
             when isDebugMode (Log.debug ("IHP Version: " <> Version.ihpVersion))
@@ -122,22 +122,11 @@ mainWithOptions wrapWithDirenv = withUtf8 do
                         <*> Concurrently (runFileWatcherWithDebounce (fileWatcherParams liveReloadClients databaseNeedsMigration reloadGhciVar startStatusServer))
                         <*> Concurrently (runAppGhci ghciIsLoadingVar startStatusServer stopStatusServer statusServerStandardOutput statusServerErrorOutput statusServerClients reloadGhciVar)
 
-withSigTermCleanup :: IORef (IO ()) -> IO a -> IO a
-withSigTermCleanup sigTermCleanupRef callback = do
-    mainThreadId <- Concurrent.myThreadId
-    sigTermReceived <- Concurrent.newEmptyMVar
-    let sigTermHandler = do
-            cleanup <- readIORef sigTermCleanupRef
-            cleanup `Exception.catchAny` \_ -> pure ()
-            void (Concurrent.tryPutMVar sigTermReceived ())
-    previousSigTermHandler <- Signals.installHandler Signals.sigTERM (Signals.Catch sigTermHandler) Nothing
-    sigTermThread <- async do
-        Concurrent.takeMVar sigTermReceived
-        Concurrent.throwTo mainThreadId Exit.ExitSuccess
-
-    callback `Exception.finally` do
-        cancel sigTermThread
-        void (Signals.installHandler Signals.sigTERM previousSigTermHandler Nothing)
+withSigTermHandler :: IO () -> IO a -> IO a
+withSigTermHandler sigTermHandler callback = Exception.bracket
+    (Signals.installHandler Signals.sigTERM (Signals.Catch sigTermHandler) Nothing)
+    (\previousSigTermHandler -> void (Signals.installHandler Signals.sigTERM previousSigTermHandler Nothing))
+    (\_ -> callback)
 
 fileWatcherParams liveReloadClients databaseNeedsMigration reloadGhciVar startStatusServer =
     FileWatcherParams
@@ -173,11 +162,10 @@ withGHCI callback = do
             }
 
     Process.withCreateProcess params \(Just input) (Just output) (Just error) processHandle -> do
-        let terminateGhci = Process.terminateProcess processHandle `Exception.catchAny` \_ -> pure ()
-        Exception.bracket_
-            (writeIORef ?context.sigTermCleanupRef terminateGhci)
-            (writeIORef ?context.sigTermCleanupRef (pure ()))
-            (callback input output error processHandle)
+        let sigTermHandler = do
+                Process.terminateProcess processHandle `Exception.catchAny` \_ -> pure ()
+                Concurrent.throwTo ?context.mainThreadId Exit.ExitSuccess
+        withSigTermHandler sigTermHandler (callback input output error processHandle)
 
 initGHCICommands = 
     [ -- The app is loaded by loading .ghci, which then loads applicationGhciConfig, which triggers a ':l Main.hs'

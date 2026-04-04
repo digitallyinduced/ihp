@@ -12,6 +12,7 @@ import qualified IHP.Log.Types as Log
 import qualified IHP.Log as Log
 import qualified Control.Concurrent.Chan.Unagi as Queue
 import qualified Network.Socket as Socket
+import Control.Concurrent (ThreadId)
 import System.OsPath (OsPath, decodeUtf)
 
 procDirenvAware :: (?context :: Context) => OsPath -> [String] -> IO Process.CreateProcess
@@ -43,5 +44,5 @@ data Context = Context
     , wrapWithDirenv :: !Bool
     , lastSchemaCompilerError :: !(IORef (Maybe SomeException))
     , appSocket :: !Socket.Socket -- ^ Shared socket for seamless app restarts
-    , sigTermCleanupRef :: !(IORef (IO ())) -- ^ Process-local cleanup to run before exiting on SIGTERM
+    , mainThreadId :: !ThreadId
     }
