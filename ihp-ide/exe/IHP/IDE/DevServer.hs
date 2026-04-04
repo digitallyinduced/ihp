@@ -69,62 +69,67 @@ main :: IO ()
 main = mainWithOptions False
 
 mainWithOptions :: Bool -> IO ()
-mainWithOptions wrapWithDirenv = withUtf8 $ withSigTermCleanup do
-    -- https://github.com/digitallyinduced/ihp/issues/2134
-    -- devenv will redirect the standard handles to a pipe, causing block buffering by default
-    -- We need to override this so that `putStrLn` etc. works as expected
-    IO.hSetBuffering IO.stdout IO.LineBuffering
-    IO.hSetBuffering IO.stderr IO.LineBuffering
+mainWithOptions wrapWithDirenv = withUtf8 do
+    sigTermCleanupRef <- newIORef (pure ())
+    withSigTermCleanup sigTermCleanupRef do
+        -- https://github.com/digitallyinduced/ihp/issues/2134
+        -- devenv will redirect the standard handles to a pipe, causing block buffering by default
+        -- We need to override this so that `putStrLn` etc. works as expected
+        IO.hSetBuffering IO.stdout IO.LineBuffering
+        IO.hSetBuffering IO.stderr IO.LineBuffering
 
-    databaseNeedsMigration <- newIORef False
-    portConfig <- findAvailablePortConfig
+        databaseNeedsMigration <- newIORef False
+        portConfig <- findAvailablePortConfig
 
-    -- Start the dev server in Debug mode by setting the env var DEBUG=1
-    -- Like: $ DEBUG=1 devenv up
-    isDebugMode <- EnvVar.envOrDefault "DEBUG" False
+        -- Start the dev server in Debug mode by setting the env var DEBUG=1
+        -- Like: $ DEBUG=1 devenv up
+        isDebugMode <- EnvVar.envOrDefault "DEBUG" False
 
-    -- Create a persistent listening socket for the app port
-    -- This socket is shared between the status server and the app,
-    -- ensuring seamless transitions during app restarts (no connection refused errors)
-    appSocket <- createListeningSocket portConfig.appPort
+        -- Create a persistent listening socket for the app port
+        -- This socket is shared between the status server and the app,
+        -- ensuring seamless transitions during app restarts (no connection refused errors)
+        appSocket <- createListeningSocket portConfig.appPort
 
-    bracket (Log.newLogger def) (\logger -> logger.cleanup) \logger -> do
-        (ghciInChan, ghciOutChan) <- Queue.newChan
-        liveReloadClients <- newIORef mempty
-        lastSchemaCompilerError <- newIORef Nothing
-        let ?context = Context { portConfig, isDebugMode, logger, ghciInChan, ghciOutChan, wrapWithDirenv, liveReloadClients, lastSchemaCompilerError, appSocket }
+        bracket (Log.newLogger def) (\logger -> logger.cleanup) \logger -> do
+            (ghciInChan, ghciOutChan) <- Queue.newChan
+            liveReloadClients <- newIORef mempty
+            lastSchemaCompilerError <- newIORef Nothing
+            let ?context = Context { portConfig, isDebugMode, logger, ghciInChan, ghciOutChan, wrapWithDirenv, liveReloadClients, lastSchemaCompilerError, appSocket, sigTermCleanupRef }
 
-        -- Print IHP Version when in debug mode
-        when isDebugMode (Log.debug ("IHP Version: " <> Version.ihpVersion))
+            -- Print IHP Version when in debug mode
+            when isDebugMode (Log.debug ("IHP Version: " <> Version.ihpVersion))
 
-        ghciIsLoadingVar <- newIORef False
-        reloadGhciVar :: MVar () <- newEmptyMVar
+            ghciIsLoadingVar <- newIORef False
+            reloadGhciVar :: MVar () <- newEmptyMVar
 
-        withStatusServer ghciIsLoadingVar \startStatusServer stopStatusServer statusServerStandardOutput statusServerErrorOutput statusServerClients -> do
-            -- Compile Schema before loading the app
-            tryCompileSchema reloadGhciVar startStatusServer
+            withStatusServer ghciIsLoadingVar \startStatusServer stopStatusServer statusServerStandardOutput statusServerErrorOutput statusServerClients -> do
+                -- Compile Schema before loading the app
+                tryCompileSchema reloadGhciVar startStatusServer
 
-            let toolServerApplication = ToolServerApplication
-                    { appStandardOutput = statusServerStandardOutput
-                    , appErrorOutput = statusServerErrorOutput
-                    , appPort = portConfig.appPort
-                    , databaseNeedsMigration
-                    }
+                let toolServerApplication = ToolServerApplication
+                        { appStandardOutput = statusServerStandardOutput
+                        , appErrorOutput = statusServerErrorOutput
+                        , appPort = portConfig.appPort
+                        , databaseNeedsMigration
+                        }
 
 
-            void $ runConcurrently $ (,,,,,)
-                    <$> Concurrently (updateDatabaseIsOutdated databaseNeedsMigration)
-                    <*> Concurrently (runToolServer toolServerApplication liveReloadClients)
-                    <*> Concurrently (consumeGhciOutput statusServerStandardOutput statusServerErrorOutput statusServerClients)
-                    <*> Concurrently Telemetry.reportTelemetry
-                    <*> Concurrently (runFileWatcherWithDebounce (fileWatcherParams liveReloadClients databaseNeedsMigration reloadGhciVar startStatusServer))
-                    <*> Concurrently (runAppGhci ghciIsLoadingVar startStatusServer stopStatusServer statusServerStandardOutput statusServerErrorOutput statusServerClients reloadGhciVar)
+                void $ runConcurrently $ (,,,,,)
+                        <$> Concurrently (updateDatabaseIsOutdated databaseNeedsMigration)
+                        <*> Concurrently (runToolServer toolServerApplication liveReloadClients)
+                        <*> Concurrently (consumeGhciOutput statusServerStandardOutput statusServerErrorOutput statusServerClients)
+                        <*> Concurrently Telemetry.reportTelemetry
+                        <*> Concurrently (runFileWatcherWithDebounce (fileWatcherParams liveReloadClients databaseNeedsMigration reloadGhciVar startStatusServer))
+                        <*> Concurrently (runAppGhci ghciIsLoadingVar startStatusServer stopStatusServer statusServerStandardOutput statusServerErrorOutput statusServerClients reloadGhciVar)
 
-withSigTermCleanup :: IO a -> IO a
-withSigTermCleanup callback = do
+withSigTermCleanup :: IORef (IO ()) -> IO a -> IO a
+withSigTermCleanup sigTermCleanupRef callback = do
     mainThreadId <- Concurrent.myThreadId
     sigTermReceived <- Concurrent.newEmptyMVar
-    let sigTermHandler = void (Concurrent.tryPutMVar sigTermReceived ())
+    let sigTermHandler = do
+            cleanup <- readIORef sigTermCleanupRef
+            cleanup `Exception.catchAny` \_ -> pure ()
+            void (Concurrent.tryPutMVar sigTermReceived ())
     previousSigTermHandler <- Signals.installHandler Signals.sigTERM (Signals.Catch sigTermHandler) Nothing
     sigTermThread <- async do
         Concurrent.takeMVar sigTermReceived
@@ -167,7 +172,12 @@ withGHCI callback = do
             , Process.create_group = True
             }
 
-    Process.withCreateProcess params \(Just input) (Just output) (Just error) processHandle -> callback input output error processHandle
+    Process.withCreateProcess params \(Just input) (Just output) (Just error) processHandle -> do
+        let terminateGhci = Process.terminateProcess processHandle `Exception.catchAny` \_ -> pure ()
+        Exception.bracket_
+            (writeIORef ?context.sigTermCleanupRef terminateGhci)
+            (writeIORef ?context.sigTermCleanupRef (pure ()))
+            (callback input output error processHandle)
 
 initGHCICommands = 
     [ -- The app is loaded by loading .ghci, which then loads applicationGhciConfig, which triggers a ':l Main.hs'

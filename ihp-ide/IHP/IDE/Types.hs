@@ -43,4 +43,5 @@ data Context = Context
     , wrapWithDirenv :: !Bool
     , lastSchemaCompilerError :: !(IORef (Maybe SomeException))
     , appSocket :: !Socket.Socket -- ^ Shared socket for seamless app restarts
+    , sigTermCleanupRef :: !(IORef (IO ())) -- ^ Process-local cleanup to run before exiting on SIGTERM
     }
