@@ -224,6 +224,49 @@ tests = do
                     , deferrableType = Nothing
                     }
 
+        -- Regression for https://github.com/digitallyinduced/ihp/issues/2613:
+        -- pg_dump normalizes `kind IN ('a', 'b', 'c')` to `kind = ANY (ARRAY['a'::text, ...])`,
+        -- so the parser must accept the normalized form or it breaks on every schema reload.
+        it "should parse ALTER TABLE .. ADD CONSTRAINT .. CHECK with ANY(ARRAY[...]) as emitted by pg_dump" do
+            parseSql "ALTER TABLE foo ADD CONSTRAINT foo_kind_valid CHECK ((kind = ANY (ARRAY['a'::text, 'b'::text, 'c'::text])));" `shouldBe` AddConstraint
+                    { tableName = "foo"
+                    , constraint = CheckConstraint
+                        { name = "foo_kind_valid"
+                        , checkExpression =
+                            EqExpression
+                                (VarExpression "kind")
+                                (CallExpression "ANY"
+                                    [ ArrayLiteralExpression
+                                        [ TypeCastExpression (TextExpression "a") PText
+                                        , TypeCastExpression (TextExpression "b") PText
+                                        , TypeCastExpression (TextExpression "c") PText
+                                        ]
+                                    ])
+                        }
+                    , deferrable = Nothing
+                    , deferrableType = Nothing
+                    }
+
+        it "should parse ALTER TABLE .. ADD CONSTRAINT .. CHECK with ANY(ARRAY[...]) of integers" do
+            parseSql "ALTER TABLE foo ADD CONSTRAINT foo_n_valid CHECK ((n = ANY (ARRAY[1, 2, 3])));" `shouldBe` AddConstraint
+                    { tableName = "foo"
+                    , constraint = CheckConstraint
+                        { name = "foo_n_valid"
+                        , checkExpression =
+                            EqExpression
+                                (VarExpression "n")
+                                (CallExpression "ANY"
+                                    [ ArrayLiteralExpression
+                                        [ IntExpression 1
+                                        , IntExpression 2
+                                        , IntExpression 3
+                                        ]
+                                    ])
+                        }
+                    , deferrable = Nothing
+                    , deferrableType = Nothing
+                    }
+
 
 
         it "should parse ALTER TABLE .. ADD CONSTRAINT .. CHECK .. with a <=" do

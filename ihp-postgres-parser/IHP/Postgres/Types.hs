@@ -173,6 +173,8 @@ data Expression =
     | InExpression Expression Expression
     -- | ('a', 'b')
     | InArrayExpression [Expression]
+    -- | ARRAY['a', 'b']
+    | ArrayLiteralExpression [Expression]
     -- | NOT a
     | NotExpression Expression
     -- | EXISTS a
