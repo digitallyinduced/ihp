@@ -5,6 +5,7 @@ app_dir="$(pwd)/integration-test"
 log_file="${TMPDIR:-/tmp}/run-devserver.log"
 devserver_pid=""
 ghci_pid=""
+ps_bin="${PS_BIN:-ps}"
 
 cleanup() {
     if [ -n "${ghci_pid:-}" ] && kill -0 "$ghci_pid" 2>/dev/null; then
@@ -22,7 +23,7 @@ cleanup() {
 trap cleanup EXIT
 
 find_ghci_child() {
-    ps -axo pid=,ppid=,command= | awk -v ppid="$devserver_pid" '
+    "$ps_bin" -axo pid=,ppid=,command= | awk -v ppid="$devserver_pid" '
         $2 == ppid && $0 ~ /--interactive/ { print $1; exit }
     '
 }
@@ -92,7 +93,7 @@ done
 
 if kill -0 "$ghci_pid" 2>/dev/null; then
     echo "Orphaned GHCi process survived RunDevServer SIGTERM" >&2
-    ps -o pid=,ppid=,command= -p "$ghci_pid" >&2 || true
+    "$ps_bin" -o pid=,ppid=,command= -p "$ghci_pid" >&2 || true
     cat "$log_file" >&2
     exit 1
 fi
