@@ -148,6 +148,31 @@ that is defined in flake-module.nix
                         touch $out
                     '';
                 };
+
+                run-devserver-sigterm = pkgs.stdenv.mkDerivation {
+                    name = "run-devserver-sigterm";
+                    src = self;
+                    sourceRoot = "source";
+                    nativeBuildInputs = [
+                        (pkgs.ghc.ghc.withPackages (p: with p; [
+                            ihp ihp-ide ihp-schema-compiler
+                        ]))
+                        pkgs.gnumake
+                        pkgs.postgresql
+                        pkgs.procps
+                    ];
+                    buildPhase = ''
+                        export IHP_LIB=${self.packages.${system}.ihp-env-var-backwards-compat}
+                        export IHP_STATIC=${self.packages.${system}.ihp-static}
+                        export PS_BIN=${pkgs.procps}/bin/ps
+                        export RUN_DEVSERVER=${pkgs.ghc.ihp-ide}/bin/RunDevServer
+
+                        bash integration-test/run-devserver-sigterm-check.sh
+                    '';
+                    installPhase = ''
+                        touch $out
+                    '';
+                };
             }
 
             # GHC 9.12 compatibility checks (build and test all IHP packages)
