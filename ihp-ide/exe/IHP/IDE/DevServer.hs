@@ -130,11 +130,18 @@ withSigTermHandler sigTermHandler callback = Exception.bracket
 
 stopProcessHandle :: Process.ProcessHandle -> IO ()
 stopProcessHandle processHandle = do
-    Process.terminateProcess processHandle `Exception.catchAny` \_ -> pure ()
+    maybePid <- Process.getPid processHandle `Exception.catchAny` \_ -> pure Nothing
+    let signalGhciGroup signal = case maybePid of
+            Just pid -> do
+                -- GHCi runs in its own process group, so shutdown needs to target the
+                -- whole group rather than only the leader process.
+                Signals.signalProcessGroup signal pid `Exception.catchAny` \_ -> Signals.signalProcess signal pid `Exception.catchAny` \_ -> pure ()
+            Nothing -> Process.terminateProcess processHandle `Exception.catchAny` \_ -> pure ()
+
+    signalGhciGroup Signals.sigTERM
     exitedOnSigTerm <- isJust <$> timeout (1 * 1000000) (Process.waitForProcess processHandle `Exception.catchAny` \_ -> pure Exit.ExitSuccess)
     unless exitedOnSigTerm do
-        maybePid <- Process.getPid processHandle `Exception.catchAny` \_ -> pure Nothing
-        for_ maybePid \pid -> Signals.signalProcess Signals.sigKILL pid `Exception.catchAny` \_ -> pure ()
+        signalGhciGroup Signals.sigKILL
         void (timeout (1 * 1000000) (Process.waitForProcess processHandle `Exception.catchAny` \_ -> pure Exit.ExitSuccess))
 
 fileWatcherParams liveReloadClients databaseNeedsMigration reloadGhciVar startStatusServer =
