@@ -1,9 +1,9 @@
 module Main where
 
 import IHP.Prelude
+import IHP.FrameworkConfig
 import qualified IHP.Server
 import IHP.Job.Types
-import IHP.RouterSupport
 
 import Config
 import Web.FrontController ()
