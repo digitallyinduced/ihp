@@ -4,9 +4,11 @@ import Prelude
 import IHP.SchemaMigration
 import Main.Utf8 (withUtf8)
 import System.Environment (lookupEnv)
-import System.Exit (die)
+import System.Exit (die, exitFailure)
 import Text.Read (readMaybe)
 import Data.String.Conversions (cs)
+import qualified Data.Text.IO as Text
+import System.IO (stderr)
 import Control.Exception (bracket)
 import qualified Hasql.Connection as Connection
 import qualified Hasql.Connection.Settings as ConnectionSettings
@@ -18,7 +20,9 @@ main = withUtf8 do
         minimumRevision <- fmap (>>= readMaybe) (lookupEnv "MINIMUM_REVISION")
         result <- migrate connection MigrateOptions { minimumRevision }
         case result of
-            Left err -> die (cs err)
+            Left err -> do
+                Text.hPutStrLn stderr err
+                exitFailure
             Right () -> pure ()
 
 acquireConnection :: String -> IO Connection.Connection
