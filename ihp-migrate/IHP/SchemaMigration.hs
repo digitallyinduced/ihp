@@ -17,7 +17,6 @@ import Data.Function ((&))
 import Control.Monad (unless, forM_, join)
 import Data.Int (Int64)
 import System.Environment (lookupEnv)
-import System.Exit (die)
 import Text.Read (readMaybe)
 import qualified Data.Char as Char
 
@@ -39,9 +38,9 @@ data MigrateOptions = MigrateOptions
     { minimumRevision :: !(Maybe Int) -- ^ When deploying a fresh install of an existing app that has existing migrations, it might be useful to ignore older migrations as they're already part of the existing schema
     }
 
--- | Run a session on the bare connection, dying on error
+-- | Run a session on the bare connection, throwing an IOError on failure
 runSession :: Connection.Connection -> Session.Session a -> IO a
-runSession connection session = Connection.use connection session >>= either (die . show) pure
+runSession connection session = Connection.use connection session >>= either (fail . show) pure
 
 -- | Migrates the database schema to the latest version
 migrate :: Connection.Connection -> MigrateOptions -> IO ()
