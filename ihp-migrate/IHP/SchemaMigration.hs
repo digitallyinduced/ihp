@@ -14,9 +14,10 @@ import Data.Maybe (fromMaybe, mapMaybe, isJust, listToMaybe)
 import Data.List (sortBy)
 import Data.Ord (comparing)
 import Data.Function ((&))
-import Control.Monad (unless, forM_, join)
+import Control.Monad (unless, forM, join)
 import Data.Int (Int64)
 import System.Environment (lookupEnv)
+import System.Exit (die)
 import Text.Read (readMaybe)
 import qualified Data.Char as Char
 
@@ -38,33 +39,41 @@ data MigrateOptions = MigrateOptions
     { minimumRevision :: !(Maybe Int) -- ^ When deploying a fresh install of an existing app that has existing migrations, it might be useful to ignore older migrations as they're already part of the existing schema
     }
 
--- | Run a session on the bare connection, throwing an IOError on failure
+-- | Run a session on the bare connection, dying on error
 runSession :: Connection.Connection -> Session.Session a -> IO a
-runSession connection session = Connection.use connection session >>= either (fail . show) pure
+runSession connection session = Connection.use connection session >>= either (die . show) pure
 
 -- | Migrates the database schema to the latest version
-migrate :: Connection.Connection -> MigrateOptions -> IO ()
+--
+-- Returns @Left errorMessage@ if a migration fails, @Right ()@ if all migrations succeed.
+migrate :: Connection.Connection -> MigrateOptions -> IO (Either Text ())
 migrate connection options = do
     createSchemaMigrationsTable connection
 
     let minimumRevision = fromMaybe 0 options.minimumRevision
 
     openMigrations <- findOpenMigrations connection minimumRevision
-    forM_ openMigrations (runMigration connection)
+    results <- forM openMigrations (runMigration connection)
+    case sequence results of
+        Left err -> pure (Left err)
+        Right _ -> pure (Right ())
 
 -- | The sql statements contained in the migration file are executed. Then the revision is inserted into the @schema_migrations@ table.
 --
 -- All queries are executed inside a database transaction to make sure that it can be restored when something goes wrong.
-runMigration :: Connection.Connection -> Migration -> IO ()
+runMigration :: Connection.Connection -> Migration -> IO (Either Text ())
 runMigration connection Migration { revision, migrationFile } = do
     migrationFilePath <- migrationPath Migration { revision, migrationFile }
     migrationSql <- Text.readFile (cs migrationFilePath)
 
-    runSession connection do
+    result <- Connection.use connection do
         Session.script "BEGIN"
         Session.script (cs migrationSql)
         Session.statement (fromIntegral revision :: Int64) insertRevisionStatement
         Session.script "COMMIT"
+    case result of
+        Left err -> pure (Left (cs (show err)))
+        Right () -> pure (Right ())
 
 insertRevisionStatement :: Statement.Statement Int64 ()
 insertRevisionStatement =
@@ -166,4 +175,3 @@ detectMigrationDir :: IO Text
 detectMigrationDir = do
     envValue <- lookupEnv "IHP_MIGRATION_DIR"
     pure (maybe "Application/Migration/" cs envValue)
-

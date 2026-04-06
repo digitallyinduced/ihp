@@ -16,7 +16,10 @@ main = withUtf8 do
     databaseUrl <- lookupEnv "DATABASE_URL" >>= maybe (die "DATABASE_URL not set") pure
     bracket (acquireConnection databaseUrl) Connection.release \connection -> do
         minimumRevision <- fmap (>>= readMaybe) (lookupEnv "MINIMUM_REVISION")
-        migrate connection MigrateOptions { minimumRevision }
+        result <- migrate connection MigrateOptions { minimumRevision }
+        case result of
+            Left err -> die (cs err)
+            Right () -> pure ()
 
 acquireConnection :: String -> IO Connection.Connection
 acquireConnection databaseUrl = do
