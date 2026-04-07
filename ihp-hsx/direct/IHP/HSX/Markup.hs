@@ -21,6 +21,7 @@ module IHP.HSX.Markup
 , ApplyAttribute (..)
 , AttributeValue (..)
 , spreadAttributes
+, isEmpty
 -- * Blaze compatibility
 , preEscapedToHtml
 , preEscapedTextValue
@@ -264,6 +265,15 @@ instance {-# OVERLAPPABLE #-} AttributeValue a => ApplyAttribute a where
 spreadAttributes :: ApplyAttribute value => [(Text, value)] -> Markup
 spreadAttributes = foldMap (\(name, value) -> applyAttribute name (" " <> name <> "=\"") value)
 {-# INLINE spreadAttributes #-}
+
+-- | Check whether a markup value is empty (produces no output).
+--
+-- Since 'Builder' is opaque, this renders the markup and checks
+-- whether the result is a zero-length 'ByteString'.  For empty markup
+-- the builder produces nothing, so this is effectively free.
+isEmpty :: MarkupM a -> Bool
+isEmpty (Markup b) = LBS.null (Builder.toLazyByteString b)
+{-# INLINE isEmpty #-}
 
 -- | Blaze compatibility: emit pre-escaped HTML (no escaping applied).
 -- Use for trusted HTML content only. Accepts Text, String, ByteString, etc.
