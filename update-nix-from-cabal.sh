@@ -53,8 +53,8 @@ for entry in "${hackage_packages[@]}"; do
   cabal2nix "cabal://${name}-${ver}" > "NixSupport/hackage/${name}.nix"
 done
 
-# ihp-zip: from GitHub fork
+# ihp-zip: from GitHub
 echo "Generating NixSupport/hackage/ihp-zip.nix from GitHub"
 cabal2nix https://github.com/digitallyinduced/ihp-zip \
-  --revision 1c0d812d12d21269f83d6480a6ec7a8cdd054485 \
+  --revision 62f632d23ee34b9783b82b53ab72e6ba5d716b76 \
   > NixSupport/hackage/ihp-zip.nix

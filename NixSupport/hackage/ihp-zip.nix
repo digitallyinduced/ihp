@@ -4,8 +4,8 @@ mkDerivation {
   version = "0.0.1";
   src = fetchgit {
     url = "https://github.com/digitallyinduced/ihp-zip";
-    sha256 = "0y0dj8ggi1jqzy74i0d6k9my8kdvfi516zfgnsl7znicwq9laald";
-    rev = "1c0d812d12d21269f83d6480a6ec7a8cdd054485";
+    sha256 = "116ly1ll3d9m702f7cwm5dbxpnyg4afjhg9yg3f0qi775db9vcgv";
+    rev = "62f632d23ee34b9783b82b53ab72e6ba5d716b76";
     fetchSubmodules = true;
   };
   libraryHaskellDepends = [ http-types ihp wai zip-archive ];

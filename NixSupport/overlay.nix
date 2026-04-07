@@ -63,11 +63,7 @@ let
             ihp-migrate = (localPackage "ihp-migrate").overrideAttrs (old: { mainProgram = "migrate"; });
             ihp-openai = localPackage "ihp-openai";
             ihp-ssc = localPackage "ihp-ssc";
-            ihp-zip = (hackagePackage "ihp-zip").overrideAttrs (old: {
-              postPatch = (old.postPatch or "") + ''
-                sed -i 's/(?context :: ControllerContext)/(?context :: ControllerContext, ?request :: Request, ?respond :: Respond)/' IHP/Zip/ControllerFunctions.hs
-              '';
-            });
+            ihp-zip = hackagePackage "ihp-zip";
             ihp-hsx = localPackage "ihp-hsx";
             ihp-graphql = localPackage "ihp-graphql";
             ihp-datasync-typescript = localPackage "ihp-datasync-typescript";
