@@ -26,7 +26,9 @@ let
 
             # Pre-generated nix files for third-party Hackage packages, avoiding IFD.
             # To regenerate: run ./update-nix-from-cabal.sh after changing versions.
-            hackagePackage = name: fastBuild (self.callPackage "${flakeRoot}/NixSupport/hackage/${name}.nix" {});
+            # Note: unlike localPackage, these keep profiling enabled since downstream
+            # nixpkgs packages (e.g. jsonifier) may require profiling libraries.
+            hackagePackage = name: self.callPackage "${flakeRoot}/NixSupport/hackage/${name}.nix" {};
 
             # Use the nixpkgs version if available (i.e. published on Hackage and
             # picked up by the nixpkgs all-cabal-hashes snapshot), otherwise fall
@@ -63,7 +65,7 @@ let
             ihp-migrate = (localPackage "ihp-migrate").overrideAttrs (old: { mainProgram = "migrate"; });
             ihp-openai = localPackage "ihp-openai";
             ihp-ssc = localPackage "ihp-ssc";
-            ihp-zip = hackagePackage "ihp-zip";
+            ihp-zip = fastBuild (hackagePackage "ihp-zip");
             ihp-hsx = localPackage "ihp-hsx";
             ihp-graphql = localPackage "ihp-graphql";
             ihp-datasync-typescript = localPackage "ihp-datasync-typescript";
