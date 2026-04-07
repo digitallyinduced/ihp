@@ -165,7 +165,7 @@ instance Controller DocumentedCustomPathController where
 
 instance Controller CrudNamedApiController where
     action CreateApiSessionAction = do
-        requestBodyResult <- decodeActionRequestBody @CrudNamedApiController @"CreateApiSessionAction"
+        requestBodyResult <- decodeActionRequestBody @"CreateApiSessionAction"
         case requestBodyResult of
             Left _ -> renderPlain "Invalid JSON"
             Right (_ :: CreateSessionRequest) -> render AckView

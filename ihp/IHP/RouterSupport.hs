@@ -321,12 +321,18 @@ setOpenApiOperationId operationId ActionDoc{actionDocName, actionDocSummary, act
 {-# INLINE setOpenApiOperationId #-}
 
 decodeActionRequestBody ::
-    forall controller actionName.
+    forall actionName controller.
     ( HasOpenApiRequestBody controller actionName
+    , Data controller
     , ?request :: Request
+    , ?theAction :: controller
     ) =>
     IO (Either String (OpenApiRequestBody controller actionName))
-decodeActionRequestBody =
+decodeActionRequestBody = do
+    let expectedActionName = symbolVal (Proxy @actionName)
+    let actualActionName = showConstr (toConstr ?theAction)
+    unless (actualActionName == expectedActionName) do
+        fail ("decodeActionRequestBody expected action " <> expectedActionName <> " but current action is " <> actualActionName)
     JSON.eitherDecode <$> getRequestBody
 {-# INLINE decodeActionRequestBody #-}
 
