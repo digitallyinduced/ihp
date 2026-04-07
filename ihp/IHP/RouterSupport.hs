@@ -1,9 +1,8 @@
 {-# LANGUAGE AllowAmbiguousTypes #-}
 {-# LANGUAGE DataKinds #-}
-{-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE GADTs #-}
-{-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE LambdaCase #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE UndecidableInstances #-}
@@ -22,6 +21,7 @@ module IHP.RouterSupport (
     HasOpenApiRequestBody (..),
     actionDoc,
     actionDocFor,
+    actionDocForRequestBody,
     setOpenApiSummary,
     setOpenApiDescription,
     setOpenApiTags,
@@ -71,7 +71,6 @@ import Control.Exception.Safe (SomeException, catch, throwIO)
 import Control.Monad (join, unless)
 import Control.Monad.State.Strict qualified as State
 import Data.Aeson qualified as JSON
-import Data.Aeson qualified as Aeson
 import Data.Attoparsec.ByteString.Char8 (Parser, choice, endOfInput, parseOnly, string, take, takeByteString, takeTill)
 import Data.Attoparsec.ByteString.Char8 qualified as Attoparsec
 import Data.ByteString (ByteString)
@@ -194,23 +193,6 @@ class (JSON.FromJSON (OpenApiRequestBody controller actionName), ToSchema (OpenA
     openApiRequestBodyRequired :: Bool
     openApiRequestBodyRequired = True
 
-class ActionDocRequestBodyProvider controller (actionName :: Symbol) where
-    actionDocRequestBodyFor :: Maybe OpenApiRequestBodyDoc
-
-instance {-# OVERLAPPABLE #-} ActionDocRequestBodyProvider controller actionName where
-    actionDocRequestBodyFor = Nothing
-
-instance
-    (HasOpenApiRequestBody controller actionName) =>
-    ActionDocRequestBodyProvider controller actionName
-    where
-    actionDocRequestBodyFor =
-        Just
-            OpenApiRequestBodyDoc
-                { requestBodyRequired = openApiRequestBodyRequired @controller @actionName
-                , requestBodySchema = Proxy @(OpenApiRequestBody controller actionName)
-                }
-
 actionDoc ::
     forall view controller.
     ( ViewSupport.View view
@@ -236,7 +218,6 @@ actionDoc actionName =
 actionDocFor ::
     forall actionName view controller.
     ( KnownSymbol actionName
-    , ActionDocRequestBodyProvider controller actionName
     , ViewSupport.View view
     , Typeable.Typeable view
     , JSON.ToJSON (ViewSupport.JsonResponse view)
@@ -252,9 +233,24 @@ actionDocFor =
         , actionDocOperationId = Nothing
         , actionDocView = Proxy @view
         , actionDocTypedJson = JSON.toJSON . ViewSupport.jsonTyped
-        , actionDocRequestBody = actionDocRequestBodyFor @controller @actionName
+        , actionDocRequestBody = Nothing
         }
 {-# INLINE actionDocFor #-}
+
+actionDocForRequestBody ::
+    forall actionName view controller.
+    ( KnownSymbol actionName
+    , HasOpenApiRequestBody controller actionName
+    , ViewSupport.View view
+    , Typeable.Typeable view
+    , JSON.ToJSON (ViewSupport.JsonResponse view)
+    , ToSchema (ViewSupport.JsonResponse view)
+    ) =>
+    ActionDoc controller
+actionDocForRequestBody =
+    actionDocFor @actionName @view @controller
+        |> setOpenApiRequestBody @(OpenApiRequestBody controller actionName)
+{-# INLINE actionDocForRequestBody #-}
 
 setOpenApiSummary :: Text -> ActionDoc controller -> ActionDoc controller
 setOpenApiSummary summary ActionDoc{actionDocName, actionDocDescription, actionDocTags, actionDocOperationId, actionDocView, actionDocTypedJson, actionDocRequestBody} =
@@ -338,7 +334,7 @@ decodeActionRequestBody ::
     ) =>
     IO (Either String (OpenApiRequestBody controller actionName))
 decodeActionRequestBody =
-    Aeson.eitherDecode <$> getRequestBody
+    JSON.eitherDecode <$> getRequestBody
 {-# INLINE decodeActionRequestBody #-}
 
 class (AutoRoute controller) => OpenApiController controller where

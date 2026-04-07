@@ -212,7 +212,7 @@ instance HasOpenApiRequestBody CrudNamedApiController "CreateApiSessionAction" w
 
 instance OpenApiController CrudNamedApiController where
     openApiActions =
-        [ actionDocFor @"CreateApiSessionAction" @AckView
+        [ actionDocForRequestBody @"CreateApiSessionAction" @AckView
         , actionDocFor @"ShowApiSessionAction" @AckView
         ]
 
