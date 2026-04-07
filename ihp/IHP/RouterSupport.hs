@@ -186,7 +186,7 @@ data OpenApiRequestBodyDoc where
         ) =>
         { requestBodyRequired :: Bool
         , requestBodySchema :: Proxy body
-        , requestBodyTypeRep :: Typeable.TypeRep body
+        , requestBodyTypeRep :: Typeable.TypeRep
         } ->
         OpenApiRequestBodyDoc
 
