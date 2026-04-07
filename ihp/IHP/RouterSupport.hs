@@ -1,7 +1,11 @@
 {-# LANGUAGE AllowAmbiguousTypes #-}
+{-# LANGUAGE DataKinds #-}
+{-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE GADTs #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE UndecidableInstances #-}
 
 module IHP.RouterSupport (
@@ -15,12 +19,15 @@ module IHP.RouterSupport (
     documentRoute,
     ActionDoc (..),
     OpenApiRequestBodyDoc (..),
+    HasOpenApiRequestBody (..),
     actionDoc,
+    actionDocFor,
     setOpenApiSummary,
     setOpenApiDescription,
     setOpenApiTags,
     setOpenApiOperationId,
     setOpenApiRequestBody,
+    decodeActionRequestBody,
     runAction,
     get,
     post,
@@ -64,6 +71,7 @@ import Control.Exception.Safe (SomeException, catch, throwIO)
 import Control.Monad (join, unless)
 import Control.Monad.State.Strict qualified as State
 import Data.Aeson qualified as JSON
+import Data.Aeson qualified as Aeson
 import Data.Attoparsec.ByteString.Char8 (Parser, choice, endOfInput, parseOnly, string, take, takeByteString, takeTill)
 import Data.Attoparsec.ByteString.Char8 qualified as Attoparsec
 import Data.ByteString (ByteString)
@@ -181,6 +189,28 @@ data OpenApiRequestBodyDoc where
         } ->
         OpenApiRequestBodyDoc
 
+class (JSON.FromJSON (OpenApiRequestBody controller actionName), ToSchema (OpenApiRequestBody controller actionName)) => HasOpenApiRequestBody controller (actionName :: Symbol) where
+    type OpenApiRequestBody controller actionName :: Type
+    openApiRequestBodyRequired :: Bool
+    openApiRequestBodyRequired = True
+
+class ActionDocRequestBodyProvider controller (actionName :: Symbol) where
+    actionDocRequestBodyFor :: Maybe OpenApiRequestBodyDoc
+
+instance {-# OVERLAPPABLE #-} ActionDocRequestBodyProvider controller actionName where
+    actionDocRequestBodyFor = Nothing
+
+instance
+    (HasOpenApiRequestBody controller actionName) =>
+    ActionDocRequestBodyProvider controller actionName
+    where
+    actionDocRequestBodyFor =
+        Just
+            OpenApiRequestBodyDoc
+                { requestBodyRequired = openApiRequestBodyRequired @controller @actionName
+                , requestBodySchema = Proxy @(OpenApiRequestBody controller actionName)
+                }
+
 actionDoc ::
     forall view controller.
     ( ViewSupport.View view
@@ -202,6 +232,29 @@ actionDoc actionName =
         , actionDocRequestBody = Nothing
         }
 {-# INLINE actionDoc #-}
+
+actionDocFor ::
+    forall actionName view controller.
+    ( KnownSymbol actionName
+    , ActionDocRequestBodyProvider controller actionName
+    , ViewSupport.View view
+    , Typeable.Typeable view
+    , JSON.ToJSON (ViewSupport.JsonResponse view)
+    , ToSchema (ViewSupport.JsonResponse view)
+    ) =>
+    ActionDoc controller
+actionDocFor =
+    ActionDoc
+        { actionDocName = cs (symbolVal (Proxy @actionName))
+        , actionDocSummary = Nothing
+        , actionDocDescription = Nothing
+        , actionDocTags = []
+        , actionDocOperationId = Nothing
+        , actionDocView = Proxy @view
+        , actionDocTypedJson = JSON.toJSON . ViewSupport.jsonTyped
+        , actionDocRequestBody = actionDocRequestBodyFor @controller @actionName
+        }
+{-# INLINE actionDocFor #-}
 
 setOpenApiSummary :: Text -> ActionDoc controller -> ActionDoc controller
 setOpenApiSummary summary ActionDoc{actionDocName, actionDocDescription, actionDocTags, actionDocOperationId, actionDocView, actionDocTypedJson, actionDocRequestBody} =
@@ -277,6 +330,16 @@ setOpenApiRequestBody ActionDoc{actionDocName, actionDocSummary, actionDocDescri
                     }
         }
 {-# INLINE setOpenApiRequestBody #-}
+
+decodeActionRequestBody ::
+    forall controller actionName.
+    ( HasOpenApiRequestBody controller actionName
+    , ?request :: Request
+    ) =>
+    IO (Either String (OpenApiRequestBody controller actionName))
+decodeActionRequestBody =
+    Aeson.eitherDecode <$> getRequestBody
+{-# INLINE decodeActionRequestBody #-}
 
 class (AutoRoute controller) => OpenApiController controller where
     openApiActions :: [ActionDoc controller]

@@ -1,4 +1,5 @@
 {-# LANGUAGE AllowAmbiguousTypes #-}
+{-# LANGUAGE DataKinds #-}
 {-# LANGUAGE DeriveGeneric #-}
 
 module Test.OpenApiSupportSpec where
@@ -90,6 +91,7 @@ data CreateSessionRequest = CreateSessionRequest
     deriving (Eq, Show, Generic)
 
 instance JSON.ToJSON CreateSessionRequest
+instance JSON.FromJSON CreateSessionRequest
 instance ToSchema CreateSessionRequest
 
 instance View BandView where
@@ -162,7 +164,11 @@ instance Controller DocumentedCustomPathController where
     action ShowDocumentedCustomPathAction{..} = render DocumentedCustomPathView{..}
 
 instance Controller CrudNamedApiController where
-    action CreateApiSessionAction = render AckView
+    action CreateApiSessionAction = do
+        requestBodyResult <- decodeActionRequestBody @CrudNamedApiController @"CreateApiSessionAction"
+        case requestBodyResult of
+            Left _ -> renderPlain "Invalid JSON"
+            Right (_ :: CreateSessionRequest) -> render AckView
     action ShowApiSessionAction = render AckView
 
 instance AutoRoute DocumentedController where
@@ -201,11 +207,13 @@ instance OpenApiController DocumentedCustomPathController where
 
 instance AutoRoute CrudNamedApiController
 
+instance HasOpenApiRequestBody CrudNamedApiController "CreateApiSessionAction" where
+    type OpenApiRequestBody CrudNamedApiController "CreateApiSessionAction" = CreateSessionRequest
+
 instance OpenApiController CrudNamedApiController where
     openApiActions =
-        [ actionDoc @AckView "CreateApiSessionAction"
-            |> setOpenApiRequestBody @CreateSessionRequest
-        , actionDoc @AckView "ShowApiSessionAction"
+        [ actionDocFor @"CreateApiSessionAction" @AckView
+        , actionDocFor @"ShowApiSessionAction" @AckView
         ]
 
 instance FrontController WebApplication where
