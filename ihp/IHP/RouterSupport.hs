@@ -26,7 +26,6 @@ module IHP.RouterSupport (
     setOpenApiDescription,
     setOpenApiTags,
     setOpenApiOperationId,
-    setOpenApiRequestBody,
     decodeActionRequestBody,
     runAction,
     get,
@@ -248,8 +247,21 @@ actionDocForRequestBody ::
     ) =>
     ActionDoc controller
 actionDocForRequestBody =
-    actionDocFor @actionName @view @controller
-        |> setOpenApiRequestBody @(OpenApiRequestBody controller actionName)
+    ActionDoc
+        { actionDocName = cs (symbolVal (Proxy @actionName))
+        , actionDocSummary = Nothing
+        , actionDocDescription = Nothing
+        , actionDocTags = []
+        , actionDocOperationId = Nothing
+        , actionDocView = Proxy @view
+        , actionDocTypedJson = JSON.toJSON . ViewSupport.jsonTyped
+        , actionDocRequestBody =
+            Just
+                OpenApiRequestBodyDoc
+                    { requestBodyRequired = openApiRequestBodyRequired @controller @actionName
+                    , requestBodySchema = Proxy @(OpenApiRequestBody controller actionName)
+                    }
+        }
 {-# INLINE actionDocForRequestBody #-}
 
 setOpenApiSummary :: Text -> ActionDoc controller -> ActionDoc controller
@@ -307,25 +319,6 @@ setOpenApiOperationId operationId ActionDoc{actionDocName, actionDocSummary, act
         , actionDocRequestBody
         }
 {-# INLINE setOpenApiOperationId #-}
-
-setOpenApiRequestBody :: forall body controller. (ToSchema body) => ActionDoc controller -> ActionDoc controller
-setOpenApiRequestBody ActionDoc{actionDocName, actionDocSummary, actionDocDescription, actionDocTags, actionDocOperationId, actionDocView, actionDocTypedJson} =
-    ActionDoc
-        { actionDocName
-        , actionDocSummary
-        , actionDocDescription
-        , actionDocTags
-        , actionDocOperationId
-        , actionDocView
-        , actionDocTypedJson
-        , actionDocRequestBody =
-            Just
-                OpenApiRequestBodyDoc
-                    { requestBodyRequired = True
-                    , requestBodySchema = Proxy @body
-                    }
-        }
-{-# INLINE setOpenApiRequestBody #-}
 
 decodeActionRequestBody ::
     forall controller actionName.
