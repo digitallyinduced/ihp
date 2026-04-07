@@ -408,6 +408,10 @@ tests = do
             let Just ast = parseSql "SELECT (ROW(name, views)::my_type).* FROM items"
             detectStarSelects ast `shouldBe` []
 
+        it "detectStarSelects detects star in parenthesized SELECT" do
+            let Just ast = parseSql "(SELECT * FROM items)"
+            detectStarSelects ast `shouldBe` ["*"]
+
 -- Test helpers ---------------------------------------------------------------
 
 requirePostgresTestHook :: IO ()

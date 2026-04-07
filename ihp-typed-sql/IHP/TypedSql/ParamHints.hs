@@ -678,11 +678,17 @@ detectStarSelects = \case
 starFromSelectStmt :: Ast.SelectStmt -> [String]
 starFromSelectStmt (Left (Ast.SelectNoParens _with selectClause _sort _limit _lock)) =
     starFromSelectClause selectClause
-starFromSelectStmt (Right _) = []
+starFromSelectStmt (Right parens) = starFromSelectWithParens parens
+
+starFromSelectWithParens :: Ast.SelectWithParens -> [String]
+starFromSelectWithParens (Ast.NoParensSelectWithParens (Ast.SelectNoParens _with selectClause _sort _limit _lock)) =
+    starFromSelectClause selectClause
+starFromSelectWithParens (Ast.WithParensSelectWithParens inner) =
+    starFromSelectWithParens inner
 
 starFromSelectClause :: Ast.SelectClause -> [String]
 starFromSelectClause (Left simpleSelect) = starFromSimpleSelect simpleSelect
-starFromSelectClause (Right _) = []
+starFromSelectClause (Right parens) = starFromSelectWithParens parens
 
 starFromSimpleSelect :: Ast.SimpleSelect -> [String]
 starFromSimpleSelect = \case
