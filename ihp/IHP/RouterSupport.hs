@@ -181,9 +181,12 @@ data ActionDoc controller where
 data OpenApiRequestBodyDoc where
     OpenApiRequestBodyDoc ::
         forall body.
-        (ToSchema body) =>
+        ( ToSchema body
+        , Typeable.Typeable body
+        ) =>
         { requestBodyRequired :: Bool
         , requestBodySchema :: Proxy body
+        , requestBodyTypeRep :: Typeable.TypeRep body
         } ->
         OpenApiRequestBodyDoc
 
@@ -260,6 +263,7 @@ actionDocForRequestBody =
                 OpenApiRequestBodyDoc
                     { requestBodyRequired = openApiRequestBodyRequired @controller @actionName
                     , requestBodySchema = Proxy @(OpenApiRequestBody controller actionName)
+                    , requestBodyTypeRep = Typeable.typeRep (Proxy @(OpenApiRequestBody controller actionName))
                     }
         }
 {-# INLINE actionDocForRequestBody #-}
@@ -321,18 +325,27 @@ setOpenApiOperationId operationId ActionDoc{actionDocName, actionDocSummary, act
 {-# INLINE setOpenApiOperationId #-}
 
 decodeActionRequestBody ::
-    forall actionName controller.
-    ( HasOpenApiRequestBody controller actionName
+    forall body controller.
+    ( OpenApiController controller
+    , JSON.FromJSON body
+    , Typeable.Typeable body
     , Data controller
     , ?request :: Request
     , ?theAction :: controller
     ) =>
-    IO (Either String (OpenApiRequestBody controller actionName))
+    IO (Either String body)
 decodeActionRequestBody = do
-    let expectedActionName = symbolVal (Proxy @actionName)
-    let actualActionName = showConstr (toConstr ?theAction)
-    unless (actualActionName == expectedActionName) do
-        fail ("decodeActionRequestBody expected action " <> expectedActionName <> " but current action is " <> actualActionName)
+    let currentActionName = cs (showConstr (toConstr ?theAction))
+    let maybeRequestBodyDoc =
+            openApiActions @controller
+                |> find (\ActionDoc{actionDocName} -> actionDocName == currentActionName)
+                >>= (.actionDocRequestBody)
+    case maybeRequestBodyDoc of
+        Nothing ->
+            fail ("decodeActionRequestBody found no registered request body for action " <> cs currentActionName)
+        Just OpenApiRequestBodyDoc{requestBodyTypeRep} ->
+            unless (requestBodyTypeRep == Typeable.typeRep (Proxy @body)) do
+                fail ("decodeActionRequestBody expected " <> show requestBodyTypeRep <> " for action " <> cs currentActionName <> " but handler requested " <> show (Typeable.typeRep (Proxy @body)))
     JSON.eitherDecode <$> getRequestBody
 {-# INLINE decodeActionRequestBody #-}
 
