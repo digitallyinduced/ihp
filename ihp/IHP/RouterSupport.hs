@@ -14,6 +14,7 @@ module IHP.RouterSupport (
     OpenApiController (..),
     documentRoute,
     ActionDoc (..),
+    OpenApiRequestBodyDoc (..),
     actionDoc,
     setOpenApiSummary,
     setOpenApiDescription,
