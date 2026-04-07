@@ -60,12 +60,28 @@ forEach rows \(itemId, name, views) -> do
 
 Primary key columns are automatically typed as `Id' "table_name"` rather than raw `UUID`.
 
-## Selecting All Columns (`table.*`)
+## Selecting All Columns
 
-Use `table.*` to select all columns from a table, which returns the model type directly:
+### Why `SELECT *` is disallowed by default
+
+`SELECT *` and `SELECT table.*` are not allowed in `typedSql` by default. At compile time, `*` is expanded to whatever columns exist in the development database and a decoder is built for those exact columns. If the production database has a different schema (e.g., a migration added or removed a column), the query will return different columns than the decoder expects, causing a runtime error.
+
+Instead, list columns explicitly:
 
 ```haskell
 items <- sqlQueryTyped [typedSql|
+    SELECT id, name, views FROM items ORDER BY name
+|]
+```
+
+The compile error message will suggest the exact column names to use.
+
+### Opting in with `typedSqlStar`
+
+If you understand the risk and want to use `table.*` anyway (e.g., during rapid prototyping), use the `typedSqlStar` quasiquoter:
+
+```haskell
+items <- sqlQueryTyped [typedSqlStar|
     SELECT items.* FROM items ORDER BY name
 |]
 
@@ -77,7 +93,7 @@ This requires a `FromRowHasql` instance on the model type. IHP's generated types
 Table aliases work too:
 
 ```haskell
-items <- sqlQueryTyped [typedSql|
+items <- sqlQueryTyped [typedSqlStar|
     SELECT i.* FROM items i
     JOIN authors a ON a.id = i.author_id
     ORDER BY i.name

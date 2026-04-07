@@ -10,7 +10,8 @@ import           IHP.ModelSupport                  (createModelContext,
                                                     sqlExecDiscardResult)
 import           IHP.Prelude
 import           IHP.TypedSql.ParamHints           (parseSql, extractJoinNullableTables,
-                                                    extractNonNullableComputedColumnsFromAst)
+                                                    extractNonNullableComputedColumnsFromAst,
+                                                    detectStarSelects)
 import           System.Directory                  (doesFileExist,
                                                     getCurrentDirectory)
 import           System.Environment                (getEnvironment, lookupEnv)
@@ -61,6 +62,16 @@ tests = do
             (mkTestModule "TypedQuery Text"
                 "[typedSql| SELECT ROW(name, views)::typed_sql_test_pair FROM typed_sql_test_items LIMIT 1 |]")
             ["composite columns must be expanded"]
+
+        compileFailTest "fails when using SELECT * (bare asterisk)"
+            (mkTestModule "TypedQuery Text"
+                "[typedSql| SELECT * FROM typed_sql_test_items LIMIT 1 |]")
+            ["is not allowed"]
+
+        compileFailTest "fails when using SELECT table.*"
+            (mkTestModule "TypedQuery Text"
+                "[typedSql| SELECT typed_sql_test_items.* FROM typed_sql_test_items LIMIT 1 |]")
+            ["is not allowed"]
 
         compileFailTest "fails when SQL references an unknown column"
             (mkTestModule "TypedQuery Text"
@@ -373,6 +384,30 @@ tests = do
             let Just ast = parseSql "SELECT NULL::text"
             extractNonNullableComputedColumnsFromAst ast `shouldBe` Set.empty
 
+        it "detectStarSelects detects bare SELECT *" do
+            let Just ast = parseSql "SELECT * FROM items"
+            detectStarSelects ast `shouldBe` ["*"]
+
+        it "detectStarSelects detects SELECT table.*" do
+            let Just ast = parseSql "SELECT items.* FROM items"
+            detectStarSelects ast `shouldBe` ["items.*"]
+
+        it "detectStarSelects detects SELECT alias.*" do
+            let Just ast = parseSql "SELECT i.* FROM items i"
+            detectStarSelects ast `shouldBe` ["i.*"]
+
+        it "detectStarSelects does not flag COUNT(*)" do
+            let Just ast = parseSql "SELECT COUNT(*) FROM items"
+            detectStarSelects ast `shouldBe` []
+
+        it "detectStarSelects does not flag explicit columns" do
+            let Just ast = parseSql "SELECT id, name FROM items"
+            detectStarSelects ast `shouldBe` []
+
+        it "detectStarSelects does not flag composite expansion" do
+            let Just ast = parseSql "SELECT (ROW(name, views)::my_type).* FROM items"
+            detectStarSelects ast `shouldBe` []
+
 -- Test helpers ---------------------------------------------------------------
 
 requirePostgresTestHook :: IO ()
@@ -682,7 +717,7 @@ compilePassModule = Text.unlines
     , "import GHC.Records (HasField)"
     , "import IHP.ModelSupport (Id'(..), PrimaryKey)"
     , "import IHP.Hasql.FromRow (FromRowHasql (..))"
-    , "import IHP.TypedSql (TypedQuery, typedSql)"
+    , "import IHP.TypedSql (TypedQuery, typedSql, typedSqlStar)"
     , "import IHP.TypedSql.RowType (SqlRow)"
     , "import qualified Hasql.Decoders as HasqlDecoders"
     , ""
@@ -712,10 +747,10 @@ compilePassModule = Text.unlines
     , "qName = [typedSql| SELECT name FROM typed_sql_test_items LIMIT 1 |]"
     , ""
     , "qAllFields :: TypedQuery TypedSqlTestItem"
-    , "qAllFields = [typedSql| SELECT typed_sql_test_items.* FROM typed_sql_test_items LIMIT 1 |]"
+    , "qAllFields = [typedSqlStar| SELECT typed_sql_test_items.* FROM typed_sql_test_items LIMIT 1 |]"
     , ""
     , "qAllFieldsAlias :: TypedQuery TypedSqlTestItem"
-    , "qAllFieldsAlias = [typedSql| SELECT i.* FROM typed_sql_test_items i JOIN typed_sql_test_authors a ON a.id = i.author_id LIMIT 1 |]"
+    , "qAllFieldsAlias = [typedSqlStar| SELECT i.* FROM typed_sql_test_items i JOIN typed_sql_test_authors a ON a.id = i.author_id LIMIT 1 |]"
     , ""
     , "qPrimaryKey :: TypedQuery (Id' \"typed_sql_test_items\")"
     , "qPrimaryKey = [typedSql| SELECT id FROM typed_sql_test_items LIMIT 1 |]"
@@ -838,7 +873,7 @@ runtimeModule = Text.unlines
     , "import IHP.Log.Types"
     , "import IHP.ModelSupport (Id'(..), ModelContext, PrimaryKey, createModelContext, releaseModelContext)"
     , "import IHP.Hasql.FromRow (FromRowHasql (..))"
-    , "import IHP.TypedSql (sqlExecTyped, sqlQueryTyped, typedSql)"
+    , "import IHP.TypedSql (sqlExecTyped, sqlQueryTyped, typedSql, typedSqlStar)"
     , "import qualified Hasql.Decoders as HasqlDecoders"
     , "import System.Environment (lookupEnv)"
     , ""
@@ -905,7 +940,7 @@ runtimeModule = Text.unlines
     , "        when ((namesViaTypedSql :: [Text]) /= [\"First\", \"Second\"]) do"
     , "            error (\"unexpected names from typedSql second query: \" <> show namesViaTypedSql)"
     , ""
-    , "        allItems <- sqlQueryTyped [typedSql|"
+    , "        allItems <- sqlQueryTyped [typedSqlStar|"
     , "            SELECT typed_sql_test_items.*"
     , "            FROM typed_sql_test_items"
     , "            ORDER BY name"
