@@ -12,8 +12,6 @@ import Data.Text qualified as Text
 import IHP.ControllerPrelude hiding (find, get, request)
 import IHP.Environment
 import IHP.FrameworkConfig
-import IHP.Prelude
-import IHP.RouterSupport hiding (get)
 import IHP.Test.Mocking
 import IHP.ViewPrelude
 import Network.HTTP.Types
