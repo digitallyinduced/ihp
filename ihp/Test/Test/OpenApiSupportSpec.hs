@@ -11,7 +11,6 @@ import Data.Attoparsec.ByteString.Char8 (endOfInput, string)
 import Data.Text qualified as Text
 import IHP.ControllerPrelude hiding (find, get, request)
 import IHP.Environment
-import IHP.FrameworkConfig
 import IHP.Test.Mocking
 import IHP.ViewPrelude
 import Network.HTTP.Types
