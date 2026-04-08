@@ -33,6 +33,7 @@ module IHP.ControllerSupport
 ) where
 
 import Prelude
+import qualified IHP.Controller.Session as Session
 import Data.IORef (IORef, modifyIORef', readIORef)
 import Data.ByteString (ByteString)
 import qualified Data.ByteString.Lazy as LBS
@@ -89,6 +90,10 @@ runAction :: forall controller. (Controller controller, ?context :: Context.Cont
 runAction controller = do
     let ?theAction = controller
     let ?request = ?context.request
+
+    -- Force the deferred clientsession store to flush Set-Cookie even when
+    -- the action does no IO. See 'Session.forceSessionCookie' for details.
+    Session.forceSessionCookie
 
     -- Exceptions are now caught by the error handler middleware
     authenticatedModelContext <- prepareRLSIfNeeded ?modelContext

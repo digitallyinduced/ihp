@@ -26,6 +26,7 @@ module IHP.Controller.Session
   , getSessionAndClear
   , sessionVaultKey
   , lookupSessionVault
+  , forceSessionCookie
   ) where
 
 import Prelude
@@ -169,6 +170,24 @@ sessionVault = case lookupSessionVault ?request of
 
 lookupSessionVault :: Request -> Maybe (ByteString -> IO (Maybe ByteString), ByteString -> ByteString -> IO ())
 lookupSessionVault request = Vault.lookup sessionVaultKey request.vault
+
+-- | Force the deferred clientsession store to emit a @Set-Cookie@ on this
+-- response, even if the action did not otherwise read or write the session.
+--
+-- @wai-session-clientsession-deferred@ only writes the session cookie when
+-- the session vault has been touched during the request. Actions that just
+-- render a view without doing any IO can therefore omit @Set-Cookie@,
+-- causing OAuth flows (e.g. Azure SSO) to lose their session and bounce the
+-- user back through reauthentication. Calling 'forceSessionCookie' marks
+-- the session as dirty via a namespaced sentinel key (@__ihp_flush@) so the
+-- deferred store flushes the cookie unconditionally.
+--
+-- This is a no-op if the session middleware is not installed.
+forceSessionCookie :: (?request :: Request) => IO ()
+forceSessionCookie = case lookupSessionVault ?request of
+    Just (_, insert) -> insert "__ihp_flush" ""
+    Nothing -> pure ()
+{-# INLINABLE forceSessionCookie #-}
 
 sessionVaultKey :: Vault.Key (Network.Wai.Session.Maybe.Session IO ByteString ByteString)
 sessionVaultKey = unsafePerformIO Vault.newKey
