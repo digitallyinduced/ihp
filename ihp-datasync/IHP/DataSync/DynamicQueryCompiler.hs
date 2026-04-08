@@ -172,6 +172,18 @@ compileUpdate table setSql whereSql renamer columnTypes =
     <> whereSql
     <> Snippet.sql (compileReturningClause renamer columnTypes)
 
+-- | Build an UPDATE statement that only returns @id@.
+--
+-- Used by DataSync where the client already has the record and doesn't need
+-- the full row back – only confirmation that the row was found and updated.
+compileUpdateNoReturning :: Text -> Snippet -> Snippet -> Snippet
+compileUpdateNoReturning table setSql whereSql =
+    Snippet.sql ("UPDATE " <> quoteIdentifier table <> " SET ")
+    <> setSql
+    <> Snippet.sql " WHERE "
+    <> whereSql
+    <> Snippet.sql " RETURNING id"
+
 -- | Compile a condition expression to a 'Snippet' with typed parameter encoding.
 compileConditionTyped :: ColumnTypeMap -> ConditionExpression -> Snippet
 compileConditionTyped _ (ColumnExpression column) = Snippet.sql (quoteIdentifier column)

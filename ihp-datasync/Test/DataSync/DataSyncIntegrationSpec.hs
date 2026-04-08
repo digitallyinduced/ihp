@@ -359,9 +359,8 @@ tests = do
                                 [ ("body", String "Updated message") ] 3 Nothing)
                             response <- recv
                             case response of
-                                DidUpdateRecord { record, requestId } -> do
+                                DidUpdateRecord { requestId } -> do
                                     requestId `shouldBe` 3
-                                    findField "body" record `shouldBe` Just (String "Updated message")
                                 DataSyncError { errorMessage } ->
                                     expectationFailure (cs $ "Unexpected error: " <> errorMessage)
                                 _ -> expectationFailure "Expected DidUpdateRecord"
