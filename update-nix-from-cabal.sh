@@ -21,29 +21,14 @@ for cabal_file in */*.cabal; do
   (cd "$dir" && cabal2nix .) > "./$dir/default.nix"
 done
 
-# --- Third-party Hackage packages ---
-# Pre-generated to avoid IFD (Import From Derivation).
-# Update versions here when upgrading dependencies.
+# --- ihp-zip: only third-party Haskell package that still lives in
+# NixSupport/hackage/. Everything else (hasql, postgresql-types,
+# wai-session-*, etc.) now comes from the nixpkgs fork at
+# digitallyinduced/nixpkgs:ihp-nixpkgs and is wired up via rebinds in
+# NixSupport/overlay.nix — nothing to regenerate there.
 mkdir -p NixSupport/hackage
 
 hackage_packages=(
-  "wai-session-maybe 1.0.0"
-  "wai-session-clientsession-deferred 1.0.0"
-  "postgresql-binary 0.15.0.1"
-  "postgresql-connection-string 0.1.0.6"
-  "hasql 1.10.2.3"
-  "hasql-pool 1.4.2"
-  "hasql-dynamic-statements 0.5.1"
-  "hasql-implicits 0.2.0.2"
-  "hasql-transaction 1.2.2"
-  "hasql-notifications 0.2.5.0"
-  "temporary-ospath 1.3"
-  "ptr-poker 0.1.3"
-  "postgresql-simple-postgresql-types 0.1.1"
-  "postgresql-types-algebra 0.1"
-  "postgresql-types 0.1.2"
-  "hasql-mapping 0.1"
-  "hasql-postgresql-types 0.2"
   "ihp-zip 0.1.0"
 )
 
