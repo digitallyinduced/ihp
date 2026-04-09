@@ -423,7 +423,9 @@ that is defined in flake-module.nix
                     pkgs.stdenv.mkDerivation {
                         name = "ihp-guide";
                         src = ./Guide;
-                        nativeBuildInputs = with pkgs; [ haskellPackages.mmark-cli pkgs.esbuild ];
+                        # Use pkgs.ghc.mmark-cli, not pkgs.haskellPackages.mmark-cli,
+                        # so the transitive tls dep inherits the dontCheck from our overlay.
+                        nativeBuildInputs = with pkgs; [ ghc.mmark-cli pkgs.esbuild ];
                         buildPhase = ''
                             # build HTML from all *.markdown using the template
                             for f in *.markdown; do
