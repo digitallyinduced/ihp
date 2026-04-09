@@ -44,6 +44,7 @@ hackage_packages=(
   "postgresql-types 0.1.2"
   "hasql-mapping 0.1"
   "hasql-postgresql-types 0.2"
+  "ihp-zip 0.1.0"
 )
 
 for entry in "${hackage_packages[@]}"; do
@@ -52,9 +53,3 @@ for entry in "${hackage_packages[@]}"; do
   echo "Generating NixSupport/hackage/${name}.nix from Hackage: ${name}-${ver}"
   cabal2nix "cabal://${name}-${ver}" > "NixSupport/hackage/${name}.nix"
 done
-
-# ihp-zip: from GitHub
-echo "Generating NixSupport/hackage/ihp-zip.nix from GitHub"
-cabal2nix https://github.com/digitallyinduced/ihp-zip \
-  --revision 62f632d23ee34b9783b82b53ab72e6ba5d716b76 \
-  > NixSupport/hackage/ihp-zip.nix
