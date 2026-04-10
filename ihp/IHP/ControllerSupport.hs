@@ -202,10 +202,27 @@ startWebSocketApp initialState onHTTP waiRequest waiRespond = do
 
     let connectionOptions = WebSockets.connectionOptions @webSocketApp
 
+    -- On a successful handshake 'websocketsApp' returns a 'ResponseRaw'
+    -- wrapping a streaming handler plus a fallback 'Response'. Warp runs the
+    -- raw handler and the client correctly receives HTTP 101 Switching
+    -- Protocols — but request-logger middlewares (e.g. IHP's Apache access
+    -- log in Production) read 'responseStatus' on the fallback, and
+    -- wai-websockets hard-codes that fallback to 'status500' with a
+    -- "WebSockets are not supported by your WAI handler" body. The result
+    -- is that every successful WebSocket upgrade gets logged as
+    --
+    --     GET /DataSyncController HTTP/1.1 500 -
+    --
+    -- even though nginx / the actual client sees 101. Rewrite the fallback
+    -- status to 101 via 'mapResponseStatus' so the logs match reality.
+    -- 'mapResponseStatus' descends into 'ResponseRaw' and rebuilds the inner
+    -- 'Response' with the new status, so Warp still runs the original raw
+    -- handler — only the middleware-visible status changes.
     waiRequest
         |> WebSockets.websocketsApp connectionOptions handleConnection
         |> \case
-            Just response -> waiRespond response
+            Just response ->
+                waiRespond (mapResponseStatus (const HTTP.status101) response)
             Nothing -> onHTTP
 {-# INLINE startWebSocketAppAndFailOnHTTP #-}
 startWebSocketAppAndFailOnHTTP :: forall webSocketApp application. (?request :: Request, ?respond :: Respond, InitControllerContext application, ?application :: application, Typeable application, WebSockets.WSApp webSocketApp) => webSocketApp -> Application
