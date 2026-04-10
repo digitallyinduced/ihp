@@ -155,7 +155,9 @@ storeFileWithOptions fileInfo options = do
 storeFileFromUrl :: (?context :: context, ConfigProvider context) => Text -> StoreFileOptions -> IO StoredFile
 storeFileFromUrl url options = do
     manager <- HTTP.newTlsManager
-    request <- HTTP.parseRequest (cs url)
+    baseRequest <- HTTP.parseRequest (cs url)
+    -- Throw on non-2xx so a 404/500 from upstream doesn't get stored as an HTML error page (matching Wreq.get semantics)
+    let request = baseRequest { HTTP.checkResponse = HTTP.throwErrorStatusCodes }
     response <- HTTP.httpLbs request manager
     let contentType = fromMaybe "" (lookup HTTP.hContentType (HTTP.responseHeaders response))
     let responseBody = HTTP.responseBody response

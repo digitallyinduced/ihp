@@ -216,7 +216,9 @@ runServer FrameworkConfig { environment = Env.Production, appPort, exceptionTrac
             |> Warp.setFileInfoCacheDuration (5 * 60)
         heartbeatCheck = do
                 manager <- HTTP.newManager HTTP.defaultManagerSettings
-                request <- HTTP.parseRequest ("http://127.0.0.1:" <> cs (show appPort) <> "/_healthz")
+                baseRequest <- HTTP.parseRequest ("http://127.0.0.1:" <> cs (show appPort) <> "/_healthz")
+                -- Throw on non-2xx so warp-systemd marks the app unhealthy (matching Wreq.get semantics)
+                let request = baseRequest { HTTP.checkResponse = HTTP.throwErrorStatusCodes }
                 _ <- HTTP.httpNoBody request manager
                 pure ()
         systemdSettings = Systemd.defaultSystemdSettings
