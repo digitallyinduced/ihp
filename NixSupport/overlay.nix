@@ -109,7 +109,7 @@ let
             hasql = final.haskell.lib.dontCheck (final.haskell.lib.doJailbreak (hackagePackage "hasql"));
             hasql-pool = final.haskell.lib.dontCheck (hackagePackage "hasql-pool");
             hasql-dynamic-statements = final.haskell.lib.dontCheck (hackagePackage "hasql-dynamic-statements");
-            hasql-implicits = hackagePackage "hasql-implicits";
+            # hasql-implicits 0.2.0.2 is the default on nixpkgs-unstable, no override needed
             hasql-transaction = final.haskell.lib.dontCheck (hackagePackage "hasql-transaction");
             hasql-notifications = final.haskell.lib.dontCheck (hackagePackage "hasql-notifications");
             # hasql-interpolate: upstream 1.0.1.0 requires hasql <1.10; use fork with hasql 1.10 support
@@ -127,8 +127,7 @@ let
             # Fork of temporary using OsPath instead of FilePath
             temporary-ospath = hackagePackage "temporary-ospath";
 
-            # postgresql-types for proper binary encoders of Point, Polygon, Inet, Interval
-            ptr-poker = hackagePackage "ptr-poker";
+            # ptr-poker 0.1.3 is the default on nixpkgs-unstable, no override needed
             # postgresql-simple-postgresql-types: bridge providing FromField/ToField instances
             # for all postgresql-types types (Point, Polygon, Inet, Interval, etc.) in postgresql-simple
             postgresql-simple-postgresql-types = final.haskell.lib.dontCheck (final.haskell.lib.doJailbreak (hackagePackage "postgresql-simple-postgresql-types"));
