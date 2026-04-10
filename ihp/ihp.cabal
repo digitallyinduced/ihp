@@ -102,6 +102,7 @@ common shared-properties
             , conduit-extra
             , wai-cors
             , random
+            , hspec
             , cereal
             , cereal-text
             , neat-interpolation
@@ -236,6 +237,7 @@ library
         , IHP.View.CSSFramework.Tailwind
         , IHP.View.Types
         , IHP.FlashMessages
+        , IHP.Test.Mocking
         , IHP.Job.Queue
         , IHP.Job.Runner
         , IHP.Job.Types
@@ -281,10 +283,7 @@ test-suite tests
     main-is: Test/Main.hs
     hs-source-dirs: Test
     ghc-options: -threaded
-    build-depends:
-          ihp
-        , ihp-hspec
-        , hspec
+    build-depends: ihp
     other-modules:
         Test.ValidationSupport.ValidateFieldSpec
         Test.NameSupportSpec

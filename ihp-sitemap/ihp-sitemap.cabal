@@ -59,7 +59,6 @@ test-suite tests
         base >= 4.17.0 && < 4.22
         , hspec
         , ihp
-        , ihp-hspec
         , ihp-sitemap
         , wai
         , wai-extra

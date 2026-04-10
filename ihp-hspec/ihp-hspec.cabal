@@ -36,25 +36,6 @@ library
         ImplicitParams
         RecordWildCards
     ghc-options: -Werror=incomplete-patterns -Werror=unused-imports -Werror=missing-fields
-    build-depends:
-          base >= 4.17.0 && < 4.22
-        , ihp
-        , ihp-log
-        , wai
-        , wai-extra
-        , process
-        , text
-        , bytestring
-        , ihp-ide
-        , vault
-        , uuid
-        , hasql
-        , wai-request-params
-        , wai-session-maybe
-        , hspec
-        , http-types
-        , cereal
+    build-depends: base >= 4.17.0 && < 4.22, ihp, ihp-log, wai, process, text, ihp-ide, vault, uuid, hasql, wai-request-params
     hs-source-dirs: .
-    exposed-modules:
-          IHP.Hspec
-        , IHP.Test.Mocking
+    exposed-modules: IHP.Hspec

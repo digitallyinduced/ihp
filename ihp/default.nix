@@ -6,10 +6,10 @@
 , hasql, hasql-dynamic-statements, hasql-implicits, hasql-mapping
 , hasql-pool, hasql-postgresql-types, hasql-transaction, hspec
 , http-client, http-client-tls, http-media, http-types, ihp-context
-, ihp-hspec, ihp-hsx, ihp-imagemagick, ihp-log, ihp-modal
-, ihp-pagehead, ihp-pglistener, inflections, interpolate, lib
-, mime-types, minio-hs, mono-traversable, mtl, neat-interpolation
-, network, network-uri, parser-combinators, postgresql-simple
+, ihp-hsx, ihp-imagemagick, ihp-log, ihp-modal, ihp-pagehead
+, ihp-pglistener, inflections, interpolate, lib, mime-types
+, minio-hs, mono-traversable, mtl, neat-interpolation, network
+, network-uri, parser-combinators, postgresql-simple
 , postgresql-simple-postgresql-types, postgresql-types, process
 , pwstore-fast, random, random-strings, regex-tdfa, resource-pool
 , resourcet, safe-exceptions, scientific, slugger, split, stm
@@ -33,11 +33,11 @@ mkDerivation {
     countable-inflections data-default deepseq directory fast-logger
     filepath ghc-prim hashable hasql hasql-dynamic-statements
     hasql-implicits hasql-mapping hasql-pool hasql-postgresql-types
-    hasql-transaction http-client http-client-tls http-media http-types
-    ihp-context ihp-hsx ihp-imagemagick ihp-log ihp-modal ihp-pagehead
-    ihp-pglistener inflections interpolate mime-types minio-hs
-    mono-traversable mtl neat-interpolation network network-uri
-    parser-combinators postgresql-simple
+    hasql-transaction hspec http-client http-client-tls http-media
+    http-types ihp-context ihp-hsx ihp-imagemagick ihp-log ihp-modal
+    ihp-pagehead ihp-pglistener inflections interpolate mime-types
+    minio-hs mono-traversable mtl neat-interpolation network
+    network-uri parser-combinators postgresql-simple
     postgresql-simple-postgresql-types postgresql-types process
     pwstore-fast random random-strings regex-tdfa resource-pool
     resourcet safe-exceptions scientific slugger split stm
@@ -57,9 +57,9 @@ mkDerivation {
     filepath ghc-prim hashable hasql hasql-dynamic-statements
     hasql-implicits hasql-mapping hasql-pool hasql-postgresql-types
     hasql-transaction hspec http-client http-client-tls http-media
-    http-types ihp-context ihp-hspec ihp-hsx ihp-imagemagick ihp-log
-    ihp-modal ihp-pagehead ihp-pglistener inflections interpolate
-    mime-types minio-hs mono-traversable mtl neat-interpolation network
+    http-types ihp-context ihp-hsx ihp-imagemagick ihp-log ihp-modal
+    ihp-pagehead ihp-pglistener inflections interpolate mime-types
+    minio-hs mono-traversable mtl neat-interpolation network
     network-uri parser-combinators postgresql-simple
     postgresql-simple-postgresql-types postgresql-types process
     pwstore-fast random random-strings regex-tdfa resource-pool
@@ -79,11 +79,11 @@ mkDerivation {
     countable-inflections data-default deepseq directory fast-logger
     filepath ghc-prim hashable hasql hasql-dynamic-statements
     hasql-implicits hasql-mapping hasql-pool hasql-postgresql-types
-    hasql-transaction http-client http-client-tls http-media http-types
-    ihp-context ihp-hsx ihp-imagemagick ihp-log ihp-modal ihp-pagehead
-    ihp-pglistener inflections interpolate mime-types minio-hs
-    mono-traversable mtl neat-interpolation network network-uri
-    parser-combinators postgresql-simple
+    hasql-transaction hspec http-client http-client-tls http-media
+    http-types ihp-context ihp-hsx ihp-imagemagick ihp-log ihp-modal
+    ihp-pagehead ihp-pglistener inflections interpolate mime-types
+    minio-hs mono-traversable mtl neat-interpolation network
+    network-uri parser-combinators postgresql-simple
     postgresql-simple-postgresql-types postgresql-types process
     pwstore-fast random random-strings regex-tdfa resource-pool
     resourcet safe-exceptions scientific slugger split stm
