@@ -58,6 +58,7 @@ import Network.HTTP.Types.Header
 import qualified Data.Aeson as Aeson
 import qualified Network.Wai.Handler.WebSockets as WebSockets
 import qualified Network.WebSockets as WebSockets
+import qualified Network.Wai.Internal as WaiInternal
 import qualified IHP.WebSocket as WebSockets
 import qualified Data.TMap as TypeMap
 import IHP.RequestVault.ModelContext
@@ -202,14 +203,45 @@ startWebSocketApp initialState onHTTP waiRequest waiRespond = do
 
     let connectionOptions = WebSockets.connectionOptions @webSocketApp
 
+    -- On a successful handshake 'websocketsApp' returns a 'ResponseRaw'
+    -- wrapping a streaming handler plus a fallback 'Response'. Warp runs the
+    -- raw handler and the client correctly receives HTTP 101 Switching
+    -- Protocols — but request-logger middlewares (e.g. IHP's Apache access
+    -- log in Production) compute the logged status from the fallback's
+    -- builder/stream form, and wai-websockets hard-codes that fallback to
+    -- 'status500' with a "WebSockets are not supported by your WAI handler"
+    -- body. The result is that every successful WebSocket upgrade gets
+    -- logged as
+    --
+    --     GET /DataSyncController HTTP/1.1 500 -
+    --
+    -- even though nginx / the actual client sees 101.
+    --
+    -- 'Wai.mapResponseStatus' is explicitly a no-op on 'ResponseRaw' (see
+    -- the @mapResponseStatus _ r\@(ResponseRaw _ _) = r@ case in wai), so we
+    -- have to pattern-match the raw constructor from 'Network.Wai.Internal'
+    -- and rebuild the fallback 'Response' with 'status101' ourselves. Warp
+    -- still runs the original raw handler — only the status that the
+    -- request logger observes changes.
     waiRequest
         |> WebSockets.websocketsApp connectionOptions handleConnection
         |> \case
-            Just response -> waiRespond response
+            Just response -> waiRespond (rewriteWebSocketFallbackStatus response)
             Nothing -> onHTTP
 {-# INLINE startWebSocketAppAndFailOnHTTP #-}
 startWebSocketAppAndFailOnHTTP :: forall webSocketApp application. (?request :: Request, ?respond :: Respond, InitControllerContext application, ?application :: application, Typeable application, WebSockets.WSApp webSocketApp) => webSocketApp -> Application
 startWebSocketAppAndFailOnHTTP initialState = startWebSocketApp @webSocketApp @application initialState (?respond $ responseLBS HTTP.status400 [(hContentType, "text/plain")] "This endpoint is only available via a WebSocket")
+
+-- | Rewrite the 'ResponseRaw' fallback produced by 'Network.Wai.Handler.WebSockets.websocketsApp'
+-- so the fallback 'Response' reports @101 Switching Protocols@ instead of the
+-- hard-coded @status500@ from wai-websockets. See the comment in
+-- 'startWebSocketApp' for the full rationale. This helper is only meaningful
+-- for the responses produced by 'websocketsApp' — any other 'Response' is
+-- returned unchanged.
+rewriteWebSocketFallbackStatus :: Response -> Response
+rewriteWebSocketFallbackStatus (WaiInternal.ResponseRaw handler fallback) =
+    WaiInternal.ResponseRaw handler (mapResponseStatus (const HTTP.status101) fallback)
+rewriteWebSocketFallbackStatus other = other
 
 
 jumpToAction :: forall action. (Controller action, ?context :: Context.ControllerContext, ?modelContext :: ModelContext, ?respond :: Respond, ?request :: Request) => action -> IO ResponseReceived
