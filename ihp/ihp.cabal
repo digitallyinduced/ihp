@@ -72,9 +72,7 @@ common shared-properties
             , attoparsec
             , ghc-prim
             , case-insensitive
-            , haskell-src-meta
             , template-haskell
-            , haskell-src-exts
             , interpolate
             , split
             , containers
@@ -82,7 +80,6 @@ common shared-properties
             , cookie
             , process
             , typerep-map
-            , basic-prelude
             , async
             , network
             , unliftio
@@ -98,16 +95,13 @@ common shared-properties
             , hashable
             , scientific
             , vector
-            , wreq
             , deepseq
             , parser-combinators
             , fast-logger
             , minio-hs
             , conduit-extra
             , wai-cors
-            , lens
             , random
-            , hspec
             , cereal
             , cereal-text
             , neat-interpolation
@@ -242,7 +236,6 @@ library
         , IHP.View.CSSFramework.Tailwind
         , IHP.View.Types
         , IHP.FlashMessages
-        , IHP.Test.Mocking
         , IHP.Job.Queue
         , IHP.Job.Runner
         , IHP.Job.Types
@@ -288,7 +281,10 @@ test-suite tests
     main-is: Test/Main.hs
     hs-source-dirs: Test
     ghc-options: -threaded
-    build-depends: ihp
+    build-depends:
+          ihp
+        , ihp-hspec
+        , hspec
     other-modules:
         Test.ValidationSupport.ValidateFieldSpec
         Test.NameSupportSpec

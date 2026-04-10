@@ -41,8 +41,9 @@ import qualified Data.ByteString.Lazy as LBS
 import qualified System.Directory.OsPath as Directory
 import qualified Control.Exception.Safe as Exception
 import System.OsPath (encodeUtf)
-import qualified Network.Wreq as Wreq
-import Control.Lens hiding ((|>), set)
+import qualified Network.HTTP.Client as HTTP
+import qualified Network.HTTP.Client.TLS as HTTP
+import qualified Network.HTTP.Types.Header as HTTP
 import qualified Network.Mime as Mime
 import qualified Network.HTTP.Types.URI as URI
 
@@ -153,11 +154,11 @@ storeFileWithOptions fileInfo options = do
 --
 storeFileFromUrl :: (?context :: context, ConfigProvider context) => Text -> StoreFileOptions -> IO StoredFile
 storeFileFromUrl url options = do
-    (contentType, responseBody) <- do
-        response <- Wreq.get (cs url)
-        let contentType = response ^. Wreq.responseHeader "Content-Type"
-        let responseBody = response ^. Wreq.responseBody
-        pure (contentType, responseBody)
+    manager <- HTTP.newTlsManager
+    request <- HTTP.parseRequest (cs url)
+    response <- HTTP.httpLbs request manager
+    let contentType = fromMaybe "" (lookup HTTP.hContentType (HTTP.responseHeaders response))
+    let responseBody = HTTP.responseBody response
 
     let file = Wai.FileInfo
             { fileName = ""
