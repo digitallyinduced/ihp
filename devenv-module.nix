@@ -490,6 +490,7 @@ that is defined in flake-module.nix
                     root = "${self}/ihp-datasync/data/DataSync";
                 };
                 postConfigure = ''
+                    yarn run build
                     yarn run test
                     yarn run typecheck
                 '';
