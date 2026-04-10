@@ -61,21 +61,16 @@ instance Controller MigrationsController where
             then do
                 setSuccessMessage ("Migration generated: " <> path)
                 openEditor path 0 0
+                redirectTo MigrationsAction
             else do
-                result <- Exception.try (migrateAppDB revision)
+                result <- migrateAppDB revision
                 case result of
-                    Left (exception :: SomeException) -> do
-                        let errorMessage = case fromException exception of
-                                Just (exception :: EnhancedSqlError) -> enhancedSqlErrorMessage exception
-                                Nothing -> tshow exception
-
+                    Left errorMessage -> do
                         setErrorMessage errorMessage
                         redirectTo MigrationsAction
                     Right _ -> do
                         clearDatabaseNeedsMigration
                         redirectTo MigrationsAction
-
-        redirectTo MigrationsAction
 
     action EditMigrationAction { migrationId } = do
         migration <- findMigrationByRevision migrationId
@@ -103,13 +98,9 @@ instance Controller MigrationsController where
     action RunMigrationAction { migrationId } = do
         migration <- findMigrationByRevision migrationId
 
-        result <- Exception.try (migrateAppDB migrationId)
+        result <- migrateAppDB migrationId
         case result of
-            Left (exception :: SomeException) -> do
-                let errorMessage = case fromException exception of
-                        Just (exception :: EnhancedSqlError) -> enhancedSqlErrorMessage exception
-                        Nothing -> tshow exception
-
+            Left errorMessage -> do
                 setErrorMessage errorMessage
                 redirectTo MigrationsAction
             Right _ -> do
@@ -130,7 +121,7 @@ findMigrationByRevision migrationRevision = do
     let (Just migration) = migrations |> find (\SchemaMigration.Migration { revision } -> revision == migrationRevision)
     pure migration
 
-migrateAppDB :: Int -> IO ()
+migrateAppDB :: Int -> IO (Either Text ())
 migrateAppDB revision = withMigrateConnection \connection -> do
     let minimumRevision = Just (revision - 1)
     SchemaMigration.migrate connection SchemaMigration.MigrateOptions { minimumRevision }

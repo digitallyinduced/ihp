@@ -7,15 +7,7 @@ that is defined in flake-module.nix
 {
     perSystem = { config, system, nix-filter, pkgs, lib, ... }:
     let
-                    hsDataDir = package:
-                            let
-                                ghcName   = package.passthru.compiler.haskellCompilerName;         # e.g. "ghc-9.10.1"
-                                shareRoot = "${package.data}/share/${ghcName}";
-                                # Pick the first (typically only) platform-specific directory, filtering out "doc"
-                                dirs = builtins.filter (d: d != "doc") (builtins.attrNames (builtins.readDir shareRoot));
-                                sys = lib.head dirs;
-                            in
-                                "${shareRoot}/${sys}/${package.name}";
+                    ihpLib = config.packages.ihp-env-var-backwards-compat;
 
                     # Wrap a package's check phase with a temporary PostgreSQL server
                     withTestPostgres = pkg: pkg.overrideAttrs (old: {
@@ -111,7 +103,7 @@ that is defined in flake-module.nix
                         pkgs.postgresql
                     ];
                     buildPhase = ''
-                        export IHP_LIB=${hsDataDir pkgs.ghc.ihp-ide.data}
+                        export IHP_LIB=${ihpLib}
 
                         # Start temporary PostgreSQL
                         export PGDATA="$TMPDIR/pgdata"
@@ -162,6 +154,7 @@ that is defined in flake-module.nix
                     "ihp-job-dashboard" "ihp-imagemagick"
                     "ihp-hspec" "ihp-welcome" "ihp-zip"
                     "wai-asset-path" "wai-flash-messages" "wai-request-params"
+                    "wai-session-maybe" "wai-session-clientsession-deferred"
                 ];
             in lib.listToAttrs (map (name: {
                 name = "ghc912-${name}";
@@ -188,6 +181,7 @@ that is defined in flake-module.nix
                     "ihp-job-dashboard" "ihp-imagemagick"
                     "ihp-hspec" "ihp-welcome" "ihp-zip"
                     "wai-asset-path" "wai-flash-messages" "wai-request-params"
+                    "wai-session-maybe" "wai-session-clientsession-deferred"
                 ];
             in lib.listToAttrs (map (name: {
                 name = "ghc914-${name}";
@@ -240,8 +234,8 @@ that is defined in flake-module.nix
                         wai-util
                         aeson
                         uuid
-                        wai-session
-                        wai-session-clientsession
+                        wai-session-maybe
+                        wai-session-clientsession-deferred
                         clientsession
                         pwstore-fast
                         template-haskell
@@ -273,7 +267,7 @@ that is defined in flake-module.nix
                         ip
                         fast-logger
                         minio-hs
-                        temporary
+                        temporary-ospath
                         wai-cors
                         random
                         cereal-text
@@ -355,7 +349,7 @@ that is defined in flake-module.nix
                     pkgs.symlinkJoin {
                         name = "ihp-static";
                         paths = [
-                            (hsDataDir pkgs.ghc.ihp.data + "/static")
+                            ("${self}/ihp/data/static")
                             (pkgs.linkFarm "ihp-vendor-js" [
                                 # jQuery — current version
                                 { name = "vendor/jquery-4.0.0.min.js"; path = jquery "4.0.0.min.js" "1amdfbjdqncpv9x00n8f8xg43nvaapwfiq6kypx8nzyrkbm4d99r"; }
@@ -399,6 +393,7 @@ that is defined in flake-module.nix
             ihp-job-dashboard = pkgs.ghc.ihp-job-dashboard;
             wai-asset-path = pkgs.ghc.wai-asset-path;
             wai-flash-messages = pkgs.ghc.wai-flash-messages;
+            wai-early-return = pkgs.ghc.wai-early-return;
             ihp-imagemagick = pkgs.ghc.ihp-imagemagick;
             ihp-hspec = pkgs.ghc.ihp-hspec;
             ihp-welcome = pkgs.ghc.ihp-welcome;

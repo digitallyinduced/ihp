@@ -10,8 +10,9 @@
 , process, safe-exceptions, split, string-conversions, text, time
 , transformers, unagi-chan, unix, unliftio, uri-encode, uuid, vault
 , wai, wai-app-static, wai-asset-path, wai-extra
-, wai-request-params, wai-session, wai-session-clientsession
-, wai-util, wai-websockets, warp, websockets, with-utf8, wreq
+, wai-request-params, wai-session-clientsession-deferred
+, wai-session-maybe, wai-util, wai-websockets, warp, websockets
+, with-utf8, wreq
 }:
 mkDerivation {
   pname = "ihp-ide";
@@ -31,8 +32,9 @@ mkDerivation {
     mono-traversable neat-interpolation network network-uri process
     safe-exceptions split string-conversions text time transformers
     unagi-chan unix unliftio uri-encode uuid vault wai wai-app-static
-    wai-extra wai-request-params wai-session wai-session-clientsession
-    wai-util wai-websockets warp websockets with-utf8 wreq
+    wai-extra wai-request-params wai-session-clientsession-deferred
+    wai-session-maybe wai-util wai-websockets warp websockets with-utf8
+    wreq
   ];
   executableHaskellDepends = [
     aeson async attoparsec auto-update base base16-bytestring
@@ -45,8 +47,8 @@ mkDerivation {
     neat-interpolation network network-uri process safe-exceptions
     split string-conversions text time transformers unagi-chan unix
     unliftio uri-encode uuid vault wai wai-app-static wai-extra
-    wai-session wai-session-clientsession wai-util wai-websockets warp
-    websockets with-utf8 wreq
+    wai-session-clientsession-deferred wai-session-maybe wai-util
+    wai-websockets warp websockets with-utf8 wreq
   ];
   testHaskellDepends = [
     aeson async attoparsec auto-update base base16-bytestring
@@ -60,8 +62,8 @@ mkDerivation {
     process safe-exceptions split string-conversions text time
     transformers unagi-chan unix unliftio uri-encode uuid vault wai
     wai-app-static wai-asset-path wai-extra wai-request-params
-    wai-session wai-session-clientsession wai-util wai-websockets warp
-    websockets with-utf8 wreq
+    wai-session-clientsession-deferred wai-session-maybe wai-util
+    wai-websockets warp websockets with-utf8 wreq
   ];
   homepage = "https://ihp.digitallyinduced.com/";
   description = "Dev tools for IHP";

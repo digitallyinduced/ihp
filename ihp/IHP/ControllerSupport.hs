@@ -16,8 +16,9 @@ module IHP.ControllerSupport
 , InitControllerContext (..)
 , runActionWithNewContext
 , newContextForAction
+, respondWith
 , respondAndExit
-, respondAndExitWithHeaders
+, earlyReturn
 , jumpToAction
 , requestBodyJSON
 , startWebSocketApp
@@ -28,6 +29,7 @@ module IHP.ControllerSupport
 , Request
 , rlsContextVaultKey
 , setupActionContext
+, ResponseReceived
 ) where
 
 import Prelude
@@ -35,7 +37,9 @@ import Data.IORef (IORef, modifyIORef', readIORef)
 import Data.ByteString (ByteString)
 import qualified Data.ByteString.Lazy as LBS
 import Data.Maybe (fromMaybe)
-import Control.Exception.Safe (SomeException, fromException, try, catch, throwIO)
+import Control.Exception.Safe (SomeException, fromException, try, throwIO)
+import qualified Control.Exception as Exception
+import qualified IHP.ErrorController as ErrorController
 import Data.Typeable (Typeable)
 import IHP.HaskellSupport
 import Network.Wai
@@ -45,11 +49,11 @@ import Network.Wai.Parse as WaiParse
 import qualified Data.ByteString.Lazy
 import Wai.Request.Params.Middleware (Respond)
 import qualified Data.CaseInsensitive
-import qualified IHP.ErrorController as ErrorController
 import qualified Data.Typeable as Typeable
 import IHP.FrameworkConfig.Types (FrameworkConfig (..), ConfigProvider)
 import qualified IHP.Controller.Context as Context
 import IHP.Controller.Response
+import Network.Wai.Middleware.EarlyReturn (earlyReturnMiddleware)
 import Network.HTTP.Types.Header
 import qualified Data.Aeson as Aeson
 import qualified Network.Wai.Handler.WebSockets as WebSockets
@@ -70,7 +74,7 @@ class (Show controller, Eq controller) => Controller controller where
     beforeAction :: (?context :: Context.ControllerContext, ?modelContext :: ModelContext, ?theAction :: controller, ?respond :: Respond, ?request :: Request) => IO ()
     beforeAction = pure ()
     {-# INLINABLE beforeAction #-}
-    action :: (?context :: Context.ControllerContext, ?modelContext :: ModelContext, ?theAction :: controller, ?respond :: Respond, ?request :: Request) => controller -> IO ()
+    action :: (?context :: Context.ControllerContext, ?modelContext :: ModelContext, ?theAction :: controller, ?respond :: Respond, ?request :: Request) => controller -> IO ResponseReceived
 
 class InitControllerContext application where
     initContext :: (?modelContext :: ModelContext, ?request :: Request, ?respond :: Respond, ?context :: Context.ControllerContext) => IO ()
@@ -86,17 +90,12 @@ runAction controller = do
     let ?theAction = controller
     let ?request = ?context.request
 
-    let doRunAction = do
-            authenticatedModelContext <- prepareRLSIfNeeded ?modelContext
+    -- Exceptions are now caught by the error handler middleware
+    authenticatedModelContext <- prepareRLSIfNeeded ?modelContext
 
-            let ?modelContext = authenticatedModelContext
-            beforeAction
-            (action controller)
-            ErrorController.handleNoResponseReturned controller
-
-    doRunAction `catch` \(exception :: SomeException) -> case fromException exception of
-        Just (ResponseException response) -> ?respond response
-        Nothing -> ErrorController.displayException exception controller ""
+    let ?modelContext = authenticatedModelContext
+    beforeAction
+    action controller
 
 {-# INLINE newContextForAction #-}
 newContextForAction
@@ -109,27 +108,21 @@ newContextForAction
        , Typeable application
        , Typeable controller
        )
-    => controller -> IO (Either (IO ResponseReceived) Context.ControllerContext)
+    => controller -> IO Context.ControllerContext
 newContextForAction controller = do
     let ?modelContext = ?request.modelContext
     controllerContext <- Context.newControllerContext
     let ?context = controllerContext
     Context.putContext ?application
-
-    try (initContext @application) >>= \case
-        Left (exception :: SomeException) -> do
-            pure $ Left $ case fromException exception of
-                Just (ResponseException response) -> ?respond response
-                Nothing -> ErrorController.displayException exception controller " while calling initContext"
-        Right _ -> pure $ Right ?context
+    wrapInitContextException (initContext @application)
+    pure ?context
 
 -- | Shared request context setup, specialized once per application type.
 -- Takes a pre-computed TypeRep to avoid per-controller-type code duplication.
 -- NOINLINE ensures GHC compiles one copy shared across all controllers.
 --
--- Returns @(controllerContext, Nothing)@ on success, or
--- @(controllerContext, Just exception)@ if 'initContext' failed.
--- The context is always returned so callers can use it for error rendering.
+-- Exceptions from 'initContext' (including 'EarlyReturnException') propagate
+-- to the caller, which is expected to catch them.
 {-# NOINLINE setupActionContext #-}
 setupActionContext
     :: forall application
@@ -138,7 +131,7 @@ setupActionContext
        , Typeable application
        )
     => Typeable.TypeRep -> Request -> Respond
-    -> IO (Context.ControllerContext, Maybe SomeException)
+    -> IO Context.ControllerContext
 setupActionContext controllerTypeRep waiRequest waiRespond = do
     let !request' = waiRequest { vault = Vault.insert actionTypeVaultKey (ActionType controllerTypeRep) waiRequest.vault }
     let ?request = request'
@@ -147,22 +140,29 @@ setupActionContext controllerTypeRep waiRequest waiRespond = do
     controllerContext <- Context.newControllerContext
     let ?context = controllerContext
     Context.putContext ?application
-    try (initContext @application) >>= \case
-        Left exception -> pure (?context, Just exception)
-        Right _ -> pure (?context, Nothing)
+    wrapInitContextException (initContext @application)
+    pure ?context
+
+-- | Wraps non-EarlyReturn exceptions from initContext in InitContextException
+-- so the error handler middleware can show "while calling initContext".
+wrapInitContextException :: IO () -> IO ()
+wrapInitContextException action =
+    action `Exception.catch` \(e :: SomeException) ->
+        case fromException e of
+            Just (EarlyReturnException _) -> throwIO e  -- pass through early returns
+            Nothing -> throwIO (ErrorController.InitContextException e)
 
 {-# INLINE runActionWithNewContext #-}
 runActionWithNewContext :: forall application controller. (Controller controller, ?request :: Request, ?respond :: Respond, InitControllerContext application, ?application :: application, Typeable application, Typeable controller) => controller -> IO ResponseReceived
-runActionWithNewContext controller = do
-    let request' = setActionType controller ?request
-    let ?request = request'
-    contextOrResponse <- newContextForAction controller
-    case contextOrResponse of
-        Left response -> response
-        Right context -> do
-            let ?modelContext = requestModelContext ?request
-            let ?context = context
-            runAction controller
+runActionWithNewContext controller =
+    earlyReturnMiddleware (\request respond -> do
+        let ?request = setActionType controller request
+        let ?respond = respond
+        context <- newContextForAction controller
+        let ?modelContext = requestModelContext ?request
+        let ?context = context
+        runAction controller
+        ) ?request ?respond
 
 -- | If 'IHP.LoginSupport.Helper.Controller.enableRowLevelSecurityIfLoggedIn' was called, this will copy the
 -- the prepared RowLevelSecurityContext from the controller context into the ModelContext.
@@ -212,7 +212,7 @@ startWebSocketAppAndFailOnHTTP :: forall webSocketApp application. (?request :: 
 startWebSocketAppAndFailOnHTTP initialState = startWebSocketApp @webSocketApp @application initialState (?respond $ responseLBS HTTP.status400 [(hContentType, "text/plain")] "This endpoint is only available via a WebSocket")
 
 
-jumpToAction :: forall action. (Controller action, ?context :: Context.ControllerContext, ?modelContext :: ModelContext, ?respond :: Respond, ?request :: Request) => action -> IO ()
+jumpToAction :: forall action. (Controller action, ?context :: Context.ControllerContext, ?modelContext :: ModelContext, ?respond :: Respond, ?request :: Request) => action -> IO ResponseReceived
 jumpToAction theAction = do
     let ?theAction = theAction
     beforeAction @action
@@ -270,7 +270,7 @@ getFiles =
         FormBody { files } -> files
         _ -> []
 
-requestBodyJSON :: (?request :: Request) => IO Aeson.Value
+requestBodyJSON :: (?request :: Request, ?respond :: Respond) => IO Aeson.Value
 requestBodyJSON =
     case ?request.parsedBody of
         JSONBody { jsonPayload = Just value } -> pure value
@@ -282,7 +282,7 @@ requestBodyJSON =
                         else if isDev
                             then ". The raw request body was: " <> truncatePayload rawPayload
                             else ".")
-            throwResponseException $ responseLBS HTTP.status400 [(hContentType, "application/json")] $
+            respondAndExit $ responseLBS HTTP.status400 [(hContentType, "application/json")] $
                 Aeson.encode $ Aeson.object [("error", Aeson.String errorMessage)]
             where
                 truncatePayload payload =
@@ -292,10 +292,8 @@ requestBodyJSON =
                         then Text.pack (take maxLen shown) <> "... (truncated)"
                         else Text.pack shown
         FormBody {} ->
-            throwResponseException $ responseLBS HTTP.status400 [(hContentType, "application/json")] $
+            respondAndExit $ responseLBS HTTP.status400 [(hContentType, "application/json")] $
                 Aeson.encode $ Aeson.object [("error", Aeson.String "Expected JSON body, but the request has a form content type. Make sure to set 'Content-Type: application/json' in the request header.")]
-    where
-        throwResponseException response = throwIO (ResponseException response)
 
 -- | Returns a custom config parameter
 --

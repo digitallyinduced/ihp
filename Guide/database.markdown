@@ -268,6 +268,19 @@ do
     -- SELECT COUNT(*) FROM users WHERE is_active = 1
 ```
 
+### Fetching records as a Vector
+
+Use [`fetchVector`](https://ihp.digitallyinduced.com/api-docs/IHP-Fetch.html#v:fetchVector) instead of [`fetch`](https://ihp.digitallyinduced.com/api-docs/IHP-Fetch.html#v:fetch) to get results as a `Vector` instead of a list. This avoids the overhead of building a linked list, which can be beneficial for large result sets:
+
+```haskell
+do
+    users <- query @User |> fetchVector
+
+    -- SELECT * FROM users
+```
+
+The returned `Vector` works with `forEach` in HSX views just like a list does.
+
 ### Fetching distinct records
 
 Use [`distinct`](https://ihp.digitallyinduced.com/api-docs/IHP-QueryBuilder.html#v:distinct) to fetch distinct records:
@@ -826,16 +839,7 @@ incomplete data is left in the database when there's an error.
 
 The [`withTransaction`](https://ihp.digitallyinduced.com/api-docs/IHP-ModelSupport.html#v:withTransaction) function will automatically commit after it successfully executed the passed do-block. When any exception is thrown, it will automatically rollback.
 
-Keep in mind that some IHP functions like [`redirectTo`](https://ihp.digitallyinduced.com/api-docs/IHP-Controller-Redirect.html#v:redirectTo) or [`render`](https://ihp.digitallyinduced.com/api-docs/IHP-Controller-Render.html#v:render) throw a [`ResponseException`](https://ihp.digitallyinduced.com/api-docs/IHP-ControllerSupport.html#t:ResponseException). So code like below will not work as expected:
-
-```haskell
-action CreateUserAction = do
-    withTransaction do
-        user <- newRecord @User |> createRecord
-        redirectTo NewSessionAction
-```
-
-The [`redirectTo`](https://ihp.digitallyinduced.com/api-docs/IHP-Controller-Redirect.html#v:redirectTo) throws a [`ResponseException`](https://ihp.digitallyinduced.com/api-docs/IHP-ControllerSupport.html#t:ResponseException) and will cause a rollback. This code should be structured like this:
+It's good practice to keep your transaction blocks focused on database operations only:
 
 ```haskell
 action CreateUserAction = do

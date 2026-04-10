@@ -24,6 +24,6 @@ library
         BlockArguments
         OverloadedStrings
     ghc-options: -Werror=incomplete-patterns -Werror=unused-imports -Werror=missing-fields
-    build-depends: base >= 4.17.0 && < 4.22, text, wai, vault, cereal, cereal-text, bytestring, wai-session
+    build-depends: base >= 4.17.0 && < 4.22, text, wai, vault, cereal, cereal-text, bytestring, wai-session-maybe
     hs-source-dirs: .
     exposed-modules: Network.Wai.Middleware.FlashMessages

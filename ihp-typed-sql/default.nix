@@ -2,7 +2,7 @@
 , filepath, haskell-src-meta, hasql, hasql-dynamic-statements
 , hasql-mapping, hasql-pool, hspec, ihp, ihp-log, lib
 , postgresql-libpq, postgresql-syntax, postgresql-types, process
-, scientific, string-conversions, template-haskell, temporary, text
+, scientific, string-conversions, template-haskell, temporary-ospath, text
 }:
 mkDerivation {
   pname = "ihp-typed-sql";
@@ -16,7 +16,7 @@ mkDerivation {
   ];
   testHaskellDepends = [
     base containers directory filepath hspec ihp ihp-log process
-    string-conversions temporary text
+    string-conversions temporary-ospath text
   ];
   homepage = "https://ihp.digitallyinduced.com/";
   description = "Compile-time typed SQL quasiquoter for IHP";

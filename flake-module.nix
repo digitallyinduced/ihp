@@ -158,6 +158,7 @@ ihpFlake:
                         If your app doesn't use the Makefile to bundle the CSS, you can disable this for faster builds.
                     '';
                 };
+
             };
         }
     );
@@ -167,15 +168,9 @@ ihpFlake:
             cfg = config.ihp;
             ihp = ihpFlake.inputs.self;
             ghcCompiler = pkgs.ghc;
-            hsDataDir = package:
-                    let
-                        ghcName   = package.passthru.compiler.haskellCompilerName;         # e.g. "ghc-9.10.1"
-                        shareRoot = "${package.data}/share/${ghcName}";
-                        # Pick the first (typically only) platform-specific directory, filtering out "doc"
-                        dirs = builtins.filter (d: d != "doc") (builtins.attrNames (builtins.readDir shareRoot));
-                        sys = lib.head dirs;
-                    in
-                        "${shareRoot}/${sys}/${package.name}";
+            ihpLib = ihpFlake.inputs.self.packages.${system}.ihp-env-var-backwards-compat;
+            # Auto-detect whether a build-time PostgreSQL is needed (e.g. ihp-typed-sql)
+            buildWithPostgres = builtins.any (p: (p.pname or "") == "ihp-typed-sql") (cfg.haskellPackages ghcCompiler);
         in lib.mkIf cfg.enable {
             _module.args.pkgs = lib.mkDefault (import inputs.nixpkgs { inherit system; overlays = config.devenv.shells.default.overlays; config = { }; });
 
@@ -197,9 +192,12 @@ ihpFlake:
                     relationSupport = cfg.relationSupport;
                     appName = cfg.appName;
                     filter = ihpFlake.inputs.nix-filter.lib;
-                    ihp-env-var-backwards-compat = ihpFlake.inputs.self.packages.${system}.ihp-env-var-backwards-compat;
+                    ihp-env-var-backwards-compat = ihpLib;
                     ihp-static = ihpFlake.inputs.self.packages.${system}.ihp-static;
                     static = self'.packages.static;
+                    inherit buildWithPostgres;
+                    appSchemaSql = "${self'.packages.schema}/Schema.sql";
+                    ihpSchemaSql = "${self'.packages.ihp-schema}/IHPSchema.sql";
                 };
 
                 unoptimized-prod-server = import "${ihp}/NixSupport/default.nix" {
@@ -215,9 +213,12 @@ ihpFlake:
                     relationSupport = cfg.relationSupport;
                     appName = cfg.appName;
                     filter = ihpFlake.inputs.nix-filter.lib;
-                    ihp-env-var-backwards-compat = ihpFlake.inputs.self.packages.${system}.ihp-env-var-backwards-compat;
+                    ihp-env-var-backwards-compat = ihpLib;
                     ihp-static = ihpFlake.inputs.self.packages.${system}.ihp-static;
                     static = self'.packages.static;
+                    inherit buildWithPostgres;
+                    appSchemaSql = "${self'.packages.schema}/Schema.sql";
+                    ihpSchemaSql = "${self'.packages.ihp-schema}/IHPSchema.sql";
                 };
 
                 static =
@@ -293,8 +294,8 @@ ihpFlake:
                         # See https://github.com/svanderburg/node2nix/issues/217#issuecomment-751311272
                         export HOME=/tmp
 
-                        export IHP_LIB=${ihpFlake.inputs.self.packages.${system}.ihp-env-var-backwards-compat}
-                        export IHP=${ihpFlake.inputs.self.packages.${system}.ihp-env-var-backwards-compat}
+                        export IHP_LIB=${ihpLib}
+                        export IHP=${ihpLib}
 
                         make -j static/prod.css static/prod.js
                         runHook postBuild
@@ -322,12 +323,13 @@ ihpFlake:
                             nativeBuildInputs = with pkgs; [ (ghcCompiler.ghcWithPackages (p: cfg.haskellPackages p ++ cfg.devHaskellPackages p ++ [p.ihp-ide p.ihp-schema-compiler])) ];
                             buildPhase = ''
                                 # shellcheck disable=SC2046
-                                make -f ${hsDataDir ghcCompiler.ihp-ide.data}/lib/IHP/Makefile.dist build/Generated/Types.hs
+                                make -f ${ihpLib}/lib/IHP/Makefile.dist build/Generated/Types.hs
 
                                 # shellcheck disable=SC2046
-                                runghc $(make -f ${hsDataDir ghcCompiler.ihp-ide.data}/lib/IHP/Makefile.dist print-ghc-extensions) -i. -ibuild -iConfig Test/Main.hs
+                                runghc $(make -f ${ihpLib}/lib/IHP/Makefile.dist print-ghc-extensions) -i. -ibuild -iConfig Test/Main.hs
                                 touch $out
                             '';
+                            installPhase = "true";
                         };
                 } else {})
             // (if builtins.pathExists "${cfg.projectPath}/Test/Integration.hs"
@@ -341,7 +343,7 @@ ihpFlake:
                                 postgresql
                             ];
                             buildPhase = ''
-                                export IHP_LIB=${hsDataDir ghcCompiler.ihp-ide.data}
+                                export IHP_LIB=${ihpLib}
 
                                 # Start temporary PostgreSQL
                                 export PGDATA="$TMPDIR/pgdata"
@@ -365,6 +367,7 @@ ihpFlake:
                                 pg_ctl -D "$PGDATA" stop || true
                                 touch $out
                             '';
+                            installPhase = "true";
                         };
                 } else {});
 

@@ -45,7 +45,7 @@ instance Controller CodeGenController where
         applications <- findApplications
         when controllerAlreadyExists do
             setErrorMessage "Controller with this name does already exist."
-            redirectTo NewControllerAction
+            earlyReturn $ redirectTo NewControllerAction
         let config = ControllerGenerator.defaultControllerConfig
                 { ControllerGenerator.applicationName = applicationName
                 , ControllerGenerator.paginationEnabled = pagination
@@ -94,7 +94,7 @@ instance Controller CodeGenController where
         scriptAlreadyExists <- Directory.doesFileExist $ textToOsPath $ "Application/Script/" <> scriptName <> ".hs"
         when scriptAlreadyExists do
             setErrorMessage "Script with this name already exists."
-            redirectTo NewScriptAction
+            earlyReturn $ redirectTo NewScriptAction
         let plan = ScriptGenerator.buildPlan scriptName
         render NewScriptView { .. }
 
@@ -112,7 +112,7 @@ instance Controller CodeGenController where
         viewAlreadyExists <- Directory.doesFileExist $ textToOsPath $ applicationName <> "/View/" <> controllerName <> "/" <> viewName <> ".hs"
         when viewAlreadyExists do
             setErrorMessage "View with this name already exists."
-            redirectTo NewViewAction
+            earlyReturn $ redirectTo NewViewAction
         controllers <- findControllers applicationName
         applications <- findApplications
         plan <- ViewGenerator.buildPlan viewName applicationName controllerName
@@ -134,7 +134,7 @@ instance Controller CodeGenController where
         mailAlreadyExists <- Directory.doesFileExist $ textToOsPath $ applicationName <> "/Mail/" <> controllerName <> "/" <> mailName <> ".hs"
         when mailAlreadyExists do
             setErrorMessage "Mail with this name already exists."
-            redirectTo NewMailAction
+            earlyReturn $ redirectTo NewMailAction
         controllers <- findControllers applicationName
         applications <- findApplications
         plan <- MailGenerator.buildPlan mailName applicationName controllerName

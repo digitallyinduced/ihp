@@ -26,7 +26,7 @@ import Test.Hspec
 import qualified Data.Text as Text
 import qualified Network.Wai as Wai
 import qualified IHP.LoginSupport.Helper.Controller as Session
-import qualified Network.Wai.Session
+import qualified Network.Wai.Session.Maybe
 import qualified Data.Serialize as Serialize
 import IHP.Controller.Session (sessionVaultKey)
 import IHP.Server (initMiddlewareStack)
@@ -34,6 +34,7 @@ import qualified IHP.Server as Server
 import IHP.Controller.NotFound (handleNotFound)
 import IHP.RouterSupport (FrontController)
 import qualified IHP.PGListener as PGListener
+import qualified IHP.ErrorController as ErrorController
 
 type ContextParameters application = (?request :: Request, ?respond :: Respond, ?modelContext :: ModelContext, ?application :: application, InitControllerContext application, ?mocking :: MockContext application)
 
@@ -103,10 +104,16 @@ withMockContext application configBuilder action =
                 action MockContext{..}
 
 -- | Build a WAI 'Application' from a 'MockContext' for use with @runSession@.
+--
+-- This mirrors the middleware stack from 'IHP.Server.run':
+-- errorHandlerMiddleware wraps the app to catch exceptions and render error pages.
+-- EarlyReturnException is caught inside runAction/runActionWithNewContext.
 initTestApplication :: (FrontController RootApplication) => MockContext application -> IO Application
 initTestApplication MockContext { frameworkConfig, modelContext, pgListener } = do
     middleware <- initMiddlewareStack frameworkConfig modelContext pgListener
-    pure (middleware $ Server.application handleNotFound (\app -> app))
+    pure $ ErrorController.errorHandlerMiddleware frameworkConfig
+         $ middleware
+         $ Server.application handleNotFound (\app -> app)
 
 -- | Combines 'withMockContext' and 'initTestApplication' into a single bracket.
 --
@@ -278,7 +285,7 @@ withUser user callback =
     where
         newRequest = currentRequest { Wai.vault = newVault }
 
-        newSession :: Network.Wai.Session.Session IO ByteString ByteString
+        newSession :: Network.Wai.Session.Maybe.Session IO ByteString ByteString
         newSession = (lookupSession, insertSession)
 
         lookupSession key = if key == sessionKey

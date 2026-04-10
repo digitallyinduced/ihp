@@ -1,6 +1,15 @@
 # IHP Changelog
 
-## v1.5.0 (Unreleased)
+## Unreleased
+
+### Breaking Changes
+
+- Controller `action` now returns `IO ResponseReceived` instead of `IO ()` — response functions like `render`, `redirectTo`, `renderJson` return the WAI `ResponseReceived` directly instead of throwing exceptions. Use `earlyReturn` for conditional early exits (e.g. `when condition (earlyReturn $ redirectTo ...)`) ([#2205](https://github.com/digitallyinduced/ihp/pull/2205))
+- `ResponseException` removed — code that catches `ResponseException` will get a compiler error; use `earlyReturn`/`respondAndExit` instead
+- `respondAndExit` now requires `?request` and `?respond` implicit parameters (previously only needed `?context`)
+- `handleNoResponseReturned` and `handleRouterException` removed from `IHP.ErrorController` — error handling is now done via `errorHandlerMiddleware`
+
+## v1.5.0 (2026-03-25)
 
 1,051 commits since v1.4.0. 607 files changed, 46,204 insertions, 27,040 deletions.
 
@@ -22,6 +31,7 @@
 - `touchedFields` changed from `[Text]` to `Integer` bitmask for better performance ([#2473](https://github.com/digitallyinduced/ihp/pull/2473))
 - `CSSFramework` `Default` instance removed — use `unstyled` instead of `def`; new `styledLabelClass` field added to the record
 - `requestBodyJSON` now returns HTTP 400 for malformed JSON instead of crashing
+- Session packages replaced: `wai-session` → `wai-session-maybe` (`Network.Wai.Session` → `Network.Wai.Session.Maybe`), `wai-session-clientsession` → `wai-session-clientsession-deferred` (`Network.Wai.Session.ClientSession` → `Network.Wai.Session.ClientSession.Deferred`) ([#2582](https://github.com/digitallyinduced/ihp/pull/2582))
 
 ### New Features
 
@@ -59,6 +69,7 @@
 - Type applications in HSX splices ([#2321](https://github.com/digitallyinduced/ihp/pull/2321))
 - Hoogle documentation enabled by default ([#2512](https://github.com/digitallyinduced/ihp/pull/2512))
 - Allow overriding nixpkgs config ([#2495](https://github.com/digitallyinduced/ihp/pull/2495))
+- Separate `nixpkgs-nixos` flake input for pinning NixOS deployment nixpkgs independently from Haskell package nixpkgs ([#2519](https://github.com/digitallyinduced/ihp/pull/2519))
 
 ### Performance
 
@@ -86,7 +97,7 @@
 - Optimize AutoRoute URL generation (`pathTo`) by 2.3x ([#2335](https://github.com/digitallyinduced/ihp/pull/2335))
 - HashMap-based dispatch for AutoRoute routing
 - Optimize per-request latency: flash messages + Accept header ([#2329](https://github.com/digitallyinduced/ihp/pull/2329))
-- Lazy session middleware: skip decrypt/encrypt when session is unused ([#2328](https://github.com/digitallyinduced/ihp/pull/2328))
+- Lazy session middleware: skip decrypt/encrypt when session is unused ([#2328](https://github.com/digitallyinduced/ihp/pull/2328), [#2582](https://github.com/digitallyinduced/ihp/pull/2582)) — published as [`wai-session-maybe`](https://hackage.haskell.org/package/wai-session-maybe) and [`wai-session-clientsession-deferred`](https://hackage.haskell.org/package/wai-session-clientsession-deferred) on Hackage (2.9-3.1x throughput improvement for routes that don't access the session)
 - INLINE pragmas on render hot-path functions ([#2333](https://github.com/digitallyinduced/ihp/pull/2333))
 - Drop INLINE pragmas from fetch/query compilation chain to reduce Core bloat ([#2522](https://github.com/digitallyinduced/ihp/pull/2522))
 - Use record update syntax for SetField/UpdateField codegen ([#2476](https://github.com/digitallyinduced/ihp/pull/2476))
@@ -116,6 +127,8 @@ The following modules have been extracted into standalone packages:
 | `IHP.Log.*` | `ihp-log` |
 | `IHP.Modal.*` | `ihp-modal` |
 | `IHP.PGListener` | `ihp-pglistener` |
+| Session middleware (`wai-session` fork) | [`wai-session-maybe`](https://hackage.haskell.org/package/wai-session-maybe) |
+| Session clientsession (`wai-session-clientsession` fork) | [`wai-session-clientsession-deferred`](https://hackage.haskell.org/package/wai-session-clientsession-deferred) |
 
 All extracted modules are still re-exported from `ihp` for backwards compatibility.
 
@@ -164,6 +177,11 @@ All extracted modules are still re-exported from `ihp` for backwards compatibili
 - Fix duplicate HasField "id" when table has composite PK and id column ([#989](https://github.com/digitallyinduced/ihp/pull/989), [#2557](https://github.com/digitallyinduced/ihp/pull/2557))
 - Fix foreign key non-PK column type ([#2558](https://github.com/digitallyinduced/ihp/pull/2558))
 - Fix modal close button not working ([#2561](https://github.com/digitallyinduced/ihp/pull/2561))
+- Fix DataSync trigger installation causing AccessExclusiveLock on every server restart ([#2580](https://github.com/digitallyinduced/ihp/pull/2580))
+- Fix DataSubscription crash during WebSocket reconnect ([#2576](https://github.com/digitallyinduced/ihp/pull/2576))
+- Fix Flatpickr shifting datetime values by user's timezone offset on every edit ([#2570](https://github.com/digitallyinduced/ihp/pull/2570))
+- Fix Hoogle not loading in Safari due to CSP headers on localhost ([#2567](https://github.com/digitallyinduced/ihp/pull/2567))
+- Fix Cabal 3.12+ aborting configure due to duplicate GHC2021 in default-extensions ([#2572](https://github.com/digitallyinduced/ihp/pull/2572))
 - Fix IDE Data Editor foreign key dropdown flickering ([#2489](https://github.com/digitallyinduced/ihp/pull/2489))
 - Fix IDE toolbar help popover not opening ([#2494](https://github.com/digitallyinduced/ihp/pull/2494))
 - Fix devenv up Ctrl+C leaving orphan processes ([#2527](https://github.com/digitallyinduced/ihp/pull/2527), [#2548](https://github.com/digitallyinduced/ihp/pull/2548))
@@ -202,6 +220,8 @@ All extracted modules are still re-exported from `ihp` for backwards compatibili
 - Pagination guide ([#2551](https://github.com/digitallyinduced/ihp/pull/2551))
 - Explain side-effect actions need forms, not links ([#2552](https://github.com/digitallyinduced/ihp/pull/2552))
 - Docker migration-before-start pattern documentation ([#2555](https://github.com/digitallyinduced/ihp/pull/2555))
+- Comprehensive documentation improvements for beginners: security, flash messages, JSON API, production checklist, and 10+ other guides ([#2577](https://github.com/digitallyinduced/ihp/pull/2577))
+- Passkeys (WebAuthn) authentication guide ([#2574](https://github.com/digitallyinduced/ihp/pull/2574))
 
 ### Job Queue
 
@@ -212,7 +232,8 @@ All extracted modules are still re-exported from `ihp` for backwards compatibili
 
 ### DevEnv Updates
 
-- devenv v1.8.2 → v1.10 → v1.11.2 → v2.0.2 ([#2475](https://github.com/digitallyinduced/ihp/pull/2475))
+- devenv v1.8.2 → v1.10 → v1.11.2 → v2.0.2 → v2.0.6 ([#2475](https://github.com/digitallyinduced/ihp/pull/2475), [#2568](https://github.com/digitallyinduced/ihp/pull/2568))
+- Switch devenv to process-compose process manager ([#2566](https://github.com/digitallyinduced/ihp/pull/2566))
 - Use devenv postgres instead of IHP's built-in postgres
 - Add binary cache to flake
 - Improve caching of nix builds
@@ -237,7 +258,6 @@ All extracted modules are still re-exported from `ihp` for backwards compatibili
 - Extract `PrimaryKey` instances into `Generated.ActualTypes.PrimaryKeys` module
 - Add `relationSupport` Nix option for declarative configuration
 - Full migration from `postgresql-simple` to `hasql` across all packages ([#2262](https://github.com/digitallyinduced/ihp/pull/2262), [#2311](https://github.com/digitallyinduced/ihp/pull/2311), [#2322](https://github.com/digitallyinduced/ihp/pull/2322), [#2326](https://github.com/digitallyinduced/ihp/pull/2326), [#2377](https://github.com/digitallyinduced/ihp/pull/2377))
-- Hackage release preparation for Tier 0-4 packages ([#2533](https://github.com/digitallyinduced/ihp/pull/2533), [#2536](https://github.com/digitallyinduced/ihp/pull/2536), [#2537](https://github.com/digitallyinduced/ihp/pull/2537), [#2538](https://github.com/digitallyinduced/ihp/pull/2538))
 - Use Hackage versions of hasql-mapping, hasql-postgresql-types, postgresql-simple-postgresql-types
 - Split `IHP.View.Form` into sub-modules ([#2550](https://github.com/digitallyinduced/ihp/pull/2550))
 - Extract `ihp-pglistener` package ([#2273](https://github.com/digitallyinduced/ihp/pull/2273))

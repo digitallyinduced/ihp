@@ -14,7 +14,7 @@ import Network.Wai.Middleware.FlashMessages (FlashMessage (..))
 import Network.Wai
 import qualified Data.Vault.Lazy as Vault
 import System.IO.Unsafe (unsafePerformIO)
-import qualified Text.Blaze.Html5 as Html5
+import IHP.HSX.Markup (Markup)
 import IHP.ViewSupport
 import IHP.View.Types
 
@@ -85,10 +85,10 @@ requestFlashMessages request =
 --
 -- For success messages, the text message is wrapped in a @<div class="alert alert-success">...</div>@, which is automatically styled by bootstrap.
 -- Errors flash messages are wraped in @<div class="alert alert-danger">...</div>@.
-renderFlashMessages :: (?request :: Request) => Html5.Html
+renderFlashMessages :: (?request :: Request) => Markup
 renderFlashMessages = render theFlashMessages
     where
-        render :: [FlashMessage] -> Html5.Html
+        render :: [FlashMessage] -> Markup
         render = fromCSSFramework #styledFlashMessages
 
 theFlashMessages :: (?request :: Request) => [FlashMessage]

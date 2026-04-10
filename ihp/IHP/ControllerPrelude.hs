@@ -28,6 +28,7 @@ module IHP.ControllerPrelude
     , module IHP.Modal.Types
     , setModal
     , module IHP.Controller.Layout
+    , JsonView (..)
     , module IHP.Job.Types
     , module IHP.LoginSupport.Helper.Controller
     , Only (..)
@@ -37,7 +38,7 @@ module IHP.ControllerPrelude
     , module IHP.FileStorage.ControllerFunctions
     , module IHP.FileStorage.Preprocessor.ImageMagick
     , module IHP.Pagination.ControllerFunctions
-    , module IHP.HSX.QQ
+    , module IHP.HSX.MarkupQQ
     ) where
 import IHP.Prelude
 import IHP.Controller.Param
@@ -68,7 +69,7 @@ import IHP.Controller.Layout
 
 import IHP.Modal.Types
 import qualified IHP.Modal.ControllerFunctions as Modal
-import IHP.ViewSupport (View)
+import IHP.ViewSupport (View, JsonView(..))
 import qualified IHP.ViewSupport as ViewSupport
 
 import IHP.Job.Types
@@ -84,8 +85,7 @@ import IHP.FileStorage.ControllerFunctions
 import IHP.FileStorage.Preprocessor.ImageMagick
 
 import IHP.Pagination.ControllerFunctions
-import IHP.HSX.QQ (hsx)
-import IHP.HSX.ToHtml ()
+import IHP.HSX.MarkupQQ (hsx, uncheckedHsx, customHsx)
 
 -- | Renders a view and stores it as modal HTML in the context for later rendering.
 --

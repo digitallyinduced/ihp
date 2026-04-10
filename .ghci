@@ -20,6 +20,7 @@
 :set -iwai-asset-path
 :set -iwai-flash-messages
 :set -iwai-request-params
+:set -iwai-early-return
 :set -threaded
 
 :set -XGHC2021

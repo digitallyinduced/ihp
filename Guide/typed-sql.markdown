@@ -24,7 +24,7 @@ import IHP.TypedSql (typedSql, sqlQueryTyped, sqlExecTyped)
 
 The `QuasiQuotes` extension is required but already enabled by default in IHP projects.
 
-**Important**: Your development database must be running during compilation, because `typedSql` uses `DATABASE_URL` to connect and describe queries at compile time.
+**Important**: Your development database must be running during compilation, because `typedSql` uses `DATABASE_URL` to connect and describe queries at compile time. For `nix build`, this is handled automatically — see [Production Builds](#production-builds) below.
 
 ## Basic Queries
 
@@ -60,12 +60,28 @@ forEach rows \(itemId, name, views) -> do
 
 Primary key columns are automatically typed as `Id' "table_name"` rather than raw `UUID`.
 
-## Selecting All Columns (`table.*`)
+## Selecting All Columns
 
-Use `table.*` to select all columns from a table, which returns the model type directly:
+### Why `SELECT *` is disallowed by default
+
+`SELECT *` and `SELECT table.*` are not allowed in `typedSql` by default. At compile time, `*` is expanded to whatever columns exist in the development database and a decoder is built for those exact columns. If the production database has a different schema (e.g., a migration added or removed a column), the query will return different columns than the decoder expects, causing a runtime error.
+
+Instead, list columns explicitly:
 
 ```haskell
 items <- sqlQueryTyped [typedSql|
+    SELECT id, name, views FROM items ORDER BY name
+|]
+```
+
+The compile error message will suggest the exact column names to use.
+
+### Opting in with `typedSqlStar`
+
+If you understand the risk and want to use `table.*` anyway (e.g., during rapid prototyping), use the `typedSqlStar` quasiquoter:
+
+```haskell
+items <- sqlQueryTyped [typedSqlStar|
     SELECT items.* FROM items ORDER BY name
 |]
 
@@ -77,7 +93,7 @@ This requires a `FromRowHasql` instance on the model type. IHP's generated types
 Table aliases work too:
 
 ```haskell
-items <- sqlQueryTyped [typedSql|
+items <- sqlQueryTyped [typedSqlStar|
     SELECT i.* FROM items i
     JOIN authors a ON a.id = i.author_id
     ORDER BY i.name
@@ -354,6 +370,10 @@ Key differences:
 **When to use `sqlQuery`**: Simple queries where you already have `FromRow` instances, or when you can't have the database running during compilation.
 
 **When to use `typedSql`**: Complex queries, queries with many columns, or any time you want compile-time safety. Especially useful when the query shape changes frequently during development.
+
+### Production Builds
+
+When you run `nix build`, IHP automatically detects that `ihp-typed-sql` is in your dependencies and starts a temporary PostgreSQL instance during compilation. Your `Application/Schema.sql` is loaded into this temporary database so that `typedSql` can infer types at compile time — no extra configuration needed.
 
 ### Migrating from `sqlQuery` to `typedSql`
 

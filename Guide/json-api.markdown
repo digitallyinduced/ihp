@@ -396,13 +396,13 @@ instance FrontController WebApplication where
 
 ### Serving Both HTML and JSON from the Same Action
 
-If you want one action to serve HTML to browsers and JSON to API clients, use `render` with a `View` instance that implements both `html` and `json`:
+If you want one action to serve HTML to browsers and JSON to API clients, use `renderHtmlOrJson` with a view that implements both `View` (for HTML) and `JsonView` (for JSON):
 
 ```haskell
 -- In the controller
 action ShowPostAction { postId } = do
     post <- fetch postId
-    render ShowView { post }
+    renderHtmlOrJson ShowView { post }
 
 -- In the view
 instance View ShowView where
@@ -411,6 +411,7 @@ instance View ShowView where
         <p>{post.body}</p>
     |]
 
+instance JsonView ShowView where
     json ShowView { post } = toJSON post
 ```
 

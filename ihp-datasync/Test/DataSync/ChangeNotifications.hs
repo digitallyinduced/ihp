@@ -3,7 +3,7 @@ module Test.DataSync.ChangeNotifications where
 import Test.Hspec
 import IHP.Prelude
 import Data.Aeson
-import IHP.DataSync.ChangeNotifications (Change(..), makeCachedInstallTableChangeTriggers)
+import IHP.DataSync.ChangeNotifications (Change(..), makeCachedInstallTableChangeTriggers, installTableChangeTriggers)
 import IHP.DataSync.ControllerImpl (changesToValue)
 import IHP.DataSync.DynamicQueryCompiler (Renamer(..))
 import IHP.DataSync.DynamicQuery (ConditionExpression(..), ConditionOperator(..), FunctionCall(..), conditionColumns)
@@ -15,6 +15,9 @@ import qualified Hasql.Pool.Config as Hasql.Pool.Config
 import qualified Hasql.Connection.Settings as HasqlSettings
 import qualified Hasql.Session as Session
 import IHP.DataSync.Hasql (runSession)
+import qualified Hasql.Decoders as Decoders
+import qualified Hasql.Encoders as Encoders
+import qualified Hasql.Statement as Statement
 import qualified Control.Exception as Exception
 import System.Environment (lookupEnv)
 import Control.Concurrent (threadDelay)
@@ -203,6 +206,52 @@ tests = do
                                     "Pool exhausted — concurrent trigger installation caused AcquisitionTimeoutUsageError"
                             Right () -> pure ()
 
+        describe "trigger installation with locked table" do
+            it "succeeds on second call even when a writer holds RowExclusiveLock" do
+                withDB \connStr -> do
+                    Exception.bracket (makePool connStr) Hasql.Pool.release \pool -> do
+                        execSQL pool "CREATE EXTENSION IF NOT EXISTS \"uuid-ossp\""
+
+                        tableUuid <- UUID.nextRandom
+                        let tableName = "test_lock_" <> Text.replace "-" "_" (UUID.toText tableUuid)
+                        execSQL pool (cs ("CREATE TABLE " <> tableName <> " (id UUID PRIMARY KEY DEFAULT gen_random_uuid(), body TEXT)"))
+
+                        let table = TableWithRLS tableName
+
+                        -- First call: install triggers (table is not locked)
+                        installTableChangeTriggers pool table
+
+                        -- Verify triggers were created
+                        triggerCount <- queryTriggerCount pool tableName
+                        triggerCount `shouldBe` 3
+
+                        -- Simulate a long-running writer holding RowExclusiveLock.
+                        -- RowExclusiveLock conflicts with ShareRowExclusiveLock
+                        -- (which CREATE TRIGGER takes), but NOT with the
+                        -- IF NOT EXISTS check (AccessShareLock on pg_trigger).
+                        -- An open SELECT only takes AccessShareLock which does
+                        -- NOT conflict with CREATE TRIGGER, so we must use a
+                        -- writer (INSERT) to properly test this.
+                        lockPool <- makePoolN 1 connStr
+                        execSQL lockPool (cs ("BEGIN; INSERT INTO " <> tableName <> " (body) VALUES ('lock holder')"))
+
+                        -- Second call: triggers already exist, so this should
+                        -- skip CREATE TRIGGER and succeed despite the writer lock.
+                        -- With the old code (DROP TRIGGER + CREATE TRIGGER always),
+                        -- this would block on the table lock.
+                        result <- Exception.try $ do
+                            execSQL pool "SET statement_timeout = '2s'"
+                            installTableChangeTriggers pool table
+                            execSQL pool "SET statement_timeout = '0'"
+
+                        Hasql.Pool.release lockPool
+
+                        case result of
+                            Left (e :: Exception.SomeException) ->
+                                expectationFailure
+                                    (cs ("Second trigger install blocked or failed with locked table: " <> show e))
+                            Right () -> pure ()
+
 -- DB helpers (same pattern as DataSyncIntegrationSpec.hs)
 
 getMasterDatabaseUrl :: IO Text
@@ -262,6 +311,14 @@ randomDatabaseName = do
 withHasqlPool :: Text -> (Hasql.Pool.Pool -> IO a) -> IO a
 withHasqlPool connStr action =
     Exception.bracket (makePool connStr) Hasql.Pool.release action
+
+queryTriggerCount :: Hasql.Pool.Pool -> Text -> IO Int
+queryTriggerCount pool tableName = do
+    let session = Session.statement (cs tableName) $ Statement.preparable
+            "SELECT count(*)::int FROM pg_trigger WHERE tgrelid = $1::regclass AND tgname LIKE 'did_%'"
+            (Encoders.param (Encoders.nonNullable Encoders.text))
+            (Decoders.singleRow (Decoders.column (Decoders.nonNullable (fromIntegral <$> Decoders.int4))))
+    runSession pool session
 
 withDB :: (Text -> IO ()) -> IO ()
 withDB action = do

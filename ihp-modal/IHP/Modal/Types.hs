@@ -14,7 +14,7 @@ import Data.IORef (IORef)
 import Data.Text (Text)
 import Data.Typeable (Typeable, typeRep)
 import Data.Proxy (Proxy(..))
-import Text.Blaze.Html5 (Html)
+import IHP.HSX.Markup (Html)
 import qualified Data.Vault.Lazy as Vault
 import Network.Wai
 import System.IO.Unsafe (unsafePerformIO)

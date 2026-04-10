@@ -6,8 +6,8 @@ import qualified Network.Wai.Handler.Warp as Warp
 import qualified Network.Wai.Handler.Warp.Systemd as Systemd
 import Network.Wai
 import Network.Wai.Middleware.MethodOverridePost (methodOverridePost)
-import Network.Wai.Session (withSession)
-import Network.Wai.Session.ClientSession (clientsessionStore)
+import Network.Wai.Session.Maybe (withSession)
+import Network.Wai.Session.ClientSession.Deferred (clientsessionStore)
 import qualified Network.Wai.Middleware.HealthCheckEndpoint as HealthCheckEndpoint
 import qualified Web.ClientSession as ClientSession
 import IHP.Controller.Session (sessionVaultKey)
@@ -24,7 +24,6 @@ import qualified Data.ByteString.Char8 as ByteString
 import qualified Network.Wai.Middleware.Cors as Cors
 import qualified Network.Wai.Middleware.Approot as Approot
 import qualified Network.Wai.Middleware.AssetPath as AssetPath
-
 import qualified System.Directory.OsPath as Directory
 import qualified GHC.IO.Encoding as IO
 import qualified System.IO as IO
@@ -50,6 +49,7 @@ import qualified System.Environment as Env
 import qualified Text.Read as Read
 import qualified System.Posix.IO as Posix
 import System.Posix.Types (Fd(..))
+import qualified IHP.ErrorController as ErrorController
 
 run :: (FrontController RootApplication, Job.Worker RootApplication) => ConfigBuilder -> IO ()
 run configBuilder = do
@@ -75,6 +75,7 @@ run configBuilder = do
                     withBackgroundWorkers pgListener frameworkConfig
                         . runServer frameworkConfig useSystemd
                         . (if useSystemd then HealthCheckEndpoint.healthCheck else Function.id)
+                        . ErrorController.errorHandlerMiddleware frameworkConfig
                         $ staticShortcut
 
 {-# INLINABLE run #-}

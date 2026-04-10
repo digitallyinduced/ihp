@@ -7,7 +7,7 @@ module IHP.AutoRefresh where
 
 import IHP.Prelude
 import IHP.AutoRefresh.Types
-import IHP.ControllerSupport
+import IHP.ControllerSupport hiding (request)
 import qualified Data.UUID.V4 as UUID
 import qualified Data.UUID as UUID
 import IHP.Controller.Session
@@ -21,7 +21,7 @@ import qualified Data.Maybe as Maybe
 import qualified Data.Text as Text
 import IHP.WebSocket
 import IHP.Controller.Context
-import IHP.Controller.Response
+import Network.Wai.Middleware.EarlyReturn (earlyReturnMiddleware)
 import qualified IHP.PGListener as PGListener
 import qualified Hasql.Session as HasqlSession
 import qualified IHP.Log as Log
@@ -54,7 +54,8 @@ autoRefresh :: (
     , ?modelContext :: ModelContext
     , ?context :: ControllerContext
     , ?request :: Request
-    ) => ((?modelContext :: ModelContext) => IO ()) -> IO ()
+    , ?respond :: Respond
+    ) => ((?modelContext :: ModelContext, ?respond :: Respond) => IO ResponseReceived) -> IO ResponseReceived
 autoRefresh runAction = do
     -- When PGListener is not available, degrade gracefully to a
     -- plain action without auto-refresh.
@@ -89,13 +90,15 @@ autoRefresh runAction = do
                     frozenControllerContext <- freeze ?context
 
                     let originalRequest = ?request
-                    let renderView = \_waiRequest waiRespond -> do
-                            controllerContext <- unfreeze frozenControllerContext
-                            let ?context = controllerContext
-                            let ?request = originalRequest
-                            let ?respond = waiRespond
-                            putContext originalRequest
-                            action ?theAction
+                    let renderView = \waiRequest waiRespond -> do
+                            earlyReturnMiddleware (\_ respond -> do
+                                controllerContext <- unfreeze frozenControllerContext
+                                let ?context = controllerContext
+                                let ?request = originalRequest
+                                let ?respond = respond
+                                putContext originalRequest
+                                action ?theAction
+                                ) waiRequest waiRespond
 
                     -- We save the allowed session ids to the session cookie to only grant a client access
                     -- to sessions it initially opened itself
@@ -104,36 +107,23 @@ autoRefresh runAction = do
                     setSession "autoRefreshSessions" (map UUID.toText (id:availableSessions) |> Text.intercalate "")
 
                     withTableReadTracker do
-                        let handleResponse exception@(ResponseException response) = case response of
-                                Wai.ResponseBuilder status headers builder -> do
-                                    tables <- readIORef ?touchedTables
-                                    lastPing <- getCurrentTime
+                        (result, capturedResponse) <- captureResponseBody ?respond \respond -> do
+                            let ?respond = respond
+                            runAction
 
-                                    -- It's important that we evaluate the response to HNF here
-                                    -- Otherwise a response `error "fail"` will break auto refresh and cause
-                                    -- the action to be unreachable until the server is restarted.
-                                    --
-                                    -- Specifically a request like this will crash the action:
-                                    --
-                                    -- > curl --header 'Accept: application/json' http://localhost:8000/ShowItem?itemId=6bbe1a72-400a-421e-b26a-ff58d17af3e5
-                                    --
-                                    -- Let's assume that the view has no implementation for JSON responses. Then
-                                    -- it will render a 'error "JSON not implemented"'. After this curl request
-                                    -- all future HTML requests to the current action will fail with a 503.
-                                    --
-                                    lastResponse <- Exception.evaluate (ByteString.toLazyByteString builder)
+                        -- After the action completes, set up the auto refresh session
+                        tables <- readIORef ?touchedTables
+                        lastPing <- getCurrentTime
+                        case capturedResponse of
+                            Just lastResponse -> do
+                                event <- MVar.newEmptyMVar
+                                let session = AutoRefreshSession { id, renderView, event, tables, lastResponse, lastPing }
+                                modifyIORef' autoRefreshServer (\s -> s { sessions = session:s.sessions } )
+                                async (gcSessions autoRefreshServer)
+                                registerNotificationTrigger ?touchedTables autoRefreshServer
+                            Nothing -> pure () -- Response wasn't a builder type, can't do auto refresh
 
-                                    event <- MVar.newEmptyMVar
-                                    let session = AutoRefreshSession { id, renderView, event, tables, lastResponse, lastPing }
-                                    modifyIORef' autoRefreshServer (\s -> s { sessions = session:s.sessions } )
-                                    async (gcSessions autoRefreshServer)
-
-                                    registerNotificationTrigger ?touchedTables autoRefreshServer
-
-                                    throw exception
-                                _   -> error "Unimplemented WAI response type."
-
-                        runAction `Exception.catch` handleResponse
+                        pure result
 
 data AutoRefreshWSApp = AwaitingSessionID | AutoRefreshActive { sessionId :: UUID }
 instance WSApp AutoRefreshWSApp where
@@ -149,26 +139,23 @@ instance WSApp AutoRefreshWSApp where
         when (sessionId `elem` availableSessions) do
             AutoRefreshSession { renderView, event } <- getSessionById autoRefreshServer sessionId
 
-            let handleResponseException (ResponseException response) = case response of
-                    Wai.ResponseBuilder _status _headers builder -> do
-                        let html = ByteString.toLazyByteString builder
-                        responseChanged <- sessionResponseHasChanged autoRefreshServer sessionId html
-
-                        when responseChanged do
-                            sendTextData html
-                            updateSession autoRefreshServer sessionId (\session -> session { lastResponse = html })
-                    _   -> error "Unimplemented WAI response type."
-
             let handleOtherException :: SomeException -> IO ()
                 handleOtherException ex = Log.error ("AutoRefresh: Failed to re-render view: " <> tshow ex)
 
             async $ forever do
                 MVar.takeMVar event
                 let currentRequest = ?request
-                -- Create a dummy respond function that does nothing, since actual response
-                -- is handled by the handleResponseException handler
-                let dummyRespond _ = error "AutoRefresh: respond should not be called directly"
-                ((renderView currentRequest dummyRespond) `catch` handleResponseException) `catch` handleOtherException
+                (do
+                    (_, capturedResponse) <- captureResponseBody (\_ -> pure (error "AutoRefresh: ResponseReceived placeholder")) \respond ->
+                        renderView currentRequest respond
+                    case capturedResponse of
+                        Just html -> do
+                            responseChanged <- sessionResponseHasChanged autoRefreshServer sessionId html
+                            when responseChanged do
+                                sendTextData html
+                                updateSession autoRefreshServer sessionId (\session -> session { lastResponse = html })
+                        Nothing -> pure ()
+                    ) `catch` handleOtherException
                 pure ()
 
             pure ()
@@ -189,6 +176,24 @@ instance WSApp AutoRefreshWSApp where
                 modifyIORef' autoRefreshServer (\server -> server { sessions = filter (\AutoRefreshSession { id } -> id /= sessionId) server.sessions })
             AwaitingSessionID -> pure ()
 
+
+-- | Runs an action while capturing the response body.
+-- Returns the action's result and the captured body (if it was a ResponseBuilder).
+-- Only captures ResponseBuilder responses (used by HSX/Blaze rendering).
+captureResponseBody :: Respond -> (Respond -> IO a) -> IO (a, Maybe LByteString)
+captureResponseBody originalRespond action = do
+    bodyRef <- newIORef Nothing
+    let capturingRespond response = do
+            case response of
+                Wai.ResponseBuilder _status _headers builder -> do
+                    let body = ByteString.toLazyByteString builder
+                    evaluatedBody <- Exception.evaluate body
+                    writeIORef bodyRef (Just evaluatedBody)
+                _ -> pure ()
+            originalRespond response
+    result <- action capturingRespond
+    captured <- readIORef bodyRef
+    pure (result, captured)
 
 registerNotificationTrigger :: (?modelContext :: ModelContext, ?context :: ControllerContext) => IORef (Set Text) -> IORef AutoRefreshServer -> IO ()
 registerNotificationTrigger touchedTablesVar autoRefreshServer = do

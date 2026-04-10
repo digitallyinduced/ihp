@@ -10,9 +10,9 @@ import Data.IORef (readIORef)
 import Data.Text (Text)
 import System.IO.Unsafe (unsafePerformIO)
 import Network.Wai (Request)
-import IHP.HSX.QQ (hsx)
+import IHP.HSX.MarkupQQ (hsx)
 import IHP.Modal.Types
-import Text.Blaze.Html5 (Html)
+import IHP.HSX.Markup (Html)
 
 renderModal :: Modal -> Html
 renderModal modal = renderModal' modal True

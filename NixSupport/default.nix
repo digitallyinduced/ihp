@@ -16,6 +16,9 @@
 , ihp-env-var-backwards-compat
 , ihp-static
 , static
+, buildWithPostgres ? false  # Start a temporary PostgreSQL during build (e.g. for typedSql TH)
+, appSchemaSql ? null       # Path to Application/Schema.sql (required when buildWithPostgres = true)
+, ihpSchemaSql ? null       # Path to IHPSchema.sql (required when buildWithPostgres = true)
 }:
 
 let
@@ -323,7 +326,30 @@ CABAL_EOF
         disallowedReferences = [ ihp ];
     };
 
-    appLibPackage = pkgs.haskell.lib.disableLibraryProfiling (pkgs.haskell.lib.dontHaddock (
+    # Override that starts a temporary PostgreSQL during build for compile-time DB access (e.g. typedSql)
+    withBuildTimePostgres = pkg: pkgs.haskell.lib.overrideCabal pkg (old: {
+        libraryToolDepends = (old.libraryToolDepends or []) ++ [ pkgs.postgresql ];
+        preBuild = (old.preBuild or "") + ''
+            # Start temporary PostgreSQL for compile-time type inference
+            export PGDATA="$TMPDIR/pgdata"
+            export PGHOST="$TMPDIR/pghost"
+            mkdir -p "$PGHOST"
+            initdb -D "$PGDATA" --no-locale --encoding=UTF8
+            echo "unix_socket_directories = '$PGHOST'" >> "$PGDATA/postgresql.conf"
+            echo "listen_addresses = '''" >> "$PGDATA/postgresql.conf"
+            pg_ctl -D "$PGDATA" -l "$TMPDIR/pg.log" start
+
+            createdb -h "$PGHOST" app
+            psql -h "$PGHOST" app < ${ihpSchemaSql}
+            psql -h "$PGHOST" app < ${appSchemaSql}
+            export DATABASE_URL="postgresql:///app?host=$PGHOST"
+        '';
+        postBuild = (old.postBuild or "") + ''
+            pg_ctl -D "$PGDATA" stop || true
+        '';
+    });
+
+    appLibPackageBase = pkgs.haskell.lib.disableLibraryProfiling (pkgs.haskell.lib.dontHaddock (
         ghc.callPackage ({ mkDerivation, base }: mkDerivation {
             pname = "${appName}-lib";
             version = "0.1.0";
@@ -332,6 +358,11 @@ CABAL_EOF
             license = pkgs.lib.licenses.free;
         }) {}
     ));
+
+    appLibPackage =
+        if buildWithPostgres
+        then withBuildTimePostgres appLibPackageBase
+        else appLibPackageBase;
 
     allHaskellPackagesWithAppLib = ghc.ghcWithPackages (p: [ appLibPackage ]);
 

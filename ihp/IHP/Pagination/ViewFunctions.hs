@@ -10,8 +10,8 @@ import IHP.Pagination.Helpers
 
 import IHP.ControllerSupport
 
-import Text.Blaze.Html (Html)
-import IHP.HSX.QQ (hsx)
+import IHP.HSX.Markup (Html)
+import IHP.HSX.MarkupQQ (hsx)
 
 import IHP.Controller.Param (paramOrNothing)
 

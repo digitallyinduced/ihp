@@ -1,0 +1,36 @@
+cabal-version:       2.2
+name:                wai-early-return
+version:             1.0.0
+synopsis:            WAI middleware for early return from request handlers
+description:         A WAI middleware that allows request handlers to exit early
+                     using an exception-based mechanism. Useful for implementing
+                     guards like access control checks.
+license:             MIT
+license-file:        LICENSE
+author:              digitally induced GmbH
+maintainer:          support@digitallyinduced.com
+copyright:           2024 digitally induced GmbH
+category:            Web
+build-type:          Simple
+
+library
+    exposed-modules:     Network.Wai.Middleware.EarlyReturn
+    build-depends:       base >=4.16 && <5
+                       , wai
+    hs-source-dirs:      .
+    default-language:    GHC2021
+    ghc-options:         -Wall
+
+test-suite spec
+    type:                exitcode-stdio-1.0
+    main-is:             Spec.hs
+    hs-source-dirs:      Test
+    build-depends:       base >=4.16 && <5
+                       , wai-early-return
+                       , wai
+                       , wai-extra
+                       , http-types
+                       , hspec
+    default-language:    GHC2021
+    default-extensions:  OverloadedStrings
+    ghc-options:         -Wall

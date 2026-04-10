@@ -6,7 +6,7 @@
 
 ## Introduction
 
-IHP views are usually represented as HTML, but can also be represented as JSON or other formats.
+IHP views are usually represented as HTML. For JSON responses, see the [JSON API guide](json-api.html).
 
 The HTML templating is implemented on top of the well-known blaze-html Haskell library. To quickly build HTML views, IHP supports a JSX-like syntax called HSX. HSX is type-checked and compiled to Haskell code at compile-time.
 

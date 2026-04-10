@@ -12,9 +12,8 @@ import Data.Maybe (isJust)
 import Control.Monad (unless)
 import IHP.HaskellSupport (forEach)
 import IHP.InputValue (inputValue)
-import qualified Text.Blaze.Html5 as Blaze
-import IHP.HSX.QQ (hsx)
-import IHP.HSX.ToHtml ()
+import IHP.HSX.Markup (Html)
+import IHP.HSX.MarkupQQ (hsx)
 import IHP.View.Types
 import IHP.View.Classes
 import IHP.Breadcrumb.Types
@@ -50,7 +49,7 @@ tailwind = unstyled
 
         styledLabelClass = "font-medium text-gray-700"
 
-        styledCheckboxFormField :: CSSFramework -> FormField -> Blaze.Html -> Blaze.Html
+        styledCheckboxFormField :: CSSFramework -> FormField -> Html -> Html
         styledCheckboxFormField cssFramework@CSSFramework {styledInputInvalidClass, styledFormFieldHelp} formField@FormField {fieldType, fieldName, fieldLabel, fieldValue, fieldInputId, validatorResult, fieldClass, disabled, disableLabel, disableValidationResult, additionalAttributes, labelClass, required, autofocus } validationResult = do
             [hsx|<div class="form-check">{element}</div>|]
             where
@@ -102,7 +101,7 @@ tailwind = unstyled
                             </div>
                         |]
 
-        styledRadioFormField :: CSSFramework -> FormField -> Blaze.Html -> Blaze.Html
+        styledRadioFormField :: CSSFramework -> FormField -> Html -> Html
         styledRadioFormField cssFramework@CSSFramework {styledInputClass, styledInputInvalidClass, styledFormFieldHelp} formField@FormField {fieldType, fieldName, placeholder, fieldLabel, fieldValue, fieldInputId, validatorResult, fieldClass, disabled, disableLabel, disableValidationResult, additionalAttributes, labelClass, required, autofocus } validationResult =
             [hsx|
                 {label}
@@ -159,7 +158,7 @@ tailwind = unstyled
 
         styledValidationResultClass = "text-red-500 text-xs italic"
 
-        styledPagination :: CSSFramework -> PaginationView -> Blaze.Html
+        styledPagination :: CSSFramework -> PaginationView -> Html
         styledPagination _ paginationView@PaginationView {pageUrl, pagination} =
             let
                 currentPage = pagination.currentPage
@@ -217,7 +216,7 @@ tailwind = unstyled
                 </div>
             |]
 
-        styledPaginationLinkPrevious :: CSSFramework -> Pagination -> ByteString -> Blaze.Html
+        styledPaginationLinkPrevious :: CSSFramework -> Pagination -> ByteString -> Html
         styledPaginationLinkPrevious _ pagination@Pagination {currentPage} pageUrl =
             let
                 prevClass = classes
@@ -238,7 +237,7 @@ tailwind = unstyled
                     </a>
                 |]
 
-        styledPaginationLinkNext :: CSSFramework -> Pagination -> ByteString -> Blaze.Html
+        styledPaginationLinkNext :: CSSFramework -> Pagination -> ByteString -> Html
         styledPaginationLinkNext _ pagination@Pagination {currentPage} pageUrl =
             let
                 nextClass = classes
@@ -259,7 +258,7 @@ tailwind = unstyled
 
                 |]
 
-        styledPaginationPageLink :: CSSFramework -> Pagination -> ByteString -> Int -> Blaze.Html
+        styledPaginationPageLink :: CSSFramework -> Pagination -> ByteString -> Int -> Html
         styledPaginationPageLink _ pagination@Pagination {currentPage} pageUrl pageNumber =
             let
                 linkClass = classes
@@ -277,7 +276,7 @@ tailwind = unstyled
                 |]
 
 
-        styledPaginationDotDot :: CSSFramework -> Pagination -> Blaze.Html
+        styledPaginationDotDot :: CSSFramework -> Pagination -> Html
         styledPaginationDotDot _ _ =
             [hsx|
                 <span class="relative inline-flex items-center px-4 py-2 border border-gray-300 bg-white text-sm font-medium text-gray-700">
@@ -286,16 +285,16 @@ tailwind = unstyled
         |]
 
 
-        styledPaginationItemsPerPageSelector :: CSSFramework -> Pagination -> (Int -> ByteString) -> Blaze.Html
+        styledPaginationItemsPerPageSelector :: CSSFramework -> Pagination -> (Int -> ByteString) -> Html
         styledPaginationItemsPerPageSelector _ pagination@Pagination {pageSize} itemsPerPageUrl =
             let
-                oneOption :: Int -> Blaze.Html
+                oneOption :: Int -> Html
                 oneOption n = [hsx|<option value={show n} selected={n == pageSize} data-url={itemsPerPageUrl n}>{n} items per page</option>|]
             in
                 [hsx|{forEach [10,20,50,100,200] oneOption}|]
 
 
-        styledBreadcrumb :: CSSFramework -> [BreadcrumbItem]-> BreadcrumbsView -> Blaze.Html
+        styledBreadcrumb :: CSSFramework -> [BreadcrumbItem]-> BreadcrumbsView -> Html
         styledBreadcrumb _ _ breadcrumbsView = [hsx|
             <nav class="breadcrumbs bg-white my-4" aria-label="Breadcrumb">
                 <ol class="flex items-center space-x-2" role="list">
@@ -305,7 +304,7 @@ tailwind = unstyled
         |]
 
 
-        styledBreadcrumbItem :: CSSFramework -> [ BreadcrumbItem ]-> BreadcrumbItem -> Bool -> Blaze.Html
+        styledBreadcrumbItem :: CSSFramework -> [ BreadcrumbItem ]-> BreadcrumbItem -> Bool -> Html
         styledBreadcrumbItem _ breadcrumbItems breadcrumbItem@BreadcrumbItem {breadcrumbLabel, url} isLast =
             let
                 breadcrumbsClasses = classes ["flex flex-row space-x-2 text-gray-600 items-center", ("active", isLast)]

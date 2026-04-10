@@ -12,16 +12,14 @@ import IHP.Environment
 import IHP.FrameworkConfig
 import IHP.ControllerPrelude hiding (get, request)
 import Network.Wai
-import Network.Wai.Internal (ResponseReceived(..))
 import Network.HTTP.Types
 import IHP.AutoRefresh (globalAutoRefreshServerVar, sessionResponseHasChanged, updateSession)
 import IHP.AutoRefresh.Types
 import qualified Control.Concurrent.MVar as MVar
-import IHP.Controller.Response (ResponseException(..))
-import qualified Control.Exception as Exception
 import qualified IHP.PGListener as PGListener
 import IHP.Log.Types (Logger(..), LogLevel(..))
 import IHP.Server (initMiddlewareStack)
+import Network.Wai.Test (runSession, request, SResponse(..), simpleBody)
 import IHP.Test.Mocking
 import qualified Data.UUID as UUID
 import qualified Network.Wai as Wai
@@ -65,35 +63,22 @@ callActionWithQueryParams
     => PGListener.PGListener
     -> controller
     -> [(ByteString, ByteString)]
-    -> IO Response
+    -> IO SResponse
 callActionWithQueryParams pgListener controller queryParams = do
     let MockContext { frameworkConfig, modelContext } = ?mocking
 
-    -- Build request with query params (GET-style, not POST body)
     let baseRequest = ?request
             { Wai.queryString = map (\(k,v) -> (k, Just v)) queryParams
             , Wai.rawQueryString = renderSimpleQuery True queryParams
             }
 
-    -- Capture the response
-    responseRef <- newIORef Nothing
-    let captureRespond response = do
-            writeIORef responseRef (Just response)
-            pure ResponseReceived
-
-    -- Create the controller app
     let controllerApp req respond = do
             let ?request = req
             let ?respond = respond
             runActionWithNewContext controller
 
-    -- Run through middleware stack with PGListener enabled
     middlewareStack <- initMiddlewareStack frameworkConfig modelContext (Just pgListener)
-    _ <- middlewareStack controllerApp baseRequest captureRespond
-
-    readIORef responseRef >>= \case
-        Just response -> pure response
-        Nothing -> error "callActionWithQueryParams: No response was returned by the controller"
+    runSession (request baseRequest) (middlewareStack controllerApp)
 
 testLogger :: Logger
 testLogger = Logger
@@ -116,8 +101,7 @@ tests = beforeAll (mockContextNoDatabase WebApplication config) do
                     -- 1. Call the action with query params — this triggers autoRefresh
                     --    which stores a session with renderView
                     response <- callActionWithQueryParams pgListener ShowItemAction [("marketId", "abc-123")]
-                    body <- responseBody response
-                    cs body `shouldBe` ("abc-123" :: Text)
+                    cs (simpleBody response) `shouldBe` ("abc-123" :: Text)
 
                     -- 2. Extract the stored renderView from the AutoRefreshSession
                     maybeServerRef <- MVar.readMVar globalAutoRefreshServerVar
@@ -132,16 +116,9 @@ tests = beforeAll (mockContextNoDatabase WebApplication config) do
 
                     -- 3. Call renderView with a bare request (simulating WebSocket re-render)
                     --    The WebSocket request has NO query params — this is the bug scenario
-                    let bareRequest = defaultRequest
-                    result <- Exception.try $ session.renderView bareRequest (\_ -> error "respond should not be called")
-                    case result of
-                        Left (ResponseException reResponse) -> do
-                            reBody <- responseBody reResponse
-                            -- If query params are NOT preserved, this would throw ParamNotFoundException
-                            -- instead of reaching here with the correct value
-                            cs reBody `shouldBe` ("abc-123" :: Text)
-                        Right _ ->
-                            expectationFailure "renderView should have thrown ResponseException"
+                    reResponse <- runSession (request defaultRequest) session.renderView
+                    -- If query params are NOT preserved, this would throw ParamNotFoundException
+                    cs (simpleBody reResponse) `shouldBe` ("abc-123" :: Text)
 
                     -- Cleanup
                     MVar.modifyMVar_ globalAutoRefreshServerVar (\_ -> pure Nothing)
@@ -167,7 +144,7 @@ tests = beforeAll (mockContextNoDatabase WebApplication config) do
                 let session =
                         AutoRefreshSession
                             { id = UUID.nil
-                            , renderView = \_ _ -> pure ()
+                            , renderView = \_ respond -> respond (Wai.responseLBS status200 [] "")
                             , event
                             , tables = mempty
                             , lastResponse = "resolved"

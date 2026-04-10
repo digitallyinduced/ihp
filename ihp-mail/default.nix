@@ -1,4 +1,4 @@
-{ mkDerivation, base, blaze-html, bytestring, http-client
+{ mkDerivation, base, ihp-hsx, bytestring, http-client
 , http-client-tls, ihp, lib, mime-mail, mime-mail-ses, network
 , smtp-mail, string-conversions, text, typerep-map
 }:
@@ -7,7 +7,7 @@ mkDerivation {
   version = "1.5.0";
   src = ./.;
   libraryHaskellDepends = [
-    base blaze-html bytestring http-client http-client-tls ihp
+    base ihp-hsx bytestring http-client http-client-tls ihp
     mime-mail mime-mail-ses network smtp-mail string-conversions text
     typerep-map
   ];
