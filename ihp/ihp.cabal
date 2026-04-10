@@ -98,14 +98,12 @@ common shared-properties
             , hashable
             , scientific
             , vector
-            , wreq
             , deepseq
             , parser-combinators
             , fast-logger
             , minio-hs
             , conduit-extra
             , wai-cors
-            , lens
             , random
             , hspec
             , cereal

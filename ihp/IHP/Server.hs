@@ -31,7 +31,7 @@ import qualified System.IO as IO
 import qualified Network.Wai.Application.Static as Static
 import qualified WaiAppStatic.Types as Static
 import qualified IHP.EnvVar as EnvVar
-import qualified Network.Wreq as Wreq
+import qualified Network.HTTP.Client as HTTP
 import qualified Data.Function as Function
 import IHP.RequestVault hiding (requestBodyMiddleware)
 import IHP.Controller.Response (responseHeadersVaultKey)
@@ -215,7 +215,11 @@ runServer FrameworkConfig { environment = Env.Production, appPort, exceptionTrac
             |> Warp.setFdCacheDuration (5 * 60)
             |> Warp.setFileInfoCacheDuration (5 * 60)
         heartbeatCheck = do
-                response <- Wreq.get ("http://127.0.0.1:" <> cs (show appPort) <> "/_healthz")
+                manager <- HTTP.newManager HTTP.defaultManagerSettings
+                baseRequest <- HTTP.parseRequest ("http://127.0.0.1:" <> cs (show appPort) <> "/_healthz")
+                -- Throw on non-2xx so warp-systemd marks the app unhealthy (matching Wreq.get semantics)
+                let request = baseRequest { HTTP.checkResponse = HTTP.throwErrorStatusCodes }
+                _ <- HTTP.httpNoBody request manager
                 pure ()
         systemdSettings = Systemd.defaultSystemdSettings
             |> Systemd.setRequireSocketActivation True
