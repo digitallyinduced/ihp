@@ -1,4 +1,9 @@
-module IHP.Hspec (withIHPApp) where
+module IHP.Hspec
+    ( withIHPApp
+    , responseBodyShouldContain
+    , responseBodyShouldNotContain
+    , responseStatusShouldBe
+    ) where
 
 import IHP.Prelude
 import qualified Hasql.Connection as Hasql
@@ -23,8 +28,10 @@ import qualified IHP.ModelSupport as ModelSupport
 import IHP.Log.Types
 
 import qualified System.Process as Process
-import IHP.Test.Mocking (MockContext(..), runTestMiddlewares)
+import IHP.Test.Mocking (MockContext(..), runTestMiddlewares, responseBody)
 import qualified IHP.PGListener as PGListener
+import qualified Network.HTTP.Types as HTTP
+import Test.Hspec (shouldBe, shouldSatisfy, shouldNotSatisfy)
 
 withConnection :: ByteString -> (Hasql.Connection -> IO a) -> IO a
 withConnection databaseUrl action = do
@@ -107,3 +114,19 @@ injectDatabaseName databaseName databaseUrl =
         -- Remove database name from url so we can connect to the default database
         |> Text.replace "/app" ("/" <> databaseName)
         |> cs
+
+-- | Asserts that the response body contains the given text.
+responseBodyShouldContain :: Response -> Text -> IO ()
+responseBodyShouldContain response includedText = do
+    body :: Text <- cs <$> responseBody response
+    body `shouldSatisfy` (includedText `Text.isInfixOf`)
+
+-- | Asserts that the response body does not contain the given text.
+responseBodyShouldNotContain :: Response -> Text -> IO ()
+responseBodyShouldNotContain response includedText = do
+    body :: Text <- cs <$> responseBody response
+    body `shouldNotSatisfy` (includedText `Text.isInfixOf`)
+
+-- | Asserts that the response status is equal to the given status.
+responseStatusShouldBe :: Response -> HTTP.Status -> IO ()
+responseStatusShouldBe response status = responseStatus response `shouldBe` status
