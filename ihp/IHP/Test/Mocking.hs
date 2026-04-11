@@ -22,8 +22,6 @@ import           IHP.ModelSupport                          (createModelContext, 
 import           IHP.Prelude
 import           IHP.Log.Types
 import           IHP.Job.Types
-import Test.Hspec
-import qualified Data.Text as Text
 import qualified Network.Wai as Wai
 import qualified IHP.LoginSupport.Helper.Controller as Session
 import qualified Network.Wai.Session.Maybe
@@ -237,22 +235,6 @@ responseBody res =
     content <- newIORef mempty
     f (\chunk -> modifyIORef' content (<> chunk)) (return ())
     toLazyByteString <$> readIORef content
-
--- | Asserts that the response body contains the given text.
-responseBodyShouldContain :: Response -> Text -> IO ()
-responseBodyShouldContain response includedText = do
-    body :: Text <- cs <$> responseBody response
-    body `shouldSatisfy` (includedText `Text.isInfixOf`)
-
--- | Asserts that the response body does not contain the given text.
-responseBodyShouldNotContain :: Response -> Text -> IO ()
-responseBodyShouldNotContain response includedText = do
-    body :: Text <- cs <$> responseBody response
-    body `shouldNotSatisfy` (includedText `Text.isInfixOf`)
-
--- | Asserts that the response status is equal to the given status.
-responseStatusShouldBe :: Response -> HTTP.Status -> IO ()
-responseStatusShouldBe response status = responseStatus response `shouldBe` status
 
 -- | Set's the current user for the application
 --
