@@ -212,23 +212,22 @@ import IHP.Controller.Context
 
 instance InitControllerContext WebApplication where
     initContext = do
-        initAuthentication @User
         -- ... your other initContext code
 
-        putContext userIdLogger
+        setLogger userIdLogger
 
-userIdLogger :: (?context :: ControllerContext) => Logger
+userIdLogger :: (?request :: Request) => Logger
 userIdLogger =
     defaultLogger { Log.formatter = userIdFormatter defaultLogger.formatter }
     where
-        defaultLogger = ?context.frameworkConfig.logger
+        defaultLogger = ?request.frameworkConfig.logger
 
 
-userIdFormatter :: (?context :: ControllerContext) => Log.LogFormatter -> Log.LogFormatter
+userIdFormatter :: (?request :: Request) => Log.LogFormatter -> Log.LogFormatter
 userIdFormatter existingFormatter time level string =
     existingFormatter time level (prependUserId string)
 
-prependUserId :: (?context :: ControllerContext) => LogStr -> LogStr
+prependUserId :: (?request :: Request) => LogStr -> LogStr
 prependUserId string =
     toLogStr $ userInfo <> show string
     where

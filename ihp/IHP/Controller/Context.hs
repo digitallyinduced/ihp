@@ -16,10 +16,12 @@ module IHP.Controller.Context
     , fromFrozenContext
     , maybeFromFrozenContext
     , ActionType(..)
+    , loggerOverrideVaultKey
+    , setLogger
     ) where
 
 import Prelude
-import Data.IORef (newIORef, readIORef)
+import Data.IORef (IORef, newIORef, readIORef, writeIORef)
 import GHC.Records (HasField(..))
 import Data.Maybe (fromMaybe)
 import qualified Data.TMap as TypeMap
@@ -27,7 +29,9 @@ import IHP.FrameworkConfig.Types (FrameworkConfig(..))
 import IHP.Log.Types
 import System.IO.Unsafe (unsafePerformIO)
 import Network.Wai (Request)
+import qualified Data.Vault.Lazy as Vault
 import IHP.RequestVault (requestFrameworkConfig)
+import IHP.RequestVault.Helper (lookupRequestVault)
 import IHP.ActionType (ActionType(..))
 
 -- Re-export from ihp-context, but we shadow newControllerContext
@@ -66,8 +70,15 @@ instance HasField "frameworkConfig" ControllerContext FrameworkConfig where
     getField controllerContext = requestFrameworkConfig controllerContext.request
     {-# INLINABLE getField #-}
 
--- The following hack is bad, but allows us to override the logger using 'putContext'
--- The alternative would be https://github.com/digitallyinduced/ihp/pull/1921 which is also not very nice
+-- | Vault key for per-request logger overrides.
+--
+-- Middleware creates an @IORef (Maybe Logger)@ in the vault. 'setLogger' writes to it.
+-- The @HasField "logger"@ instance on 'ControllerContext' reads from it.
+loggerOverrideVaultKey :: Vault.Key (IORef (Maybe Logger))
+loggerOverrideVaultKey = unsafePerformIO Vault.newKey
+{-# NOINLINE loggerOverrideVaultKey #-}
+
+-- | Override the logger for the current request.
 --
 -- This can be useful to customize the log formatter for all actions of an app:
 --
@@ -78,31 +89,23 @@ instance HasField "frameworkConfig" ControllerContext FrameworkConfig where
 -- >
 -- > instance InitControllerContext WebApplication where
 -- >     initContext = do
--- >     -- ... your other initContext code
+-- >         -- ... your other initContext code
+-- >         setLogger myCustomLogger
 -- >
--- >     putContext userIdLogger
--- >
--- > userIdLogger :: (?context :: ControllerContext) => Logger
--- > userIdLogger =
--- >     defaultLogger { Log.formatter = userIdFormatter defaultLogger.formatter }
+-- > myCustomLogger :: (?request :: Request) => Logger
+-- > myCustomLogger =
+-- >     defaultLogger { Log.formatter = myFormatter defaultLogger.formatter }
 -- >     where
--- >         defaultLogger = ?context.frameworkConfig.logger
--- >
--- >
--- > userIdFormatter :: (?context :: ControllerContext) => Log.LogFormatter -> Log.LogFormatter
--- > userIdFormatter existingFormatter time level string =
--- >     existingFormatter time level (prependUserId string)
--- >
--- > prependUserId :: (?context :: ControllerContext) => LogStr -> LogStr
--- > prependUserId string =
--- >     toLogStr $ userInfo <> show string
--- >     where
--- >         userInfo =
--- >             case currentUserOrNothing of
--- >                 Just currentUser -> "Authenticated user ID: " <> show currentUser.id <> " "
--- >                 Nothing -> "Anonymous user: "
+-- >         defaultLogger = ?request.frameworkConfig.logger
 --
--- This design mistake should be fixed in IHP v2
+setLogger :: (?request :: Request) => Logger -> IO ()
+setLogger logger = writeIORef (lookupRequestVault loggerOverrideVaultKey ?request) (Just logger)
+{-# INLINE setLogger #-}
+
+-- | Access logger, checking the vault override first, then falling back to frameworkConfig.logger
 instance HasField "logger" ControllerContext Logger where
-    getField context@(FrozenControllerContext { customFields }) = fromMaybe context.frameworkConfig.logger (TypeMap.lookup @Logger customFields)
-    getField context = (unsafePerformIO (freeze context)).logger -- Hacky, but there's no better way. The only way to retrieve the logger here, is by reading from the IORef in an unsafe way
+    getField context =
+        let request = context.request
+            override = unsafePerformIO $ readIORef (lookupRequestVault loggerOverrideVaultKey request)
+        in fromMaybe (requestFrameworkConfig request).logger override
+    {-# INLINABLE getField #-}

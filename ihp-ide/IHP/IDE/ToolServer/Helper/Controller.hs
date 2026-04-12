@@ -21,7 +21,7 @@ import qualified Network.Socket as Socket
 import qualified System.Process as Process
 import System.Info (os)
 import qualified IHP.EnvVar as EnvVar
-import IHP.Controller.Context
+import IHP.RequestVault.Helper (lookupRequestVault)
 
 import qualified Data.Text as Text
 import qualified System.Directory.OsPath as Directory
@@ -29,9 +29,9 @@ import qualified Data.Text.IO as IO
 import System.OsPath (encodeUtf, decodeUtf)
 
 -- | Returns the port used by the running app. Usually returns @8000@.
-theAppPort :: (?context :: ControllerContext) => IO Socket.PortNumber
+theAppPort :: (?request :: Request) => IO Socket.PortNumber
 theAppPort = do
-    toolServerApplication <- fromContext @ToolServerApplication
+    let toolServerApplication = lookupRequestVault toolServerApplicationVaultKey ?request
     pure toolServerApplication.appPort
 
 openEditor :: Text -> Int -> Int -> IO ()
@@ -95,15 +95,15 @@ findApplications = do
     where
         removeImport line = Text.replace ".FrontController" "" (Text.replace "import " "" line)
 
-theToolServerApplication :: (?context :: ControllerContext) => IO ToolServerApplication
-theToolServerApplication = fromContext @ToolServerApplication
+theToolServerApplication :: (?request :: Request) => ToolServerApplication
+theToolServerApplication = lookupRequestVault toolServerApplicationVaultKey ?request
 
-clearDatabaseNeedsMigration :: (?context :: ControllerContext) => IO ()
+clearDatabaseNeedsMigration :: (?request :: Request) => IO ()
 clearDatabaseNeedsMigration = do
-    toolServerApp <- theToolServerApplication
+    let toolServerApp = theToolServerApplication
     writeIORef toolServerApp.databaseNeedsMigration False
 
-markDatabaseNeedsMigration :: (?context :: ControllerContext) => IO ()
+markDatabaseNeedsMigration :: (?request :: Request) => IO ()
 markDatabaseNeedsMigration = do
-    toolServerApp <- theToolServerApplication
+    let toolServerApp = theToolServerApplication
     writeIORef toolServerApp.databaseNeedsMigration True
