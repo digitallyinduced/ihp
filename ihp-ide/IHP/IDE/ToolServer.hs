@@ -144,6 +144,7 @@ withToolServerApplication toolServerApplication port liveReloadClients action = 
                     $ modalMiddleware
                     $ toolServerVaultMiddleware
                     $ modelContextMiddleware modelContext
+                    $ loggerMiddleware frameworkConfig.logger
                     $ frameworkConfigMiddleware frameworkConfig
                     $ requestBodyMiddleware frameworkConfig.parseRequestBodyOptions
                     $ Websocket.websocketsOr

@@ -207,12 +207,13 @@ You can override the default logger and have it decorated with additional inform
 -- Config/Config.hs
 
 import IHP.Log.Types as Log
-import IHP.Controller.Context (loggerOverrideVaultKey)
-import IHP.RequestVault.Helper (insertVaultMiddleware)
+import IHP.RequestVault (loggerVaultKey, loggerMiddleware)
 
 config :: ConfigBuilder
 config = do
-    option $ CustomMiddleware (insertVaultMiddleware loggerOverrideVaultKey myCustomLogger)
+    -- Override the default logger with a custom middleware.
+    -- This replaces the logger that IHP installs from frameworkConfig.logger.
+    option $ CustomMiddleware (loggerMiddleware myCustomLogger)
 
 myCustomLogger :: Logger
 myCustomLogger =
