@@ -6,21 +6,21 @@ module Test.ControllerSupportSpec where
 import IHP.Prelude
 import Test.Hspec
 import IHP.ControllerSupport (requestBodyJSON, InitControllerContext (..), startWebSocketAppAndFailOnHTTP)
-import IHP.Controller.Response (responseHeadersVaultKey)
 import IHP.Environment (Environment (..))
 import qualified IHP.FrameworkConfig as FrameworkConfig
 import IHP.ModelSupport (notConnectedModelContext)
 import qualified IHP.RequestVault as RequestVault
 import qualified IHP.WebSocket as WS
-import Wai.Request.Params.Middleware (RequestBody (..), requestBodyVaultKey)
 import Network.Wai.Middleware.EarlyReturn (earlyReturnMiddleware)
-import Network.Wai.Test (runSession, request, Session, SResponse(..), assertStatus, assertBodyContains)
-import Test.Util (assertBodyNotContains)
+import Network.Wai.Test (runSession, request, srequest, Session, SRequest(..), SResponse(..), assertStatus, assertBody, assertBodyContains)
+import Test.Util (assertBodyNotContains, testPostJSON)
 import qualified Data.Vault.Lazy as Vault
 import qualified Data.Aeson as Aeson
 import qualified Network.Wai as Wai
+import Network.Wai.Test (defaultRequest)
 import qualified Data.ByteString.Lazy as LBS
-import Network.HTTP.Types (status101)
+import Network.HTTP.Types (status101, hContentType)
+import IHP.Server (initMiddlewareStack)
 
 -- | Minimal application fixture for 'startWebSocketApp' — just enough to
 -- satisfy the 'InitControllerContext' constraint without any real initialisation.
@@ -42,42 +42,44 @@ tests = do
     describe "IHP.ControllerSupport" do
         describe "requestBodyJSON" do
             it "should return parsed JSON value for valid JSONBody" do
-                let jsonValue = Aeson.object [("name", Aeson.String "test")]
-                let requestBody = JSONBody { jsonPayload = Just jsonValue, rawPayload = "{\"name\":\"test\"}" }
-                req <- buildRequest requestBody Development
-                let ?request = req
-                let ?respond = error "respond should not be called for valid JSON"
-                result <- requestBodyJSON
-                result `shouldBe` jsonValue
+                let jsonBody = "{\"name\":\"test\"}"
+                let expected = Aeson.object [("name", Aeson.String "test")]
+                -- App that parses JSON and echoes it back as the response body
+                let app r respond = do
+                        let ?request = r
+                        let ?respond = respond
+                        result <- requestBodyJSON
+                        respond $ Wai.responseLBS (toEnum 200) [] (Aeson.encode result)
+                withMiddleware Development \middleware ->
+                    runSession (do
+                        response <- testPostJSON "/" jsonBody
+                        assertStatus 200 response
+                        assertBody (Aeson.encode expected) response
+                        ) (middleware app)
 
             it "should return 400 for FormBody" do
-                let requestBody = FormBody { params = [], files = [], rawPayload = "" }
-                runRequestBodyJSON requestBody Development \response -> do
+                runRequestBodyJSON Development "application/x-www-form-urlencoded" "" \response -> do
                     assertStatus 400 response
                     assertBodyContains "form content type" response
 
             it "should return 400 for JSONBody with empty body" do
-                let requestBody = JSONBody { jsonPayload = Nothing, rawPayload = "" }
-                runRequestBodyJSON requestBody Development \response -> do
+                runRequestBodyJSON Development "application/json" "" \response -> do
                     assertStatus 400 response
                     assertBodyContains "request body is empty" response
 
             it "should return 400 for JSONBody with invalid JSON" do
-                let requestBody = JSONBody { jsonPayload = Nothing, rawPayload = "not valid json" }
-                runRequestBodyJSON requestBody Development \response -> do
+                runRequestBodyJSON Development "application/json" "not valid json" \response -> do
                     assertStatus 400 response
                     assertBodyContains "not valid json" response
 
             it "should truncate long payloads in dev mode" do
                 let longPayload = LBS.pack (replicate 500 65) -- 500 bytes of 'A'
-                let requestBody = JSONBody { jsonPayload = Nothing, rawPayload = longPayload }
-                runRequestBodyJSON requestBody Development \response -> do
+                runRequestBodyJSON Development "application/json" longPayload \response -> do
                     assertBodyContains "truncated" response
                     assertBodyContains "raw request body was" response
 
             it "should omit raw payload in production mode" do
-                let requestBody = JSONBody { jsonPayload = Nothing, rawPayload = "not valid json" }
-                runRequestBodyJSON requestBody Production \response -> do
+                runRequestBodyJSON Production "application/json" "not valid json" \response -> do
                     assertStatus 400 response
                     assertBodyNotContains "not valid json" response
                     assertBodyNotContains "raw request body was" response
@@ -115,23 +117,26 @@ tests = do
                 SResponse { simpleStatus } <- runSession (request baseRequest) app
                 simpleStatus `shouldBe` status101
 
--- | Run requestBodyJSON through earlyReturnMiddleware, asserting on the SResponse
-runRequestBodyJSON :: RequestBody -> Environment -> (SResponse -> Session ()) -> IO ()
-runRequestBodyJSON requestBody environment check = do
-    req <- buildRequest requestBody environment
+-- | Build the middleware stack for a given environment.
+withMiddleware :: Environment -> (Wai.Middleware -> IO a) -> IO a
+withMiddleware environment action = do
+    frameworkConfig <- FrameworkConfig.buildFrameworkConfig (FrameworkConfig.option environment)
+    let modelContext = notConnectedModelContext frameworkConfig.logger
+    middleware <- initMiddlewareStack frameworkConfig modelContext Nothing
+    action middleware
+
+-- | Run requestBodyJSON through the middleware stack + earlyReturnMiddleware,
+-- sending a request with the given content type and body.
+runRequestBodyJSON :: Environment -> ByteString -> LBS.ByteString -> (SResponse -> Session ()) -> IO ()
+runRequestBodyJSON environment contentType body check = do
     let app r respond = do
             let ?request = r
             let ?respond = respond
             _ <- requestBodyJSON
             error "requestBodyJSON should have called earlyReturn"
-    runSession (request req >>= check) (earlyReturnMiddleware app)
-
-buildRequest :: RequestBody -> Environment -> IO Wai.Request
-buildRequest requestBody environment = do
-    frameworkConfig <- FrameworkConfig.buildFrameworkConfig (FrameworkConfig.option environment)
-    headersRef <- newIORef []
-    pure Wai.defaultRequest
-        { Wai.vault = Vault.insert RequestVault.frameworkConfigVaultKey frameworkConfig
-                    $ Vault.insert requestBodyVaultKey requestBody
-                    $ Vault.insert responseHeadersVaultKey headersRef Vault.empty
-        }
+    let req = Wai.defaultRequest
+            { Wai.requestMethod = "POST"
+            , Wai.requestHeaders = [(hContentType, contentType)]
+            }
+    withMiddleware environment \middleware ->
+        runSession (srequest (SRequest req body) >>= check) (middleware $ earlyReturnMiddleware app)
