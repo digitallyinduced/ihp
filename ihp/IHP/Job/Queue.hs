@@ -20,7 +20,7 @@ module IHP.Job.Queue
 ) where
 
 import IHP.Job.Queue.Pool (runPool)
-import IHP.Job.Queue.Fetch (withNextJob, pendingJobConditionSQL)
+import IHP.Job.Queue.Fetch (withNextJob, pendingJobConditionSQL, advisoryLockKey)
 import IHP.Job.Queue.Watch
     ( watchForJob
     , watchForJobWithPollerTriggerRepair

@@ -10,7 +10,7 @@ module IHP.Job.Queue.Result
 import IHP.Prelude
 import IHP.Job.Types
 import IHP.Job.Queue.Pool (runPool)
-import IHP.Job.Queue.Fetch (runConn)
+import IHP.Job.Queue.Fetch (runConn, advisoryLockKey, advisoryUnlockStatement)
 import IHP.Job.Queue.StatusInstances ()
 import IHP.ModelSupport (Table (..), InputValue (..))
 import IHP.ModelSupport.Types (Id' (..), PrimaryKey)
@@ -24,7 +24,7 @@ import qualified Hasql.Decoders as Decoders
 import Data.Functor.Contravariant (contramap)
 
 -- | Called when a job failed. Sets the job status to 'JobStatusFailed' or 'JobStatusRetry' (if more attempts are possible),
--- resets 'lockedBy', and commits the transaction.
+-- resets 'lockedBy', and releases the advisory lock.
 jobDidFailConn :: forall job context.
     ( Table job
     , HasField "id" job (Id' (GetTableName job))
@@ -58,10 +58,10 @@ jobDidFailConn conn job exception = do
             <> contramap (\(_,_,_,_,i) -> i) (Encoders.param (Encoders.nonNullable Encoders.uuid))
     let statement = Hasql.unpreparable sql encoder Decoders.noResult
     runConn conn (HasqlSession.statement (inputValue status, now, tshow exception, nextRunAt, jobId) statement)
-    runConn conn (HasqlSession.script "COMMIT")
+    runConn conn (HasqlSession.statement (advisoryLockKey tableNameText jobId) advisoryUnlockStatement)
 
 -- | Called when a job timed out. Sets the job status to 'JobStatusTimedOut' or 'JobStatusRetry' (if more attempts are possible),
--- resets 'lockedBy', and commits the transaction.
+-- resets 'lockedBy', and releases the advisory lock.
 jobDidTimeoutConn :: forall job context.
     ( Table job
     , HasField "id" job (Id' (GetTableName job))
@@ -95,10 +95,10 @@ jobDidTimeoutConn conn job = do
             <> contramap (\(_,_,_,_,i) -> i) (Encoders.param (Encoders.nonNullable Encoders.uuid))
     let statement = Hasql.unpreparable sql encoder Decoders.noResult
     runConn conn (HasqlSession.statement (inputValue status, now, "Timeout reached" :: Text, nextRunAt, jobId) statement)
-    runConn conn (HasqlSession.script "COMMIT")
+    runConn conn (HasqlSession.statement (advisoryLockKey tableNameText jobId) advisoryUnlockStatement)
 
 -- | Called when a job succeeded. Sets the job status to 'JobStatusSucceeded',
--- resets 'lockedBy', and commits the transaction.
+-- resets 'lockedBy', and releases the advisory lock.
 jobDidSucceedConn :: forall job context.
     ( Table job
     , HasField "id" job (Id' (GetTableName job))
@@ -118,7 +118,7 @@ jobDidSucceedConn conn job = do
             <> contramap snd (Encoders.param (Encoders.nonNullable Encoders.uuid))
     let statement = Hasql.unpreparable sql encoder Decoders.noResult
     runConn conn (HasqlSession.statement (updatedAt, jobId) statement)
-    runConn conn (HasqlSession.script "COMMIT")
+    runConn conn (HasqlSession.statement (advisoryLockKey tableNameText jobId) advisoryUnlockStatement)
 
 -- | Compute the delay before the next retry attempt.
 --
@@ -135,6 +135,10 @@ backoffDelay (ExponentialBackoff { delayInSeconds }) attempts =
 -- Two-tier recovery:
 -- - Recently stale jobs (within 24h) are set back to retry
 -- - Ancient stale jobs (older than 24h) are marked as failed
+--
+-- Note: when 'withNextJob' is used, crashed workers release their advisory lock
+-- instantly (connection drop), but the job status remains 'running' until this
+-- recovery runs. The advisory lock prevents double-processing in the meantime.
 recoverStaleJobs :: forall job.
     ( Table job
     ) => HasqlPool.Pool -> NominalDiffTime -> IO ()
