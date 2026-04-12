@@ -18,7 +18,7 @@ import IHP.ViewPrelude
 import IHP.ControllerPrelude hiding (get, request)
 import Network.Wai.Test
 import Network.HTTP.Types
-import qualified Data.Text
+import Test.Util (testGet)
 
 data Band' = Band {id :: (Id' "bands"), meta :: MetaBag} deriving (Eq, Show)
 type Band = Band'
@@ -140,17 +140,10 @@ instance InitControllerContext WebApplication where
 instance FrontController RootApplication where
     controllers = [ mountFrontController WebApplication ]
 
-testGet :: ByteString -> Session SResponse
-testGet url = request $ setPath defaultRequest { requestMethod = methodGet } url
-
-assertSuccess :: ByteString -> SResponse -> IO ()
+assertSuccess :: ByteString -> SResponse -> Session ()
 assertSuccess body response = do
-    response.simpleStatus `shouldBe` status200
-    response.simpleBody `shouldBe` (cs body)
-
-assertFailure :: SResponse -> IO ()
-assertFailure response = do
-    response.simpleStatus `shouldBe` status400
+    assertStatus 200 response
+    assertBody (cs body) response
 
 config = do
     option Development
@@ -160,57 +153,57 @@ tests :: Spec
 tests = aroundAll (withMockContextAndApp WebApplication config) do
     describe "Typed Auto Route" $ do
         it "parses empty route" $ withContextAndApp \application -> do
-            runSession (testGet "test/Test") application >>= assertSuccess "TestAction"
+            runSession (testGet "test/Test" >>= assertSuccess "TestAction") application
         it "parses Text param" $ withContextAndApp \application -> do
-            runSession (testGet "test/TestText?firstParam=hello") application >>= assertSuccess "hello"
+            runSession (testGet "test/TestText?firstParam=hello" >>= assertSuccess "hello") application
         it "parses Text param with UUID value" $ withContextAndApp \application -> do
-                runSession (testGet "test/TestText?firstParam=ea9cd792-107f-49ff-92a1-f610f7a31f31") application >>= assertSuccess "ea9cd792-107f-49ff-92a1-f610f7a31f31"
+            runSession (testGet "test/TestText?firstParam=ea9cd792-107f-49ff-92a1-f610f7a31f31" >>= assertSuccess "ea9cd792-107f-49ff-92a1-f610f7a31f31") application
         it "parses Maybe Text param: Nothing" $ withContextAndApp \application -> do
-            runSession (testGet "test/TestMaybeText") application >>= assertSuccess "Nothing"
+            runSession (testGet "test/TestMaybeText" >>= assertSuccess "Nothing") application
         it "parses Maybe Text param: Just" $ withContextAndApp \application -> do
-            runSession (testGet "test/TestMaybeText?maybeFirstParam=asdfasdf") application >>= assertSuccess "Just asdfasdf"
+            runSession (testGet "test/TestMaybeText?maybeFirstParam=asdfasdf" >>= assertSuccess "Just asdfasdf") application
         it "parses Int param" $ withContextAndApp \application -> do
-            runSession (testGet "test/TestInt?intParam=5432") application >>= assertSuccess "5432"
+            runSession (testGet "test/TestInt?intParam=5432" >>= assertSuccess "5432") application
         it "parses Int param: fails on wrong type" $ withContextAndApp \application -> do
-            runSession (testGet "test/TestInt?intParam=hello") application >>= assertFailure
+            runSession (testGet "test/TestInt?intParam=hello" >>= assertStatus 400) application
         it "parses Maybe Int param: Nothing" $ withContextAndApp \application -> do
-            runSession (testGet "test/TestMaybeInt") application >>= assertSuccess "Nothing"
+            runSession (testGet "test/TestMaybeInt" >>= assertSuccess "Nothing") application
         it "parses Maybe Int param: Just" $ withContextAndApp \application -> do
-            runSession (testGet "test/TestMaybeInt?maybeInt=5") application >>= assertSuccess "Just 5"
+            runSession (testGet "test/TestMaybeInt?maybeInt=5" >>= assertSuccess "Just 5") application
         it "parses Maybe Int param: Just, wrong type" $ withContextAndApp \application -> do
-            runSession (testGet "test/TestMaybeInt?maybeInt=asdf") application >>= assertSuccess "Nothing"
+            runSession (testGet "test/TestMaybeInt?maybeInt=asdf" >>= assertSuccess "Nothing") application
         it "parses [Text] param: empty" $ withContextAndApp \application -> do
-            runSession (testGet "test/TestTextList") application >>= assertSuccess "[]"
+            runSession (testGet "test/TestTextList" >>= assertSuccess "[]") application
         it "parses [Text] param: one element" $ withContextAndApp \application -> do
-            runSession (testGet "test/TestTextList?textList=hello") application >>= assertSuccess "[\"hello\"]"
+            runSession (testGet "test/TestTextList?textList=hello" >>= assertSuccess "[\"hello\"]") application
         it "parses [Text] param: multiple elements" $ withContextAndApp \application -> do
-            runSession (testGet "test/TestTextList?textList=hello,sailor,beautiful,day,5") application >>= assertSuccess "[\"hello\",\"sailor\",\"beautiful\",\"day\",\"5\"]"
+            runSession (testGet "test/TestTextList?textList=hello,sailor,beautiful,day,5" >>= assertSuccess "[\"hello\",\"sailor\",\"beautiful\",\"day\",\"5\"]") application
         it "parses [Int] param: empty" $ withContextAndApp \application -> do
-            runSession (testGet "test/TestIntList") application >>= assertSuccess "[]"
+            runSession (testGet "test/TestIntList" >>= assertSuccess "[]") application
         it "parses [Int] param: one element" $ withContextAndApp \application -> do
-            runSession (testGet "test/TestIntList?intList=5") application >>= assertSuccess "[5]"
+            runSession (testGet "test/TestIntList?intList=5" >>= assertSuccess "[5]") application
         it "parses [Int] param: multiple elements" $ withContextAndApp \application -> do
-            runSession (testGet "test/TestIntList?intList=5,4,3") application >>= assertSuccess "[5,4,3]"
+            runSession (testGet "test/TestIntList?intList=5,4,3" >>= assertSuccess "[5,4,3]") application
         it "parses [Int] param: ignore non-int element" $ withContextAndApp \application -> do
-            runSession (testGet "test/TestIntList?intList=5,BOO,3") application >>= assertSuccess "[5,3]"
+            runSession (testGet "test/TestIntList?intList=5,BOO,3" >>= assertSuccess "[5,3]") application
         it "parses mixed params" $ withContextAndApp \application -> do
-            runSession (testGet "test/TestMixed?text=hello&textOther=sailor&intList=5,BOO,3&textOtherOther=asdf&intParam=123") application >>= assertSuccess "hello sailor [5,3] Nothing asdf 123"
+            runSession (testGet "test/TestMixed?text=hello&textOther=sailor&intList=5,BOO,3&textOtherOther=asdf&intParam=123" >>= assertSuccess "hello sailor [5,3] Nothing asdf 123") application
         it "parses Integer params: empty" $ withContextAndApp \application -> do
-            runSession (testGet "test/TestInteger?p1=1237124971624971247691279641762412786418697247869124") application >>= assertSuccess "1237124971624971247691279641762412786418697247869124 Nothing []"
+            runSession (testGet "test/TestInteger?p1=1237124971624971247691279641762412786418697247869124" >>= assertSuccess "1237124971624971247691279641762412786418697247869124 Nothing []") application
         it "parses Integer params: full" $ withContextAndApp \application -> do
-            runSession (testGet "test/TestInteger?p1=1237124971624971247691279641762412786418697247869124&p2=123123197269176247612461769284769812481278487124&p3=1,2,3,4") application >>= assertSuccess "1237124971624971247691279641762412786418697247869124 Just 123123197269176247612461769284769812481278487124 [1,2,3,4]"
+            runSession (testGet "test/TestInteger?p1=1237124971624971247691279641762412786418697247869124&p2=123123197269176247612461769284769812481278487124&p3=1,2,3,4" >>= assertSuccess "1237124971624971247691279641762412786418697247869124 Just 123123197269176247612461769284769812481278487124 [1,2,3,4]") application
         it "parses Id with Integer param" $ withContextAndApp \application -> do
-            runSession (testGet "test/TestIntegerId?integerId=123") application >>= assertSuccess "123"
+            runSession (testGet "test/TestIntegerId?integerId=123" >>= assertSuccess "123") application
         it "parses Id with UUID param" $ withContextAndApp \application -> do
-            runSession (testGet "test/TestUUIDId?uuidId=8dd57d19-490a-4323-8b94-6081ab93bf34") application >>= assertSuccess "8dd57d19-490a-4323-8b94-6081ab93bf34"
+            runSession (testGet "test/TestUUIDId?uuidId=8dd57d19-490a-4323-8b94-6081ab93bf34" >>= assertSuccess "8dd57d19-490a-4323-8b94-6081ab93bf34") application
         it "parses [UUID] param: empty" $ withContextAndApp \application -> do
-            runSession (testGet "test/TestUUIDList") application >>= assertSuccess "[]"
+            runSession (testGet "test/TestUUIDList" >>= assertSuccess "[]") application
         it "parses [UUID] param: one element" $ withContextAndApp \application -> do
-            runSession (testGet "test/TestUUIDList?uuidList=8dd57d19-490a-4323-8b94-6081ab93bf34") application >>= assertSuccess "[8dd57d19-490a-4323-8b94-6081ab93bf34]"
+            runSession (testGet "test/TestUUIDList?uuidList=8dd57d19-490a-4323-8b94-6081ab93bf34" >>= assertSuccess "[8dd57d19-490a-4323-8b94-6081ab93bf34]") application
         it "parses [UUID] param: multiple elements" $ withContextAndApp \application -> do
-            runSession (testGet "test/TestUUIDList?uuidList=8dd57d19-490a-4323-8b94-6081ab93bf34,8dd57d19-490a-4323-8b94-6081ab93bf34") application >>= assertSuccess "[8dd57d19-490a-4323-8b94-6081ab93bf34,8dd57d19-490a-4323-8b94-6081ab93bf34]"
+            runSession (testGet "test/TestUUIDList?uuidList=8dd57d19-490a-4323-8b94-6081ab93bf34,8dd57d19-490a-4323-8b94-6081ab93bf34" >>= assertSuccess "[8dd57d19-490a-4323-8b94-6081ab93bf34,8dd57d19-490a-4323-8b94-6081ab93bf34]") application
         it "parses [UUID] param: multiple elements, ignoring non UUID" $ withContextAndApp \application -> do
-            runSession (testGet "test/TestUUIDList?uuidList=8dd57d19-490a-4323-8b94-6081ab93bf34,423423432432432") application >>= assertSuccess "[8dd57d19-490a-4323-8b94-6081ab93bf34]"
+            runSession (testGet "test/TestUUIDList?uuidList=8dd57d19-490a-4323-8b94-6081ab93bf34,423423432432432" >>= assertSuccess "[8dd57d19-490a-4323-8b94-6081ab93bf34]") application
     describe "pathTo" $ do
         it "generates correct path for empty route" $ withContextAndApp \application -> do
             pathTo TestAction `shouldBe` "/test/Test"
@@ -237,25 +230,29 @@ tests = aroundAll (withMockContextAndApp WebApplication config) do
             breadcrumb.url `shouldBe` Just "/test/Test"
     describe "customRoutes" $ do
         it "parses custom route for overridden action" $ withContextAndApp \application -> do
-            runSession (testGet "performances/8dd57d19-490a-4323-8b94-6081ab93bf34") application >>= assertSuccess "8dd57d19-490a-4323-8b94-6081ab93bf34"
+            runSession (testGet "performances/8dd57d19-490a-4323-8b94-6081ab93bf34" >>= assertSuccess "8dd57d19-490a-4323-8b94-6081ab93bf34") application
         it "auto-generated route still works for overridden action" $ withContextAndApp \application -> do
-            runSession (testGet "test/ShowPerformance?performanceId=8dd57d19-490a-4323-8b94-6081ab93bf34") application >>= assertSuccess "8dd57d19-490a-4323-8b94-6081ab93bf34"
+            runSession (testGet "test/ShowPerformance?performanceId=8dd57d19-490a-4323-8b94-6081ab93bf34" >>= assertSuccess "8dd57d19-490a-4323-8b94-6081ab93bf34") application
         it "auto-generated route works for non-overridden actions" $ withContextAndApp \application -> do
-            runSession (testGet "test/ListPerformances") application >>= assertSuccess "ListPerformancesAction"
+            runSession (testGet "test/ListPerformances" >>= assertSuccess "ListPerformancesAction") application
         it "auto-generated POST route works for non-overridden actions" $ withContextAndApp \application -> do
             let postReq url = request $ setPath defaultRequest { requestMethod = methodPost } url
-            runSession (postReq "test/CreatePerformance") application >>= assertSuccess "CreatePerformanceAction"
+            runSession (postReq "test/CreatePerformance" >>= assertSuccess "CreatePerformanceAction") application
     describe "router error handling" $ do
         it "returns 400 with guidance for wrong HTTP method" $ withContextAndApp \application -> do
             -- CreatePerformance is POST-only, calling with GET should give a helpful 400
-            response <- runSession (testGet "test/CreatePerformance") application
-            response.simpleStatus `shouldBe` status400
-            cs response.simpleBody `shouldSatisfy` \(body :: Text) -> "POST" `Data.Text.isInfixOf` body
+            runSession (do
+                response <- testGet "test/CreatePerformance"
+                assertStatus 400 response
+                assertBodyContains "POST" response
+                ) application
         it "returns 400 for invalid typed parameter" $ withContextAndApp \application -> do
             -- intParam expects Int, passing a string should give a structured 400
-            response <- runSession (testGet "test/TestInt?intParam=hello") application
-            response.simpleStatus `shouldBe` status400
-            cs response.simpleBody `shouldSatisfy` \(body :: Text) -> "intParam" `Data.Text.isInfixOf` body
+            runSession (do
+                response <- testGet "test/TestInt?intParam=hello"
+                assertStatus 400 response
+                assertBodyContains "intParam" response
+                ) application
     describe "customPathTo" $ do
         it "generates custom path for overridden action" $ withContextAndApp \application -> do
             pathTo (ShowPerformanceAction "8dd57d19-490a-4323-8b94-6081ab93bf34") `shouldBe` "/performances/8dd57d19-490a-4323-8b94-6081ab93bf34"

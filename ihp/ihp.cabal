@@ -313,6 +313,7 @@ test-suite tests
         Test.FetchPipelinedSpec
         Test.JobQueueSpec
         Test.ModelFixtures
+        Test.Util
 
 benchmark ihp-router-bench
     import: shared-properties
