@@ -14,13 +14,13 @@ import qualified IHP.RequestVault as RequestVault
 import qualified IHP.WebSocket as WS
 import Wai.Request.Params.Middleware (RequestBody (..), requestBodyVaultKey)
 import Network.Wai.Middleware.EarlyReturn (earlyReturnMiddleware)
-import Network.Wai.Test (runSession, request, SResponse(..))
+import Network.Wai.Test (runSession, request, Session, SResponse(..), assertStatus, assertBodyContains)
+import Test.Util (assertBodyNotContains)
 import qualified Data.Vault.Lazy as Vault
 import qualified Data.Aeson as Aeson
 import qualified Network.Wai as Wai
 import qualified Data.ByteString.Lazy as LBS
-import qualified Data.ByteString as BS
-import Network.HTTP.Types (status101, status400)
+import Network.HTTP.Types (status101)
 
 -- | Minimal application fixture for 'startWebSocketApp' — just enough to
 -- satisfy the 'InitControllerContext' constraint without any real initialisation.
@@ -52,35 +52,35 @@ tests = do
 
             it "should return 400 for FormBody" do
                 let requestBody = FormBody { params = [], files = [], rawPayload = "" }
-                SResponse {..} <- runRequestBodyJSON requestBody Development
-                simpleStatus `shouldBe` status400
-                simpleBody `shouldSatisfy` bodyContains "form content type"
+                runRequestBodyJSON requestBody Development \response -> do
+                    assertStatus 400 response
+                    assertBodyContains "form content type" response
 
             it "should return 400 for JSONBody with empty body" do
                 let requestBody = JSONBody { jsonPayload = Nothing, rawPayload = "" }
-                SResponse {..} <- runRequestBodyJSON requestBody Development
-                simpleStatus `shouldBe` status400
-                simpleBody `shouldSatisfy` bodyContains "request body is empty"
+                runRequestBodyJSON requestBody Development \response -> do
+                    assertStatus 400 response
+                    assertBodyContains "request body is empty" response
 
             it "should return 400 for JSONBody with invalid JSON" do
                 let requestBody = JSONBody { jsonPayload = Nothing, rawPayload = "not valid json" }
-                SResponse {..} <- runRequestBodyJSON requestBody Development
-                simpleStatus `shouldBe` status400
-                simpleBody `shouldSatisfy` bodyContains "not valid json"
+                runRequestBodyJSON requestBody Development \response -> do
+                    assertStatus 400 response
+                    assertBodyContains "not valid json" response
 
             it "should truncate long payloads in dev mode" do
                 let longPayload = LBS.pack (replicate 500 65) -- 500 bytes of 'A'
                 let requestBody = JSONBody { jsonPayload = Nothing, rawPayload = longPayload }
-                SResponse {..} <- runRequestBodyJSON requestBody Development
-                simpleBody `shouldSatisfy` bodyContains "truncated"
-                simpleBody `shouldSatisfy` bodyContains "raw request body was"
+                runRequestBodyJSON requestBody Development \response -> do
+                    assertBodyContains "truncated" response
+                    assertBodyContains "raw request body was" response
 
             it "should omit raw payload in production mode" do
                 let requestBody = JSONBody { jsonPayload = Nothing, rawPayload = "not valid json" }
-                SResponse {..} <- runRequestBodyJSON requestBody Production
-                simpleStatus `shouldBe` status400
-                simpleBody `shouldSatisfy` (not . bodyContains "not valid json")
-                simpleBody `shouldSatisfy` (not . bodyContains "raw request body was")
+                runRequestBodyJSON requestBody Production \response -> do
+                    assertStatus 400 response
+                    assertBodyNotContains "not valid json" response
+                    assertBodyNotContains "raw request body was" response
 
         describe "startWebSocketApp" do
             -- Regression for digitallyinduced/ihp#2625: 'wai-websockets'
@@ -115,19 +115,16 @@ tests = do
                 SResponse { simpleStatus } <- runSession (request baseRequest) app
                 simpleStatus `shouldBe` status101
 
-bodyContains :: BS.ByteString -> LBS.ByteString -> Bool
-bodyContains needle haystack = BS.isInfixOf needle (LBS.toStrict haystack)
-
--- | Run requestBodyJSON through earlyReturnMiddleware, returning the SResponse
-runRequestBodyJSON :: RequestBody -> Environment -> IO SResponse
-runRequestBodyJSON requestBody environment = do
+-- | Run requestBodyJSON through earlyReturnMiddleware, asserting on the SResponse
+runRequestBodyJSON :: RequestBody -> Environment -> (SResponse -> Session ()) -> IO ()
+runRequestBodyJSON requestBody environment check = do
     req <- buildRequest requestBody environment
     let app r respond = do
             let ?request = r
             let ?respond = respond
             _ <- requestBodyJSON
             error "requestBodyJSON should have called earlyReturn"
-    runSession (request req) (earlyReturnMiddleware app)
+    runSession (request req >>= check) (earlyReturnMiddleware app)
 
 buildRequest :: RequestBody -> Environment -> IO Wai.Request
 buildRequest requestBody environment = do
