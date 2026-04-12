@@ -15,7 +15,7 @@ import IHP.FrameworkConfig
 import IHP.ViewPrelude
 import IHP.ControllerPrelude hiding (get, request)
 import Network.Wai.Test
-import Network.HTTP.Types
+import Test.Util (testGet)
 
 data WebApplication = WebApplication deriving (Eq, Show, Data)
 
@@ -48,23 +48,14 @@ instance InitControllerContext WebApplication where
 instance FrontController RootApplication where
     controllers = [ mountFrontController WebApplication ]
 
-testGet :: ByteString -> Session SResponse
-testGet url = request $ setPath defaultRequest { requestMethod = methodGet } url
-
-
 config = do
     option Development
     option (AppPort 8000)
-
-assertNotFound :: SResponse -> IO ()
-assertNotFound response = do
-    response.simpleStatus `shouldBe` status404
-    response.simpleBody `shouldNotBe` "Test"
 
 tests :: Spec
 tests = aroundAll (withMockContextAndApp WebApplication config) do
     describe "Not found" $ do
         it "should return show 404 page when notFoundWhen is True" $ withContextAndApp \application -> do
-            runSession (testGet "test/TestActionNotFoundWhen") application >>= assertNotFound
+            runSession (testGet "test/TestActionNotFoundWhen" >>= assertStatus 404) application
         it "should return show 404 page when notFoundUnless is False" $ withContextAndApp \application -> do
-            runSession (testGet "test/TestActionNotFoundUnless") application >>= assertNotFound
+            runSession (testGet "test/TestActionNotFoundUnless" >>= assertStatus 404) application
