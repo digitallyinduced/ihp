@@ -5,7 +5,7 @@ import IHP.FrameworkConfig
 import IHP.Environment
 import IHP.Test.Mocking
 import IHP.Hspec (withIHPApp)
-import IHP.Job.Queue (fetchNextJob, jobDidSucceed)
+import IHP.Job.Queue (withNextJob, jobDidSucceedConn)
 import IHP.Job.Types (JobStatus(..))
 import qualified Data.UUID
 import Test.Hspec
@@ -110,22 +110,20 @@ tests = around (withIHPApp WebApplication testConfig) do
                 |> set #postId post.id
                 |> createRecord
 
-            -- Step 1: fetchNextJob — atomically locks the job and sets status to Running
-            let pool = ?modelContext.hasqlPool
+            -- Fetch, perform and complete the job inside a transaction
+            let dbUrl = (?mocking).frameworkConfig.databaseUrl
             let workerId = Data.UUID.nil
-            maybeJob <- fetchNextJob @UpdatePostViewsJob pool workerId
+            result <- withNextJob @UpdatePostViewsJob dbUrl workerId \conn lockedJob -> do
+                lockedJob.status `shouldBe` JobStatusRunning
 
-            case maybeJob of
+                let ?context = (?mocking).frameworkConfig
+                perform lockedJob
+
+                jobDidSucceedConn conn lockedJob
+
+            case result of
                 Nothing -> expectationFailure "No job found in queue"
-                Just lockedJob -> do
-                    lockedJob.status `shouldBe` JobStatusRunning
-
-                    -- Step 2: perform — execute the job logic
-                    let ?context = (?mocking).frameworkConfig
-                    perform lockedJob
-
-                    -- Step 3: jobDidSucceed — marks job as Succeeded in DB
-                    jobDidSucceed pool lockedJob
+                Just _ -> pure ()
 
             -- Verify side effect
             updatedPost <- fetch post.id

@@ -59,13 +59,8 @@ jobWorkerFetchAndRunLoop JobWorkerArgs { .. } = do
     activeWorkers <- liftIO $ newTVarIO ([] :: [Async ()])
 
     let runJobLoop = do
-            fetchResult <- Exception.tryAny (Queue.fetchNextJob @job pool workerId)
-            case fetchResult of
-                Left exception -> do
-                    Log.error ("Job worker: Failed to fetch next job: " <> tshow exception)
-                    Concurrent.threadDelay 1000000  -- 1s backoff to avoid tight error loops
-                    runJobLoop -- retry after transient error
-                Right (Just job) -> do
+            fetchResult <- Exception.tryAny do
+                Queue.withNextJob @job databaseUrl workerId \conn job -> do
                     Log.info ("Starting job: " <> tshow job)
 
                     let ?job = job
@@ -73,13 +68,17 @@ jobWorkerFetchAndRunLoop JobWorkerArgs { .. } = do
                     resultOrException <- Exception.tryAsync (Timeout.timeout timeout (perform job))
                     case resultOrException of
                         Left exception -> do
-                            Queue.jobDidFail pool job exception
+                            Queue.jobDidFailConn conn job exception
                             when (Exception.isAsyncException exception) (Exception.throwIO exception)
-                        Right Nothing -> Queue.jobDidTimeout pool job
-                        Right (Just _) -> Queue.jobDidSucceed pool job
-
-                    runJobLoop -- try next job immediately
-                Right Nothing -> pure ()
+                        Right Nothing -> Queue.jobDidTimeoutConn conn job
+                        Right (Just _) -> Queue.jobDidSucceedConn conn job
+            case fetchResult of
+                Left exception -> do
+                    Log.error ("Job worker: Failed to fetch/run job: " <> tshow exception)
+                    Concurrent.threadDelay 1000000  -- 1s backoff to avoid tight error loops
+                    runJobLoop -- retry after transient error
+                Right (Just _) -> runJobLoop -- processed a job, try next immediately
+                Right Nothing -> pure () -- no jobs available
 
     let dispatcherLoop = do
             msg <- atomically $ readTBQueue action

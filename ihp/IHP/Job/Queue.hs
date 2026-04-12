@@ -1,6 +1,6 @@
 module IHP.Job.Queue
 ( runPool
-, fetchNextJob
+, withNextJob
 , pendingJobConditionSQL
 , watchForJob
 , watchForJobWithPollerTriggerRepair
@@ -9,9 +9,9 @@ module IHP.Job.Queue
 , ensureNotificationTriggers
 , createNotificationTriggerSQL
 , channelName
-, jobDidFail
-, jobDidTimeout
-, jobDidSucceed
+, jobDidFailConn
+, jobDidTimeoutConn
+, jobDidSucceedConn
 , backoffDelay
 , recoverStaleJobs
 , textToEnumJobStatusMap
@@ -20,7 +20,7 @@ module IHP.Job.Queue
 ) where
 
 import IHP.Job.Queue.Pool (runPool)
-import IHP.Job.Queue.Fetch (fetchNextJob, pendingJobConditionSQL)
+import IHP.Job.Queue.Fetch (withNextJob, pendingJobConditionSQL)
 import IHP.Job.Queue.Watch
     ( watchForJob
     , watchForJobWithPollerTriggerRepair
@@ -31,9 +31,9 @@ import IHP.Job.Queue.Watch
     , channelName
     )
 import IHP.Job.Queue.Result
-    ( jobDidFail
-    , jobDidTimeout
-    , jobDidSucceed
+    ( jobDidFailConn
+    , jobDidTimeoutConn
+    , jobDidSucceedConn
     , backoffDelay
     , recoverStaleJobs
     )

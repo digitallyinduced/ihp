@@ -47,7 +47,7 @@ dedicatedProcessMainLoop jobWorkers = do
         runResourceT do
             waitForExitSignal <- liftIO installSignalHandlers
 
-            let jobWorkerArgs = JobWorkerArgs { workerId, modelContext = ?modelContext, frameworkConfig = ?context, pgListener }
+            let jobWorkerArgs = JobWorkerArgs { workerId, modelContext = ?modelContext, frameworkConfig = ?context, pgListener, databaseUrl = ?context.databaseUrl }
 
             processes <- jobWorkers
                 |> mapM (\(JobWorker listenAndRun)-> listenAndRun jobWorkerArgs)
@@ -98,7 +98,7 @@ devServerMainLoop frameworkConfig pgListener jobWorkers = do
     Log.info ("Starting worker " <> tshow workerId)
 
     runResourceT do
-        let jobWorkerArgs = JobWorkerArgs { workerId, modelContext = ?modelContext, frameworkConfig = ?context, pgListener }
+        let jobWorkerArgs = JobWorkerArgs { workerId, modelContext = ?modelContext, frameworkConfig = ?context, pgListener, databaseUrl = frameworkConfig.databaseUrl }
 
         processes <- jobWorkers
                 |> mapM (\(JobWorker listenAndRun) -> listenAndRun jobWorkerArgs)

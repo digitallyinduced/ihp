@@ -1,8 +1,8 @@
 {-# LANGUAGE AllowAmbiguousTypes #-}
 module IHP.Job.Queue.Result
-( jobDidFail
-, jobDidTimeout
-, jobDidSucceed
+( jobDidFailConn
+, jobDidTimeoutConn
+, jobDidSucceedConn
 , backoffDelay
 , recoverStaleJobs
 ) where
@@ -10,19 +10,22 @@ module IHP.Job.Queue.Result
 import IHP.Prelude
 import IHP.Job.Types
 import IHP.Job.Queue.Pool (runPool)
+import IHP.Job.Queue.Fetch (runConn)
 import IHP.Job.Queue.StatusInstances ()
 import IHP.ModelSupport (Table (..), InputValue (..))
 import IHP.ModelSupport.Types (Id' (..), PrimaryKey)
 import qualified IHP.Log as Log
 import qualified Hasql.Pool as HasqlPool
 import qualified Hasql.Session as HasqlSession
+import qualified Hasql.Connection as HasqlConnection
 import qualified Hasql.Statement as Hasql
 import qualified Hasql.Encoders as Encoders
 import qualified Hasql.Decoders as Decoders
 import Data.Functor.Contravariant (contramap)
 
--- | Called when a job failed. Sets the job status to 'JobStatusFailed' or 'JobStatusRetry' (if more attempts are possible) and resets 'lockedBy'
-jobDidFail :: forall job context.
+-- | Called when a job failed. Sets the job status to 'JobStatusFailed' or 'JobStatusRetry' (if more attempts are possible),
+-- resets 'lockedBy', and commits the transaction.
+jobDidFailConn :: forall job context.
     ( Table job
     , HasField "id" job (Id' (GetTableName job))
     , PrimaryKey (GetTableName job) ~ UUID
@@ -31,8 +34,8 @@ jobDidFail :: forall job context.
     , Job job
     , ?context :: context
     , HasField "logger" context Log.Logger
-    ) => HasqlPool.Pool -> job -> SomeException -> IO ()
-jobDidFail pool job exception = do
+    ) => HasqlConnection.Connection -> job -> SomeException -> IO ()
+jobDidFailConn conn job exception = do
     now <- getCurrentTime
 
     Log.warn ("Failed job with exception: " <> tshow exception)
@@ -54,9 +57,12 @@ jobDidFail pool job exception = do
             <> contramap (\(_,_,_,r,_) -> r) (Encoders.param (Encoders.nonNullable Encoders.timestamptz))
             <> contramap (\(_,_,_,_,i) -> i) (Encoders.param (Encoders.nonNullable Encoders.uuid))
     let statement = Hasql.unpreparable sql encoder Decoders.noResult
-    runPool pool (HasqlSession.statement (inputValue status, now, tshow exception, nextRunAt, jobId) statement)
+    runConn conn (HasqlSession.statement (inputValue status, now, tshow exception, nextRunAt, jobId) statement)
+    runConn conn (HasqlSession.script "COMMIT")
 
-jobDidTimeout :: forall job context.
+-- | Called when a job timed out. Sets the job status to 'JobStatusTimedOut' or 'JobStatusRetry' (if more attempts are possible),
+-- resets 'lockedBy', and commits the transaction.
+jobDidTimeoutConn :: forall job context.
     ( Table job
     , HasField "id" job (Id' (GetTableName job))
     , PrimaryKey (GetTableName job) ~ UUID
@@ -65,8 +71,8 @@ jobDidTimeout :: forall job context.
     , Job job
     , ?context :: context
     , HasField "logger" context Log.Logger
-    ) => HasqlPool.Pool -> job -> IO ()
-jobDidTimeout pool job = do
+    ) => HasqlConnection.Connection -> job -> IO ()
+jobDidTimeoutConn conn job = do
     now <- getCurrentTime
 
     Log.warn ("Job timed out" :: Text)
@@ -88,18 +94,19 @@ jobDidTimeout pool job = do
             <> contramap (\(_,_,_,r,_) -> r) (Encoders.param (Encoders.nonNullable Encoders.timestamptz))
             <> contramap (\(_,_,_,_,i) -> i) (Encoders.param (Encoders.nonNullable Encoders.uuid))
     let statement = Hasql.unpreparable sql encoder Decoders.noResult
-    runPool pool (HasqlSession.statement (inputValue status, now, "Timeout reached" :: Text, nextRunAt, jobId) statement)
+    runConn conn (HasqlSession.statement (inputValue status, now, "Timeout reached" :: Text, nextRunAt, jobId) statement)
+    runConn conn (HasqlSession.script "COMMIT")
 
-
--- | Called when a job succeeded. Sets the job status to 'JobStatusSucceded' and resets 'lockedBy'
-jobDidSucceed :: forall job context.
+-- | Called when a job succeeded. Sets the job status to 'JobStatusSucceeded',
+-- resets 'lockedBy', and commits the transaction.
+jobDidSucceedConn :: forall job context.
     ( Table job
     , HasField "id" job (Id' (GetTableName job))
     , PrimaryKey (GetTableName job) ~ UUID
     , ?context :: context
     , HasField "logger" context Log.Logger
-    ) => HasqlPool.Pool -> job -> IO ()
-jobDidSucceed pool job = do
+    ) => HasqlConnection.Connection -> job -> IO ()
+jobDidSucceedConn conn job = do
     Log.info ("Succeeded job" :: Text)
     updatedAt <- getCurrentTime
     let Id jobId = job.id
@@ -110,7 +117,8 @@ jobDidSucceed pool job = do
             contramap fst (Encoders.param (Encoders.nonNullable Encoders.timestamptz))
             <> contramap snd (Encoders.param (Encoders.nonNullable Encoders.uuid))
     let statement = Hasql.unpreparable sql encoder Decoders.noResult
-    runPool pool (HasqlSession.statement (updatedAt, jobId) statement)
+    runConn conn (HasqlSession.statement (updatedAt, jobId) statement)
+    runConn conn (HasqlSession.script "COMMIT")
 
 -- | Compute the delay before the next retry attempt.
 --

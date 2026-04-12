@@ -20,6 +20,7 @@ data JobWorkerArgs = JobWorkerArgs
     , modelContext :: ModelContext
     , frameworkConfig :: FrameworkConfig
     , pgListener :: PGListener.PGListener
+    , databaseUrl :: ByteString
     }
 
 newtype JobWorker = JobWorker (JobWorkerArgs -> ResourceT IO JobWorkerProcess)
