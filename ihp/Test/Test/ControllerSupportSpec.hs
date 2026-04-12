@@ -20,7 +20,9 @@ import qualified Data.Aeson as Aeson
 import qualified Network.Wai as Wai
 import qualified Data.ByteString.Lazy as LBS
 import qualified Data.ByteString as BS
-import Network.HTTP.Types (status101, status400)
+import Network.HTTP.Types (status200, status400)
+import qualified Network.Wai.Handler.Warp as Warp
+import qualified Network.WebSockets as WebSockets
 
 -- | Minimal application fixture for 'startWebSocketApp' — just enough to
 -- satisfy the 'InitControllerContext' constraint without any real initialisation.
@@ -37,6 +39,16 @@ data TestWSApp = TestWSApp
 
 instance WS.WSApp TestWSApp where
     initialState = TestWSApp
+
+-- | WSApp that echoes received text data back to the client.
+-- Used to test that WebSocket connections actually work end-to-end.
+data EchoWSApp = EchoWSApp
+
+instance WS.WSApp EchoWSApp where
+    initialState = EchoWSApp
+    run = do
+        msg <- WS.receiveData @LBS.ByteString
+        WS.sendTextData msg
 
 tests = do
     describe "IHP.ControllerSupport" do
@@ -92,7 +104,9 @@ tests = do
             -- responseStatus res') and log 500 for every successful upgrade.
             -- 'startWebSocketApp' must rewrite the fallback status so the
             -- view-from-middleware agrees with the on-the-wire status.
-            it "presents successful WebSocket upgrades as status 101 to middleware" do
+            -- We use status200 (not status101) because Warp's hasBody
+            -- returns False for 1xx, which skips the raw handler (#2628).
+            it "rewrites WebSocket fallback status to non-500 for middleware" do
                 frameworkConfig <- FrameworkConfig.buildFrameworkConfig (FrameworkConfig.option Development)
                 let modelContext = notConnectedModelContext frameworkConfig.logger
                 let baseRequest = Wai.defaultRequest
@@ -113,7 +127,29 @@ tests = do
                         let ?application = TestApp
                         startWebSocketAppAndFailOnHTTP @TestWSApp @TestApp TestWSApp r respond
                 SResponse { simpleStatus } <- runSession (request baseRequest) app
-                simpleStatus `shouldBe` status101
+                simpleStatus `shouldBe` status200
+
+            -- Regression for digitallyinduced/ihp#2628: verify that the
+            -- fallback status rewrite does not break actual WebSocket
+            -- connections through Warp. A previous fix used status101 which
+            -- caused Warp to skip the raw handler entirely.
+            it "allows a real WebSocket connection through Warp" do
+                frameworkConfig <- FrameworkConfig.buildFrameworkConfig (FrameworkConfig.option Development)
+                let modelContext = notConnectedModelContext frameworkConfig.logger
+                let app r respond = do
+                        let ?request = r { Wai.vault =
+                                Vault.insert RequestVault.frameworkConfigVaultKey frameworkConfig
+                                $ Vault.insert RequestVault.modelContextVaultKey modelContext
+                                $ Wai.vault r
+                            }
+                        let ?respond = respond
+                        let ?application = TestApp
+                        startWebSocketAppAndFailOnHTTP @EchoWSApp @TestApp EchoWSApp r respond
+                Warp.testWithApplication (pure app) \port -> do
+                    WebSockets.runClient "127.0.0.1" port "/" \conn -> do
+                        WebSockets.sendTextData conn ("hello" :: Text)
+                        reply <- WebSockets.receiveData conn
+                        reply `shouldBe` ("hello" :: Text)
 
 bodyContains :: BS.ByteString -> LBS.ByteString -> Bool
 bodyContains needle haystack = BS.isInfixOf needle (LBS.toStrict haystack)
