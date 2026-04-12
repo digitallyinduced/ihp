@@ -28,7 +28,7 @@ import qualified Data.TMap as TypeMap
 import IHP.FrameworkConfig.Types (FrameworkConfig(..))
 import IHP.Log.Types
 import System.IO.Unsafe (unsafePerformIO)
-import Network.Wai (Request)
+import Network.Wai (Request, vault)
 import qualified Data.Vault.Lazy as Vault
 import IHP.RequestVault (requestFrameworkConfig)
 import IHP.RequestVault.Helper (lookupRequestVault)
@@ -106,6 +106,8 @@ setLogger logger = writeIORef (lookupRequestVault loggerOverrideVaultKey ?reques
 instance HasField "logger" ControllerContext Logger where
     getField context =
         let request = context.request
-            override = unsafePerformIO $ readIORef (lookupRequestVault loggerOverrideVaultKey request)
+            override = case Vault.lookup loggerOverrideVaultKey (vault request) of
+                Just ref -> unsafePerformIO $ readIORef ref
+                Nothing -> Nothing
         in fromMaybe (requestFrameworkConfig request).logger override
     {-# INLINABLE getField #-}
