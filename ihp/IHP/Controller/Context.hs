@@ -17,11 +17,10 @@ module IHP.Controller.Context
     , maybeFromFrozenContext
     , ActionType(..)
     , loggerOverrideVaultKey
-    , setLogger
     ) where
 
 import Prelude
-import Data.IORef (IORef, newIORef, readIORef, writeIORef)
+import Data.IORef (newIORef, readIORef)
 import GHC.Records (HasField(..))
 import Data.Maybe (fromMaybe)
 import qualified Data.TMap as TypeMap
@@ -31,7 +30,6 @@ import System.IO.Unsafe (unsafePerformIO)
 import Network.Wai (Request, vault)
 import qualified Data.Vault.Lazy as Vault
 import IHP.RequestVault (requestFrameworkConfig)
-import IHP.RequestVault.Helper (lookupRequestVault)
 import IHP.ActionType (ActionType(..))
 
 -- Re-export from ihp-context, but we shadow newControllerContext
@@ -72,42 +70,22 @@ instance HasField "frameworkConfig" ControllerContext FrameworkConfig where
 
 -- | Vault key for per-request logger overrides.
 --
--- Middleware creates an @IORef (Maybe Logger)@ in the vault. 'setLogger' writes to it.
--- The @HasField "logger"@ instance on 'ControllerContext' reads from it.
-loggerOverrideVaultKey :: Vault.Key (IORef (Maybe Logger))
+-- To override the logger, install a middleware via 'CustomMiddleware' in Config.hs:
+--
+-- > import IHP.Controller.Context (loggerOverrideVaultKey)
+-- > import IHP.RequestVault.Helper (insertVaultMiddleware)
+-- >
+-- > config :: ConfigBuilder
+-- > config = do
+-- >     option $ CustomMiddleware (insertVaultMiddleware loggerOverrideVaultKey myCustomLogger)
+--
+loggerOverrideVaultKey :: Vault.Key Logger
 loggerOverrideVaultKey = unsafePerformIO Vault.newKey
 {-# NOINLINE loggerOverrideVaultKey #-}
-
--- | Override the logger for the current request.
---
--- This can be useful to customize the log formatter for all actions of an app:
---
--- > -- Web/FrontController.hs
--- >
--- > import IHP.Log.Types as Log
--- > import IHP.Controller.Context
--- >
--- > instance InitControllerContext WebApplication where
--- >     initContext = do
--- >         -- ... your other initContext code
--- >         setLogger myCustomLogger
--- >
--- > myCustomLogger :: (?request :: Request) => Logger
--- > myCustomLogger =
--- >     defaultLogger { Log.formatter = myFormatter defaultLogger.formatter }
--- >     where
--- >         defaultLogger = ?request.frameworkConfig.logger
---
-setLogger :: (?request :: Request) => Logger -> IO ()
-setLogger logger = writeIORef (lookupRequestVault loggerOverrideVaultKey ?request) (Just logger)
-{-# INLINE setLogger #-}
 
 -- | Access logger, checking the vault override first, then falling back to frameworkConfig.logger
 instance HasField "logger" ControllerContext Logger where
     getField context =
         let request = context.request
-            override = case Vault.lookup loggerOverrideVaultKey (vault request) of
-                Just ref -> unsafePerformIO $ readIORef ref
-                Nothing -> Nothing
-        in fromMaybe (requestFrameworkConfig request).logger override
+        in fromMaybe (requestFrameworkConfig request).logger (Vault.lookup loggerOverrideVaultKey (vault request))
     {-# INLINABLE getField #-}

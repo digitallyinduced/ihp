@@ -38,7 +38,6 @@ import IHP.Controller.Response (responseHeadersVaultKey)
 import IHP.ControllerSupport (rlsContextVaultKey)
 import IHP.PageHead.Types
 import IHP.Modal.Types (modalContainerVaultKey)
-import IHP.Controller.Context (loggerOverrideVaultKey)
 
 import IHP.Controller.NotFound (handleNotFound)
 import IHP.Static (staticRouteShortcut)
@@ -162,7 +161,6 @@ initMiddlewareStack frameworkConfig modelContext maybePgListener = do
     let rlsContextMiddleware = insertNewIORefVaultMiddleware rlsContextVaultKey Nothing
     let modalMiddleware = insertNewIORefVaultMiddleware modalContainerVaultKey Nothing
     let pageHeadMiddleware = insertNewIORefVaultMiddleware pageHeadVaultKey emptyPageHeadState
-    let loggerOverrideMiddleware = insertNewIORefVaultMiddleware loggerOverrideVaultKey Nothing
 
     pure $
         customMiddleware
@@ -175,7 +173,6 @@ initMiddlewareStack frameworkConfig modelContext maybePgListener = do
         . rlsContextMiddleware
         . pageHeadMiddleware
         . modalMiddleware
-        . loggerOverrideMiddleware
         . modelContextMiddleware modelContext
         . frameworkConfigMiddleware frameworkConfig
         . requestBodyMiddleware frameworkConfig.parseRequestBodyOptions

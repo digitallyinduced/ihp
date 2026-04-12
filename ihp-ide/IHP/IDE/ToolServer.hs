@@ -52,7 +52,6 @@ import IHP.Controller.Response (responseHeadersVaultKey)
 import IHP.ControllerSupport (rlsContextVaultKey)
 import Wai.Request.Params.Middleware (requestBodyMiddleware)
 import IHP.Modal.Types (modalContainerVaultKey)
-import IHP.Controller.Context (loggerOverrideVaultKey)
 
 runToolServer :: (?context :: Context) => ToolServerApplication -> _ -> IO ()
 runToolServer toolServerApplication liveReloadClients = do
@@ -117,7 +116,6 @@ withToolServerApplication toolServerApplication port liveReloadClients action = 
         let responseHeadersMiddleware = insertNewIORefVaultMiddleware responseHeadersVaultKey []
         let rlsContextMiddleware = insertNewIORefVaultMiddleware rlsContextVaultKey Nothing
         let modalMiddleware = insertNewIORefVaultMiddleware modalContainerVaultKey Nothing
-        let loggerOverrideMiddleware = insertNewIORefVaultMiddleware loggerOverrideVaultKey Nothing
 
         let toolServerVaultMiddleware app req respond = do
                 availableApps <- AvailableApps <$> findApplications
@@ -144,7 +142,6 @@ withToolServerApplication toolServerApplication port liveReloadClients action = 
                     $ responseHeadersMiddleware
                     $ rlsContextMiddleware
                     $ modalMiddleware
-                    $ loggerOverrideMiddleware
                     $ toolServerVaultMiddleware
                     $ modelContextMiddleware modelContext
                     $ frameworkConfigMiddleware frameworkConfig
