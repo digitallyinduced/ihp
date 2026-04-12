@@ -12,7 +12,6 @@ import IHP.Test.Mocking
 import IHP.Environment
 import IHP.FrameworkConfig
 import IHP.ControllerPrelude hiding (get, request)
-import IHP.Controller.Cookie
 import Web.Cookie
 import Network.Wai.Test
 import Test.Util (testGet)

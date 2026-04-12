@@ -17,7 +17,6 @@ import Test.Util (assertBodyNotContains, testPostJSON)
 import qualified Data.Vault.Lazy as Vault
 import qualified Data.Aeson as Aeson
 import qualified Network.Wai as Wai
-import Network.Wai.Test (defaultRequest)
 import qualified Data.ByteString.Lazy as LBS
 import Network.HTTP.Types (status101, hContentType)
 import IHP.Server (initMiddlewareStack)
