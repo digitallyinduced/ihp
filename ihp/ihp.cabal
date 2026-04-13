@@ -168,7 +168,6 @@ library
         , IHP.Controller.Redirect
         , IHP.Controller.Render
         , IHP.Controller.Session
-        , IHP.Controller.Context
         , IHP.Controller.Layout
         , IHP.Controller.BasicAuth
         , IHP.Controller.Cookie

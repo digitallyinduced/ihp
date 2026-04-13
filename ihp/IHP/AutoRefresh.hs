@@ -50,7 +50,7 @@ autoRefresh :: (
     ?theAction :: action
     , Controller action
     , ?modelContext :: ModelContext
-    , ?context :: ControllerContext
+    , ?context :: Request
     , ?request :: Request
     , ?respond :: Respond
     ) => ((?modelContext :: ModelContext, ?respond :: Respond) => IO ResponseReceived) -> IO ResponseReceived
@@ -186,7 +186,7 @@ captureResponseBody originalRespond action = do
     captured <- readIORef bodyRef
     pure (result, captured)
 
-registerNotificationTrigger :: (?modelContext :: ModelContext, ?context :: ControllerContext) => IORef (Set Text) -> IORef AutoRefreshServer -> IO ()
+registerNotificationTrigger :: (?modelContext :: ModelContext, ?context :: Request) => IORef (Set Text) -> IORef AutoRefreshServer -> IO ()
 registerNotificationTrigger touchedTablesVar autoRefreshServer = do
     touchedTables <- Set.toList <$> readIORef touchedTablesVar
     subscribedTables <- (.subscribedTables) <$> (autoRefreshServer |> readIORef)

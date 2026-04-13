@@ -13,7 +13,6 @@ module IHP.Pagination.ControllerFunctions
 ) where
 
 import IHP.Prelude
-import IHP.Controller.Context
 import IHP.Controller.Param ( paramOrDefault, paramOrNothing )
 import IHP.Pagination.Types ( Options(..), Pagination(..) )
 import IHP.QueryBuilder ( QueryBuilder, filterWhereILike, limit, offset )
@@ -50,7 +49,7 @@ import Data.Text.Encoding (encodeUtf8)
 -- >    user <- userQ |> fetch
 -- >    render IndexView { .. }
 paginate :: forall controller table .
-    (?context::ControllerContext
+    (?context::Request
     , ?modelContext :: ModelContext
     , ?theAction :: controller
     , ?request :: Request
@@ -81,7 +80,7 @@ paginate = paginateWithOptions defaultPaginationOptions
 -- >    user <- userQ |> fetch
 -- >    render IndexView { .. }
 paginateWithOptions :: forall controller table .
-    (?context::ControllerContext
+    (?context::Request
     , ?modelContext :: ModelContext
     , ?theAction :: controller
     , ?request :: Request
@@ -124,7 +123,7 @@ paginateWithOptions options query = do
 -- >    user <- userQ |> fetch
 -- >    render IndexView { .. }
 filterList :: forall name table model .
-    (?context::ControllerContext
+    (?context::Request
     , ?request :: Request
     , KnownSymbol name
     , HasField name model Text
@@ -179,7 +178,7 @@ defaultPaginationOptions =
 paginatedSqlQuery
   :: ( FromRowHasql model
      , ToSnippetParams parameters
-     , ?context :: ControllerContext
+     , ?context :: Request
      , ?modelContext :: ModelContext
      , ?request :: Request
      )
@@ -203,7 +202,7 @@ paginatedSqlQuery = paginatedSqlQueryWithOptions defaultPaginationOptions
 paginatedSqlQueryWithOptions
   :: ( FromRowHasql model
      , ToSnippetParams parameters
-     , ?context :: ControllerContext
+     , ?context :: Request
      , ?modelContext :: ModelContext
      , ?request :: Request
      )

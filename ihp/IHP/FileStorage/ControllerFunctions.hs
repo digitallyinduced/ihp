@@ -22,7 +22,6 @@ module IHP.FileStorage.ControllerFunctions
 
 import IHP.Prelude
 import IHP.FileStorage.Types
-import IHP.Controller.Context
 import IHP.Controller.FileUpload
 import IHP.FrameworkConfig
 import qualified IHP.ModelSupport as ModelSupport
@@ -340,7 +339,7 @@ contentDispositionAttachmentAndFileName fileInfo =
 -- >                 redirectTo EditCompanyAction { .. }
 --
 uploadToStorageWithOptions :: forall (fieldName :: Symbol) record (tableName :: Symbol). (
-        ?context :: ControllerContext
+        ?context :: Request
         , ?request :: Request
         , SetField fieldName record (Maybe Text)
         , KnownSymbol fieldName
@@ -390,7 +389,7 @@ uploadToStorageWithOptions options field record = do
 -- >                 redirectTo EditCompanyAction { .. }
 --
 uploadToStorage :: forall (fieldName :: Symbol) record (tableName :: Symbol). (
-        ?context :: ControllerContext
+        ?context :: Request
         , ?request :: Request
         , SetField fieldName record (Maybe Text)
         , KnownSymbol fieldName
@@ -434,7 +433,7 @@ storage = ?context.frameworkConfig.appConfig
         |> fromMaybe (error "Could not find FileStorage in config. Did you call initS3Storage from your Config.hs?")
 
 -- | Returns the prefix for the storage. This is either @static/@ or an empty string depending on the storage.
-storagePrefix :: (?context :: ControllerContext) => Text
+storagePrefix :: (?context :: Request) => Text
 storagePrefix = case storage of
     StaticDirStorage { directory } -> directory
     S3Storage { baseUrl} -> baseUrl

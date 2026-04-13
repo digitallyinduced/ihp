@@ -25,7 +25,7 @@ import IHP.Hasql.FromRow (FromRowHasql)
 -- In case the user is already logged in, redirects to the home page ('afterLoginRedirectPath').
 newSessionAction :: forall record action.
     ( ?theAction :: action
-    , ?context :: ControllerContext
+    , ?context :: Request
     , ?request :: Request
     , ?respond :: Respond
     , HasNewSessionUrl record
@@ -54,7 +54,7 @@ newSessionAction = do
 -- After a successful login, the user is redirect to 'afterLoginRedirectPath'.
 createSessionAction :: forall record action.
     (?theAction :: action
-    , ?context :: ControllerContext
+    , ?context :: Request
     , ?request :: Request
     , ?respond :: Respond
     , ?modelContext :: ModelContext
@@ -110,7 +110,7 @@ createSessionAction = do
 -- | Logs out the user and redirects to `afterLogoutRedirectPath` or login page by default
 deleteSessionAction :: forall record action.
     ( ?theAction :: action
-    , ?context :: ControllerContext
+    , ?context :: Request
     , ?request :: Request
     , ?respond :: Respond
     , ?modelContext :: ModelContext
@@ -172,13 +172,13 @@ class ( Typeable record
     -- >     unless (user.isConfirmed) do
     -- >         setErrorMessage "Please click the confirmation link we sent to your email before you can use the App"
     -- >         redirectTo NewSessionAction
-    beforeLogin :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => record -> IO ()
+    beforeLogin :: (?context :: Request, ?modelContext :: ModelContext, ?request :: Request) => record -> IO ()
     beforeLogin _ = pure ()
 
     -- | Callback that is executed just before the user is logged out
     --
     -- This is called only if user session exists
-    beforeLogout :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => record -> IO ()
+    beforeLogout :: (?context :: Request, ?modelContext :: ModelContext, ?request :: Request) => record -> IO ()
     beforeLogout _ = pure ()
 
     -- | Return's the @query\ \@User@ used by the controller. Customize this to e.g. exclude guest users from logging in.

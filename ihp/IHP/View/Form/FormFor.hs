@@ -13,7 +13,6 @@ Copyright: (c) digitally induced GmbH, 2020
 -}
 module IHP.View.Form.FormFor where
 
-import           IHP.Controller.Context
 import           IHP.HSX.ConvertibleStrings ()
 import           IHP.HSX.MarkupQQ (hsx)
 import           IHP.ModelSupport (Id', InputValue, getModelName, isNew)
@@ -89,11 +88,11 @@ import IHP.HSX.Markup (Markup, ToHtml(..))
 -- >     <div class="invalid-feedback">This field cannot be empty</div>
 -- > </div>
 formFor :: forall record. (
-    ?context :: ControllerContext
+    ?context :: Request
     , ?request :: Request
     , ModelFormAction record
     , HasField "meta" record MetaBag
-    ) => record -> ((?context :: ControllerContext, ?formContext :: FormContext record) => Markup) -> Markup
+    ) => record -> ((?context :: Request, ?formContext :: FormContext record) => Markup) -> Markup
 formFor record formBody = formForWithOptions @record record (\c -> c) formBody
 {-# INLINE formFor #-}
 
@@ -114,11 +113,11 @@ formFor record formBody = formForWithOptions @record record (\c -> c) formBody
 -- >     |> set #customFormAttributes [("data-post-id", show formContext.model.id)]
 --
 formForWithOptions :: forall record. (
-    ?context :: ControllerContext
+    ?context :: Request
     , ?request :: Request
     , ModelFormAction record
     , HasField "meta" record MetaBag
-    ) => record -> (FormContext record -> FormContext record) -> ((?context :: ControllerContext, ?formContext :: FormContext record) => Markup) -> Markup
+    ) => record -> (FormContext record -> FormContext record) -> ((?context :: Request, ?formContext :: FormContext record) => Markup) -> Markup
 formForWithOptions record applyOptions formBody = buildForm (applyOptions (createFormContext record) { formAction = modelFormAction record }) formBody
 {-# INLINE formForWithOptions #-}
 
@@ -148,11 +147,11 @@ formForWithOptions record applyOptions formBody = buildForm (applyOptions (creat
 -- >     |> set #disableJavascriptSubmission True
 --
 formForWithoutJavascript :: forall record. (
-    ?context :: ControllerContext
+    ?context :: Request
     , ?request :: Request
     , ModelFormAction record
     , HasField "meta" record MetaBag
-    ) => record -> ((?context :: ControllerContext, ?formContext :: FormContext record) => Markup) -> Markup
+    ) => record -> ((?context :: Request, ?formContext :: FormContext record) => Markup) -> Markup
 formForWithoutJavascript record formBody = formForWithOptions @record record (\formContext -> formContext { disableJavascriptSubmission = True }) formBody
 {-# INLINE formForWithoutJavascript #-}
 
@@ -180,10 +179,10 @@ formForWithoutJavascript record formBody = formForWithOptions @record record (\f
 -- > renderForm post = formFor' post (pathTo CreateDraftAction) [hsx||]
 --
 formFor' :: forall record. (
-    ?context :: ControllerContext
+    ?context :: Request
     , ?request :: Request
     , HasField "meta" record MetaBag
-    ) => record -> Text -> ((?context :: ControllerContext, ?formContext :: FormContext record) => Markup) -> Markup
+    ) => record -> Text -> ((?context :: Request, ?formContext :: FormContext record) => Markup) -> Markup
 formFor' record action = buildForm (createFormContext record) { formAction = action }
 {-# INLINE formFor' #-}
 
@@ -207,7 +206,7 @@ createFormContext record =
 {-# INLINE createFormContext #-}
 
 -- | Used by 'formFor' to render the form
-buildForm :: forall model. (?context :: ControllerContext) => FormContext model -> ((?context :: ControllerContext, ?formContext :: FormContext model) => Markup) -> Markup
+buildForm :: forall model. (?context :: Request) => FormContext model -> ((?context :: Request, ?formContext :: FormContext model) => Markup) -> Markup
 buildForm formContext inner = [hsx|
         <form
             method={formContext.formMethod}
@@ -225,7 +224,7 @@ buildForm formContext inner = [hsx|
 {-# INLINE buildForm #-}
 
 nestedFormFor :: forall fieldName childRecord parentRecord idType. (
-    ?context :: ControllerContext
+    ?context :: Request
     , ?formContext :: FormContext parentRecord
     , HasField fieldName parentRecord [childRecord]
     , KnownSymbol fieldName
@@ -233,7 +232,7 @@ nestedFormFor :: forall fieldName childRecord parentRecord idType. (
     , HasField "id" childRecord idType
     , InputValue idType
     , HasField "meta" childRecord MetaBag
-    ) => Proxy fieldName -> ((?context :: ControllerContext, ?formContext :: FormContext childRecord) => Markup) -> Markup
+    ) => Proxy fieldName -> ((?context :: Request, ?formContext :: FormContext childRecord) => Markup) -> Markup
 nestedFormFor field nestedRenderForm = forEach children renderChild
     where
         parentFormContext :: FormContext parentRecord
@@ -323,7 +322,7 @@ submitButton =
 
 -- | Returns the form's action attribute for a given record.
 class ModelFormAction record where
-    modelFormAction :: (?context :: ControllerContext, ?request :: Request) => record -> Text
+    modelFormAction :: (?context :: Request, ?request :: Request) => record -> Text
 
 instance
     ( HasField "id" record (Id' (GetTableName record))

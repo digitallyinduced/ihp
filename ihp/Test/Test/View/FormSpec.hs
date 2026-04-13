@@ -80,7 +80,7 @@ tests = do
 
 shouldRenderTo renderFunction expectedHtml = renderMarkupText renderFunction `shouldBe` expectedHtml
 
-createControllerContext :: IO ControllerContext
+createControllerContext :: IO Request
 createControllerContext = do
     frameworkConfig <- FrameworkConfig.buildFrameworkConfig (pure ())
     let requestBody = FormBody { params = [], files = [], rawPayload = "" }

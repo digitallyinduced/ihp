@@ -26,7 +26,7 @@ instance View NewPolicyView where
             modal = policyFormModal tableName columns policy (pathTo CreatePolicyAction) mempty "Create Policy" "New Policy"
 
 -- | Shared form modal for creating and editing policies.
-policyFormModal :: (?context :: ControllerContext, ?request :: Request) => Text -> [Column] -> Statement -> Text -> Html -> Text -> Text -> Modal
+policyFormModal :: (?context :: Request, ?request :: Request) => Text -> [Column] -> Statement -> Text -> Html -> Text -> Text -> Modal
 policyFormModal tableName columns policy formAction extraHiddenFields buttonText modalTitle = Modal { modalContent, modalFooter, modalCloseUrl, modalTitle }
     where
         modalContent = [hsx|
