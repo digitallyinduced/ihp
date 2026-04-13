@@ -64,16 +64,7 @@ let
             ihp-migrate = (localPackage "ihp-migrate").overrideAttrs (old: { mainProgram = "migrate"; });
             ihp-openai = localPackage "ihp-openai";
             ihp-ssc = localPackage "ihp-ssc";
-            # Override Hackage ihp-zip 0.1.0 with a fork that drops the
-            # removed IHP.Controller.Context import. Revert once 0.1.1 ships.
-            ihp-zip = fastBuild (final.haskell.lib.overrideCabal (hackagePackage "ihp-zip") (old: {
-                src = builtins.fetchTarball {
-                    url = "https://github.com/digitallyinduced/ihp-zip/archive/b716d1935d958bac3202010258b15c4669635a65.tar.gz";
-                    sha256 = "0q4j15ab0fnhp4m8d0mw4skp64fyfgjipdrmxp9nwbac62yih1fb";
-                };
-                revision = null;
-                editedCabalFile = null;
-            }));
+            ihp-zip = fastBuild (hackagePackage "ihp-zip");
             ihp-hsx = localPackage "ihp-hsx";
             ihp-graphql = localPackage "ihp-graphql";
             ihp-datasync-typescript = localPackage "ihp-datasync-typescript";
