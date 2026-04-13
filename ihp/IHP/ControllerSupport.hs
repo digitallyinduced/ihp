@@ -114,7 +114,6 @@ newContextForAction controller = do
     let ?modelContext = ?request.modelContext
     controllerContext <- Context.newControllerContext
     let ?context = controllerContext
-    Context.putContext ?application
     wrapInitContextException (initContext @application)
     pure ?context
 
@@ -140,7 +139,6 @@ setupActionContext controllerTypeRep waiRequest waiRespond = do
     let ?modelContext = request'.modelContext
     controllerContext <- Context.newControllerContext
     let ?context = controllerContext
-    Context.putContext ?application
     wrapInitContextException (initContext @application)
     pure ?context
 
@@ -193,8 +191,6 @@ startWebSocketApp initialState onHTTP waiRequest waiRespond = do
 
             controllerContext <- Context.newControllerContext
             let ?context = controllerContext
-
-            Context.putContext ?application
 
             try (initContext @application) >>= \case
                 Left (exception :: SomeException) -> putStrLn $ "Unexpected exception in initContext, " <> show exception

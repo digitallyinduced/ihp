@@ -204,38 +204,28 @@ You can override the default logger and have it decorated with additional inform
 
 
 ```haskell
--- Web/FrontController.hs
+-- Config/Config.hs
 
--- Add imports
 import IHP.Log.Types as Log
-import IHP.Controller.Context
+import IHP.RequestVault (loggerVaultKey, loggerMiddleware)
 
-instance InitControllerContext WebApplication where
-    initContext = do
-        initAuthentication @User
-        -- ... your other initContext code
+config :: ConfigBuilder
+config = do
+    -- Override the default logger with a custom middleware.
+    -- This replaces the logger that IHP installs from frameworkConfig.logger.
+    option $ CustomMiddleware (loggerMiddleware myCustomLogger)
 
-        putContext userIdLogger
-
-userIdLogger :: (?context :: ControllerContext) => Logger
-userIdLogger =
-    defaultLogger { Log.formatter = userIdFormatter defaultLogger.formatter }
+myCustomLogger :: Logger
+myCustomLogger =
+    defaultLogger { Log.formatter = myFormatter }
     where
-        defaultLogger = ?context.frameworkConfig.logger
+        defaultLogger = def
+        myFormatter time level string =
+            defaultLogger.formatter time level (prependUserId string)
 
-
-userIdFormatter :: (?context :: ControllerContext) => Log.LogFormatter -> Log.LogFormatter
-userIdFormatter existingFormatter time level string =
-    existingFormatter time level (prependUserId string)
-
-prependUserId :: (?context :: ControllerContext) => LogStr -> LogStr
+prependUserId :: LogStr -> LogStr
 prependUserId string =
-    toLogStr $ userInfo <> show string
-    where
-        userInfo =
-            case currentUserOrNothing of
-                Just currentUser -> "Authenticated user ID: " <> show currentUser.id <> " "
-                Nothing -> "Anonymous user: "
+    toLogStr $ "Custom prefix: " <> show string
 ```
 
 From your controller you can now add a log message
