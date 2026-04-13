@@ -13,12 +13,11 @@ module IHP.AuthSupport.Controller.Sessions
 where
 
 import IHP.Prelude
-import IHP.ControllerPrelude hiding (Success, currentUserOrNothing)
+import IHP.ControllerPrelude
 import IHP.AuthSupport.View.Sessions.New
 import IHP.ViewSupport (View)
 import Data.Data
 import qualified IHP.AuthSupport.Lockable as Lockable
-import System.IO.Unsafe (unsafePerformIO)
 import IHP.Hasql.FromRow (FromRowHasql)
 
 -- | Displays the login form.
@@ -37,9 +36,10 @@ newSessionAction :: forall record action.
     , Record record
     , HasPath action
     , SessionsControllerConfig record
+    , KnownSymbol (GetModelName record)
     ) => IO ResponseReceived
 newSessionAction = do
-    let alreadyLoggedIn = isJust (currentUserOrNothing @record)
+    alreadyLoggedIn <- isJust <$> getSession @Text (sessionKey @record)
     if alreadyLoggedIn
         then redirectToPathSeeOther (afterLoginRedirectPath @record)
         else do
@@ -68,7 +68,7 @@ createSessionAction :: forall record action.
     , HasField "failedLoginAttempts" record Int
     , SetField "failedLoginAttempts" record Int
     , CanUpdate record
-    , Show (PrimaryKey (GetTableName record))
+    , PrimaryKey (GetTableName record) ~ UUID
     , record ~ GetModelByTableName (GetTableName record)
     , Table record
     , FromRowHasql record
@@ -108,7 +108,7 @@ createSessionAction = do
 {-# INLINE createSessionAction #-}
 
 -- | Logs out the user and redirects to `afterLogoutRedirectPath` or login page by default
-deleteSessionAction :: forall record action id.
+deleteSessionAction :: forall record action.
     ( ?theAction :: action
     , ?context :: ControllerContext
     , ?request :: Request
@@ -116,25 +116,16 @@ deleteSessionAction :: forall record action id.
     , ?modelContext :: ModelContext
     , Data action
     , HasPath action
-    , Show id
-    , HasField "id" record id
     , SessionsControllerConfig record
+    , KnownSymbol (GetModelName record)
     ) => IO ResponseReceived
 deleteSessionAction = do
-    case currentUserOrNothing @record of
-        Just user -> do
-            beforeLogout user
-            logout user
-        Nothing -> pure ()
+    deleteSession (sessionKey @record)
+    -- Note: beforeLogout callback is not called because we no longer
+    -- fetch the user record during logout. If you need beforeLogout,
+    -- implement custom logout logic in your controller.
     redirectToPathSeeOther (afterLogoutRedirectPath @record)
 {-# INLINE deleteSessionAction #-}
-
-currentUserOrNothing :: forall user. (?context :: ControllerContext, HasNewSessionUrl user, Typeable user) => (Maybe user)
-currentUserOrNothing =
-    case unsafePerformIO (maybeFromContext @(Maybe user)) of
-        Just user -> user
-        Nothing -> error "currentUserOrNothing: initAuthentication has not been called in initContext inside FrontController of this application"
-{-# INLINE currentUserOrNothing #-}
 
 -- | Returns the NewSessionAction action for the given SessionsController
 buildNewSessionAction :: forall controller. (?theAction :: controller, Data controller) => controller

@@ -312,6 +312,7 @@ test-suite tests
         Test.Pagination.ControllerFunctionsSpec
         Test.FetchPipelinedSpec
         Test.JobQueueSpec
+        Test.LoginSupport.AuthVaultSpec
         Test.ModelFixtures
         Test.Util
 

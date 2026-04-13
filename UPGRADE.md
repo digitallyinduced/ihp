@@ -36,6 +36,40 @@ If your `View` instances only defined `html` (the common case), no changes are n
 
 The `renderJson` function is unchanged and can still be used directly in controllers.
 
+## Authentication moved to WAI middleware
+
+The `initAuthentication` function has been deprecated in favor of a WAI middleware approach. Authentication now runs as middleware before your controllers, storing the current user in the WAI request vault.
+
+**Migration steps:**
+
+1. Remove `initAuthentication @User` from your `InitControllerContext` instances:
+
+    ```diff
+    instance InitControllerContext WebApplication where
+        initContext = do
+            setLayout defaultLayout
+            initAutoRefresh
+    -       initAuthentication @User
+    ```
+
+2. Add the `AuthMiddleware` option to your `Config.hs`:
+
+    ```haskell
+    import IHP.LoginSupport.Middleware
+
+    config :: ConfigBuilder
+    config = do
+        option $ AuthMiddleware (authMiddleware @User)
+    ```
+
+3. If you use both User and Admin authentication, compose the middleware:
+
+    ```haskell
+    option $ AuthMiddleware (authMiddleware @User . adminAuthMiddleware @Admin)
+    ```
+
+**Deprecated functions:** `initAuthentication` still works but is deprecated. `currentRoleOrNothing`, `currentRole`, `currentRoleId`, `ensureIsRole` have been removed. Use the type-specific variants instead: `currentUserOrNothing`/`currentAdminOrNothing`, `currentUser`/`currentAdmin`, `currentUserId`/`currentAdminId`, `ensureIsUser`/`ensureIsAdmin`.
+
 ## Join Support Removed from QueryBuilder
 
 The query builder's join functions (`innerJoin`, `innerJoinThirdTable`, `labelResults`) and all `*JoinedTable` filter/order functions have been removed. Use `typedSql` instead, which provides full SQL expressiveness with compile-time type safety.
