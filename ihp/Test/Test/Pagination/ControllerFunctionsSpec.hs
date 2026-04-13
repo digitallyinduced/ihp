@@ -141,8 +141,7 @@ contextWithParams :: [(ByteString, ByteString)] -> ControllerContext
 contextWithParams params =
     let requestBody = FormBody { params, files = [], rawPayload = "" }
         request = Wai.defaultRequest { Wai.vault = Vault.insert requestBodyVaultKey requestBody Vault.empty }
-        customFields = TypeMap.insert request TypeMap.empty
-    in FrozenControllerContext { customFields }
+    in ControllerContext { request }
 
 -- | Run a test with a database connection, skipping if PostgreSQL is not available.
 -- Only connection failures are caught and marked as pending; test assertion errors propagate normally.

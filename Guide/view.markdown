@@ -115,36 +115,41 @@ Here's some examples:
 
 In all of these cases you don't want to deal with passing the information to the layout inside every action of your application.
 
-The general idea is that we store the needed information inside the controller context. The controller context is an implicit parameter that is passed around via the `?context` variable during the request response lifecycle. Think of it as a key-value map which you can write to before rendering, and read from during the view rendering.
+The general idea is to store the needed information in the WAI request vault. A WAI middleware writes the value into the vault before your action runs; the layout reads it back through a small accessor function.
 
 Let's deal with the first case: Our business application wants to display the user's company name as part of the layout on every page.
 
-Open `Web/FrontController.hs` and customize it like this:
+First, define a vault key and a middleware that fills it in. Put this somewhere you can import from both the layout and `Config.hs`:
 
 ```haskell
--- Web/FrontController.hs
+-- Application/CompanyContext.hs
 
-instance InitControllerContext WebApplication where
-    initContext = do
-        -- ...
+import qualified Data.Vault.Lazy as Vault
+import Network.Wai (Middleware, Request, vault)
+import System.IO.Unsafe (unsafePerformIO)
+import IHP.RequestVault.Helper (insertVaultMiddleware, lookupRequestVault)
 
-        initCompanyContext -- <---- ADD THIS
+companyVaultKey :: Vault.Key (Maybe Company)
+companyVaultKey = unsafePerformIO Vault.newKey
+{-# NOINLINE companyVaultKey #-}
 
-initCompanyContext :: (?context :: ControllerContext, ?modelContext :: ModelContext) => IO ()
-initCompanyContext =
-    case currentUserOrNothing of
-        Just currentUser -> do
-            company <- fetch currentUser.companyId
+-- | Fetches the current user's company and stores it in the vault.
+companyMiddleware :: ModelContext -> Middleware
+companyMiddleware modelContext app req respond = do
+    let ?modelContext = modelContext
+    let ?request = req
+    company <- case currentUserOrNothing of
+        Just user -> Just <$> fetch user.companyId
+        Nothing -> pure Nothing
+    let req' = req { vault = Vault.insert companyVaultKey company (vault req) }
+    app req' respond
 
-            -- Here the magic happens: We put the company of the user into the context
-            putContext company
-
-        Nothing -> pure ()
+-- | Read the current company from any view or controller.
+currentCompany :: (?request :: Request) => Maybe Company
+currentCompany = fromMaybe Nothing (Vault.lookup companyVaultKey (vault ?request))
 ```
 
-The [`initContext`](https://ihp.digitallyinduced.com/api-docs/IHP-ControllerSupport.html#v:initContext) is called on every request, just before the action is executed. The `initCompanyContext` fetches the current user's company and then calls [`putContext company`](https://ihp.digitallyinduced.com/api-docs/IHP-Controller-Context.html#v:putContext) to store it inside the controller context.
-
-Next we'll read the company from the `Layout.hs`:
+Then wire `companyMiddleware` into your `Config/Config.hs` after `AuthMiddleware`, and read it from the layout:
 
 ```haskell
 -- Web/View/Layout.hs
@@ -153,27 +158,18 @@ defaultLayout :: Html -> Html
 defaultLayout inner = [hsx|
     {inner}
 
-    {when isLoggedIn renderCompany}
+    {forEach currentCompany renderCompany}
 |]
-    where
-        isLoggedIn = isJust currentUserOrNothing
 
-renderCompany :: Html
-renderCompany = [hsx|
+renderCompany :: Company -> Html
+renderCompany company = [hsx|
     <div class="company">
         {company.name}
     </div>
 |]
-
-company :: (?context :: ControllerContext) => Company
-company = fromFrozenContext
 ```
 
-Here the company is read by using the [`fromFrozenContext`](https://ihp.digitallyinduced.com/api-docs/IHP-Controller-Context.html#v:fromFrozenContext) function.
-
-You might wonder: How does [`fromFrozenContext`](https://ihp.digitallyinduced.com/api-docs/IHP-Controller-Context.html#v:fromFrozenContext) know that I want the company? The context is a key-value map, where the key's are the type of the object. Using the `company :: Company` type annotation the [`fromFrozenContext`](https://ihp.digitallyinduced.com/api-docs/IHP-Controller-Context.html#v:fromFrozenContext) knows we want to read the value with the key `Company`.
-
-Now the `company` variable can be used to read the current user's company across the layout and also in all views (you need to add `company` to the export list of the Layout module for that). If the `company` value is used somewhere during rendering while the user is not logged in, it will raise a runtime error.
+Why a vault key per piece of state? The request vault is the single source of truth for per-request data. A dedicated `Vault.Key Company` makes the dependency explicit, type-safe, and trivial to look up from any view or controller without going through the controller context.
 
 ## Common View Tasks
 

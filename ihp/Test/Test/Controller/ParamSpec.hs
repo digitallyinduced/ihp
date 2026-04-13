@@ -468,15 +468,13 @@ createControllerContextWithParams params =
         let
             requestBody = FormBody { params, files = [], rawPayload = "" }
             request = Wai.defaultRequest { Wai.vault = Vault.insert requestBodyVaultKey requestBody Vault.empty }
-            customFields = TypeMap.insert request TypeMap.empty
-        in FrozenControllerContext { customFields }
+        in ControllerContext { request }
 
 createControllerContextWithJson params =
         let
             requestBody = JSONBody { jsonPayload = Just (json params), rawPayload = cs params }
             request = Wai.defaultRequest { Wai.vault = Vault.insert requestBodyVaultKey requestBody Vault.empty }
-            customFields = TypeMap.insert request TypeMap.empty
-        in FrozenControllerContext { customFields }
+        in ControllerContext { request }
 
 json :: Text -> Aeson.Value
 json string =

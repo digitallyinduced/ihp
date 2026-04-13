@@ -38,7 +38,7 @@ The `renderJson` function is unchanged and can still be used directly in control
 
 ## Authentication moved to WAI middleware
 
-The `initAuthentication` function has been deprecated in favor of a WAI middleware approach. Authentication now runs as middleware before your controllers, storing the current user in the WAI request vault.
+The `initAuthentication` function has been removed in favor of a WAI middleware approach. Authentication now runs as middleware before your controllers, storing the current user in the WAI request vault.
 
 **Migration steps:**
 
@@ -68,7 +68,31 @@ The `initAuthentication` function has been deprecated in favor of a WAI middlewa
     option $ AuthMiddleware (authMiddleware @User . adminAuthMiddleware @Admin)
     ```
 
-**Deprecated functions:** `initAuthentication` still works but is deprecated. `currentRoleOrNothing`, `currentRole`, `currentRoleId`, `ensureIsRole` have been removed. Use the type-specific variants instead: `currentUserOrNothing`/`currentAdminOrNothing`, `currentUser`/`currentAdmin`, `currentUserId`/`currentAdminId`, `ensureIsUser`/`ensureIsAdmin`.
+**Removed functions:** `initAuthentication`, `currentRoleOrNothing`, `currentRole`, `currentRoleId`, `ensureIsRole`. Use the type-specific variants instead: `currentUserOrNothing`/`currentAdminOrNothing`, `currentUser`/`currentAdmin`, `currentUserId`/`currentAdminId`, `ensureIsUser`/`ensureIsAdmin`.
+
+## ControllerContext TMap API removed
+
+The typed-map storage on `ControllerContext` has been removed. The functions `putContext`, `fromContext`, `maybeFromContext`, `fromFrozenContext`, `maybeFromFrozenContext`, `freeze`, and `unfreeze` no longer exist, and the `FrozenControllerContext` constructor is gone. The `ihp-context` package has also been deleted — drop it from your `cabal.project`/`build-depends` if you referenced it directly.
+
+`ControllerContext` is now a thin wrapper around the WAI `Request`. All per-request state (auth user, framework config, logger, page head, modal state, ...) lives in the request vault. To store your own per-request value, define a `Vault.Key` and a small middleware:
+
+```haskell
+import qualified Data.Vault.Lazy as Vault
+import IHP.RequestVault.Helper (insertVaultMiddleware, lookupRequestVault)
+import System.IO.Unsafe (unsafePerformIO)
+
+myValueVaultKey :: Vault.Key MyValue
+myValueVaultKey = unsafePerformIO Vault.newKey
+{-# NOINLINE myValueVaultKey #-}
+
+-- In Config.hs:
+option $ CustomMiddleware (insertVaultMiddleware myValueVaultKey someValue)
+
+-- In a controller or view:
+let value = lookupRequestVault myValueVaultKey ?request
+```
+
+If you need mutable per-request state, store an `IORef` in the vault (use `insertNewIORefVaultMiddleware`). See how `IHP.LoginSupport.Types.currentUserVaultKey`, `IHP.RequestVault.loggerVaultKey`, and `IHP.PageHead.Types.pageHeadVaultKey` are defined for working examples.
 
 ## Join Support Removed from QueryBuilder
 

@@ -307,14 +307,15 @@ The router maps URLs like `/Posts` to `PostsAction`, `/ShowPost?postId=...` to `
 
 ### Step 7: initContext Runs
 
-Before your action code runs, IHP calls `initContext` from your application's `InitControllerContext` instance. This is where you set up shared controller state, such as loading the currently logged-in user:
+Before your action code runs, IHP calls `initContext` from your application's `InitControllerContext` instance. This is where you set up shared controller state, such as the default layout:
 
 ```haskell
 instance InitControllerContext WebApplication where
     initContext = do
         setLayout defaultLayout
-        initAuthentication @User
 ```
+
+Authentication runs earlier as a WAI middleware (`AuthMiddleware (authMiddleware @User)` in `Config.hs`) so the current user is already in the request vault by the time `initContext` runs.
 
 If `initContext` throws an exception (for example, if authentication redirects to a login page), the action is never called.
 

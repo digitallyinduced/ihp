@@ -78,18 +78,15 @@ autoRefresh runAction = do
                     let newRequest = ?request { vault = Vault.insert autoRefreshStateVaultKey (AutoRefreshEnabled id) ?request.vault }
                     let ?request = newRequest
 
-                    -- We save the current state of the controller context here. This includes e.g. all current
-                    -- flash messages, the current user, ...
-                    --
-                    -- This frozen context is used as a "template" inside renderView to make a new controller context
-                    -- with the exact same content we had when rendering the initial page, whenever we do a server-side re-rendering
-                    frozenControllerContext <- freeze ?context
-
+                    -- Capture the current request and context for re-rendering. The
+                    -- request vault carries all per-request state (current user, flash
+                    -- messages, framework config, ...) so passing the closure-captured
+                    -- values back into the renderView callback is enough.
                     let originalRequest = ?request
+                    let originalContext = ?context
                     let renderView = \waiRequest waiRespond -> do
                             earlyReturnMiddleware (\_ respond -> do
-                                controllerContext <- unfreeze frozenControllerContext
-                                let ?context = controllerContext
+                                let ?context = originalContext
                                 let ?request = originalRequest
                                 let ?respond = respond
                                 action ?theAction

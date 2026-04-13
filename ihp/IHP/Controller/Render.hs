@@ -11,7 +11,6 @@ import qualified Network.HTTP.Media as Accept
 
 
 import IHP.HSX.Markup (Markup, MarkupM(..))
-import qualified IHP.Controller.Context as Context
 import IHP.Controller.Layout
 import IHP.FlashMessages (consumeFlashMessagesMiddleware)
 
@@ -35,13 +34,8 @@ renderHtml :: forall view. (ViewSupport.View view, ?context :: ControllerContext
 renderHtml !view = do
     let ?view = view
     ViewSupport.beforeRender view
-    frozenContext <- Context.freeze ?context
-
-    let ?context = frozenContext
     (ViewLayout layout) <- getLayout
-
-    let boundHtml = let ?context = frozenContext; in layout (ViewSupport.html ?view)
-    pure boundHtml
+    pure (layout (ViewSupport.html ?view))
 {-# INLINE renderHtml #-}
 
 renderFile :: (?request :: Request, ?respond :: Respond) => String -> ByteString -> IO ResponseReceived

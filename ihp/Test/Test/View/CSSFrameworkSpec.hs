@@ -725,5 +725,4 @@ createControllerContextWithCSSFramework cssFramework = do
     let requestBody = FormBody { params = [], files = [], rawPayload = "" }
     let request = Wai.defaultRequest { Wai.vault = Vault.insert IHP.RequestVault.frameworkConfigVaultKey frameworkConfig
                                                  $ Vault.insert IHP.RequestVault.requestBodyVaultKey requestBody Vault.empty }
-    let customFields = TypeMap.insert request TypeMap.empty
-    pure FrozenControllerContext { customFields }
+    pure ControllerContext { request }

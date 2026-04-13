@@ -111,7 +111,6 @@ common shared-properties
             , unagi-chan
             , with-utf8
             , ihp-hsx
-            , ihp-context
             , ihp-pagehead
             , ihp-log
             , ihp-modal
@@ -294,7 +293,6 @@ test-suite tests
         Test.HaskellSupportSpec
         Test.View.CSSFrameworkSpec
         Test.View.FormSpec
-        Test.Controller.ContextSpec
         Test.Controller.ParamSpec
         Test.Controller.AccessDeniedSpec
         Test.Controller.NotFoundSpec
