@@ -6,7 +6,6 @@ module Test.View.CSSFrameworkSpec where
 
 import Test.Hspec
 import IHP.Prelude
-import IHP.Controller.Context
 import IHP.FrameworkConfig as FrameworkConfig
 import Wai.Request.Params.Middleware (RequestBody (..))
 import IHP.View.Types
@@ -717,7 +716,7 @@ shouldRenderTo renderFunction expectedHtml = renderMarkupText renderFunction `sh
 
 {-| Mock a Controller context with CSSFramework.
 -}
-createControllerContextWithCSSFramework :: Typeable option => option -> IO ControllerContext
+createControllerContextWithCSSFramework :: Typeable option => option -> IO Wai.Request
 createControllerContextWithCSSFramework cssFramework = do
     frameworkConfig <- FrameworkConfig.buildFrameworkConfig do
                 option cssFramework

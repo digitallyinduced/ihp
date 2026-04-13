@@ -4,7 +4,6 @@ import IHP.Prelude
 import Test.Hspec
 import IHP.Pagination.ControllerFunctions
 import IHP.Pagination.Types (Options(..), Pagination(..))
-import IHP.Controller.Context
 import IHP.ModelSupport (createModelContext, releaseModelContext, HasqlError(..))
 import qualified Hasql.Pool as HasqlPool
 import qualified IHP.Log as Log
@@ -135,8 +134,8 @@ tests = do
                     (PG.Only first : _) -> first `shouldBe` 21
                     _ -> expectationFailure "Expected non-empty results"
 
--- | Create a ControllerContext with the given request params
-contextWithParams :: [(ByteString, ByteString)] -> ControllerContext
+-- | Create a Request with the given params
+contextWithParams :: [(ByteString, ByteString)] -> Wai.Request
 contextWithParams params =
     let requestBody = FormBody { params, files = [], rawPayload = "" }
         request = Wai.defaultRequest { Wai.vault = Vault.insert requestBodyVaultKey requestBody Vault.empty }

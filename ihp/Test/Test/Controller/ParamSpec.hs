@@ -7,7 +7,6 @@ module Test.Controller.ParamSpec where
 import IHP.Prelude
 import Test.Hspec
 import IHP.Controller.Param
-import IHP.Controller.Context
 import Wai.Request.Params.Middleware (RequestBody (..), requestBodyVaultKey)
 import qualified Data.Vault.Lazy as Vault
 import IHP.ModelSupport
