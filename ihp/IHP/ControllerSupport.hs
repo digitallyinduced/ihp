@@ -220,9 +220,14 @@ startWebSocketApp initialState onHTTP waiRequest waiRespond = do
     -- 'Wai.mapResponseStatus' is explicitly a no-op on 'ResponseRaw' (see
     -- the @mapResponseStatus _ r\@(ResponseRaw _ _) = r@ case in wai), so we
     -- have to pattern-match the raw constructor from 'Network.Wai.Internal'
-    -- and rebuild the fallback 'Response' with 'status101' ourselves. Warp
-    -- still runs the original raw handler — only the status that the
-    -- request logger observes changes.
+    -- and rebuild the fallback 'Response' ourselves. We use 'status200'
+    -- instead of the semantically correct 'status101' because Warp's
+    -- @hasBody@ check (@sc >= 200 && sc /= 204 && sc /= 304@) treats 1xx
+    -- as bodyless — causing it to send only the fallback headers and skip
+    -- the raw streaming handler entirely, which breaks the WebSocket
+    -- handshake. The on-the-wire status remains 101 (sent by the raw
+    -- handler); the rewritten fallback status only affects what
+    -- request-logger middlewares observe.
     waiRequest
         |> WebSockets.websocketsApp connectionOptions handleConnection
         |> \case
@@ -233,14 +238,16 @@ startWebSocketAppAndFailOnHTTP :: forall webSocketApp application. (?request :: 
 startWebSocketAppAndFailOnHTTP initialState = startWebSocketApp @webSocketApp @application initialState (?respond $ responseLBS HTTP.status400 [(hContentType, "text/plain")] "This endpoint is only available via a WebSocket")
 
 -- | Rewrite the 'ResponseRaw' fallback produced by 'Network.Wai.Handler.WebSockets.websocketsApp'
--- so the fallback 'Response' reports @101 Switching Protocols@ instead of the
--- hard-coded @status500@ from wai-websockets. See the comment in
--- 'startWebSocketApp' for the full rationale. This helper is only meaningful
--- for the responses produced by 'websocketsApp' — any other 'Response' is
--- returned unchanged.
+-- so the fallback 'Response' reports @200 OK@ instead of the hard-coded @status500@
+-- from wai-websockets. We cannot use @status101@ here because Warp's @hasBody@
+-- predicate returns @False@ for all 1xx statuses, causing Warp to skip the raw
+-- streaming handler and serve the fallback headers directly — which breaks the
+-- WebSocket handshake (see #2628). @status200@ is the closest non-alarming status
+-- that Warp's @hasBody@ accepts. See the comment in 'startWebSocketApp' for the
+-- full rationale.
 rewriteWebSocketFallbackStatus :: Response -> Response
 rewriteWebSocketFallbackStatus (WaiInternal.ResponseRaw handler fallback) =
-    WaiInternal.ResponseRaw handler (mapResponseStatus (const HTTP.status101) fallback)
+    WaiInternal.ResponseRaw handler (mapResponseStatus (const HTTP.status200) fallback)
 rewriteWebSocketFallbackStatus other = other
 
 
