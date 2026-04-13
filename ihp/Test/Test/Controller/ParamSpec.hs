@@ -13,7 +13,6 @@ import qualified Data.Vault.Lazy as Vault
 import IHP.ModelSupport
 import Data.Bits ((.|.))
 import qualified Data.Aeson as Aeson
-import qualified Data.TMap as TypeMap
 import qualified Network.Wai as Wai
 import qualified GHC.IO as IO
 import Data.Scientific (Scientific)

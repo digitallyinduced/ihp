@@ -14,7 +14,6 @@ import qualified Network.Wai as Wai
 import IHP.ViewPrelude
 import qualified Data.Vault.Lazy as Vault
 import qualified IHP.RequestVault
-import qualified Data.TMap as TypeMap
 
 
 tests = do

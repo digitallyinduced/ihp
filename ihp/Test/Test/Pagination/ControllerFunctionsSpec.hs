@@ -11,7 +11,6 @@ import qualified IHP.Log as Log
 import IHP.Log.Types (LogLevel(..), LoggerSettings(..))
 import Wai.Request.Params.Middleware (RequestBody (..), requestBodyVaultKey)
 import qualified Data.Vault.Lazy as Vault
-import qualified Data.TMap as TypeMap
 import qualified Network.Wai as Wai
 import qualified Database.PostgreSQL.Simple.Types as PG
 import System.Environment (lookupEnv)

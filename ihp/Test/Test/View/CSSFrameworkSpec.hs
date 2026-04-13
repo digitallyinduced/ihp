@@ -17,7 +17,6 @@ import IHP.ModelSupport
 import IHP.Breadcrumb.ViewFunctions (breadcrumbLinkExternal, breadcrumbText, renderBreadcrumb)
 import IHP.Pagination.Types
 import qualified IHP.Prelude as Text (isInfixOf)
-import qualified Data.TMap as TypeMap
 import qualified Network.Wai as Wai
 import IHP.Pagination.ViewFunctions (renderPagination)
 import qualified Data.Vault.Lazy as Vault
