@@ -29,6 +29,20 @@ import qualified Control.Exception.Safe as Exception
 --
 -- Returns 'Nothing' if no pending job is available.
 --
+-- __Trade-offs:__
+--
+-- * The job's row lock is held for the entire duration of @perform@. The job's
+--   @perform@ implementation MUST NOT update its own job row from a different
+--   connection (e.g. via the standard @ModelContext@ pool) — that would block
+--   forever waiting on this transaction. Update other tables freely; just don't
+--   update the job row itself during execution.
+--
+-- * @status='job_status_running'@ is uncommitted until the callback finishes,
+--   so 'recoverStaleJobs' cannot observe in-progress jobs. As a backstop,
+--   @idle_in_transaction_session_timeout@ is set on the dedicated connection
+--   so PostgreSQL kills the transaction if the session sits idle inside it for
+--   too long (e.g. a stuck worker).
+--
 -- __Example:__
 --
 -- > withNextJob @SendMailJob databaseUrl workerId \conn job -> do
@@ -48,6 +62,11 @@ withNextJob databaseUrl workerId callback = do
         Right conn -> do
             let cleanup = HasqlConnection.release conn
             flip Exception.finally cleanup do
+                -- Backstop for stuck jobs: if the session sits idle inside the
+                -- transaction (e.g. perform hangs uninterruptibly), PostgreSQL
+                -- will kill the connection after this timeout, rolling back
+                -- the transaction and returning the job to the queue.
+                runConn conn (HasqlSession.script "SET idle_in_transaction_session_timeout = '1h'")
                 runConn conn (HasqlSession.script "BEGIN")
                 let statement = fetchNextJobStatement @job
                 maybeJob <- runConn conn (HasqlSession.statement workerId statement)
