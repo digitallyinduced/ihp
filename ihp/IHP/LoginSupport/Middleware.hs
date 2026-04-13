@@ -21,7 +21,6 @@ import IHP.Prelude
 import IHP.LoginSupport.Types
 import IHP.LoginSupport.Helper.Controller (sessionKey)
 import IHP.Controller.Session
-import IHP.ControllerSupport
 import IHP.QueryBuilder
 import IHP.Fetch
 import IHP.ModelSupport

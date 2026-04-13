@@ -20,7 +20,6 @@ import qualified Control.Concurrent.MVar as MVar
 import qualified Data.Maybe as Maybe
 import qualified Data.Text as Text
 import IHP.WebSocket
-import IHP.Controller.Context
 import Network.Wai.Middleware.EarlyReturn (earlyReturnMiddleware)
 import qualified IHP.PGListener as PGListener
 import qualified Hasql.Session as HasqlSession
