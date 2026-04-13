@@ -15,7 +15,7 @@ import IHP.DataSync.DynamicQueryCompiler (camelCaseRenamer)
 import IHP.DataSync.RowLevelSecurity (makeCachedEnsureRLSEnabled)
 import qualified IHP.DataSync.ChangeNotifications as ChangeNotifications
 import IHP.RequestVault (pgListenerVaultKey, frameworkConfigVaultKey, loggerVaultKey)
-import IHP.Controller.Context (newControllerContext, putContext, freeze)
+import IHP.Controller.Context (newControllerContext, freeze)
 import IHP.LoginSupport.Types (HasNewSessionUrl(..), CurrentUserRecord, currentUserVaultKey)
 import qualified IHP.ModelSupport as ModelSupport
 import IHP.ModelSupport.Types (Id'(..), PrimaryKey)
@@ -161,9 +161,6 @@ withDataSyncController connStr testUserId action = do
                 let ?request = request
                 context <- newControllerContext
                 let ?context = context
-
-                -- Put the current user into context for backward compatibility
-                putContext testUser
 
                 -- Freeze the context so it can be accessed from pure code
                 frozenContext <- freeze ?context
