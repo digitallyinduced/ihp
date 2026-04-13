@@ -332,7 +332,7 @@ tests = do
 
                     context <- createControllerContextWithCSSFramework cssFramework
                     let ?context = context
-                    let ?request = ?context.request
+                    let ?request = ?context
 
                     let render = renderMarkupText $ renderPagination pagination
                     Text.isInfixOf "<nav aria-label=\"Page Navigator\"" (cs render) `shouldBe` True
@@ -348,7 +348,7 @@ tests = do
 
                     context <- createControllerContextWithCSSFramework cssFramework
                     let ?context = context
-                    let ?request = ?context.request
+                    let ?request = ?context
 
                     renderPagination pagination `shouldRenderTo` mempty
 
@@ -377,7 +377,7 @@ tests = do
 
                     context <- createControllerContextWithCSSFramework cssFramework
                     let ?context = context
-                    let ?request = ?context.request
+                    let ?request = ?context
 
                     renderBreadcrumb breadcrumbs `shouldRenderTo` "<nav><ol class=\"breadcrumb\"><li class=\"breadcrumb-item\">First item</li><li class=\"breadcrumb-item active\">Last item</li></ol></nav>"
 
@@ -631,7 +631,7 @@ tests = do
 
                     context <- createControllerContextWithCSSFramework cssFramework
                     let ?context = context
-                    let ?request = ?context.request
+                    let ?request = ?context
 
                     let render = renderMarkupText $ renderPagination pagination
                     Text.isInfixOf "<nav aria-label=\"Page Navigator\"" (cs render) `shouldBe` True
@@ -647,7 +647,7 @@ tests = do
 
                     context <- createControllerContextWithCSSFramework cssFramework
                     let ?context = context
-                    let ?request = ?context.request
+                    let ?request = ?context
 
                     renderPagination pagination `shouldRenderTo` mempty
 
@@ -676,7 +676,7 @@ tests = do
 
                     context <- createControllerContextWithCSSFramework cssFramework
                     let ?context = context
-                    let ?request = ?context.request
+                    let ?request = ?context
 
                     renderBreadcrumb breadcrumbs `shouldRenderTo` "<nav><ol class=\"breadcrumb\"><li class=\"breadcrumb-item\">First item</li><li class=\"breadcrumb-item active\">Last item</li></ol></nav>"
 
@@ -724,4 +724,4 @@ createControllerContextWithCSSFramework cssFramework = do
     let requestBody = FormBody { params = [], files = [], rawPayload = "" }
     let request = Wai.defaultRequest { Wai.vault = Vault.insert IHP.RequestVault.frameworkConfigVaultKey frameworkConfig
                                                  $ Vault.insert IHP.RequestVault.requestBodyVaultKey requestBody Vault.empty }
-    pure ControllerContext { request }
+    pure request

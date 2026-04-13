@@ -23,7 +23,7 @@ tests = do
             it "should return first page with default options" $ withDB \modelContext -> do
                 let ?modelContext = modelContext
                 let ?context = contextWithParams []
-                let ?request = ?context.request
+                let ?request = ?context
 
                 (results :: [PG.Only Int32], pagination) <-
                     paginatedSqlQueryWithOptions
@@ -39,7 +39,7 @@ tests = do
             it "should return second page" $ withDB \modelContext -> do
                 let ?modelContext = modelContext
                 let ?context = contextWithParams [("page", "2")]
-                let ?request = ?context.request
+                let ?request = ?context
 
                 (results :: [PG.Only Int32], pagination) <-
                     paginatedSqlQueryWithOptions
@@ -58,7 +58,7 @@ tests = do
             it "should respect maxItems from request param" $ withDB \modelContext -> do
                 let ?modelContext = modelContext
                 let ?context = contextWithParams [("maxItems", "10")]
-                let ?request = ?context.request
+                let ?request = ?context
 
                 (results :: [PG.Only Int32], pagination) <-
                     paginatedSqlQueryWithOptions
@@ -73,7 +73,7 @@ tests = do
             it "should respect custom options maxItems" $ withDB \modelContext -> do
                 let ?modelContext = modelContext
                 let ?context = contextWithParams []
-                let ?request = ?context.request
+                let ?request = ?context
                 let options = Options { maxItems = 25, windowSize = 3 }
 
                 (results :: [PG.Only Int32], pagination) <-
@@ -89,7 +89,7 @@ tests = do
             it "should cap maxItems at 200" $ withDB \modelContext -> do
                 let ?modelContext = modelContext
                 let ?context = contextWithParams [("maxItems", "9999")]
-                let ?request = ?context.request
+                let ?request = ?context
 
                 (results :: [PG.Only Int32], pagination) <-
                     paginatedSqlQueryWithOptions
@@ -104,7 +104,7 @@ tests = do
             it "should return empty results for page beyond data" $ withDB \modelContext -> do
                 let ?modelContext = modelContext
                 let ?context = contextWithParams [("page", "100")]
-                let ?request = ?context.request
+                let ?request = ?context
 
                 (results :: [PG.Only Int32], pagination) <-
                     paginatedSqlQueryWithOptions
@@ -119,7 +119,7 @@ tests = do
             it "should handle page + maxItems together" $ withDB \modelContext -> do
                 let ?modelContext = modelContext
                 let ?context = contextWithParams [("page", "3"), ("maxItems", "10")]
-                let ?request = ?context.request
+                let ?request = ?context
 
                 (results :: [PG.Only Int32], pagination) <-
                     paginatedSqlQueryWithOptions
@@ -140,7 +140,7 @@ contextWithParams :: [(ByteString, ByteString)] -> ControllerContext
 contextWithParams params =
     let requestBody = FormBody { params, files = [], rawPayload = "" }
         request = Wai.defaultRequest { Wai.vault = Vault.insert requestBodyVaultKey requestBody Vault.empty }
-    in ControllerContext { request }
+    in request
 
 -- | Run a test with a database connection, skipping if PostgreSQL is not available.
 -- Only connection failures are caught and marked as pending; test assertion errors propagate normally.

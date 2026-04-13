@@ -105,7 +105,7 @@ runAction' controller waiRequest waiRespond =
         context <- setupActionContext @application (Typeable.typeOf controller) request respond
         let ?context = context
         let ?respond = respond
-        let ?request = context.request
+        let ?request = context
         let ?modelContext = ?request.modelContext
         runAction controller
         ) waiRequest waiRespond
@@ -1107,7 +1107,7 @@ parseIntegerId queryVal = let
 --
 routeParam :: (?request :: Request, ?respond :: Respond, ParamReader paramType) => ByteString -> paramType
 routeParam paramName =
-    let ?context = ControllerContext { request = ?request }
+    let ?context = ?request
     in param paramName
 
 -- | Display a better error when the user missed to pass an argument to an action.

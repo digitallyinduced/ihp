@@ -63,7 +63,7 @@ startWSApp :: forall state. (WSApp state, ?context :: ControllerContext, ?modelC
 startWSApp initialState connection = do
     state <- newIORef initialState
     let ?state = state
-    let ?request = ?context.request
+    let ?request = ?context
 
     result <- Exception.try ((withPingPong (defaultPingPongOptions { Websocket.pingAction = onPing @state }) connection (\connection -> let ?connection = connection in run @state)) `Exception.finally` (let ?connection = connection in onClose @state))
     case result of

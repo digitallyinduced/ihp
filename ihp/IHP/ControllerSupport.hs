@@ -89,7 +89,7 @@ instance InitControllerContext () where
 runAction :: forall controller. (Controller controller, ?context :: Context.ControllerContext, ?modelContext :: ModelContext, ?respond :: Respond) => controller -> IO ResponseReceived
 runAction controller = do
     let ?theAction = controller
-    let ?request = ?context.request
+    let ?request = ?context
 
     -- Exceptions are now caught by the error handler middleware
     authenticatedModelContext <- prepareRLSIfNeeded ?modelContext

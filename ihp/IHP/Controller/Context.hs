@@ -1,46 +1,29 @@
-{-# LANGUAGE NoFieldSelectors #-}
 {-|
 Module: IHP.Controller.Context
 Copyright: (c) digitally induced GmbH, 2020
 
-A thin wrapper around the WAI 'Request' that's threaded through controllers
-and views as the @?context@ implicit parameter. All request-scoped state
-lives in @request.vault@ now; see 'IHP.RequestVault'.
+@'ControllerContext'@ is a type alias for the WAI 'Request' — all
+request-scoped state lives in @request.vault@ (see 'IHP.RequestVault').
+The alias is preserved so existing code that uses the @?context@ implicit
+parameter keeps working; 'HasField' instances for @frameworkConfig@ and
+@logger@ come from 'IHP.RequestVault'.
 -}
 module IHP.Controller.Context
-    ( ControllerContext(..)
+    ( ControllerContext
     , newControllerContext
     , ActionType(..)
     ) where
 
 import Prelude
-import GHC.Records (HasField(..))
-import IHP.FrameworkConfig.Types (FrameworkConfig(..))
-import IHP.Log.Types
 import Network.Wai (Request)
-import IHP.RequestVault (requestFrameworkConfig, requestLogger)
 import IHP.ActionType (ActionType(..))
+import IHP.RequestVault () -- for HasField "frameworkConfig"/"logger"/"pgListener" on Request
 
--- | Wraps the WAI 'Request' that's threaded through controllers and views.
---
--- @?context.request@ works via 'HasField'. The @request@ label is
--- intentionally not exported as a top-level selector (see 'NoFieldSelectors')
--- to avoid clashing with 'IHP.ControllerSupport.request'.
--- Other common fields (@frameworkConfig@, @logger@) are also provided via
--- 'HasField' instances that delegate to the underlying request vault.
-newtype ControllerContext = ControllerContext { request :: Request }
+-- | The WAI 'Request' threaded through controllers and views.
+type ControllerContext = Request
 
--- | Creates a controller context wrapping the current request.
+-- | Returns the current request. Kept for source compatibility with callers
+-- that previously wrapped the request in a @ControllerContext@.
 newControllerContext :: (?request :: Request) => IO ControllerContext
-newControllerContext = pure ControllerContext { request = ?request }
+newControllerContext = pure ?request
 {-# INLINE newControllerContext #-}
-
--- | @?context.frameworkConfig@ delegates to @?context.request.frameworkConfig@.
-instance HasField "frameworkConfig" ControllerContext FrameworkConfig where
-    getField context = requestFrameworkConfig context.request
-    {-# INLINABLE getField #-}
-
--- | @?context.logger@ delegates to @?context.request.logger@.
-instance HasField "logger" ControllerContext Logger where
-    getField context = requestLogger context.request
-    {-# INLINABLE getField #-}

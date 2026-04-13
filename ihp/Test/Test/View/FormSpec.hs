@@ -24,7 +24,7 @@ tests = do
             it "should render a form" do
                 context <- createControllerContext
                 let ?context = context
-                let ?request = ?context.request
+                let ?request = ?context
 
                 let form = formFor project [hsx|
                     {textField #title}
@@ -35,7 +35,7 @@ tests = do
             it "should render a form with a GET method" do
                 context <- createControllerContext
                 let ?context = context
-                let ?request = ?context.request
+                let ?request = ?context
 
                 let options formContext = formContext |> set #formMethod "GET"
 
@@ -48,7 +48,7 @@ tests = do
             it "should render a date field with empty value attribute when value is Nothing" do
                 context <- createControllerContext
                 let ?context = context
-                let ?request = ?context.request
+                let ?request = ?context
                 let event = newRecord @Event
 
                 let form = formFor event [hsx|
@@ -65,7 +65,7 @@ tests = do
             it "should render a datetime field with empty value attribute when value is Nothing" do
                 context <- createControllerContext
                 let ?context = context
-                let ?request = ?context.request
+                let ?request = ?context
                 let event = newRecord @Event
 
                 let form = formFor event [hsx|
@@ -86,7 +86,7 @@ createControllerContext = do
     let requestBody = FormBody { params = [], files = [], rawPayload = "" }
     let request = Wai.defaultRequest { Wai.vault = Vault.insert IHP.RequestVault.frameworkConfigVaultKey frameworkConfig
                                                  $ Vault.insert IHP.RequestVault.requestBodyVaultKey requestBody Vault.empty }
-    pure ControllerContext { request }
+    pure request
 
 data Project'  = Project {id :: (Id' "projects"), title :: Text, meta :: MetaBag} deriving (Eq, Show)
 instance InputValue Project where inputValue = IHP.ModelSupport.recordToInputValue
