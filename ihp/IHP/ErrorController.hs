@@ -72,14 +72,21 @@ instance Exception.Exception InitContextException
 -- | Returns 'True' only when the request's Accept header explicitly prefers
 -- @application/json@ over @text/html@. @Accept: */*@ or a missing header
 -- stay on the HTML path (the browser-friendly default).
+--
+-- The server options are listed with @text/html@ first so that ties
+-- (equal quality and specificity) resolve to HTML — this covers
+-- @Accept: */*@ (curl's default, fetch() without custom headers) and
+-- @Accept: text/html, application/json@ (typical browser ordering).
+-- JSON wins only when the client excludes HTML or gives it a lower
+-- q-value.
 wantsJsonResponse :: Request -> Bool
 wantsJsonResponse request =
     case lookup hAccept (requestHeaders request) of
         Nothing -> False
         Just accept ->
             Accept.mapAcceptMedia
-                [ ("application/json", True)
-                , ("text/html", False)
+                [ ("text/html", False)
+                , ("application/json", True)
                 ] accept == Just True
 
 -- | Render an error response, picking HTML or JSON based on the Accept header.
@@ -619,7 +626,7 @@ postgresHandlerMiddleware frameworkConfig request actionDescription exception = 
                         <p style="font-family: monospace; font-size: 16px">{tshow exception}</p>
                     |]
             let json = Aeson.object
-                    [ "error" .= Text.decodeUtf8 sqlError.sqlErrorMsg
+                    [ "error" .= Text.decodeUtf8Lenient sqlError.sqlErrorMsg
                     , "query" .= tshow exception.sqlErrorQuery
                     , "params" .= exception.sqlErrorQueryParams
                     , "message" .= ("The exception was raised" <> actionDescription)
@@ -710,10 +717,10 @@ paramNotFoundExceptionHandlerMiddleware frameworkConfig request actionDescriptio
                 |]
 
             let title = [hsx|Parameter <q>{paramName}</q> not found in the request|]
-            let availableParams = map (\(n, _) -> Text.decodeUtf8 n) allParams
+            let availableParams = map (\(n, _) -> Text.decodeUtf8Lenient n) allParams
             let json = Aeson.object
                     [ "error" .= ("Parameter not found" :: Text)
-                    , "param" .= Text.decodeUtf8 paramName
+                    , "param" .= Text.decodeUtf8Lenient paramName
                     , "availableParams" .= availableParams
                     , "message" .= ("The exception was raised by a call to param " <> tshow paramName <> actionDescription)
                     ]
@@ -734,8 +741,8 @@ paramNotFoundExceptionHandlerMiddleware frameworkConfig request actionDescriptio
             let title = [hsx|Parameter <q>{name}</q> was invalid|]
             let json = Aeson.object
                     [ "error" .= ("Parameter invalid" :: Text)
-                    , "param" .= Text.decodeUtf8 name
-                    , "parserError" .= Text.decodeUtf8 parserError
+                    , "param" .= Text.decodeUtf8Lenient name
+                    , "parserError" .= Text.decodeUtf8Lenient parserError
                     , "message" .= ("The exception was raised by a call to param " <> tshow name <> actionDescription)
                     ]
             respondError request Environment.Development status500 title errorMessage json
@@ -829,9 +836,9 @@ handleRouterExceptionImpl request environment exception =
                     Nothing -> [hsx|The action was called without the required <q>{field}</q> parameter|]
             let json = Aeson.object
                     [ "error" .= ("Routing failed" :: Text)
-                    , "expectedType" .= Text.decodeUtf8 expectedType
-                    , "field" .= Text.decodeUtf8 field
-                    , "value" .= fmap Text.decodeUtf8 value
+                    , "expectedType" .= Text.decodeUtf8Lenient expectedType
+                    , "field" .= Text.decodeUtf8Lenient field
+                    , "value" .= fmap Text.decodeUtf8Lenient value
                     ]
             respondError request environment status400 title errorMessage json
         Just Router.BadType { expectedType, value = Just value, field } -> do
@@ -841,9 +848,9 @@ handleRouterExceptionImpl request environment exception =
             let title = [hsx|Query parameter <q>{field}</q> needs to be a <q>{expectedType}</q> but got <q>{value}</q>|]
             let json = Aeson.object
                     [ "error" .= ("Routing failed" :: Text)
-                    , "field" .= Text.decodeUtf8 field
-                    , "expectedType" .= Text.decodeUtf8 expectedType
-                    , "value" .= Text.decodeUtf8 value
+                    , "field" .= Text.decodeUtf8Lenient field
+                    , "expectedType" .= Text.decodeUtf8Lenient expectedType
+                    , "value" .= Text.decodeUtf8Lenient value
                     ]
             respondError request environment status400 title errorMessage json
         _ -> case fromException exception of
