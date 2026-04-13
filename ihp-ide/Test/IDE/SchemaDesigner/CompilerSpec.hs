@@ -499,6 +499,7 @@ tests = do
                     , columns = [indexCol (VarExpression "user_name")]
                     , whereClause = Nothing
                     , indexType = Nothing
+                    , nullsDistinct = True
                     }
             compileSql [statement] `shouldBe` sql
         
@@ -511,6 +512,7 @@ tests = do
                     , columns = [indexCol (VarExpression "Some Col")]
                     , whereClause = Nothing
                     , indexType = Nothing
+                    , nullsDistinct = True
                     }
             compileSql [statement] `shouldBe` sql
 
@@ -523,6 +525,7 @@ tests = do
                     , columns = [indexCol (VarExpression "user_name")]
                     , whereClause = Nothing
                     , indexType = Just Gin
+                    , nullsDistinct = True
                     }
             compileSql [statement] `shouldBe` sql
 
@@ -535,6 +538,7 @@ tests = do
                     , columns = [indexCol (VarExpression "user_name")]
                     , whereClause = Nothing
                     , indexType = Just Btree
+                    , nullsDistinct = True
                     }
             compileSql [statement] `shouldBe` sql
 
@@ -547,6 +551,7 @@ tests = do
                     , columns = [indexCol (VarExpression "user_name")]
                     , whereClause = Nothing
                     , indexType = Just Gist
+                    , nullsDistinct = True
                     }
             compileSql [statement] `shouldBe` sql
 
@@ -562,6 +567,7 @@ tests = do
                         ]
                     , whereClause = Nothing
                     , indexType = Nothing
+                    , nullsDistinct = True
                     }
             compileSql [statement] `shouldBe` sql
 
@@ -574,6 +580,7 @@ tests = do
                     , columns = [indexCol (CallExpression "LOWER" [VarExpression "email"])]
                     , whereClause = Nothing
                     , indexType = Nothing
+                    , nullsDistinct = True
                     }
             compileSql [statement] `shouldBe` sql
 
@@ -586,6 +593,7 @@ tests = do
                     , columns = [indexCol (VarExpression "user_name")]
                     , whereClause = Nothing
                     , indexType = Nothing
+                    , nullsDistinct = True
                     }
             compileSql [statement] `shouldBe` sql
 
@@ -598,6 +606,7 @@ tests = do
                     , columns = [IndexColumn { column = VarExpression "user_name", columnOrder = [Asc, NullsFirst]}]
                     , whereClause = Nothing
                     , indexType = Nothing
+                    , nullsDistinct = True
                     }
             compileSql [statement] `shouldBe` sql
 
@@ -610,6 +619,7 @@ tests = do
                     , columns = [IndexColumn { column = VarExpression "user_name", columnOrder = [Desc, NullsLast]}]
                     , whereClause = Nothing
                     , indexType = Nothing
+                    , nullsDistinct = True
                     }
             compileSql [statement] `shouldBe` sql
 
@@ -688,6 +698,7 @@ tests = do
                             (IsExpression (VarExpression "source") (NotExpression (VarExpression "NULL")))
                             (IsExpression (VarExpression "source_id") (NotExpression (VarExpression "NULL"))))
                     , indexType = Nothing
+                    , nullsDistinct = True
                     }
             compileSql [index] `shouldBe` sql
 
