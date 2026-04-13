@@ -3,7 +3,7 @@
 
     inputs = {
         ihp.url = "github:digitallyinduced/ihp";
-        ihp-forum.url = "github:digitallyinduced/ihp-forum";
+        ihp-forum.url = "github:digitallyinduced/ihp-forum/migrate-to-auth-middleware";
         ihp-forum.flake = false;
         nixpkgs.follows = "ihp/nixpkgs";
     };
