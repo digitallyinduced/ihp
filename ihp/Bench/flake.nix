@@ -3,7 +3,7 @@
 
     inputs = {
         ihp.url = "github:digitallyinduced/ihp";
-        ihp-forum.url = "github:digitallyinduced/ihp-forum/f4d85039be61c6fea922692ea0475531dbc928d2";
+        ihp-forum.url = "github:digitallyinduced/ihp-forum/2dfa84399886aa616ed573f8b5c5b27ac7913dd2";
         ihp-forum.flake = false;
         nixpkgs.follows = "ihp/nixpkgs";
     };
