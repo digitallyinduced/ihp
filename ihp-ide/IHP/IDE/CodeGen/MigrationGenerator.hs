@@ -528,6 +528,7 @@ normalizeExpression (SelectExpression Select { columns, from, whereClause, alias
 normalizeExpression (DotExpression a b) = DotExpression (normalizeExpression a) b
 normalizeExpression (ExistsExpression a) = ExistsExpression (normalizeExpression a)
 normalizeExpression (InArrayExpression exprs) = InArrayExpression (map normalizeExpression exprs)
+normalizeExpression (ArrayLiteralExpression exprs) = ArrayLiteralExpression (map normalizeExpression exprs)
 
 -- | Replaces @table.field@ with just @field@
 --
@@ -564,6 +565,7 @@ unqualifyExpression scope expression = doUnqualify expression
                 SelectExpression Select { columns = (recurse <$> columns), from = from, whereClause = recurse whereClause, alias }
         doUnqualify (ExistsExpression a) = ExistsExpression (doUnqualify a)
         doUnqualify (InArrayExpression exprs) = InArrayExpression (map doUnqualify exprs)
+        doUnqualify (ArrayLiteralExpression exprs) = ArrayLiteralExpression (map doUnqualify exprs)
         doUnqualify (DotExpression (VarExpression scope') b) | scope == scope' = VarExpression b
         doUnqualify (DotExpression a b) = DotExpression (doUnqualify a) b
 
@@ -597,6 +599,7 @@ resolveAlias (Just alias) fromExpression expression =
         e@(ExistsExpression a) -> ExistsExpression (rec a)
         e@(ConcatenationExpression a b) -> ConcatenationExpression (rec a) (rec b)
         e@(InArrayExpression exprs) -> InArrayExpression (map rec exprs)
+        e@(ArrayLiteralExpression exprs) -> ArrayLiteralExpression (map rec exprs)
 resolveAlias Nothing fromExpression expression = expression
 
 normalizeSqlType :: PostgresType -> PostgresType

@@ -58,6 +58,7 @@ import Network.HTTP.Types.Header
 import qualified Data.Aeson as Aeson
 import qualified Network.Wai.Handler.WebSockets as WebSockets
 import qualified Network.WebSockets as WebSockets
+import qualified Network.Wai.Internal as WaiInternal
 import qualified IHP.WebSocket as WebSockets
 import qualified Data.TMap as TypeMap
 import IHP.RequestVault.ModelContext
@@ -113,7 +114,6 @@ newContextForAction controller = do
     let ?modelContext = ?request.modelContext
     controllerContext <- Context.newControllerContext
     let ?context = controllerContext
-    Context.putContext ?application
     wrapInitContextException (initContext @application)
     pure ?context
 
@@ -139,7 +139,6 @@ setupActionContext controllerTypeRep waiRequest waiRespond = do
     let ?modelContext = request'.modelContext
     controllerContext <- Context.newControllerContext
     let ?context = controllerContext
-    Context.putContext ?application
     wrapInitContextException (initContext @application)
     pure ?context
 
@@ -193,8 +192,6 @@ startWebSocketApp initialState onHTTP waiRequest waiRespond = do
             controllerContext <- Context.newControllerContext
             let ?context = controllerContext
 
-            Context.putContext ?application
-
             try (initContext @application) >>= \case
                 Left (exception :: SomeException) -> putStrLn $ "Unexpected exception in initContext, " <> show exception
                 Right context -> do
@@ -202,14 +199,52 @@ startWebSocketApp initialState onHTTP waiRequest waiRespond = do
 
     let connectionOptions = WebSockets.connectionOptions @webSocketApp
 
+    -- On a successful handshake 'websocketsApp' returns a 'ResponseRaw'
+    -- wrapping a streaming handler plus a fallback 'Response'. Warp runs the
+    -- raw handler and the client correctly receives HTTP 101 Switching
+    -- Protocols — but request-logger middlewares (e.g. IHP's Apache access
+    -- log in Production) compute the logged status from the fallback's
+    -- builder/stream form, and wai-websockets hard-codes that fallback to
+    -- 'status500' with a "WebSockets are not supported by your WAI handler"
+    -- body. The result is that every successful WebSocket upgrade gets
+    -- logged as
+    --
+    --     GET /DataSyncController HTTP/1.1 500 -
+    --
+    -- even though nginx / the actual client sees 101.
+    --
+    -- 'Wai.mapResponseStatus' is explicitly a no-op on 'ResponseRaw' (see
+    -- the @mapResponseStatus _ r\@(ResponseRaw _ _) = r@ case in wai), so we
+    -- have to pattern-match the raw constructor from 'Network.Wai.Internal'
+    -- and rebuild the fallback 'Response' ourselves. We use 'status200'
+    -- instead of the semantically correct 'status101' because Warp's
+    -- @hasBody@ check (@sc >= 200 && sc /= 204 && sc /= 304@) treats 1xx
+    -- as bodyless — causing it to send only the fallback headers and skip
+    -- the raw streaming handler entirely, which breaks the WebSocket
+    -- handshake. The on-the-wire status remains 101 (sent by the raw
+    -- handler); the rewritten fallback status only affects what
+    -- request-logger middlewares observe.
     waiRequest
         |> WebSockets.websocketsApp connectionOptions handleConnection
         |> \case
-            Just response -> waiRespond response
+            Just response -> waiRespond (rewriteWebSocketFallbackStatus response)
             Nothing -> onHTTP
 {-# INLINE startWebSocketAppAndFailOnHTTP #-}
 startWebSocketAppAndFailOnHTTP :: forall webSocketApp application. (?request :: Request, ?respond :: Respond, InitControllerContext application, ?application :: application, Typeable application, WebSockets.WSApp webSocketApp) => webSocketApp -> Application
 startWebSocketAppAndFailOnHTTP initialState = startWebSocketApp @webSocketApp @application initialState (?respond $ responseLBS HTTP.status400 [(hContentType, "text/plain")] "This endpoint is only available via a WebSocket")
+
+-- | Rewrite the 'ResponseRaw' fallback produced by 'Network.Wai.Handler.WebSockets.websocketsApp'
+-- so the fallback 'Response' reports @200 OK@ instead of the hard-coded @status500@
+-- from wai-websockets. We cannot use @status101@ here because Warp's @hasBody@
+-- predicate returns @False@ for all 1xx statuses, causing Warp to skip the raw
+-- streaming handler and serve the fallback headers directly — which breaks the
+-- WebSocket handshake (see #2628). @status200@ is the closest non-alarming status
+-- that Warp's @hasBody@ accepts. See the comment in 'startWebSocketApp' for the
+-- full rationale.
+rewriteWebSocketFallbackStatus :: Response -> Response
+rewriteWebSocketFallbackStatus (WaiInternal.ResponseRaw handler fallback) =
+    WaiInternal.ResponseRaw handler (mapResponseStatus (const HTTP.status200) fallback)
+rewriteWebSocketFallbackStatus other = other
 
 
 jumpToAction :: forall action. (Controller action, ?context :: Context.ControllerContext, ?modelContext :: ModelContext, ?respond :: Respond, ?request :: Request) => action -> IO ResponseReceived

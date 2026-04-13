@@ -3,7 +3,8 @@
 
     inputs = {
         ihp.url = "github:digitallyinduced/ihp";
-        ihp-forum.url = "github:digitallyinduced/ihp-forum/feature/upgrade-to-latest-ihp";
+        ihp-forum.url = "github:digitallyinduced/ihp-forum";
+        ihp-forum.flake = false;
         nixpkgs.follows = "ihp/nixpkgs";
     };
 
@@ -64,7 +65,10 @@
                             -package ihp -package ihp-mail \
                             -Wno-partial-fields \
                             Main.hs -o forum-server \
-                            +RTS -s 2>ghc-rts-stats.txt
+                            +RTS -s -M8G -A128M 2>&1 | tee ghc-output.txt
+
+                        # Extract RTS stats from the output
+                        grep -A999 'bytes allocated in the heap' ghc-output.txt > ghc-rts-stats.txt || true
 
                         # Extract compile allocations (deterministic metric)
                         grep 'bytes allocated in the heap' ghc-rts-stats.txt \
@@ -84,8 +88,12 @@
                         sort -t, -k2 -rn -o modules.csv modules.csv
                     '';
                     installPhase = ''
-                        mkdir -p $out/bin
+                        mkdir -p $out/bin $out/dumps
                         cp core-size modules.csv compile-allocations $out/
+                        cd dumps && find . -name '*.dump-simpl' | while read f; do
+                            mkdir -p "$out/dumps/$(dirname "$f")"
+                            cp "$f" "$out/dumps/$f"
+                        done && cd ..
                         cp forum-server $out/bin/
                         mkdir -p $out/Application
                         cp Application/Schema.sql $out/Application/

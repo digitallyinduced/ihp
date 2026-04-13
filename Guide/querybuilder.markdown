@@ -63,6 +63,20 @@ example = do
     pure project
 ```
 
+### many rows as Vector: [`fetchVector`](https://ihp.digitallyinduced.com/api-docs/IHP-Fetch.html#v:fetchVector)
+
+Use [`fetchVector`](https://ihp.digitallyinduced.com/api-docs/IHP-Fetch.html#v:fetchVector) instead of [`fetch`](https://ihp.digitallyinduced.com/api-docs/IHP-Fetch.html#v:fetch) to get results as a `Vector` instead of a list. This avoids the overhead of building a linked list, which can matter for large result sets:
+
+```haskell
+example :: IO (Vector Project)
+example = do
+    projects <- query @Project |> fetchVector
+    -- Query: `SELECT * FROM projects`
+    pure projects
+```
+
+The returned `Vector` works with `forEach` in HSX views just like a list does.
+
 ## Where Conditions
 
 To specify `WHERE` conditions, you can use [`filterWhere`](https://ihp.digitallyinduced.com/api-docs/IHP-QueryBuilder.html#v:filterWhere):

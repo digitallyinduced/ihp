@@ -11,7 +11,7 @@ import qualified System.Directory as Directory
 
 instance Controller LogsController where
     action AppLogsAction = do
-        toolServerApp <- fromContext @ToolServerApplication
+        let toolServerApp = theToolServerApplication
 
         standardOutput <- cs . ByteString.unlines . reverse <$> readIORef toolServerApp.appStandardOutput
         errorOutput <- cs . ByteString.unlines . reverse <$> readIORef toolServerApp.appErrorOutput

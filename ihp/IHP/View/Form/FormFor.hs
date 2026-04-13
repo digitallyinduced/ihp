@@ -15,14 +15,14 @@ module IHP.View.Form.FormFor where
 
 import           IHP.Controller.Context
 import           IHP.HSX.ConvertibleStrings ()
-import           IHP.HSX.QQ (hsx)
+import           IHP.HSX.MarkupQQ (hsx)
 import           IHP.ModelSupport (Id', InputValue, getModelName, isNew)
 import           IHP.Prelude
 import           IHP.View.Form.Fields (hiddenField)
 import           IHP.View.Types
 import           IHP.ViewSupport
 import           Network.Wai (Request, pathInfo)
-import qualified Text.Blaze.Html5 as Html5
+import IHP.HSX.Markup (Markup, ToHtml(..))
 
 -- | Forms usually begin with a 'formFor' expression.
 --
@@ -93,7 +93,7 @@ formFor :: forall record. (
     , ?request :: Request
     , ModelFormAction record
     , HasField "meta" record MetaBag
-    ) => record -> ((?context :: ControllerContext, ?formContext :: FormContext record) => Html5.Html) -> Html5.Html
+    ) => record -> ((?context :: ControllerContext, ?formContext :: FormContext record) => Markup) -> Markup
 formFor record formBody = formForWithOptions @record record (\c -> c) formBody
 {-# INLINE formFor #-}
 
@@ -118,7 +118,7 @@ formForWithOptions :: forall record. (
     , ?request :: Request
     , ModelFormAction record
     , HasField "meta" record MetaBag
-    ) => record -> (FormContext record -> FormContext record) -> ((?context :: ControllerContext, ?formContext :: FormContext record) => Html5.Html) -> Html5.Html
+    ) => record -> (FormContext record -> FormContext record) -> ((?context :: ControllerContext, ?formContext :: FormContext record) => Markup) -> Markup
 formForWithOptions record applyOptions formBody = buildForm (applyOptions (createFormContext record) { formAction = modelFormAction record }) formBody
 {-# INLINE formForWithOptions #-}
 
@@ -152,7 +152,7 @@ formForWithoutJavascript :: forall record. (
     , ?request :: Request
     , ModelFormAction record
     , HasField "meta" record MetaBag
-    ) => record -> ((?context :: ControllerContext, ?formContext :: FormContext record) => Html5.Html) -> Html5.Html
+    ) => record -> ((?context :: ControllerContext, ?formContext :: FormContext record) => Markup) -> Markup
 formForWithoutJavascript record formBody = formForWithOptions @record record (\formContext -> formContext { disableJavascriptSubmission = True }) formBody
 {-# INLINE formForWithoutJavascript #-}
 
@@ -183,7 +183,7 @@ formFor' :: forall record. (
     ?context :: ControllerContext
     , ?request :: Request
     , HasField "meta" record MetaBag
-    ) => record -> Text -> ((?context :: ControllerContext, ?formContext :: FormContext record) => Html5.Html) -> Html5.Html
+    ) => record -> Text -> ((?context :: ControllerContext, ?formContext :: FormContext record) => Markup) -> Markup
 formFor' record action = buildForm (createFormContext record) { formAction = action }
 {-# INLINE formFor' #-}
 
@@ -207,7 +207,7 @@ createFormContext record =
 {-# INLINE createFormContext #-}
 
 -- | Used by 'formFor' to render the form
-buildForm :: forall model. (?context :: ControllerContext) => FormContext model -> ((?context :: ControllerContext, ?formContext :: FormContext model) => Html5.Html) -> Html5.Html
+buildForm :: forall model. (?context :: ControllerContext) => FormContext model -> ((?context :: ControllerContext, ?formContext :: FormContext model) => Markup) -> Markup
 buildForm formContext inner = [hsx|
         <form
             method={formContext.formMethod}
@@ -233,13 +233,13 @@ nestedFormFor :: forall fieldName childRecord parentRecord idType. (
     , HasField "id" childRecord idType
     , InputValue idType
     , HasField "meta" childRecord MetaBag
-    ) => Proxy fieldName -> ((?context :: ControllerContext, ?formContext :: FormContext childRecord) => Html5.Html) -> Html5.Html
+    ) => Proxy fieldName -> ((?context :: ControllerContext, ?formContext :: FormContext childRecord) => Markup) -> Markup
 nestedFormFor field nestedRenderForm = forEach children renderChild
     where
         parentFormContext :: FormContext parentRecord
         parentFormContext = ?formContext
 
-        renderChild :: childRecord -> Html5.Html
+        renderChild :: childRecord -> Markup
         renderChild record = let ?formContext = buildNestedFormContext record in [hsx|
             {hiddenField #id}
             {nestedRenderForm}
@@ -314,7 +314,7 @@ submitButton =
         buttonText = modelName |> humanize -- We do this to turn 'Create ProjectTask' into 'Create Project Task'
         isNew = IHP.ModelSupport.isNew (model ?formContext)
     in SubmitButton
-    { label = cs $ (if isNew then "Create " else "Save ") <> buttonText
+    { label = toHtml $ (if isNew then "Create " else "Save ") <> buttonText
     , buttonClass = mempty
     , buttonDisabled = False
     , cssFramework = ?formContext.cssFramework

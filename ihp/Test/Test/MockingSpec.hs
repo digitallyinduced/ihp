@@ -1,8 +1,8 @@
 {-|
 Module: Test.MockingSpec
-Tests for IHP.Test.Mocking, ensuring callActionWithParams correctly
-delivers params through the middleware stack and that redirect responses
-preserve their status codes.
+Tests for IHP.Test.Mocking, ensuring params are correctly delivered
+through the middleware stack and that redirect responses preserve
+their status codes.
 -}
 {-# LANGUAGE AllowAmbiguousTypes #-}
 
@@ -14,9 +14,9 @@ import IHP.Prelude
 import IHP.Environment
 import IHP.FrameworkConfig
 import IHP.ControllerPrelude hiding (get, request)
-import Text.Blaze.Html (Html)
-import Network.Wai
-import Network.HTTP.Types
+import IHP.HSX.Markup (Html)
+import Network.Wai.Test
+import Test.Util (testGet, testPostForm)
 
 data WebApplication = WebApplication deriving (Eq, Show, Data)
 
@@ -52,19 +52,23 @@ config = do
     option (AppPort 8000)
 
 tests :: Spec
-tests = beforeAll (mockContextNoDatabase WebApplication config) do
+tests = aroundAll (withMockContextAndApp WebApplication config) do
     describe "IHP.Test.Mocking" do
-        describe "callActionWithParams" do
-            it "should deliver params to the controller action" $ withContext do
-                response <- callActionWithParams EchoParamAction [("message", "hello world")]
-                body <- responseBody response
-                cs body `shouldBe` ("hello world" :: Text)
+        describe "form params" do
+            it "should deliver params to the controller action" $ withContextAndApp \application -> do
+                runSession (do
+                    response <- testPostForm "test/EchoParam" [("message", "hello world")]
+                    assertStatus 200 response
+                    assertBody "hello world" response
+                    ) application
 
-            it "should return status 200 for rendered responses" $ withContext do
-                response <- callActionWithParams EchoParamAction [("message", "test")]
-                responseStatus response `shouldBe` status200
+            it "should return status 200 for rendered responses" $ withContextAndApp \application -> do
+                runSession (do
+                    testPostForm "test/EchoParam" [("message", "test")] >>= assertStatus 200
+                    ) application
 
         describe "redirectTo" do
-            it "should return status 302" $ withContext do
-                response <- callAction RedirectAction
-                responseStatus response `shouldBe` status302
+            it "should return status 302" $ withContextAndApp \application -> do
+                runSession (do
+                    testGet "test/Redirect" >>= assertStatus 302
+                    ) application

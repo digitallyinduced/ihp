@@ -585,6 +585,7 @@ deleteColumn DeleteColumnOptions { .. } schema =
                 isRef (IsExpression a b) = isRef a || isRef b
                 isRef (InExpression a b) = isRef a || isRef b
                 isRef (InArrayExpression exprs) = foldl' (||) False (map isRef exprs)
+                isRef (ArrayLiteralExpression exprs) = foldl' (||) False (map isRef exprs)
                 isRef (NotExpression a) = isRef a
                 isRef (ExistsExpression a) = isRef a
                 isRef (OrExpression a b) = isRef a || isRef b
@@ -645,6 +646,7 @@ isIndexStatementReferencingTableColumn statement tableName columnName = isRefere
             IsExpression a b -> expressionReferencesColumn a || expressionReferencesColumn b
             InExpression a b -> expressionReferencesColumn a || expressionReferencesColumn b
             InArrayExpression exprs -> exprs |> map expressionReferencesColumn |> List.or
+            ArrayLiteralExpression exprs -> exprs |> map expressionReferencesColumn |> List.or
             NotExpression a -> expressionReferencesColumn a
             ExistsExpression a -> expressionReferencesColumn a
             OrExpression a b -> expressionReferencesColumn a || expressionReferencesColumn b

@@ -70,6 +70,110 @@ The `initAuthentication` function has been deprecated in favor of a WAI middlewa
 
 **Deprecated functions:** `initAuthentication` still works but is deprecated. `currentRoleOrNothing`, `currentRole`, `currentRoleId`, `ensureIsRole` have been removed. Use the type-specific variants instead: `currentUserOrNothing`/`currentAdminOrNothing`, `currentUser`/`currentAdmin`, `currentUserId`/`currentAdminId`, `ensureIsUser`/`ensureIsAdmin`.
 
+## Join Support Removed from QueryBuilder
+
+The query builder's join functions (`innerJoin`, `innerJoinThirdTable`, `labelResults`) and all `*JoinedTable` filter/order functions have been removed. Use `typedSql` instead, which provides full SQL expressiveness with compile-time type safety.
+
+**Simple inner join with filter:**
+
+```haskell
+-- Before
+query @Post
+    |> innerJoin @User (#authorId, #id)
+    |> filterWhereJoinedTable @User (#name, "Tom" :: Text)
+    |> fetch
+
+-- After: results have named field access via OverloadedRecordDot
+posts <- sqlQueryTyped [typedSql|
+    SELECT posts.id, posts.title, posts.created_at
+    FROM posts
+    INNER JOIN users ON posts.author_id = users.id
+    WHERE users.name = ${"Tom" :: Text}
+|]
+forEach posts \post -> putStrLn post.title
+```
+
+**Three-table join:**
+
+```haskell
+-- Before
+query @Post
+    |> innerJoin @User (#authorId, #id)
+    |> innerJoinThirdTable @Department @User (#id, #departmentId)
+    |> filterWhereJoinedTable @Department (#number, 5)
+    |> fetch
+
+-- After
+posts <- sqlQueryTyped [typedSql|
+    SELECT posts.id, posts.title, posts.body
+    FROM posts
+    INNER JOIN users ON posts.author_id = users.id
+    INNER JOIN departments ON users.department_id = departments.id
+    WHERE departments.number = ${5 :: Int}
+|]
+```
+
+**Many-to-many with filter:**
+
+```haskell
+-- Before
+query @Post
+    |> innerJoin @Tagging (#id, #postId)
+    |> innerJoinThirdTable @Tag @Tagging (#id, #tagId)
+    |> filterWhereInJoinedTable @Tag (#tagText, ["haskell", "ihp"])
+    |> fetch
+
+-- After
+posts <- sqlQueryTyped [typedSql|
+    SELECT posts.id, posts.title
+    FROM posts
+    INNER JOIN taggings ON posts.id = taggings.post_id
+    INNER JOIN tags ON taggings.tag_id = tags.id
+    WHERE tags.tag_text = ANY(${["haskell", "ihp"] :: [Text]})
+|]
+```
+
+**Ordering on joined table:**
+
+```haskell
+-- Before
+query @Post
+    |> innerJoin @User (#authorId, #id)
+    |> orderByAscJoinedTable @User #name
+    |> fetch
+
+-- After
+posts <- sqlQueryTyped [typedSql|
+    SELECT posts.id, posts.title
+    FROM posts
+    INNER JOIN users ON posts.author_id = users.id
+    ORDER BY users.name ASC
+|]
+```
+
+**`labelResults` (indexed many-to-many):**
+
+```haskell
+-- Before
+labeledPosts <- query @Post
+    |> innerJoin @Tagging (#id, #postId)
+    |> innerJoinThirdTable @Tag @Tagging (#id, #tagId)
+    |> labelResults @Tag #id
+    |> fetch
+-- labeledPosts :: [LabeledData (Id' "tags") Post]
+
+-- After: select the columns you need, access via named fields
+rows <- sqlQueryTyped [typedSql|
+    SELECT tags.id, posts.id, posts.title
+    FROM posts
+    INNER JOIN taggings ON posts.id = taggings.post_id
+    INNER JOIN tags ON taggings.tag_id = tags.id
+|]
+forEach rows \row -> putStrLn (show row.id <> ": " <> row.title)
+```
+
+The following types have also been removed: `HasQueryBuilder`, `JoinQueryBuilderWrapper`, `NoJoinQueryBuilderWrapper`, `LabeledQueryBuilderWrapper`, `LabeledData`, `NoJoins`. If your code references these types, replace with `QueryBuilder table` directly. For `LabeledData`, use a tuple with `typedSql` instead (see `labelResults` example above).
+
 # Upgrade to 1.5.0 from 1.4.0
 
 ## 1. Switch IHP version

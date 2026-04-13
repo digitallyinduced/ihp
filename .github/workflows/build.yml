@@ -22,10 +22,31 @@ jobs:
         determinate: true
         extra-conf: "lazy-trees = true"
       if: matrix.os != 'ARM64'
+    - uses: DeterminateSystems/magic-nix-cache-action@main
+      if: matrix.os != 'ARM64'
     - uses: cachix/cachix-action@v17
       with:
         name: digitallyinduced
         signingKey: '${{ secrets.CACHIX_SIGNING_KEY }}'
         authToken: '${{ secrets.CACHIX_AUTH_TOKEN }}'
       if: matrix.os != 'ARM64'
+    # ARM64 (self-hosted) runs the full check suite including multi-GHC checks
     - run: nix flake check --impure --override-input ihp-boilerplate/ihp "github:${{ github.event.repository.full_name }}/${{ github.sha }}" -L
+      if: matrix.os == 'ARM64'
+    # GitHub-hosted runners only build packages to populate the cachix cache.
+    # All checks (tests, benchmarks, multi-GHC) are already covered by ARM64.
+    # Uses --max-jobs 1 to build one derivation at a time, preventing OOM on
+    # the 16GB ubuntu-latest runners where nothing-but-nix reduces available memory.
+    - run: |
+        system=$(nix eval --impure --expr builtins.currentSystem --raw)
+        override="--override-input ihp-boilerplate/ihp github:${{ github.event.repository.full_name }}/${{ github.sha }}"
+
+        packages=$(nix eval --impure $override --json ".#packages.$system" --apply builtins.attrNames \
+          | jq -r '.[]')
+
+        targets=""
+        for p in $packages; do
+          targets="$targets .#packages.$system.$p"
+        done
+        nix build --impure --max-jobs 1 $override -L $targets
+      if: matrix.os != 'ARM64'

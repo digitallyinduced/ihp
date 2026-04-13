@@ -242,41 +242,6 @@ tests = do
 
                 (toSQL theQuery) `shouldBe` ("SELECT " <> postColumns <> " FROM posts WHERE posts.title ILIKE $1")
 
-        describe "filterWhereILikeJoinedTable" do
-            it "should produce a SQL with a WHERE condition" do
-                let searchTerm = "louis"
-                let theQuery = query @Post
-                     |> innerJoin @User (#createdBy, #id)
-                     |> filterWhereILikeJoinedTable @User (#name, "%" <> searchTerm <> "%")
-
-                (toSQL theQuery) `shouldBe` ("SELECT " <> postColumns <> " FROM posts INNER JOIN users ON posts.created_by = users.id WHERE users.name ILIKE $1")
-
-        describe "filterWhereInJoinedTable" do
-            it "should produce a SQL with a WHERE condition" do
-                let theValues :: [Text] = ["first", "second"]
-                let theQuery = query @User
-                        |> innerJoin @Post (#name, #title)
-                        |> filterWhereInJoinedTable @Post (#title, theValues)
-
-                (toSQL theQuery) `shouldBe` "SELECT users.id, users.name FROM users INNER JOIN posts ON users.name = posts.title WHERE posts.title = ANY ($1)"
-
-        describe "filterWhereNotInJoinedTable" do
-            it "should produce a SQL with a WHERE condition" do
-                let theValues :: [Text] = ["first", "second"]
-                let theQuery = query @User
-                        |> innerJoin @Post (#name, #title)
-                        |> filterWhereNotInJoinedTable @Post (#title, theValues)
-
-                (toSQL theQuery) `shouldBe` "SELECT users.id, users.name FROM users INNER JOIN posts ON users.name = posts.title WHERE posts.title <> ALL ($1)"
-
-            it "should ignore an empty value list" do
-                let theValues :: [Text] = []
-                let theQuery = query @User
-                        |> innerJoin @Post (#name, #title)
-                        |> filterWhereNotInJoinedTable @Post (#title, theValues)
-
-                (toSQL theQuery) `shouldBe` "SELECT users.id, users.name FROM users INNER JOIN posts ON users.name = posts.title"
-
         describe "filterWherePast" do
             it "should produce a SQL with the correct WHERE condition" do
                 let theQuery = query @Post
@@ -347,24 +312,6 @@ tests = do
 
                 (toSQL theQuery) `shouldBe` "SELECT favorite_title.title, favorite_title.likes FROM favorite_title WHERE favorite_title.likes <= $1"
 
-        describe "filterWhereJoinedTable" do
-            it "should produce a SQL with a WHERE condition on joined table" do
-                let theQuery = query @Post
-                        |> innerJoin @User (#createdBy, #id)
-                        |> innerJoin @FavoriteTitle (#title, #title)
-                        |> filterWhereJoinedTable @User (#name, "Tom" :: Text)
-
-                (toSQL theQuery) `shouldBe` ("SELECT " <> postColumns <> " FROM posts INNER JOIN users ON posts.created_by = users.id INNER JOIN favorite_title ON posts.title = favorite_title.title WHERE users.name = $1")
-
-        describe "filterWhereNotJoinedTable" do
-            it "should produce a SQL with a WHERE NOT condition on joined table" do
-                let theQuery = query @Post
-                        |> innerJoin @User (#createdBy, #id)
-                        |> innerJoin @FavoriteTitle (#title, #title)
-                        |> filterWhereNotJoinedTable @User (#name, "Tom" :: Text)
-
-                (toSQL theQuery) `shouldBe` ("SELECT " <> postColumns <> " FROM posts INNER JOIN users ON posts.created_by = users.id INNER JOIN favorite_title ON posts.title = favorite_title.title WHERE users.name != $1")
-
         describe "filterWhereSql" do
             it "should produce a SQL with a raw WHERE condition" do
                 let theQuery = query @Post
@@ -380,31 +327,6 @@ tests = do
                             (filterWhere (#public, True))
 
                 (toSQL theQuery) `shouldBe` ("SELECT " <> postColumns <> " FROM posts WHERE (posts.created_by = $1) OR (posts.public = $2)")
-
-        describe "innerJoin" do
-            it "should provide an inner join sql query" do
-                let theQuery = query @Post
-                        |> innerJoin @User (#createdBy, #id)
-                        |> innerJoin @FavoriteTitle (#title, #title)
-
-                (toSQL theQuery) `shouldBe` ("SELECT " <> postColumns <> " FROM posts INNER JOIN users ON posts.created_by = users.id INNER JOIN favorite_title ON posts.title = favorite_title.title")
-
-        describe "innerJoinThirdTable" do
-            it "should provide an inner join sql query" do
-                let theQuery = query @Post
-                        |> innerJoin @User (#createdBy, #id)
-                        |> innerJoin @FavoriteTitle (#title, #title)
-                        |> innerJoinThirdTable @User @FavoriteTitle (#name, #title)
-
-                (toSQL theQuery) `shouldBe` ("SELECT " <> postColumns <> " FROM posts INNER JOIN users ON posts.created_by = users.id INNER JOIN favorite_title ON posts.title = favorite_title.title INNER JOIN users ON favorite_title.title = users.name")
-
-        describe "labelResults" do
-            it "should provide a query with index field" do
-                let theQuery = query @Tag
-                        |> innerJoin @Tagging (#id, #tagId)
-                        |> innerJoinThirdTable @Post @Tagging (#id, #postId)
-                        |> labelResults @Post #id
-                (toSQL theQuery) `shouldBe` "SELECT posts.id, tags.id, tags.tag_text FROM tags INNER JOIN taggings ON tags.id = taggings.tag_id INNER JOIN posts ON taggings.post_id = posts.id"
 
         describe "orderBy" do
             describe "orderByAsc" do
@@ -434,54 +356,6 @@ tests = do
                             |> orderByDesc #title
 
                     (toSQL theQuery) `shouldBe` ("SELECT " <> postColumns <> " FROM posts ORDER BY posts.created_at DESC,posts.title DESC")
-
-            describe "orderByJoinedTable" do
-                it "should add a ORDER BY" do
-                    let theQuery = query @Post
-                            |> innerJoin @User (#createdBy, #id)
-                            |> orderByJoinedTable @User #name
-
-                    (toSQL theQuery) `shouldBe` ("SELECT " <> postColumns <> " FROM posts INNER JOIN users ON posts.created_by = users.id ORDER BY users.name")
-
-                it "should accumulate multiple ORDER BY's" do
-                    let theQuery = query @Post
-                            |> innerJoin @User (#createdBy, #id)
-                            |> orderByJoinedTable @User #name
-                            |> orderByJoinedTable @User #id
-
-                    (toSQL theQuery) `shouldBe` ("SELECT " <> postColumns <> " FROM posts INNER JOIN users ON posts.created_by = users.id ORDER BY users.name,users.id")
-
-            describe "orderByAscJoinedTable" do
-                it "should add a ORDER BY" do
-                    let theQuery = query @Post
-                            |> innerJoin @User (#createdBy, #id)
-                            |> orderByAscJoinedTable @User #name
-
-                    (toSQL theQuery) `shouldBe` ("SELECT " <> postColumns <> " FROM posts INNER JOIN users ON posts.created_by = users.id ORDER BY users.name")
-
-                it "should accumulate multiple ORDER BY's" do
-                    let theQuery = query @Post
-                            |> innerJoin @User (#createdBy, #id)
-                            |> orderByAscJoinedTable @User #name
-                            |> orderByAscJoinedTable @User #id
-
-                    (toSQL theQuery) `shouldBe` ("SELECT " <> postColumns <> " FROM posts INNER JOIN users ON posts.created_by = users.id ORDER BY users.name,users.id")
-
-            describe "orderByDescJoinedTable" do
-                it "should add a ORDER BY" do
-                    let theQuery = query @Post
-                            |> innerJoin @User (#createdBy, #id)
-                            |> orderByDescJoinedTable @User #name
-
-                    (toSQL theQuery) `shouldBe` ("SELECT " <> postColumns <> " FROM posts INNER JOIN users ON posts.created_by = users.id ORDER BY users.name DESC")
-
-                it "should accumulate multiple ORDER BY's" do
-                    let theQuery = query @Post
-                            |> innerJoin @User (#createdBy, #id)
-                            |> orderByDescJoinedTable @User #name
-                            |> orderByDescJoinedTable @User #id
-
-                    (toSQL theQuery) `shouldBe` ("SELECT " <> postColumns <> " FROM posts INNER JOIN users ON posts.created_by = users.id ORDER BY users.name DESC,users.id DESC")
 
         describe "limit" do
             it "should add a LIMIT" do

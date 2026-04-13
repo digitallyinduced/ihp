@@ -98,17 +98,13 @@ common shared-properties
             , hashable
             , scientific
             , vector
-            , wreq
             , deepseq
             , parser-combinators
             , fast-logger
             , minio-hs
-            , temporary
             , conduit-extra
             , wai-cors
-            , lens
             , random
-            , hspec
             , cereal
             , cereal-text
             , neat-interpolation
@@ -211,7 +207,6 @@ library
         , IHP.QueryBuilder.Types
         , IHP.QueryBuilder.Compiler
         , IHP.QueryBuilder.Filter
-        , IHP.QueryBuilder.Join
         , IHP.QueryBuilder.Order
         , IHP.QueryBuilder.Union
         , IHP.QueryBuilder.HasqlCompiler
@@ -290,7 +285,9 @@ test-suite tests
     main-is: Test/Main.hs
     hs-source-dirs: Test
     ghc-options: -threaded
-    build-depends: ihp
+    build-depends:
+          ihp
+        , hspec
     other-modules:
         Test.ValidationSupport.ValidateFieldSpec
         Test.NameSupportSpec
@@ -317,6 +314,7 @@ test-suite tests
         Test.JobQueueSpec
         Test.LoginSupport.AuthVaultSpec
         Test.ModelFixtures
+        Test.Util
 
 benchmark ihp-router-bench
     import: shared-properties

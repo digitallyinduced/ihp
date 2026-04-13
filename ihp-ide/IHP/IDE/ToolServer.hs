@@ -132,6 +132,7 @@ withToolServerApplication toolServerApplication port liveReloadClients action = 
                                        . Vault.insert appUrlVaultKey appUrl
                                        . Vault.insert databaseNeedsMigrationVaultKey databaseNeedsMigration
                                        . Vault.insert hoogleUrlVaultKey hoogleUrl
+                                       . Vault.insert toolServerApplicationVaultKey toolServerApplication
                                        $ req.vault }
                 app req' respond
 
@@ -143,6 +144,7 @@ withToolServerApplication toolServerApplication port liveReloadClients action = 
                     $ modalMiddleware
                     $ toolServerVaultMiddleware
                     $ modelContextMiddleware modelContext
+                    $ loggerMiddleware frameworkConfig.logger
                     $ frameworkConfigMiddleware frameworkConfig
                     $ requestBodyMiddleware frameworkConfig.parseRequestBodyOptions
                     $ Websocket.websocketsOr

@@ -16,6 +16,11 @@ module IHP.HSX.Parser
 , AttributeValue (..)
 , collapseSpace
 , HsxSettings (..)
+, isStaticTree
+, isStaticAttribute
+, isNonTrivialStaticNode
+, renderStaticHtml
+, renderStaticAttribute
 ) where
 
 import Prelude
@@ -757,6 +762,50 @@ missingPrefixHint name
     where
         hasPrefix p = p `Text.isPrefixOf` name
         hint prefix dropLen = "\nDid you mean to use a " <> prefix <> " attribute (e.g. " <> prefix <> Text.drop dropLen name <> ")?"
+
+-- | Returns True if the entire subtree is static (no dynamic content).
+isStaticTree :: Node -> Bool
+isStaticTree (Node _ attributes children _) =
+    all isStaticAttribute attributes && all isStaticTree children
+isStaticTree (TextNode _)          = True
+isStaticTree (PreEscapedTextNode _) = True
+isStaticTree (SplicedNode _)       = False
+isStaticTree (Children children)   = all isStaticTree children
+isStaticTree (CommentNode _)       = True
+isStaticTree NoRenderCommentNode   = True
+
+isStaticAttribute :: Attribute -> Bool
+isStaticAttribute (StaticAttribute _ (TextValue _))      = True
+isStaticAttribute (StaticAttribute _ (ExpressionValue _)) = False
+isStaticAttribute (SpreadAttributes _)                    = False
+
+-- | Returns True if a node is worth pre-rendering.
+-- Bare TextNode/PreEscapedTextNode already compile to raw byte strings.
+isNonTrivialStaticNode :: Node -> Bool
+isNonTrivialStaticNode (TextNode _)          = False
+isNonTrivialStaticNode (PreEscapedTextNode _) = False
+isNonTrivialStaticNode NoRenderCommentNode   = False
+isNonTrivialStaticNode _                     = True
+
+-- | Render a static Node tree to HTML Text at compile time.
+renderStaticHtml :: Node -> Text
+renderStaticHtml (Node "!DOCTYPE" _ _ _) = "<!DOCTYPE HTML>\n"
+renderStaticHtml (Node name attributes children isLeaf) =
+    let openTag = "<" <> name <> foldMap renderStaticAttribute attributes <> ">"
+    in if isLeaf
+        then openTag
+        else openTag <> foldMap renderStaticHtml children <> "</" <> name <> ">"
+renderStaticHtml (TextNode value)          = value
+renderStaticHtml (PreEscapedTextNode value) = value
+renderStaticHtml (SplicedNode _)           = error "renderStaticHtml: unexpected SplicedNode"
+renderStaticHtml (Children children)       = foldMap renderStaticHtml children
+renderStaticHtml (CommentNode value)       = "<!-- " <> value <> " -->"
+renderStaticHtml NoRenderCommentNode       = ""
+
+renderStaticAttribute :: Attribute -> Text
+renderStaticAttribute (StaticAttribute name (TextValue value)) =
+    " " <> name <> "=\"" <> value <> "\""
+renderStaticAttribute _ = error "renderStaticAttribute: unexpected dynamic attribute"
 
 -- | Replaces multiple space characters with a single one
 collapseSpace :: Text -> Text

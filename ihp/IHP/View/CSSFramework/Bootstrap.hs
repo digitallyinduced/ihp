@@ -12,9 +12,8 @@ import Data.Maybe (isJust)
 import Control.Monad (unless)
 import IHP.HaskellSupport (forEach)
 import IHP.InputValue (inputValue)
-import qualified Text.Blaze.Html5 as Blaze
-import IHP.HSX.QQ (hsx)
-import IHP.HSX.ToHtml ()
+import IHP.HSX.Markup (Html)
+import IHP.HSX.MarkupQQ (hsx)
 import IHP.View.Types
 import IHP.View.Classes
 import IHP.Breadcrumb.Types
@@ -50,7 +49,7 @@ bootstrapBase = unstyled
         styledValidationResultClass = "invalid-feedback"
         styledSubmitButtonClass = "btn btn-primary"
 
-        styledCheckboxFormField :: CSSFramework -> FormField -> Blaze.Html -> Blaze.Html
+        styledCheckboxFormField :: CSSFramework -> FormField -> Html -> Html
         styledCheckboxFormField cssFramework@CSSFramework {styledInputInvalidClass, styledFormFieldHelp} formField@FormField {fieldType, fieldName, fieldLabel, fieldValue, fieldInputId, validatorResult, fieldClass, disabled, disableLabel, disableValidationResult, additionalAttributes, labelClass, required, autofocus } validationResult = do
             [hsx|<div class="form-check">{element}</div>|]
             where
@@ -93,7 +92,7 @@ bootstrapBase = unstyled
                             {helpText}
                         |]
 
-        styledRadioFormField :: CSSFramework -> FormField -> Blaze.Html -> Blaze.Html
+        styledRadioFormField :: CSSFramework -> FormField -> Html -> Html
         styledRadioFormField cssFramework@CSSFramework {styledInputClass, styledInputInvalidClass, styledFormFieldHelp} formField@FormField {fieldType, fieldName, placeholder, fieldLabel, fieldValue, fieldInputId, validatorResult, fieldClass, disabled, disableLabel, disableValidationResult, additionalAttributes, labelClass, required, autofocus } validationResult =
             [hsx|
                 {label}
@@ -130,26 +129,26 @@ bootstrapBase = unstyled
                         optionId = fieldInputId <> "_" <> optionValue
                         radioLabel = unless disableLabel [hsx|<label class={classes ["form-check-label", (labelClass, labelClass /= "")]} for={optionId}>{optionLabel}</label>|]
 
-        styledPaginationPageLink :: CSSFramework -> Pagination -> ByteString -> Int -> Blaze.Html
+        styledPaginationPageLink :: CSSFramework -> Pagination -> ByteString -> Int -> Html
         styledPaginationPageLink _ pagination@Pagination {currentPage} pageUrl pageNumber =
             let
                 linkClass = classes ["page-item", ("active", pageNumber == currentPage)]
             in
                 [hsx|<li class={linkClass}><a class="page-link" href={pageUrl}>{show pageNumber}</a></li>|]
 
-        styledPaginationDotDot :: CSSFramework -> Pagination -> Blaze.Html
+        styledPaginationDotDot :: CSSFramework -> Pagination -> Html
         styledPaginationDotDot _ _ =
             [hsx|<li class="page-item"><a class="page-link">…</a></li>|]
 
-        styledPaginationItemsPerPageSelector :: CSSFramework -> Pagination -> (Int -> ByteString) -> Blaze.Html
+        styledPaginationItemsPerPageSelector :: CSSFramework -> Pagination -> (Int -> ByteString) -> Html
         styledPaginationItemsPerPageSelector _ pagination@Pagination {pageSize} itemsPerPageUrl =
             let
-                oneOption :: Int -> Blaze.Html
+                oneOption :: Int -> Html
                 oneOption n = [hsx|<option value={show n} selected={n == pageSize} data-url={itemsPerPageUrl n}>{n} items per page</option>|]
             in
                 [hsx|{forEach [10,20,50,100,200] oneOption}|]
 
-        styledBreadcrumb :: CSSFramework -> [BreadcrumbItem]-> BreadcrumbsView -> Blaze.Html
+        styledBreadcrumb :: CSSFramework -> [BreadcrumbItem]-> BreadcrumbsView -> Html
         styledBreadcrumb _ _ breadcrumbsView = [hsx|
             <nav>
                 <ol class="breadcrumb">
@@ -159,7 +158,7 @@ bootstrapBase = unstyled
             </nav>
         |]
 
-        styledBreadcrumbItem :: CSSFramework -> [ BreadcrumbItem ]-> BreadcrumbItem -> Bool -> Blaze.Html
+        styledBreadcrumbItem :: CSSFramework -> [ BreadcrumbItem ]-> BreadcrumbItem -> Bool -> Html
         styledBreadcrumbItem _ breadcrumbItems breadcrumbItem@BreadcrumbItem {breadcrumbLabel, url} isLast =
             let
                 breadcrumbsClasses = classes ["breadcrumb-item", ("active", isLast)]
@@ -184,7 +183,7 @@ bootstrap = bootstrapBase
         styledFormFieldHelp _ FormField { helpText = "" } = mempty
         styledFormFieldHelp _ FormField { helpText } = [hsx|<small class="form-text">{helpText}</small>|]
 
-        styledPagination :: CSSFramework -> PaginationView -> Blaze.Html
+        styledPagination :: CSSFramework -> PaginationView -> Html
         styledPagination _ paginationView =
             [hsx|
 
@@ -208,7 +207,7 @@ bootstrap = bootstrapBase
             </div>
             |]
 
-        styledPaginationLinkPrevious :: CSSFramework -> Pagination -> ByteString -> Blaze.Html
+        styledPaginationLinkPrevious :: CSSFramework -> Pagination -> ByteString -> Html
         styledPaginationLinkPrevious _ pagination@Pagination {currentPage} pageUrl =
             let
                 prevClass = classes ["page-item", ("disabled", not $ hasPreviousPage pagination)]
@@ -223,7 +222,7 @@ bootstrap = bootstrapBase
                     </li>
                 |]
 
-        styledPaginationLinkNext :: CSSFramework -> Pagination -> ByteString -> Blaze.Html
+        styledPaginationLinkNext :: CSSFramework -> Pagination -> ByteString -> Html
         styledPaginationLinkNext _ pagination@Pagination {currentPage} pageUrl =
             let
                 nextClass = classes ["page-item", ("disabled", not $ hasNextPage pagination)]
@@ -252,7 +251,7 @@ bootstrap4 = bootstrapBase
         styledFormFieldHelp _ FormField { helpText = "" } = mempty
         styledFormFieldHelp _ FormField { helpText } = [hsx|<small class="form-text text-muted">{helpText}</small>|]
 
-        styledPagination :: CSSFramework -> PaginationView -> Blaze.Html
+        styledPagination :: CSSFramework -> PaginationView -> Html
         styledPagination _ paginationView =
             [hsx|
 
@@ -276,7 +275,7 @@ bootstrap4 = bootstrapBase
             </div>
             |]
 
-        styledPaginationLinkPrevious :: CSSFramework -> Pagination -> ByteString -> Blaze.Html
+        styledPaginationLinkPrevious :: CSSFramework -> Pagination -> ByteString -> Html
         styledPaginationLinkPrevious _ pagination@Pagination {currentPage} pageUrl =
             let
                 prevClass = classes ["page-item", ("disabled", not $ hasPreviousPage pagination)]
@@ -291,7 +290,7 @@ bootstrap4 = bootstrapBase
                     </li>
                 |]
 
-        styledPaginationLinkNext :: CSSFramework -> Pagination -> ByteString -> Blaze.Html
+        styledPaginationLinkNext :: CSSFramework -> Pagination -> ByteString -> Html
         styledPaginationLinkNext _ pagination@Pagination {currentPage} pageUrl =
             let
                 nextClass = classes ["page-item", ("disabled", not $ hasNextPage pagination)]

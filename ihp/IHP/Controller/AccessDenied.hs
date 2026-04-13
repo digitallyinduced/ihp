@@ -13,9 +13,9 @@ import Wai.Request.Params.Middleware (Respond)
 import Network.HTTP.Types (status403)
 import Network.Wai
 import Network.HTTP.Types.Header
-import qualified Text.Blaze.Html.Renderer.Utf8 as Blaze
+import IHP.HSX.Markup (MarkupM(..))
 import qualified Data.ByteString.Lazy as LBS
-import IHP.HSX.QQ (hsx)
+import IHP.HSX.MarkupQQ (hsx)
 import qualified System.Directory as Directory
 import IHP.Controller.Response (respondWith, earlyReturn)
 
@@ -63,7 +63,7 @@ buildAccessDeniedResponse = do
 
 -- | The default IHP 403 not found page
 defaultAccessDeniedResponse :: Response
-defaultAccessDeniedResponse = responseBuilder status403 [(hContentType, "text/html")] $ Blaze.renderHtmlBuilder [hsx|
+defaultAccessDeniedResponse = responseBuilder status403 [(hContentType, "text/html")] $ getBuilder [hsx|
 <!DOCTYPE html>
 <html lang="en">
     <head>

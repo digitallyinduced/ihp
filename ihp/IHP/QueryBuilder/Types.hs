@@ -10,7 +10,6 @@ module IHP.QueryBuilder.Types
 , SQLQuery (..)
 , Condition (..)
 , ConditionValue (..)
-, Join (..)
 , OrderByClause (..)
 , OrderByDirection (..)
 , FilterOperator (..)
@@ -18,18 +17,7 @@ module IHP.QueryBuilder.Types
   -- * Helpers
 , addCondition
 , qualifyAndJoinColumns
-  -- * Type-level Join Tracking
-, NoJoins
-, EmptyModelList
-, ConsModelList
-, ModelList
-, IsJoined
-  -- * QueryBuilder Wrappers
-, JoinQueryBuilderWrapper (..)
-, NoJoinQueryBuilderWrapper (..)
-, LabeledQueryBuilderWrapper (..)
   -- * Type Classes
-, HasQueryBuilder (..)
 , DefaultScope (..)
 , EqOrIsOperator (..)
 , FilterPrimaryKey (..)
@@ -37,7 +25,7 @@ module IHP.QueryBuilder.Types
 
 import IHP.Prelude
 import IHP.ModelSupport
-import IHP.HSX.ToHtml
+import IHP.HSX.Markup (ToHtml(..))
 import qualified Control.DeepSeq as DeepSeq
 import qualified GHC.Generics
 import qualified Hasql.Encoders as Encoders
@@ -71,73 +59,6 @@ data OrderByClause =
     { orderByColumn :: !Text
     , orderByDirection :: !OrderByDirection }
     deriving (Show, Eq, GHC.Generics.Generic, DeepSeq.NFData)
-
--- | Type-level marker indicating no joins are allowed
-data NoJoins
-
--- | Type-level empty list for tracking joined tables
-data EmptyModelList
-
--- | Type-level cons cell for tracking joined tables
-data ConsModelList model models
-
--- | Type class to represent the true list type EmptyModelList ConsModelList.
-class ModelList a
-
-instance ModelList EmptyModelList
-instance ModelList (ConsModelList model models)
-
--- | Type class to query containment in the type-level list.
-class IsJoined a b
-
-instance (ModelList b) => IsJoined a (ConsModelList a b)
-instance {-# OVERLAPPABLE #-} (ModelList b, IsJoined a b) => IsJoined a (ConsModelList c b)
-
--- | Class to generalise over different QueryBuilder-providing types. The actual query builder can be extracted with 'getQueryBuilder' and injected with 'injectQueryBuilder'. Also assigns a join register to a queryBuilderProvider.
-class HasQueryBuilder queryBuilderProvider joinRegister | queryBuilderProvider -> joinRegister where
-    getQueryBuilder :: queryBuilderProvider table -> QueryBuilder table
-    injectQueryBuilder :: QueryBuilder table -> queryBuilderProvider table
-    getQueryIndex :: queryBuilderProvider table -> Maybe Text
-    getQueryIndex _ = Nothing
-    {-# INLINABLE getQueryIndex #-}
-
--- | Wrapper for QueryBuilders resulting from joins. Associates a joinRegister type.
-newtype JoinQueryBuilderWrapper joinRegister table = JoinQueryBuilderWrapper (QueryBuilder table)
-
--- | Wrapper for QueryBuilder that must not joins, e.g. queryUnion.
-newtype NoJoinQueryBuilderWrapper table = NoJoinQueryBuilderWrapper (QueryBuilder table)
-
--- | Wrapper for QueryBuilders with indexed results.
-newtype LabeledQueryBuilderWrapper foreignTable indexColumn indexValue table = LabeledQueryBuilderWrapper (QueryBuilder table)
-
--- | QueryBuilders have query builders and the join register is empty.
-instance HasQueryBuilder QueryBuilder EmptyModelList where
-    getQueryBuilder = id
-    {-# INLINE getQueryBuilder #-}
-    injectQueryBuilder = id
-    {-# INLINE injectQueryBuilder #-}
-
--- | JoinQueryBuilderWrappers have query builders
-instance HasQueryBuilder (JoinQueryBuilderWrapper joinRegister) joinRegister where
-    getQueryBuilder (JoinQueryBuilderWrapper queryBuilder) = queryBuilder
-    {-# INLINABLE getQueryBuilder #-}
-    injectQueryBuilder = JoinQueryBuilderWrapper
-    {-# INLINABLE injectQueryBuilder #-}
-
--- | NoJoinQueryBuilderWrapper have query builders and the join register does not allow any joins
-instance HasQueryBuilder NoJoinQueryBuilderWrapper NoJoins where
-    getQueryBuilder (NoJoinQueryBuilderWrapper queryBuilder) = queryBuilder
-    {-# INLINABLE getQueryBuilder #-}
-    injectQueryBuilder  = NoJoinQueryBuilderWrapper
-    {-# INLINABLE injectQueryBuilder #-}
-
-instance (KnownSymbol foreignTable, foreignModel ~ GetModelByTableName foreignTable , KnownSymbol indexColumn, HasField indexColumn foreignModel indexValue) => HasQueryBuilder (LabeledQueryBuilderWrapper foreignTable indexColumn indexValue) NoJoins where
-    getQueryBuilder (LabeledQueryBuilderWrapper queryBuilder) = queryBuilder
-    {-# INLINABLE getQueryBuilder #-}
-    injectQueryBuilder = LabeledQueryBuilderWrapper
-    {-# INLINABLE injectQueryBuilder #-}
-    getQueryIndex _ = Just $ symbolToText @foreignTable <> "." <> fieldNameToColumnName (symbolToText @indexColumn)
-    {-# INLINABLE getQueryIndex #-}
 
 -- | The QueryBuilder is a flat newtype over SQLQuery. Each combinator directly
 -- modifies fields of the underlying SQLQuery, avoiding any recursive tree traversal.
@@ -201,7 +122,6 @@ sqlQueryEq a b =
     && distinctClause a == distinctClause b
     && distinctOnClause a == distinctOnClause b
     && condEq (whereCondition a) (whereCondition b)
-    && joins a == joins b
     && orderByClause a == orderByClause b
     && limitClause a == limitClause b
     && offsetClause a == offsetClause b
@@ -218,21 +138,15 @@ instance KnownSymbol table => ToHtml (QueryBuilder table) where
         toSQLQueryBuilder :: QueryBuilder table -> Text
         toSQLQueryBuilder qb = "QueryBuilder<" <> symbolToText @table <> ">"
 
--- | Represents a JOIN clause
-data Join = Join { table :: Text, tableJoinColumn :: Text, otherJoinColumn :: Text }
-    deriving (Show, Eq)
-
 -- | ORDER BY direction
 data OrderByDirection = Asc | Desc deriving (Eq, Show, GHC.Generics.Generic, DeepSeq.NFData)
 
 -- | Represents a complete SQL query after building
 data SQLQuery = SQLQuery
-    { queryIndex :: !(Maybe Text)
-    , selectFrom :: !Text
+    { selectFrom :: !Text
     , distinctClause :: !Bool
     , distinctOnClause :: !(Maybe Text)
     , whereCondition :: !(Maybe Condition)
-    , joins :: ![Join]
     , orderByClause :: ![OrderByClause]
     , limitClause :: !(Maybe Int)
     , offsetClause :: !(Maybe Int)
@@ -244,7 +158,6 @@ data SQLQuery = SQLQuery
     } deriving (Show)
 
 
-instance SetField "queryIndex" SQLQuery (Maybe Text) where setField value sqlQuery = sqlQuery { queryIndex = value }
 instance SetField "selectFrom" SQLQuery Text where setField value sqlQuery = sqlQuery { selectFrom = value }
 instance SetField "distinctClause" SQLQuery Bool where setField value sqlQuery = sqlQuery { distinctClause = value }
 instance SetField "distinctOnClause" SQLQuery (Maybe Text) where setField value sqlQuery = sqlQuery { distinctOnClause = value }
@@ -266,14 +179,12 @@ instance Table (GetModelByTableName table) => Default (QueryBuilder table) where
     def = let tn = tableName @(GetModelByTableName table)
               cols = columnNames @(GetModelByTableName table)
           in QueryBuilder SQLQuery
-        { queryIndex = Nothing
-        , selectFrom = tn
+        { selectFrom = tn
         , columns = cols
         , columnsSql = qualifyAndJoinColumns tn cols
         , distinctClause = False
         , distinctOnClause = Nothing
         , whereCondition = Nothing
-        , joins = []
         , orderByClause = []
         , limitClause = Nothing
         , offsetClause = Nothing

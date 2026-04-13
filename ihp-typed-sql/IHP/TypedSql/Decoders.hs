@@ -5,6 +5,7 @@ module IHP.TypedSql.Decoders
     ( resultDecoderForColumns
     ) where
 
+import           Control.Monad                     (zipWithM)
 import qualified Data.Map.Strict                  as Map
 import qualified Data.Set                         as Set
 import qualified Data.String.Conversions          as CS
@@ -21,21 +22,21 @@ import           IHP.TypedSql.TypeMapping        (detectFullTable)
 
 -- | Build a hasql result decoder for the described SQL columns.
 -- For full-table selections we reuse FromRowHasql; otherwise we decode a scalar/tuple.
-resultDecoderForColumns :: Map.Map PQ.Oid PgTypeInfo -> Map.Map PQ.Oid TableMeta -> Set.Set PQ.Oid -> [DescribeColumn] -> TH.ExpQ
-resultDecoderForColumns typeInfo tables joinNullableOids columns = do
+resultDecoderForColumns :: Map.Map PQ.Oid PgTypeInfo -> Map.Map PQ.Oid TableMeta -> Set.Set PQ.Oid -> Set.Set Int -> [DescribeColumn] -> TH.ExpQ
+resultDecoderForColumns typeInfo tables joinNullableOids nonNullableColumns columns = do
     case detectFullTable tables columns of
         Just _ ->
             pure (TH.VarE 'HasqlFromRow.hasqlRowDecoder)
         Nothing -> do
             rowDecoder <- case columns of
                 [] -> pure (TH.AppE (TH.VarE 'pure) (TH.ConE '()))
-                [column] -> rowDecoderForColumn typeInfo tables joinNullableOids column
-                _ -> tupleRowDecoderForColumns typeInfo tables joinNullableOids columns
+                [column] -> rowDecoderForColumn typeInfo tables joinNullableOids (0 `Set.member` nonNullableColumns) column
+                _ -> tupleRowDecoderForColumns typeInfo tables joinNullableOids nonNullableColumns columns
             pure rowDecoder
 
-tupleRowDecoderForColumns :: Map.Map PQ.Oid PgTypeInfo -> Map.Map PQ.Oid TableMeta -> Set.Set PQ.Oid -> [DescribeColumn] -> TH.ExpQ
-tupleRowDecoderForColumns typeInfo tables joinNullableOids columns = do
-    columnDecoders <- mapM (rowDecoderForColumn typeInfo tables joinNullableOids) columns
+tupleRowDecoderForColumns :: Map.Map PQ.Oid PgTypeInfo -> Map.Map PQ.Oid TableMeta -> Set.Set PQ.Oid -> Set.Set Int -> [DescribeColumn] -> TH.ExpQ
+tupleRowDecoderForColumns typeInfo tables joinNullableOids nonNullableColumns columns = do
+    columnDecoders <- zipWithM (\i col -> rowDecoderForColumn typeInfo tables joinNullableOids (i `Set.member` nonNullableColumns) col) [0..] columns
     case columnDecoders of
         [] -> pure (TH.AppE (TH.VarE 'pure) (TH.ConE '()))
         firstDecoder:restDecoders -> do
@@ -43,8 +44,10 @@ tupleRowDecoderForColumns typeInfo tables joinNullableOids columns = do
             let withFirst = TH.AppE (TH.AppE (TH.VarE '(<$>)) tupleConstructor) firstDecoder
             pure (foldl (\acc decoder -> TH.AppE (TH.AppE (TH.VarE '(<*>)) acc) decoder) withFirst restDecoders)
 
-rowDecoderForColumn :: Map.Map PQ.Oid PgTypeInfo -> Map.Map PQ.Oid TableMeta -> Set.Set PQ.Oid -> DescribeColumn -> TH.ExpQ
-rowDecoderForColumn typeInfo tables joinNullableOids DescribeColumn { dcType, dcTable, dcAttnum } =
+-- | The @forceNonNull@ flag overrides the nullable fallback for computed columns
+-- when AST analysis determines the expression is non-nullable (e.g. count()).
+rowDecoderForColumn :: Map.Map PQ.Oid PgTypeInfo -> Map.Map PQ.Oid TableMeta -> Set.Set PQ.Oid -> Bool -> DescribeColumn -> TH.ExpQ
+rowDecoderForColumn typeInfo tables joinNullableOids forceNonNull DescribeColumn { dcType, dcTable, dcAttnum } =
     case (Map.lookup dcTable tables, dcAttnum) of
         (Just TableMeta { tmPrimaryKeys, tmForeignKeys, tmColumns }, Just attnum) ->
             let joinNullable = dcTable `Set.member` joinNullableOids
@@ -56,7 +59,8 @@ rowDecoderForColumn typeInfo tables joinNullableOids DescribeColumn { dcType, dc
                     then decodeIdColumn typeInfo nullable columnTypeOid
                     else decodeColumnByOid typeInfo nullable columnTypeOid
         _ ->
-            decodeColumnByOid typeInfo True dcType
+            let nullable = not forceNonNull
+            in decodeColumnByOid typeInfo nullable dcType
   where
     missingColumnType attnum tableOid =
         "typedSql: missing column metadata for attnum " <> show attnum <> " on table oid " <> show tableOid
