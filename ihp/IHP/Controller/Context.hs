@@ -1,3 +1,4 @@
+{-# LANGUAGE NoFieldSelectors #-}
 {-|
 Module: IHP.Controller.Context
 Copyright: (c) digitally induced GmbH, 2020
@@ -22,9 +23,11 @@ import IHP.ActionType (ActionType(..))
 
 -- | Wraps the WAI 'Request' that's threaded through controllers and views.
 --
--- The @request@ field accessor lets you write @?context.request@. Other
--- common fields (@frameworkConfig@, @logger@) are provided via 'HasField'
--- instances that delegate to the underlying request vault.
+-- @?context.request@ works via 'HasField'. The @request@ label is
+-- intentionally not exported as a top-level selector (see 'NoFieldSelectors')
+-- to avoid clashing with 'IHP.ControllerSupport.request'.
+-- Other common fields (@frameworkConfig@, @logger@) are also provided via
+-- 'HasField' instances that delegate to the underlying request vault.
 data ControllerContext = ControllerContext { request :: Request }
 
 -- | Creates a controller context wrapping the current request.
