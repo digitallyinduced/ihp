@@ -608,11 +608,15 @@ createIndex = do
     tableName <- qualifiedIdentifier
     indexType <- optional parseIndexType
     columns <- between (char '(' >> space) (char ')' >> space) parseIndexColumns
+    nullsDistinct <- option True $ lexeme "NULLS" *> (
+            (lexeme "NOT" *> lexeme "DISTINCT" $> False)
+        <|> (lexeme "DISTINCT" $> True)
+        )
     whereClause <- optional do
         lexeme "WHERE"
         expression
     char ';'
-    pure CreateIndex { indexName, unique, tableName, columns, whereClause, indexType }
+    pure CreateIndex { indexName, unique, tableName, columns, whereClause, indexType, nullsDistinct }
 
 parseIndexColumns = parseIndexColumn `sepBy` (char ',' >> space)
 
