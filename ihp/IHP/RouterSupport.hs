@@ -76,7 +76,6 @@ import qualified Data.HashMap.Strict as HashMap
 import IHP.WebSocket (WSApp)
 import qualified IHP.WebSocket as WS
 import GHC.TypeLits as T
-import IHP.Controller.Context
 import IHP.Controller.Param
 import Data.Kind
 import Network.Wai.Middleware.EarlyReturn (earlyReturnMiddleware)
