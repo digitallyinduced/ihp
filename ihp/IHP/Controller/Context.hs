@@ -28,7 +28,7 @@ import IHP.ActionType (ActionType(..))
 -- to avoid clashing with 'IHP.ControllerSupport.request'.
 -- Other common fields (@frameworkConfig@, @logger@) are also provided via
 -- 'HasField' instances that delegate to the underlying request vault.
-data ControllerContext = ControllerContext { request :: Request }
+newtype ControllerContext = ControllerContext { request :: Request }
 
 -- | Creates a controller context wrapping the current request.
 newControllerContext :: (?request :: Request) => IO ControllerContext
