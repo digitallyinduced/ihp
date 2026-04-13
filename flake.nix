@@ -2,8 +2,14 @@
     description = "IHP is a modern batteries-included haskell web framework, built on top of Haskell and Nix.";
 
     inputs = {
-        # "github:NixOS/nixpkgs/nixos-unstable"
-        nixpkgs.url = "github:NixOS/nixpkgs/nixos-25.11";           # for Haskell packages
+        # For Haskell packages: snapshot of upstream/haskell-updates pushed to
+        # digitallyinduced/nixpkgs. Contains hasql 1.10, hasql-mapping,
+        # postgresql-types (nikita-volkov), temporary-ospath, wai-session-maybe,
+        # and all other packages IHP needs — all from PRs that have merged into
+        # upstream haskell-updates. Insulated from upstream force-pushes.
+        # Bump by force-pushing a newer upstream/haskell-updates tip to the
+        # fork's ihp-nixpkgs branch and running `nix flake update nixpkgs`.
+        nixpkgs.url = "github:digitallyinduced/nixpkgs/ihp-nixpkgs";
         nixpkgs-nixos.url = "github:NixOS/nixpkgs/nixos-25.11";     # for NixOS deployments (pin independently)
 
         # pre-defined set of default target systems

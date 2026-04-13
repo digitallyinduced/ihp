@@ -1,4 +1,4 @@
-{ self, inputs, forceLocal ? false }:
+{ self, inputs }:
 let
     flakeRoot = self;
 
@@ -16,28 +16,19 @@ let
             # Uses pre-generated default.nix files to avoid IFD (Import From Derivation).
             # IFD causes nix to build cabal2nix during evaluation, making derivation
             # hashes platform-dependent and breaking caching across machines.
-            # To regenerate: run ./update-nix-from-cabal.sh after changing .cabal files
-            # or upgrading third-party Hackage dependency versions.
+            # To regenerate: run ./update-nix-from-cabal.sh after changing .cabal files.
             localPackage = name: fastBuild (
                 final.haskell.lib.overrideSrc
                     (super.callPackage "${flakeRoot}/${name}/default.nix" {})
                     { src = filteredSrc name; }
             );
 
-            # Pre-generated nix files for third-party Hackage packages, avoiding IFD.
-            # To regenerate: run ./update-nix-from-cabal.sh after changing versions.
-            # Note: unlike localPackage, these keep profiling enabled since downstream
-            # nixpkgs packages (e.g. jsonifier) may require profiling libraries.
+            # Pre-generated nix file for ihp-zip (an IHP-maintained fork of zip that
+            # doesn't live on Hackage). The rest of third-party Haskell deps now come
+            # from the nixpkgs fork at digitallyinduced/nixpkgs:ihp-nixpkgs — see
+            # flake.nix and the rebinds below.
+            # To regenerate ihp-zip.nix: run ./update-nix-from-cabal.sh.
             hackagePackage = name: self.callPackage "${flakeRoot}/NixSupport/hackage/${name}.nix" {};
-
-            # Use the nixpkgs version if available (i.e. published on Hackage and
-            # picked up by the nixpkgs all-cabal-hashes snapshot), otherwise fall
-            # back to building from the local source tree.  Pass --arg forceLocal true
-            # to always use the local version (useful during development).
-            hackageOrLocal = name:
-                if forceLocal || !(super ? ${name})
-                then localPackage name
-                else fastBuild super.${name};
 
             # For quick testing during development, you can use callCabal2nix directly
             # (slower eval due to IFD, but no generated files needed):
@@ -81,65 +72,35 @@ let
             ihp-hspec = localPackage "ihp-hspec";
             ihp-welcome = localPackage "ihp-welcome";
 
-            # Forks of wai-session / wai-session-clientsession with deferred
-            # session decryption and optional Set-Cookie (Maybe ByteString).
-            # https://hackage.haskell.org/package/wai-session-maybe
-            # https://hackage.haskell.org/package/wai-session-clientsession-deferred
-            wai-session-maybe = hackagePackage "wai-session-maybe";
-            wai-session-clientsession-deferred = hackagePackage "wai-session-clientsession-deferred";
+            # Hasql 1.10 ecosystem: rebind from version-suffixed attrs that the
+            # nixpkgs fork (digitallyinduced/nixpkgs:ihp-nixpkgs) ships as
+            # extra-packages. This keeps haskellPackages.hasql etc. pointing at
+            # the versions IHP needs without touching the global stackage pins.
+            # Postgrest's own overrideScope in configuration-common.nix pins to
+            # super.hasql_1_6_4_4 so it is unaffected by these rebinds.
+            # dontCheck: upstream test suites connect to a running PostgreSQL.
+            hasql = final.haskell.lib.dontCheck super.hasql_1_10_3;
+            hasql-dynamic-statements = final.haskell.lib.dontCheck super.hasql-dynamic-statements_0_5_1;
+            hasql-notifications = final.haskell.lib.dontCheck super.hasql-notifications_0_2_5_0;
+            hasql-pool = final.haskell.lib.dontCheck super.hasql-pool_1_4_2;
+            hasql-transaction = final.haskell.lib.dontCheck super.hasql-transaction_1_2_2;
+            postgresql-binary = final.haskell.lib.dontCheck super.postgresql-binary_0_15_0_1;
+            text-builder = super.text-builder_1_0_0_5;
 
-            # Can be removed after v0.3.2 is on hackage
-            # https://github.com/tippenein/countable-inflections/pull/6
-            countable-inflections = final.haskell.lib.overrideSrc super.countable-inflections {
-                version = "0.3.2";
-                src = final.fetchFromGitHub {
-                    owner = "tippenein";
-                    repo = "countable-inflections";
-                    rev = "9cae03513ad76783c226509f5c00dfe7989893e8";
-                    hash = "sha256-Pd9wQgEtc3e39c0iJR347kdawbyShDEtQqEzrIEu0eQ=";
-                };
-            };
+            # postgresql-types family (nikita-volkov): nixpkgs ships the right
+            # versions, they just need test skips and version-bound relaxation.
+            hasql-mapping = final.haskell.lib.unmarkBroken super.hasql-mapping;
+            hasql-postgresql-types = final.haskell.lib.dontHaddock (final.haskell.lib.doJailbreak super.hasql-postgresql-types);
+            postgresql-simple-postgresql-types = final.haskell.lib.dontCheck (final.haskell.lib.doJailbreak super.postgresql-simple-postgresql-types);
+            postgresql-types = final.haskell.lib.dontCheck (final.haskell.lib.doJailbreak super.postgresql-types);
+            postgresql-types-algebra = final.haskell.lib.doJailbreak super.postgresql-types-algebra;
 
-            # Hasql 1.10 ecosystem upgrade for postgresql-types binary encoding support.
-            # Pre-generated nix files in NixSupport/hackage/ to avoid IFD.
-            # dontCheck on postgresql/hasql packages: their tests require a running PostgreSQL server.
-            postgresql-binary = final.haskell.lib.dontCheck (hackagePackage "postgresql-binary");
-            postgresql-connection-string = hackagePackage "postgresql-connection-string";
-
-            hasql = final.haskell.lib.dontCheck (final.haskell.lib.doJailbreak (hackagePackage "hasql"));
-            hasql-pool = final.haskell.lib.dontCheck (hackagePackage "hasql-pool");
-            hasql-dynamic-statements = final.haskell.lib.dontCheck (hackagePackage "hasql-dynamic-statements");
-            hasql-implicits = hackagePackage "hasql-implicits";
-            hasql-transaction = final.haskell.lib.dontCheck (hackagePackage "hasql-transaction");
-            hasql-notifications = final.haskell.lib.dontCheck (hackagePackage "hasql-notifications");
-            # hasql-interpolate: upstream 1.0.1.0 requires hasql <1.10; use fork with hasql 1.10 support
-            # https://github.com/awkward-squad/hasql-interpolate/pull/27
-            # Uses overrideCabal instead of callCabal2nix to avoid IFD and Hackage cabal revision fetch failures
-            hasql-interpolate = final.haskell.lib.dontCheck (final.haskell.lib.doJailbreak (final.haskell.lib.overrideCabal super.hasql-interpolate (old: {
-                src = builtins.fetchTarball {
-                    url = "https://github.com/ChrisPenner/hasql-interpolate/archive/bb4666fdb7e0fef9f67702cb198e45d0a1de0ab9.tar.gz";
-                    sha256 = "1v3i4n4szxpir28a4vlhd2a0sl04fxkiw9wlyxcvd3vbrd9s2b8c";
-                };
-                revision = null;
-                editedCabalFile = null;
-            })));
-
-            # Fork of temporary using OsPath instead of FilePath
-            temporary-ospath = hackagePackage "temporary-ospath";
-
-            # postgresql-types for proper binary encoders of Point, Polygon, Inet, Interval
-            ptr-poker = hackagePackage "ptr-poker";
-            # postgresql-simple-postgresql-types: bridge providing FromField/ToField instances
-            # for all postgresql-types types (Point, Polygon, Inet, Interval, etc.) in postgresql-simple
-            postgresql-simple-postgresql-types = final.haskell.lib.dontCheck (final.haskell.lib.doJailbreak (hackagePackage "postgresql-simple-postgresql-types"));
-            # ptr-peeker is marked broken in nixpkgs but is needed by postgresql-types
-            # https://github.com/nikita-volkov/ptr-peeker/issues/10
-            ptr-peeker = final.haskell.lib.dontCheck (final.haskell.lib.markUnbroken super.ptr-peeker);
-            postgresql-types-algebra = final.haskell.lib.doJailbreak (hackagePackage "postgresql-types-algebra");
-            # dontCheck: tests require a running PostgreSQL server
-            postgresql-types = final.haskell.lib.dontCheck (final.haskell.lib.doJailbreak (hackagePackage "postgresql-types"));
-            hasql-mapping = final.haskell.lib.doJailbreak (hackagePackage "hasql-mapping");
-            hasql-postgresql-types = final.haskell.lib.dontHaddock (final.haskell.lib.doJailbreak (hackagePackage "hasql-postgresql-types"));
+            # tls 2.1.8 (pulled in transitively from haskell-updates) has 4 flaky
+            # TLS 1.3 PSK handshake property tests that fail under nix check phase
+            # on aarch64-darwin — see https://github.com/haskell-tls/hs-tls/issues
+            # for the upstream tracker. Dropping checks unblocks CI; IHP doesn't
+            # exercise these code paths directly.
+            tls = final.haskell.lib.dontCheck super.tls;
         };
 in
 final: prev: {
