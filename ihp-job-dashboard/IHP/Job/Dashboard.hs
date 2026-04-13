@@ -375,7 +375,7 @@ getNotIncludedTableNames includedNames = sqlQueryHasql getHasqlPool
     (Snippet.sql "SELECT table_name::text FROM information_schema.tables WHERE table_name LIKE '%_jobs' AND NOT (table_name = ANY(" <> Snippet.param includedNames <> Snippet.sql "))")
     (Decoders.rowList (Decoders.column (Decoders.nonNullable Decoders.text)))
 
-buildBaseJobTable :: (?modelContext :: ModelContext, ?context :: Request, ?request :: Request) => Text -> IO SomeView
+buildBaseJobTable :: (?modelContext :: ModelContext, ?request :: Request) => Text -> IO SomeView
 buildBaseJobTable tableName = do
     baseJobs <- sqlQueryHasql getHasqlPool
         (Snippet.sql "SELECT " <> Snippet.param tableName <> Snippet.sql ", id, status, updated_at, created_at, last_error FROM "

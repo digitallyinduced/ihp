@@ -111,8 +111,9 @@ respondError request environment status title body json
             [(hContentType, "text/html")]
             (getBuilder (renderError environment title body))
 
-displayException :: (Show action, ?context :: Request, ?request :: Request, ?respond :: Respond) => SomeException -> action -> Text -> IO ResponseReceived
+displayException :: (Show action, ?request :: Request, ?respond :: Respond) => SomeException -> action -> Text -> IO ResponseReceived
 displayException exception action additionalInfo = do
+    let ?context = ?request
     -- Dev handlers display helpful tips on how to resolve the problem
     let devHandlers =
             [ postgresHandler
@@ -285,7 +286,7 @@ patternMatchFailureHandler exception controller additionalInfo = do
 -- Handler for 'IHP.Controller.Param.ParamNotFoundException'
 -- Only used in dev mode of the app.
 
-paramNotFoundExceptionHandler :: (Show controller, ?context :: Request, ?request :: Request, ?respond :: Respond) => SomeException -> controller -> Text -> Maybe (IO ResponseReceived)
+paramNotFoundExceptionHandler :: (Show controller, ?request :: Request, ?respond :: Respond) => SomeException -> controller -> Text -> Maybe (IO ResponseReceived)
 paramNotFoundExceptionHandler exception controller additionalInfo = do
     case fromException exception of
         Just (exception@(Param.ParamNotFoundException paramName)) -> Just do
@@ -390,7 +391,7 @@ recordNotFoundExceptionHandlerDev exception controller additionalInfo =
 -- Handler for 'IHP.ModelSupport.RecordNotFoundException'
 --
 -- Used only in production mode of the app. The exception is handled by calling 'handleNotFound'
-recordNotFoundExceptionHandlerProd :: (?context :: Request, ?request :: Request, ?respond :: Respond) => SomeException -> controller -> Text -> Maybe (IO ResponseReceived)
+recordNotFoundExceptionHandlerProd :: (?request :: Request, ?respond :: Respond) => SomeException -> controller -> Text -> Maybe (IO ResponseReceived)
 recordNotFoundExceptionHandlerProd exception controller additionalInfo =
     case fromException exception of
         Just (exception@(ModelSupport.RecordNotFoundException {})) ->

@@ -322,7 +322,7 @@ submitButton =
 
 -- | Returns the form's action attribute for a given record.
 class ModelFormAction record where
-    modelFormAction :: (?context :: Request, ?request :: Request) => record -> Text
+    modelFormAction :: (?request :: Request) => record -> Text
 
 instance
     ( HasField "id" record (Id' (GetTableName record))
