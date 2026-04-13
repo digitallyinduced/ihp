@@ -123,6 +123,7 @@ spec = do
                     , columns = [indexCol (VarExpression "user_name")]
                     , whereClause = Nothing
                     , indexType = Nothing
+                    , nullsDistinct = True
                     }
             compileSql [statement] `shouldBe` sql
 
@@ -135,6 +136,20 @@ spec = do
                     , columns = [indexCol (VarExpression "user_name")]
                     , whereClause = Nothing
                     , indexType = Nothing
+                    , nullsDistinct = True
+                    }
+            compileSql [statement] `shouldBe` sql
+
+        it "should compile a CREATE UNIQUE INDEX with NULLS NOT DISTINCT" do
+            let sql = "CREATE UNIQUE INDEX users_index ON users (user_name) NULLS NOT DISTINCT;\n"
+            let statement = CreateIndex
+                    { indexName = "users_index"
+                    , unique = True
+                    , tableName = "users"
+                    , columns = [indexCol (VarExpression "user_name")]
+                    , whereClause = Nothing
+                    , indexType = Nothing
+                    , nullsDistinct = False
                     }
             compileSql [statement] `shouldBe` sql
 

@@ -158,7 +158,7 @@ tests = do
                                     (col "created_at" PTimestampWithTimezone) { defaultValue = Just (CallExpression "NOW" []), notNull = True }
                             ]
                             }
-                let index = CreateIndex { indexName = "a_created_at_index", unique = False, tableName = "a", columns = [indexCol (VarExpression "created_at")], whereClause = Nothing, indexType = Nothing }
+                let index = CreateIndex { indexName = "a_created_at_index", unique = False, tableName = "a", columns = [indexCol (VarExpression "created_at")], whereClause = Nothing, indexType = Nothing, nullsDistinct = True }
 
                 let expectedSchema = [tableAWithCreatedAt, index]
 
@@ -237,6 +237,7 @@ tests = do
                         , columns = [indexCol (VarExpression "user_id")]
                         , whereClause = Nothing
                         , indexType = Nothing
+                        , nullsDistinct = True
                         }
                 let constraint = AddConstraint
                         { tableName = "a"
@@ -276,7 +277,7 @@ tests = do
                                     (col "created_at" PTimestampWithTimezone) { defaultValue = Just (CallExpression "NOW" []), notNull = True }
                             ]
                             }
-                let index = CreateIndex { indexName = "a_created_at_index", unique = False, tableName = "a", columns = [indexCol (VarExpression "created_at")], whereClause = Nothing, indexType = Nothing }
+                let index = CreateIndex { indexName = "a_created_at_index", unique = False, tableName = "a", columns = [indexCol (VarExpression "created_at")], whereClause = Nothing, indexType = Nothing, nullsDistinct = True }
 
                 let inputSchema = [tableAWithCreatedAt, index]
                 let expectedSchema = [tableA]
@@ -446,14 +447,14 @@ tests = do
                                     (col "updated_at" PTimestampWithTimezone) { defaultValue = Just (CallExpression "NOW" []), notNull = True }
                             ]
                             }
-                let index = CreateIndex { indexName = "a_updated_at_index", unique = False, tableName = "a", columns = [indexCol (VarExpression "updated_at")], whereClause = Nothing, indexType = Nothing }
+                let index = CreateIndex { indexName = "a_updated_at_index", unique = False, tableName = "a", columns = [indexCol (VarExpression "updated_at")], whereClause = Nothing, indexType = Nothing, nullsDistinct = True }
 
                 let tableAWithUpdatedColumn = StatementCreateTable (table "a")
                             { columns = [
                                     col "created_at" PText
                             ]
                             }
-                let indexUpdated = CreateIndex { indexName = "a_created_at_index", unique = False, tableName = "a", columns = [indexCol (VarExpression "created_at")], whereClause = Nothing, indexType = Nothing }
+                let indexUpdated = CreateIndex { indexName = "a_created_at_index", unique = False, tableName = "a", columns = [indexCol (VarExpression "created_at")], whereClause = Nothing, indexType = Nothing, nullsDistinct = True }
 
                 let inputSchema = [tableAWithCreatedAt, index]
                 let expectedSchema = [tableAWithUpdatedColumn, indexUpdated]

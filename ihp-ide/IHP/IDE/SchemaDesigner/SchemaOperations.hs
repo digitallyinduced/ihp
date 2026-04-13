@@ -233,6 +233,7 @@ newColumnIndex tableName columnName =
     , columns = [IndexColumn { column = VarExpression columnName, columnOrder = [] }]
     , whereClause = Nothing
     , indexType = Nothing
+    , nullsDistinct = True
     }
 
 data AddIndexOptions = AddIndexOptions
@@ -256,7 +257,7 @@ addForeignKeyConstraint :: Text -> Text -> Text -> Text -> OnDelete -> [Statemen
 addForeignKeyConstraint tableName columnName constraintName referenceTable onDelete list = list <> [AddConstraint { tableName = tableName, constraint = ForeignKeyConstraint { name = Just constraintName, columnName = columnName, referenceTable = referenceTable, referenceColumn = "id", onDelete = (Just onDelete) }, deferrable = Nothing, deferrableType = Nothing }]
 
 addTableIndex :: Text -> Bool -> Text -> [Text] -> [Statement] -> [Statement]
-addTableIndex indexName unique tableName columnNames list = list <> [CreateIndex { indexName, unique, tableName, columns = columnNames |> map (\columnName -> IndexColumn { column = VarExpression columnName, columnOrder = [] }), whereClause = Nothing, indexType = Nothing }]
+addTableIndex indexName unique tableName columnNames list = list <> [CreateIndex { indexName, unique, tableName, columns = columnNames |> map (\columnName -> IndexColumn { column = VarExpression columnName, columnOrder = [] }), whereClause = Nothing, indexType = Nothing, nullsDistinct = True }]
 
 -- | An enum is added after all existing enum statements, but right before @CREATE TABLE@ statements
 addEnum :: Text -> Schema -> Schema

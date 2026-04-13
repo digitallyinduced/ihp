@@ -18,6 +18,7 @@ import Data.String.Conversions (cs)
 import Data.ByteString (ByteString)
 import qualified Data.ByteString as ByteString
 import qualified Data.Text as Text
+import qualified Data.Text.Encoding as Text
 import IHP.HaskellSupport (isEmpty, forEach, (|>))
 import qualified IHP.Controller.Param as Param
 import qualified IHP.Router.Types as Router
@@ -25,9 +26,12 @@ import qualified Network.HTTP.Types.Method as Router
 import qualified Control.Exception as Exception
 import Data.Text (Text)
 import Wai.Request.Params.Middleware (Respond)
-import Network.HTTP.Types (status500, status400)
-import Network.Wai (Request, Middleware, Response, ResponseReceived, responseBuilder, queryString, vault)
+import Network.HTTP.Types (Status, status404, status500, status400)
+import Network.Wai (Request, Middleware, Response, ResponseReceived, responseBuilder, responseLBS, queryString, requestHeaders, vault)
 import Network.HTTP.Types.Header
+import qualified Network.HTTP.Media as Accept
+import qualified Data.Aeson as Aeson
+import Data.Aeson ((.=))
 
 import IHP.HSX.Markup (Markup, MarkupM(..), ToHtml(..), getBuilder)
 import qualified Database.PostgreSQL.Simple as PG
@@ -63,6 +67,49 @@ newtype InitContextException = InitContextException SomeException
     deriving (Show)
 
 instance Exception.Exception InitContextException
+
+-- | Returns 'True' only when the request's Accept header explicitly prefers
+-- @application/json@ over @text/html@. @Accept: */*@ or a missing header
+-- stay on the HTML path (the browser-friendly default).
+--
+-- The server options are listed with @text/html@ first so that ties
+-- (equal quality and specificity) resolve to HTML — this covers
+-- @Accept: */*@ (curl's default, fetch() without custom headers) and
+-- @Accept: text/html, application/json@ (typical browser ordering).
+-- JSON wins only when the client excludes HTML or gives it a lower
+-- q-value.
+wantsJsonResponse :: Request -> Bool
+wantsJsonResponse request =
+    case lookup hAccept (requestHeaders request) of
+        Nothing -> False
+        Just accept ->
+            Accept.mapAcceptMedia
+                [ ("text/html", False)
+                , ("application/json", True)
+                ] accept == Just True
+
+-- | Render an error response, picking HTML or JSON based on the Accept header.
+--
+-- Callers provide both the HTML markup (title + body, rendered via 'renderError')
+-- and a JSON payload. The JSON path uses 'responseLBS' with @application/json@;
+-- the HTML path mirrors the existing 'responseBuilder'/'renderError' pipeline.
+respondError
+    :: Request
+    -> Environment.Environment
+    -> Status
+    -> Markup
+    -> Markup
+    -> Aeson.Value
+    -> IO Response
+respondError request environment status title body json
+  | wantsJsonResponse request =
+        pure $ responseLBS status
+            [(hContentType, "application/json")]
+            (Aeson.encode json)
+  | otherwise =
+        pure $ responseBuilder status
+            [(hContentType, "text/html")]
+            (getBuilder (renderError environment title body))
 
 displayException :: (Show action, ?context :: Request, ?request :: Request, ?respond :: Respond) => SomeException -> action -> Text -> IO ResponseReceived
 displayException exception action additionalInfo = do
@@ -468,7 +515,7 @@ handleExceptionMiddleware frameworkConfig request exception actionDescription = 
 
     -- Dev handlers display helpful tips on how to resolve the problem
     let devHandlers =
-            [ routerExceptionHandlerMiddleware frameworkConfig
+            [ routerExceptionHandlerMiddleware frameworkConfig request
             , postgresHandlerMiddleware frameworkConfig request actionDescription
             , paramNotFoundExceptionHandlerMiddleware frameworkConfig request actionDescription
             , patternMatchFailureHandlerMiddleware frameworkConfig request actionDescription
@@ -477,7 +524,7 @@ handleExceptionMiddleware frameworkConfig request exception actionDescription = 
 
     -- Prod handlers should not leak any information about the system
     let prodHandlers =
-            [ routerExceptionHandlerMiddleware frameworkConfig
+            [ routerExceptionHandlerMiddleware frameworkConfig request
             , recordNotFoundExceptionHandlerProdMiddleware frameworkConfig request
             ]
 
@@ -508,17 +555,31 @@ genericHandlerMiddleware frameworkConfig request exception actionDescription = d
     let prodErrorMessage = [hsx|An exception was raised while running the action|]
     let prodTitle = [hsx|An error happened|]
 
-    let (errorMessage, errorTitle) = if environment == Environment.Development
-            then (devErrorMessage, devTitle)
-            else (prodErrorMessage, prodTitle)
+    let (errorMessage, errorTitle, jsonPayload) = if environment == Environment.Development
+            then
+                ( devErrorMessage
+                , devTitle
+                , Aeson.object
+                    [ "error" .= Text.pack errorMessageTitle
+                    , "message" .= errorMessageText
+                    ]
+                )
+            else
+                ( prodErrorMessage
+                , prodTitle
+                , Aeson.object
+                    [ "error" .= ("An error happened" :: Text)
+                    , "message" .= ("An exception was raised while running the action" :: Text)
+                    ]
+                )
 
-    pure $ responseBuilder status500 [(hContentType, "text/html")] (getBuilder (renderError environment errorTitle errorMessage))
+    respondError request environment status500 errorTitle errorMessage jsonPayload
 
 -- | Postgres error handler for middleware - returns Maybe (IO Response)
 postgresHandlerMiddleware :: FrameworkConfig -> Request -> Text -> SomeException -> Maybe (IO Response)
 postgresHandlerMiddleware frameworkConfig request actionDescription exception = do
     let
-        handlePostgresOutdatedError :: Show exception => exception -> Markup -> IO Response
+        handlePostgresOutdatedError :: Show exception => exception -> Text -> IO Response
         handlePostgresOutdatedError exception errorText = do
             let ihpIdeBaseUrl = frameworkConfig.ideBaseUrl
             let title = [hsx|Database looks outdated. {errorText}|]
@@ -536,11 +597,16 @@ postgresHandlerMiddleware frameworkConfig request actionDescription exception = 
                         <p style="font-size: 16px">The exception was raised{actionDescription}</p>
                         <p style="font-family: monospace; font-size: 16px">{tshow exception}</p>
                     |]
-            pure $ responseBuilder status500 [(hContentType, "text/html")] (getBuilder (renderError Environment.Development title errorMessage))
+            let json = Aeson.object
+                    [ "error" .= ("Database looks outdated" :: Text)
+                    , "reason" .= errorText
+                    , "message" .= ("The exception was raised" <> actionDescription)
+                    , "detail" .= tshow exception
+                    ]
+            respondError request Environment.Development status500 title errorMessage json
 
         handleSqlError :: ModelSupport.EnhancedSqlError -> IO Response
         handleSqlError exception = do
-            let ihpIdeBaseUrl = frameworkConfig.ideBaseUrl
             let sqlError = exception.sqlError
             let title = [hsx|{sqlError.sqlErrorMsg}|]
             let errorMessage = [hsx|
@@ -558,7 +624,14 @@ postgresHandlerMiddleware frameworkConfig request actionDescription exception = 
                         <p style="font-size: 16px">The exception was raised{actionDescription}</p>
                         <p style="font-family: monospace; font-size: 16px">{tshow exception}</p>
                     |]
-            pure $ responseBuilder status500 [(hContentType, "text/html")] (getBuilder (renderError Environment.Development title errorMessage))
+            let json = Aeson.object
+                    [ "error" .= Text.decodeUtf8Lenient sqlError.sqlErrorMsg
+                    , "query" .= tshow exception.sqlErrorQuery
+                    , "params" .= exception.sqlErrorQueryParams
+                    , "message" .= ("The exception was raised" <> actionDescription)
+                    , "detail" .= tshow exception
+                    ]
+            respondError request Environment.Development status500 title errorMessage json
 
     case fromException exception of
         Just (exception :: PG.ResultError) -> Just (handlePostgresOutdatedError exception "The database result does not match the expected type.")
@@ -597,7 +670,13 @@ patternMatchFailureHandlerMiddleware frameworkConfig request actionDescription e
                         codeSample = "    action (MyAction) = do\n        renderPlain \"Hello World\"" :: Text
 
             let title = [hsx|Pattern match failed{actionDescription}|]
-            pure $ responseBuilder status500 [(hContentType, "text/html")] (getBuilder (renderError Environment.Development title errorMessage))
+            let json = Aeson.object
+                    [ "error" .= ("Pattern match failed" :: Text)
+                    , "message" .= ("Pattern match failed" <> actionDescription)
+                    , "details" .= tshow exception
+                    , "controllerPath" .= controllerPath
+                    ]
+            respondError request Environment.Development status500 title errorMessage json
         Nothing -> Nothing
 
 -- | Param not found handler for middleware - returns Maybe (IO Response)
@@ -637,7 +716,14 @@ paramNotFoundExceptionHandlerMiddleware frameworkConfig request actionDescriptio
                 |]
 
             let title = [hsx|Parameter <q>{paramName}</q> not found in the request|]
-            pure $ responseBuilder status500 [(hContentType, "text/html")] (getBuilder (renderError Environment.Development title errorMessage))
+            let availableParams = map (\(n, _) -> Text.decodeUtf8Lenient n) allParams
+            let json = Aeson.object
+                    [ "error" .= ("Parameter not found" :: Text)
+                    , "param" .= Text.decodeUtf8Lenient paramName
+                    , "availableParams" .= availableParams
+                    , "message" .= ("The exception was raised by a call to param " <> tshow paramName <> actionDescription)
+                    ]
+            respondError request Environment.Development status500 title errorMessage json
         Just (exception@(Param.ParamCouldNotBeParsedException { name, parserError })) -> Just do
             let errorMessage = [hsx|
                     <h2>
@@ -652,7 +738,13 @@ paramNotFoundExceptionHandlerMiddleware frameworkConfig request actionDescriptio
                 |]
 
             let title = [hsx|Parameter <q>{name}</q> was invalid|]
-            pure $ responseBuilder status500 [(hContentType, "text/html")] (getBuilder (renderError Environment.Development title errorMessage))
+            let json = Aeson.object
+                    [ "error" .= ("Parameter invalid" :: Text)
+                    , "param" .= Text.decodeUtf8Lenient name
+                    , "parserError" .= Text.decodeUtf8Lenient parserError
+                    , "message" .= ("The exception was raised by a call to param " <> tshow name <> actionDescription)
+                    ]
+            respondError request Environment.Development status500 title errorMessage json
         Nothing -> Nothing
 
 -- | Record not found handler for middleware (dev mode) - returns Maybe (IO Response)
@@ -687,35 +779,44 @@ recordNotFoundExceptionHandlerDevMiddleware frameworkConfig request actionDescri
                 |]
 
             let title = [hsx|Call to fetchOne failed. No records returned.|]
-            pure $ responseBuilder status500 [(hContentType, "text/html")] (getBuilder (renderError Environment.Development title errorMessage))
+            let json = Aeson.object
+                    [ "error" .= ("Call to fetchOne failed. No records returned." :: Text)
+                    , "queryAndParams" .= queryAndParams
+                    , "message" .= ("The exception was raised by a call to fetchOne" <> actionDescription)
+                    ]
+            respondError request Environment.Development status500 title errorMessage json
         Nothing -> Nothing
 
 -- | Record not found handler for middleware (prod mode) - returns Maybe (IO Response)
 recordNotFoundExceptionHandlerProdMiddleware :: FrameworkConfig -> Request -> SomeException -> Maybe (IO Response)
 recordNotFoundExceptionHandlerProdMiddleware frameworkConfig request exception =
     case fromException exception of
-        Just (exception@(ModelSupport.RecordNotFoundException {})) ->
-            Just buildNotFoundResponse
+        Just (exception@(ModelSupport.RecordNotFoundException {})) -> Just $
+            if wantsJsonResponse request
+                then pure $ responseLBS status404
+                        [(hContentType, "application/json")]
+                        (Aeson.encode (Aeson.object [ "error" .= ("Not found" :: Text) ]))
+                else buildNotFoundResponse
         Nothing -> Nothing
 
 -- | Router exception handler for middleware - returns Maybe (IO Response)
 --
 -- Handles exceptions thrown during routing. These are wrapped in RouterException
 -- by frontControllerToWAIApp to distinguish them from action exceptions.
-routerExceptionHandlerMiddleware :: FrameworkConfig -> SomeException -> Maybe (IO Response)
-routerExceptionHandlerMiddleware frameworkConfig exception =
+routerExceptionHandlerMiddleware :: FrameworkConfig -> Request -> SomeException -> Maybe (IO Response)
+routerExceptionHandlerMiddleware frameworkConfig request exception =
     let environment = frameworkConfig.environment
     in case fromException exception of
         Just (RouterException innerException) ->
             -- This is a router exception - handle specific types or show generic "Routing failed"
-            Just $ handleRouterExceptionImpl environment innerException
+            Just $ handleRouterExceptionImpl request environment innerException
         Nothing ->
             -- Not a router exception
             Nothing
 
 -- | Implementation for handling unwrapped router exceptions
-handleRouterExceptionImpl :: Environment.Environment -> SomeException -> IO Response
-handleRouterExceptionImpl environment exception =
+handleRouterExceptionImpl :: Request -> Environment.Environment -> SomeException -> IO Response
+handleRouterExceptionImpl request environment exception =
     case fromException exception of
         Just Router.NoConstructorMatched { expectedType, value, field } -> do
             let routingError = if environment == Environment.Development
@@ -732,13 +833,25 @@ handleRouterExceptionImpl environment exception =
             let title = case value of
                     Just value -> [hsx|Expected <strong>{expectedType}</strong> for field <strong>{field}</strong> but got <q>{value}</q>|]
                     Nothing -> [hsx|The action was called without the required <q>{field}</q> parameter|]
-            pure $ responseBuilder status400 [(hContentType, "text/html")] (getBuilder (renderError environment title errorMessage))
+            let json = Aeson.object
+                    [ "error" .= ("Routing failed" :: Text)
+                    , "expectedType" .= Text.decodeUtf8Lenient expectedType
+                    , "field" .= Text.decodeUtf8Lenient field
+                    , "value" .= fmap Text.decodeUtf8Lenient value
+                    ]
+            respondError request environment status400 title errorMessage json
         Just Router.BadType { expectedType, value = Just value, field } -> do
             let errorMessage = [hsx|
                     <p>Routing failed with: {tshow exception}</p>
                 |]
             let title = [hsx|Query parameter <q>{field}</q> needs to be a <q>{expectedType}</q> but got <q>{value}</q>|]
-            pure $ responseBuilder status400 [(hContentType, "text/html")] (getBuilder (renderError environment title errorMessage))
+            let json = Aeson.object
+                    [ "error" .= ("Routing failed" :: Text)
+                    , "field" .= Text.decodeUtf8Lenient field
+                    , "expectedType" .= Text.decodeUtf8Lenient expectedType
+                    , "value" .= Text.decodeUtf8Lenient value
+                    ]
+            respondError request environment status400 title errorMessage json
         _ -> case fromException exception of
             Just Router.UnexpectedMethodException { allowedMethods = [Router.DELETE], method = Router.GET } -> do
                 let exampleLink :: Text = "<a href={DeleteProjectAction} class=\"js-delete\">Delete Project</a>"
@@ -767,7 +880,12 @@ handleRouterExceptionImpl environment exception =
                         </p>
                     |]
                 let title = [hsx|Action was called from a GET request, but needs to be called as a DELETE request|]
-                pure $ responseBuilder status400 [(hContentType, "text/html")] (getBuilder (renderError environment title errorMessage))
+                let json = Aeson.object
+                        [ "error" .= ("Unexpected HTTP method" :: Text)
+                        , "method" .= tshow Router.GET
+                        , "allowedMethods" .= [tshow Router.DELETE]
+                        ]
+                respondError request environment status400 title errorMessage json
             Just Router.UnexpectedMethodException { allowedMethods = [Router.POST], method = Router.GET } -> do
                 let errorMessage = [hsx|
                         <p>
@@ -781,7 +899,12 @@ handleRouterExceptionImpl environment exception =
                         </p>
                     |]
                 let title = [hsx|Action was called from a GET request, but needs to be called as a POST request|]
-                pure $ responseBuilder status400 [(hContentType, "text/html")] (getBuilder (renderError environment title errorMessage))
+                let json = Aeson.object
+                        [ "error" .= ("Unexpected HTTP method" :: Text)
+                        , "method" .= tshow Router.GET
+                        , "allowedMethods" .= [tshow Router.POST]
+                        ]
+                respondError request environment status400 title errorMessage json
             Just Router.UnexpectedMethodException { allowedMethods, method } -> do
                 let errorMessage = [hsx|
                         <p>Routing failed with: {tshow exception}</p>
@@ -791,7 +914,12 @@ handleRouterExceptionImpl environment exception =
                         </p>
                     |]
                 let title = [hsx|Action was called with a {method} request, but needs to be called with one of these request methods: <q>{allowedMethods}</q>|]
-                pure $ responseBuilder status400 [(hContentType, "text/html")] (getBuilder (renderError environment title errorMessage))
+                let json = Aeson.object
+                        [ "error" .= ("Unexpected HTTP method" :: Text)
+                        , "method" .= tshow method
+                        , "allowedMethods" .= map tshow allowedMethods
+                        ]
+                respondError request environment status400 title errorMessage json
             -- Fallback for any other exception during routing
             _ -> do
                 let errorMessage = [hsx|
@@ -801,4 +929,8 @@ handleRouterExceptionImpl environment exception =
                         <p>Are you trying to do a DELETE action, but your link is missing class="js-delete"?</p>
                     |]
                 let title = toHtml ("Routing failed" :: Text)
-                pure $ responseBuilder status500 [(hContentType, "text/html")] (getBuilder (renderError environment title errorMessage))
+                let json = Aeson.object
+                        [ "error" .= ("Routing failed" :: Text)
+                        , "detail" .= tshow exception
+                        ]
+                respondError request environment status500 title errorMessage json

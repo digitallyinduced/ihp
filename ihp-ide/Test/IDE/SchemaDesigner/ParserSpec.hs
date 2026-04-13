@@ -604,6 +604,7 @@ tests = do
                     , columns = [indexCol (VarExpression "user_name")]
                     , whereClause = Nothing
                     , indexType = Nothing
+                    , nullsDistinct = True
                     }
 
         it "should parse a 'CREATE INDEX .. ON .. USING GIN' statement" do
@@ -614,6 +615,7 @@ tests = do
                     , columns = [indexCol (VarExpression "user_name")]
                     , whereClause = Nothing
                     , indexType = Just Gin
+                    , nullsDistinct = True
                     }
 
         it "should parse a 'CREATE INDEX .. ON .. USING btree' statement" do
@@ -624,6 +626,7 @@ tests = do
                     , columns = [indexCol (VarExpression "user_name")]
                     , whereClause = Nothing
                     , indexType = Just Btree
+                    , nullsDistinct = True
                     }
 
         it "should parse a 'CREATE INDEX .. ON .. USING GIST' statement" do
@@ -634,6 +637,7 @@ tests = do
                     , columns = [indexCol (VarExpression "user_name")]
                     , whereClause = Nothing
                     , indexType = Just Gist
+                    , nullsDistinct = True
                     }
 
         it "should parse a CREATE INDEX statement with multiple columns" do
@@ -647,6 +651,7 @@ tests = do
                         ]
                     , whereClause = Nothing
                     , indexType = Nothing
+                    , nullsDistinct = True
                     }
         it "should parse a CREATE INDEX statement with a LOWER call" do
             parseSql "CREATE INDEX users_email_index ON users (LOWER(email));\n" `shouldBe` CreateIndex
@@ -656,6 +661,7 @@ tests = do
                     , columns = [indexCol (CallExpression "LOWER" [VarExpression "email"])]
                     , whereClause = Nothing
                     , indexType = Nothing
+                    , nullsDistinct = True
                     }
         it "should parse a CREATE UNIQUE INDEX statement" do
             parseSql "CREATE UNIQUE INDEX users_index ON users (user_name);\n" `shouldBe` CreateIndex
@@ -665,6 +671,7 @@ tests = do
                     , columns = [indexCol (VarExpression "user_name")]
                     , whereClause = Nothing
                     , indexType = Nothing
+                    , nullsDistinct = True
                     }
 
         it "should parse a CREATE INDEX with column order ASC NULLS FIRST statement" do
@@ -675,6 +682,7 @@ tests = do
                     , columns = [IndexColumn { column = VarExpression "user_name", columnOrder = [Asc, NullsFirst] }]
                     , whereClause = Nothing
                     , indexType = Nothing
+                    , nullsDistinct = True
                     }
 
         it "should parse a CREATE INDEX with column order DESC NULLS LAST statement" do
@@ -685,6 +693,7 @@ tests = do
                     , columns = [IndexColumn { column = VarExpression "user_name", columnOrder = [Desc, NullsLast] }]
                     , whereClause = Nothing
                     , indexType = Nothing
+                    , nullsDistinct = True
                     }
 
         it "should parse a CREATE INDEX with a coalesce expression" do
@@ -699,6 +708,7 @@ tests = do
                             ]
                     , whereClause = Nothing
                     , indexType = Nothing
+                    , nullsDistinct = True
                     }
 
         it "should parse a CREATE OR REPLACE FUNCTION ..() RETURNS TRIGGER .." do
@@ -776,6 +786,7 @@ $$;
                             (IsExpression (VarExpression "source") (NotExpression (VarExpression "NULL")))
                             (IsExpression (VarExpression "source_id") (NotExpression (VarExpression "NULL"))))
                     , indexType = Nothing
+                    , nullsDistinct = True
                     }
 
         it "should parse 'ENABLE ROW LEVEL SECURITY' statements" do
