@@ -987,12 +987,12 @@ Here is a summary of every change needed to add authentication. Use this as a re
     - Add `import IHP.LoginSupport.Middleware`
     - Add `option $ AuthMiddleware (authMiddleware @User)`
 
-7. Add `ensureIsUser` to `beforeAction` in any controller that requires login.
+8. Add `ensureIsUser` to `beforeAction` in any controller that requires login.
 
-8. Add a logout link in your layout: `<a class="js-delete js-delete-no-confirm" href={DeleteSessionAction}>Logout</a>`
+9. Add a logout link in your layout: `<a class="js-delete js-delete-no-confirm" href={DeleteSessionAction}>Logout</a>`
 
-9. (Optional) Create a registration controller and view for user sign-up.
+10. (Optional) Create a registration controller and view for user sign-up.
 
-10. (Optional) Set up password reset flow with token generation and email.
+11. (Optional) Set up password reset flow with token generation and email.
 
 [Next: Authorization](https://ihp.digitallyinduced.com/Guide/authorization.html)
