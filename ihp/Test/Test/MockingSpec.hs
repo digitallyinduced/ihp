@@ -21,10 +21,8 @@ import Test.Util (testGet, testPostForm)
 import qualified Data.UUID as UUID
 import qualified Data.Vault.Lazy as Vault
 import qualified Network.Wai as Wai
-import Network.HTTP.Types.Status (Status, status200)
-import IHP.Controller.Session (lookupSessionVault)
+import Network.HTTP.Types.Status (status200)
 import IHP.LoginSupport.Middleware (authMiddlewareWith, parseSessionUUID)
-import IHP.ModelSupport.Types (PrimaryKey)
 import System.IO.Unsafe (unsafePerformIO)
 
 data WebApplication = WebApplication deriving (Eq, Show, Data)
