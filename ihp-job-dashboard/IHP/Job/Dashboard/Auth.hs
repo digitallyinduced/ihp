@@ -24,7 +24,7 @@ import qualified IHP.EnvVar as EnvVar
 --
 -- Define your own implementation to use custom authentication for production.
 class AuthenticationMethod a where
-    authenticate :: (?request :: Request, ?modelContext :: ModelContext, ?request :: Request, ?respond :: Respond) => IO ()
+    authenticate :: (?request :: Request, ?modelContext :: ModelContext, ?respond :: Respond) => IO ()
 
 -- | Don't use any authentication for jobs.
 data NoAuth

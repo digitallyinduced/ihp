@@ -172,13 +172,13 @@ class ( Typeable record
     -- >     unless (user.isConfirmed) do
     -- >         setErrorMessage "Please click the confirmation link we sent to your email before you can use the App"
     -- >         redirectTo NewSessionAction
-    beforeLogin :: (?request :: Request, ?modelContext :: ModelContext, ?request :: Request) => record -> IO ()
+    beforeLogin :: (?request :: Request, ?modelContext :: ModelContext) => record -> IO ()
     beforeLogin _ = pure ()
 
     -- | Callback that is executed just before the user is logged out
     --
     -- This is called only if user session exists
-    beforeLogout :: (?request :: Request, ?modelContext :: ModelContext, ?request :: Request) => record -> IO ()
+    beforeLogout :: (?request :: Request, ?modelContext :: ModelContext) => record -> IO ()
     beforeLogout _ = pure ()
 
     -- | Return's the @query\ \@User@ used by the controller. Customize this to e.g. exclude guest users from logging in.

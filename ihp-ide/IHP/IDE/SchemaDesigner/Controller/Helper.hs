@@ -41,11 +41,9 @@ getSqlError = SchemaDesignerParser.parseSchemaSql >>= \case
         Right statements -> do pure Nothing
 
 updateSchema ::
-    ( ?request :: Request
-    , ?modelContext::ModelContext
+    (?request :: Request, ?modelContext::ModelContext
     , ?theAction::controller
     , ?respond::Respond
-    , ?request :: Request
     ) => ([Statement] -> [Statement]) -> IO ()
 updateSchema updateFn = do
     statements <- readSchema

@@ -112,32 +112,32 @@ class ( job ~ GetModelByTableName (GetTableName job)
 -- so you'll get a compile error if you try and include a type that is not a job.
 class JobsDashboard (jobs :: [Type]) where
     -- | Creates the entire dashboard by recursing on the type list and calling 'makeDashboardSection' on each type.
-    makeDashboard :: (?request :: Request, ?modelContext :: ModelContext, ?request :: Request) => IO SomeView
+    makeDashboard :: (?request :: Request, ?modelContext :: ModelContext) => IO SomeView
 
     includedJobTables :: [Text]
 
     -- | Renders the index page, which is the view returned from 'makeDashboard'.
-    indexPage :: (?request :: Request, ?modelContext :: ModelContext, ?respond :: Respond, ?request :: Request) => IO ResponseReceived
+    indexPage :: (?request :: Request, ?modelContext :: ModelContext, ?respond :: Respond) => IO ResponseReceived
 
-    listJob :: (?request :: Request, ?modelContext :: ModelContext, ?respond :: Respond, ?request :: Request) => Text -> IO ResponseReceived
-    listJob' :: (?request :: Request, ?modelContext :: ModelContext, ?respond :: Respond, ?request :: Request) => Bool -> IO ResponseReceived
+    listJob :: (?request :: Request, ?modelContext :: ModelContext, ?respond :: Respond) => Text -> IO ResponseReceived
+    listJob' :: (?request :: Request, ?modelContext :: ModelContext, ?respond :: Respond) => Bool -> IO ResponseReceived
 
     -- | Renders the detail view page. Rescurses on the type list to find a type with the
     -- same table name as the "tableName" query parameter.
-    viewJob :: (?request :: Request, ?modelContext :: ModelContext, ?respond :: Respond, ?request :: Request) => Text -> UUID -> IO ResponseReceived
-    viewJob' :: (?request :: Request, ?modelContext :: ModelContext, ?respond :: Respond, ?request :: Request) => Bool -> IO ResponseReceived
+    viewJob :: (?request :: Request, ?modelContext :: ModelContext, ?respond :: Respond) => Text -> UUID -> IO ResponseReceived
+    viewJob' :: (?request :: Request, ?modelContext :: ModelContext, ?respond :: Respond) => Bool -> IO ResponseReceived
 
     -- | If performed in a POST request, creates a new job depending on the "tableName" query parameter.
     -- If performed in a GET request, renders the new job from depending on said parameter.
-    newJob :: (?request :: Request, ?modelContext :: ModelContext, ?respond :: Respond, ?request :: Request) => Text -> IO ResponseReceived
-    newJob' :: (?request :: Request, ?modelContext :: ModelContext, ?respond :: Respond, ?request :: Request) => Bool -> IO ResponseReceived
+    newJob :: (?request :: Request, ?modelContext :: ModelContext, ?respond :: Respond) => Text -> IO ResponseReceived
+    newJob' :: (?request :: Request, ?modelContext :: ModelContext, ?respond :: Respond) => Bool -> IO ResponseReceived
 
     -- | Deletes a job from the database.
-    deleteJob :: (?request :: Request, ?modelContext :: ModelContext, ?respond :: Respond, ?request :: Request) => Text -> UUID -> IO ResponseReceived
-    deleteJob' :: (?request :: Request, ?modelContext :: ModelContext, ?respond :: Respond, ?request :: Request) => Bool -> IO ResponseReceived
+    deleteJob :: (?request :: Request, ?modelContext :: ModelContext, ?respond :: Respond) => Text -> UUID -> IO ResponseReceived
+    deleteJob' :: (?request :: Request, ?modelContext :: ModelContext, ?respond :: Respond) => Bool -> IO ResponseReceived
 
-    retryJob :: (?request :: Request, ?modelContext :: ModelContext, ?respond :: Respond, ?request :: Request) => Text -> UUID -> IO ResponseReceived
-    retryJob' :: (?request :: Request, ?modelContext :: ModelContext, ?respond :: Respond, ?request :: Request) => IO ResponseReceived
+    retryJob :: (?request :: Request, ?modelContext :: ModelContext, ?respond :: Respond) => Text -> UUID -> IO ResponseReceived
+    retryJob' :: (?request :: Request, ?modelContext :: ModelContext, ?respond :: Respond) => IO ResponseReceived
 
 -- If no types are passed, try to get all tables dynamically and render them as BaseJobs
 instance JobsDashboard '[] where
@@ -377,6 +377,7 @@ getNotIncludedTableNames includedNames = sqlQueryHasql getHasqlPool
 
 buildBaseJobTable :: (?modelContext :: ModelContext, ?request :: Request) => Text -> IO SomeView
 buildBaseJobTable tableName = do
+    let ?context = ?request
     baseJobs <- sqlQueryHasql getHasqlPool
         (Snippet.sql "SELECT " <> Snippet.param tableName <> Snippet.sql ", id, status, updated_at, created_at, last_error FROM "
             <> sqlIdentifier tableName <> Snippet.sql " ORDER BY created_at DESC LIMIT 10")
