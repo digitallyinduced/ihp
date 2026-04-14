@@ -63,7 +63,7 @@ run configBuilder = do
                 PGListener.withPGListener frameworkConfig.databaseUrl frameworkConfig.logger \pgListener -> do
                     let ?modelContext = modelContext
 
-                    middleware <- initMiddlewareStack frameworkConfig modelContext (Just pgListener)
+                    middleware <- initMiddlewareStack frameworkConfig modelContext (Just pgListener) id
                     staticApp <- initStaticApp frameworkConfig
                     let requestLoggerMiddleware = frameworkConfig.requestLoggerMiddleware
 
@@ -143,12 +143,18 @@ initCorsMiddleware FrameworkConfig { corsResourcePolicy } = case corsResourcePol
         Just corsResourcePolicy -> Cors.cors (const (Just corsResourcePolicy))
         Nothing -> id
 
--- | Initialize the complete middleware stack
+-- | Initialize the complete middleware stack.
 --
--- Pass Nothing for PGListener in tests
--- Pass Just pgListener in production for full functionality
-initMiddlewareStack :: FrameworkConfig -> ModelContext -> Maybe PGListener.PGListener -> IO Middleware
-initMiddlewareStack frameworkConfig modelContext maybePgListener = do
+-- Pass 'Nothing' for 'PGListener' in tests, 'Just' in production.
+--
+-- The @afterSessionMiddleware@ argument is spliced into the stack
+-- immediately after 'sessionMiddleware' and before 'authMw'. In production
+-- this is 'id'. 'IHP.Test.Mocking.callActionWithParams' uses it to
+-- re-inject the mock session that 'withUser' places in the request vault,
+-- which would otherwise be wiped out by 'sessionMiddleware' (from
+-- wai-session-maybe) before 'authMw' can read it.
+initMiddlewareStack :: FrameworkConfig -> ModelContext -> Maybe PGListener.PGListener -> Middleware -> IO Middleware
+initMiddlewareStack frameworkConfig modelContext maybePgListener afterSessionMiddleware = do
     sessionMiddleware <- initSessionMiddleware frameworkConfig
     approotMiddleware <- Approot.envFallback
     assetPathMiddleware <- AssetPath.assetPathFromEnvMiddleware "IHP_ASSET_VERSION" "IHP_ASSET_BASEURL"
@@ -168,6 +174,7 @@ initMiddlewareStack frameworkConfig modelContext maybePgListener = do
         . corsMiddleware
         . methodOverridePost
         . sessionMiddleware
+        . afterSessionMiddleware
         . approotMiddleware
         . viewLayoutMiddleware
         . responseHeadersMiddleware

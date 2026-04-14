@@ -56,7 +56,7 @@ runTestMiddlewares frameworkConfig modelContext maybePgListener baseRequest = do
             writeIORef resultRef req
             respond (responseLBS HTTP.status200 [] "")
 
-    middlewareStack <- initMiddlewareStack frameworkConfig modelContext maybePgListener
+    middlewareStack <- initMiddlewareStack frameworkConfig modelContext maybePgListener id
 
     -- Run request through middleware stack
     _ <- middlewareStack captureApp baseRequest (\_ -> pure ResponseReceived)
@@ -108,7 +108,7 @@ withMockContext application configBuilder action =
 -- EarlyReturnException is caught inside runAction/runActionWithNewContext.
 initTestApplication :: (FrontController RootApplication) => MockContext application -> IO Application
 initTestApplication MockContext { frameworkConfig, modelContext, pgListener } = do
-    middleware <- initMiddlewareStack frameworkConfig modelContext pgListener
+    middleware <- initMiddlewareStack frameworkConfig modelContext pgListener id
     pure $ ErrorController.errorHandlerMiddleware frameworkConfig
          $ middleware
          $ Server.application handleNotFound (\app -> app)
@@ -174,22 +174,30 @@ callActionWithParams controller params = do
             writeIORef responseRef (Just response)
             pure ResponseReceived
 
-    -- Check if withUser set a mock session that we need to preserve
+    -- If withUser placed a mock session in the request vault, we need to
+    -- re-insert it after sessionMiddleware runs. sessionMiddleware (from
+    -- wai-session-maybe) unconditionally overwrites sessionVaultKey with a
+    -- fresh empty session built from the request cookie, which in tests
+    -- would wipe out the mock session before authMw can read it.
     let mockSession = Vault.lookup sessionVaultKey (Wai.vault ?request)
-
-    -- Create the controller app
-    let controllerApp req respond = do
-            -- Restore mock session from withUser if it was set
+    let preserveMockSession :: Wai.Middleware
+        preserveMockSession app req respond = do
             let req' = case mockSession of
                     Just session -> req { Wai.vault = Vault.insert sessionVaultKey session (Wai.vault req) }
                     Nothing -> req
-            let ?request = req'
+            app req' respond
+
+    -- Create the controller app
+    let controllerApp req respond = do
+            let ?request = req
             let ?respond = respond
             runActionWithNewContext controller
 
-    -- Run through middleware stack (like the real server does)
+    -- Run through middleware stack (like the real server does).
+    -- Splice preserveMockSession into the stack right after sessionMiddleware
+    -- so that the mock session is restored before authMw reads it.
     let MockContext { pgListener } = ?mocking
-    middlewareStack <- initMiddlewareStack frameworkConfig modelContext pgListener
+    middlewareStack <- initMiddlewareStack frameworkConfig modelContext pgListener preserveMockSession
     _ <- middlewareStack controllerApp baseRequest captureRespond
 
     readIORef responseRef >>= \case
