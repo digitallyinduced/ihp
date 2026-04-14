@@ -504,7 +504,7 @@ encodePatchToSetSql ren columnTypes patch =
     in mconcat $ List.intersperse (Snippet.sql ", ") setSnippets
 
 sqlQueryWithRLSAndTransactionId ::
-    ( ?request :: Request
+    ( ?context :: Request
     , ?request :: Request
     , Show (PrimaryKey (GetTableName CurrentUserRecord))
     , HasNewSessionUrl CurrentUserRecord
@@ -524,7 +524,7 @@ sqlQueryWithRLSAndTransactionId pool Nothing statement = runSession pool (sqlQue
 -- Use this for INSERT, UPDATE, or DELETE statements with RETURNING that need
 -- to return results (e.g. wrapped with 'wrapDynamicQuery').
 sqlQueryWriteWithRLSAndTransactionId ::
-    ( ?request :: Request
+    ( ?context :: Request
     , ?request :: Request
     , Show (PrimaryKey (GetTableName CurrentUserRecord))
     , HasNewSessionUrl CurrentUserRecord
@@ -540,7 +540,7 @@ sqlQueryWriteWithRLSAndTransactionId _pool (Just transactionId) statement = do
 sqlQueryWriteWithRLSAndTransactionId pool Nothing statement = runSession pool (sqlQueryWriteWithRLSSession statement)
 
 sqlExecWithRLSAndTransactionId ::
-    ( ?request :: Request
+    ( ?context :: Request
     , ?request :: Request
     , Show (PrimaryKey (GetTableName CurrentUserRecord))
     , HasNewSessionUrl CurrentUserRecord
