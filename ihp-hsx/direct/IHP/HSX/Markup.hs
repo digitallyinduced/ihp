@@ -40,7 +40,7 @@ import Data.ByteString.Builder (Builder)
 import qualified Data.ByteString.Builder as Builder
 import qualified Data.ByteString.Builder.Extra as Extra
 import qualified Data.ByteString.Builder.Prim as BP
-import Data.String.Conversions (ConvertibleStrings, cs)
+import Data.String.Conversions (ConvertibleStrings (convertString), cs)
 import Data.String (IsString(..))
 import Data.Word (Word8)
 import Unsafe.Coerce (unsafeCoerce)
@@ -291,3 +291,15 @@ preEscapedTextValue = Markup . TE.encodeUtf8Builder
 stringValue :: String -> Markup
 stringValue = escapeHtml . Text.pack
 {-# INLINE stringValue #-}
+
+-- | Convert 'Text' into HTML-escaped 'Markup' via @cs@.
+-- Mirrors Blaze's @instance ConvertibleStrings Text Html@ that was lost
+-- when the HSX backend moved from Blaze to the direct ByteString builder.
+instance ConvertibleStrings Text Markup where
+    {-# INLINE convertString #-}
+    convertString = escapeHtml
+
+-- | Convert 'String' into HTML-escaped 'Markup' via @cs@.
+instance ConvertibleStrings String Markup where
+    {-# INLINE convertString #-}
+    convertString = escapeHtml . Text.pack
