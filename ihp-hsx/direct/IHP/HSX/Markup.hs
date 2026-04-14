@@ -293,8 +293,6 @@ stringValue = escapeHtml . Text.pack
 {-# INLINE stringValue #-}
 
 -- | Convert 'Text' into HTML-escaped 'Markup' via @cs@.
--- Mirrors Blaze's @instance ConvertibleStrings Text Html@ that was lost
--- when the HSX backend moved from Blaze to the direct ByteString builder.
 instance ConvertibleStrings Text Markup where
     {-# INLINE convertString #-}
     convertString = escapeHtml
