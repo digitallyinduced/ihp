@@ -20,7 +20,6 @@ import qualified Control.Concurrent.MVar as MVar
 import qualified Data.Maybe as Maybe
 import qualified Data.Text as Text
 import IHP.WebSocket
-import IHP.Controller.Context
 import Network.Wai.Middleware.EarlyReturn (earlyReturnMiddleware)
 import qualified IHP.PGListener as PGListener
 import qualified Hasql.Session as HasqlSession
@@ -51,7 +50,7 @@ autoRefresh :: (
     ?theAction :: action
     , Controller action
     , ?modelContext :: ModelContext
-    , ?context :: ControllerContext
+    , ?request :: Request
     , ?request :: Request
     , ?respond :: Respond
     ) => ((?modelContext :: ModelContext, ?respond :: Respond) => IO ResponseReceived) -> IO ResponseReceived
@@ -78,19 +77,15 @@ autoRefresh runAction = do
                     let newRequest = ?request { vault = Vault.insert autoRefreshStateVaultKey (AutoRefreshEnabled id) ?request.vault }
                     let ?request = newRequest
 
-                    -- We save the current state of the controller context here. This includes e.g. all current
-                    -- flash messages, the current user, ...
-                    --
-                    -- This frozen context is used as a "template" inside renderView to make a new controller context
-                    -- with the exact same content we had when rendering the initial page, whenever we do a server-side re-rendering
-                    frozenControllerContext <- freeze ?context
-
+                    -- Capture the current request and context for re-rendering. The
+                    -- request vault carries all per-request state (current user, flash
+                    -- messages, framework config, ...) so passing the closure-captured
+                    -- values back into the renderView callback is enough.
                     let originalRequest = ?request
                     let renderView = \waiRequest waiRespond -> do
                             earlyReturnMiddleware (\_ respond -> do
-                                controllerContext <- unfreeze frozenControllerContext
-                                let ?context = controllerContext
                                 let ?request = originalRequest
+                                let ?context = ?request
                                 let ?respond = respond
                                 action ?theAction
                                 ) waiRequest waiRespond
@@ -125,6 +120,7 @@ instance WSApp AutoRefreshWSApp where
     initialState = AwaitingSessionID
 
     run = do
+        let ?context = ?request
         sessionId <- receiveData @UUID
         setState AutoRefreshActive { sessionId }
 
@@ -190,7 +186,7 @@ captureResponseBody originalRespond action = do
     captured <- readIORef bodyRef
     pure (result, captured)
 
-registerNotificationTrigger :: (?modelContext :: ModelContext, ?context :: ControllerContext) => IORef (Set Text) -> IORef AutoRefreshServer -> IO ()
+registerNotificationTrigger :: (?modelContext :: ModelContext, ?request :: Request) => IORef (Set Text) -> IORef AutoRefreshServer -> IO ()
 registerNotificationTrigger touchedTablesVar autoRefreshServer = do
     touchedTables <- Set.toList <$> readIORef touchedTablesVar
     subscribedTables <- (.subscribedTables) <$> (autoRefreshServer |> readIORef)
@@ -201,7 +197,7 @@ registerNotificationTrigger touchedTablesVar autoRefreshServer = do
     -- `make db` drops and recreates the database, destroying triggers that were
     -- previously installed. The trigger SQL is idempotent so re-running is safe.
     -- In production, only install triggers for newly seen tables.
-    let isDevelopment = ?context.frameworkConfig.environment == Development
+    let isDevelopment = ?request.frameworkConfig.environment == Development
 
     modifyIORef' autoRefreshServer (\server -> server { subscribedTables = server.subscribedTables <> Set.fromList subscriptionRequired })
 

@@ -520,13 +520,12 @@ This approach gives you full control over what the user sees and where they are 
 
 For an additional layer of protection, IHP supports PostgreSQL Row-Level Security (RLS). With RLS, the database itself enforces that users can only access rows they are authorized to see, regardless of what your application code does.
 
-See the [IHP DataSync documentation](https://ihp.digitallyinduced.com/Guide/realtime-spas.html) for details on how to set up RLS policies. In your `FrontController.hs`, call `enableRowLevelSecurityIfLoggedIn` after `initAuthentication`:
+See the [IHP DataSync documentation](https://ihp.digitallyinduced.com/Guide/realtime-spas.html) for details on how to set up RLS policies. With `AuthMiddleware (authMiddleware @User)` enabled in `Config.hs`, call `enableRowLevelSecurityIfLoggedIn` from your `FrontController.hs`:
 
 ```haskell
 instance InitControllerContext WebApplication where
     initContext = do
         setLayout defaultLayout
-        initAuthentication @User
         enableRowLevelSecurityIfLoggedIn
 ```
 

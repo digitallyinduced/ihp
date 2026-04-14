@@ -1,8 +1,7 @@
 {-# LANGUAGE AllowAmbiguousTypes #-}
 
 module IHP.LoginSupport.Middleware
-    ( initAuthentication
-    , authMiddleware
+    ( authMiddleware
     , adminAuthMiddleware
     , userIdMiddleware
     , adminIdMiddleware
@@ -22,8 +21,6 @@ import IHP.Prelude
 import IHP.LoginSupport.Types
 import IHP.LoginSupport.Helper.Controller (sessionKey)
 import IHP.Controller.Session
-import IHP.Controller.Context
-import IHP.ControllerSupport
 import IHP.QueryBuilder
 import IHP.Fetch
 import IHP.ModelSupport
@@ -213,26 +210,3 @@ authMiddlewareWith key fetchUser app req respond = do
     let req' = req { Wai.vault = Vault.insert key user (Wai.vault req) }
     app req' respond
 {-# INLINE authMiddlewareWith #-}
-
--- | Legacy function for backward compatibility.
---
--- Fetches the user from the session and stores it in the controller context.
--- New code should use 'authMiddleware' in Config.hs instead.
-{-# INLINE initAuthentication #-}
-initAuthentication :: forall user normalizedModel.
-        ( ?context :: ControllerContext
-        , ?request :: Request
-        , ?modelContext :: ModelContext
-        , normalizedModel ~ NormalizeModel user
-        , Typeable normalizedModel
-        , Table normalizedModel
-        , FromRowHasql normalizedModel
-        , PrimaryKey (GetTableName normalizedModel) ~ UUID
-        , GetTableName normalizedModel ~ GetTableName user
-        , FilterPrimaryKey (GetTableName normalizedModel)
-        , KnownSymbol (GetModelName user)
-    ) => IO ()
-initAuthentication = do
-    user <- getSession @(Id user) (sessionKey @user)
-            >>= fetchOneOrNothing
-    putContext user

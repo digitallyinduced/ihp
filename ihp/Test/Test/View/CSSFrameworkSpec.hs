@@ -6,7 +6,6 @@ module Test.View.CSSFrameworkSpec where
 
 import Test.Hspec
 import IHP.Prelude
-import IHP.Controller.Context
 import IHP.FrameworkConfig as FrameworkConfig
 import Wai.Request.Params.Middleware (RequestBody (..))
 import IHP.View.Types
@@ -17,7 +16,6 @@ import IHP.ModelSupport
 import IHP.Breadcrumb.ViewFunctions (breadcrumbLinkExternal, breadcrumbText, renderBreadcrumb)
 import IHP.Pagination.Types
 import qualified IHP.Prelude as Text (isInfixOf)
-import qualified Data.TMap as TypeMap
 import qualified Network.Wai as Wai
 import IHP.Pagination.ViewFunctions (renderPagination)
 import qualified Data.Vault.Lazy as Vault
@@ -333,7 +331,7 @@ tests = do
 
                     context <- createControllerContextWithCSSFramework cssFramework
                     let ?context = context
-                    let ?request = ?context.request
+                    let ?request = ?context
 
                     let render = renderMarkupText $ renderPagination pagination
                     Text.isInfixOf "<nav aria-label=\"Page Navigator\"" (cs render) `shouldBe` True
@@ -349,7 +347,7 @@ tests = do
 
                     context <- createControllerContextWithCSSFramework cssFramework
                     let ?context = context
-                    let ?request = ?context.request
+                    let ?request = ?context
 
                     renderPagination pagination `shouldRenderTo` mempty
 
@@ -378,7 +376,7 @@ tests = do
 
                     context <- createControllerContextWithCSSFramework cssFramework
                     let ?context = context
-                    let ?request = ?context.request
+                    let ?request = ?context
 
                     renderBreadcrumb breadcrumbs `shouldRenderTo` "<nav><ol class=\"breadcrumb\"><li class=\"breadcrumb-item\">First item</li><li class=\"breadcrumb-item active\">Last item</li></ol></nav>"
 
@@ -632,7 +630,7 @@ tests = do
 
                     context <- createControllerContextWithCSSFramework cssFramework
                     let ?context = context
-                    let ?request = ?context.request
+                    let ?request = ?context
 
                     let render = renderMarkupText $ renderPagination pagination
                     Text.isInfixOf "<nav aria-label=\"Page Navigator\"" (cs render) `shouldBe` True
@@ -648,7 +646,7 @@ tests = do
 
                     context <- createControllerContextWithCSSFramework cssFramework
                     let ?context = context
-                    let ?request = ?context.request
+                    let ?request = ?context
 
                     renderPagination pagination `shouldRenderTo` mempty
 
@@ -677,7 +675,7 @@ tests = do
 
                     context <- createControllerContextWithCSSFramework cssFramework
                     let ?context = context
-                    let ?request = ?context.request
+                    let ?request = ?context
 
                     renderBreadcrumb breadcrumbs `shouldRenderTo` "<nav><ol class=\"breadcrumb\"><li class=\"breadcrumb-item\">First item</li><li class=\"breadcrumb-item active\">Last item</li></ol></nav>"
 
@@ -718,12 +716,11 @@ shouldRenderTo renderFunction expectedHtml = renderMarkupText renderFunction `sh
 
 {-| Mock a Controller context with CSSFramework.
 -}
-createControllerContextWithCSSFramework :: Typeable option => option -> IO ControllerContext
+createControllerContextWithCSSFramework :: Typeable option => option -> IO Wai.Request
 createControllerContextWithCSSFramework cssFramework = do
     frameworkConfig <- FrameworkConfig.buildFrameworkConfig do
                 option cssFramework
     let requestBody = FormBody { params = [], files = [], rawPayload = "" }
     let request = Wai.defaultRequest { Wai.vault = Vault.insert IHP.RequestVault.frameworkConfigVaultKey frameworkConfig
                                                  $ Vault.insert IHP.RequestVault.requestBodyVaultKey requestBody Vault.empty }
-    let customFields = TypeMap.insert request TypeMap.empty
-    pure FrozenControllerContext { customFields }
+    pure request

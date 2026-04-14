@@ -44,7 +44,7 @@ hackage_packages=(
   "postgresql-types 0.1.2"
   "hasql-mapping 0.1"
   "hasql-postgresql-types 0.2"
-  "ihp-zip 0.1.0"
+  "ihp-zip 0.1.1"
 )
 
 for entry in "${hackage_packages[@]}"; do

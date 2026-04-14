@@ -37,10 +37,10 @@ class TableViewable a where
     newJobLink :: Html
 
     -- | Gets records for displaying in the dashboard index page
-    getIndex :: (?context :: ControllerContext, ?modelContext :: ModelContext) => IO [a]
+    getIndex :: (?request :: Request, ?modelContext :: ModelContext) => IO [a]
 
     -- | Gets paginated records for displaying in the list page
-    getPage :: (?context :: ControllerContext, ?modelContext :: ModelContext) => Int -> Int -> IO [a]
+    getPage :: (?request :: Request, ?modelContext :: ModelContext) => Int -> Int -> IO [a]
 
 
 -- | Often, jobs are related to some model type. These relations are modeled through the type system.

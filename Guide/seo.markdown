@@ -206,7 +206,7 @@ defaultLayout inner = [hsx|
 |]
 ```
 
-If you want per-page Twitter tags, you can use the same `putContext`/`fromFrozenContext` pattern described in the [Views documentation](view.html) for layout variables.
+If you want per-page Twitter tags, you can use the same vault-key pattern described in the [Views documentation](view.html) for layout variables.
 
 ## Canonical URLs
 
@@ -214,15 +214,36 @@ A canonical URL tells search engines which version of a page is the "official" o
 
 ### Adding a Canonical Tag to the Layout
 
-Since IHP does not have a built-in `setCanonical` helper, you can use the `putContext`/`fromFrozenContext` pattern to pass a canonical URL from your view to the layout.
+Since IHP does not have a built-in `setCanonical` helper, you can store the canonical URL in the WAI request vault and read it back in the layout.
 
-First, create a newtype to store the canonical URL. You can add this to `Web/View/Layout.hs` or a shared module:
+First, declare a vault key and a tiny middleware to set it:
 
 ```haskell
+-- Web/View/Layout.hs (or a shared module)
+import qualified Data.Vault.Lazy as Vault
+import Network.Wai (Request, vault)
+import System.IO.Unsafe (unsafePerformIO)
+
 newtype CanonicalUrl = CanonicalUrl Text
+
+canonicalUrlVaultKey :: Vault.Key (IORef (Maybe CanonicalUrl))
+canonicalUrlVaultKey = unsafePerformIO Vault.newKey
+{-# NOINLINE canonicalUrlVaultKey #-}
+
+setCanonical :: (?request :: Request) => Text -> IO ()
+setCanonical url = case Vault.lookup canonicalUrlVaultKey (vault ?request) of
+    Just ref -> writeIORef ref (Just (CanonicalUrl url))
+    Nothing -> pure ()
+
+currentCanonical :: (?request :: Request) => Maybe CanonicalUrl
+currentCanonical = case Vault.lookup canonicalUrlVaultKey (vault ?request) of
+    Just ref -> unsafePerformIO (readIORef ref)
+    Nothing -> Nothing
 ```
 
-In your layout, read the canonical URL from the context and render it if present:
+Add `insertNewIORefVaultMiddleware canonicalUrlVaultKey Nothing` to your `Config/Config.hs` middleware stack so the IORef is created on every request.
+
+In your layout, read the canonical URL from the vault and render it if present:
 
 ```haskell
 defaultLayout :: Html -> Html
@@ -240,21 +261,21 @@ defaultLayout inner = [hsx|
 </html>
 |]
 
-canonicalTag :: (?context :: ControllerContext) => Html
-canonicalTag = case maybeFromFrozenContext @CanonicalUrl of
+canonicalTag :: (?request :: Request) => Html
+canonicalTag = case currentCanonical of
     Just (CanonicalUrl url) -> [hsx|<link rel="canonical" href={url}>|]
     Nothing -> mempty
 ```
 
 ### Setting a Canonical URL from a Controller
 
-Set the canonical URL by calling `putContext` in your action:
+Call `setCanonical` in your action:
 
 ```haskell
 instance Controller PostsController where
     action ShowPostAction { postId } = do
         post <- fetch postId
-        putContext (CanonicalUrl (urlTo ShowPostAction { postId = post.id }))
+        setCanonical (urlTo ShowPostAction { postId = post.id })
         render ShowView { .. }
 ```
 
@@ -604,7 +625,7 @@ instance View ShowView where
             Just url -> setOGImage url
             Nothing -> pure ()
 
-        putContext (CanonicalUrl (urlTo ShowPostAction { postId = post.id }))
+        setCanonical (urlTo ShowPostAction { postId = post.id })
 
     html ShowView { post } = [hsx|
         <h1>{post.title}</h1>

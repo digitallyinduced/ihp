@@ -14,6 +14,7 @@ instance (Component component controller, FromJSON controller, Typeable componen
     initialState = ComponentsController
 
     run = do
+        let ?context = ?request
         let state :: component = SSC.initialState
         instanceRef <- newIORef (ComponentInstance { state })
         let ?instanceRef = instanceRef

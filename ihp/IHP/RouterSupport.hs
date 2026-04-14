@@ -76,10 +76,8 @@ import qualified Data.HashMap.Strict as HashMap
 import IHP.WebSocket (WSApp)
 import qualified IHP.WebSocket as WS
 import GHC.TypeLits as T
-import IHP.Controller.Context
 import IHP.Controller.Param
 import Data.Kind
-import qualified Data.TMap as TypeMap
 import Network.Wai.Middleware.EarlyReturn (earlyReturnMiddleware)
 
 -- | Binds @?request@ and @?respond@ from WAI arguments, then runs the given action.
@@ -106,7 +104,7 @@ runAction' controller waiRequest waiRespond =
         context <- setupActionContext @application (Typeable.typeOf controller) request respond
         let ?context = context
         let ?respond = respond
-        let ?request = context.request
+        let ?request = context
         let ?modelContext = ?request.modelContext
         runAction controller
         ) waiRequest waiRespond
@@ -1108,10 +1106,8 @@ parseIntegerId queryVal = let
 --
 routeParam :: (?request :: Request, ?respond :: Respond, ParamReader paramType) => ByteString -> paramType
 routeParam paramName =
-    let customFields = TypeMap.insert ?request TypeMap.empty
-    in
-        let ?context = FrozenControllerContext { customFields }
-        in param paramName
+    let ?context = ?request
+    in param paramName
 
 -- | Display a better error when the user missed to pass an argument to an action.
 --

@@ -42,12 +42,11 @@ import IHP.HSX.MarkupQQ (hsx)
 import qualified IHP.ModelSupport as ModelSupport
 import IHP.FrameworkConfig
 import qualified IHP.Environment as Environment
-import IHP.Controller.Context
 import IHP.Controller.NotFound (handleNotFound, buildNotFoundResponse)
 import qualified IHP.Log as Log
 import IHP.Log (writeLog)
 import IHP.Log.Types (LogLevel(..))
-import IHP.ActionType (actionTypeVaultKey)
+import IHP.ActionType (actionTypeVaultKey, ActionType(..))
 import qualified Data.Vault.Lazy as Vault
 
 tshow :: Show a => a -> Text
@@ -112,8 +111,9 @@ respondError request environment status title body json
             [(hContentType, "text/html")]
             (getBuilder (renderError environment title body))
 
-displayException :: (Show action, ?context :: ControllerContext, ?request :: Request, ?respond :: Respond) => SomeException -> action -> Text -> IO ResponseReceived
+displayException :: (Show action, ?request :: Request, ?respond :: Respond) => SomeException -> action -> Text -> IO ResponseReceived
 displayException exception action additionalInfo = do
+    let ?context = ?request
     -- Dev handlers display helpful tips on how to resolve the problem
     let devHandlers =
             [ postgresHandler
@@ -152,8 +152,9 @@ displayException exception action additionalInfo = do
 --
 -- In dev mode the action and exception is added to the output.
 -- In production mode nothing is specific is communicated about the exception
-genericHandler :: (Show controller, ?context :: ControllerContext, ?respond :: Respond) => Exception.SomeException -> controller -> Text -> IO ResponseReceived
+genericHandler :: (Show controller, ?request :: Request, ?respond :: Respond) => Exception.SomeException -> controller -> Text -> IO ResponseReceived
 genericHandler exception controller additionalInfo = do
+    let ?context = ?request
     let errorMessageText = "An exception was raised while running the action " <> tshow controller <> additionalInfo
     let errorMessageTitle = Exception.displayException exception
 
@@ -171,8 +172,9 @@ genericHandler exception controller additionalInfo = do
 
     ?respond $ responseBuilder status500 [(hContentType, "text/html")] ((renderError ?context.frameworkConfig.environment errorTitle errorMessage) |> getBuilder)
 
-postgresHandler :: (Show controller, ?context :: ControllerContext, ?respond :: Respond) => SomeException -> controller -> Text -> Maybe (IO ResponseReceived)
+postgresHandler :: (Show controller, ?request :: Request, ?respond :: Respond) => SomeException -> controller -> Text -> Maybe (IO ResponseReceived)
 postgresHandler exception controller additionalInfo = do
+    let ?context = ?request
     let
         handlePostgresOutdatedError :: Text -> Markup -> IO ResponseReceived
         handlePostgresOutdatedError errorDetail errorText = do
@@ -262,7 +264,7 @@ postgresHandler exception controller additionalInfo = do
             ?respond $ responseBuilder status500 [(hContentType, "text/html")] ((renderError Environment.Development title errorMessage) |> getBuilder)
         Nothing -> Nothing
 
-patternMatchFailureHandler :: (Show controller, ?context :: ControllerContext, ?respond :: Respond) => SomeException -> controller -> Text -> Maybe (IO ResponseReceived)
+patternMatchFailureHandler :: (Show controller, ?request :: Request, ?respond :: Respond) => SomeException -> controller -> Text -> Maybe (IO ResponseReceived)
 patternMatchFailureHandler exception controller additionalInfo = do
     case fromException exception of
         Just (exception :: Exception.PatternMatchFail) -> Just do
@@ -286,7 +288,7 @@ patternMatchFailureHandler exception controller additionalInfo = do
 -- Handler for 'IHP.Controller.Param.ParamNotFoundException'
 -- Only used in dev mode of the app.
 
-paramNotFoundExceptionHandler :: (Show controller, ?context :: ControllerContext, ?request :: Request, ?respond :: Respond) => SomeException -> controller -> Text -> Maybe (IO ResponseReceived)
+paramNotFoundExceptionHandler :: (Show controller, ?request :: Request, ?respond :: Respond) => SomeException -> controller -> Text -> Maybe (IO ResponseReceived)
 paramNotFoundExceptionHandler exception controller additionalInfo = do
     case fromException exception of
         Just (exception@(Param.ParamNotFoundException paramName)) -> Just do
@@ -351,7 +353,7 @@ paramNotFoundExceptionHandler exception controller additionalInfo = do
 -- Handler for 'IHP.ModelSupport.RecordNotFoundException'
 --
 -- Used only in development mode of the app.
-recordNotFoundExceptionHandlerDev :: (Show controller, ?context :: ControllerContext, ?respond :: Respond) => SomeException -> controller -> Text -> Maybe (IO ResponseReceived)
+recordNotFoundExceptionHandlerDev :: (Show controller, ?request :: Request, ?respond :: Respond) => SomeException -> controller -> Text -> Maybe (IO ResponseReceived)
 recordNotFoundExceptionHandlerDev exception controller additionalInfo =
     case fromException exception of
         Just (exception@(ModelSupport.RecordNotFoundException { queryAndParams })) -> Just do
@@ -391,7 +393,7 @@ recordNotFoundExceptionHandlerDev exception controller additionalInfo =
 -- Handler for 'IHP.ModelSupport.RecordNotFoundException'
 --
 -- Used only in production mode of the app. The exception is handled by calling 'handleNotFound'
-recordNotFoundExceptionHandlerProd :: (?context :: ControllerContext, ?request :: Request, ?respond :: Respond) => SomeException -> controller -> Text -> Maybe (IO ResponseReceived)
+recordNotFoundExceptionHandlerProd :: (?request :: Request, ?respond :: Respond) => SomeException -> controller -> Text -> Maybe (IO ResponseReceived)
 recordNotFoundExceptionHandlerProd exception controller additionalInfo =
     case fromException exception of
         Just (exception@(ModelSupport.RecordNotFoundException {})) ->

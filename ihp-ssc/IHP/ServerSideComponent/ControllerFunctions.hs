@@ -26,8 +26,9 @@ $(Aeson.deriveJSON Aeson.defaultOptions { sumEncoding = defaultTaggedObject { ta
 $(Aeson.deriveJSON Aeson.defaultOptions { sumEncoding = defaultTaggedObject { tagFieldName = "type" }} ''NodeOperation)
 $(Aeson.deriveJSON Aeson.defaultOptions { sumEncoding = defaultTaggedObject { tagFieldName = "type" }} ''SSCError)
 
-setState :: (?instanceRef :: IORef (ComponentInstance state), ?connection :: WebSocket.Connection, Component state action, ?context :: ControllerContext, ?request :: Request) => state -> IO ()
+setState :: (?instanceRef :: IORef (ComponentInstance state), ?connection :: WebSocket.Connection, Component state action, ?request :: Request) => state -> IO ()
 setState state = do
+    let ?context = ?request
     oldState <- (.state) <$> readIORef ?instanceRef
     let oldHtml = oldState
             |> SSC.render

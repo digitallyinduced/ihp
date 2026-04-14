@@ -25,7 +25,7 @@ instance ParamReader [IndexColumn] where
         Right result -> Right result
 
 readSchema ::
-    ( ?context::ControllerContext
+    ( ?request::Request
     , ?modelContext::ModelContext
     , ?theAction::controller
     , ?respond::Respond
@@ -41,11 +41,9 @@ getSqlError = SchemaDesignerParser.parseSchemaSql >>= \case
         Right statements -> do pure Nothing
 
 updateSchema ::
-    ( ?context :: ControllerContext
-    , ?modelContext::ModelContext
+    (?request :: Request, ?modelContext::ModelContext
     , ?theAction::controller
     , ?respond::Respond
-    , ?request :: Request
     ) => ([Statement] -> [Statement]) -> IO ()
 updateSchema updateFn = do
     statements <- readSchema

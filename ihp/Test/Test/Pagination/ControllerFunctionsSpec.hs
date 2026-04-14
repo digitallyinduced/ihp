@@ -4,14 +4,12 @@ import IHP.Prelude
 import Test.Hspec
 import IHP.Pagination.ControllerFunctions
 import IHP.Pagination.Types (Options(..), Pagination(..))
-import IHP.Controller.Context
 import IHP.ModelSupport (createModelContext, releaseModelContext, HasqlError(..))
 import qualified Hasql.Pool as HasqlPool
 import qualified IHP.Log as Log
 import IHP.Log.Types (LogLevel(..), LoggerSettings(..))
 import Wai.Request.Params.Middleware (RequestBody (..), requestBodyVaultKey)
 import qualified Data.Vault.Lazy as Vault
-import qualified Data.TMap as TypeMap
 import qualified Network.Wai as Wai
 import qualified Database.PostgreSQL.Simple.Types as PG
 import System.Environment (lookupEnv)
@@ -24,7 +22,7 @@ tests = do
             it "should return first page with default options" $ withDB \modelContext -> do
                 let ?modelContext = modelContext
                 let ?context = contextWithParams []
-                let ?request = ?context.request
+                let ?request = ?context
 
                 (results :: [PG.Only Int32], pagination) <-
                     paginatedSqlQueryWithOptions
@@ -40,7 +38,7 @@ tests = do
             it "should return second page" $ withDB \modelContext -> do
                 let ?modelContext = modelContext
                 let ?context = contextWithParams [("page", "2")]
-                let ?request = ?context.request
+                let ?request = ?context
 
                 (results :: [PG.Only Int32], pagination) <-
                     paginatedSqlQueryWithOptions
@@ -59,7 +57,7 @@ tests = do
             it "should respect maxItems from request param" $ withDB \modelContext -> do
                 let ?modelContext = modelContext
                 let ?context = contextWithParams [("maxItems", "10")]
-                let ?request = ?context.request
+                let ?request = ?context
 
                 (results :: [PG.Only Int32], pagination) <-
                     paginatedSqlQueryWithOptions
@@ -74,7 +72,7 @@ tests = do
             it "should respect custom options maxItems" $ withDB \modelContext -> do
                 let ?modelContext = modelContext
                 let ?context = contextWithParams []
-                let ?request = ?context.request
+                let ?request = ?context
                 let options = Options { maxItems = 25, windowSize = 3 }
 
                 (results :: [PG.Only Int32], pagination) <-
@@ -90,7 +88,7 @@ tests = do
             it "should cap maxItems at 200" $ withDB \modelContext -> do
                 let ?modelContext = modelContext
                 let ?context = contextWithParams [("maxItems", "9999")]
-                let ?request = ?context.request
+                let ?request = ?context
 
                 (results :: [PG.Only Int32], pagination) <-
                     paginatedSqlQueryWithOptions
@@ -105,7 +103,7 @@ tests = do
             it "should return empty results for page beyond data" $ withDB \modelContext -> do
                 let ?modelContext = modelContext
                 let ?context = contextWithParams [("page", "100")]
-                let ?request = ?context.request
+                let ?request = ?context
 
                 (results :: [PG.Only Int32], pagination) <-
                     paginatedSqlQueryWithOptions
@@ -120,7 +118,7 @@ tests = do
             it "should handle page + maxItems together" $ withDB \modelContext -> do
                 let ?modelContext = modelContext
                 let ?context = contextWithParams [("page", "3"), ("maxItems", "10")]
-                let ?request = ?context.request
+                let ?request = ?context
 
                 (results :: [PG.Only Int32], pagination) <-
                     paginatedSqlQueryWithOptions
@@ -136,13 +134,12 @@ tests = do
                     (PG.Only first : _) -> first `shouldBe` 21
                     _ -> expectationFailure "Expected non-empty results"
 
--- | Create a ControllerContext with the given request params
-contextWithParams :: [(ByteString, ByteString)] -> ControllerContext
+-- | Create a Request with the given params
+contextWithParams :: [(ByteString, ByteString)] -> Wai.Request
 contextWithParams params =
     let requestBody = FormBody { params, files = [], rawPayload = "" }
         request = Wai.defaultRequest { Wai.vault = Vault.insert requestBodyVaultKey requestBody Vault.empty }
-        customFields = TypeMap.insert request TypeMap.empty
-    in FrozenControllerContext { customFields }
+    in request
 
 -- | Run a test with a database connection, skipping if PostgreSQL is not available.
 -- Only connection failures are caught and marked as pending; test assertion errors propagate normally.

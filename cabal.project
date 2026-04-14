@@ -1,6 +1,5 @@
 packages:
     ihp/
-    ihp-context/
     ihp-hsx/
     ihp-log/
     ihp-modal/

@@ -4,7 +4,7 @@ version:             1.0.0
 synopsis:            Page title and meta tags for IHP
 description:
     Manage page titles and Open Graph meta tags in IHP applications.
-    This is a lightweight package depending only on ihp-context, ihp-hsx, and blaze-html.
+    This is a lightweight package depending only on ihp-hsx and blaze-html.
 license:             MIT
 license-file:        LICENSE
 author:              digitally induced GmbH
@@ -38,7 +38,6 @@ library
     hs-source-dirs: .
     build-depends:
         base >= 4.17.0 && < 4.22
-        , ihp-context
         , ihp-hsx
         , text
         , blaze-html
