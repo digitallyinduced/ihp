@@ -54,7 +54,7 @@ autoRefresh :: (
     , ?context :: ControllerContext
     , ?request :: Request
     , ?respond :: Respond
-    ) => ((?modelContext :: ModelContext, ?respond :: Respond) => IO ResponseReceived) -> IO ResponseReceived
+    ) => ((?modelContext :: ModelContext, ?respond :: Respond, ?request :: Request) => IO ResponseReceived) -> IO ResponseReceived
 autoRefresh runAction = do
     -- When PGListener is not available, degrade gracefully to a
     -- plain action without auto-refresh.
