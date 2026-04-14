@@ -33,13 +33,13 @@ import qualified Network.WebSockets.Connection as WebSocket
 class WSApp state where
     initialState :: state
 
-    run :: (?state :: IORef state, ?context :: Request, ?modelContext :: ModelContext, ?connection :: Websocket.Connection, ?request :: Request) => IO ()
+    run :: (?state :: IORef state, ?request :: Request, ?modelContext :: ModelContext, ?connection :: Websocket.Connection, ?request :: Request) => IO ()
     run = pure ()
 
-    onPing :: (?state :: IORef state, ?context :: Request, ?modelContext :: ModelContext, ?request :: Request) => IO ()
+    onPing :: (?state :: IORef state, ?request :: Request, ?modelContext :: ModelContext, ?request :: Request) => IO ()
     onPing = pure ()
 
-    onClose :: (?state :: IORef state, ?context :: Request, ?modelContext :: ModelContext, ?connection :: Websocket.Connection, ?request :: Request) => IO ()
+    onClose :: (?state :: IORef state, ?request :: Request, ?modelContext :: ModelContext, ?connection :: Websocket.Connection, ?request :: Request) => IO ()
     onClose = pure ()
 
     -- | Provide WebSocket Connection Options
@@ -59,11 +59,11 @@ class WSApp state where
     connectionOptions :: WebSocket.ConnectionOptions
     connectionOptions = WebSocket.defaultConnectionOptions
 
-startWSApp :: forall state. (WSApp state, ?context :: Request, ?modelContext :: ModelContext) => state -> Websocket.Connection -> IO ()
+startWSApp :: forall state. (WSApp state, ?request :: Request, ?modelContext :: ModelContext) => state -> Websocket.Connection -> IO ()
 startWSApp initialState connection = do
     state <- newIORef initialState
     let ?state = state
-    let ?request = ?context
+    let ?context = ?request
 
     result <- Exception.try ((withPingPong (defaultPingPongOptions { Websocket.pingAction = onPing @state }) connection (\connection -> let ?connection = connection in run @state)) `Exception.finally` (let ?connection = connection in onClose @state))
     case result of

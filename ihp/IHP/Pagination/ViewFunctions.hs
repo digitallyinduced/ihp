@@ -25,7 +25,7 @@ import IHP.View.Types (PaginationView(..), styledPagination, styledPaginationPag
 -- | Render a navigation for your pagination. This is to be used in your view whenever
 -- to allow users to change pages, including "Next" and "Previous".
 -- If there is only one page, this will not render anything.
-renderPagination :: (?context :: Request, ?request :: Request) => Pagination -> Html
+renderPagination :: (?request :: Request) => Pagination -> Html
 renderPagination pagination@Pagination {currentPage, window, pageSize} =
         when (showPagination pagination) $ styledPagination theCSSFramework theCSSFramework paginationView
         where
@@ -136,7 +136,7 @@ renderPagination pagination@Pagination {currentPage, window, pageSize} =
 --              </div>
 --          </div>
 --        </div>
-renderFilter :: (?context::Request, ?request :: Request) =>
+renderFilter :: (?request :: Request) =>
     Text    -- ^ Placeholder text for the text box
     -> Html
 renderFilter placeholder =

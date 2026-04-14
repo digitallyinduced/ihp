@@ -18,7 +18,7 @@ import qualified Data.Vault.Lazy as Vault
 import Data.IORef
 
 -- | Wrapper for a layout function that will be applied to views
-newtype ViewLayout = ViewLayout ((?context :: Request, ?request :: Request) => Layout)
+newtype ViewLayout = ViewLayout ((?request :: Request) => Layout)
 
 -- | Vault key for storing the mutable layout IORef in each request
 viewLayoutVaultKey :: Vault.Key (IORef ViewLayout)
@@ -42,7 +42,7 @@ viewLayoutMiddleware app request respond = do
 -- >     initContext = do
 -- >         setLayout defaultLayout
 --
-setLayout :: (?context :: Request, ?request :: Request) => ((?context :: Request, ?request :: Request) => Layout) -> IO ()
+setLayout :: (?request :: Request) => ((?request :: Request) => Layout) -> IO ()
 setLayout layout =
     case Vault.lookup viewLayoutVaultKey (vault ?request) of
         Just ref -> writeIORef ref (ViewLayout layout)

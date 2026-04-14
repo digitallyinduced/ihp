@@ -197,7 +197,7 @@ renderBaseJobDetailView job = let table = job.table in [hsx|
 
 -- TABLE VIEWABLE view helpers -----------------------------------
 makeDashboardSectionFromTableViewable :: forall a. (TableViewable a
-    , ?context :: Request
+    , ?request :: Request
     , ?modelContext :: ModelContext) => IO SomeView
 makeDashboardSectionFromTableViewable = do
     indexRows <- getIndex @a
@@ -235,7 +235,7 @@ renderTableViewableTable rows = let
 
 
 
-makeListPageFromTableViewable :: forall a. (TableViewable a, ?context :: Request, ?modelContext :: ModelContext) => Int -> Int -> IO SomeView
+makeListPageFromTableViewable :: forall a. (TableViewable a, ?request :: Request, ?modelContext :: ModelContext) => Int -> Int -> IO SomeView
 makeListPageFromTableViewable page pageSize = do
     pageData <- getPage @a (page - 1) pageSize
     numPages <- numberOfPagesForTable (modelTableName @a) pageSize
