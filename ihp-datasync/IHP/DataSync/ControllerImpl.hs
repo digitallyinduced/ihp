@@ -43,13 +43,13 @@ runDataSyncController ::
     ( HasField "id" CurrentUserRecord (Id' (GetTableName CurrentUserRecord))
     , ?request :: Request
     , ?modelContext :: ModelContext
-    , ?request :: Request
     , ?state :: IORef DataSyncController
     , Typeable CurrentUserRecord
     , HasNewSessionUrl CurrentUserRecord
     , Show (PrimaryKey (GetTableName CurrentUserRecord))
     ) => Hasql.Pool.Pool -> EnsureRLSEnabledFn -> InstallTableChangeTriggerFn -> IO ByteString -> SendJSONFn -> HandleCustomMessageFn -> (Text -> Renamer) -> IO ()
 runDataSyncController hasqlPool ensureRLSEnabled installTableChangeTriggers receiveData sendJSON handleCustomMessage renamer = do
+    let ?context = ?request
     setState DataSyncReady { subscriptions = HashMap.empty, transactions = HashMap.empty }
 
     columnTypeLookup <- makeCachedColumnTypeLookup hasqlPool
@@ -106,9 +106,9 @@ runDataSyncController hasqlPool ensureRLSEnabled installTableChangeTriggers rece
 
 buildMessageHandler ::
     ( HasField "id" CurrentUserRecord (Id' (GetTableName CurrentUserRecord))
+    , ?context :: Request
     , ?request :: Request
     , ?modelContext :: ModelContext
-    , ?request :: Request
     , ?state :: IORef DataSyncController
     , Typeable CurrentUserRecord
     , HasNewSessionUrl CurrentUserRecord
@@ -481,12 +481,14 @@ ensureBelowSubscriptionsLimit = do
 
 maxTransactionsPerConnection :: (?request :: Request) => Int
 maxTransactionsPerConnection =
-    case getAppConfig @DataSyncMaxTransactionsPerConnection of
+    let ?context = ?request
+    in case getAppConfig @DataSyncMaxTransactionsPerConnection of
         DataSyncMaxTransactionsPerConnection value -> value
 
 maxSubscriptionsPerConnection :: (?request :: Request) => Int
 maxSubscriptionsPerConnection =
-    case getAppConfig @DataSyncMaxSubscriptionsPerConnection of
+    let ?context = ?request
+    in case getAppConfig @DataSyncMaxSubscriptionsPerConnection of
         DataSyncMaxSubscriptionsPerConnection value -> value
 
 -- | Encode a JSON patch (field name -> value) into a SQL SET clause 'Snippet' like @"col1" = $1, "col2" = $2@.
