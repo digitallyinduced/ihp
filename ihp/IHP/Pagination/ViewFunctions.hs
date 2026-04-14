@@ -136,7 +136,7 @@ renderPagination pagination@Pagination {currentPage, window, pageSize} =
 --              </div>
 --          </div>
 --        </div>
-renderFilter :: (?context::Request, ?request :: Request) =>
+renderFilter :: (?request :: Request) =>
     Text    -- ^ Placeholder text for the text box
     -> Html
 renderFilter placeholder =

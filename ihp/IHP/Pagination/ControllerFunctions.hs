@@ -49,7 +49,7 @@ import Data.Text.Encoding (encodeUtf8)
 -- >    user <- userQ |> fetch
 -- >    render IndexView { .. }
 paginate :: forall controller table .
-    (?context::Request
+    (?request::Request
     , ?modelContext :: ModelContext
     , ?theAction :: controller
     , ?request :: Request
@@ -80,7 +80,7 @@ paginate = paginateWithOptions defaultPaginationOptions
 -- >    user <- userQ |> fetch
 -- >    render IndexView { .. }
 paginateWithOptions :: forall controller table .
-    (?context::Request
+    (?request::Request
     , ?modelContext :: ModelContext
     , ?theAction :: controller
     , ?request :: Request
@@ -123,7 +123,7 @@ paginateWithOptions options query = do
 -- >    user <- userQ |> fetch
 -- >    render IndexView { .. }
 filterList :: forall name table model .
-    (?context::Request
+    (?request::Request
     , ?request :: Request
     , KnownSymbol name
     , HasField name model Text
@@ -178,7 +178,7 @@ defaultPaginationOptions =
 paginatedSqlQuery
   :: ( FromRowHasql model
      , ToSnippetParams parameters
-     , ?context :: Request
+     , ?request :: Request
      , ?modelContext :: ModelContext
      , ?request :: Request
      )
@@ -202,7 +202,7 @@ paginatedSqlQuery = paginatedSqlQueryWithOptions defaultPaginationOptions
 paginatedSqlQueryWithOptions
   :: ( FromRowHasql model
      , ToSnippetParams parameters
-     , ?context :: Request
+     , ?request :: Request
      , ?modelContext :: ModelContext
      , ?request :: Request
      )

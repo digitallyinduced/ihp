@@ -175,14 +175,13 @@ redirectToLogin newSessionPath = unsafePerformIO $ do
 -- >     projects <- query @Project |> fetch
 --
 enableRowLevelSecurityIfLoggedIn ::
-    ( ?context :: Request
-    , ?request :: Request
+    ( ?request :: Request
     , ModelSupport.PrimaryKey (ModelSupport.GetTableName CurrentUserRecord) ~ UUID
     ) => IO ()
 enableRowLevelSecurityIfLoggedIn = do
     case currentUserIdOrNothing of
         Just userId -> do
-            let rlsAuthenticatedRole = ?context.frameworkConfig.rlsAuthenticatedRole
+            let rlsAuthenticatedRole = ?request.frameworkConfig.rlsAuthenticatedRole
             let rlsUserId = tshow userId
             let rlsContext = ModelSupport.RowLevelSecurityContext { rlsAuthenticatedRole, rlsUserId}
             writeIORef (lookupRequestVault rlsContextVaultKey ?request) (Just rlsContext)

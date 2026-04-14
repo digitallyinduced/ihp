@@ -25,7 +25,7 @@ instance ParamReader [IndexColumn] where
         Right result -> Right result
 
 readSchema ::
-    ( ?context::Request
+    ( ?request::Request
     , ?modelContext::ModelContext
     , ?theAction::controller
     , ?respond::Respond
@@ -41,7 +41,7 @@ getSqlError = SchemaDesignerParser.parseSchemaSql >>= \case
         Right statements -> do pure Nothing
 
 updateSchema ::
-    ( ?context :: Request
+    ( ?request :: Request
     , ?modelContext::ModelContext
     , ?theAction::controller
     , ?respond::Respond

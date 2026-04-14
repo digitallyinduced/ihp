@@ -50,7 +50,7 @@ autoRefresh :: (
     ?theAction :: action
     , Controller action
     , ?modelContext :: ModelContext
-    , ?context :: Request
+    , ?request :: Request
     , ?request :: Request
     , ?respond :: Respond
     ) => ((?modelContext :: ModelContext, ?respond :: Respond) => IO ResponseReceived) -> IO ResponseReceived
@@ -82,11 +82,10 @@ autoRefresh runAction = do
                     -- messages, framework config, ...) so passing the closure-captured
                     -- values back into the renderView callback is enough.
                     let originalRequest = ?request
-                    let originalContext = ?context
                     let renderView = \waiRequest waiRespond -> do
                             earlyReturnMiddleware (\_ respond -> do
-                                let ?context = originalContext
                                 let ?request = originalRequest
+                                let ?context = ?request
                                 let ?respond = respond
                                 action ?theAction
                                 ) waiRequest waiRespond
@@ -121,6 +120,7 @@ instance WSApp AutoRefreshWSApp where
     initialState = AwaitingSessionID
 
     run = do
+        let ?context = ?request
         sessionId <- receiveData @UUID
         setState AutoRefreshActive { sessionId }
 
@@ -186,7 +186,7 @@ captureResponseBody originalRespond action = do
     captured <- readIORef bodyRef
     pure (result, captured)
 
-registerNotificationTrigger :: (?modelContext :: ModelContext, ?context :: Request) => IORef (Set Text) -> IORef AutoRefreshServer -> IO ()
+registerNotificationTrigger :: (?modelContext :: ModelContext, ?request :: Request) => IORef (Set Text) -> IORef AutoRefreshServer -> IO ()
 registerNotificationTrigger touchedTablesVar autoRefreshServer = do
     touchedTables <- Set.toList <$> readIORef touchedTablesVar
     subscribedTables <- (.subscribedTables) <$> (autoRefreshServer |> readIORef)
@@ -197,7 +197,7 @@ registerNotificationTrigger touchedTablesVar autoRefreshServer = do
     -- `make db` drops and recreates the database, destroying triggers that were
     -- previously installed. The trigger SQL is idempotent so re-running is safe.
     -- In production, only install triggers for newly seen tables.
-    let isDevelopment = ?context.frameworkConfig.environment == Development
+    let isDevelopment = ?request.frameworkConfig.environment == Development
 
     modifyIORef' autoRefreshServer (\server -> server { subscribedTables = server.subscribedTables <> Set.fromList subscriptionRequired })
 
