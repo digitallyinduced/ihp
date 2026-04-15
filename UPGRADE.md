@@ -70,6 +70,8 @@ The `initAuthentication` function has been deprecated in favor of a WAI middlewa
 
 **Deprecated functions:** `initAuthentication` still works but is deprecated. `currentRoleOrNothing`, `currentRole`, `currentRoleId`, `ensureIsRole` have been removed. Use the type-specific variants instead: `currentUserOrNothing`/`currentAdminOrNothing`, `currentUser`/`currentAdmin`, `currentUserId`/`currentAdminId`, `ensureIsUser`/`ensureIsAdmin`.
 
+**`FrameworkConfig` field rename:** the `authMiddleware` record field on `FrameworkConfig` has been renamed to `authenticationMiddleware` to avoid an ambiguity with the `authMiddleware` function from `IHP.LoginSupport.Middleware`. Typical apps only set this via `option $ AuthMiddleware (authMiddleware @User)` in `Config.hs` and need no changes. Only code that reads the field directly (e.g. `frameworkConfig.authMiddleware`) needs to update to `frameworkConfig.authenticationMiddleware`.
+
 ## Join Support Removed from QueryBuilder
 
 The query builder's join functions (`innerJoin`, `innerJoinThirdTable`, `labelResults`) and all `*JoinedTable` filter/order functions have been removed. Use `typedSql` instead, which provides full SQL expressiveness with compile-time type safety.
