@@ -16,8 +16,6 @@ import qualified Control.Exception as Exception
 import System.Environment (lookupEnv)
 import qualified Data.UUID as UUID
 import qualified Data.UUID.V4 as UUID
-import Data.UUID (UUID)
-import Data.List (sort)
 
 data TestContext = TestContext
     { logger :: Logger
