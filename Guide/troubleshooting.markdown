@@ -223,12 +223,7 @@ A reasonable default is **roughly half of system RAM**: `-M8G` on a 16 GB box, `
 <<ghc: heap overflow>>
 ```
 
-…and exits. This is a clean death: the kernel never gets involved, your desktop and browser keep running, and you can scroll back to the panic in the dev-server log. Two things to be aware of afterwards:
-
-1. **Background jobs may be stranded in `running` state.** A job that was executing when the heap blew up will not transition to `failed`, because the worker never got a chance to write the row. Inspect the `jobs` table for rows with `status = 'running'` and an old `updated_at`, and either retry them through the jobs dashboard (see [the Jobs guide](https://ihp.digitallyinduced.com/Guide/jobs.html)) or update them by hand. If your project has a stale-job recovery script, run it.
-2. **Look at your code, not the cap.** A heap-overflow panic is a signal that something is leaking — a lazy thunk pile, a list you're building forever, an `IORef` that nothing prunes. The cap only protects the host machine; it does not fix the leak. Reach for `-M` first as a safety net, then go hunt the leak.
-
-**Investigating a real leak.** When you do go hunting, add heap profiling on top of the cap:
+…and exits. This is a clean death: the kernel never gets involved, your desktop and browser keep running, and you can scroll back to the panic in the dev-server log.
 
 ```bash
 export GHCRTS="-M8G -hT -l"
