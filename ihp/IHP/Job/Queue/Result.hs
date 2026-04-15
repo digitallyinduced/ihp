@@ -5,6 +5,7 @@ module IHP.Job.Queue.Result
 , jobDidSucceed
 , backoffDelay
 , recoverStaleJobs
+, recoverStaleJobsForTable
 ) where
 
 import IHP.Prelude
@@ -20,6 +21,7 @@ import qualified Hasql.Statement as Hasql
 import qualified Hasql.Encoders as Encoders
 import qualified Hasql.Decoders as Decoders
 import Data.Functor.Contravariant (contramap)
+import Data.UUID (UUID)
 
 -- | Called when a job failed. Sets the job status to 'JobStatusFailed' or 'JobStatusRetry' (if more attempts are possible) and resets 'lockedBy'
 jobDidFail :: forall job context.
@@ -131,26 +133,56 @@ recoverStaleJobs :: forall job.
     ( Table job
     ) => HasqlPool.Pool -> NominalDiffTime -> IO ()
 recoverStaleJobs pool staleThreshold = do
-    let tableNameText = tableName @job
-    -- Tier 1: Recently stale jobs (threshold..24h) -> retry
+    _ <- recoverStaleJobsForTable pool (tableName @job) staleThreshold
+    pure ()
+
+-- | Like 'recoverStaleJobs' but takes the table name explicitly and reports
+-- which rows were recovered, returning @(count, previousWorkerUuids)@.
+--
+-- The @previousWorkerUuids@ list contains the @locked_by@ values that were
+-- attached to the recovered rows before they were reset, so callers can log
+-- "we recovered N rows previously held by worker X". Workers with a NULL
+-- @locked_by@ are filtered out of the list (but still counted).
+--
+-- Used both by the periodic recovery loop and by the boot-time sweep that
+-- runs once at worker startup.
+recoverStaleJobsForTable ::
+    HasqlPool.Pool -> Text -> NominalDiffTime -> IO (Int, [UUID])
+recoverStaleJobsForTable pool tableNameText staleThreshold = do
+    -- Tier 1: Recently stale jobs (threshold..24h) -> retry.
+    -- Capture the prior locked_by via a CTE so RETURNING can report it
+    -- (RETURNING on the UPDATE alone would observe the post-update NULL).
     let retrySql =
-            "UPDATE " <> tableNameText
-            <> " SET status = 'job_status_retry', locked_by = NULL, locked_at = NULL, run_at = NOW()"
+            "WITH stale AS ("
+            <> " SELECT id, locked_by AS prev_locked_by FROM \"" <> tableNameText <> "\""
             <> " WHERE status = 'job_status_running'"
             <> " AND locked_at < NOW() - interval '1 second' * $1"
             <> " AND locked_at > NOW() - interval '1 day'"
+            <> " FOR UPDATE"
+            <> " ) UPDATE \"" <> tableNameText <> "\" t"
+            <> " SET status = 'job_status_retry', locked_by = NULL, locked_at = NULL, run_at = NOW()"
+            <> " FROM stale WHERE t.id = stale.id"
+            <> " RETURNING stale.prev_locked_by"
     let retryEncoder = Encoders.param (Encoders.nonNullable (contramap (fromIntegral :: Int -> Int64) Encoders.int8))
-    let retryStatement = Hasql.unpreparable retrySql retryEncoder Decoders.noResult
+    let uuidRowsDecoder = Decoders.rowList (Decoders.column (Decoders.nullable Decoders.uuid))
+    let retryStatement = Hasql.unpreparable retrySql retryEncoder uuidRowsDecoder
 
     -- Tier 2: Ancient stale jobs (>24h) -> mark failed
     let failSql =
-            "UPDATE " <> tableNameText
-            <> " SET status = 'job_status_failed', locked_by = NULL, locked_at = NULL"
-            <> ", last_error = 'Stale job: worker likely crashed'"
+            "WITH stale AS ("
+            <> " SELECT id, locked_by AS prev_locked_by FROM \"" <> tableNameText <> "\""
             <> " WHERE status = 'job_status_running'"
             <> " AND locked_at < NOW() - interval '1 day'"
-    let failStatement = Hasql.unpreparable failSql Encoders.noParams Decoders.noResult
+            <> " FOR UPDATE"
+            <> " ) UPDATE \"" <> tableNameText <> "\" t"
+            <> " SET status = 'job_status_failed', locked_by = NULL, locked_at = NULL"
+            <> ", last_error = 'Stale job: worker likely crashed'"
+            <> " FROM stale WHERE t.id = stale.id"
+            <> " RETURNING stale.prev_locked_by"
+    let failStatement = Hasql.unpreparable failSql Encoders.noParams uuidRowsDecoder
 
     let thresholdSeconds = round staleThreshold :: Int
-    runPool pool (HasqlSession.statement thresholdSeconds retryStatement)
-    runPool pool (HasqlSession.statement () failStatement)
+    retryRows <- runPool pool (HasqlSession.statement thresholdSeconds retryStatement)
+    failRows <- runPool pool (HasqlSession.statement () failStatement)
+    let allRows = retryRows ++ failRows
+    pure (length allRows, catMaybes allRows)

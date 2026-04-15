@@ -14,6 +14,7 @@ module IHP.Job.Queue
 , jobDidSucceed
 , backoffDelay
 , recoverStaleJobs
+, recoverStaleJobsForTable
 , textToEnumJobStatusMap
 , textToEnumJobStatus
 , tryWriteTBQueue
@@ -36,6 +37,7 @@ import IHP.Job.Queue.Result
     , jobDidSucceed
     , backoffDelay
     , recoverStaleJobs
+    , recoverStaleJobsForTable
     )
 import IHP.Job.Queue.StatusInstances
     ( textToEnumJobStatusMap
