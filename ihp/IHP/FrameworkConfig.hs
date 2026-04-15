@@ -188,7 +188,7 @@ buildFrameworkConfig appConfig = do
             (IdeBaseUrl ideBaseUrl) <- findOption @IdeBaseUrl
             (RLSAuthenticatedRole rlsAuthenticatedRole) <- findOption @RLSAuthenticatedRole
             customMiddleware <- findOption @CustomMiddleware
-            authMiddleware <- findOption @AuthMiddleware
+            authenticationMiddleware <- findOption @AuthMiddleware
             initializers <- fromMaybe [] <$> findOptionOrNothing @[Initializer]
 
             appConfig <- State.get

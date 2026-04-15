@@ -104,7 +104,7 @@ newtype CustomMiddleware = CustomMiddleware Middleware
 -- >
 -- > config :: ConfigBuilder
 -- > config = do
--- >     option $ AuthMiddleware authMiddleware
+-- >     option $ AuthMiddleware (authMiddleware @User)
 --
 newtype AuthMiddleware = AuthMiddleware Middleware
 
@@ -172,7 +172,7 @@ data FrameworkConfig = FrameworkConfig
 
     -- | Authentication middleware that populates the request vault with the
     -- current user/admin. Runs after session and model context middlewares.
-    , authMiddleware :: !AuthMiddleware
+    , authenticationMiddleware :: !AuthMiddleware
     , initializers :: ![Initializer]
     }
 

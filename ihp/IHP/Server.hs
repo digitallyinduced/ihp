@@ -155,7 +155,7 @@ initMiddlewareStack frameworkConfig modelContext maybePgListener = do
 
     let corsMiddleware = initCorsMiddleware frameworkConfig
     let CustomMiddleware customMiddleware = frameworkConfig.customMiddleware
-    let AuthMiddleware authMw = frameworkConfig.authMiddleware
+    let AuthMiddleware authMw = frameworkConfig.authenticationMiddleware
     let pgListenerMw = maybe id pgListenerMiddleware maybePgListener
 
     let responseHeadersMiddleware = insertNewIORefVaultMiddleware responseHeadersVaultKey []
