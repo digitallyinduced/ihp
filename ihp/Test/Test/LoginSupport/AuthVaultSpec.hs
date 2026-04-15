@@ -7,7 +7,6 @@ module Test.LoginSupport.AuthVaultSpec where
 import IHP.Prelude
 import Test.Hspec
 
-import qualified Data.ByteString as BS
 import qualified Data.UUID as UUID
 import qualified Network.Wai as Wai
 import Network.Wai.Test (defaultRequest, runSession, request)
@@ -85,27 +84,15 @@ tests = do
                 runSession (request defaultRequest >> pure ()) app
 
     describe "parseSessionUUID" do
-        it "parses a raw 36-byte UUID (new format)" do
+        it "parses a raw 36-byte UUID" do
             let uuid = "550e8400-e29b-41d4-a716-446655440000"
             parseSessionUUID uuid `shouldBe` UUID.fromASCIIBytes uuid
-
-        it "parses a cereal-encoded 44-byte UUID (old format, backward compat)" do
-            -- Old format: 8-byte cereal length prefix + 36-byte UUID ASCII
-            let uuid = "550e8400-e29b-41d4-a716-446655440000"
-            let cerealPrefix = BS.pack [0, 0, 0, 0, 0, 0, 0, 36] -- 8-byte big-endian length = 36
-            let oldFormat = cerealPrefix <> uuid
-            BS.length oldFormat `shouldBe` 44
-            parseSessionUUID oldFormat `shouldBe` UUID.fromASCIIBytes uuid
 
         it "returns Nothing for empty bytes" do
             parseSessionUUID "" `shouldBe` Nothing
 
         it "returns Nothing for invalid bytes" do
             parseSessionUUID "not-a-uuid" `shouldBe` Nothing
-
-        it "returns Nothing for random 44 bytes that don't contain a UUID" do
-            let garbage = BS.replicate 44 0x41  -- 44 'A' bytes
-            parseSessionUUID garbage `shouldBe` Nothing
 
     describe "userIdMiddleware" do
         it "populates currentUserIdVaultKey from session" do
@@ -127,18 +114,6 @@ tests = do
             let app = composed $ \req respond -> do
                     let ?request = req
                     (Controller.currentUserOrNothing :: Maybe CurrentUserRecord) `shouldBe` Nothing
-                    respond $ Wai.responseLBS status200 [] ""
-            runSession (request defaultRequest >> pure ()) app
-
-        it "handles cereal-encoded session values (backward compat)" do
-            let uuid = "550e8400-e29b-41d4-a716-446655440000"
-            let cerealPrefix = BS.pack [0, 0, 0, 0, 0, 0, 0, 36]
-            let oldBytes = cerealPrefix <> UUID.toASCIIBytes uuid
-            let sessionMiddleware = mockSessionMiddleware "login.user" oldBytes
-            let composed = sessionMiddleware . userIdMiddleware "login.user"
-            let app = composed $ \req respond -> do
-                    let ?request = req
-                    Controller.currentUserIdOrNothing `shouldBe` Just (Id uuid)
                     respond $ Wai.responseLBS status200 [] ""
             runSession (request defaultRequest >> pure ()) app
 
