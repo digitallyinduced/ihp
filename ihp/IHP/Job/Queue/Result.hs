@@ -21,7 +21,6 @@ import qualified Hasql.Statement as Hasql
 import qualified Hasql.Encoders as Encoders
 import qualified Hasql.Decoders as Decoders
 import Data.Functor.Contravariant (contramap)
-import Data.UUID (UUID)
 
 -- | Called when a job failed. Sets the job status to 'JobStatusFailed' or 'JobStatusRetry' (if more attempts are possible) and resets 'lockedBy'
 jobDidFail :: forall job context.
