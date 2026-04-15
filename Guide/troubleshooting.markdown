@@ -229,7 +229,7 @@ A reasonable default is **roughly half of system RAM**: `-M8G` on a 16 GB box, `
 export GHCRTS="-M8G -hT -l"
 ```
 
-`-hT` writes a heap profile broken down by closure type, and `-l` writes an eventlog (`<process>.eventlog`) alongside it. The eventlog records what kind of values are growing over time — point Claude (or your favourite GHC profiling tool) at the file and ask what's leaking.
+`-hT` writes a heap profile broken down by closure type, and `-l` writes an eventlog (`<process>.eventlog`) alongside it. The eventlog records what kind of values are growing over time.
 
 ### OAuth/HTTPS in Docker fails: `certificate has unknown CA`
 
