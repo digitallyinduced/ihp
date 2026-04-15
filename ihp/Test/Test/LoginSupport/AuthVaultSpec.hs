@@ -175,11 +175,11 @@ tests = do
             runSession (request defaultRequest >> pure ()) app
 
 -- | Mock user type for tests
-data TestUser = TestUser { id :: UUID }
+data TestUser = TestUser { id :: Id TestUser }
     deriving (Eq, Show)
 
 -- | Mock admin type for tests
-data TestAdmin = TestAdmin { id :: UUID }
+data TestAdmin = TestAdmin { id :: Id TestAdmin }
     deriving (Eq, Show)
 
 type instance CurrentUserRecord = TestUser

@@ -18,21 +18,19 @@ import           Wai.Request.Params.Middleware                 (Respond)
 import           IHP.ControllerSupport                     (InitControllerContext, Controller, runActionWithNewContext)
 import           IHP.FrameworkConfig                       (ConfigBuilder (..), FrameworkConfig (..), RootApplication (..))
 import qualified IHP.FrameworkConfig                       as FrameworkConfig
-import           IHP.ModelSupport                          (createModelContext, withModelContext, Id')
+import           IHP.ModelSupport                          (createModelContext, withModelContext, Id', PrimaryKey, unpackId)
 import           IHP.Prelude
 import           IHP.Log.Types
 import           IHP.Job.Types
 import qualified Network.Wai as Wai
-import qualified IHP.LoginSupport.Helper.Controller as Session
-import qualified Network.Wai.Session.Maybe
-import qualified Data.Serialize as Serialize
-import IHP.Controller.Session (sessionVaultKey)
+import IHP.LoginSupport.Types (CurrentUserRecord, currentUserVaultKey, currentUserIdVaultKey)
 import IHP.Server (initMiddlewareStack)
 import qualified IHP.Server as Server
 import IHP.Controller.NotFound (handleNotFound)
 import IHP.RouterSupport (FrontController)
 import qualified IHP.PGListener as PGListener
 import qualified IHP.ErrorController as ErrorController
+import System.IO.Unsafe (unsafePerformIO)
 
 type ContextParameters application = (?request :: Request, ?respond :: Respond, ?modelContext :: ModelContext, ?application :: application, InitControllerContext application, ?mocking :: MockContext application)
 
@@ -174,23 +172,25 @@ callActionWithParams controller params = do
             writeIORef responseRef (Just response)
             pure ResponseReceived
 
-    -- Check if withUser set a mock session that we need to preserve
-    let mockSession = Vault.lookup sessionVaultKey (Wai.vault ?request)
+    -- Extract any override middleware stashed in the request vault by helpers
+    -- like 'withUser'. We wrap it *innermost* around the controller so it runs
+    -- after the full production stack (including 'sessionMiddleware' and
+    -- 'authMw'). That makes it last-write-wins on vault keys like
+    -- 'currentUserVaultKey', so test helpers can seed a mock user without
+    -- fighting 'sessionMiddleware' (from wai-session-maybe), which
+    -- unconditionally rewrites 'sessionVaultKey' from the request cookie.
+    let overrideMiddleware = fromMaybe id (Vault.lookup mockOverrideVaultKey (Wai.vault ?request))
 
     -- Create the controller app
     let controllerApp req respond = do
-            -- Restore mock session from withUser if it was set
-            let req' = case mockSession of
-                    Just session -> req { Wai.vault = Vault.insert sessionVaultKey session (Wai.vault req) }
-                    Nothing -> req
-            let ?request = req'
+            let ?request = req
             let ?respond = respond
             runActionWithNewContext controller
 
-    -- Run through middleware stack (like the real server does)
+    -- Run through middleware stack (like the real server does).
     let MockContext { pgListener } = ?mocking
     middlewareStack <- initMiddlewareStack frameworkConfig modelContext pgListener
-    _ <- middlewareStack controllerApp baseRequest captureRespond
+    _ <- middlewareStack (overrideMiddleware controllerApp) baseRequest captureRespond
 
     readIORef responseRef >>= \case
         Just response -> pure response
@@ -236,6 +236,16 @@ responseBody res =
     f (\chunk -> modifyIORef' content (<> chunk)) (return ())
     toLazyByteString <$> readIORef content
 
+-- | Vault key holding a 'Wai.Middleware' that test helpers like 'withUser'
+-- use to override request vault entries (e.g. 'currentUserVaultKey') *after*
+-- the production middleware stack has run. 'callActionWithParams' reads this
+-- key and wraps the controller innermost, so the override is guaranteed to
+-- be the last writer — sidestepping 'sessionMiddleware'/'authMw', which
+-- would otherwise clobber the mock state.
+{-# NOINLINE mockOverrideVaultKey #-}
+mockOverrideVaultKey :: Vault.Key Wai.Middleware
+mockOverrideVaultKey = unsafePerformIO Vault.newKey
+
 -- | Set's the current user for the application
 --
 -- Example:
@@ -248,39 +258,41 @@ responseBody res =
 -- >     callAction CreatePostAction
 --
 -- In this example the 'currentUser' will refer to the newly
--- created user during the execution of CreatePostAction
+-- created user during the execution of CreatePostAction.
 --
--- Internally this function overrides the session cookie passed to
--- the application.
+-- Internally this composes a 'Wai.Middleware' into 'mockOverrideVaultKey'
+-- that seeds 'currentUserVaultKey' and 'currentUserIdVaultKey' with the
+-- mock user. 'callActionWithParams' applies that middleware *innermost*,
+-- so it runs after 'sessionMiddleware' and 'authMw' and wins on conflict.
 --
-withUser :: forall user application userId result.
-    ( ?mocking :: MockContext application
-    , ?request :: Request
+withUser :: forall user result.
+    ( ?request :: Request
     , ?respond :: Respond
-    , Serialize.Serialize userId
-    , HasField "id" user userId
-    , KnownSymbol (GetModelName user)
+    , user ~ CurrentUserRecord
+    , HasField "id" user (Id' (GetTableName user))
+    , PrimaryKey (GetTableName user) ~ UUID
     ) => user -> ((?request :: Request, ?respond :: Respond) => IO result) -> IO result
 withUser user callback =
         let ?request = newRequest
         in callback
     where
-        newRequest = currentRequest { Wai.vault = newVault }
-
-        newSession :: Network.Wai.Session.Maybe.Session IO ByteString ByteString
-        newSession = (lookupSession, insertSession)
-
-        lookupSession key = if key == sessionKey
-            then pure (Just sessionValue)
-            else pure Nothing
-
-        insertSession key value = pure ()
-
-        newVault = Vault.insert sessionVaultKey newSession (Wai.vault currentRequest)
         currentRequest = ?request
 
-        sessionValue = Serialize.encode (user.id)
-        sessionKey = cs (Session.sessionKey @user)
+        existingOverride :: Wai.Middleware
+        existingOverride = fromMaybe id (Vault.lookup mockOverrideVaultKey (Wai.vault currentRequest))
+
+        userMw :: Wai.Middleware
+        userMw app req respond =
+            let req' = req
+                    { Wai.vault
+                        = Vault.insert currentUserVaultKey (Just user)
+                        . Vault.insert currentUserIdVaultKey (Just (unpackId user.id))
+                        $ Wai.vault req
+                    }
+            in app req' respond
+
+        newVault = Vault.insert mockOverrideVaultKey (existingOverride . userMw) (Wai.vault currentRequest)
+        newRequest = currentRequest { Wai.vault = newVault }
 
 -- | Turns a record id into a value that can be used with 'callActionWithParams'
 --
