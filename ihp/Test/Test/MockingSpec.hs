@@ -19,11 +19,12 @@ import Network.Wai.Test
 import Test.Util (testGet, testPostForm)
 
 import qualified Data.UUID as UUID
-import qualified Data.Vault.Lazy as Vault
 import qualified Network.Wai as Wai
 import Network.HTTP.Types.Status (status200)
-import IHP.LoginSupport.Middleware (authMiddlewareWith, parseSessionUUID)
-import System.IO.Unsafe (unsafePerformIO)
+import IHP.LoginSupport.Middleware (authMiddlewareWith)
+import IHP.LoginSupport.Types (currentUserVaultKey)
+import qualified IHP.LoginSupport.Helper.Controller as LoginController
+import Test.LoginSupport.AuthVaultSpec (TestUser (..))
 
 data WebApplication = WebApplication deriving (Eq, Show, Data)
 
@@ -40,11 +41,11 @@ instance Controller TestController where
     action RedirectAction = do
         redirectToPath "/target"
     action RequireUserAction = do
-        -- Returns the authenticated TestUser's id (set by testAuthMiddleware
-        -- when the mock session inserted by 'withUser' survives through
-        -- 'sessionMiddleware'), or "anonymous" otherwise.
-        let maybeUser = join (Vault.lookup testUserVaultKey ?request.vault)
-        case maybeUser of
+        -- Reads 'currentUserVaultKey' via the standard login helper.
+        -- The configured 'AuthMiddleware' below always writes 'Nothing',
+        -- so the only way this returns a user is if 'withUser' seeded
+        -- one via 'mockOverrideVaultKey'.
+        case LoginController.currentUserOrNothing @TestUser of
             Just (TestUser { id = Id uuid }) -> renderPlain (cs (UUID.toASCIIBytes uuid))
             Nothing -> renderPlain "anonymous"
 
@@ -66,41 +67,14 @@ instance FrontController RootApplication where
 config = do
     option Development
     option (AppPort 8000)
-    option $ AuthMiddleware testAuthMiddleware
-
--- | Synthetic user type used by the auth-middleware regression test.
--- Defined here rather than importing a real model so the test does not
--- need a database table.
-data TestUser = TestUser { id :: Id' "test_users" }
-    deriving (Eq, Show)
-
-type instance GetTableName TestUser = "test_users"
-type instance PrimaryKey "test_users" = UUID
-type instance GetModelName TestUser = "TestUser"
-
--- | Vault key where 'testAuthMiddleware' stashes the authenticated user.
--- Created once at module load and reused for every request.
-{-# NOINLINE testUserVaultKey #-}
-testUserVaultKey :: Vault.Key (Maybe TestUser)
-testUserVaultKey = unsafePerformIO Vault.newKey
-
--- | A custom 'AuthMiddleware' that reads the session written by 'withUser'
--- (under @login.TestUser@, cereal-encoded UUID) and stores the parsed
--- 'TestUser' in 'testUserVaultKey'. This mirrors what
--- @authMiddleware \@User@ does in a real app but without touching the
--- database, so the test exercises the full middleware stack — including
--- the @wai-session-maybe@ 'sessionMiddleware' that would otherwise wipe
--- out the mock session before this middleware runs.
-testAuthMiddleware :: Wai.Middleware
-testAuthMiddleware = authMiddlewareWith testUserVaultKey fetchTestUser
-  where
-    fetchTestUser req = case lookupSessionVault req of
-        Nothing -> pure Nothing
-        Just (lookupFn, _) -> do
-            raw <- lookupFn "login.TestUser"
-            pure $ case raw of
-                Nothing -> Nothing
-                Just bs -> TestUser . Id <$> parseSessionUUID bs
+    -- Install an 'AuthMiddleware' that always writes 'Nothing' to
+    -- 'currentUserVaultKey'. This simulates the real @authMiddleware \@User@
+    -- running but finding no session — which is exactly what happens in
+    -- tests because 'sessionMiddleware' (from wai-session-maybe) rewrites
+    -- 'sessionVaultKey' from the request cookie. The regression test below
+    -- verifies that 'withUser'\'s override still wins, because
+    -- 'callActionWithParams' wraps the controller innermost.
+    option $ AuthMiddleware (authMiddlewareWith currentUserVaultKey (\_ -> pure Nothing))
 
 tests :: Spec
 tests = aroundAll (withMockContextAndApp WebApplication config) do
@@ -124,16 +98,21 @@ tests = aroundAll (withMockContextAndApp WebApplication config) do
                     testGet "test/Redirect" >>= assertStatus 302
                     ) application
 
-        describe "withUser + AuthMiddleware" do
+        describe "withUser" do
             -- Regression test for a timing bug between 'withUser' and the
-            -- WAI-based 'authMiddleware'. 'withUser' drops a mock session
-            -- into the request vault, but 'sessionMiddleware' (from
-            -- wai-session-maybe) unconditionally overwrites the session
-            -- vault key with a fresh empty session built from the request
-            -- cookie. Before the fix that wiped out the mock session before
-            -- 'authMiddleware' could read it, so every protected action
-            -- saw no user.
-            it "propagates the mock session from withUser to authMiddleware" $ withContextAndApp \_ -> do
+            -- WAI-based 'authMiddleware'. Previously 'withUser' seeded the
+            -- mock user into 'sessionVaultKey', but 'sessionMiddleware'
+            -- (from wai-session-maybe) unconditionally overwrote that key
+            -- with a fresh session built from the request cookie, so
+            -- 'authMiddleware' saw no user and every protected action
+            -- rendered "anonymous".
+            --
+            -- The fix: 'withUser' now stashes a middleware in
+            -- 'mockOverrideVaultKey' that seeds 'currentUserVaultKey'
+            -- directly. 'callActionWithParams' applies that middleware
+            -- innermost (wrapping the controller), so it runs *after*
+            -- 'authMiddleware' and wins on conflict.
+            it "seeds currentUser even when authMiddleware would clear it" $ withContextAndApp \_ -> do
                 let Just uuid = UUID.fromString "00000000-0000-0000-0000-000000000001"
                 let user = TestUser { id = Id uuid }
                 response <- withUser user do

@@ -157,7 +157,7 @@ withMiddleware :: Environment -> (Wai.Middleware -> IO a) -> IO a
 withMiddleware environment action = do
     frameworkConfig <- FrameworkConfig.buildFrameworkConfig (FrameworkConfig.option environment)
     let modelContext = notConnectedModelContext frameworkConfig.logger
-    middleware <- initMiddlewareStack frameworkConfig modelContext Nothing id
+    middleware <- initMiddlewareStack frameworkConfig modelContext Nothing
     action middleware
 
 -- | Run requestBodyJSON through the middleware stack + earlyReturnMiddleware,

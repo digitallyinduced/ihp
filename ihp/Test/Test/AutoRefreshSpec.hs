@@ -85,7 +85,7 @@ callActionWithQueryParams pgListener controller queryParams = do
             let ?respond = respond
             runActionWithNewContext controller
 
-    middlewareStack <- initMiddlewareStack frameworkConfig modelContext (Just pgListener) (\app -> app)
+    middlewareStack <- initMiddlewareStack frameworkConfig modelContext (Just pgListener)
     runSession (request baseRequest) (middlewareStack controllerApp)
 
 testLogger :: Logger
