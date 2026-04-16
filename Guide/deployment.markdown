@@ -342,6 +342,25 @@ When using `StateDirectory` with IHP's file storage, set `IHP_STORAGE_DIR` to po
 systemd.services.app.environment.IHP_STORAGE_DIR = "%S/mydata/";
 ```
 
+#### Automatic Upgrades and Kernel Reboots
+
+`system.autoUpgrade.enable = true;` rebuilds the system on a schedule and installs new kernels into `/boot`, but without `allowReboot` the host keeps running the old kernel until rebooted manually. To pick up kernel patches automatically, enable reboots and pin them to a quiet window:
+
+```nix
+system.autoUpgrade = {
+    enable = true;
+    allowReboot = true;
+    dates = "Sun 04:00";
+    randomizedDelaySec = "30min";
+};
+```
+
+Reboots only happen when a new kernel or initrd was actually installed. `services.app` and `services.worker` come back automatically thanks to `Restart = "always"`; for any custom units, ensure `wantedBy = [ "multi-user.target" ];` is set. Verify with:
+
+```bash
+systemctl list-timers nixos-upgrade.timer
+```
+
 #### Nginx Configuration Patterns
 
 The `appWithPostgres` module sets up a basic nginx proxy with WebSocket support. Here are additional patterns you can add to your `configuration.nix`:
