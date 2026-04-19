@@ -5,7 +5,13 @@ module IHP.ModelSupport
 , module IHP.ModelSupport.Types
 , module PostgresqlTypes.Point
 , module PostgresqlTypes.Polygon
-, module PostgresqlTypes.Geometry
+-- | PostGIS 'PostgresqlTypes.Geometry.Geometry' is re-exported as a type only
+-- ('Geometry' and 'Coord'); the 'Shape' constructors (@Point@, @LineString@,
+-- etc.) would clash with 'PostgresqlTypes.Point.Point', so import
+-- @PostgresqlTypes.Geometry@ qualified where you need to pattern-match or
+-- construct shapes directly.
+, Geometry
+, Coord (..)
 , module PostgresqlTypes.Inet
 , module PostgresqlTypes.Tsvector
 , module PostgresqlTypes.Interval
@@ -55,7 +61,8 @@ import qualified Hasql.Encoders as Encoders
 import qualified Hasql.Implicits.Encoders
 import PostgresqlTypes.Point
 import PostgresqlTypes.Polygon
-import PostgresqlTypes.Geometry
+import PostgresqlTypes.Geometry (Geometry (..), Coord (..))
+import qualified PostgresqlTypes.Geometry as Geometry
 import PostgresqlTypes.Inet
 import PostgresqlTypes.Interval
 import PostgresqlTypes.Tsvector
@@ -137,7 +144,7 @@ instance Default Polygon where
     def = fromMaybe (error "Default Polygon: impossible") (refineFromPointList [(0,0), (0,0), (0,0)])
 
 instance Default Geometry where
-    def = fromEWKB mempty
+    def = Geometry Nothing (Geometry.Point (Coord 0 0 Nothing Nothing))
 
 instance Default Tsvector where
     def = normalizeFromLexemeList []

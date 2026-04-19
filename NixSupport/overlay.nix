@@ -146,8 +146,8 @@ let
                 (old: {
                     version = "0.1.3.2";
                     src = builtins.fetchTarball {
-                        url = "https://github.com/mpscholten/postgresql-types/archive/89f38eb7201659f3aa451f077b74539d95aa6ce9.tar.gz";
-                        sha256 = "017wdrlg4asmj5q8xmv1y3ww7ahjpxxgpgjw4ngn2f64a2492jl4";
+                        url = "https://github.com/mpscholten/postgresql-types/archive/bc0795e3dfdc14e0fca9d36594d1a6ffe7014158.tar.gz";
+                        sha256 = "13r7njwahl7fnc9qhhxpawgs7774hdwc8anbjiy81593aav4mwm4";
                     };
                     sha256 = null;
                     revision = null;

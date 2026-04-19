@@ -850,57 +850,74 @@ CREATE TABLE locations (
 );
 ```
 
-The generated Haskell field will have type `Geometry`, a newtype over the raw
-[EWKB](https://postgis.net/docs/using_postgis_dbmanagement.html#EWKB_EWKT) byte
-sequence PostGIS uses on the wire. Because the PostGIS extension assigns the
-`geometry` OID dynamically, IHP resolves it by name at query time — no extra
-wiring is needed.
+The generated Haskell field has type `Geometry`, a structured ADT matching
+the PostGIS / OGC geometry subtypes:
+
+```haskell
+data Geometry = Geometry (Maybe Int32) Shape
+data Shape
+  = Point Coord
+  | LineString [Coord]
+  | Polygon [[Coord]]
+  | MultiPoint [Coord]
+  | MultiLineString [[Coord]]
+  | MultiPolygon [[[Coord]]]
+  | GeometryCollection [Shape]
+data Coord = Coord { coordX, coordY :: Double, coordZ, coordM :: Maybe Double }
+```
+
+Because the PostGIS extension assigns the `geometry` OID dynamically, IHP
+resolves it by name at query time — no extra wiring is needed. Values
+round-trip through
+[EWKB](https://postgis.net/docs/using_postgis_dbmanagement.html#EWKB_EWKT) on
+the wire and through PostGIS's canonical upper-case hex EWKB in text form.
 
 ### 3. Reading and writing values
 
-Common pattern: construct values via `ST_GeomFromText` / `ST_GeomFromEWKB` in
-raw SQL and let the `Geometry` wrapper carry the resulting bytes:
+`IHP.ModelSupport` re-exports the `Geometry` and `Coord` types; import
+`PostgresqlTypes.Geometry` qualified to reach the `Shape` constructors (they
+would otherwise clash with `PostgresqlTypes.Point.Point`):
 
 ```haskell
-import PostgresqlTypes.Geometry (Geometry (..), toEWKB, fromEWKB)
+import qualified PostgresqlTypes.Geometry as G
 
 -- Fetch records normally; the `geom` field is a `Geometry`.
 locations <- query @Location |> fetch
 
--- Insert via a raw SQL literal that PostGIS will cast for you:
+-- Construct a value structurally:
+let point = Geometry (Just 4326) (G.Point (Coord 13.4 52.5 Nothing Nothing))
+sqlExec "INSERT INTO locations (name, geom) VALUES (?, ?)"
+    ("Berlin" :: Text, point)
+
+-- Or let PostGIS parse WKT for you:
 sqlExec
     "INSERT INTO locations (name, geom) VALUES (?, ST_GeomFromText(?, 4326))"
-    ("Berlin" :: Text, "POINT(13.4 52.5)" :: Text)
+    ("Hamburg" :: Text, "POINT(10.0 53.5)" :: Text)
 
--- Or pass a `Geometry` parameter directly if you already hold EWKB bytes:
-let geom = fromEWKB someEwkbByteString
-sqlExec
-    "INSERT INTO locations (name, geom) VALUES (?, ?)"
-    ("Hamburg" :: Text, geom)
+-- Pattern-match on fetched shapes in Haskell:
+forEach locations \location ->
+    case geometryShape location.geom of
+        G.Point (Coord x y _ _) -> print (x, y)
+        _ -> pure ()
 ```
 
-To operate on the value in Haskell, decode the EWKB bytes yourself — IHP
-purposely does not bundle an EWKB parser. For display, use `ST_AsText`:
-
-```haskell
-readable <- sqlQueryScalar @Text
-    "SELECT ST_AsText(geom) FROM locations WHERE id = ?" (Only locationId)
-```
+Dimension consistency (mixing XY with XYZ coords in a single geometry, for
+example) is validated by the smart constructors `fromShape` and
+`fromShapeWithSrid` from `PostgresqlTypes.Geometry`; the raw `Geometry`
+constructor is still exported so pattern-matching and simple construction
+remain straightforward.
 
 ### Known limitations
 
 - The `geometry(SubType, SRID)` modifier is accepted by the parser but not
   preserved in the Schema Designer AST — round-trip edits in the visual
-  designer will keep the DDL-level constraint that PostgreSQL enforces, but
-  the subtype/SRID hint is only stored in the SQL file itself.
-- Typed Haskell wrappers for `Point` / `Polygon` / `MultiPolygon` are not
-  provided; decode EWKB bytes in application code if you need structured
-  access.
-- `FromField` / `ToField` (postgresql-simple) instances for `Geometry` are not
-  shipped — IHP reads and writes geometry values through hasql. If you use
-  `sqlQuery` with geometry columns, wrap the bytes yourself at the call site.
-- The `geography` type is not yet supported natively; use `PCustomType` or
-  expose it via a custom Haskell type meanwhile.
+  designer keep the DDL-level constraint PostgreSQL enforces, but the
+  subtype/SRID hint is only stored in the SQL file itself.
+- `FromField` / `ToField` (postgresql-simple) instances for `Geometry` are
+  not shipped — IHP reads and writes geometry values through hasql. If you
+  use `sqlQuery` with geometry columns, wrap the value at the call site.
+- The `geography` type is not yet supported natively; model it via a
+  project-local newtype or `PCustomType` for now.
 
 ## Transactions
 
