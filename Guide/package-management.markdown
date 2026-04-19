@@ -490,6 +490,10 @@ function making the extension in your app's nix store postgres package.
 After the install you can run `CREATE EXTENSION postgis;` to enable all the features of the
 installed extension.
 
+Once the extension is loaded, you can use `geometry` (and `geometry(SubType, SRID)`) columns directly
+in `Application/Schema.sql`. IHP maps them to a `Geometry` Haskell type out of the box — see
+[PostGIS Geometry Columns](database.html#postgis-geometry-columns) for the full recipe.
+
 ### Stopping Nix From Running Tests for a Haskell Dependency
 
 Nix will try to run a test suite for a package when it's building it from source code. Sometimes the tests fail which will stop you from installing the package. In case you want to ignore the failing tests and use the package anyway follow these steps.

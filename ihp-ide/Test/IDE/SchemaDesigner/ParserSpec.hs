@@ -596,6 +596,21 @@ tests = do
                     { columns = [ col "poly" PPolygon ]
                     }
 
+        it "should parse a CREATE TABLE statement with a PostGIS geometry column" do
+            parseSql "CREATE TABLE locations (\n    geom GEOMETRY\n);\n" `shouldBe` StatementCreateTable (table "locations")
+                    { columns = [ col "geom" PGeometry ]
+                    }
+
+        it "should parse a CREATE TABLE statement with a PostGIS geometry(subtype, srid) column" do
+            parseSql "CREATE TABLE locations (\n    geom geometry(Point, 4326)\n);\n" `shouldBe` StatementCreateTable (table "locations")
+                    { columns = [ col "geom" PGeometry ]
+                    }
+
+        it "should parse a CREATE TABLE statement with a PostGIS geometry(subtype) column" do
+            parseSql "CREATE TABLE areas (\n    shape geometry(MultiPolygon)\n);\n" `shouldBe` StatementCreateTable (table "areas")
+                    { columns = [ col "shape" PGeometry ]
+                    }
+
         it "should parse a CREATE INDEX statement" do
             parseSql "CREATE INDEX users_index ON users (user_name);\n" `shouldBe` CreateIndex
                     { indexName = "users_index"

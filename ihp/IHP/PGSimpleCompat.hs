@@ -21,6 +21,11 @@ import IHP.NameSupport (fieldNameToColumnName)
 
 -- Import postgresql-simple-postgresql-types for FromField/ToField instances
 -- of all postgresql-types types (Point, Polygon, Inet, Interval, etc.)
+--
+-- NB: PostGIS 'Geometry' is read/written through hasql (see
+-- 'IHP.Hasql.Encoders') — not through postgresql-simple's FromField/ToField.
+-- User-level custom @sqlQuery@ calls with a @geometry@ column need a
+-- project-local FromField/ToField instance wrapping the raw EWKB bytes.
 import Database.PostgreSQL.Simple.PostgresqlTypes ()
 
 -- Id instances
