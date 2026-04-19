@@ -287,6 +287,7 @@ sqlType = choice $ map optionalArray
         , double
         , point
         , polygon
+        , geometry -- PostGIS extension type; must come before customType fallback
         , date
         , binary
         , time
@@ -360,6 +361,16 @@ sqlType = choice $ map optionalArray
                 polygon = do
                     try (symbol' "POLYGON")
                     pure PPolygon
+
+                -- PostGIS @geometry@ type. Accepts the optional
+                -- @geometry(SubType[, SRID])@ modifier used in PostGIS schemas;
+                -- the modifier is dropped from the AST because PostgreSQL
+                -- enforces it at DDL time.
+                geometry = do
+                    try (symbol' "GEOMETRY")
+                    optional $ between (char '(' >> space) (char ')' >> space)
+                        (takeWhile1P (Just "geometry type modifier") (/= ')'))
+                    pure PGeometry
 
                 date = do
                     try (symbol' "DATE")

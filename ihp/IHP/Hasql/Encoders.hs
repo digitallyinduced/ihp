@@ -34,10 +34,16 @@ import Data.Functor.Contravariant.Divisible (divide)
 import Data.Vector (Vector)
 import IHP.ModelSupport.Types (Id'(..), PrimaryKey)
 import Database.PostgreSQL.Simple.Types (Binary(..))
+import qualified Hasql.Decoders as Decoders
 import qualified Hasql.Mapping.IsScalar as Mapping
 import Hasql.PostgresqlTypes ()
+import qualified PostgresqlTypes.Algebra as Algebra
+import qualified PtrPeeker
+import qualified PtrPoker.Write as Write
+import qualified TextBuilder
 import PostgresqlTypes.Point (Point)
 import PostgresqlTypes.Polygon (Polygon)
+import PostgresqlTypes.Geometry (Geometry (..))
 import PostgresqlTypes.Inet (Inet)
 import PostgresqlTypes.Interval (Interval)
 import PostgresqlTypes.Tsvector (Tsvector)
@@ -168,6 +174,46 @@ instance DefaultParamEncoder Polygon where
 
 -- | Encode 'Maybe Polygon' as nullable PostgreSQL polygon
 instance DefaultParamEncoder (Maybe Polygon) where
+    defaultParam = Encoders.nullable Mapping.encoder
+
+-- | 'Hasql.Mapping.IsScalar' bridge for 'Geometry'. 'Hasql.PostgresqlTypes'
+--   provides these instances for every standard 'postgresql-types' type, but
+--   'Geometry' was added to 'postgresql-types' as a fork-local module, so the
+--   bridge is defined here directly. The underlying EWKB codec lives in the
+--   'PostgresqlTypes.Algebra.IsScalar' instance; we just wrap it for hasql.
+--
+--   Because the PostGIS extension assigns the @geometry@ OID dynamically at
+--   @CREATE EXTENSION@ time, no static OIDs are provided; hasql resolves them
+--   by @typeName@ at query time.
+instance Mapping.IsScalar Geometry where
+    encoder =
+        Encoders.custom
+            Nothing
+            "geometry"
+            Nothing
+            []
+            (\_ value -> Write.toByteString (Algebra.binaryEncoder value))
+            (TextBuilder.toText . Algebra.textualEncoder)
+    decoder =
+        Decoders.custom
+            Nothing
+            "geometry"
+            Nothing
+            []
+            (\_ bs ->
+                case PtrPeeker.runVariableOnByteString Algebra.binaryDecoder bs of
+                    Left leftover -> Left (Text.decodeUtf8 (BS8.pack ("geometry: " <> show leftover <> " bytes unconsumed")))
+                    Right (Left err) -> Left (Text.decodeUtf8 (BS8.pack (show err)))
+                    Right (Right v) -> Right v)
+
+-- | Encode 'Geometry' as a PostGIS geometry via postgresql-types binary encoder.
+--   The OID is resolved by name at query time since the PostGIS extension
+--   assigns it dynamically.
+instance DefaultParamEncoder Geometry where
+    defaultParam = Encoders.nonNullable Mapping.encoder
+
+-- | Encode 'Maybe Geometry' as a nullable PostGIS geometry
+instance DefaultParamEncoder (Maybe Geometry) where
     defaultParam = Encoders.nullable Mapping.encoder
 
 -- | Encode 'Interval' as PostgreSQL interval via postgresql-types binary encoder

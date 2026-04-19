@@ -133,7 +133,11 @@ common shared-properties
             , hasql-postgresql-types
             , hasql-transaction
             , postgresql-types
+            , postgresql-types-algebra
             , postgresql-simple-postgresql-types
+            , ptr-peeker
+            , ptr-poker
+            , text-builder
             , contravariant
     default-extensions:
         OverloadedStrings

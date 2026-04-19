@@ -136,8 +136,23 @@ let
             # https://github.com/nikita-volkov/ptr-peeker/issues/10
             ptr-peeker = final.haskell.lib.dontCheck (final.haskell.lib.markUnbroken super.ptr-peeker);
             postgresql-types-algebra = final.haskell.lib.doJailbreak (hackagePackage "postgresql-types-algebra");
+            # postgresql-types: patched fork adding PostGIS `PostgresqlTypes.Geometry`
+            # until https://github.com/nikita-volkov/postgresql-types is updated upstream.
+            # Uses overrideSrc to keep the pre-generated derivation (deps/version) intact
+            # and only swap the source tree.
             # dontCheck: tests require a running PostgreSQL server
-            postgresql-types = final.haskell.lib.dontCheck (final.haskell.lib.doJailbreak (hackagePackage "postgresql-types"));
+            postgresql-types = final.haskell.lib.overrideCabal
+                (final.haskell.lib.dontCheck (final.haskell.lib.doJailbreak (hackagePackage "postgresql-types")))
+                (old: {
+                    version = "0.1.3.2";
+                    src = builtins.fetchTarball {
+                        url = "https://github.com/mpscholten/postgresql-types/archive/bc0795e3dfdc14e0fca9d36594d1a6ffe7014158.tar.gz";
+                        sha256 = "13r7njwahl7fnc9qhhxpawgs7774hdwc8anbjiy81593aav4mwm4";
+                    };
+                    sha256 = null;
+                    revision = null;
+                    editedCabalFile = null;
+                });
             hasql-mapping = final.haskell.lib.doJailbreak (hackagePackage "hasql-mapping");
             hasql-postgresql-types = final.haskell.lib.dontHaddock (final.haskell.lib.doJailbreak (hackagePackage "hasql-postgresql-types"));
         };

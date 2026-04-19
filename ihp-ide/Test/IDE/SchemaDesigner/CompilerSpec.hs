@@ -490,6 +490,13 @@ tests = do
                     }
             compileSql [statement] `shouldBe` sql
 
+        it "should compile a CREATE TABLE statement with a PostGIS geometry column" do
+            let sql = cs [plain|CREATE TABLE location_tests (\n    geom GEOMETRY\n);\n|]
+            let statement = StatementCreateTable (table "location_tests")
+                    { columns = [ col "geom" PGeometry ]
+                    }
+            compileSql [statement] `shouldBe` sql
+
         it "should compile a CREATE INDEX statement" do
             let sql = cs [plain|CREATE INDEX users_index ON users (user_name);\n|]
             let statement = CreateIndex

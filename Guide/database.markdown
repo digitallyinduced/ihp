@@ -804,6 +804,8 @@ IHP currently has support for the following Postgres column types:
 - REAL, FLOAT4
 - DOUBLE PRECISION, FLOAT8
 - POINT
+- POLYGON
+- GEOMETRY (PostGIS — see [PostGIS Geometry Columns](#postgis-geometry-columns))
 - DATE
 - BYTEA
 - TIME
@@ -816,6 +818,106 @@ IHP currently has support for the following Postgres column types:
 - TSVECTOR
 - Arrays of all the above types
 - Custom types, usually enums
+
+## PostGIS Geometry Columns
+
+IHP ships native support for PostGIS `geometry` columns, including the
+`geometry(SubType, SRID)` syntax used in most PostGIS schemas.
+
+### 1. Enable the PostGIS extension
+
+Add the extension to your project's `flake.nix` (see
+[Building Postgres With Extensions](package-management.html#building-postgres-with-extensions)):
+
+```nix
+devenv.shells.default = {
+    services.postgres.extensions = extensions: [ extensions.postgis ];
+};
+```
+
+Then run `CREATE EXTENSION postgis;` once (either via `Application/Fixtures.sql`
+or manually in `make psql`).
+
+### 2. Declare the column
+
+In `Application/Schema.sql`:
+
+```sql
+CREATE TABLE locations (
+    id UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL,
+    name TEXT NOT NULL,
+    geom geometry(Point, 4326) NOT NULL
+);
+```
+
+The generated Haskell field has type `Geometry`, a structured ADT matching
+the PostGIS / OGC geometry subtypes:
+
+```haskell
+data Geometry = Geometry (Maybe Int32) Shape
+data Shape
+  = Point Coord
+  | LineString [Coord]
+  | Polygon [[Coord]]
+  | MultiPoint [Coord]
+  | MultiLineString [[Coord]]
+  | MultiPolygon [[[Coord]]]
+  | GeometryCollection [Shape]
+data Coord = Coord { coordX, coordY :: Double, coordZ, coordM :: Maybe Double }
+```
+
+Because the PostGIS extension assigns the `geometry` OID dynamically, IHP
+resolves it by name at query time — no extra wiring is needed. Values
+round-trip through
+[EWKB](https://postgis.net/docs/using_postgis_dbmanagement.html#EWKB_EWKT) on
+the wire and through PostGIS's canonical upper-case hex EWKB in text form.
+
+### 3. Reading and writing values
+
+`IHP.ModelSupport` re-exports the `Geometry` and `Coord` types; import
+`PostgresqlTypes.Geometry` qualified to reach the `Shape` constructors (they
+would otherwise clash with `PostgresqlTypes.Point.Point`):
+
+```haskell
+import qualified PostgresqlTypes.Geometry as G
+
+-- Fetch records normally; the `geom` field is a `Geometry`.
+locations <- query @Location |> fetch
+
+-- Construct a value structurally:
+let point = Geometry (Just 4326) (G.Point (Coord 13.4 52.5 Nothing Nothing))
+sqlExec "INSERT INTO locations (name, geom) VALUES (?, ?)"
+    ("Berlin" :: Text, point)
+
+-- Or let PostGIS parse WKT for you:
+sqlExec
+    "INSERT INTO locations (name, geom) VALUES (?, ST_GeomFromText(?, 4326))"
+    ("Hamburg" :: Text, "POINT(10.0 53.5)" :: Text)
+
+-- Pattern-match on fetched shapes in Haskell:
+forEach locations \location ->
+    case geometryShape location.geom of
+        G.Point (Coord x y _ _) -> print (x, y)
+        _ -> pure ()
+```
+
+Dimension consistency (mixing XY with XYZ coords in a single geometry, for
+example) is validated by the smart constructors `fromShape` and
+`fromShapeWithSrid` from `PostgresqlTypes.Geometry`; the raw `Geometry`
+constructor is still exported so pattern-matching and simple construction
+remain straightforward.
+
+### Known limitations
+
+- The `geometry(SubType, SRID)` modifier is accepted by the parser but not
+  preserved in the Schema Designer AST — round-trip edits in the visual
+  designer keep the DDL-level constraint PostgreSQL enforces, but the
+  subtype/SRID hint is only stored in the SQL file itself.
+- `FromField` / `ToField` (postgresql-simple) instances for `Geometry` are
+  not shipped — IHP reads and writes geometry values through hasql. If you
+  use `sqlQuery` with geometry columns, wrap the value at the call site.
+- The `geography` type is not yet supported natively; model it via a
+  project-local newtype or `PCustomType` for now.
 
 ## Transactions
 
