@@ -1088,6 +1088,35 @@ tests = do
                         pure (let theRecord = Generated.ActualTypes.Bar id ticker date def { originalDatabaseRecord = Just (Data.Dynamic.toDyn theRecord) } in theRecord)
                     |]
 
+            it "should generate a BIGSERIAL PRIMARY KEY row decoder (#2648)" do
+                -- Regression: BIGSERIAL primary keys produce Mapping.decoder for the id
+                -- column. Prior to fixing, generated code broke with
+                -- `No instance for Mapping.IsScalar Integer` because `PBigserial` maps to
+                -- `Integer` and IHP shipped no `IsScalar Integer` instance.
+                let bugStatements =
+                        [ StatementCreateTable CreateTable
+                            { name = "validities"
+                            , columns =
+                                [ (col "id" PBigserial) { notNull = True }
+                                , (col "validity" PPolygon) { notNull = True }
+                                ]
+                            , primaryKeyConstraint = PrimaryKeyConstraint ["id"]
+                            , constraints = []
+                            , unlogged = False
+                            , inherits = Nothing
+                            }
+                        ]
+                let [StatementCreateTable bugTable] = bugStatements
+                let ?schema = Schema bugStatements
+                let output = compileRowDecoderModule bugTable
+                getStatementBody output `shouldBe` [trimming|
+                    rowDecoder :: Decoders.Row Generated.ActualTypes.Validity
+                    rowDecoder = do
+                        id <- Decoders.column (Decoders.nonNullable Mapping.decoder)
+                        validity <- Decoders.column (Decoders.nonNullable Mapping.decoder)
+                        pure (let theRecord = Generated.ActualTypes.Validity id validity def { originalDatabaseRecord = Just (Data.Dynamic.toDyn theRecord) } in theRecord)
+                    |]
+
             it "should generate correct Create statement module" do
                 let output = compileCreateStatement theTable
                 getStatementBody output `shouldBe` [trimming|
