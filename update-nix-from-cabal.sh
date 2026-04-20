@@ -38,7 +38,6 @@ hackage_packages=(
   "hasql-notifications 0.2.5.0"
   "temporary-ospath 1.3"
   "postgresql-simple-postgresql-types 0.1.1"
-  "postgresql-types-algebra 0.1"
   "postgresql-types 0.1.2"
   "hasql-mapping 0.1"
   "hasql-postgresql-types 0.2"

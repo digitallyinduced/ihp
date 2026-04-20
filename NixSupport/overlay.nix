@@ -134,7 +134,10 @@ let
             # ptr-peeker is marked broken in nixpkgs but is needed by postgresql-types
             # https://github.com/nikita-volkov/ptr-peeker/issues/10
             ptr-peeker = final.haskell.lib.dontCheck (final.haskell.lib.markUnbroken super.ptr-peeker);
-            postgresql-types-algebra = final.haskell.lib.doJailbreak (hackagePackage "postgresql-types-algebra");
+            # postgresql-types-algebra 0.1 matches the nixpkgs default; only
+            # doJailbreak is needed to widen its `ptr-peeker ^>=0.1` bound so
+            # it accepts the markUnbroken ptr-peeker 0.2 above.
+            postgresql-types-algebra = final.haskell.lib.doJailbreak super.postgresql-types-algebra;
             # dontCheck: tests require a running PostgreSQL server
             postgresql-types = final.haskell.lib.dontCheck (final.haskell.lib.doJailbreak (hackagePackage "postgresql-types"));
             hasql-mapping = final.haskell.lib.doJailbreak (hackagePackage "hasql-mapping");
