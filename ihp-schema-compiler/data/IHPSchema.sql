@@ -11,4 +11,4 @@ CREATE TYPE JOB_STATUS AS ENUM ('job_status_not_started', 'job_status_running', 
 -- CREATE OR REPLACE so older databases get the robust version on next migrate.
 CREATE OR REPLACE FUNCTION ihp_user_id() RETURNS UUID AS $$
     SELECT NULLIF(current_setting('rls.ihp_user_id', true), '')::uuid;
-$$ LANGUAGE SQL STABLE;
+$$ LANGUAGE SQL;
