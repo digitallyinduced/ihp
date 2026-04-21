@@ -4,6 +4,8 @@
 
 ### Breaking Changes
 
+- `setRLSConfigStatement` and `setRLSConfigPipelineStatement` now take `(Text, Maybe Text)` instead of `(Text, Text)` for the RLS user id. Pass `Just (tshow userId)` when a user is authenticated, `Nothing` otherwise. Callers that only know `RowLevelSecurityContext { rlsUserId :: Text }` should wrap with `Just rlsUserId`. This lets unauthenticated DataSync subscribes cleanly filter all rows instead of raising `invalid input syntax for type uuid: ""` from raw `current_setting('rls.ihp_user_id')::uuid` casts.
+- `IHPSchema.sql` now declares `ihp_user_id()` with `CREATE OR REPLACE` and uses `current_setting('rls.ihp_user_id', true)` (missing_ok) + `STABLE`. Existing databases get the robust version automatically on next migrate. Policies using `ihp_user_id()` now evaluate to NULL (filter all rows) when the session has no authenticated user. Policies written as raw `current_setting('rls.ihp_user_id')::uuid` remain unsafe — migrate them to `ihp_user_id()`.
 - Controller `action` now returns `IO ResponseReceived` instead of `IO ()` — response functions like `render`, `redirectTo`, `renderJson` return the WAI `ResponseReceived` directly instead of throwing exceptions. Use `earlyReturn` for conditional early exits (e.g. `when condition (earlyReturn $ redirectTo ...)`) ([#2205](https://github.com/digitallyinduced/ihp/pull/2205))
 - `ResponseException` removed — code that catches `ResponseException` will get a compiler error; use `earlyReturn`/`respondAndExit` instead
 - `respondAndExit` now requires `?request` and `?respond` implicit parameters (previously only needed `?context`)
