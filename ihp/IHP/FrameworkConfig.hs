@@ -41,8 +41,11 @@ import IHP.Log (makeRequestLogger, defaultRequestLogger)
 import qualified Network.Wai.Handler.Warp as Warp
 import qualified Network.Wai.Middleware.Cors as Cors
 import qualified Network.Wai.Parse as WaiParse
+import Network.Wai (Request)
 import qualified Control.Exception as Exception
 import IHP.EnvVar
+import IHP.LoginSupport.Types (currentUserIdVaultKey, lookupAuthVault)
+import qualified Data.UUID as UUID
 
 import qualified Prelude
 import qualified GHC.Stack as Stack
@@ -103,7 +106,11 @@ ihpDefaultConfig = do
                                     reqLogger <- (logger |> defaultRequestLogger)
                                     pure (RequestLoggerMiddleware reqLogger)
                 Production  ->  do
-                                    reqLogger <- (logger |> makeRequestLogger def { RequestLogger.outputFormat = RequestLogger.Apache requestLoggerIpAddrSource })
+                                    let apacheSettings = RequestLogger.defaultApacheSettings
+                                            |> RequestLogger.setApacheIPAddrSource requestLoggerIpAddrSource
+                                            |> RequestLogger.setApacheUserGetter defaultApacheUserGetter
+                                    let settings = def { RequestLogger.outputFormat = RequestLogger.ApacheWithSettings apacheSettings }
+                                    reqLogger <- (logger |> makeRequestLogger settings)
                                     pure (RequestLoggerMiddleware reqLogger)
 
 
@@ -293,3 +300,12 @@ configIO :: (MonadIO monad, HasCallStack) => IO result -> monad result
 configIO action = liftIO (action `catch` wrapWithCallStack)
     where
         wrapWithCallStack exception = throwIO (ExceptionWithCallStack Stack.callStack exception)
+
+-- | Default 'setApacheUserGetter' for the production request logger.
+--
+-- Emits the logged-in user's UUID as the Apache @%u@ field, so request logs
+-- attribute traffic to a user id. Returns 'Nothing' for anonymous requests,
+-- which wai-extra renders as @-@.
+defaultApacheUserGetter :: Request -> Maybe ByteString
+defaultApacheUserGetter request =
+    UUID.toASCIIBytes <$> lookupAuthVault currentUserIdVaultKey request
