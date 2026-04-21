@@ -151,7 +151,7 @@ pipeline thePipeline = do
     let effectivePipeline = case (?modelContext.transactionRunner, ?modelContext.rowLevelSecurity) of
             (Nothing, Just RowLevelSecurityContext { rlsAuthenticatedRole, rlsUserId }) ->
                 (\_ a _ -> a)
-                    <$> Pipeline.statement (rlsAuthenticatedRole, rlsUserId) setRLSConfigPipelineStatement
+                    <$> Pipeline.statement (rlsAuthenticatedRole, Just rlsUserId) setRLSConfigPipelineStatement
                     <*> thePipeline
                     <*> Pipeline.statement () resetRLSConfigPipelineStatement
             _ -> thePipeline
@@ -170,11 +170,13 @@ pipeline thePipeline = do
 -- because pipeline mode runs each statement in its own implicit transaction.
 -- The companion 'resetRLSConfigPipelineStatement' resets these at the end of
 -- the pipeline batch.
-setRLSConfigPipelineStatement :: HasqlStatement.Statement (Text, Text) ()
+--
+-- See 'setRLSConfigStatement' for why the user id is 'Maybe Text'.
+setRLSConfigPipelineStatement :: HasqlStatement.Statement (Text, Maybe Text) ()
 setRLSConfigPipelineStatement = HasqlStatement.preparable
     "SELECT set_config('role', $1, false), set_config('rls.ihp_user_id', $2, false)"
     (contramap fst (Encoders.param (Encoders.nonNullable Encoders.text))
-     <> contramap snd (Encoders.param (Encoders.nonNullable Encoders.text)))
+     <> contramap snd (Encoders.param (Encoders.nullable Encoders.text)))
     (Decoders.singleRow (Decoders.column (Decoders.nullable Decoders.text) *> Decoders.column (Decoders.nullable Decoders.text) *> pure ()))
 
 -- | Reset role and RLS user to connection defaults after the pipeline completes.

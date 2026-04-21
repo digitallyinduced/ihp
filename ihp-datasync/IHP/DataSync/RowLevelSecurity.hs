@@ -66,9 +66,7 @@ setRLSConfigSession ::
     ) => Session.Session ()
 setRLSConfigSession = Session.statement (Role.authenticatedRole, encodedUserId) setRLSConfigStatement
     where
-        encodedUserId = case (.id) <$> currentUserOrNothing of
-            Just userId -> tshow userId
-            Nothing -> ""
+        encodedUserId = tshow . (.id) <$> currentUserOrNothing
 
 sqlQueryWithRLSSession ::
     ( ?context :: ControllerContext
@@ -83,9 +81,7 @@ sqlQueryWithRLSSession statement =
         Tx.statement (Role.authenticatedRole, encodedUserId) setRLSConfigStatement
         Tx.statement () statement
     where
-        encodedUserId = case (.id) <$> currentUserOrNothing of
-            Just userId -> tshow userId
-            Nothing -> ""
+        encodedUserId = tshow . (.id) <$> currentUserOrNothing
 {-# INLINE sqlQueryWithRLSSession #-}
 
 -- | Like 'sqlQueryWithRLSSession', but uses a write transaction.
@@ -105,9 +101,7 @@ sqlQueryWriteWithRLSSession statement =
         Tx.statement (Role.authenticatedRole, encodedUserId) setRLSConfigStatement
         Tx.statement () statement
     where
-        encodedUserId = case (.id) <$> currentUserOrNothing of
-            Just userId -> tshow userId
-            Nothing -> ""
+        encodedUserId = tshow . (.id) <$> currentUserOrNothing
 {-# INLINE sqlQueryWriteWithRLSSession #-}
 
 sqlExecWithRLSSession ::
@@ -123,9 +117,7 @@ sqlExecWithRLSSession statement =
         Tx.statement (Role.authenticatedRole, encodedUserId) setRLSConfigStatement
         Tx.statement () statement
     where
-        encodedUserId = case (.id) <$> currentUserOrNothing of
-            Just userId -> tshow userId
-            Nothing -> ""
+        encodedUserId = tshow . (.id) <$> currentUserOrNothing
 {-# INLINE sqlExecWithRLSSession #-}
 
 sqlQueryScalarWithRLSSession ::
@@ -141,9 +133,7 @@ sqlQueryScalarWithRLSSession statement =
         Tx.statement (Role.authenticatedRole, encodedUserId) setRLSConfigStatement
         Tx.statement () statement
     where
-        encodedUserId = case (.id) <$> currentUserOrNothing of
-            Just userId -> tshow userId
-            Nothing -> ""
+        encodedUserId = tshow . (.id) <$> currentUserOrNothing
 {-# INLINE sqlQueryScalarWithRLSSession #-}
 
 -- IO API (thin wrappers)
