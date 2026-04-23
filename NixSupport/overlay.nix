@@ -88,18 +88,6 @@ let
             wai-session-maybe = hackagePackage "wai-session-maybe";
             wai-session-clientsession-deferred = hackagePackage "wai-session-clientsession-deferred";
 
-            # Can be removed after v0.3.2 is on hackage
-            # https://github.com/tippenein/countable-inflections/pull/6
-            countable-inflections = final.haskell.lib.overrideSrc super.countable-inflections {
-                version = "0.3.2";
-                src = final.fetchFromGitHub {
-                    owner = "tippenein";
-                    repo = "countable-inflections";
-                    rev = "9cae03513ad76783c226509f5c00dfe7989893e8";
-                    hash = "sha256-Pd9wQgEtc3e39c0iJR347kdawbyShDEtQqEzrIEu0eQ=";
-                };
-            };
-
             # Hasql 1.10 ecosystem upgrade for postgresql-types binary encoding support.
             # Pre-generated nix files in NixSupport/hackage/ to avoid IFD.
             # dontCheck on postgresql/hasql packages: their tests require a running PostgreSQL server.
