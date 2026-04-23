@@ -4,6 +4,14 @@ After updating your project, please consult the segments from your current relea
 
 # Upgrade to 1.6.0 (unreleased) from 1.5.0
 
+## `render` Returns 422 for Non-GET Requests
+
+When `render` is called from a POST/PUT/PATCH/DELETE action it now responds with HTTP 422 (Unprocessable Content) instead of 200. GET and HEAD requests are unchanged.
+
+This makes `render` work with Hotwire Turbo, which rejects a 200 response to a form submission. The idiomatic IHP pattern is `redirectTo` on success and `render` on validation failure, so a non-GET `render` is almost always a validation failure — 422 is the correct status for "re-render the form with errors".
+
+If you rely on a non-GET action returning a 200 HTML page (uncommon), use `respondHtmlWithStatus status200` directly instead of `render`.
+
 ## `render` No Longer Handles JSON
 
 The `render` function now only renders HTML. Previously it used Accept header negotiation to serve both HTML and JSON, but the JSON path was unused in practice.
