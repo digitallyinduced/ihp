@@ -23,6 +23,7 @@ in the same pipeline batch.
 -}
 module IHP.FetchPipelined
 ( fetchPipelined
+, fetchVectorPipelined
 , fetchOneOrNothingPipelined
 , fetchCountPipelined
 , fetchExistsPipelined
@@ -34,7 +35,7 @@ import IHP.Prelude
 import IHP.ModelSupport
 import IHP.QueryBuilder
 import IHP.Hasql.FromRow (FromRowHasql(..))
-import IHP.Fetch.Statement (buildQueryListStatement, buildQueryMaybeStatement, buildCountStatement, buildExistsStatement)
+import IHP.Fetch.Statement (buildQueryListStatement, buildQueryVectorStatement, buildQueryMaybeStatement, buildCountStatement, buildExistsStatement)
 import qualified Hasql.Decoders as Decoders
 import qualified Hasql.Encoders as Encoders
 import qualified Hasql.Pipeline as Pipeline
@@ -53,15 +54,31 @@ import Data.Functor.Contravariant.Divisible (conquer)
 -- >     users <- query @User |> filterWhere (#active, True) |> fetchPipelined
 -- >     posts <- query @Post |> orderByDesc #createdAt |> fetchPipelined
 -- >     pure (users, posts)
-fetchPipelined :: forall model table queryBuilderProvider joinRegister.
+fetchPipelined :: forall model table.
     ( Table model
-    , HasQueryBuilder queryBuilderProvider joinRegister
     , model ~ GetModelByTableName table
     , KnownSymbol table
     , FromRowHasql model
-    ) => queryBuilderProvider table -> Pipeline.Pipeline [model]
+    ) => QueryBuilder table -> Pipeline.Pipeline [model]
 fetchPipelined !queryBuilder = Pipeline.statement () (buildQueryListStatement queryBuilder)
 {-# INLINE fetchPipelined #-}
+
+-- | Like 'fetchPipelined', but returns a 'Vector' instead of a list.
+--
+-- __Example:__
+--
+-- > (users, posts) <- pipeline do
+-- >     users <- query @User |> fetchVectorPipelined
+-- >     posts <- query @Post |> fetchVectorPipelined
+-- >     pure (users, posts)
+fetchVectorPipelined :: forall model table.
+    ( Table model
+    , model ~ GetModelByTableName table
+    , KnownSymbol table
+    , FromRowHasql model
+    ) => QueryBuilder table -> Pipeline.Pipeline (Vector model)
+fetchVectorPipelined !queryBuilder = Pipeline.statement () (buildQueryVectorStatement queryBuilder)
+{-# INLINE fetchVectorPipelined #-}
 
 -- | Convert a query builder into a 'Pipeline' step returning at most one row.
 --
@@ -71,13 +88,12 @@ fetchPipelined !queryBuilder = Pipeline.statement () (buildQueryListStatement qu
 -- >     maybeUser <- query @User |> filterWhere (#email, email) |> fetchOneOrNothingPipelined
 -- >     posts <- query @Post |> fetchPipelined
 -- >     pure (maybeUser, posts)
-fetchOneOrNothingPipelined :: forall model table queryBuilderProvider joinRegister.
+fetchOneOrNothingPipelined :: forall model table.
     ( Table model
-    , HasQueryBuilder queryBuilderProvider joinRegister
     , model ~ GetModelByTableName table
     , KnownSymbol table
     , FromRowHasql model
-    ) => queryBuilderProvider table -> Pipeline.Pipeline (Maybe model)
+    ) => QueryBuilder table -> Pipeline.Pipeline (Maybe model)
 fetchOneOrNothingPipelined !queryBuilder = Pipeline.statement () (buildQueryMaybeStatement queryBuilder)
 {-# INLINE fetchOneOrNothingPipelined #-}
 
@@ -89,10 +105,9 @@ fetchOneOrNothingPipelined !queryBuilder = Pipeline.statement () (buildQueryMayb
 -- >     users <- query @User |> fetchPipelined
 -- >     userCount <- query @User |> filterWhere (#active, True) |> fetchCountPipelined
 -- >     pure (users, userCount)
-fetchCountPipelined :: forall table queryBuilderProvider joinRegister.
+fetchCountPipelined :: forall table.
     ( KnownSymbol table
-    , HasQueryBuilder queryBuilderProvider joinRegister
-    ) => queryBuilderProvider table -> Pipeline.Pipeline Int
+    ) => QueryBuilder table -> Pipeline.Pipeline Int
 fetchCountPipelined !queryBuilder = fromIntegral <$> Pipeline.statement () (buildCountStatement queryBuilder)
 {-# INLINE fetchCountPipelined #-}
 
@@ -104,10 +119,9 @@ fetchCountPipelined !queryBuilder = fromIntegral <$> Pipeline.statement () (buil
 -- >     users <- query @User |> fetchPipelined
 -- >     hasUnread <- query @Message |> filterWhere (#isUnread, True) |> fetchExistsPipelined
 -- >     pure (users, hasUnread)
-fetchExistsPipelined :: forall table queryBuilderProvider joinRegister.
+fetchExistsPipelined :: forall table.
     ( KnownSymbol table
-    , HasQueryBuilder queryBuilderProvider joinRegister
-    ) => queryBuilderProvider table -> Pipeline.Pipeline Bool
+    ) => QueryBuilder table -> Pipeline.Pipeline Bool
 fetchExistsPipelined !queryBuilder = Pipeline.statement () (buildExistsStatement queryBuilder)
 {-# INLINE fetchExistsPipelined #-}
 

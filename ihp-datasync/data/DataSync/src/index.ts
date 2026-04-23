@@ -1,5 +1,6 @@
 import {
     QueryBuilder,
+    ConditionBuilder,
     query,
     ihpBackendUrl,
     fetchAuthenticated,
@@ -17,7 +18,8 @@ import {
     whereLessThan,
     whereLessThanOrEqual,
     whereGreaterThan,
-    whereGreaterThanOrEqual
+    whereGreaterThanOrEqual,
+    whereIn
 } from './ihp-querybuilder.js';
 import { DataSyncController, DataSubscription, initIHPBackend, createRecord, createRecords, updateRecord, updateRecords, deleteRecord, deleteRecords, NewRecordBehaviour } from './ihp-datasync.js';
 import { Transaction, withTransaction } from './transaction.js';
@@ -25,9 +27,10 @@ import { Transaction, withTransaction } from './transaction.js';
 export {
     /* ihp-querybuilder.js */
     QueryBuilder,
+    ConditionBuilder,
     query,
     ihpBackendUrl,
-    fetchAuthenticated, 
+    fetchAuthenticated,
     filterWhere,
     where,
     whereNot,
@@ -43,6 +46,7 @@ export {
     whereLessThanOrEqual,
     whereGreaterThan,
     whereGreaterThanOrEqual,
+    whereIn,
 
     /* ihp-datasync.js */
     DataSyncController, DataSubscription, initIHPBackend, createRecord, createRecords, updateRecord, updateRecords, deleteRecord, deleteRecords, NewRecordBehaviour,
@@ -50,3 +54,23 @@ export {
     /* transaction.js */
     Transaction, withTransaction
 };
+
+/* Re-export types */
+export type {
+    UUID,
+    DataRecord,
+    TableName,
+    IHPRecord,
+    NewRecord,
+    TableRegistry,
+    NewRecordRegistry,
+    DynamicSQLQuery,
+    ConditionExpression,
+    ConditionOperator,
+    SelectedColumns,
+    OrderByClause,
+    OrderByDirection,
+    DataSubscriptionOptions,
+    CrudOptions,
+    ServerMessage,
+} from './types.js';

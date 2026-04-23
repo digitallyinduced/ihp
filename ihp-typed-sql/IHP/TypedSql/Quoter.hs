@@ -5,9 +5,11 @@
 
 module IHP.TypedSql.Quoter
     ( typedSql
+    , typedSqlStar
     ) where
 
 import           Data.Coerce                    (coerce)
+import qualified Data.List                      as List
 import qualified Data.Map.Strict                as Map
 import qualified Data.Set                       as Set
 import qualified Data.String.Conversions        as CS
@@ -21,27 +23,42 @@ import           IHP.TypedSql.Decoders          (resultDecoderForColumns)
 import           IHP.TypedSql.Metadata          (DescribeColumn (..), DescribeResult (..), PgTypeInfo (..), TableMeta (..),
                                                  describeStatement)
 import           IHP.TypedSql.ParamHints        (extractParamHintsFromAst, extractJoinNullableTablesFromAst,
-                                                 parseSql, resolveParamHintTypes)
+                                                 extractNonNullableComputedColumnsFromAst,
+                                                 parseSql, resolveParamHintTypes, detectStarSelects)
 import           IHP.TypedSql.Placeholders      (PlaceholderPlan (..), parseExpr,
                                                  planPlaceholders)
-import           IHP.TypedSql.TypeMapping       (hsTypeForColumns, hsTypeForParam)
+import           IHP.TypedSql.RowType           (SqlRow (..), sanitizeColumnName, deduplicateNames, sqlRowType)
+import           IHP.TypedSql.TypeMapping       (hsTypeForColumns, hsTypesForColumns, hsTypeForParam, detectFullTable)
 import           IHP.TypedSql.Types             (TypedQuery (..))
 
 -- | QuasiQuoter entry point for typed SQL.
--- High-level: produces a TH expression that builds a TypedQuery at compile time.
+-- Disallows SELECT * and SELECT table.* by default to prevent production errors
+-- when the schema changes. Use 'typedSqlStar' to opt in to star selects.
 typedSql :: TH.QuasiQuoter
 typedSql =
     TH.QuasiQuoter
-        { TH.quoteExp = typedSqlExp
+        { TH.quoteExp = typedSqlExp False
         , TH.quotePat = \_ -> fail "typedSql: not supported in patterns"
         , TH.quoteType = \_ -> fail "typedSql: not supported in types"
         , TH.quoteDec = \_ -> fail "typedSql: not supported at top-level"
         }
 
+-- | Like 'typedSql' but allows SELECT * and SELECT table.* patterns.
+-- Use this when you understand that star selects can break at runtime if the
+-- schema changes between compilation and deployment.
+typedSqlStar :: TH.QuasiQuoter
+typedSqlStar =
+    TH.QuasiQuoter
+        { TH.quoteExp = typedSqlExp True
+        , TH.quotePat = \_ -> fail "typedSqlStar: not supported in patterns"
+        , TH.quoteType = \_ -> fail "typedSqlStar: not supported in types"
+        , TH.quoteDec = \_ -> fail "typedSqlStar: not supported at top-level"
+        }
+
 -- | Build the TH expression for a typed SQL quasiquote.
 -- This is the heart of typedSql: parse placeholders, describe SQL, and assemble a TypedQuery.
-typedSqlExp :: String -> TH.ExpQ
-typedSqlExp rawSql = do
+typedSqlExp :: Bool -> String -> TH.ExpQ
+typedSqlExp allowStar rawSql = do
     let PlaceholderPlan { ppDescribeSql, ppRuntimeSql, ppExprs } = planPlaceholders rawSql
     parsedExprs <- mapM parseExpr ppExprs
 
@@ -56,6 +73,20 @@ typedSqlExp rawSql = do
     let parsedAst = parseSql ppDescribeSql
     when (isNothing parsedAst) do
         TH.reportWarning "typedSql: could not parse SQL for type refinement; parameter hints and LEFT/RIGHT JOIN nullability detection are disabled for this query."
+
+    unless allowStar do
+        case parsedAst of
+            Just ast -> do
+                let stars = detectStarSelects ast
+                unless (null stars) do
+                    let columnNames = map (CS.cs . dcName) drColumns
+                    let suggestion = List.intercalate ", " columnNames
+                    fail ("typedSql: SELECT " <> List.intercalate ", " stars
+                        <> " is not allowed because it can break at runtime when the schema changes. "
+                        <> "List columns explicitly:\n  SELECT " <> suggestion <> " FROM ...\n"
+                        <> "Or use [typedSqlStar| ... |] if you understand the risk.")
+            Nothing -> pure ()
+
     let paramHints = maybe Map.empty extractParamHintsFromAst parsedAst
     paramHintTypes <- resolveParamHintTypes drTables drTypes paramHints
 
@@ -76,7 +107,7 @@ typedSqlExp rawSql = do
             |> map fst
             |> Set.fromList
 
-    resultType <- hsTypeForColumns drTypes drTables joinNullableOids drColumns
+    let nonNullableColumns = maybe Set.empty extractNonNullableComputedColumnsFromAst parsedAst
 
     let isCompositeColumn =
             case drColumns of
@@ -89,7 +120,27 @@ typedSqlExp rawSql = do
         fail
             ("typedSql: composite columns must be expanded (use SELECT table.* "
                 <> "or list columns explicitly)")
-    resultDecoder <- resultDecoderForColumns drTypes drTables joinNullableOids drColumns
+
+    let isFullTable = isJust (detectFullTable drTables drColumns)
+    let isMultiColumnAdhoc = not isFullTable && length drColumns > 1
+
+    (resultType, resultDecoder) <-
+        if isMultiColumnAdhoc
+            then do
+                -- Wrap the tuple in SqlRow for labeled field access
+                columnTypes <- hsTypesForColumns drTypes drTables joinNullableOids nonNullableColumns drColumns
+                let colNames = deduplicateNames (map (sanitizeColumnName . dcName) drColumns)
+                let fields = zip colNames columnTypes
+                let rowType = sqlRowType fields
+                tupleDecoder <- resultDecoderForColumns drTypes drTables joinNullableOids nonNullableColumns drColumns
+                -- fmap SqlRow tupleDecoder
+                let wrappedDecoder = TH.AppE (TH.AppE (TH.VarE 'fmap) (TH.ConE 'SqlRow)) tupleDecoder
+                pure (rowType, wrappedDecoder)
+            else do
+                rt <- hsTypeForColumns drTypes drTables joinNullableOids nonNullableColumns drColumns
+                decoder <- resultDecoderForColumns drTypes drTables joinNullableOids nonNullableColumns drColumns
+                pure (rt, decoder)
+
     snippetExpr <- buildSnippetExpression ppRuntimeSql annotatedParams
     let typedQueryExpr =
             TH.AppE

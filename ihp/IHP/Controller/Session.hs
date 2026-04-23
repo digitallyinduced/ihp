@@ -24,6 +24,7 @@ module IHP.Controller.Session
   , getSessionEither
   , deleteSession
   , getSessionAndClear
+  , sessionInsert
   , sessionVaultKey
   , lookupSessionVault
   ) where

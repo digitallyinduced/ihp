@@ -342,6 +342,25 @@ When using `StateDirectory` with IHP's file storage, set `IHP_STORAGE_DIR` to po
 systemd.services.app.environment.IHP_STORAGE_DIR = "%S/mydata/";
 ```
 
+#### Automatic Upgrades and Kernel Reboots
+
+`system.autoUpgrade.enable = true;` rebuilds the system on a schedule and installs new kernels into `/boot`, but without `allowReboot` the host keeps running the old kernel until rebooted manually. To pick up kernel patches automatically, enable reboots and pin them to a quiet window:
+
+```nix
+system.autoUpgrade = {
+    enable = true;
+    allowReboot = true;
+    dates = "Sun 04:00";
+    randomizedDelaySec = "30min";
+};
+```
+
+Reboots only happen when a new kernel or initrd was actually installed. `services.app` and `services.worker` come back automatically thanks to `Restart = "always"`; for any custom units, ensure `wantedBy = [ "multi-user.target" ];` is set. Verify with:
+
+```bash
+systemctl list-timers nixos-upgrade.timer
+```
+
 #### Nginx Configuration Patterns
 
 The `appWithPostgres` module sets up a basic nginx proxy with WebSocket support. Here are additional patterns you can add to your `configuration.nix`:
@@ -1608,4 +1627,32 @@ systemctl status worker
 systemctl status migrate
 journalctl -u app -n 50 --no-pager
 ```
+
+### Memory Limits and Restart Hardening
+
+By default `services.app` and `services.worker` are configured with `Restart = "always"` but do not set any memory bounds. This means that a memory leak in application code, or a runaway allocation inside a long-running job, can consume all available RAM before the Linux OOM killer intervenes. When that happens, the kernel may kill unrelated processes on the host — for example a colocated PostgreSQL when using `appWithPostgres` — instead of cleanly restarting just the offending unit.
+
+To bound the blast radius, set `MemoryHigh` and `MemoryMax` on the unit. Once the cgroup hits `MemoryMax`, systemd terminates only the processes inside that unit and immediately restarts it, because `Restart = "always"` is already the default:
+
+```nix
+systemd.services.app.serviceConfig = {
+    MemoryHigh = "1500M";
+    MemoryMax = "2G";
+    RestartSec = "5s";
+};
+
+systemd.services.worker.serviceConfig = {
+    MemoryHigh = "1500M";
+    MemoryMax = "2G";
+    RestartSec = "5s";
+};
+```
+
+- `MemoryMax` is a hard ceiling. Exceeding it triggers the cgroup OOM killer for that unit only; the `Restart = "always"` policy then brings the unit back up.
+- `MemoryHigh` is a soft ceiling. Exceeding it throttles the process and forces aggressive memory reclaim, which often surfaces leaks earlier and helps avoid hitting `MemoryMax` at all.
+- `RestartSec` prevents a tight restart loop if the unit crashes immediately on startup.
+
+Setting these on `services.worker` is especially valuable: job handlers that process unbounded event histories, call external APIs that return large responses, or build up large in-memory data structures are the most common source of memory growth in a long-lived Haskell process. Because the worker runs in its own systemd unit (and therefore its own cgroup), capping its memory there prevents a leaking background job from taking down the web tier.
+
+Choose values based on your instance size and what else runs on the host. Leave headroom for the kernel, for PostgreSQL if it is colocated, and for any other services. On a 2 GB instance running only `app` and `worker`, `MemoryHigh = "1500M"` / `MemoryMax = "2G"` is a reasonable starting point — tune after observing real usage with `systemd-cgtop` and `systemctl status app.service`.
 

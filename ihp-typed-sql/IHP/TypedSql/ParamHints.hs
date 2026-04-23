@@ -5,7 +5,9 @@ module IHP.TypedSql.ParamHints
     , parseSql
     , extractParamHintsFromAst
     , extractJoinNullableTablesFromAst
+    , extractNonNullableComputedColumnsFromAst
     , resolveParamHintTypes
+    , detectStarSelects
     ) where
 
 import           Data.Foldable                (foldMap, toList)
@@ -401,6 +403,223 @@ mergeHintMaps :: Map.Map Int ParamHint -> Map.Map Int ParamHint -> Map.Map Int P
 mergeHintMaps = Map.union
 
 ----------------------------------------------------------------------
+-- Non-nullable computed column detection
+----------------------------------------------------------------------
+
+-- | A map from subquery/CTE alias to its SELECT target list entries.
+-- Each entry is (column_name, expression).
+type SubqueryTargetMap = Map.Map Text [(Text, Ast.AExpr)]
+
+-- | Extract 0-based indices of SELECT columns known to be non-nullable
+-- from AST analysis. Currently detects count() and traces through
+-- subquery aliases and CTEs.
+extractNonNullableComputedColumnsFromAst :: Ast.PreparableStmt -> Set.Set Int
+extractNonNullableComputedColumnsFromAst = \case
+    Ast.SelectPreparableStmt selectStmt -> nonNullFromSelectStmt selectStmt
+    _ -> Set.empty
+
+nonNullFromSelectStmt :: Ast.SelectStmt -> Set.Set Int
+nonNullFromSelectStmt (Left (Ast.SelectNoParens maybeWith selectClause _sort _limit _lock)) =
+    let cteMap = case maybeWith of
+            Just (Ast.WithClause _recursive ctes) -> foldMap buildSubqueryTargetMapFromCte (toList ctes)
+            Nothing -> Map.empty
+    in nonNullFromSelectClause cteMap selectClause
+nonNullFromSelectStmt (Right _) = Set.empty
+
+nonNullFromSelectClause :: SubqueryTargetMap -> Ast.SelectClause -> Set.Set Int
+nonNullFromSelectClause sqMap (Left simpleSelect) = nonNullFromSimpleSelect sqMap simpleSelect
+nonNullFromSelectClause _ (Right _) = Set.empty
+
+nonNullFromSimpleSelect :: SubqueryTargetMap -> Ast.SimpleSelect -> Set.Set Int
+nonNullFromSimpleSelect sqMap = \case
+    Ast.NormalSimpleSelect maybeTargeting _into maybeFrom _where _group _having _window ->
+        let fromMap = case maybeFrom of
+                Just fromClause -> foldMap buildSubqueryTargetMapFromTableRef (toList fromClause)
+                Nothing -> Map.empty
+            fullMap = Map.union fromMap sqMap
+        in case maybeTargeting of
+            Just (Ast.NormalTargeting targets) -> analyzeTargets fullMap (toList targets)
+            Just (Ast.DistinctTargeting _ targets) -> analyzeTargets fullMap (toList targets)
+            _ -> Set.empty
+    _ -> Set.empty
+
+analyzeTargets :: SubqueryTargetMap -> [Ast.TargetEl] -> Set.Set Int
+analyzeTargets sqMap targets =
+    Set.fromList
+        [ i
+        | (i, target) <- zip [0..] targets
+        , isTargetNonNullable sqMap target
+        ]
+
+isTargetNonNullable :: SubqueryTargetMap -> Ast.TargetEl -> Bool
+isTargetNonNullable sqMap = \case
+    Ast.AliasedExprTargetEl expr _ -> isExprNonNullable sqMap expr
+    Ast.ImplicitlyAliasedExprTargetEl expr _ -> isExprNonNullable sqMap expr
+    Ast.ExprTargetEl expr -> isExprNonNullable sqMap expr
+    Ast.AsteriskTargetEl -> False
+
+-- | Determine if an expression is known to be non-nullable.
+isExprNonNullable :: SubqueryTargetMap -> Ast.AExpr -> Bool
+isExprNonNullable sqMap = \case
+    -- Function calls: count(), row_number(), rank(), dense_rank()
+    Ast.CExprAExpr (Ast.FuncCExpr (Ast.ApplicationFuncExpr (Ast.FuncApplication funcName _params) _withinGroup _filter _over)) ->
+        isNonNullableFunction funcName
+    -- Special syntax functions: EXISTS, COALESCE, CURRENT_DATE, etc.
+    Ast.CExprAExpr (Ast.FuncCExpr (Ast.SubexprFuncExpr subexpr)) ->
+        isSubexprNonNullable sqMap subexpr
+    -- EXISTS(...) — always returns Bool, never NULL
+    Ast.CExprAExpr (Ast.ExistsCExpr _) -> True
+    -- Non-NULL literal constants
+    Ast.CExprAExpr (Ast.AexprConstCExpr constant) -> not (isNullConstant constant)
+    -- Column reference: alias.col where alias is a subquery/CTE
+    Ast.CExprAExpr (Ast.ColumnrefCExpr (Ast.Columnref aliasId (Just indirection))) ->
+        case toList indirection of
+            [Ast.AttrNameIndirectionEl colIdent] ->
+                let aliasName = identToText aliasId
+                    colName = identToText colIdent
+                in case Map.lookup aliasName sqMap of
+                    Just targets -> case List.find (\(n, _) -> n == colName) targets of
+                        Just (_, subExpr) -> isExprNonNullable sqMap subExpr
+                        Nothing -> False
+                    Nothing -> False
+            _ -> False
+    -- Unqualified column reference through a CTE/subquery (when there's only one source)
+    Ast.CExprAExpr (Ast.ColumnrefCExpr (Ast.Columnref colId Nothing)) ->
+        let colName = identToText colId
+        in case Map.elems sqMap of
+            [targets] -> case List.find (\(n, _) -> n == colName) targets of
+                Just (_, subExpr) -> isExprNonNullable sqMap subExpr
+                Nothing -> False
+            _ -> False
+    -- Parenthesized expression
+    Ast.CExprAExpr (Ast.InParensCExpr inner Nothing) -> isExprNonNullable sqMap inner
+    -- Typecast preserves nullability of inner expression (e.g. 1::bigint)
+    Ast.TypecastAExpr inner _ -> isExprNonNullable sqMap inner
+    _ -> False
+
+-- | Functions that are guaranteed to return a non-null value.
+-- count() always returns 0 for empty groups.
+-- row_number(), rank(), dense_rank() are window functions that never return NULL.
+isNonNullableFunction :: Ast.FuncName -> Bool
+isNonNullableFunction funcName =
+    funcNameToText funcName `elem` ["count", "row_number", "rank", "dense_rank"]
+
+-- | Special syntax expressions that are non-nullable.
+isSubexprNonNullable :: SubqueryTargetMap -> Ast.FuncExprCommonSubexpr -> Bool
+isSubexprNonNullable sqMap = \case
+    -- COALESCE(a, b, ...) is non-null when any argument is non-null
+    Ast.CoalesceFuncExprCommonSubexpr args ->
+        any (isExprNonNullable sqMap) (toList args)
+    -- CAST(expr AS type) preserves nullability
+    Ast.CastFuncExprCommonSubexpr inner _ -> isExprNonNullable sqMap inner
+    -- CURRENT_DATE, CURRENT_TIME, etc. are always non-null
+    Ast.CurrentDateFuncExprCommonSubexpr -> True
+    Ast.CurrentTimeFuncExprCommonSubexpr _ -> True
+    Ast.CurrentTimestampFuncExprCommonSubexpr _ -> True
+    Ast.LocalTimeFuncExprCommonSubexpr _ -> True
+    Ast.LocalTimestampFuncExprCommonSubexpr _ -> True
+    Ast.CurrentRoleFuncExprCommonSubexpr -> True
+    Ast.CurrentUserFuncExprCommonSubexpr -> True
+    Ast.SessionUserFuncExprCommonSubexpr -> True
+    Ast.UserFuncExprCommonSubexpr -> True
+    Ast.CurrentCatalogFuncExprCommonSubexpr -> True
+    Ast.CurrentSchemaFuncExprCommonSubexpr -> True
+    _ -> False
+
+-- | Check if a constant is the NULL literal.
+isNullConstant :: Ast.AexprConst -> Bool
+isNullConstant Ast.NullAexprConst = True
+isNullConstant _ = False
+
+-- | Extract the function name as lowercase text.
+funcNameToText :: Ast.FuncName -> Text
+funcNameToText = \case
+    Ast.TypeFuncName ident -> identToText ident
+    Ast.IndirectedFuncName _ indirection ->
+        case toList indirection of
+            [Ast.AttrNameIndirectionEl funcIdent] -> identToText funcIdent
+            _ -> ""
+
+-- | Build SubqueryTargetMap entries from a CTE.
+buildSubqueryTargetMapFromCte :: Ast.CommonTableExpr -> SubqueryTargetMap
+buildSubqueryTargetMapFromCte (Ast.CommonTableExpr cteName _cols _mat innerStmt) =
+    case innerStmt of
+        Ast.SelectPreparableStmt selectStmt ->
+            case extractTargetsFromSelectStmt selectStmt of
+                Just targets -> Map.singleton (identToText cteName) targets
+                Nothing -> Map.empty
+        _ -> Map.empty
+
+-- | Build SubqueryTargetMap entries from FROM clause table refs.
+buildSubqueryTargetMapFromTableRef :: Ast.TableRef -> SubqueryTargetMap
+buildSubqueryTargetMapFromTableRef = \case
+    Ast.SelectTableRef _lateral subquery (Just (Ast.AliasClause _asKw aliasIdent _cols)) ->
+        case extractTargetsFromSelectWithParens subquery of
+            Just targets -> Map.singleton (identToText aliasIdent) targets
+            Nothing -> Map.empty
+    Ast.JoinTableRef joinedTable _alias ->
+        buildSubqueryTargetMapFromJoinedTable joinedTable
+    _ -> Map.empty
+
+buildSubqueryTargetMapFromJoinedTable :: Ast.JoinedTable -> SubqueryTargetMap
+buildSubqueryTargetMapFromJoinedTable = \case
+    Ast.InParensJoinedTable inner -> buildSubqueryTargetMapFromJoinedTable inner
+    Ast.MethJoinedTable _meth left right ->
+        Map.union (buildSubqueryTargetMapFromTableRef left) (buildSubqueryTargetMapFromTableRef right)
+
+-- | Extract (name, expr) pairs from a SelectWithParens.
+extractTargetsFromSelectWithParens :: Ast.SelectWithParens -> Maybe [(Text, Ast.AExpr)]
+extractTargetsFromSelectWithParens = \case
+    Ast.NoParensSelectWithParens (Ast.SelectNoParens _with selectClause _sort _limit _lock) ->
+        extractTargetsFromSelectClause selectClause
+    Ast.WithParensSelectWithParens inner ->
+        extractTargetsFromSelectWithParens inner
+
+extractTargetsFromSelectStmt :: Ast.SelectStmt -> Maybe [(Text, Ast.AExpr)]
+extractTargetsFromSelectStmt (Left (Ast.SelectNoParens _with selectClause _sort _limit _lock)) =
+    extractTargetsFromSelectClause selectClause
+extractTargetsFromSelectStmt (Right _) = Nothing
+
+extractTargetsFromSelectClause :: Ast.SelectClause -> Maybe [(Text, Ast.AExpr)]
+extractTargetsFromSelectClause (Left simpleSelect) = extractTargetsFromSimpleSelect simpleSelect
+extractTargetsFromSelectClause (Right _) = Nothing
+
+extractTargetsFromSimpleSelect :: Ast.SimpleSelect -> Maybe [(Text, Ast.AExpr)]
+extractTargetsFromSimpleSelect = \case
+    Ast.NormalSimpleSelect maybeTargeting _into _from _where _group _having _window ->
+        case maybeTargeting of
+            Just (Ast.NormalTargeting targets) -> Just (map targetToNameExpr (toList targets))
+            Just (Ast.DistinctTargeting _ targets) -> Just (map targetToNameExpr (toList targets))
+            _ -> Nothing
+    _ -> Nothing
+
+-- | Extract (implicit_name, expression) from a TargetEl.
+targetToNameExpr :: Ast.TargetEl -> (Text, Ast.AExpr)
+targetToNameExpr = \case
+    Ast.AliasedExprTargetEl expr alias -> (identToText alias, expr)
+    Ast.ImplicitlyAliasedExprTargetEl expr alias -> (identToText alias, expr)
+    Ast.ExprTargetEl expr -> (implicitName expr, expr)
+    Ast.AsteriskTargetEl -> ("*", Ast.CExprAExpr (Ast.ColumnrefCExpr (Ast.Columnref (Ast.UnquotedIdent "*") Nothing)))
+
+-- | Derive the implicit column name for an expression (used when no AS alias).
+-- PostgreSQL uses the function name for function calls and the column name for column refs.
+implicitName :: Ast.AExpr -> Text
+implicitName = \case
+    Ast.CExprAExpr (Ast.FuncCExpr (Ast.ApplicationFuncExpr (Ast.FuncApplication funcName _) _ _ _)) ->
+        case funcName of
+            Ast.TypeFuncName ident -> identToText ident
+            Ast.IndirectedFuncName _ indirection ->
+                case toList indirection of
+                    [Ast.AttrNameIndirectionEl ident] -> identToText ident
+                    _ -> ""
+    Ast.CExprAExpr (Ast.ColumnrefCExpr (Ast.Columnref colId Nothing)) -> identToText colId
+    Ast.CExprAExpr (Ast.ColumnrefCExpr (Ast.Columnref _ (Just indirection))) ->
+        case toList indirection of
+            [Ast.AttrNameIndirectionEl ident] -> identToText ident
+            _ -> ""
+    _ -> ""
+
+----------------------------------------------------------------------
 -- Type resolution (unchanged from before)
 ----------------------------------------------------------------------
 
@@ -422,7 +641,7 @@ resolveParamHintTypes tables typeInfo hints = do
                 case findColumn tmColumns phColumn of
                     Nothing -> pure Nothing
                     Just (attnum, ColumnMeta { cmTypeOid }) -> do
-                        baseType <- hsTypeForColumn typeInfo tables Set.empty DescribeColumn
+                        baseType <- hsTypeForColumn typeInfo tables Set.empty False DescribeColumn
                             { dcName = CS.cs phColumn
                             , dcType = cmTypeOid
                             , dcTable = tableOid
@@ -443,3 +662,60 @@ stripMaybeType :: TH.Type -> TH.Type
 stripMaybeType (TH.AppT (TH.ConT maybeName) inner)
     | maybeName == ''Maybe = inner
 stripMaybeType other = other
+
+----------------------------------------------------------------------
+-- Star select detection
+----------------------------------------------------------------------
+
+-- | Detect SELECT * and SELECT table.* in the target list of a query.
+-- Returns a list of descriptive strings (e.g. ["*", "items.*"]) for use in error messages.
+-- Does NOT flag COUNT(*) (function argument) or (expr).* (composite expansion).
+detectStarSelects :: Ast.PreparableStmt -> [String]
+detectStarSelects = \case
+    Ast.SelectPreparableStmt selectStmt -> starFromSelectStmt selectStmt
+    _ -> []
+
+starFromSelectStmt :: Ast.SelectStmt -> [String]
+starFromSelectStmt (Left (Ast.SelectNoParens _with selectClause _sort _limit _lock)) =
+    starFromSelectClause selectClause
+starFromSelectStmt (Right parens) = starFromSelectWithParens parens
+
+starFromSelectWithParens :: Ast.SelectWithParens -> [String]
+starFromSelectWithParens (Ast.NoParensSelectWithParens (Ast.SelectNoParens _with selectClause _sort _limit _lock)) =
+    starFromSelectClause selectClause
+starFromSelectWithParens (Ast.WithParensSelectWithParens inner) =
+    starFromSelectWithParens inner
+
+starFromSelectClause :: Ast.SelectClause -> [String]
+starFromSelectClause (Left simpleSelect) = starFromSimpleSelect simpleSelect
+starFromSelectClause (Right parens) = starFromSelectWithParens parens
+
+starFromSimpleSelect :: Ast.SimpleSelect -> [String]
+starFromSimpleSelect = \case
+    Ast.NormalSimpleSelect maybeTargeting _into _from _where _group _having _window ->
+        case maybeTargeting of
+            Just (Ast.NormalTargeting targets) -> concatMap starFromTargetEl (toList targets)
+            Just (Ast.DistinctTargeting _ targets) -> concatMap starFromTargetEl (toList targets)
+            _ -> []
+    Ast.BinSimpleSelect _op left _distinct right ->
+        starFromSelectClause left <> starFromSelectClause right
+    _ -> []
+
+starFromTargetEl :: Ast.TargetEl -> [String]
+starFromTargetEl = \case
+    Ast.AsteriskTargetEl -> ["*"]
+    Ast.ExprTargetEl expr -> starFromExpr expr
+    Ast.ImplicitlyAliasedExprTargetEl expr _ -> starFromExpr expr
+    Ast.AliasedExprTargetEl expr _ -> starFromExpr expr
+
+-- | Detect table.* pattern: a simple column reference (identifier) followed by AllIndirectionEl.
+-- Does NOT flag (expr).* like (ROW(...))::type.* which is composite expansion.
+starFromExpr :: Ast.AExpr -> [String]
+starFromExpr = \case
+    Ast.CExprAExpr (Ast.ColumnrefCExpr (Ast.Columnref ident (Just indirection)))
+        | any isAllIndirection (toList indirection) ->
+            [Text.unpack (identToText ident) <> ".*"]
+    _ -> []
+  where
+    isAllIndirection Ast.AllIndirectionEl = True
+    isAllIndirection _ = False

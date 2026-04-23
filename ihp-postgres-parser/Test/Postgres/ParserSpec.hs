@@ -113,6 +113,7 @@ spec = do
                     , columns = [indexCol (VarExpression "user_name")]
                     , whereClause = Nothing
                     , indexType = Nothing
+                    , nullsDistinct = True
                     }
 
         it "should parse a CREATE UNIQUE INDEX statement" do
@@ -123,6 +124,33 @@ spec = do
                     , columns = [indexCol (VarExpression "user_name")]
                     , whereClause = Nothing
                     , indexType = Nothing
+                    , nullsDistinct = True
+                    }
+
+        it "should parse a CREATE UNIQUE INDEX with NULLS NOT DISTINCT" do
+            parseSql "CREATE UNIQUE INDEX travel_days_trip_date_contact_unique ON public.travel_days USING btree (trip_id, day_date, meal_contact_id) NULLS NOT DISTINCT;\n" `shouldBe` CreateIndex
+                    { indexName = "travel_days_trip_date_contact_unique"
+                    , unique = True
+                    , tableName = "travel_days"
+                    , columns =
+                        [ indexCol (VarExpression "trip_id")
+                        , indexCol (VarExpression "day_date")
+                        , indexCol (VarExpression "meal_contact_id")
+                        ]
+                    , whereClause = Nothing
+                    , indexType = Just Btree
+                    , nullsDistinct = False
+                    }
+
+        it "should parse a CREATE UNIQUE INDEX with explicit NULLS DISTINCT" do
+            parseSql "CREATE UNIQUE INDEX users_index ON users (user_name) NULLS DISTINCT;\n" `shouldBe` CreateIndex
+                    { indexName = "users_index"
+                    , unique = True
+                    , tableName = "users"
+                    , columns = [indexCol (VarExpression "user_name")]
+                    , whereClause = Nothing
+                    , indexType = Nothing
+                    , nullsDistinct = True
                     }
 
         it "should parse 'ENABLE ROW LEVEL SECURITY' statements" do

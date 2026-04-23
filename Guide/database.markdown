@@ -268,6 +268,19 @@ do
     -- SELECT COUNT(*) FROM users WHERE is_active = 1
 ```
 
+### Fetching records as a Vector
+
+Use [`fetchVector`](https://ihp.digitallyinduced.com/api-docs/IHP-Fetch.html#v:fetchVector) instead of [`fetch`](https://ihp.digitallyinduced.com/api-docs/IHP-Fetch.html#v:fetch) to get results as a `Vector` instead of a list. This avoids the overhead of building a linked list, which can be beneficial for large result sets:
+
+```haskell
+do
+    users <- query @User |> fetchVector
+
+    -- SELECT * FROM users
+```
+
+The returned `Vector` works with `forEach` in HSX views just like a list does.
+
 ### Fetching distinct records
 
 Use [`distinct`](https://ihp.digitallyinduced.com/api-docs/IHP-QueryBuilder.html#v:distinct) to fetch distinct records:

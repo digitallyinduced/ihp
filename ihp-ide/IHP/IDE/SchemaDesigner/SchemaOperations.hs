@@ -233,6 +233,7 @@ newColumnIndex tableName columnName =
     , columns = [IndexColumn { column = VarExpression columnName, columnOrder = [] }]
     , whereClause = Nothing
     , indexType = Nothing
+    , nullsDistinct = True
     }
 
 data AddIndexOptions = AddIndexOptions
@@ -256,7 +257,7 @@ addForeignKeyConstraint :: Text -> Text -> Text -> Text -> OnDelete -> [Statemen
 addForeignKeyConstraint tableName columnName constraintName referenceTable onDelete list = list <> [AddConstraint { tableName = tableName, constraint = ForeignKeyConstraint { name = Just constraintName, columnName = columnName, referenceTable = referenceTable, referenceColumn = "id", onDelete = (Just onDelete) }, deferrable = Nothing, deferrableType = Nothing }]
 
 addTableIndex :: Text -> Bool -> Text -> [Text] -> [Statement] -> [Statement]
-addTableIndex indexName unique tableName columnNames list = list <> [CreateIndex { indexName, unique, tableName, columns = columnNames |> map (\columnName -> IndexColumn { column = VarExpression columnName, columnOrder = [] }), whereClause = Nothing, indexType = Nothing }]
+addTableIndex indexName unique tableName columnNames list = list <> [CreateIndex { indexName, unique, tableName, columns = columnNames |> map (\columnName -> IndexColumn { column = VarExpression columnName, columnOrder = [] }), whereClause = Nothing, indexType = Nothing, nullsDistinct = True }]
 
 -- | An enum is added after all existing enum statements, but right before @CREATE TABLE@ statements
 addEnum :: Text -> Schema -> Schema
@@ -585,6 +586,7 @@ deleteColumn DeleteColumnOptions { .. } schema =
                 isRef (IsExpression a b) = isRef a || isRef b
                 isRef (InExpression a b) = isRef a || isRef b
                 isRef (InArrayExpression exprs) = foldl' (||) False (map isRef exprs)
+                isRef (ArrayLiteralExpression exprs) = foldl' (||) False (map isRef exprs)
                 isRef (NotExpression a) = isRef a
                 isRef (ExistsExpression a) = isRef a
                 isRef (OrExpression a b) = isRef a || isRef b
@@ -645,6 +647,7 @@ isIndexStatementReferencingTableColumn statement tableName columnName = isRefere
             IsExpression a b -> expressionReferencesColumn a || expressionReferencesColumn b
             InExpression a b -> expressionReferencesColumn a || expressionReferencesColumn b
             InArrayExpression exprs -> exprs |> map expressionReferencesColumn |> List.or
+            ArrayLiteralExpression exprs -> exprs |> map expressionReferencesColumn |> List.or
             NotExpression a -> expressionReferencesColumn a
             ExistsExpression a -> expressionReferencesColumn a
             OrExpression a b -> expressionReferencesColumn a || expressionReferencesColumn b

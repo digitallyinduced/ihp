@@ -118,7 +118,7 @@ import Web.Controller.Posts ()
 import Web.FrontController ()
 import Network.Wai
 import IHP.ControllerPrelude
-import IHP.Hspec (withIHPApp)
+import IHP.Hspec (withIHPApp, responseStatusShouldBe, responseBodyShouldContain, responseBodyShouldNotContain)
 
 tests :: Spec
 tests = aroundAll (withIHPApp WebApplication config) do
@@ -163,6 +163,8 @@ tests = aroundAll (withIHPApp WebApplication config) do
                 body <- responseBody response
                 putStrLn (cs body)
 ```
+
+> **Note:** The `responseStatusShouldBe` / `responseBodyShouldContain` / `responseBodyShouldNotContain` assertion helpers are exported from `IHP.Hspec`. They used to live in `IHP.Test.Mocking` but were moved so that the core `ihp` library no longer depends on `hspec`. Existing test files that imported them from `IHP.Test.Mocking` need to switch the import to `IHP.Hspec`.
 
 ### Running Integration Tests
 

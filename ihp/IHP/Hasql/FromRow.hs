@@ -20,10 +20,11 @@ module IHP.Hasql.FromRow
 
 import Prelude
 import qualified Hasql.Decoders as Decoders
+import qualified Hasql.Encoders as Encoders
 import qualified Hasql.Mapping.IsScalar as Mapping
 import qualified Database.PostgreSQL.Simple.Types as PG
 import Data.Functor.Contravariant (contramap)
-import IHP.ModelSupport.Types (LabeledData(..), Id'(..), PrimaryKey)
+import IHP.ModelSupport.Types (Id'(..), PrimaryKey)
 
 -- | Typeclass for types that can be decoded from a hasql result row
 --
@@ -52,6 +53,16 @@ instance {-# OVERLAPPING #-} HasqlDecodeColumn Int where
 
 instance {-# OVERLAPPING #-} HasqlDecodeColumn (Maybe Int) where
     hasqlColumnDecoder = Decoders.column (Decoders.nullable (fromIntegral <$> Decoders.int4))
+
+-- | IHP's schema maps SQL @BIGINT@/@BIGSERIAL@ to Haskell 'Integer' (see @atomicType@
+-- in @SchemaCompiler@). @hasql-mapping@ ships no 'IsScalar Integer' instance, so
+-- @BIGSERIAL@ primary keys (and foreign keys referencing them) fail to typecheck
+-- in generated 'RowDecoder' modules with @No instance for Mapping.IsScalar Integer@.
+-- Provide one backed by the @int8@ codec, mirroring the 'DefaultParamEncoder Integer'
+-- instance in "IHP.Hasql.Encoders".
+instance Mapping.IsScalar Integer where
+    encoder = contramap fromInteger Encoders.int8
+    decoder = fromIntegral <$> Decoders.int8
 
 -- | 'IsScalar' instance for 'Id'' so that Id columns can use 'Mapping.encoder' and 'Mapping.decoder'
 -- directly in generated code, without manual wrapping/unwrapping.
@@ -84,5 +95,4 @@ instance (HasqlDecodeColumn a, HasqlDecodeColumn b, HasqlDecodeColumn c, HasqlDe
 instance (HasqlDecodeColumn a, HasqlDecodeColumn b, HasqlDecodeColumn c, HasqlDecodeColumn d, HasqlDecodeColumn e) => FromRowHasql (a, b, c, d, e) where
     hasqlRowDecoder = (,,,,) <$> hasqlColumnDecoder <*> hasqlColumnDecoder <*> hasqlColumnDecoder <*> hasqlColumnDecoder <*> hasqlColumnDecoder
 
-instance (HasqlDecodeColumn label, FromRowHasql a) => FromRowHasql (LabeledData label a) where
-    hasqlRowDecoder = LabeledData <$> hasqlColumnDecoder <*> hasqlRowDecoder
+

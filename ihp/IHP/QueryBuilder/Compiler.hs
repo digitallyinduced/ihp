@@ -57,24 +57,22 @@ query :: forall model table. (table ~ GetTableName model, Table model) => Defaul
 query = let tn = tableName @model
             cols = columnNames @model
         in (defaultScope @table) QueryBuilder { unQueryBuilder = SQLQuery
-    { queryIndex = Nothing
-    , selectFrom = tn
+    { selectFrom = tn
     , columns = cols
     , columnsSql = qualifyAndJoinColumns tn cols
     , distinctClause = False
     , distinctOnClause = Nothing
     , whereCondition = Nothing
-    , joins = []
     , orderByClause = []
     , limitClause = Nothing
     , offsetClause = Nothing
     } }
 {-# INLINE query #-}
 
--- | Extract the SQLQuery from a QueryBuilder provider, setting the queryIndex.
+-- | Extract the SQLQuery from a QueryBuilder.
 {-# INLINE buildQuery #-}
-buildQuery :: forall table queryBuilderProvider joinRegister. (KnownSymbol table, HasQueryBuilder queryBuilderProvider joinRegister) => queryBuilderProvider table -> SQLQuery
-buildQuery queryBuilderProvider = (unQueryBuilder (getQueryBuilder queryBuilderProvider)) { queryIndex = getQueryIndex queryBuilderProvider }
+buildQuery :: forall table. KnownSymbol table => QueryBuilder table -> SQLQuery
+buildQuery (QueryBuilder sq) = sq
 
 -- | Build a qualified column name like @tablename.column_name@ from a table name
 -- and a camelCase field name. The field name is converted to snake_case via

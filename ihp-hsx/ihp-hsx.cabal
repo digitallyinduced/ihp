@@ -154,6 +154,7 @@ test-suite ihp-hsx-tests
     other-modules:
         IHP.HSX.ParserSpec
         IHP.HSX.QQSpec
+        IHP.HSX.MarkupSpec
         IHP.HSX.CustomHsxCases
     default-language:    GHC2021
     build-depends:

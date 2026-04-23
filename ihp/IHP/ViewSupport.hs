@@ -46,7 +46,7 @@ import qualified Data.ByteString as ByteString
 import IHP.Router.UrlGenerator (HasPath(..))
 import Network.Wai
 import IHP.HSX.MarkupQQ (hsx)
-import IHP.HSX.Markup (ApplyAttribute(..))
+import IHP.HSX.Markup (ApplyAttribute(..), AttributeValue(..))
 import qualified Data.Sequences as Sequences
 import qualified IHP.View.CSSFramework as CSSFramework ()
 import IHP.View.Types
@@ -223,6 +223,9 @@ liveReloadWebsocketUrl = ?request.frameworkConfig.ideBaseUrl
 
 instance InputValue (PrimaryKey table) => ApplyAttribute (Id' table) where
     applyAttribute attr attr' value = applyAttribute attr attr' (inputValue value)
+
+instance {-# OVERLAPPABLE #-} HasPath action => AttributeValue action where
+    attributeValue = attributeValue . pathTo
 
 
 -- | Adds a cache buster to a asset path

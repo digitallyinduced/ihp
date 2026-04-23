@@ -85,6 +85,12 @@ tests = do
                 fieldNameToColumnName "projectId" `shouldBe` "project_id"
                 fieldNameToColumnName "userProjectName" `shouldBe` "user_project_name"
 
+            it "should handle keyword-escaped field names with trailing underscores" do
+                fieldNameToColumnName "role_" `shouldBe` "role"
+                fieldNameToColumnName "type_" `shouldBe` "type"
+                fieldNameToColumnName "do_" `shouldBe` "do"
+                fieldNameToColumnName "data_" `shouldBe` "data"
+
         describe "lcfirst" do
             it "should deal with empty input" do
                 lcfirst "" `shouldBe` ""
@@ -113,3 +119,14 @@ tests = do
 
             it "should ignore non-haskell keywords" do
                 escapeHaskellKeyword "hello" `shouldBe` "hello"
+
+        describe "unescapeHaskellKeyword" do
+            it "should unescape keyword-escaped names" do
+                unescapeHaskellKeyword "type_" `shouldBe` "type"
+                unescapeHaskellKeyword "role_" `shouldBe` "role"
+                unescapeHaskellKeyword "do_" `shouldBe` "do"
+
+            it "should not modify non-keyword names" do
+                unescapeHaskellKeyword "hello" `shouldBe` "hello"
+                unescapeHaskellKeyword "email_" `shouldBe` "email_"
+                unescapeHaskellKeyword "" `shouldBe` ""

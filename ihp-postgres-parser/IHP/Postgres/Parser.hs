@@ -477,7 +477,7 @@ intervalFields =  [ "YEAR TO MONTH", "DAY TO HOUR", "DAY TO MINUTE", "DAY TO SEC
                    , "YEAR",  "MONTH", "DAY", "HOUR", "MINUTE", "SECOND"]
 
 
-term = parens expression <|> try callExpr <|> try doubleExpr <|> try intExpr <|> selectExpr <|> varExpr <|> (textExpr <* optional space)
+term = parens expression <|> try arrayExpr <|> try callExpr <|> try doubleExpr <|> try intExpr <|> selectExpr <|> varExpr <|> (textExpr <* optional space)
     where
         parens f = between (char '(' >> space) (char ')' >> space) f
 
@@ -547,6 +547,18 @@ callExpr = do
     space
     pure (CallExpression func args)
 
+-- | Parses a PostgreSQL array literal like @ARRAY['a', 'b', 'c']@.
+--
+-- pg_dump normalizes @x IN ('a', 'b', 'c')@ CHECK constraints to
+-- @x = ANY (ARRAY['a'::text, 'b'::text, 'c'::text])@, so the parser must
+-- understand array literals to round-trip the dump output.
+arrayExpr :: Parser Expression
+arrayExpr = do
+    symbol' "ARRAY"
+    values <- between (char '[' >> space) (char ']') (expression `sepBy` (char ',' >> space))
+    space
+    pure (ArrayLiteralExpression values)
+
 textExpr :: Parser Expression
 textExpr = TextExpression <$> textExpr'
 
@@ -608,11 +620,15 @@ createIndex = do
     tableName <- qualifiedIdentifier
     indexType <- optional parseIndexType
     columns <- between (char '(' >> space) (char ')' >> space) parseIndexColumns
+    nullsDistinct <- option True $ lexeme "NULLS" *> (
+            (lexeme "NOT" *> lexeme "DISTINCT" $> False)
+        <|> (lexeme "DISTINCT" $> True)
+        )
     whereClause <- optional do
         lexeme "WHERE"
         expression
     char ';'
-    pure CreateIndex { indexName, unique, tableName, columns, whereClause, indexType }
+    pure CreateIndex { indexName, unique, tableName, columns, whereClause, indexType, nullsDistinct }
 
 parseIndexColumns = parseIndexColumn `sepBy` (char ',' >> space)
 

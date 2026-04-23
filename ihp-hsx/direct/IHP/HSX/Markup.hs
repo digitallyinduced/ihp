@@ -19,7 +19,9 @@ module IHP.HSX.Markup
 , textComment
 , ToHtml (..)
 , ApplyAttribute (..)
+, AttributeValue (..)
 , spreadAttributes
+, isEmpty
 -- * Blaze compatibility
 , preEscapedToHtml
 , preEscapedTextValue
@@ -38,7 +40,7 @@ import Data.ByteString.Builder (Builder)
 import qualified Data.ByteString.Builder as Builder
 import qualified Data.ByteString.Builder.Extra as Extra
 import qualified Data.ByteString.Builder.Prim as BP
-import Data.String.Conversions (ConvertibleStrings, cs)
+import Data.String.Conversions (ConvertibleStrings (convertString), cs)
 import Data.String (IsString(..))
 import Data.Word (Word8)
 import Unsafe.Coerce (unsafeCoerce)
@@ -224,14 +226,54 @@ instance ApplyAttribute a => ApplyAttribute (Maybe a) where
     applyAttribute name prefix (Just value) = applyAttribute name prefix value
     applyAttribute _name _prefix Nothing = mempty
 
-instance {-# OVERLAPPABLE #-} Show a => ApplyAttribute a where
+-- | Converts a value to a 'Builder' for use as an HTML attribute value.
+-- Returns an HTML-escaped ByteString Builder so the result can be spliced
+-- directly into the markup without an intermediate Text allocation.
+class AttributeValue a where
+    attributeValue :: a -> Builder
+
+instance AttributeValue Text where
+    {-# INLINE attributeValue #-}
+    attributeValue = TE.encodeUtf8BuilderEscaped htmlEscapedW8
+
+instance AttributeValue String where
+    {-# INLINE attributeValue #-}
+    attributeValue = TE.encodeUtf8BuilderEscaped htmlEscapedW8 . Text.pack
+
+instance AttributeValue Int where
+    {-# INLINE attributeValue #-}
+    attributeValue = Builder.intDec
+
+instance AttributeValue Integer where
+    {-# INLINE attributeValue #-}
+    attributeValue = Builder.integerDec
+
+instance AttributeValue Double where
+    {-# INLINE attributeValue #-}
+    attributeValue = Builder.doubleDec
+
+instance AttributeValue Float where
+    {-# INLINE attributeValue #-}
+    attributeValue = Builder.floatDec
+
+instance {-# OVERLAPPABLE #-} AttributeValue a => ApplyAttribute a where
     {-# INLINE applyAttribute #-}
-    applyAttribute name prefix value = applyAttribute name prefix (show value)
+    applyAttribute _name prefix value =
+        Markup (TE.encodeUtf8Builder prefix <> attributeValue value <> Builder.char8 '"')
 
 -- | Apply spread attributes.
 spreadAttributes :: ApplyAttribute value => [(Text, value)] -> Markup
 spreadAttributes = foldMap (\(name, value) -> applyAttribute name (" " <> name <> "=\"") value)
 {-# INLINE spreadAttributes #-}
+
+-- | Check whether a markup value is empty (produces no output).
+--
+-- Since 'Builder' is opaque, this renders the markup and checks
+-- whether the result is a zero-length 'ByteString'.  For empty markup
+-- the builder produces nothing, so this is effectively free.
+isEmpty :: MarkupM a -> Bool
+isEmpty (Markup b) = LBS.null (Builder.toLazyByteString b)
+{-# INLINE isEmpty #-}
 
 -- | Blaze compatibility: emit pre-escaped HTML (no escaping applied).
 -- Use for trusted HTML content only. Accepts Text, String, ByteString, etc.
@@ -249,3 +291,13 @@ preEscapedTextValue = Markup . TE.encodeUtf8Builder
 stringValue :: String -> Markup
 stringValue = escapeHtml . Text.pack
 {-# INLINE stringValue #-}
+
+-- | Convert 'Text' into HTML-escaped 'Markup' via @cs@.
+instance ConvertibleStrings Text Markup where
+    {-# INLINE convertString #-}
+    convertString = escapeHtml
+
+-- | Convert 'String' into HTML-escaped 'Markup' via @cs@.
+instance ConvertibleStrings String Markup where
+    {-# INLINE convertString #-}
+    convertString = escapeHtml . Text.pack

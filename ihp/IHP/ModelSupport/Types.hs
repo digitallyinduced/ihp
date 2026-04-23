@@ -35,8 +35,6 @@ module IHP.ModelSupport.Types
   -- * Field Wrappers
 , FieldWithDefault (..)
 , FieldWithUpdate (..)
-  -- * Utility Types
-, LabeledData (..)
   -- * Exceptions
 , RecordNotFoundException (..)
 , EnhancedSqlError (..)
@@ -193,10 +191,6 @@ data FieldWithUpdate name value
   = NoUpdate (Proxy name)
   | Update value
   deriving (Eq, Show)
-
--- | Record type for objects of model types labeled with values from different database tables. (e.g. comments labeled with the IDs of the posts they belong to).
-data LabeledData a b = LabeledData { labelValue :: a, contentValue :: b }
-    deriving (Show)
 
 -- | Thrown by 'fetchOne' when the query result is empty
 data RecordNotFoundException

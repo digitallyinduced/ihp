@@ -9,7 +9,8 @@ import Prelude
 import IHP.SchemaMigration
 import qualified System.Directory as Directory
 import System.FilePath ((</>))
-import System.IO.Temp
+import System.IO.Temp.OsPath (withSystemTempDirectory)
+import System.OsPath (encodeUtf, decodeUtf)
 
 main :: IO ()
 main = hspec do
@@ -29,8 +30,10 @@ tests = do
 
 
 withTempApp :: IO a -> IO a
-withTempApp action =
-    withSystemTempDirectory "ihp-migrate-test" \tmp -> do
+withTempApp action = do
+    template <- encodeUtf "ihp-migrate-test"
+    withSystemTempDirectory template \tmpOsPath -> do
+        tmp <- decodeUtf tmpOsPath
         let appRoot      = tmp
         let migrationDir = appRoot </> "Application" </> "Migration"
 

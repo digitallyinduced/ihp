@@ -76,6 +76,28 @@ spec = do
                     }
             compileSql [statement] `shouldBe` "ALTER TABLE posts ADD CONSTRAINT check_title_length CHECK (title <> '');\n"
 
+        -- See https://github.com/digitallyinduced/ihp/issues/2613: CHECK with ANY(ARRAY[...])
+        -- is what pg_dump emits for IN constraints, so the compiler must round-trip it.
+        it "should compile ALTER TABLE .. ADD CONSTRAINT .. CHECK with ANY(ARRAY[...])" do
+            let statement = AddConstraint
+                    { tableName = "foo"
+                    , constraint = CheckConstraint
+                        { name = Just "foo_kind_valid"
+                        , checkExpression =
+                            EqExpression
+                                (VarExpression "kind")
+                                (CallExpression "ANY"
+                                    [ ArrayLiteralExpression
+                                        [ TypeCastExpression (TextExpression "a") PText
+                                        , TypeCastExpression (TextExpression "b") PText
+                                        ]
+                                    ])
+                        }
+                    , deferrable = Nothing
+                    , deferrableType = Nothing
+                    }
+            compileSql [statement] `shouldBe` "ALTER TABLE foo ADD CONSTRAINT foo_kind_valid CHECK (kind = ANY(ARRAY['a'::TEXT, 'b'::TEXT]));\n"
+
         it "should compile a CREATE TYPE .. AS ENUM" do
             let sql = "CREATE TYPE colors AS ENUM ('yellow', 'red', 'blue');\n"
             let statement = CreateEnumType
@@ -101,6 +123,7 @@ spec = do
                     , columns = [indexCol (VarExpression "user_name")]
                     , whereClause = Nothing
                     , indexType = Nothing
+                    , nullsDistinct = True
                     }
             compileSql [statement] `shouldBe` sql
 
@@ -113,6 +136,20 @@ spec = do
                     , columns = [indexCol (VarExpression "user_name")]
                     , whereClause = Nothing
                     , indexType = Nothing
+                    , nullsDistinct = True
+                    }
+            compileSql [statement] `shouldBe` sql
+
+        it "should compile a CREATE UNIQUE INDEX with NULLS NOT DISTINCT" do
+            let sql = "CREATE UNIQUE INDEX users_index ON users (user_name) NULLS NOT DISTINCT;\n"
+            let statement = CreateIndex
+                    { indexName = "users_index"
+                    , unique = True
+                    , tableName = "users"
+                    , columns = [indexCol (VarExpression "user_name")]
+                    , whereClause = Nothing
+                    , indexType = Nothing
+                    , nullsDistinct = False
                     }
             compileSql [statement] `shouldBe` sql
 

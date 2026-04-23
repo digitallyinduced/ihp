@@ -41,6 +41,7 @@ library
         , bytestring
         , wai-extra
         , process
-        , temporary
+        , temporary-ospath
+        , filepath >= 1.5
     hs-source-dirs: .
     exposed-modules: IHP.FileStorage.Preprocessor.ImageMagick

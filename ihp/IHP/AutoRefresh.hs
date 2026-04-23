@@ -28,7 +28,6 @@ import qualified IHP.Log as Log
 import qualified Data.Vault.Lazy as Vault
 import System.IO.Unsafe (unsafePerformIO)
 import Network.Wai
-import qualified Data.TMap as TypeMap
 import IHP.RequestVault (pgListenerVaultKey)
 import IHP.FrameworkConfig.Types (FrameworkConfig(..))
 import IHP.Environment (Environment(..))
@@ -55,7 +54,7 @@ autoRefresh :: (
     , ?context :: ControllerContext
     , ?request :: Request
     , ?respond :: Respond
-    ) => ((?modelContext :: ModelContext, ?respond :: Respond) => IO ResponseReceived) -> IO ResponseReceived
+    ) => ((?modelContext :: ModelContext, ?respond :: Respond, ?request :: Request) => IO ResponseReceived) -> IO ResponseReceived
 autoRefresh runAction = do
     -- When PGListener is not available, degrade gracefully to a
     -- plain action without auto-refresh.
@@ -78,9 +77,6 @@ autoRefresh runAction = do
                     -- Update the vault with AutoRefreshEnabled so that autoRefreshMeta can read it
                     let newRequest = ?request { vault = Vault.insert autoRefreshStateVaultKey (AutoRefreshEnabled id) ?request.vault }
                     let ?request = newRequest
-                    -- Update request in controller context so freeze captures the updated state
-                    let ControllerContext { customFieldsRef } = ?context
-                    modifyIORef' customFieldsRef (TypeMap.insert @Network.Wai.Request newRequest)
 
                     -- We save the current state of the controller context here. This includes e.g. all current
                     -- flash messages, the current user, ...
@@ -96,7 +92,6 @@ autoRefresh runAction = do
                                 let ?context = controllerContext
                                 let ?request = originalRequest
                                 let ?respond = respond
-                                putContext originalRequest
                                 action ?theAction
                                 ) waiRequest waiRespond
 

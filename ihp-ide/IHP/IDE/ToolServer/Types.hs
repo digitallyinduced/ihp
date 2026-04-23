@@ -184,6 +184,10 @@ hoogleUrlVaultKey :: Vault.Key HoogleUrl
 hoogleUrlVaultKey = unsafePerformIO Vault.newKey
 {-# NOINLINE hoogleUrlVaultKey #-}
 
+toolServerApplicationVaultKey :: Vault.Key ToolServerApplication
+toolServerApplicationVaultKey = unsafePerformIO Vault.newKey
+{-# NOINLINE toolServerApplicationVaultKey #-}
+
 data SqlConsoleResult
     = SelectQueryResult ![[DynamicField]]
     | InsertOrUpdateResult !Int64

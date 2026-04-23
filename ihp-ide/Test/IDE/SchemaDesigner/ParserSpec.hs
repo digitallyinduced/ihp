@@ -224,6 +224,49 @@ tests = do
                     , deferrableType = Nothing
                     }
 
+        -- Regression for https://github.com/digitallyinduced/ihp/issues/2613:
+        -- pg_dump normalizes `kind IN ('a', 'b', 'c')` to `kind = ANY (ARRAY['a'::text, ...])`,
+        -- so the parser must accept the normalized form or it breaks on every schema reload.
+        it "should parse ALTER TABLE .. ADD CONSTRAINT .. CHECK with ANY(ARRAY[...]) as emitted by pg_dump" do
+            parseSql "ALTER TABLE foo ADD CONSTRAINT foo_kind_valid CHECK ((kind = ANY (ARRAY['a'::text, 'b'::text, 'c'::text])));" `shouldBe` AddConstraint
+                    { tableName = "foo"
+                    , constraint = CheckConstraint
+                        { name = "foo_kind_valid"
+                        , checkExpression =
+                            EqExpression
+                                (VarExpression "kind")
+                                (CallExpression "ANY"
+                                    [ ArrayLiteralExpression
+                                        [ TypeCastExpression (TextExpression "a") PText
+                                        , TypeCastExpression (TextExpression "b") PText
+                                        , TypeCastExpression (TextExpression "c") PText
+                                        ]
+                                    ])
+                        }
+                    , deferrable = Nothing
+                    , deferrableType = Nothing
+                    }
+
+        it "should parse ALTER TABLE .. ADD CONSTRAINT .. CHECK with ANY(ARRAY[...]) of integers" do
+            parseSql "ALTER TABLE foo ADD CONSTRAINT foo_n_valid CHECK ((n = ANY (ARRAY[1, 2, 3])));" `shouldBe` AddConstraint
+                    { tableName = "foo"
+                    , constraint = CheckConstraint
+                        { name = "foo_n_valid"
+                        , checkExpression =
+                            EqExpression
+                                (VarExpression "n")
+                                (CallExpression "ANY"
+                                    [ ArrayLiteralExpression
+                                        [ IntExpression 1
+                                        , IntExpression 2
+                                        , IntExpression 3
+                                        ]
+                                    ])
+                        }
+                    , deferrable = Nothing
+                    , deferrableType = Nothing
+                    }
+
 
 
         it "should parse ALTER TABLE .. ADD CONSTRAINT .. CHECK .. with a <=" do
@@ -561,6 +604,7 @@ tests = do
                     , columns = [indexCol (VarExpression "user_name")]
                     , whereClause = Nothing
                     , indexType = Nothing
+                    , nullsDistinct = True
                     }
 
         it "should parse a 'CREATE INDEX .. ON .. USING GIN' statement" do
@@ -571,6 +615,7 @@ tests = do
                     , columns = [indexCol (VarExpression "user_name")]
                     , whereClause = Nothing
                     , indexType = Just Gin
+                    , nullsDistinct = True
                     }
 
         it "should parse a 'CREATE INDEX .. ON .. USING btree' statement" do
@@ -581,6 +626,7 @@ tests = do
                     , columns = [indexCol (VarExpression "user_name")]
                     , whereClause = Nothing
                     , indexType = Just Btree
+                    , nullsDistinct = True
                     }
 
         it "should parse a 'CREATE INDEX .. ON .. USING GIST' statement" do
@@ -591,6 +637,7 @@ tests = do
                     , columns = [indexCol (VarExpression "user_name")]
                     , whereClause = Nothing
                     , indexType = Just Gist
+                    , nullsDistinct = True
                     }
 
         it "should parse a CREATE INDEX statement with multiple columns" do
@@ -604,6 +651,7 @@ tests = do
                         ]
                     , whereClause = Nothing
                     , indexType = Nothing
+                    , nullsDistinct = True
                     }
         it "should parse a CREATE INDEX statement with a LOWER call" do
             parseSql "CREATE INDEX users_email_index ON users (LOWER(email));\n" `shouldBe` CreateIndex
@@ -613,6 +661,7 @@ tests = do
                     , columns = [indexCol (CallExpression "LOWER" [VarExpression "email"])]
                     , whereClause = Nothing
                     , indexType = Nothing
+                    , nullsDistinct = True
                     }
         it "should parse a CREATE UNIQUE INDEX statement" do
             parseSql "CREATE UNIQUE INDEX users_index ON users (user_name);\n" `shouldBe` CreateIndex
@@ -622,6 +671,7 @@ tests = do
                     , columns = [indexCol (VarExpression "user_name")]
                     , whereClause = Nothing
                     , indexType = Nothing
+                    , nullsDistinct = True
                     }
 
         it "should parse a CREATE INDEX with column order ASC NULLS FIRST statement" do
@@ -632,6 +682,7 @@ tests = do
                     , columns = [IndexColumn { column = VarExpression "user_name", columnOrder = [Asc, NullsFirst] }]
                     , whereClause = Nothing
                     , indexType = Nothing
+                    , nullsDistinct = True
                     }
 
         it "should parse a CREATE INDEX with column order DESC NULLS LAST statement" do
@@ -642,6 +693,7 @@ tests = do
                     , columns = [IndexColumn { column = VarExpression "user_name", columnOrder = [Desc, NullsLast] }]
                     , whereClause = Nothing
                     , indexType = Nothing
+                    , nullsDistinct = True
                     }
 
         it "should parse a CREATE INDEX with a coalesce expression" do
@@ -656,6 +708,7 @@ tests = do
                             ]
                     , whereClause = Nothing
                     , indexType = Nothing
+                    , nullsDistinct = True
                     }
 
         it "should parse a CREATE OR REPLACE FUNCTION ..() RETURNS TRIGGER .." do
@@ -733,6 +786,7 @@ $$;
                             (IsExpression (VarExpression "source") (NotExpression (VarExpression "NULL")))
                             (IsExpression (VarExpression "source_id") (NotExpression (VarExpression "NULL"))))
                     , indexType = Nothing
+                    , nullsDistinct = True
                     }
 
         it "should parse 'ENABLE ROW LEVEL SECURITY' statements" do
