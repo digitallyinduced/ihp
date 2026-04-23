@@ -53,6 +53,7 @@ data DocumentedCustomPathController
 
 data CrudNamedApiController
     = CreateApiSessionAction
+    | CreatePipeSessionAction
     | ShowApiSessionAction
     deriving (Eq, Show, Data)
 
@@ -151,10 +152,10 @@ instance View AckView where
     jsonTyped AckView = AckPayload{ok = True}
 
 instance Controller DocumentedController where
-    action ShowBandAction{..} = render BandView{..}
-    action LegacyJsonAction = render LegacyJsonView
-    action WrongJsonAction = render LegacyJsonView
-    action WrongJsonShapeAction{..} = render WrongJsonShapeView{..}
+    action ShowBandAction{..} = renderHtmlOrJson BandView{..}
+    action LegacyJsonAction = renderHtmlOrJson LegacyJsonView
+    action WrongJsonAction = renderHtmlOrJson LegacyJsonView
+    action WrongJsonShapeAction{..} = renderHtmlOrJson WrongJsonShapeView{..}
 
 instance Controller CustomRouteController where
     action ListCustomAction = renderPlain "ListCustomAction"
@@ -168,8 +169,13 @@ instance Controller CrudNamedApiController where
         requestBodyResult <- decodeActionRequestBody @CreateSessionRequest
         case requestBodyResult of
             Left _ -> renderPlain "Invalid JSON"
-            Right (_ :: CreateSessionRequest) -> render AckView
-    action ShowApiSessionAction = render AckView
+            Right (_ :: CreateSessionRequest) -> renderHtmlOrJson AckView
+    action CreatePipeSessionAction = do
+        requestBodyResult <- decodeActionRequestBody @CreateSessionRequest
+        case requestBodyResult of
+            Left _ -> renderPlain "Invalid JSON"
+            Right (_ :: CreateSessionRequest) -> renderHtmlOrJson AckView
+    action ShowApiSessionAction = renderHtmlOrJson AckView
 
 instance AutoRoute DocumentedController where
     autoRoute = autoRouteWithIdType (parseIntegerId @(Id Band))
@@ -213,6 +219,10 @@ instance HasOpenApiRequestBody CrudNamedApiController "CreateApiSessionAction" w
 instance OpenApiController CrudNamedApiController where
     openApiActions =
         [ actionDocForRequestBody @"CreateApiSessionAction" @AckView
+        , actionDocFor @"CreatePipeSessionAction" @AckView
+            |> setOpenApiRequestBody @CreateSessionRequest
+            |> setOpenApiSuccessStatus status201
+            |> setOpenApiSuccessResponseDescription "Created response"
         , actionDocFor @"ShowApiSessionAction" @AckView
         ]
 
@@ -279,7 +289,7 @@ config = do
 tests :: Spec
 tests = aroundAll (withMockContextAndApp RootApplication config) do
     describe "JSON rendering" do
-        it "renders typed jsonTyped values through render" $ withContextAndApp \application -> do
+        it "renders typed jsonTyped values through renderHtmlOrJson" $ withContextAndApp \application -> do
             let expected =
                     JSON.object
                         [ "bandId" JSON..= (12 :: Integer)
@@ -354,6 +364,7 @@ tests = aroundAll (withMockContextAndApp RootApplication config) do
             let spec = buildOpenApi RootApplication
 
             lookupPathOperation "/test/CreateApiSession" "post" spec `shouldSatisfy` isJust
+            lookupPathOperation "/test/CreatePipeSession" "post" spec `shouldSatisfy` isJust
             lookupPathOperation "/test/CreateApiSession" "get" spec `shouldBe` Nothing
             lookupPathOperation "/test/ShowApiSession" "get" spec `shouldSatisfy` isJust
             lookupPathOperation "/test/ShowApiSession" "head" spec `shouldSatisfy` isJust
@@ -376,6 +387,25 @@ tests = aroundAll (withMockContextAndApp RootApplication config) do
             let Just createSessionRequestSchema = lookupValue "CreateSessionRequest" componentsSchemas
             lookupValue "type" createSessionRequestSchema `shouldBe` Just (JSON.String "object")
             (lookupValue "properties" createSessionRequestSchema >>= lookupValue "token") `shouldSatisfy` isJust
+
+        it "supports request body and success metadata setters on action docs" $ withContextAndApp \_ -> do
+            let spec = buildOpenApi RootApplication
+
+            let Just operation = lookupPathOperation "/test/CreatePipeSession" "post" spec
+            let Just requestBody =
+                    lookupValue "requestBody" operation
+                        >>= lookupValue "content"
+                        >>= lookupValue "application/json"
+                        >>= lookupValue "schema"
+
+            lookupValue "$ref" requestBody `shouldBe` Just (JSON.String "#/components/schemas/CreateSessionRequest")
+
+            let Just createdResponse =
+                    lookupValue "responses" operation
+                        >>= lookupValue "201"
+
+            lookupValue "description" createdResponse `shouldBe` Just (JSON.String "Created response")
+            (lookupValue "responses" operation >>= lookupValue "200") `shouldBe` Nothing
 
     describe "Swagger UI" do
         it "serves the generated OpenAPI JSON from the mounted router" $ withContextAndApp \application -> do

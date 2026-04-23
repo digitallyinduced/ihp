@@ -26,6 +26,10 @@ module IHP.RouterSupport (
     setOpenApiDescription,
     setOpenApiTags,
     setOpenApiOperationId,
+    setOpenApiRequestBody,
+    setOpenApiRequestBodyRequired,
+    setOpenApiSuccessStatus,
+    setOpenApiSuccessResponseDescription,
     decodeActionRequestBody,
     runAction,
     get,
@@ -107,7 +111,7 @@ import IHP.WebSocket (WSApp)
 import IHP.WebSocket qualified as WS
 import Network.HTTP.Types.Header (hContentType)
 import Network.HTTP.Types.Method
-import Network.HTTP.Types.Status (status400, status500)
+import Network.HTTP.Types.Status (Status, status200, status400, status500, statusCode)
 import Network.HTTP.Types.URI
 import Network.URI.Encode qualified as URI
 import Network.Wai
@@ -175,6 +179,8 @@ data ActionDoc controller where
         , actionDocView :: Proxy view
         , actionDocTypedJson :: view -> JSON.Value
         , actionDocRequestBody :: Maybe OpenApiRequestBodyDoc
+        , actionDocSuccessStatus :: Int
+        , actionDocSuccessResponseDescription :: Text
         } ->
         ActionDoc controller
 
@@ -214,6 +220,8 @@ actionDoc actionName =
         , actionDocView = Proxy @view
         , actionDocTypedJson = JSON.toJSON . ViewSupport.jsonTyped
         , actionDocRequestBody = Nothing
+        , actionDocSuccessStatus = statusCode status200
+        , actionDocSuccessResponseDescription = "Successful response"
         }
 {-# INLINE actionDoc #-}
 
@@ -236,6 +244,8 @@ actionDocFor =
         , actionDocView = Proxy @view
         , actionDocTypedJson = JSON.toJSON . ViewSupport.jsonTyped
         , actionDocRequestBody = Nothing
+        , actionDocSuccessStatus = statusCode status200
+        , actionDocSuccessResponseDescription = "Successful response"
         }
 {-# INLINE actionDocFor #-}
 
@@ -265,11 +275,13 @@ actionDocForRequestBody =
                     , requestBodySchema = Proxy @(OpenApiRequestBody controller actionName)
                     , requestBodyTypeRep = Typeable.typeRep (Proxy @(OpenApiRequestBody controller actionName))
                     }
+        , actionDocSuccessStatus = statusCode status200
+        , actionDocSuccessResponseDescription = "Successful response"
         }
 {-# INLINE actionDocForRequestBody #-}
 
 setOpenApiSummary :: Text -> ActionDoc controller -> ActionDoc controller
-setOpenApiSummary summary ActionDoc{actionDocName, actionDocDescription, actionDocTags, actionDocOperationId, actionDocView, actionDocTypedJson, actionDocRequestBody} =
+setOpenApiSummary summary ActionDoc{actionDocName, actionDocDescription, actionDocTags, actionDocOperationId, actionDocView, actionDocTypedJson, actionDocRequestBody, actionDocSuccessStatus, actionDocSuccessResponseDescription} =
     ActionDoc
         { actionDocName
         , actionDocSummary = Just summary
@@ -279,11 +291,13 @@ setOpenApiSummary summary ActionDoc{actionDocName, actionDocDescription, actionD
         , actionDocView
         , actionDocTypedJson
         , actionDocRequestBody
+        , actionDocSuccessStatus
+        , actionDocSuccessResponseDescription
         }
 {-# INLINE setOpenApiSummary #-}
 
 setOpenApiDescription :: Text -> ActionDoc controller -> ActionDoc controller
-setOpenApiDescription description ActionDoc{actionDocName, actionDocSummary, actionDocTags, actionDocOperationId, actionDocView, actionDocTypedJson, actionDocRequestBody} =
+setOpenApiDescription description ActionDoc{actionDocName, actionDocSummary, actionDocTags, actionDocOperationId, actionDocView, actionDocTypedJson, actionDocRequestBody, actionDocSuccessStatus, actionDocSuccessResponseDescription} =
     ActionDoc
         { actionDocName
         , actionDocSummary
@@ -293,11 +307,13 @@ setOpenApiDescription description ActionDoc{actionDocName, actionDocSummary, act
         , actionDocView
         , actionDocTypedJson
         , actionDocRequestBody
+        , actionDocSuccessStatus
+        , actionDocSuccessResponseDescription
         }
 {-# INLINE setOpenApiDescription #-}
 
 setOpenApiTags :: [Text] -> ActionDoc controller -> ActionDoc controller
-setOpenApiTags tags ActionDoc{actionDocName, actionDocSummary, actionDocDescription, actionDocOperationId, actionDocView, actionDocTypedJson, actionDocRequestBody} =
+setOpenApiTags tags ActionDoc{actionDocName, actionDocSummary, actionDocDescription, actionDocOperationId, actionDocView, actionDocTypedJson, actionDocRequestBody, actionDocSuccessStatus, actionDocSuccessResponseDescription} =
     ActionDoc
         { actionDocName
         , actionDocSummary
@@ -307,11 +323,13 @@ setOpenApiTags tags ActionDoc{actionDocName, actionDocSummary, actionDocDescript
         , actionDocView
         , actionDocTypedJson
         , actionDocRequestBody
+        , actionDocSuccessStatus
+        , actionDocSuccessResponseDescription
         }
 {-# INLINE setOpenApiTags #-}
 
 setOpenApiOperationId :: Text -> ActionDoc controller -> ActionDoc controller
-setOpenApiOperationId operationId ActionDoc{actionDocName, actionDocSummary, actionDocDescription, actionDocTags, actionDocView, actionDocTypedJson, actionDocRequestBody} =
+setOpenApiOperationId operationId ActionDoc{actionDocName, actionDocSummary, actionDocDescription, actionDocTags, actionDocView, actionDocTypedJson, actionDocRequestBody, actionDocSuccessStatus, actionDocSuccessResponseDescription} =
     ActionDoc
         { actionDocName
         , actionDocSummary
@@ -321,8 +339,97 @@ setOpenApiOperationId operationId ActionDoc{actionDocName, actionDocSummary, act
         , actionDocView
         , actionDocTypedJson
         , actionDocRequestBody
+        , actionDocSuccessStatus
+        , actionDocSuccessResponseDescription
         }
 {-# INLINE setOpenApiOperationId #-}
+
+-- | Documents the JSON request body schema for an action.
+setOpenApiRequestBody ::
+    forall body controller.
+    ( ToSchema body
+    , Typeable.Typeable body
+    ) =>
+    ActionDoc controller ->
+    ActionDoc controller
+setOpenApiRequestBody ActionDoc{actionDocName, actionDocSummary, actionDocDescription, actionDocTags, actionDocOperationId, actionDocView, actionDocTypedJson, actionDocSuccessStatus, actionDocSuccessResponseDescription} =
+    ActionDoc
+        { actionDocName
+        , actionDocSummary
+        , actionDocDescription
+        , actionDocTags
+        , actionDocOperationId
+        , actionDocView
+        , actionDocTypedJson
+        , actionDocRequestBody =
+            Just
+                OpenApiRequestBodyDoc
+                    { requestBodyRequired = True
+                    , requestBodySchema = Proxy @body
+                    , requestBodyTypeRep = Typeable.typeRep (Proxy @body)
+                    }
+        , actionDocSuccessStatus
+        , actionDocSuccessResponseDescription
+        }
+{-# INLINE setOpenApiRequestBody #-}
+
+-- | Overrides whether the documented request body is required.
+setOpenApiRequestBodyRequired :: Bool -> ActionDoc controller -> ActionDoc controller
+setOpenApiRequestBodyRequired required ActionDoc{actionDocName, actionDocSummary, actionDocDescription, actionDocTags, actionDocOperationId, actionDocView, actionDocTypedJson, actionDocRequestBody, actionDocSuccessStatus, actionDocSuccessResponseDescription} =
+    ActionDoc
+        { actionDocName
+        , actionDocSummary
+        , actionDocDescription
+        , actionDocTags
+        , actionDocOperationId
+        , actionDocView
+        , actionDocTypedJson
+        , actionDocRequestBody = setRequired <$> actionDocRequestBody
+        , actionDocSuccessStatus
+        , actionDocSuccessResponseDescription
+        }
+  where
+    setRequired OpenApiRequestBodyDoc{requestBodySchema, requestBodyTypeRep} =
+        OpenApiRequestBodyDoc
+            { requestBodyRequired = required
+            , requestBodySchema
+            , requestBodyTypeRep
+            }
+{-# INLINE setOpenApiRequestBodyRequired #-}
+
+-- | Overrides the documented success response status for an action.
+setOpenApiSuccessStatus :: Status -> ActionDoc controller -> ActionDoc controller
+setOpenApiSuccessStatus status ActionDoc{actionDocName, actionDocSummary, actionDocDescription, actionDocTags, actionDocOperationId, actionDocView, actionDocTypedJson, actionDocRequestBody, actionDocSuccessResponseDescription} =
+    ActionDoc
+        { actionDocName
+        , actionDocSummary
+        , actionDocDescription
+        , actionDocTags
+        , actionDocOperationId
+        , actionDocView
+        , actionDocTypedJson
+        , actionDocRequestBody
+        , actionDocSuccessStatus = statusCode status
+        , actionDocSuccessResponseDescription
+        }
+{-# INLINE setOpenApiSuccessStatus #-}
+
+-- | Overrides the documented success response description for an action.
+setOpenApiSuccessResponseDescription :: Text -> ActionDoc controller -> ActionDoc controller
+setOpenApiSuccessResponseDescription description ActionDoc{actionDocName, actionDocSummary, actionDocDescription, actionDocTags, actionDocOperationId, actionDocView, actionDocTypedJson, actionDocRequestBody, actionDocSuccessStatus} =
+    ActionDoc
+        { actionDocName
+        , actionDocSummary
+        , actionDocDescription
+        , actionDocTags
+        , actionDocOperationId
+        , actionDocView
+        , actionDocTypedJson
+        , actionDocRequestBody
+        , actionDocSuccessStatus
+        , actionDocSuccessResponseDescription = description
+        }
+{-# INLINE setOpenApiSuccessResponseDescription #-}
 
 decodeActionRequestBody ::
     forall body controller.

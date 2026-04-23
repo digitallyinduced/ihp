@@ -373,7 +373,7 @@ openApiComponentsValue schemas =
         ]
 
 actionDocOperationValue :: forall controller. ActionDoc controller -> [QueryParameterDocumentation] -> (JSON.Value, Definitions Schema)
-actionDocOperationValue ActionDoc{actionDocName, actionDocSummary, actionDocDescription, actionDocTags, actionDocOperationId, actionDocView, actionDocRequestBody} parameters =
+actionDocOperationValue ActionDoc{actionDocName, actionDocSummary, actionDocDescription, actionDocTags, actionDocOperationId, actionDocView, actionDocRequestBody, actionDocSuccessStatus, actionDocSuccessResponseDescription} parameters =
     let SchemaDocumentation{documentedSchema, documentedDefinitions} = responseSchemaValue actionDocView
         parameterDefinitions = parameters |> map (\QueryParameterDocumentation{parameterDefinitions} -> parameterDefinitions) |> mconcat
         requestBodyDocumentation =
@@ -389,7 +389,7 @@ actionDocOperationValue ActionDoc{actionDocName, actionDocSummary, actionDocDesc
                 _ -> Nothing
      in ( JSON.object
             ( [ Just ("parameters" JSON..= map queryParameterValue parameters)
-              , Just ("responses" JSON..= JSON.object ["200" JSON..= successResponseValue documentedSchema])
+              , Just ("responses" JSON..= JSON.object [cs (show actionDocSuccessStatus) JSON..= successResponseValue actionDocSuccessResponseDescription documentedSchema])
               , requestBodyValue
               , ("summary" JSON..=) <$> actionDocSummary
               , ("description" JSON..=) <$> actionDocDescription
@@ -422,10 +422,10 @@ openApiRequestBodyValue OpenApiRequestBodyDoc{requestBodyRequired} schema =
 responseSchemaValue :: forall view. (ToSchema (JsonResponse view)) => Proxy view -> SchemaDocumentation
 responseSchemaValue _ = declareSchemaDocumentation (Proxy @(JsonResponse view))
 
-successResponseValue :: Referenced Schema -> JSON.Value
-successResponseValue schema =
+successResponseValue :: Text -> Referenced Schema -> JSON.Value
+successResponseValue responseDescription schema =
     JSON.object
-        [ "description" JSON..= ("Successful response" :: Text)
+        [ "description" JSON..= responseDescription
         , "content"
             JSON..= JSON.object
                 [ "application/json"
