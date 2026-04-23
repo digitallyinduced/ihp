@@ -1,7 +1,7 @@
 {-# LANGUAGE BangPatterns #-}
 module IHP.Controller.Render where
 import ClassyPrelude
-import Network.Wai (responseLBS, responseBuilder, responseFile)
+import Network.Wai (responseLBS, responseBuilder, responseFile, requestMethod)
 import Network.HTTP.Types (Status, status200, status406, status422)
 import Network.HTTP.Types.Header
 import Network.HTTP.Types.Method (methodGet, methodHead)
@@ -122,4 +122,4 @@ renderStatus request
     | method == methodHead = status200
     | otherwise = status422
   where
-    method = request.requestMethod
+    method = requestMethod request
