@@ -14,10 +14,8 @@ import IHP.Prelude
 import IHP.RouterSupport
 import IHP.Router.DSL (routes)
 import IHP.Router.Capture (renderCapture)
-import IHP.Router.UrlGenerator (HasPath (..))
 import IHP.ControllerPrelude
 import Network.HTTP.Types.Method (StdMethod (..))
-import Control.Applicative (empty)
 
 ---------------------------------------------------------------------------
 -- A controller that uses the legacy AutoRoute path

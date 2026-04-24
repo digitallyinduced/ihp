@@ -9,11 +9,9 @@ import IHP.Prelude
 import IHP.Router.Trie
 import IHP.Router.Middleware
 import Network.HTTP.Types (status200, status404, status405)
-import Network.HTTP.Types.Method (StdMethod (..))
-import Network.HTTP.Types.Method (renderStdMethod)
+import Network.HTTP.Types.Method (StdMethod (..), renderStdMethod)
 import Network.Wai (Application, Response, responseLBS, defaultRequest, requestMethod, rawPathInfo, responseStatus, responseHeaders)
 import qualified Data.ByteString as BS
-import qualified Data.ByteString.Char8 as BS8
 import qualified Data.ByteString.Lazy as LBS
 import qualified Data.List as List
 import Data.IORef (newIORef, readIORef, writeIORef)

@@ -7,9 +7,7 @@ module Test.Router.CaptureSpec where
 import Test.Hspec
 import IHP.Prelude
 import IHP.Router.Capture
-import Data.UUID (UUID)
 import qualified Data.UUID as UUID
-import Data.Time.Calendar (fromGregorian)
 
 tests = do
     describe "IHP.Router.Capture" do

@@ -9,7 +9,6 @@ import IHP.Prelude
 import IHP.Router.Trie
 import IHP.Router.Capture (UrlCapture(..))
 import qualified Data.HashMap.Strict as HashMap
-import qualified Data.Map.Strict as Map
 import Data.Dynamic (toDyn, fromDynamic)
 import Network.HTTP.Types.Method (StdMethod (..))
 import Network.Wai (responseLBS)

@@ -335,11 +335,10 @@ hasPathClass    = TH.mkName "HasPath"
 pathToFn        = TH.mkName "pathTo"
 renderCaptureFn = TH.mkName "renderCapture"
 
-canRouteClass, parseRoutePrimeFn, toControllerRouteFn, emptyFn :: Name
+canRouteClass, parseRoutePrimeFn, toControllerRouteFn :: Name
 canRouteClass       = TH.mkName "CanRoute"
 parseRoutePrimeFn   = TH.mkName "parseRoute'"
 toControllerRouteFn = TH.mkName "toControllerRoute"
-emptyFn             = TH.mkName "empty"
 
 controllerRouteTrieCon, runActionPrimeFn :: Name
 controllerRouteTrieCon = TH.mkName "ControllerRouteTrie"
@@ -424,8 +423,16 @@ pathExpr = \case
 emitCanRoute :: ControllerInfo -> [ValidatedRoute] -> Q Dec
 emitCanRoute ctrl vs = do
     trieE <- emitTrieFragment vs
+    -- parseRoute' is unused (the trie owns dispatch) but CanRoute still
+    -- requires it. Emit `fail "..."` — MonadFail is in base so no extra
+    -- import is needed at the call site.
     let parseRouteDecl = TH.FunD parseRoutePrimeFn
-            [TH.Clause [] (TH.NormalB (TH.VarE emptyFn)) []]
+            [TH.Clause []
+                (TH.NormalB
+                    (TH.AppE (TH.VarE 'fail)
+                        (TH.LitE (TH.StringL
+                            "routes: parseRoute' is unused; dispatch goes through the trie"))))
+                []]
         toControllerRouteDecl = TH.FunD toControllerRouteFn
             [TH.Clause []
                 (TH.NormalB
