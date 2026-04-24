@@ -98,6 +98,7 @@ instance ToSchema CreateSessionRequest
 instance View BandView where
     html BandView{..} = [hsx||]
 
+instance JsonView BandView where
     type JsonResponse BandView = BandPayload
 
     jsonTyped BandView{..} =
@@ -110,6 +111,7 @@ instance View BandView where
 instance View LegacyJsonView where
     html LegacyJsonView = [hsx||]
 
+instance JsonView LegacyJsonView where
     json LegacyJsonView =
         JSON.object
             [ "legacy" JSON..= True
@@ -118,6 +120,7 @@ instance View LegacyJsonView where
 instance View WrongJsonShapeView where
     html WrongJsonShapeView{..} = [hsx||]
 
+instance JsonView WrongJsonShapeView where
     type JsonResponse WrongJsonShapeView = BandPayload
 
     jsonTyped WrongJsonShapeView{..} =
@@ -135,6 +138,7 @@ instance View WrongJsonShapeView where
 instance View DocumentedCustomPathView where
     html DocumentedCustomPathView{..} = [hsx||]
 
+instance JsonView DocumentedCustomPathView where
     type JsonResponse DocumentedCustomPathView = BandPayload
 
     jsonTyped DocumentedCustomPathView{..} =
@@ -147,6 +151,7 @@ instance View DocumentedCustomPathView where
 instance View AckView where
     html AckView = [hsx||]
 
+instance JsonView AckView where
     type JsonResponse AckView = AckPayload
 
     jsonTyped AckView = AckPayload{ok = True}

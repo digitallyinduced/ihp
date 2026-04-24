@@ -462,7 +462,7 @@ document.addEventListener('ihp:unload', () => {
 
 ## JSON
 
-Views that are rendered by calling the [`render`](https://ihp.digitallyinduced.com/api-docs/IHP-Controller-Render.html#v:render) function can also respond with JSON.
+Views that are rendered by calling the [`renderHtmlOrJson`](https://ihp.digitallyinduced.com/api-docs/IHP-Controller-Render.html#v:renderHtmlOrJson) function can respond with either HTML or JSON based on the request `Accept` header.
 
 Let's say we have a normal HTML view that renders all posts for our blog app:
 
@@ -491,7 +491,7 @@ instance View IndexView where
     |]
 ```
 
-We can add a JSON output for all blog posts by defining a typed [`JsonResponse`](https://ihp.digitallyinduced.com/api-docs/IHP-ViewSupport.html#t:View) payload and implementing [`jsonTyped`](https://ihp.digitallyinduced.com/api-docs/IHP-ViewSupport.html#v:jsonTyped):
+We can add a JSON output for all blog posts by defining a typed [`JsonResponse`](https://ihp.digitallyinduced.com/api-docs/IHP-ViewSupport.html#t:JsonView) payload and implementing [`jsonTyped`](https://ihp.digitallyinduced.com/api-docs/IHP-ViewSupport.html#v:jsonTyped) in a `JsonView` instance:
 
 ```haskell
 {-# LANGUAGE DeriveGeneric #-}
@@ -515,6 +515,7 @@ instance View IndexView where
         ...
     |]
 
+instance JsonView IndexView where
     type JsonResponse IndexView = [PostPayload]
 
     jsonTyped IndexView { .. } =
@@ -527,6 +528,14 @@ instance View IndexView where
 ```
 
 In the above code, [`jsonTyped`](https://ihp.digitallyinduced.com/api-docs/IHP-ViewSupport.html#v:jsonTyped) has access to all arguments passed to the view, but returns a normal Haskell value instead of raw `Value`. IHP then turns that into JSON automatically using [`toJSON`](https://ihp.digitallyinduced.com/api-docs/IHP-ViewPrelude.html#v:toJSON).
+
+In the controller, use [`renderHtmlOrJson`](https://ihp.digitallyinduced.com/api-docs/IHP-Controller-Render.html#v:renderHtmlOrJson) instead of `render` for actions that should serve both formats:
+
+```haskell
+action PostsAction = do
+    posts <- query @Post |> fetch
+    renderHtmlOrJson IndexView { .. }
+```
 
 The full `Index` View for our `PostsController` looks like this:
 
@@ -573,6 +582,7 @@ instance View IndexView where
         </div>
     |]
 
+instance JsonView IndexView where
     type JsonResponse IndexView = [PostPayload]
 
     jsonTyped IndexView { .. } =
@@ -593,7 +603,7 @@ renderPost post = [hsx|
 |]
 ```
 
-You can still override [`json`](https://ihp.digitallyinduced.com/api-docs/IHP-ViewSupport.html#v:json) directly for backwards compatibility. The typed `JsonResponse` / `jsonTyped` style is preferred because it is also the representation used by IHP's OpenAPI support.
+You can still override [`json`](https://ihp.digitallyinduced.com/api-docs/IHP-ViewSupport.html#v:json) directly in `JsonView` for backwards compatibility. The typed `JsonResponse` / `jsonTyped` style is preferred because it is also the representation used by IHP's OpenAPI support.
 
 ### Getting JSON responses
 
@@ -641,6 +651,7 @@ instance ToSchema PostPayload
 instance View IndexView where
     html IndexView { .. } = [hsx|...|]
 
+instance JsonView IndexView where
     type JsonResponse IndexView = [PostPayload]
     jsonTyped IndexView { .. } = posts |> map (\post -> PostPayload { id = post.id, title = post.title })
 

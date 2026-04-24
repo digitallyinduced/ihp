@@ -98,7 +98,6 @@ import GHC.TypeLits
 import GHC.TypeLits as T
 import IHP.Controller.Context
 import IHP.Controller.Param
-import IHP.Controller.Response (ResponseException(..))
 import IHP.ControllerSupport
 import IHP.ErrorController qualified as ErrorController
 import IHP.FrameworkConfig
@@ -229,6 +228,7 @@ actionDocFor ::
     forall actionName view controller.
     ( KnownSymbol actionName
     , ViewSupport.View view
+    , ViewSupport.JsonView view
     , Typeable.Typeable view
     , JSON.ToJSON (ViewSupport.JsonResponse view)
     , ToSchema (ViewSupport.JsonResponse view)
@@ -254,6 +254,7 @@ actionDocForRequestBody ::
     ( KnownSymbol actionName
     , HasOpenApiRequestBody controller actionName
     , ViewSupport.View view
+    , ViewSupport.JsonView view
     , Typeable.Typeable view
     , JSON.ToJSON (ViewSupport.JsonResponse view)
     , ToSchema (ViewSupport.JsonResponse view)
@@ -550,16 +551,16 @@ openApiRenderExpectationKey :: Vault.Key DocumentedRenderExpectation
 openApiRenderExpectationKey = unsafePerformIO Vault.newKey
 {-# NOINLINE openApiRenderExpectationKey #-}
 
-throwOpenApiRenderMismatch :: Text -> IO a
+throwOpenApiRenderMismatch :: (?request :: Request, ?respond :: Respond) => Text -> IO a
 throwOpenApiRenderMismatch message =
-    Exception.throwIO
-        (ResponseException (responseLBS status500 [(hContentType, "text/plain")] (cs message)))
+    respondAndExit (responseLBS status500 [(hContentType, "text/plain")] (cs message))
 {-# INLINE throwOpenApiRenderMismatch #-}
 
 validateOpenApiRenderedView
     :: forall view.
         ( Typeable.Typeable view
         , ?request :: Request
+        , ?respond :: Respond
         )
     => view
     -> JSON.Value
