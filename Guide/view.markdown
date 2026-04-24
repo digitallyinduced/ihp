@@ -660,9 +660,6 @@ instance JsonView IndexView where
 instance Controller PostsController where
     type ControllerAction PostsController = ActionDefinition PostsController
 
-    runControllerAction actionDefinition =
-        runActionDefinition actionDefinition
-
     action PostsAction =
         endpoint
             |> responseView @IndexView

@@ -1,8 +1,9 @@
-{-# LANGUAGE TypeSynonymInstances, FlexibleInstances, TypeFamilies, ConstrainedClassMethods, ScopedTypeVariables, FunctionalDependencies, AllowAmbiguousTypes, RankNTypes, DefaultSignatures #-}
+{-# LANGUAGE TypeSynonymInstances, FlexibleInstances, TypeFamilies, ConstrainedClassMethods, ScopedTypeVariables, FunctionalDependencies, AllowAmbiguousTypes, RankNTypes, DefaultSignatures, MultiParamTypeClasses, TypeApplications #-}
 
 module IHP.ControllerSupport
 ( Action'
 , ControllerAction'
+, RunControllerAction (..)
 , (|>)
 , getRequestBody
 , getRequestPath
@@ -82,6 +83,18 @@ type ControllerAction' controller =
     ) =>
     IO ResponseReceived
 
+-- | Runs a controller's 'ControllerAction' value.
+--
+-- This lets action representations such as 'IHP.Controller.ActionDefinition.ActionDefinition'
+-- plug into the normal controller dispatch without requiring each controller instance to
+-- repeat the same 'runControllerAction' implementation.
+class RunControllerAction controller action where
+    runControllerActionDefault :: (?context :: Context.ControllerContext, ?modelContext :: ModelContext, ?theAction :: controller, ?respond :: Respond, ?request :: Request) => action -> IO ResponseReceived
+
+instance RunControllerAction controller (IO ResponseReceived) where
+    runControllerActionDefault controllerAction = controllerAction
+    {-# INLINABLE runControllerActionDefault #-}
+
 class (Show controller, Eq controller) => Controller controller where
     type ControllerAction controller :: Type
     type ControllerAction controller = IO ResponseReceived
@@ -93,8 +106,8 @@ class (Show controller, Eq controller) => Controller controller where
     action :: (?context :: Context.ControllerContext, ?modelContext :: ModelContext, ?theAction :: controller, ?respond :: Respond, ?request :: Request) => controller -> ControllerAction controller
 
     runControllerAction :: (?context :: Context.ControllerContext, ?modelContext :: ModelContext, ?theAction :: controller, ?respond :: Respond, ?request :: Request) => ControllerAction controller -> IO ResponseReceived
-    default runControllerAction :: (ControllerAction controller ~ IO ResponseReceived, ?context :: Context.ControllerContext, ?modelContext :: ModelContext, ?theAction :: controller, ?respond :: Respond, ?request :: Request) => ControllerAction controller -> IO ResponseReceived
-    runControllerAction controllerAction = controllerAction
+    default runControllerAction :: (RunControllerAction controller (ControllerAction controller), ?context :: Context.ControllerContext, ?modelContext :: ModelContext, ?theAction :: controller, ?respond :: Respond, ?request :: Request) => ControllerAction controller -> IO ResponseReceived
+    runControllerAction = runControllerActionDefault @controller
     {-# INLINABLE runControllerAction #-}
 
 class InitControllerContext application where

@@ -61,6 +61,10 @@ data ActionDefinition controller = ActionDefinition
     , runActionDefinition :: ControllerAction' controller
     }
 
+instance RunControllerAction controller (ActionDefinition controller) where
+    runControllerActionDefault = runActionDefinition
+    {-# INLINABLE runControllerActionDefault #-}
+
 instance
     ( Data controller
     , Controller controller

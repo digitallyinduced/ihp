@@ -154,8 +154,6 @@ instance JsonView AckView where
 instance Controller DocumentedController where
     type ControllerAction DocumentedController = ActionDefinition DocumentedController
 
-    runControllerAction actionDefinition = runActionDefinition actionDefinition
-
     action ShowBandAction{..} =
         endpoint
             |> responseView @BandView
@@ -177,8 +175,6 @@ instance Controller CustomRouteController where
 instance Controller DocumentedCustomPathController where
     type ControllerAction DocumentedCustomPathController = ActionDefinition DocumentedCustomPathController
 
-    runControllerAction actionDefinition = runActionDefinition actionDefinition
-
     action ShowDocumentedCustomPathAction{..} =
         endpoint
             |> responseView @DocumentedCustomPathView
@@ -186,7 +182,6 @@ instance Controller DocumentedCustomPathController where
 
 instance Controller CrudNamedApiController where
     type ControllerAction CrudNamedApiController = ActionDefinition CrudNamedApiController
-    runControllerAction actionDefinition = runActionDefinition actionDefinition
 
     action CreateApiSessionAction =
         endpoint
