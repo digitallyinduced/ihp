@@ -21,12 +21,10 @@ module IHP.Router.DSL.Runtime
 
 import Prelude
 import Data.ByteString (ByteString)
-import qualified Data.ByteString as ByteString
 import qualified Data.ByteString.Builder as Builder
 import qualified Data.ByteString.Lazy as LBS
 import Data.Maybe (mapMaybe)
 import Data.Text (Text)
-import qualified Data.Text as Text
 import qualified Data.Text.Encoding as Text.Encoding
 import Network.HTTP.Types (status404, Query)
 import Network.HTTP.Types.Method (StdMethod)
@@ -34,7 +32,7 @@ import Network.HTTP.Types.URI (urlEncode)
 import Network.Wai (Application, responseLBS)
 
 import IHP.Router.Trie
-import IHP.Router.Capture (UrlCapture, parseCapture, renderCapture)
+import IHP.Router.Capture (UrlCapture, parseCapture)
 
 -- | Build a 'RouteTrie' from a compile-time-known list of
 -- @(method, pattern, handler)@ triples. The TH splice produces one call
