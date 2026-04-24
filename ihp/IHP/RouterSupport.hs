@@ -138,13 +138,30 @@ defaultRouter
 defaultRouter additionalRoutes = do
     let allRoutes = controllers <> additionalRoutes
         path = rawPathInfo ?request
-    -- Fast path: check auto-route HashMaps directly (no Attoparsec string matching)
-    case findInRouteMaps path allRoutes of
-        Just handler -> takeByteString *> pure (handler ?application)
-        Nothing -> do
-            -- Slow path: fall back to Attoparsec parsers for custom/dynamic routes
-            let parsers = concatMap getRouteParsers allRoutes
-            choice (map (<* endOfInput) parsers)
+        trie = collectTrie allRoutes
+        application = ?application
+        legacyParser =
+            case findInRouteMaps path allRoutes of
+                Just handler -> takeByteString *> pure (handler application)
+                Nothing -> do
+                    let parsers = concatMap getRouteParsers allRoutes
+                    choice (map (<* endOfInput) parsers)
+
+    -- Stage 1: method-aware trie (from the explicit-routes DSL, if any).
+    -- Critical for 'mountFrontController': mounted sub-apps with
+    -- '[routes|…|]' blocks flow through 'defaultRouter' via the parser
+    -- wrapper, so they need the same trie-lookup stage that
+    -- 'frontControllerToWAIApp' provides for the top-level app.
+    case parseMethod (requestMethod ?request) of
+        Right method -> case Trie.lookupTrie trie method (Trie.splitPath path) of
+            Trie.Matched handler captures ->
+                takeByteString *> pure (handler captures)
+            -- On trie 405 we still give legacy routes a chance — a mixed-mode
+            -- app may have `GET /foo` declared in the DSL and `POST /foo`
+            -- registered via the legacy Attoparsec path. Only if nothing
+            -- matches do we fall back to the legacy parser at all.
+            _ -> legacyParser
+        Left _ -> legacyParser
 {-# INLINABLE defaultRouter #-}
 
 -- | Scan 'ControllerRouteMap' entries for a matching path.
@@ -1026,8 +1043,14 @@ frontControllerToWAIApp middleware application notFoundAction =
             Right method -> case Trie.lookupTrie staticTrie method (Trie.splitPath path) of
                 Trie.Matched handler captures ->
                     (middleware (handler captures)) waiRequest waiRespond
+                -- On trie 405 we still try the legacy path before finalising
+                -- the response. In mixed-mode apps, a DSL `GET /foo` plus a
+                -- legacy `POST /foo` would otherwise reject the POST with 405
+                -- even though the legacy route exists. The trie's allowed
+                -- method list becomes the final 405 payload only if legacy
+                -- dispatch also can't find a handler.
                 Trie.MethodNotAllowed allowed ->
-                    waiRespond (RouterMiddleware.methodNotAllowedResponse allowed)
+                    legacyDispatchOr405 waiRequest waiRespond allRoutes path allowed
                 Trie.NotMatched -> legacyDispatch waiRequest waiRespond allRoutes path
             Left _nonStandardMethod -> legacyDispatch waiRequest waiRespond allRoutes path
   where
@@ -1050,6 +1073,29 @@ frontControllerToWAIApp middleware application notFoundAction =
                 case routedAction of
                     Left _ -> notFoundAction waiRequest waiRespond
                     Right action -> (middleware action) waiRequest waiRespond
+
+    -- Variant of 'legacyDispatch' used when the trie reports
+    -- 'MethodNotAllowed': legacy routes still get a chance to handle
+    -- the request (mixed-mode apps commonly split methods across DSL
+    -- and legacy routes for the same path). Only if legacy finds no
+    -- match do we commit to the trie's 405.
+    legacyDispatchOr405 waiRequest waiRespond allRoutes path trieAllowed =
+        case findInRouteMaps path allRoutes of
+            Just handler -> (middleware (handler application)) waiRequest waiRespond
+            Nothing -> do
+                let customParsers = concatMap getRouteParsers allRoutes
+                routedAction :: Either String Application <-
+                    (do
+                        res <- evaluate $ parseOnly (choice (map (<* endOfInput) customParsers)) path
+                        case res of
+                            Left s -> pure $ Left s
+                            Right action -> pure $ Right action
+                        )
+                    |> wrapRouterException
+                case routedAction of
+                    Right action -> (middleware action) waiRequest waiRespond
+                    Left _ ->
+                        waiRespond (RouterMiddleware.methodNotAllowedResponse trieAllowed)
 {-# INLINABLE frontControllerToWAIApp #-}
 
 mountFrontController :: forall frontController application. (?request :: Request, ?respond :: Respond, FrontController frontController) => frontController -> ControllerRoute application

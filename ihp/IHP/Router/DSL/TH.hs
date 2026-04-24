@@ -29,6 +29,7 @@ import Language.Haskell.TH (Q, Dec, Exp, Name, Pat, Type)
 import qualified Language.Haskell.TH.Quote as TH
 import qualified Language.Haskell.Meta.Parse as Meta
 import Data.Typeable (Typeable)
+import Network.HTTP.Types.Method (StdMethod (..))
 
 import IHP.Router.DSL.AST hiding (routes)
 import qualified IHP.Router.DSL.AST as AST
@@ -449,7 +450,17 @@ emitTrieFragment vs = do
     pure (TH.AppE (TH.VarE 'buildRouteTrie) listE)
 
 emitEntriesPerRoute :: ValidatedRoute -> Q [Exp]
-emitEntriesPerRoute vr = traverse (emitOneEntry vr) (vrMethods vr)
+emitEntriesPerRoute vr = traverse (emitOneEntry vr) (expandHeadForGet (vrMethods vr))
+
+-- | HTTP semantics: if a route accepts GET it should also accept HEAD
+-- (HEAD returns the same headers with no body). The existing 'get'
+-- helper in IHP.RouterSupport registers both methods automatically;
+-- we preserve that behaviour here so @HEAD /foo@ doesn't 405 when the
+-- DSL declares @GET /foo@.
+expandHeadForGet :: [Method] -> [Method]
+expandHeadForGet ms
+    | GET `elem` ms && not (HEAD `elem` ms) = ms <> [HEAD]
+    | otherwise = ms
 
 emitOneEntry :: ValidatedRoute -> Method -> Q Exp
 emitOneEntry vr method = do
