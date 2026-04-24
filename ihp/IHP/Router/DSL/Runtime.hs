@@ -31,7 +31,7 @@ import qualified Data.Text.Encoding as Text.Encoding
 import Network.HTTP.Types (status404, Query)
 import Network.HTTP.Types.Method (StdMethod)
 import Network.HTTP.Types.URI (urlEncode)
-import Network.Wai (Application, Request, queryString, responseLBS)
+import Network.Wai (Application, queryString, responseLBS)
 
 import IHP.Router.Trie
 import IHP.Router.Capture (UrlCapture, parseCapture)
