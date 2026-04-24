@@ -55,21 +55,106 @@ routes = TH.QuasiQuoter
 
 -- | The underlying splice function, exposed for callers that want to
 -- provide a DSL body programmatically.
+--
+-- Two forms are supported:
+--
+-- (1) Single-controller: the block begins with a bare type name on its own
+--     line; all routes in the block target constructors of that type.
+--
+-- (2) Multi-controller (header-less): routes target constructors of any
+--     type in scope. The splice 'reify's each action constructor to find
+--     its parent type, groups routes by type, and emits one 'HasPath' +
+--     'CanRoute' instance pair per type. This lets a single
+--     @[routes|…|]@ block describe every route in an application.
 routesDec :: String -> Q [Dec]
 routesDec source = case Parser.parseRoutes (Text.pack source) of
     Left err -> fail (renderParseError err)
-    Right parsed -> do
-        name <- case controllerName parsed of
-            Just n -> pure n
-            Nothing -> fail $
-                "routes: the header-less, multi-controller form is not yet " <>
-                "implemented. For now, start the block with the controller " <>
-                "type name on its own line."
-        ctrl <- reifyController name
-        vs <- traverse (validateRoute ctrl) (AST.routes parsed)
-        hasPathInst <- emitHasPath ctrl vs
-        canRouteInst <- emitCanRoute ctrl vs
-        pure [hasPathInst, canRouteInst]
+    Right parsed -> case controllerName parsed of
+        Just name -> do
+            ctrl <- reifyController name
+            vs <- traverse (validateRoute ctrl) (AST.routes parsed)
+            hasPathInst <- emitHasPath ctrl vs
+            canRouteInst <- emitCanRoute ctrl vs
+            pure [hasPathInst, canRouteInst]
+        Nothing -> do
+            grouped <- groupRoutesByParent (AST.routes parsed)
+            fmap concat $ traverse emitGroup grouped
+
+-- | Bucket routes by the parent type of their action constructor.
+--
+-- For each route, reify its action constructor's 'Name' to recover the
+-- parent type's 'Name'. Routes targeting the same parent type are grouped
+-- together; the resulting list preserves the first-seen order of
+-- parent types so the generated instances line up with the DSL's visual
+-- grouping.
+groupRoutesByParent :: [Route] -> Q [(ControllerInfo, [Route])]
+groupRoutesByParent rs = do
+    -- Associate each route with its parent type 'Name'.
+    withParents <- traverse (\r -> do p <- parentTypeOfAction r; pure (p, r)) rs
+    -- Preserve first-seen order of parent types.
+    let order = List.nub (map fst withParents)
+    -- Reify each parent type once.
+    ctrls <- traverse reifyControllerByName order
+    let bucket p = [ r | (p', r) <- withParents, p' == p ]
+    pure [ (ci, bucket (ciTypeName ci)) | ci <- ctrls ]
+
+-- | Reify an action constructor 'Name' and return its parent type 'Name'.
+parentTypeOfAction :: Route -> Q Name
+parentTypeOfAction rt = do
+    let conName = TH.mkName (Text.unpack (actionName (routeAction rt)))
+    info <- TH.recover
+        (fail $
+            "routes (line " <> show (routeLine rt) <> "): " <>
+            "cannot find action constructor '" <>
+            Text.unpack (actionName (routeAction rt)) <>
+            "' in scope. Is its module imported?")
+        (TH.reify conName)
+    case info of
+        TH.DataConI _ _ parent -> pure parent
+        _ -> fail $
+            "routes (line " <> show (routeLine rt) <> "): '" <>
+            Text.unpack (actionName (routeAction rt)) <>
+            "' is not a data constructor"
+
+-- | Reify a controller type that was discovered via its action constructor
+-- (so we already know a valid 'Name' — no need for name-lookup recovery).
+reifyControllerByName :: Name -> Q ControllerInfo
+reifyControllerByName tyName = do
+    info <- TH.reify tyName
+    cs <- case info of
+        TH.TyConI (TH.DataD _ _ _ _ cs _) -> traverse extractCon cs
+        TH.TyConI (TH.NewtypeD _ _ _ _ c _) -> fmap (: []) (extractCon c)
+        _ -> fail $
+            "routes: '" <> TH.nameBase tyName <>
+            "' is not a data or newtype declaration"
+    pure ControllerInfo
+        { ciTypeName = tyName
+        , ciConstructors = Map.fromList
+            [ (Text.pack (TH.nameBase (coName c)), c) | c <- cs ]
+        }
+  where
+    extractCon :: TH.Con -> Q ConstructorInfo
+    extractCon = \case
+        TH.RecC n flds -> pure ConstructorInfo
+            { coName = n
+            , coFields = Map.fromList
+                [ (Text.pack (TH.nameBase fn), ty) | (fn, _, ty) <- flds ]
+            }
+        TH.NormalC n [] -> pure ConstructorInfo
+            { coName = n, coFields = Map.empty }
+        TH.NormalC n _ -> fail $
+            "routes: constructor '" <> TH.nameBase n <>
+            "' must use record syntax or be nullary"
+        TH.ForallC _ _ inner -> extractCon inner
+        c -> fail $ "routes: unsupported constructor form: " <> show (TH.ppr c)
+
+-- | Emit instances for one controller group.
+emitGroup :: (ControllerInfo, [Route]) -> Q [Dec]
+emitGroup (ctrl, rs) = do
+    vs <- traverse (validateRoute ctrl) rs
+    hasPathInst <- emitHasPath ctrl vs
+    canRouteInst <- emitCanRoute ctrl vs
+    pure [hasPathInst, canRouteInst]
 
 renderParseError :: Parser.ParseError -> String
 renderParseError e =
