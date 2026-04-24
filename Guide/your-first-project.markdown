@@ -423,7 +423,7 @@ instance View ShowView where
                             ]
 ```
 
-We can see that `ShowView` is just a data definition. There is also a `View ShowView` instance. The HTML-like syntax inside the [`html`](https://ihp.digitallyinduced.com/api-docs/IHP-ViewSupport.html#v:html) function is [`hsx`](https://ihp.digitallyinduced.com/api-docs/IHP-ViewPrelude.html#v:hsx) code. It's similar to React's [JSX](https://reactjs.org/docs/introducing-jsx.html). You can write HTML code as usual there. Everything inside the [`[hsx|...|]`](https://ihp.digitallyinduced.com/api-docs/IHP-ViewPrelude.html#v:hsx) block is also type-checked and converted to Haskell code at compile-time.
+We can see that `ShowView` is just a data definition. There is also a `View ShowView` instance. The HTML-like syntax inside the [`html`](https://ihp.digitallyinduced.com/api-docs/IHP-ViewSupport.html#v:html) function is [`hsx`](https://ihp.digitallyinduced.com/Guide/hsx.html) code. It's similar to React's [JSX](https://reactjs.org/docs/introducing-jsx.html). You can write HTML code as usual there. Everything inside the [`[hsx|...|]`](https://ihp.digitallyinduced.com/api-docs/IHP-ViewPrelude.html#v:hsx) block is also type-checked and converted to Haskell code at compile-time.
 
 Now that we have a rough overview of all the parts belonging to our `Post`, it's time to do some coding ourselves.
 
