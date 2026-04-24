@@ -26,6 +26,7 @@ import qualified Data.List as List
 import qualified Data.Map.Strict as Map
 import qualified Language.Haskell.TH as TH
 import Language.Haskell.TH (Q, Dec, Exp, Name, Pat, Type)
+import qualified Language.Haskell.TH.Syntax as TH.Syntax
 import qualified Language.Haskell.TH.Quote as TH
 import qualified Language.Haskell.Meta.Parse as Meta
 import Data.Typeable (Typeable)
@@ -46,46 +47,76 @@ import IHP.Router.DSL.Runtime (buildRouteTrie, captureSpec, requireCapture)
 -- > PATCH  /posts/{postId}     UpdatePostAction
 -- > |]
 --
--- Only 'TH.quoteDec' is supported — use at top level, not inside expressions.
+-- Three header forms — all top-level declarations:
+--
+-- (1) __Binding-named__ (multi-controller). Lowercase-initial header
+--     becomes the name of a 'FrontController.controllers'-ready binding.
+--     The splice also emits 'HasPath' + 'CanRoute' for each reified
+--     parent type.
+--
+-- > [routes|webRoutes
+-- > GET /posts             PostsIndexAction
+-- > GET /users             UsersIndexAction
+-- > |]
+-- >
+-- > instance FrontController WebApplication where
+-- >     controllers = webRoutes
+--
+-- (2) __Single-controller__. Uppercase-initial header = controller type.
+--
+-- (3) __No header__. Multi-controller, instances only (no binding).
 routes :: TH.QuasiQuoter
 routes = TH.QuasiQuoter
-    { TH.quoteExp  = \_ -> fail "routes: use as a top-level declaration"
+    { TH.quoteExp  = \_ -> fail
+        ( "routes: the [routes|…|] quoter must be used as a top-level "
+        <> "declaration, not an expression. "
+        <> "Put the binding name in the header line:\n\n"
+        <> "    [routes|webRoutes\n"
+        <> "    GET /posts PostsIndexAction\n"
+        <> "    |]\n\n"
+        <> "TH can't emit class instances from expression splices, so "
+        <> "expression-form usage isn't supported." )
     , TH.quotePat  = \_ -> fail "routes: use as a top-level declaration"
     , TH.quoteType = \_ -> fail "routes: use as a top-level declaration"
     , TH.quoteDec  = routesDec
     }
 
+-- | The expression-form splice: returns a @[ControllerRoute app]@
 -- | The underlying splice function, exposed for callers that want to
 -- provide a DSL body programmatically.
 --
--- Two forms are supported:
+-- Header dispatch:
 --
--- (1) Single-controller: the block begins with a bare type name on its own
---     line; all routes in the block target constructors of that type.
---
--- (2) Multi-controller (header-less): routes target constructors of any
---     type in scope. The splice 'reify's each action constructor to find
---     its parent type, groups routes by type, and emits one 'HasPath' +
---     'CanRoute' instance pair per type. This lets a single
---     @[routes|…|]@ block describe every route in an application.
+-- * @Just n@ starting uppercase — single-controller form; emit @HasPath@
+--   + @CanRoute@ for controller type @n@.
+-- * @Just n@ starting lowercase — binding-named multi-controller form;
+--   reify each action's parent type, emit instances per controller, and
+--   emit a top-level binding named @n@ that lists
+--   @parseRoute \@Ctrl@ for each referenced controller.
+-- * @Nothing@ — plain multi-controller form; emit instances only, no binding.
 routesDec :: String -> Q [Dec]
 routesDec source = case Parser.parseRoutes (Text.pack source) of
     Left err -> fail (renderParseError err)
-    Right parsed -> case (controllerName parsed, appType parsed) of
-        (Just name, _) -> do
-            ctrl <- reifyController name
-            vs <- traverse (validateRoute ctrl) (AST.routes parsed)
-            hasPathInst <- emitHasPath ctrl vs
-            canRouteInst <- emitCanRoute ctrl vs
-            pure [hasPathInst, canRouteInst]
-        (Nothing, Nothing) -> do
+    Right parsed -> case controllerName parsed of
+        Just name
+            | startsWithUpper name -> do
+                ctrl <- reifyController name
+                vs <- traverse (validateRoute ctrl) (AST.routes parsed)
+                hasPathInst <- emitHasPath ctrl vs
+                canRouteInst <- emitCanRoute ctrl vs
+                pure [hasPathInst, canRouteInst]
+            | otherwise -> do
+                grouped <- groupRoutesByParent (AST.routes parsed)
+                instanceDecs <- fmap concat $ traverse emitGroup grouped
+                bindingDecs <- emitNamedBinding name (map fst grouped)
+                pure (instanceDecs <> bindingDecs)
+        Nothing -> do
             grouped <- groupRoutesByParent (AST.routes parsed)
             fmap concat $ traverse emitGroup grouped
-        (Nothing, Just appTy) -> do
-            grouped <- groupRoutesByParent (AST.routes parsed)
-            instanceDecs <- fmap concat $ traverse emitGroup grouped
-            bindingDecs <- emitAppBinding appTy (map fst grouped)
-            pure (instanceDecs <> bindingDecs)
+  where
+    startsWithUpper t = case Text.uncons t of
+        Just (c, _) -> c >= 'A' && c <= 'Z'
+        Nothing -> False
 
 -- | Bucket routes by the parent type of their action constructor.
 --
@@ -476,29 +507,27 @@ constructAction vr fields capturesName =
             pure (TH.RecConE (coName (vrCon vr)) (map bind fields))
 
 ---------------------------------------------------------------------------
--- Code generation — @<app>Routes@ binding for @for AppType@ headers
+-- Code generation — named binding for lowercase-header form
 ---------------------------------------------------------------------------
 
--- | Emit a top-level binding of the form
+-- | Emit a top-level binding named by the user. Given the header
+-- @webRoutes@ and controllers @[PostsController, UsersController]@:
 --
--- > webRoutes :: [ControllerRoute WebApplication]
 -- > webRoutes = [ parseRoute @PostsController, parseRoute @UsersController ]
 --
--- The binding name is derived from the application type name by
--- lower-casing the first letter and stripping any @\"Application\"@ suffix
--- (so @WebApplication@ → @webRoutes@, @AdminApplication@ → @adminRoutes@,
--- @MyService@ → @myServiceRoutes@).
+-- The binding is polymorphic in the application type; when splatted into
+-- 'FrontController.controllers' for a concrete app, GHC infers the right
+-- @app@.
 --
--- The user then composes this into their 'FrontController' without
--- having to list each controller by hand:
---
--- > instance FrontController WebApplication where
--- >     controllers = webRoutes
--- >         <> [ startPage WelcomeAction, webSocketApp @ChatApp ]
-emitAppBinding :: Text -> [ControllerInfo] -> Q [Dec]
-emitAppBinding appTyName ctrls = do
-    let valName = TH.mkName (Text.unpack (bindingNameFor appTyName))
-        appTy = TH.ConT (TH.mkName (Text.unpack appTyName))
+-- @parseRoute@ carries implicit-parameter constraints ('?request',
+-- '?respond', '?application', plus 'Controller', 'CanRoute',
+-- 'InitControllerContext', and 'Typeable') that GHC cannot abstract at
+-- the use site, so we emit an explicit signature enumerating all of them.
+emitNamedBinding :: Text -> [ControllerInfo] -> Q [Dec]
+emitNamedBinding bindingTxt ctrls = do
+    let valName = TH.mkName (Text.unpack bindingTxt)
+        appTyVarName = TH.mkName "app"
+        appTy = TH.VarT appTyVarName
         parseRouteName = TH.mkName "parseRoute"
         entries =
             [ TH.AppTypeE (TH.VarE parseRouteName) (TH.ConT (ciTypeName c))
@@ -506,17 +535,11 @@ emitAppBinding appTyName ctrls = do
             ]
         bindingExp = TH.ListE entries
 
-        -- Implicit-parameter constraints cannot be inferred at the use
-        -- site the way ordinary class constraints can, so we spell them
-        -- out in the binding's type. These are the exact set 'parseRoute'
-        -- pulls in, plus 'InitControllerContext' and 'Typeable' on the
-        -- application type.
         implicitReqTy  = TH.ImplicitParamT "request"  (TH.ConT (TH.mkName "Request"))
         implicitResTy  = TH.ImplicitParamT "respond"  (TH.ConT (TH.mkName "Respond"))
         implicitAppTy  = TH.ImplicitParamT "application" appTy
         initContextTy  = TH.AppT (TH.ConT (TH.mkName "InitControllerContext")) appTy
         typeableAppTy  = TH.AppT (TH.ConT ''Typeable) appTy
-        -- Per-controller: Controller Ctrl, CanRoute Ctrl, Typeable Ctrl
         perCtrl ctrl =
             let ctrlTy = TH.ConT (ciTypeName ctrl)
              in [ TH.AppT (TH.ConT (TH.mkName "Controller")) ctrlTy
@@ -528,26 +551,9 @@ emitAppBinding appTyName ctrls = do
             : concatMap perCtrl ctrls
         resultTy = TH.AppT TH.ListT
             (TH.AppT (TH.ConT (TH.mkName "ControllerRoute")) appTy)
-        bindingTy = TH.ForallT [] ctx resultTy
+        bindingTy = TH.ForallT [TH.PlainTV appTyVarName TH.SpecifiedSpec] ctx resultTy
 
     pure
         [ TH.SigD valName bindingTy
         , TH.FunD valName [TH.Clause [] (TH.NormalB bindingExp) []]
         ]
-
--- | Derive the binding name from an application type name:
--- lower-case the first letter, strip an \"Application\" suffix if present,
--- append \"Routes\".
-bindingNameFor :: Text -> Text
-bindingNameFor appTy =
-    let base = case Text.stripSuffix "Application" appTy of
-            Just shorter | not (Text.null shorter) -> shorter
-            _ -> appTy
-     in lowerFirst base <> "Routes"
-  where
-    lowerFirst t = case Text.uncons t of
-        Just (c, rest) -> Text.cons (toLower1 c) rest
-        Nothing -> t
-    toLower1 c
-        | c >= 'A' && c <= 'Z' = toEnum (fromEnum c + 32)
-        | otherwise = c

@@ -9,10 +9,11 @@ import IHP.Prelude
 import IHP.Router.DSL.AST
 import IHP.Router.DSL.Parser
 import qualified Data.Text as Text
+import Network.HTTP.Types.Method (StdMethod (..))
 
 -- | Shorthand for building expected Routes values.
 mk :: Text -> [Route] -> Routes
-mk name rs = Routes { controllerName = Just name, appType = Nothing, routes = rs }
+mk name rs = Routes { controllerName = Just name, routes = rs }
 
 rt :: Int -> [Method] -> [PathSeg] -> Text -> Route
 rt line ms ps name = Route ms ps (ActionRef name []) line
@@ -66,13 +67,16 @@ tests = do
                     `shouldBe` Right (mk "PostsController"
                         [ rt 2 [GET, HEAD] [Literal "posts", Capture "postId" Nothing] "ShowPostAction" ])
 
-            it "expands ANY to all methods" do
+            it "expands ANY to all StdMethod constructors" do
                 case parseRoutes "WebhookController\nANY /webhook WebhookAction\n" of
                     Right Routes { routes = [Route { routeMethods }] } -> do
-                        length routeMethods `shouldBe` 7
+                        -- http-types' StdMethod has 9 members:
+                        -- GET POST HEAD PUT DELETE TRACE CONNECT OPTIONS PATCH
+                        length routeMethods `shouldBe` 9
                         routeMethods `shouldContain` [GET]
                         routeMethods `shouldContain` [POST]
-                    other -> expectationFailure "expected a single route with expanded methods"
+                        routeMethods `shouldContain` [PATCH]
+                    _ -> expectationFailure "expected a single route with expanded methods"
 
             it "parses explicit field bindings" do
                 parseRoutes "MemberController\nGET /orgs/{org}/users/{user} ShowMemberAction { organizationId = #org, userId = #user }\n"
@@ -106,26 +110,11 @@ tests = do
                     `shouldBe` Right (mk "HomeController"
                         [ rt 2 [GET] [] "HomeAction" ])
 
-            it "parses `for AppType` header" do
-                parseRoutes "for WebApplication\nGET /posts PostsAction\n"
-                    `shouldBe` Right Routes
-                        { controllerName = Nothing
-                        , appType = Just "WebApplication"
-                        , routes = [ rt 2 [GET] [Literal "posts"] "PostsAction" ]
-                        }
-
-            it "treats `for foo` (lowercase) as a regular malformed route line" do
-                -- `for foo` with a lowercase name isn't a valid header; the
-                -- parser falls through and the line tries to parse as a route,
-                -- failing because "for" isn't an HTTP method.
-                case parseRoutes "for foo\n" of
-                    Left e -> (cs (errorMessage e) :: String) `shouldContain` "unknown method"
-                    Right _ -> expectationFailure "expected ParseError"
 
         describe "errors" do
             it "accepts empty block (header-less, zero routes)" do
                 parseRoutes "" `shouldBe`
-                    Right Routes { controllerName = Nothing, appType = Nothing, routes = [] }
+                    Right Routes { controllerName = Nothing, routes = [] }
 
             it "treats a single non-identifier line as a malformed route" do
                 -- When the first line isn't an uppercase identifier, the parser
@@ -136,7 +125,7 @@ tests = do
                     Right _ -> expectationFailure "expected ParseError"
 
             it "rejects unknown method" do
-                case parseRoutes "C\nCONNECT /foo FooAction\n" of
+                case parseRoutes "C\nYEET /foo FooAction\n" of
                     Left e -> do
                         errorLine e `shouldBe` 2
                         (cs (errorMessage e) :: String) `shouldContain` "unknown method"

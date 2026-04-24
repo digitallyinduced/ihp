@@ -28,7 +28,7 @@ module IHP.Router.DSL.AST
     , Route (..)
     , PathSeg (..)
     , ActionRef (..)
-    , Method (..)
+    , Method
     , methodFromText
     , methodToText
     , expandAnyMethod
@@ -36,25 +36,18 @@ module IHP.Router.DSL.AST
 
 import Prelude
 import Data.Text (Text)
+import qualified Data.Text.Encoding as Text.Encoding
+import Network.HTTP.Types.Method (StdMethod (..), parseMethod, renderStdMethod)
 
 -- | A complete parsed @[routes| ... |]@ block.
 --
--- The three header forms the DSL accepts:
---
--- * __Single-controller__ — bare identifier:
---   @\'controllerName\' = Just \"PostsController\"@, @\'appType\' = Nothing@
--- * __Multi-controller, no app binding__ — empty header:
---   both fields 'Nothing'
--- * __Multi-controller with app binding__ — @for \<AppType\>@:
---   @\'appType\' = Just \"WebApplication\"@, @\'controllerName\' = Nothing@.
---   In this form the TH splice emits an additional top-level value
---   @webRoutes :: [ControllerRoute WebApplication]@ (name derived by
---   lower-casing the first letter and stripping any @\"Application\"@
---   suffix) so the user can splat it into 'FrontController.controllers'
---   instead of listing each 'parseRoute' by hand.
+-- * __Single-controller__ — bare identifier header:
+--   @\'controllerName\' = Just \"PostsController\"@
+-- * __Multi-controller__ — empty header:
+--   @\'controllerName\' = Nothing@. The TH splice reifies each action
+--   constructor to find its parent type and emits instances per type.
 data Routes = Routes
     { controllerName :: !(Maybe Text)
-    , appType        :: !(Maybe Text)
     , routes         :: ![Route]
     }
     deriving (Eq, Show)
@@ -95,43 +88,23 @@ data ActionRef = ActionRef
     }
     deriving (Eq, Show)
 
--- | HTTP methods recognized by the DSL.
-data Method
-    = GET
-    | POST
-    | PUT
-    | PATCH
-    | DELETE
-    | HEAD
-    | OPTIONS
-    deriving (Eq, Ord, Show, Enum, Bounded)
+-- | HTTP methods recognised by the DSL. We reuse 'StdMethod' from
+-- @http-types@ rather than defining our own enum — it's the standard
+-- type used across WAI and the rest of the Haskell HTTP ecosystem.
+type Method = StdMethod
 
--- | Parse a method name into a 'Method'. @ANY@ is handled by
--- 'expandAnyMethod' rather than here, because it expands to all methods
--- rather than picking one.
+-- | Parse a method name into a 'Method' via @http-types@'s 'parseMethod'.
+-- @ANY@ is handled by 'expandAnyMethod' rather than here, because it
+-- expands to all methods rather than picking one.
 methodFromText :: Text -> Maybe Method
-methodFromText t = case t of
-    "GET"     -> Just GET
-    "POST"    -> Just POST
-    "PUT"     -> Just PUT
-    "PATCH"   -> Just PATCH
-    "DELETE"  -> Just DELETE
-    "HEAD"    -> Just HEAD
-    "OPTIONS" -> Just OPTIONS
-    _         -> Nothing
+methodFromText t = case parseMethod (Text.Encoding.encodeUtf8 t) of
+    Right m -> Just m
+    Left _  -> Nothing
 
 -- | Render a 'Method' as its canonical uppercase name.
 methodToText :: Method -> Text
-methodToText m = case m of
-    GET     -> "GET"
-    POST    -> "POST"
-    PUT     -> "PUT"
-    PATCH   -> "PATCH"
-    DELETE  -> "DELETE"
-    HEAD    -> "HEAD"
-    OPTIONS -> "OPTIONS"
+methodToText = Text.Encoding.decodeUtf8 . renderStdMethod
 
--- | @ANY@ expands to every supported method. Used by the parser when the
--- method field on a route line is literally @ANY@.
+-- | @ANY@ expands to every 'StdMethod' constructor.
 expandAnyMethod :: [Method]
 expandAnyMethod = [minBound .. maxBound]
