@@ -15,8 +15,23 @@ Names from lower-level modules ('LiteralSeg', 'CaptureSeg', 'buildRouteTrie',
 etc.) are referenced hygienically via 'TH.QuoteName' syntax.
 -}
 module IHP.Router.DSL.TH
-    ( routes
+    ( -- * Splice entry points
+      routes
     , routesDec
+      -- * Split entry points (Phase 1 of the ihp-router extraction)
+      --
+      -- | These two entry points carve the splice into a generic half and
+      -- an IHP-specific half. They're both called from 'routesDec' today,
+      -- but the split makes the upcoming package extraction a pure
+      -- file-move diff:
+      --
+      --  * 'genericRoutesDec' will move to @ihp-router@ — it emits only
+      --    'HasPath' per controller, which has no IHP dependencies.
+      --  * 'ihpRoutesDec' will stay in @ihp@ — it emits the IHP-flavoured
+      --    @CanRoute@ instance and @webRoutes@-style bindings on top of
+      --    whatever 'genericRoutesDec' produced.
+    , genericRoutesDec
+    , ihpRoutesDec
     ) where
 
 import Prelude
@@ -107,42 +122,134 @@ routes = TH.QuasiQuoter
     , TH.quoteDec  = routesDec
     }
 
--- | The expression-form splice: returns a @[ControllerRoute app]@
--- | The underlying splice function, exposed for callers that want to
--- provide a DSL body programmatically.
+-- | The default splice used by the @[routes|…|]@ quoter in IHP apps.
+-- Emits everything an IHP @FrontController@ needs — 'HasPath' plus
+-- 'CanRoute' plus (for lowercase-header blocks) the top-level
+-- @webRoutes@ binding.
 --
--- Header dispatch:
---
--- * @Just n@ starting uppercase — single-controller form; emit @HasPath@
---   + @CanRoute@ for controller type @n@.
--- * @Just n@ starting lowercase — binding-named multi-controller form;
---   reify each action's parent type, emit instances per controller, and
---   emit a top-level binding named @n@ that lists
---   @parseRoute \@Ctrl@ for each referenced controller.
--- * @Nothing@ — plain multi-controller form; emit instances only, no binding.
+-- Implemented as @genericRoutesDec <> ihpRoutesDec@ so the two halves
+-- can be extracted into separate packages without a behaviour change.
 routesDec :: String -> Q [Dec]
-routesDec source = case Parser.parseRoutes (Text.pack source) of
+routesDec source = do
+    block <- parseAndReify source
+    generic <- genericEmit block
+    ihp <- ihpEmit block
+    pure (generic <> ihp)
+
+-- | __Generic half.__ Parses the DSL, reifies the controller(s), and
+-- emits only the parts of the output that have no IHP dependency:
+--
+--   * one @instance HasPath Ctrl where pathTo = …@ per controller
+--
+-- This is the whole splice a plain WAI user needs. When the
+-- @ihp-router@ package lands, this function moves there verbatim;
+-- anything IHP-specific lives in 'ihpEmit'.
+--
+-- Callable in isolation: if you wire your own dispatch into WAI
+-- without using IHP's @FrontController@, this is the splice you want.
+genericRoutesDec :: String -> Q [Dec]
+genericRoutesDec source = parseAndReify source >>= genericEmit
+
+-- | __IHP half.__ Parses the DSL, reifies the controller(s), and emits
+-- only the IHP-flavoured parts of the output:
+--
+--   * one @instance CanRoute Ctrl@ per controller (wraps the trie
+--     fragment in a 'ControllerRouteTrie');
+--   * for a lowercase-header block: the top-level
+--     @webRoutes :: [ControllerRoute app]@ binding.
+--
+-- Intended to be called __alongside__ 'genericRoutesDec' for an IHP
+-- app — the default 'routesDec' does exactly that. Pulled out as its
+-- own entry point so the extraction PR can move it to an IHP-side
+-- @IHP.Router.IHP@ shim without disturbing the generic emitter.
+ihpRoutesDec :: String -> Q [Dec]
+ihpRoutesDec source = parseAndReify source >>= ihpEmit
+
+---------------------------------------------------------------------------
+-- Shared parse + reify
+---------------------------------------------------------------------------
+
+-- | A parsed @[routes|…|]@ body, ready for emission. Produced by
+-- 'parseAndReify' and consumed by 'genericEmit' and 'ihpEmit'.
+data ParsedBlock = ParsedBlock
+    { pbHeader :: !HeaderForm
+        -- ^ Which header shape the user wrote.
+    , pbGroups :: ![(ControllerInfo, [ValidatedRoute])]
+        -- ^ Routes grouped by parent controller type, in the order
+        -- those types first appear in the DSL block. For
+        -- single-controller uppercase blocks this list has length 1.
+    }
+
+-- | Which of the three header forms the parser saw.
+data HeaderForm
+    = HeaderUppercase !Text
+        -- ^ @Just name@ with an uppercase initial — single-controller
+        -- form. The emitters skip @groupRoutesByParent@ and treat the
+        -- single entry in 'pbGroups' as the user's one target type.
+    | HeaderLowercase !Text
+        -- ^ @Just name@ with a lowercase initial — multi-controller
+        -- binding-named form. The IHP emitter additionally produces a
+        -- top-level @name :: [ControllerRoute app]@ binding.
+    | HeaderAbsent
+        -- ^ Header-less multi-controller form. Instances only, no binding.
+
+-- | Parse the DSL body, reify each referenced controller type, and
+-- validate every route against its action constructor. Returns a
+-- 'ParsedBlock' both emitters can consume.
+parseAndReify :: String -> Q ParsedBlock
+parseAndReify source = case Parser.parseRoutes (Text.pack source) of
     Left err -> fail (renderParseError err)
-    Right parsed -> case controllerName parsed of
-        Just name
-            | startsWithUpper name -> do
-                ctrl <- reifyController name
-                vs <- traverse (validateRoute ctrl) (AST.routes parsed)
-                hasPathInst <- emitHasPath ctrl vs
-                canRouteInst <- emitCanRoute ctrl vs
-                pure [hasPathInst, canRouteInst]
-            | otherwise -> do
+    Right parsed -> do
+        (header, groups) <- case controllerName parsed of
+            Just name
+                | startsWithUpper name -> do
+                    ctrl <- reifyController name
+                    vs <- traverse (validateRoute ctrl) (AST.routes parsed)
+                    pure (HeaderUppercase name, [(ctrl, vs)])
+                | otherwise -> do
+                    grouped <- groupRoutesByParent (AST.routes parsed)
+                    validated <- traverse
+                        (\(ctrl, rs) -> do vs <- traverse (validateRoute ctrl) rs; pure (ctrl, vs))
+                        grouped
+                    pure (HeaderLowercase name, validated)
+            Nothing -> do
                 grouped <- groupRoutesByParent (AST.routes parsed)
-                instanceDecs <- fmap concat $ traverse emitGroup grouped
-                bindingDecs <- emitNamedBinding name (map fst grouped)
-                pure (instanceDecs <> bindingDecs)
-        Nothing -> do
-            grouped <- groupRoutesByParent (AST.routes parsed)
-            fmap concat $ traverse emitGroup grouped
+                validated <- traverse
+                    (\(ctrl, rs) -> do vs <- traverse (validateRoute ctrl) rs; pure (ctrl, vs))
+                    grouped
+                pure (HeaderAbsent, validated)
+        pure ParsedBlock { pbHeader = header, pbGroups = groups }
   where
     startsWithUpper t = case Text.uncons t of
         Just (c, _) -> c >= 'A' && c <= 'Z'
         Nothing -> False
+
+---------------------------------------------------------------------------
+-- Generic emission (→ future ihp-router)
+---------------------------------------------------------------------------
+
+-- | Emit the generic @HasPath@ instance per controller. No IHP-specific
+-- references — this is the half that moves to @ihp-router@ in the
+-- extraction PR.
+genericEmit :: ParsedBlock -> Q [Dec]
+genericEmit ParsedBlock { pbGroups } =
+    traverse (\(ctrl, vs) -> emitHasPath ctrl vs) pbGroups
+
+---------------------------------------------------------------------------
+-- IHP-specific emission (stays in IHP)
+---------------------------------------------------------------------------
+
+-- | Emit the IHP-flavoured declarations: a @CanRoute@ instance per
+-- controller plus, for lowercase-header blocks, the @webRoutes@-style
+-- binding. Extracted into its own function so the package-extraction PR
+-- can move it to an IHP-side shim without churning the generic half.
+ihpEmit :: ParsedBlock -> Q [Dec]
+ihpEmit ParsedBlock { pbHeader, pbGroups } = do
+    canRouteDecs <- traverse (\(ctrl, vs) -> emitCanRoute ctrl vs) pbGroups
+    bindingDecs <- case pbHeader of
+        HeaderLowercase name -> emitNamedBinding name (map fst pbGroups)
+        _                    -> pure []
+    pure (canRouteDecs <> bindingDecs)
 
 -- | Bucket routes by the parent type of their action constructor.
 --
@@ -213,14 +320,6 @@ reifyControllerByName tyName = do
             "' must use record syntax or be nullary"
         TH.ForallC _ _ inner -> extractCon inner
         c -> fail $ "routes: unsupported constructor form: " <> show (TH.ppr c)
-
--- | Emit instances for one controller group.
-emitGroup :: (ControllerInfo, [Route]) -> Q [Dec]
-emitGroup (ctrl, rs) = do
-    vs <- traverse (validateRoute ctrl) rs
-    hasPathInst <- emitHasPath ctrl vs
-    canRouteInst <- emitCanRoute ctrl vs
-    pure [hasPathInst, canRouteInst]
 
 renderParseError :: Parser.ParseError -> String
 renderParseError e =
