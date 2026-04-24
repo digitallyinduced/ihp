@@ -12,6 +12,8 @@ module IHP.Router.DSL.Runtime
     ( buildRouteTrie
     , captureSpec
     , dispatch
+    , mkHandler
+    , mkHandlerQ
     -- * Query-string helpers
     , queryParamRequired
     , queryParamOptional
@@ -29,18 +31,20 @@ import qualified Data.Text.Encoding as Text.Encoding
 import Network.HTTP.Types (status404, Query)
 import Network.HTTP.Types.Method (StdMethod)
 import Network.HTTP.Types.URI (urlEncode)
-import Network.Wai (Application, responseLBS)
+import Network.Wai (Application, Request, queryString, responseLBS)
 
 import IHP.Router.Trie
 import IHP.Router.Capture (UrlCapture, parseCapture)
 
 -- | Build a 'RouteTrie' from a compile-time-known list of
--- @(method, pattern, handler)@ triples. The TH splice produces one call
--- to this function per @[routes|...|]@ block.
-buildRouteTrie :: [(StdMethod, [PatternSegment], WaiHandler)] -> RouteTrie
+-- @(methods, pattern, handler)@ triples. Each entry can register one
+-- handler under several HTTP methods at once — the TH splice uses this
+-- so a @GET@ route auto-registers @HEAD@ via the same 'WaiHandler' value
+-- (no duplicate lambda in the emitted Core).
+buildRouteTrie :: [([StdMethod], [PatternSegment], WaiHandler)] -> RouteTrie
 buildRouteTrie = foldr step emptyTrie
   where
-    step (m, p, h) t = insertRoute p m h t
+    step (ms, p, h) t = insertRouteMethods p ms h t
 {-# INLINE buildRouteTrie #-}
 
 -- | Build a 'CaptureSpec' from a capture name. Type-level validation
@@ -60,6 +64,52 @@ dispatch :: (controller -> Application) -> Maybe controller -> Application
 dispatch _   Nothing   _req respond = respond (responseLBS status404 [] "Not Found")
 dispatch run (Just c)  req  respond = run c req respond
 {-# INLINE dispatch #-}
+
+-- | Wrap a per-route capture-and-action builder into a 'WaiHandler'.
+--
+-- The TH splice emits one call to 'mkHandler' (or 'mkHandlerQ' for routes
+-- that read query parameters) per route. Pulling the WAI shell out of
+-- the splice and into a runtime helper saves ~3 KB of Core per route on
+-- the user-facing module: the per-route emission shrinks from a 3-arg
+-- @\\captures req respond -> let q = queryString req in case captures of …@
+-- shape down to a single 'mkHandler' application plus a small lambda.
+--
+-- The builder receives the captures unchanged and returns @'Just' action@
+-- on a successful decode or 'Nothing' if any capture rejected. The
+-- runtime then dispatches the action via the user-supplied runner
+-- (typically @runAction'@ in IHP, or any @Controller -> Application@
+-- function in a generic WAI app).
+mkHandler
+    :: (controller -> Application)            -- ^ runner (e.g. @runAction'@)
+    -> (Captures -> Maybe controller)         -- ^ per-route capture decoder
+    -> WaiHandler
+mkHandler runner build captures req respond =
+    dispatch runner (build captures) req respond
+{-# NOINLINE mkHandler #-}
+-- ^ NOINLINE is deliberate: with INLINE, GHC would inline the body at
+-- every per-route call site (one per route in the user's Routes.hs),
+-- regenerating the @\\captures req respond -> dispatch …@ shell we just
+-- factored out. NOINLINE keeps a single shared body in Runtime, the
+-- per-route Core is just one application of @mkHandler@. The dispatch
+-- helper itself is INLINE and folds into mkHandler's body once.
+-- Runtime cost is one extra indirect call per request — negligible
+-- against actual handler work, and well below the latency we shaved
+-- by avoiding AutoRoute's per-request 'Data' reflection.
+
+-- | Variant of 'mkHandler' that also threads the query string through.
+-- Used by the TH splice for routes that declare any @?name@ query
+-- parameters; routes without query params use the plainer 'mkHandler'.
+--
+-- Splitting these two avoids paying for the @queryString req@ pull on
+-- routes that don't read query params (the vast majority of static
+-- routes), and keeps the simple-case Core small.
+mkHandlerQ
+    :: (controller -> Application)
+    -> (Captures -> Query -> Maybe controller)
+    -> WaiHandler
+mkHandlerQ runner build captures req respond =
+    dispatch runner (build captures (queryString req)) req respond
+{-# NOINLINE mkHandlerQ #-}
 
 ---------------------------------------------------------------------------
 -- Query-string helpers

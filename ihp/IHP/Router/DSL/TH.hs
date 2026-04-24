@@ -39,7 +39,8 @@ import IHP.Router.Trie (PatternSegment (..))
 import IHP.Router.DSL.Runtime
     ( buildRouteTrie
     , captureSpec
-    , dispatch
+    , mkHandler
+    , mkHandlerQ
     , queryParamRequired
     , queryParamOptional
     , queryParamList
@@ -699,12 +700,9 @@ emitCanRoute ctrl vs = do
 
 emitTrieFragment :: [ValidatedRoute] -> Q Exp
 emitTrieFragment vs = do
-    entries <- traverse emitEntriesPerRoute vs
-    let listE = TH.ListE (concat entries)
+    entries <- traverse emitOneEntry vs
+    let listE = TH.ListE entries
     pure (TH.AppE (TH.VarE 'buildRouteTrie) listE)
-
-emitEntriesPerRoute :: ValidatedRoute -> Q [Exp]
-emitEntriesPerRoute vr = traverse (emitOneEntry vr) (expandHeadForGet (vrMethods vr))
 
 -- | HTTP semantics: if a route accepts GET it should also accept HEAD
 -- (HEAD returns the same headers with no body). The existing 'get'
@@ -716,11 +714,24 @@ expandHeadForGet ms
     | GET `elem` ms && not (HEAD `elem` ms) = ms <> [HEAD]
     | otherwise = ms
 
-emitOneEntry :: ValidatedRoute -> Method -> Q Exp
-emitOneEntry vr method = do
+-- | Build one trie entry per route — a tuple
+-- @([StdMethod], [PatternSegment], WaiHandler)@ where the methods list
+-- carries every method that should resolve to this handler.
+--
+-- Pre-extraction the splice emitted one tuple per (method, route) pair;
+-- expanding @GET@ to @[GET, HEAD]@ doubled the number of handler
+-- lambdas in the user's @Routes.hs@ Core. With the multi-method shape
+-- only one handler closure is built per route — the trie's
+-- 'insertRouteMethods' registers it under each listed method.
+emitOneEntry :: ValidatedRoute -> Q Exp
+emitOneEntry vr = do
     handlerE <- handlerExpr vr
+    let methodsList = TH.ListE
+            [ TH.ConE (stdMethodCon m)
+            | m <- expandHeadForGet (vrMethods vr)
+            ]
     pure $ TH.TupE
-        [ Just (TH.ConE (stdMethodCon method))
+        [ Just methodsList
         , Just (patternExp (vrPath vr))
         , Just handlerE
         ]
@@ -747,18 +758,28 @@ patternExp = TH.ListE . map segExp
         TH.AppE (TH.VarE 'captureSpec)
             (TH.LitE (TH.StringL (Text.unpack n)))
 
--- | Build the @Captures -> Application@ handler for one route.
+-- | Build the @Captures -> Application@ handler for one route, as a
+-- call to either 'mkHandler' (no query params) or 'mkHandlerQ' (any
+-- query params declared via @?name@).
 --
--- The trie hands us @Captures = [ByteString]@ — positional, in path
--- order. The emitted handler:
+-- The runtime helpers do the WAI plumbing ('dispatch', pulling
+-- @queryString@ off the request, applying the runner). The TH splice
+-- emits only the per-route capture-decoding closure:
 --
--- (1) pattern-matches on the list with the expected arity;
--- (2) parses each bytestring via 'parseCapture \@FieldType' in a Maybe-do
---     block, producing @Maybe controller@;
--- (3) dispatches via 'dispatch' — on 'Just' it runs the action, on 'Nothing'
---     it returns @404 Not Found@ (a capture failed to decode).
+-- @
+--   mkHandler  runAction' (\\captures        -> case captures of [bs0, bs1] -> do …pure (Just …); _ -> Nothing)
+--   mkHandlerQ runAction' (\\captures query  -> case captures of [bs0]      -> do …pure (Just …); _ -> Nothing)
+-- @
 --
--- Each capture is parsed exactly once per request. No 'Dynamic' round-trip.
+-- This shrinks the per-route Core compared to inlining the WAI shell:
+-- no per-route 3-arg lambda, no per-route @let _dslQuery = queryString req@,
+-- no per-route @dispatch runAction' … req respond@ chain, and the
+-- arity-mismatch arm is @Nothing@ instead of a 65-character @error@
+-- string literal.
+--
+-- Each capture is still parsed exactly once per request, via
+-- 'parseCapture' specialised to the field's Haskell type by
+-- @AppTypeE@. No 'Dynamic' round-trip.
 handlerExpr :: ValidatedRoute -> Q Exp
 handlerExpr vr = do
     let captureSegs = [ (n, ty) | VSCapture n ty <- vrPath vr ]
@@ -777,8 +798,6 @@ handlerExpr vr = do
                           | i <- [0 .. length queryFields - 1]
                           ]
         capturesName = TH.mkName "_dslCaptures"
-        requestName  = TH.mkName "_dslRequest"
-        respondName  = TH.mkName "_dslRespond"
         queryName    = TH.mkName "_dslQuery"
 
     let listPat :: Pat
@@ -833,64 +852,56 @@ handlerExpr vr = do
 
         allBinds = pathBindStmts <> queryBindStmts
 
+        -- The Maybe-builder body: parse captures + query params, then
+        -- construct the action. With zero binds, simplifies to a bare
+        -- @Just Action@ (no do-block), which produces noticeably less
+        -- Core for the common static-route case.
         maybeExp = case allBinds of
             [] -> TH.AppE (TH.ConE 'Just) recordExp
             _  -> TH.DoE Nothing (allBinds <> [returnStmt])
 
-        dispatchCall =
-            TH.AppE
-                (TH.AppE (TH.VarE 'dispatch) (TH.VarE runActionPrimeFn))
-                maybeExp
+        -- Per-route closure body. The case has only one productive arm
+        -- (the right-arity match); the trie's 'insertRouteMethods'
+        -- guarantees we'll always be called with the right arity. The
+        -- @_ -> Nothing@ fallback exists only to keep the pattern
+        -- exhaustive — it should never fire at runtime.
+        captureCase =
+            TH.CaseE (TH.VarE capturesName)
+                [ TH.Match listPat (TH.NormalB maybeExp) []
+                , TH.Match TH.WildP
+                    (TH.NormalB (TH.ConE 'Nothing))
+                    []
+                ]
 
-        -- If any query params need parsing, the handler body needs access
-        -- to the WAI Request (to pull queryString). Otherwise the simpler
-        -- no-query shape is sufficient.
+        -- If any captures appear, we need the case to bind them. With
+        -- zero captures, the case is a single arm against @[]@ — we
+        -- can skip the case entirely and yield 'maybeExp' directly.
+        decoderBody
+            | null captureSegs = maybeExp
+            | otherwise        = captureCase
+
+        -- Pick the helper based on whether any query params are in play.
+        -- 'mkHandlerQ' threads the query string; 'mkHandler' doesn't —
+        -- so static and path-only routes don't pay for @queryString req@.
         hasQuery = not (null queryFields)
+
+        -- When there are no path captures, the captures-arg is unused
+        -- in the body — bind a wildcard to avoid -Wunused-matches.
+        capturesPat
+            | null captureSegs = TH.WildP
+            | otherwise        = TH.VarP capturesName
 
         handlerBody
             | hasQuery =
-                -- \captures req respond ->
-                --   let _dslQuery = queryString req
-                --   in case captures of [bs0, bs1, ...] -> dispatch … req respond
-                --                       _                -> error
-                TH.LamE
-                    [ TH.VarP capturesName
-                    , TH.VarP requestName
-                    , TH.VarP respondName
-                    ]
-                    (TH.LetE
-                        [ TH.ValD (TH.VarP queryName)
-                            (TH.NormalB
-                                (TH.AppE
-                                    (TH.VarE (TH.mkName "queryString"))
-                                    (TH.VarE requestName)))
-                            []
-                        ]
-                        (TH.CaseE (TH.VarE capturesName)
-                            [ TH.Match listPat
-                                (TH.NormalB
-                                    (TH.AppE
-                                        (TH.AppE dispatchCall (TH.VarE requestName))
-                                        (TH.VarE respondName)))
-                                []
-                            , TH.Match TH.WildP
-                                (TH.NormalB
-                                    (TH.AppE (TH.VarE 'error)
-                                        (TH.LitE (TH.StringL
-                                            "routes: trie delivered unexpected capture arity (generated code bug)"))))
-                                []
-                            ]))
+                -- mkHandlerQ runAction' (\captures query -> decoderBody)
+                TH.AppE
+                    (TH.AppE (TH.VarE 'mkHandlerQ) (TH.VarE runActionPrimeFn))
+                    (TH.LamE [capturesPat, TH.VarP queryName] decoderBody)
             | otherwise =
-                TH.LamE [TH.VarP capturesName]
-                    (TH.CaseE (TH.VarE capturesName)
-                        [ TH.Match listPat (TH.NormalB dispatchCall) []
-                        , TH.Match TH.WildP
-                            (TH.NormalB
-                                (TH.AppE (TH.VarE 'error)
-                                    (TH.LitE (TH.StringL
-                                        "routes: trie delivered unexpected capture arity (generated code bug)"))))
-                            []
-                        ])
+                -- mkHandler runAction' (\captures -> decoderBody)
+                TH.AppE
+                    (TH.AppE (TH.VarE 'mkHandler) (TH.VarE runActionPrimeFn))
+                    (TH.LamE [capturesPat] decoderBody)
 
     pure handlerBody
   where

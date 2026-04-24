@@ -21,6 +21,7 @@ module IHP.Router.Trie
     , LookupResult (..)
     , emptyTrie
     , insertRoute
+    , insertRouteMethods
     , lookupTrie
     , mergeTrie
     , splitPath
@@ -121,24 +122,40 @@ insertRoute
     -> WaiHandler
     -> RouteTrie
     -> RouteTrie
-insertRoute [] method handler trie =
-    trie { handlers = Map.insert method handler (handlers trie) }
-insertRoute (seg : rest) method handler trie = case seg of
+insertRoute pattern method = insertRouteMethods pattern [method]
+{-# INLINE insertRoute #-}
+
+-- | Like 'insertRoute' but registers the same handler under multiple
+-- methods at once.
+--
+-- The TH splice uses this to implement @GET ⇒ GET+HEAD@ expansion
+-- without emitting a duplicate handler lambda per method: one
+-- 'WaiHandler' value, one trie walk, both methods registered at the
+-- leaf.
+insertRouteMethods
+    :: [PatternSegment]
+    -> [StdMethod]
+    -> WaiHandler
+    -> RouteTrie
+    -> RouteTrie
+insertRouteMethods [] methods handler trie =
+    trie { handlers = foldr (\m h -> Map.insert m handler h) (handlers trie) methods }
+insertRouteMethods (seg : rest) methods handler trie = case seg of
     LiteralSeg lit ->
         let child = HashMap.lookupDefault emptyTrie lit (static trie)
-            child' = insertRoute rest method handler child
+            child' = insertRouteMethods rest methods handler child
          in trie { static = HashMap.insert lit child' (static trie) }
     CaptureSeg spec ->
         let child = case dynamic trie of
                 Just (_, existing) -> existing
                 Nothing            -> emptyTrie
-            child' = insertRoute rest method handler child
+            child' = insertRouteMethods rest methods handler child
          in trie { dynamic = Just (spec, child') }
     SplatSeg name ->
         let existing = case splat trie of
                 Just (_, h) -> h
                 Nothing     -> Map.empty
-         in trie { splat = Just (name, Map.insert method handler existing) }
+         in trie { splat = Just (name, foldr (\m h -> Map.insert m handler h) existing methods) }
 
 -- | Deep-merge two tries. Used at application startup to combine
 -- fragments coming from separate controllers into one app-wide trie.
