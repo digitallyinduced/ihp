@@ -13,7 +13,6 @@ import IHP.Router.DSL (routes)
 import IHP.Router.Capture (renderCapture, parseCapture)
 import IHP.ControllerPrelude
 import Network.HTTP.Types.Method (StdMethod (..))
-import Network.Wai (queryString)
 
 -- Minimal controller type used to exercise the DSL splice.
 data QuoterController
