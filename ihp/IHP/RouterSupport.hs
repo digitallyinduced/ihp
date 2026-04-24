@@ -50,7 +50,6 @@ import qualified IHP.ModelSupport as ModelSupport
 import IHP.FrameworkConfig
 import Data.UUID
 import Network.HTTP.Types.Method
-import Network.HTTP.Types (parseMethod)
 import Network.Wai
 import qualified IHP.Router.Trie as Trie
 import qualified IHP.Router.Middleware as RouterMiddleware

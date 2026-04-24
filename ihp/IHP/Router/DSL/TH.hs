@@ -26,7 +26,6 @@ import qualified Data.List as List
 import qualified Data.Map.Strict as Map
 import qualified Language.Haskell.TH as TH
 import Language.Haskell.TH (Q, Dec, Exp, Name, Pat, Type)
-import qualified Language.Haskell.TH.Syntax as TH.Syntax
 import qualified Language.Haskell.TH.Quote as TH
 import qualified Language.Haskell.Meta.Parse as Meta
 import Data.Typeable (Typeable)
@@ -35,7 +34,6 @@ import IHP.Router.DSL.AST hiding (routes)
 import qualified IHP.Router.DSL.AST as AST
 import qualified IHP.Router.DSL.Parser as Parser
 import IHP.Router.Trie (PatternSegment (..))
-import qualified IHP.Router.Trie as Trie
 import IHP.Router.DSL.Runtime (buildRouteTrie, captureSpec, requireCapture)
 
 -- | The @[routes|...|]@ quasi-quoter. Captures use RFC 6570 URI-template
