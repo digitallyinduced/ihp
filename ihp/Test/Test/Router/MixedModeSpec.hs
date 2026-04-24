@@ -51,7 +51,7 @@ $(pure [])
 
 [routes|NewController
 GET /new-items          NewIndexAction
-GET /new-items/#itemId  NewShowAction
+GET /new-items/{itemId} NewShowAction
 |]
 
 ---------------------------------------------------------------------------

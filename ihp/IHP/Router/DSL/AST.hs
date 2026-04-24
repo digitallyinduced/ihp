@@ -6,21 +6,22 @@ Pure data types describing a parsed @[routes| ... |]@ block. No Template
 Haskell — this module is safe to import from both the parser (compile-time
 textual layer) and the TH splice (compile-time code-generation layer).
 
-The grammar, informally:
+The grammar, informally (RFC 6570 URI-template syntax for path parameters):
 
 > [routes|ControllerName
 > GET    /posts                 PostsAction
 > POST   /posts                 CreatePostAction
-> GET    /posts/#postId         ShowPostAction
-> GET    /posts/#postId/edit    EditPostAction
-> PATCH  /posts/#postId         UpdatePostAction
-> DELETE /posts/#postId         DeletePostAction
+> GET    /posts/{postId}        ShowPostAction
+> GET    /posts/{postId}/edit   EditPostAction
+> PATCH  /posts/{postId}        UpdatePostAction
+> DELETE /posts/{postId}        DeletePostAction
 > |]
 
-Captures @#name@ bind the segment to a record field of the same name on the
-action constructor. @#name:Type@ is an explicit-type escape hatch. @*name@
-matches the rest of the path. @GET|POST@ allows multiple methods for one
-route. Anything after @--@ on a line is a comment.
+@{name}@ binds the segment to a record field of the same name on the
+action constructor. @{name:Type}@ is an explicit-type escape hatch.
+@{+name}@ (RFC 6570 reserved-string expansion) matches the rest of the path.
+@GET|POST@ allows multiple methods for one route. Anything after @--@ on a
+line is a comment.
 -}
 module IHP.Router.DSL.AST
     ( Routes (..)
@@ -63,12 +64,13 @@ data PathSeg
     = Literal !Text
         -- ^ A literal path piece like @"posts"@ in @/posts/new@.
     | Capture !Text !(Maybe Text)
-        -- ^ @#name@ or @#name:Type@ — captures one segment, bound to the
+        -- ^ @{name}@ or @{name:Type}@ — captures one segment, bound to the
         -- action field of the same name. The optional 'Text' is a raw
         -- Haskell type expression (escape hatch for when the capture type
         -- can't be inferred from the record field alone).
     | Splat !Text !(Maybe Text)
-        -- ^ @*name@ or @*name:Type@ — captures the remainder of the path.
+        -- ^ @{+name}@ or @{+name:Type}@ — RFC 6570 reserved-string form:
+        -- captures the remainder of the path including any @\/@ characters.
         -- Default type is 'Data.Text.Text'.
     deriving (Eq, Show)
 

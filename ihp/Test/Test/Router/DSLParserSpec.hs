@@ -46,23 +46,23 @@ tests = do
                         , rt 4 [GET]  [Literal "posts", Literal "new"] "NewPostAction"
                         ])
 
-            it "parses captures" do
-                parseRoutes "PostsController\nGET /posts/#postId ShowPostAction\n"
+            it "parses captures (RFC 6570 {name})" do
+                parseRoutes "PostsController\nGET /posts/{postId} ShowPostAction\n"
                     `shouldBe` Right (mk "PostsController"
                         [ rt 2 [GET] [Literal "posts", Capture "postId" Nothing] "ShowPostAction" ])
 
             it "parses captures with type annotations" do
-                parseRoutes "SearchController\nGET /search/#q:Text SearchAction\n"
+                parseRoutes "SearchController\nGET /search/{q:Text} SearchAction\n"
                     `shouldBe` Right (mk "SearchController"
                         [ rt 2 [GET] [Literal "search", Capture "q" (Just "Text")] "SearchAction" ])
 
-            it "parses splat" do
-                parseRoutes "FilesController\nGET /files/*path DownloadAction\n"
+            it "parses splat (RFC 6570 {+name})" do
+                parseRoutes "FilesController\nGET /files/{+path} DownloadAction\n"
                     `shouldBe` Right (mk "FilesController"
                         [ rt 2 [GET] [Literal "files", Splat "path" Nothing] "DownloadAction" ])
 
             it "parses multiple methods on one line" do
-                parseRoutes "PostsController\nGET|HEAD /posts/#postId ShowPostAction\n"
+                parseRoutes "PostsController\nGET|HEAD /posts/{postId} ShowPostAction\n"
                     `shouldBe` Right (mk "PostsController"
                         [ rt 2 [GET, HEAD] [Literal "posts", Capture "postId" Nothing] "ShowPostAction" ])
 
@@ -75,7 +75,7 @@ tests = do
                     other -> expectationFailure "expected a single route with expanded methods"
 
             it "parses explicit field bindings" do
-                parseRoutes "MemberController\nGET /orgs/#org/users/#user ShowMemberAction { organizationId = #org, userId = #user }\n"
+                parseRoutes "MemberController\nGET /orgs/{org}/users/{user} ShowMemberAction { organizationId = #org, userId = #user }\n"
                     `shouldBe` Right (mk "MemberController"
                         [ rtWithBinds 2 [GET]
                             [ Literal "orgs"
@@ -132,8 +132,13 @@ tests = do
                     Right _ -> expectationFailure "expected ParseError"
 
             it "rejects invalid capture name" do
-                case parseRoutes "C\nGET /posts/#123 ShowAction\n" of
+                case parseRoutes "C\nGET /posts/{123} ShowAction\n" of
                     Left e -> (cs (errorMessage e) :: String) `shouldContain` "invalid capture name"
+                    Right _ -> expectationFailure "expected ParseError"
+
+            it "rejects unterminated capture" do
+                case parseRoutes "C\nGET /posts/{postId ShowAction\n" of
+                    Left e -> (cs (errorMessage e) :: String) `shouldContain` "missing closing '}'"
                     Right _ -> expectationFailure "expected ParseError"
 
             it "rejects missing action" do

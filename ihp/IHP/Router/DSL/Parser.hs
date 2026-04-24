@@ -122,7 +122,7 @@ parseMethods line field
         Just m  -> Right m
         Nothing -> Left (ParseError line ("routes: unknown method: " <> quoted raw))
 
--- | Parse a path like @/posts/#postId/edit@.
+-- | Parse a path like @\/posts\/{postId}\/edit@ (RFC 6570 URI templates).
 parsePath :: Int -> Text -> Either ParseError [PathSeg]
 parsePath line raw
     | Text.null raw = Left (ParseError line "routes: missing path")
@@ -133,23 +133,42 @@ parsePath line raw
             segments = Text.splitOn "/" dropped
          in traverse (parseSegment line) segments
 
--- | Parse one path segment: literal, @#name[:Type]@, or @*name[:Type]@.
+-- | Parse one path segment following RFC 6570 URI-template conventions:
+--
+-- * Literal segment — e.g. @posts@.
+-- * @{name}@ — a single-segment capture bound to the record field @name@.
+-- * @{name:Type}@ — a capture with an explicit Haskell type annotation
+--   (escape hatch for when the field type can't be inferred via reification).
+-- * @{+name}@ — RFC 6570 \"reserved-string expansion\" form, used here as a
+--   splat: matches the remainder of the path (including @\/@).
+-- * @{+name:Type}@ — typed splat (defaults to 'Data.Text.Text').
 parseSegment :: Int -> Text -> Either ParseError PathSeg
 parseSegment line seg
     | Text.null seg =
         Left (ParseError line "routes: empty path segment (consecutive slashes?)")
-    | Text.head seg == '#' = parseNamed Capture (Text.drop 1 seg)
-    | Text.head seg == '*' = parseNamed Splat (Text.drop 1 seg)
+    | Text.head seg == '{' =
+        case Text.stripSuffix "}" seg of
+            Nothing -> Left (ParseError line
+                ("routes: capture segment missing closing '}': " <> quoted seg))
+            Just body ->
+                let inner = Text.drop 1 body
+                 in case Text.uncons inner of
+                        Nothing -> Left (ParseError line
+                            ("routes: empty capture: " <> quoted seg))
+                        Just ('+', rest) -> parseNamed Splat rest
+                        Just _           -> parseNamed Capture inner
     | otherwise = Right (Literal seg)
   where
     parseNamed ctor rest = do
         (name, tyRaw) <- case Text.splitOn ":" rest of
             [n]    -> Right (n, Nothing)
             [n, t] -> Right (n, Just t)
-            _      -> Left (ParseError line ("routes: too many ':' in segment: " <> quoted seg))
+            _      -> Left (ParseError line
+                ("routes: too many ':' in segment: " <> quoted seg))
         if isValidIdent name
             then Right (ctor name tyRaw)
-            else Left (ParseError line ("routes: invalid capture name: " <> quoted name))
+            else Left (ParseError line
+                ("routes: invalid capture name: " <> quoted name))
 
 -- | Parse an action reference like @ShowPostAction@ or
 -- @ShowMemberAction { organizationId = #org, userId = #user }@.

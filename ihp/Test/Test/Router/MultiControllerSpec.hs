@@ -46,9 +46,9 @@ $(pure [])
 -- and emits CanRoute/HasPath instances for both PostsCtrl and UsersCtrl.
 [routes|
 GET /posts              PostsIndexAction
-GET /posts/#postId      ShowPostAction
+GET /posts/{postId}     ShowPostAction
 GET /users              UsersIndexAction
-GET /users/#userId      ShowUserAction
+GET /users/{userId}     ShowUserAction
 |]
 
 tests = do

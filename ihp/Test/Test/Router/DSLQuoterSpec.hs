@@ -38,8 +38,8 @@ $(pure [])
 [routes|QuoterController
 GET    /items             IndexAction
 GET    /items/new         NewItemAction
-GET    /items/#itemId     ShowItemAction
-GET    /items/#itemId/edit EditItemAction
+GET    /items/{itemId}     ShowItemAction
+GET    /items/{itemId}/edit EditItemAction
 |]
 
 tests = do

@@ -36,12 +36,13 @@ import IHP.Router.Trie (PatternSegment (..))
 import qualified IHP.Router.Trie as Trie
 import IHP.Router.DSL.Runtime (buildRouteTrie, captureSpec, requireCapture)
 
--- | The @[routes|...|]@ quasi-quoter.
+-- | The @[routes|...|]@ quasi-quoter. Captures use RFC 6570 URI-template
+-- syntax — @{name}@ for a single segment, @{+name}@ for a splat.
 --
 -- > [routes|PostsController
--- > GET    /posts             PostsAction
--- > GET    /posts/#postId     ShowPostAction
--- > PATCH  /posts/#postId     UpdatePostAction
+-- > GET    /posts              PostsAction
+-- > GET    /posts/{postId}     ShowPostAction
+-- > PATCH  /posts/{postId}     UpdatePostAction
 -- > |]
 --
 -- Only 'TH.quoteDec' is supported — use at top level, not inside expressions.
