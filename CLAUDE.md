@@ -378,3 +378,11 @@ nix flake update
 ## Documentation
 
 The `/Guide/` directory contains comprehensive documentation in markdown. Run `devenv up` from the Guide directory to preview changes locally.
+
+The production version of the documentation is hosted at: ihp.digitallyinduced.com
+
+To update it:
+- `cd ~/digitallyinduced/ihp-website && nix flake update ihpDocs`. Then commit the lock file change
+- Next deploy the nixos configuration: `cd ~/digitallyinduced/servers && nix flake update ihpWebsite && nix run .#deploy`
+
+When a new version of IHP is released, also update the ihp-website repo
