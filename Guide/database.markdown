@@ -305,80 +305,126 @@ do
 
 The IHP query builder is designed to be able to easily express many basic sql queries. When your application is growing you will typically hit a point where a complex SQL query cannot be easily expressed with the IHP query builder. In that case it's recommended to use handwritten SQL to access your data.
 
-> **Tip:** For compile-time type-checked SQL queries, see the [Typed SQL Guide](typed-sql.html). Typed SQL automatically infers Haskell types from your SQL at compile time, eliminating the need for manual `FromRow` instances.
+> **Recommended:** Use the `[typedSql| ... |]` quasi quoter from [`IHP.TypedSql`](typed-sql.html). It connects to your development database at compile time and infers Haskell types for parameters and results — so mistakes surface as compile errors instead of runtime crashes. `sqlQuery`, `sqlQuerySingleRow`, `sqlQueryScalar`, `sqlQueryScalarOrNothing`, `sqlExec`, and `sqlExecDiscardResult` are **deprecated**; use `typedSql` with `sqlQueryTyped` / `sqlExecTyped`, or fall back to the `unsafeSql*` variants when a truly raw query is required.
 
-Use the function [`sqlQuery`](https://ihp.digitallyinduced.com/api-docs/IHP-ModelSupport.html#v:sqlQuery) to run a raw SQL query:
+### Typed queries (preferred)
+
+Use [`typedSql`](https://ihp.digitallyinduced.com/api-docs/IHP-TypedSql.html#v:typedSql) with [`sqlQueryTyped`](https://ihp.digitallyinduced.com/api-docs/IHP-TypedSql.html#v:sqlQueryTyped) for any query you can write as a literal. Parameters are interpolated via `${expr}` and the result type is inferred from the SELECT list:
+
+```haskell
+import IHP.TypedSql (typedSql, sqlQueryTyped, sqlExecTyped)
+
+do
+    result <- sqlQueryTyped [typedSql|
+        SELECT id, title, body FROM projects WHERE id = ${id}
+    |]
+
+    -- WHERE id IN (...) via an array parameter
+    let ids :: [Id Project] = [id]
+    inList <- sqlQueryTyped [typedSql|
+        SELECT id, title, body FROM projects WHERE id = ANY(${ids})
+    |]
+
+    -- Post ids with their comment counts
+    commentsCount <- sqlQueryTyped [typedSql|
+        SELECT post_id, COUNT(*) FROM comments WHERE post_id = ANY(${postIds}) GROUP BY post_id
+    |]
+    -- commentsCount :: [(Id Post, Int64)]
+```
+
+For a single value use the same quoter and pick the first row:
 
 ```haskell
 do
-    result <- sqlQuery "SELECT * FROM projects WHERE id = ?" (Only id)
-
-    -- Query with WHERE id IN
-    result <- sqlQuery "SELECT * FROM projects WHERE id IN ?" (Only (In [id]))
-
-    -- Get a lists of posts with their Comment count
-    let postIds :: [Id Post] = ["1c3a81ff-55ca-42a8-82e0-31d04f642e53"]
-    commentsCount :: [(Id Post, Int)] <- sqlQuery "SELECT post_id, count(*) FROM comments WHERE post_id IN ? GROUP BY post_id" (Only (In postIds))
+    [count] <- sqlQueryTyped [typedSql| SELECT COUNT(*) FROM projects |]
+    -- count :: Int64
 ```
 
-You might need to specify the expected result type, as type inference might not be able to guess it:
+For `INSERT`/`UPDATE`/`DELETE` use [`sqlExecTyped`](https://ihp.digitallyinduced.com/api-docs/IHP-TypedSql.html#v:sqlExecTyped) to get the affected row count:
 
 ```haskell
 do
-    result :: [Project] <- sqlQuery "SELECT * FROM projects WHERE id = ?" (Only id)
+    rowsAffected <- sqlExecTyped [typedSql|
+        UPDATE projects SET archived = true WHERE id = ${projectId}
+    |]
 ```
 
-If you would like to have your query dynamically built with an argument you could:
+See the [Typed SQL Guide](typed-sql.html) for full details including RETURNING clauses, JOINs with nullable columns, and schema-change safety.
+
+### Unsafe raw SQL (escape hatch)
+
+Some queries cannot be expressed with `typedSql` — for example, queries whose table or column names are computed at runtime, or DDL statements that cannot be described without a dev database. For those, use [`unsafeSqlQuery`](https://ihp.digitallyinduced.com/api-docs/IHP-ModelSupport.html#v:unsafeSqlQuery) and friends:
 
 ```haskell
 import qualified Database.PostgreSQL.Simple as PG
 import qualified Database.PostgreSQL.Simple.Types as PG
 
 do
-    -- Get all Projects
+    -- Dynamically-chosen table name — typedSql can't describe this
     let table :: Text = "projects"
-    -- Use PG.Identifier to prevent SQL injection
-    result :: [Project] <- sqlQuery "SELECT * FROM ?" [PG.Identifier table]
+    result :: [Project] <- unsafeSqlQuery "SELECT * FROM ?" [PG.Identifier table]
 ```
 
-If you need to fetch only a single column, for example only the ID of a record, you need to help the compiler and type hint
-the result, with an `Only` prefix. Here's an example of fetching only the IDs of a `project` table, and converting them to
-`Id Project`:
+If you need to fetch only a single column, type-hint the result with `Only`:
 
 ```haskell
 do
-    allProjectUuids :: [Only UUID] <- sqlQuery "SELECT projects.id FROM projects" ()
+    allProjectUuids :: [Only UUID] <- unsafeSqlQuery "SELECT projects.id FROM projects" ()
 
     let projectIds =
             allProjectUuids
-                -- Extract the UUIDs, and convert to an ID.
                 |> map (\(Only uuid) -> Id uuid :: Id Project)
 ```
 
+The `unsafe*` family skips compile-time checking; getting a column order or type wrong will fail only at runtime. Prefer `typedSql` whenever the query shape is known statically.
+
 ### Scalar Results
 
-The [`sqlQuery`](https://ihp.digitallyinduced.com/api-docs/IHP-ModelSupport.html#v:sqlQuery) function always returns a list of rows as the result. When the result of your query is a single value (such as an integer or string) use [`sqlQueryScalar`](https://ihp.digitallyinduced.com/api-docs/IHP-ModelSupport.html#v:sqlQueryScalar):
+Use [`unsafeSqlQueryScalar`](https://ihp.digitallyinduced.com/api-docs/IHP-ModelSupport.html#v:unsafeSqlQueryScalar) when you have a raw query that returns a single value. When possible, prefer `sqlQueryTyped` with `[typedSql| ... |]` — it infers the type from the SELECT list automatically.
 
 ```haskell
 do
-    count :: Int <- sqlQueryScalar "SELECT COUNT(*) FROM projects" ()
+    count :: Int <- unsafeSqlQueryScalar "SELECT COUNT(*) FROM projects" ()
 
-    randomString :: Text <- sqlQueryScalar "SELECT md5(random()::text)" ()
+    randomString :: Text <- unsafeSqlQueryScalar "SELECT md5(random()::text)" ()
 ```
 
 ### Dealing With Complex Query Results
 
-Let's say you're querying posts and a count of comments on each post:
-
+With `typedSql`, complex result shapes are handled automatically — you do not need to define a `FromRow` instance. Selecting multiple columns returns a tuple or a labeled `SqlRow`:
 
 ```haskell
-do
-    result :: [Post] <- sqlQuery "SELECT posts.id, posts.title, (SELECT COUNT(*) FROM comments WHERE comments.post_id = posts.id) AS comments_count FROM posts" ()
+import IHP.TypedSql (typedSql, sqlQueryTyped)
+
+fetchPostsWithCommentsCount :: (?modelContext :: ModelContext) => IO [(Id Post, Text, Int64)]
+fetchPostsWithCommentsCount = sqlQueryTyped [typedSql|
+    SELECT posts.id, posts.title,
+        (SELECT COUNT(*) FROM comments WHERE comments.post_id = posts.id) AS comments_count
+    FROM posts
+|]
 ```
 
-This will fail at runtime because the result set cannot be decoded as expected. The result has the columns `id`, `title` and `comments_count` but a Post record consists of `id`, `title`, `body`.
+If you need a named record type for readability, map over the result:
 
-The solution here is to write our own data type and mapping code:
+```haskell
+data PostWithCommentsCount = PostWithCommentsCount
+    { id :: Id Post
+    , title :: Text
+    , commentsCount :: Int64
+    }
+    deriving (Eq, Show)
+
+fetchPostsWithCommentsCount :: (?modelContext :: ModelContext) => IO [PostWithCommentsCount]
+fetchPostsWithCommentsCount = do
+    rows <- sqlQueryTyped [typedSql|
+        SELECT posts.id, posts.title,
+            (SELECT COUNT(*) FROM comments WHERE comments.post_id = posts.id) AS comments_count
+        FROM posts
+    |]
+    pure (map (\(id, title, commentsCount) -> PostWithCommentsCount { id, title, commentsCount }) rows)
+```
+
+If you must use `unsafeSqlQuery` for a complex result, define a record type and a manual `FromRow` instance:
 
 ```haskell
 module Application.PostsQuery where
@@ -405,7 +451,7 @@ instance FromRow PostWithCommentsCount where
 fetchPostsWithCommentsCount :: (?modelContext :: ModelContext) => IO [PostWithCommentsCount]
 fetchPostsWithCommentsCount = do
     trackTableRead "posts" -- This is needed when using auto refresh, so auto refresh knows that your action is accessing the posts table
-    sqlQuery "SELECT posts.id, posts.title, (SELECT COUNT(*) FROM comments WHERE comments.post_id = posts.id) AS comments_count FROM posts" ()
+    unsafeSqlQuery "SELECT posts.id, posts.title, (SELECT COUNT(*) FROM comments WHERE comments.post_id = posts.id) AS comments_count FROM posts" ()
 ```
 
 You can now fetch posts with their comments count like this:
@@ -461,7 +507,7 @@ fetchActiveWorkers = do
     trackTableRead "worker_settings"
     trackTableRead "action_run_states"
     trackTableRead "send_message_actions"
-    sqlQuery query ()
+    unsafeSqlQuery query ()
 
 query :: Query
 query =

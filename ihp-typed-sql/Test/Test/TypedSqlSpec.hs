@@ -7,7 +7,7 @@ import qualified Data.Text.IO                      as Text
 import           IHP.Log.Types
 import           IHP.ModelSupport                  (createModelContext,
                                                     releaseModelContext,
-                                                    sqlExecDiscardResult)
+                                                    unsafeSqlExecDiscardResult)
 import           IHP.Prelude
 import           IHP.TypedSql.ParamHints           (parseSql, extractJoinNullableTables,
                                                     extractNonNullableComputedColumnsFromAst,
@@ -430,43 +430,43 @@ withTestModelContext action = do
 
 setupSchema :: (?modelContext :: ModelContext) => IO ()
 setupSchema = do
-    -- Use sqlExecDiscardResult for DDL (DROP/CREATE) since they have no rows-affected count
-    sqlExecDiscardResult "DROP TABLE IF EXISTS typed_sql_test_extras" ()
-    sqlExecDiscardResult "DROP TABLE IF EXISTS typed_sql_test_items" ()
-    sqlExecDiscardResult "DROP TABLE IF EXISTS typed_sql_test_authors" ()
-    sqlExecDiscardResult "DROP TYPE IF EXISTS typed_sql_test_pair" ()
+    -- Use unsafeSqlExecDiscardResult for DDL (DROP/CREATE) since they have no rows-affected count
+    unsafeSqlExecDiscardResult "DROP TABLE IF EXISTS typed_sql_test_extras" ()
+    unsafeSqlExecDiscardResult "DROP TABLE IF EXISTS typed_sql_test_items" ()
+    unsafeSqlExecDiscardResult "DROP TABLE IF EXISTS typed_sql_test_authors" ()
+    unsafeSqlExecDiscardResult "DROP TYPE IF EXISTS typed_sql_test_pair" ()
 
-    sqlExecDiscardResult "CREATE TYPE typed_sql_test_pair AS (name TEXT, views INT)" ()
+    unsafeSqlExecDiscardResult "CREATE TYPE typed_sql_test_pair AS (name TEXT, views INT)" ()
 
-    sqlExecDiscardResult
+    unsafeSqlExecDiscardResult
         "CREATE TABLE typed_sql_test_authors (id UUID PRIMARY KEY, name TEXT NOT NULL)"
         ()
 
-    sqlExecDiscardResult
+    unsafeSqlExecDiscardResult
         "CREATE TABLE typed_sql_test_items (id UUID PRIMARY KEY, author_id UUID REFERENCES typed_sql_test_authors(id), name TEXT NOT NULL, views INT NOT NULL, score DOUBLE PRECISION, tags TEXT[] NOT NULL DEFAULT '{}')"
         ()
 
-    sqlExecDiscardResult
+    unsafeSqlExecDiscardResult
         "INSERT INTO typed_sql_test_authors (id, name) VALUES ('00000000-0000-0000-0000-000000000001'::uuid, 'Alice')"
         ()
 
-    sqlExecDiscardResult
+    unsafeSqlExecDiscardResult
         "INSERT INTO typed_sql_test_authors (id, name) VALUES ('00000000-0000-0000-0000-000000000002'::uuid, 'Bob')"
         ()
 
-    sqlExecDiscardResult
+    unsafeSqlExecDiscardResult
         "INSERT INTO typed_sql_test_items (id, author_id, name, views, score, tags) VALUES ('10000000-0000-0000-0000-000000000001'::uuid, '00000000-0000-0000-0000-000000000001'::uuid, 'First', 5, 1.5, ARRAY['red', 'blue'])"
         ()
 
-    sqlExecDiscardResult
+    unsafeSqlExecDiscardResult
         "INSERT INTO typed_sql_test_items (id, author_id, name, views, score, tags) VALUES ('10000000-0000-0000-0000-000000000002'::uuid, '00000000-0000-0000-0000-000000000001'::uuid, 'Second', 8, NULL, ARRAY['green'])"
         ()
 
-    sqlExecDiscardResult
+    unsafeSqlExecDiscardResult
         "CREATE TABLE typed_sql_test_extras (id UUID PRIMARY KEY, small_count SMALLINT NOT NULL DEFAULT 0, big_count BIGINT NOT NULL DEFAULT 0, amount NUMERIC, payload BYTEA, metadata JSONB, created_at TIMESTAMPTZ NOT NULL DEFAULT '2025-06-15 12:00:00+00', due_date DATE, active BOOLEAN NOT NULL DEFAULT TRUE)"
         ()
 
-    sqlExecDiscardResult
+    unsafeSqlExecDiscardResult
         "INSERT INTO typed_sql_test_extras (id, small_count, big_count, amount, payload, metadata, created_at, due_date, active) VALUES ('20000000-0000-0000-0000-000000000001'::uuid, 7, 1000000000, 99.95, '\\xDEADBEEF', '{\"key\": \"value\"}', '2025-06-15 12:00:00+00', '2025-06-15', true)"
         ()
 
