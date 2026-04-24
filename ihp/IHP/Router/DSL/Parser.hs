@@ -90,20 +90,21 @@ parseHeader line text =
             then Right trimmed
             else Left (ParseError line ("routes: invalid controller name: " <> quoted trimmed))
 
--- | Parse one route line: METHOD(|METHOD)* /path ActionRef
+-- | Parse one route line: METHOD(|METHOD)* /path(?name&name)* ActionRef
 parseRouteLine :: (Int, Text) -> Either ParseError Route
 parseRouteLine (line, text) = do
     let trimmed = Text.strip text
     (methodsField, rest1) <- splitFirstToken line trimmed
     methods <- parseMethods line methodsField
-    (pathField, rest2) <- splitFirstToken line (Text.strip rest1)
-    path <- parsePath line pathField
+    (pathAndQueryField, rest2) <- splitFirstToken line (Text.strip rest1)
+    (path, queryParams) <- parsePathAndQuery line pathAndQueryField
     action <- parseActionRef line (Text.strip rest2)
     pure Route
-        { routeMethods = methods
-        , routePath    = path
-        , routeAction  = action
-        , routeLine    = line
+        { routeMethods     = methods
+        , routePath        = path
+        , routeQueryParams = queryParams
+        , routeAction      = action
+        , routeLine        = line
         }
 
 -- | Split a line at the first whitespace, returning (first word, remainder).
@@ -121,6 +122,37 @@ parseMethods line field
     parseOne raw = case methodFromText raw of
         Just m  -> Right m
         Nothing -> Left (ParseError line ("routes: unknown method: " <> quoted raw))
+
+-- | Parse a @/path?name1&name2@ token, returning the path segments and
+-- the (possibly empty) query-param list. Anything after the first @?@ is
+-- the query spec; the path is @/posts/{id}@ style, the query spec is a
+-- @&@-separated list of identifiers.
+parsePathAndQuery :: Int -> Text -> Either ParseError ([PathSeg], [Text])
+parsePathAndQuery line raw
+    | Text.null raw = Left (ParseError line "routes: missing path")
+    | otherwise = do
+        let (pathRaw, queryRaw) = Text.breakOn (Text.singleton '?') raw
+        path <- parsePath line pathRaw
+        queryParams <- case Text.stripPrefix "?" queryRaw of
+            Nothing -> Right []
+            Just "" -> Left (ParseError line
+                "routes: empty query-param list after '?' (write '?name1&name2' or drop the '?')")
+            Just rest -> parseQueryParams line rest
+        pure (path, queryParams)
+
+-- | Parse a query-param list like @name1&name2&name3@.
+--
+-- Names follow the same identifier rules as path captures. Empty names
+-- (e.g. @name1&&name2@ from a typo) are rejected with a pointed message.
+parseQueryParams :: Int -> Text -> Either ParseError [Text]
+parseQueryParams line raw = traverse parseOne (Text.splitOn "&" raw)
+  where
+    parseOne name
+        | Text.null name = Left (ParseError line
+            "routes: empty query-param name (stray '&' or '?&'?)")
+        | isValidIdent name = Right name
+        | otherwise = Left (ParseError line
+            ("routes: invalid query-param name: " <> quoted name))
 
 -- | Parse a path like @\/posts\/{postId}\/edit@ (RFC 6570 URI templates).
 parsePath :: Int -> Text -> Either ParseError [PathSeg]

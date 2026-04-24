@@ -40,14 +40,15 @@ $(pure [])
 
 -- The quoter emits HasPath + CanRoute for this type.
 [routes|QuoterController
-GET    /items               IndexAction
-GET    /items/new           NewItemAction
-GET    /items/{itemId}      ShowItemAction
-GET    /items/{itemId}/edit EditItemAction
--- Unbound fields become query params: q (required), page (optional), tags (list)
-GET    /search              SearchAction
+GET    /items                 IndexAction
+GET    /items/new             NewItemAction
+GET    /items/{itemId}        ShowItemAction
+GET    /items/{itemId}/edit   EditItemAction
+-- Explicit query-param list: q (required), page (optional), tags (list).
+-- Field type determines required / optional / list behaviour.
+GET    /search?q&page&tags    SearchAction
 -- Back-compat with AutoRoute's /LegacyShow?itemId=… URL shape.
-GET    /LegacyShow          LegacyShowAction
+GET    /LegacyShow?itemId     LegacyShowAction
 |]
 
 tests = do

@@ -16,10 +16,13 @@ mk :: Text -> [Route] -> Routes
 mk name rs = Routes { controllerName = Just name, routes = rs }
 
 rt :: Int -> [Method] -> [PathSeg] -> Text -> Route
-rt line ms ps name = Route ms ps (ActionRef name []) line
+rt line ms ps name = Route ms ps [] (ActionRef name []) line
+
+rtQ :: Int -> [Method] -> [PathSeg] -> [Text] -> Text -> Route
+rtQ line ms ps qs name = Route ms ps qs (ActionRef name []) line
 
 rtWithBinds :: Int -> [Method] -> [PathSeg] -> Text -> [(Text, Text)] -> Route
-rtWithBinds line ms ps name bs = Route ms ps (ActionRef name bs) line
+rtWithBinds line ms ps name bs = Route ms ps [] (ActionRef name bs) line
 
 tests = do
     describe "IHP.Router.DSL.Parser" do
@@ -110,6 +113,25 @@ tests = do
                     `shouldBe` Right (mk "HomeController"
                         [ rt 2 [GET] [] "HomeAction" ])
 
+            it "parses a single query param" do
+                parseRoutes "ThreadsController\nGET /ShowThread?threadId ShowThreadAction\n"
+                    `shouldBe` Right (mk "ThreadsController"
+                        [ rtQ 2 [GET] [Literal "ShowThread"] ["threadId"] "ShowThreadAction" ])
+
+            it "parses multiple query params (& separated)" do
+                parseRoutes "SearchController\nGET /search?q&page&tags SearchAction\n"
+                    `shouldBe` Right (mk "SearchController"
+                        [ rtQ 2 [GET] [Literal "search"] ["q", "page", "tags"] "SearchAction" ])
+
+            it "parses query params after a path with captures" do
+                parseRoutes "ThreadsController\nGET /threads/{threadId}?page ShowThreadAction\n"
+                    `shouldBe` Right (mk "ThreadsController"
+                        [ rtQ 2 [GET]
+                            [Literal "threads", Capture "threadId" Nothing]
+                            ["page"]
+                            "ShowThreadAction"
+                        ])
+
 
         describe "errors" do
             it "accepts empty block (header-less, zero routes)" do
@@ -149,4 +171,19 @@ tests = do
             it "rejects missing action" do
                 case parseRoutes "C\nGET /posts\n" of
                     Left _  -> pure ()
+                    Right _ -> expectationFailure "expected ParseError"
+
+            it "rejects empty query list (trailing '?')" do
+                case parseRoutes "C\nGET /items? ShowAction\n" of
+                    Left e -> (cs (errorMessage e) :: String) `shouldContain` "empty query-param list"
+                    Right _ -> expectationFailure "expected ParseError"
+
+            it "rejects invalid query-param name" do
+                case parseRoutes "C\nGET /items?123 ShowAction\n" of
+                    Left e -> (cs (errorMessage e) :: String) `shouldContain` "invalid query-param name"
+                    Right _ -> expectationFailure "expected ParseError"
+
+            it "rejects empty query-param name (stray &)" do
+                case parseRoutes "C\nGET /items?a&&b ShowAction\n" of
+                    Left e -> (cs (errorMessage e) :: String) `shouldContain` "empty query-param name"
                     Right _ -> expectationFailure "expected ParseError"

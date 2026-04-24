@@ -47,13 +47,31 @@ import IHP.Router.DSL.Runtime
     )
 
 -- | The @[routes|...|]@ quasi-quoter. Captures use RFC 6570 URI-template
--- syntax — @{name}@ for a single segment, @{+name}@ for a splat.
+-- syntax — @{name}@ for a single segment, @{+name}@ for a splat — and
+-- @?name1&name2@ for query-string parameters.
 --
 -- > [routes|PostsController
--- > GET    /posts              PostsAction
--- > GET    /posts/{postId}     ShowPostAction
--- > PATCH  /posts/{postId}     UpdatePostAction
+-- > GET    /posts                 PostsAction
+-- > GET    /posts/{postId}        ShowPostAction
+-- > PATCH  /posts/{postId}        UpdatePostAction
+-- > GET    /search?q&page         SearchAction
 -- > |]
+--
+-- __Query parameters__ are declared explicitly: each @?name@ names a
+-- record field on the action constructor that the URL carries in the
+-- query string. The field's Haskell type determines the shape:
+-- plain @a@ is required (missing/unparseable ⇒ 404), @'Maybe' a@ is
+-- optional, @[a]@ collects repeated values (@?tags=a&tags=b@).
+-- __Every record field of the action constructor must be covered__
+-- by either a path capture or a query-param entry — unbound fields
+-- fail at splice time with a pointer to the exact fields left over.
+--
+-- __Renaming.__ To map a capture or query-param name to a differently
+-- named record field, use the @{ field = #name }@ syntax after the
+-- action. Works for path captures and query params alike:
+--
+-- > GET /ShowPost?id     ShowPostAction { postId = #id }
+-- > GET /users/{uid}     ShowUserAction { userId = #uid }
 --
 -- Three header forms — all top-level declarations:
 --
@@ -276,14 +294,14 @@ data ValidatedRoute = ValidatedRoute
     , vrCon               :: !ConstructorInfo
     , vrLine              :: !Int
     , vrBindingsByCapture :: !(Map.Map Text Text)
-    -- ^ Record fields of the action constructor NOT bound to a path capture.
-    -- Each entry is @(fieldName, kind, innerType)@: 'QFRequired' for plain
-    -- fields (@a@), 'QFOptional' for @'Maybe' a@ fields (absent query
-    -- params decode to 'Nothing'), 'QFList' for @[a]@ fields (0+ values).
-    -- The splice emits per-field query-string decoding for these at
-    -- handler time and renders them into the URL via 'renderQueryString'
-    -- at 'pathTo' time. Matches AutoRoute's "extra fields become query
-    -- params" semantics.
+    -- ^ Query-param bindings declared explicitly in the route's @?name&…@
+    -- suffix. Each entry is @(fieldName, kind, innerType)@: 'QFRequired'
+    -- for plain fields (@a@), 'QFOptional' for @'Maybe' a@ fields (absent
+    -- query params decode to 'Nothing'), 'QFList' for @[a]@ fields (0+
+    -- values).
+    --
+    -- The order mirrors the order in the DSL so @pathTo@'s rendered query
+    -- string reads left-to-right as the user wrote it.
     , vrQueryFields       :: ![(Text, QueryFieldKind, Type)]
     }
 
@@ -314,22 +332,55 @@ validateRoute ctrl rt = do
             ]
     segs <- traverse (resolveSeg rt con bindingsByCapture) (routePath rt)
 
-    -- Classify fields the path DOESN'T cover as query-string params.
-    -- A field is "path-bound" if some path segment references its
-    -- capture name (possibly via a {field = #cap} binding override).
+    -- Names bound by path captures (after applying any {field = #cap}
+    -- override). Used both for duplicate-detection against the query
+    -- list and for the field-coverage check below.
     let pathBoundFields :: Set.Set Text
         pathBoundFields = Set.fromList
             [ fieldNameForCapture bindingsByCapture capName
             | seg <- segs
             , capName <- pathSegCaptureName seg
             ]
-        queryFields =
-            -- Preserve record-declaration order so pathTo's query-string
-            -- suffix matches AutoRoute's (gmapQ-based) output.
-            [ (fieldName, classifyQueryField ty, innerType ty)
-            | (fieldName, ty) <- coFieldsOrder con
-            , not (Set.member fieldName pathBoundFields)
-            ]
+
+    -- Resolve the explicit @?name1&name2@ list into (fieldName, kind,
+    -- innerType) triples. Field names use the same binding override:
+    -- @?id ShowThreadAction { threadId = #id }@ maps query param @id@
+    -- to record field @threadId@.
+    queryFields <- traverse (resolveQueryParam rt con bindingsByCapture pathBoundFields)
+                            (routeQueryParams rt)
+
+    -- Duplicate check: a name must not appear twice in the query list
+    -- (it'd produce two pathTo entries for the same field and two
+    -- handler decoders). The Map in coFields guarantees record-side
+    -- uniqueness already.
+    let duplicates = findDuplicates (map fstOf3 queryFields)
+    case duplicates of
+        [] -> pure ()
+        (d : _) -> fail $
+            "routes (line " <> show (routeLine rt) <> "): " <>
+            "query parameter '" <> Text.unpack d <>
+            "' is declared more than once"
+
+    -- Coverage check: every record field of the action constructor must
+    -- be accounted for — either bound by a path capture or named in the
+    -- query list. Unbound fields at runtime would leave pathTo's record
+    -- pattern match incomplete and the handler's constructor call with
+    -- missing fields.
+    let queryBoundFields = Set.fromList (map fstOf3 queryFields)
+        allBoundFields = pathBoundFields `Set.union` queryBoundFields
+        missingFields =
+            [ n | (n, _) <- coFieldsOrder con, not (Set.member n allBoundFields) ]
+    case missingFields of
+        [] -> pure ()
+        ms -> fail $
+            "routes (line " <> show (routeLine rt) <> "): " <>
+            "action '" <> TH.nameBase (coName con) <>
+            "' has fields not covered by the route: " <>
+            List.intercalate ", " (map Text.unpack ms) <>
+            ".\nAdd each to the path (e.g. '/path/{" <>
+            Text.unpack (head ms) <>
+            "}') or the query list (e.g. '/path?" <>
+            List.intercalate "&" (map Text.unpack ms) <> "')."
 
     pure ValidatedRoute
         { vrMethods = routeMethods rt
@@ -339,6 +390,42 @@ validateRoute ctrl rt = do
         , vrBindingsByCapture = bindingsByCapture
         , vrQueryFields = queryFields
         }
+  where
+    fstOf3 (a, _, _) = a
+    findDuplicates xs = go Set.empty xs
+      where
+        go _ [] = []
+        go seen (x : rest)
+            | Set.member x seen = x : go seen rest
+            | otherwise         = go (Set.insert x seen) rest
+
+-- | Resolve one query-param name from the DSL to a @(fieldName, kind,
+-- innerType)@ triple by looking it up in the constructor's fields,
+-- applying any @{field = #cap}@ override, and rejecting duplicates with
+-- path captures.
+resolveQueryParam
+    :: Route
+    -> ConstructorInfo
+    -> Map.Map Text Text      -- bindingsByCapture
+    -> Set.Set Text           -- path-bound field names
+    -> Text                   -- the ?name
+    -> Q (Text, QueryFieldKind, Type)
+resolveQueryParam rt con bindingsByCapture pathBound qName = do
+    let fieldName = fieldNameForCapture bindingsByCapture qName
+    case Map.lookup fieldName (coFields con) of
+        Nothing -> fail $
+            "routes (line " <> show (routeLine rt) <> "): " <>
+            "query parameter '?" <> Text.unpack qName <>
+            "' has no matching field on " <> TH.nameBase (coName con) <>
+            ". Known fields: " <>
+            List.intercalate ", " (map Text.unpack (Map.keys (coFields con)))
+        Just ty
+            | Set.member fieldName pathBound -> fail $
+                "routes (line " <> show (routeLine rt) <> "): " <>
+                "field '" <> Text.unpack fieldName <>
+                "' is bound by a path capture — remove it from the query list"
+            | otherwise ->
+                pure (fieldName, classifyQueryField ty, innerType ty)
 
 -- | Name of the field a capture segment binds, applying any
 -- @{field = #capture}@ override map.

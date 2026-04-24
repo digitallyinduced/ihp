@@ -52,13 +52,20 @@ data Routes = Routes
     }
     deriving (Eq, Show)
 
--- | A single route: one or more methods, a path pattern, and an action
--- reference.
+-- | A single route: one or more methods, a path pattern, an optional
+-- query-param spec, and an action reference.
 data Route = Route
-    { routeMethods :: ![Method]
-    , routePath    :: ![PathSeg]
-    , routeAction  :: !ActionRef
-    , routeLine    :: !Int      -- source line number (1-based) for error messages
+    { routeMethods     :: ![Method]
+    , routePath        :: ![PathSeg]
+    , routeQueryParams :: ![Text]
+        -- ^ Query-string parameters declared on the route via the
+        -- @?name1&name2@ suffix. Each name is expected to correspond to a
+        -- record field of the action constructor (either directly, or via
+        -- a @{field = #name}@ rebinding in the 'ActionRef'). Empty list
+        -- means no @?@ clause was written — all unbound record fields
+        -- must then be the empty set, or the TH splice errors out.
+    , routeAction      :: !ActionRef
+    , routeLine        :: !Int      -- source line number (1-based) for error messages
     }
     deriving (Eq, Show)
 
