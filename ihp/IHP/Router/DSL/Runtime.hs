@@ -3,28 +3,24 @@
 Module: IHP.Router.DSL.Runtime
 Description: Runtime helpers used by code emitted from the @routes@ quasi-quoter
 
-The TH splice in "IHP.Router.DSL.TH" keeps its emitted expressions small by
-delegating the non-trivial work to the helpers in this module. Everything
-here is plain Haskell — importable and testable without running any splice.
+The TH splice in "IHP.Router.DSL.TH" keeps its emitted expressions small
+by delegating the non-trivial work to the helpers in this module.
+Everything here is plain Haskell — importable and testable without
+running any splice.
 -}
 module IHP.Router.DSL.Runtime
     ( buildRouteTrie
     , captureSpec
-    , requireCapture
-    , runTrieHandler
+    , dispatch
     ) where
 
 import Prelude
 import Data.Text (Text)
-import qualified Data.Text as Text
-import qualified Data.HashMap.Strict as HashMap
-import Data.Dynamic (toDyn, fromDynamic)
-import Data.Typeable (Typeable)
+import Network.HTTP.Types (status404)
 import Network.HTTP.Types.Method (StdMethod)
-import Network.Wai (Application)
+import Network.Wai (Application, responseLBS)
 
 import IHP.Router.Trie
-import IHP.Router.Capture (UrlCapture, parseCapture)
 
 -- | Build a 'RouteTrie' from a compile-time-known list of
 -- @(method, pattern, handler)@ triples. The TH splice produces one call
@@ -35,39 +31,20 @@ buildRouteTrie = foldr step emptyTrie
     step (m, p, h) t = insertRoute p m h t
 {-# INLINE buildRouteTrie #-}
 
--- | Build a 'CaptureSpec' for a type with a 'UrlCapture' instance.
---
--- The TH splice emits one call to @captureSpec \@FieldType "captureName"@
--- per dynamic segment in a route pattern.
-captureSpec :: forall a. (UrlCapture a) => Text -> CaptureSpec
-captureSpec name = CaptureSpec
-    { captureName = name
-    , captureParse = \bs -> toDyn <$> parseCapture @a bs
-    }
+-- | Build a 'CaptureSpec' from a capture name. Type-level validation
+-- is done by the handler, not the trie — see 'dispatch'.
+captureSpec :: Text -> CaptureSpec
+captureSpec = CaptureSpec
 {-# INLINE captureSpec #-}
 
--- | Look up a capture by name, downcast to the expected type, or bail with
--- a clear error message.
+-- | Dispatch a positional capture list to a controller action, falling
+-- back to @404 Not Found@ when construction fails (typically because a
+-- capture bytestring couldn't be decoded as the expected type).
 --
--- Capture types are declared at TH time and enforced by the trie's
--- parsing step, so the 'Nothing' branches of this helper only fire for
--- genuine bugs in the generated code.
-requireCapture :: forall a. (Typeable a) => Text -> Captures -> a
-requireCapture name caps = case HashMap.lookup name caps of
-    Nothing ->
-        error ("routes: capture '" <> Text.unpack name <> "' was not collected during dispatch")
-    Just dyn -> case fromDynamic @a dyn of
-        Just v  -> v
-        Nothing ->
-            error ("routes: capture '" <> Text.unpack name
-                <> "' had an unexpected Haskell type (generated code bug)")
-
--- | Wrap a thunk @(-> Application)@ — that is, a controller action whose
--- captures have already been extracted — as a 'WaiHandler' suitable for
--- insertion into the trie.
---
--- The generated code uses this when the controller action is a nullary
--- constructor (no path captures).
-runTrieHandler :: (Captures -> Application) -> WaiHandler
-runTrieHandler = id
-{-# INLINE runTrieHandler #-}
+-- The TH splice emits a call to 'dispatch' per route handler; the second
+-- argument is a 'Maybe' expression that tries 'parseCapture' on each
+-- positional bytestring and assembles the action constructor.
+dispatch :: (controller -> Application) -> Maybe controller -> Application
+dispatch _   Nothing   _req respond = respond (responseLBS status404 [] "Not Found")
+dispatch run (Just c)  req  respond = run c req respond
+{-# INLINE dispatch #-}

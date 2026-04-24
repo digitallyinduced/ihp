@@ -11,6 +11,8 @@ module IHP.RouterPrelude
 , module Data.String.Conversions
 , module IHP.ModelSupport
 , module Network.HTTP.Types.Method
+, UrlCapture (..)
+, Segment (..)
 )
 where
 
@@ -20,3 +22,4 @@ import ClassyPrelude hiding (index, delete, show, take, takeWhile, try)
 import Data.String.Conversions (cs)
 import IHP.ModelSupport (Id, Id' (..))
 import Network.HTTP.Types.Method (StdMethod (..))
+import IHP.Router.Capture (UrlCapture (..), Segment (..))

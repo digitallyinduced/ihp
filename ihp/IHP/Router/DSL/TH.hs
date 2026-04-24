@@ -34,7 +34,7 @@ import IHP.Router.DSL.AST hiding (routes)
 import qualified IHP.Router.DSL.AST as AST
 import qualified IHP.Router.DSL.Parser as Parser
 import IHP.Router.Trie (PatternSegment (..))
-import IHP.Router.DSL.Runtime (buildRouteTrie, captureSpec, requireCapture)
+import IHP.Router.DSL.Runtime (buildRouteTrie, captureSpec, dispatch)
 
 -- | The @[routes|...|]@ quasi-quoter. Captures use RFC 6570 URI-template
 -- syntax — @{name}@ for a single segment, @{+name}@ for a splat.
@@ -474,42 +474,90 @@ patternExp = TH.ListE . map segExp
             TH.AppE (TH.ConE 'SplatSeg)
                 (TH.LitE (TH.StringL (Text.unpack n)))
 
+    -- 'captureSpec' no longer takes a type argument: the trie doesn't
+    -- validate capture types at walk time, so only the name is needed.
+    -- The handler decodes via 'parseCapture @FieldType' once per request.
     captureSpecE :: Text -> Type -> Exp
-    captureSpecE n ty =
-        TH.AppE
-            (TH.AppTypeE (TH.VarE 'captureSpec) ty)
+    captureSpecE n _ty =
+        TH.AppE (TH.VarE 'captureSpec)
             (TH.LitE (TH.StringL (Text.unpack n)))
 
 -- | Build the @Captures -> Application@ handler for one route.
+--
+-- The trie hands us @Captures = [ByteString]@ — positional, in path
+-- order. The emitted handler:
+--
+-- (1) pattern-matches on the list with the expected arity;
+-- (2) parses each bytestring via 'parseCapture \@FieldType' in a Maybe-do
+--     block, producing @Maybe controller@;
+-- (3) dispatches via 'dispatch' — on 'Just' it runs the action, on 'Nothing'
+--     it returns @404 Not Found@ (a capture failed to decode).
+--
+-- Each capture is parsed exactly once per request. No 'Dynamic' round-trip.
 handlerExpr :: ValidatedRoute -> Q Exp
 handlerExpr vr = do
-    let captureFields = [ (n, ty) | VSCapture n ty <- vrPath vr ]
-                     <> [ (n, ty) | VSSplat n ty <- vrPath vr ]
+    let captureSegs = [ (n, ty) | VSCapture n ty <- vrPath vr ]
+                   <> [ (n, ty) | VSSplat n ty <- vrPath vr ]
+        -- Raw-bytestring pattern names, in path order.
+        bsNames = [ TH.mkName ("_bs" <> show (i :: Int))
+                  | i <- [0 .. length captureSegs - 1]
+                  ]
+        -- Decoded-value names, same order.
+        valueNames = [ TH.mkName ("_v" <> show (i :: Int))
+                     | i <- [0 .. length captureSegs - 1]
+                     ]
         capturesName = TH.mkName "_dslCaptures"
-    constructed <- constructAction vr captureFields capturesName
+
+    let listPat :: Pat
+        listPat = TH.ListP (map TH.VarP bsNames)
+
+        -- Each capture: _vN <- parseCapture @FieldType _bsN
+        bindStmts =
+            [ TH.BindS
+                (TH.VarP vn)
+                (TH.AppE
+                    (TH.AppTypeE (TH.VarE parseCaptureFn) ty)
+                    (TH.VarE bn))
+            | ((_, ty), bn, vn) <- zip3 captureSegs bsNames valueNames
+            ]
+
+        -- Record construction wiring each value name into the matching field.
+        recordExp = case captureSegs of
+            [] -> TH.ConE (coName (vrCon vr))
+            _  ->
+                let bind ((capName, _), vn) =
+                        (fieldNameFor vr capName, TH.VarE vn)
+                 in TH.RecConE (coName (vrCon vr))
+                        (map bind (zip captureSegs valueNames))
+
+        returnStmt = TH.NoBindS (TH.AppE (TH.ConE 'Just) recordExp)
+
+        maybeExp = case captureSegs of
+            [] -> TH.AppE (TH.ConE 'Just) recordExp
+            _  -> TH.DoE Nothing (bindStmts <> [returnStmt])
+
+        dispatchCall =
+            TH.AppE
+                (TH.AppE (TH.VarE 'dispatch) (TH.VarE runActionPrimeFn))
+                maybeExp
+
+        matchedAlt = TH.Match listPat (TH.NormalB dispatchCall) []
+        fallbackAlt = TH.Match TH.WildP
+            (TH.NormalB
+                (TH.AppE (TH.VarE 'error)
+                    (TH.LitE (TH.StringL
+                        "routes: trie delivered unexpected capture arity (generated code bug)"))))
+            []
+
     pure $ TH.LamE
         [TH.VarP capturesName]
-        (TH.AppE (TH.VarE runActionPrimeFn) constructed)
+        (TH.CaseE (TH.VarE capturesName) [matchedAlt, fallbackAlt])
 
--- | Build the action constructor application with fields filled from captures.
-constructAction
-    :: ValidatedRoute
-    -> [(Text, Type)]
-    -> Name
-    -> Q Exp
-constructAction vr fields capturesName =
-    case fields of
-        [] -> pure (TH.ConE (coName (vrCon vr)))
-        _  -> do
-            let bind (capName, ty) =
-                    ( fieldNameFor vr capName
-                    , TH.AppE
-                        (TH.AppE
-                            (TH.AppTypeE (TH.VarE 'requireCapture) ty)
-                            (TH.LitE (TH.StringL (Text.unpack capName))))
-                        (TH.VarE capturesName)
-                    )
-            pure (TH.RecConE (coName (vrCon vr)) (map bind fields))
+-- | Unqualified reference to 'IHP.Router.Capture.parseCapture'. Resolved
+-- at splice use-site, so the caller just needs 'parseCapture' in scope
+-- (provided by @IHP.RouterPrelude@ via @IHP.Router.Capture@).
+parseCaptureFn :: Name
+parseCaptureFn = TH.mkName "parseCapture"
 
 ---------------------------------------------------------------------------
 -- Code generation — named binding for lowercase-header form

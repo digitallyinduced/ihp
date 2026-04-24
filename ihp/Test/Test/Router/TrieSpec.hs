@@ -7,9 +7,6 @@ module Test.Router.TrieSpec where
 import Test.Hspec
 import IHP.Prelude
 import IHP.Router.Trie
-import IHP.Router.Capture (UrlCapture(..))
-import qualified Data.HashMap.Strict as HashMap
-import Data.Dynamic (toDyn, fromDynamic)
 import Network.HTTP.Types.Method (StdMethod (..))
 import Network.Wai (responseLBS)
 import qualified Data.ByteString.Lazy as LBS
@@ -24,30 +21,13 @@ buildTrie = foldr ins emptyTrie
   where
     ins (m, p, tag) t = insertRoute p m (tagHandler tag) t
 
--- | Pull out the tag from a 'Matched' result by running the handler
--- against a dummy request.
-matchedTag :: LookupResult -> IO (Maybe LBS.ByteString)
-matchedTag (Matched handler _captures) = do
-    -- Run the handler with a minimal request/respond; capture the body.
-    ref <- newIORef Nothing
-    let dummyReq = error "request not used"
-    _ <- handler HashMap.empty dummyReq (\resp -> do
-        writeIORef ref (Just resp)
-        pure (error "response not used"))
-    saved <- readIORef ref
-    pure (saved >>= extractBody)
-  where
-    extractBody _ = Nothing  -- simpler: we assert against LookupResult constructor directly below
-matchedTag _ = pure Nothing
-
--- Simpler: just check the variant and captures explicitly.
 isMatched :: LookupResult -> Bool
 isMatched (Matched _ _) = True
 isMatched _ = False
 
 capturesOf :: LookupResult -> Captures
 capturesOf (Matched _ c) = c
-capturesOf _             = HashMap.empty
+capturesOf _             = []
 
 tests = do
     describe "IHP.Router.Trie" do
@@ -89,31 +69,30 @@ tests = do
                     _ -> expectationFailure "expected NotMatched"
 
         describe "lookupTrie — captures" do
-            let postIdSpec = CaptureSpec
-                    { captureName = "postId"
-                    , captureParse = \bs -> toDyn <$> parseCapture @Int bs
-                    }
+            let postIdSpec = CaptureSpec { captureName = "postId" }
                 trie = buildTrie
                     [ (GET, [LiteralSeg "posts", CaptureSeg postIdSpec], "show")
                     , (GET, [LiteralSeg "posts", LiteralSeg "new"], "new")
                     ]
 
             it "static paths beat captures (literal wins)" do
-                -- /posts/new matches the static route, not the capture
+                -- /posts/new matches the static route, so no captures are
+                -- collected at all.
                 let captures = capturesOf (lookupTrie trie GET ["posts", "new"])
-                HashMap.member "postId" captures `shouldBe` False
+                captures `shouldBe` []
 
-            it "captures get parsed and bound" do
+            it "captures get collected as raw ByteStrings in path order" do
                 let result = lookupTrie trie GET ["posts", "42"]
                 isMatched result `shouldBe` True
-                let captures = capturesOf result
-                (fromDynamic =<< HashMap.lookup "postId" captures) `shouldBe` Just (42 :: Int)
+                capturesOf result `shouldBe` ["42"]
 
-            it "capture rejects values the parser doesn't accept" do
-                -- "abc" isn't a valid Int capture
-                case lookupTrie trie GET ["posts", "abc"] of
-                    NotMatched -> pure ()
-                    _ -> expectationFailure "expected NotMatched for non-numeric capture"
+            it "captures accept any non-empty segment (type validation is the handler's job)" do
+                -- With the positional-captures model, the trie doesn't
+                -- know or care about capture types. "abc" matches just
+                -- as readily as "42"; the handler would decode and 404.
+                let result = lookupTrie trie GET ["posts", "abc"]
+                isMatched result `shouldBe` True
+                capturesOf result `shouldBe` ["abc"]
 
         describe "lookupTrie — splat" do
             let trie = insertRoute
@@ -125,12 +104,12 @@ tests = do
             it "captures multi-segment rest" do
                 let result = lookupTrie trie GET ["files", "images", "cats", "kitty.jpg"]
                 isMatched result `shouldBe` True
-                let captures = capturesOf result
-                (fromDynamic =<< HashMap.lookup "path" captures) `shouldBe` Just ("images/cats/kitty.jpg" :: Text)
+                capturesOf result `shouldBe` ["images/cats/kitty.jpg"]
 
             it "captures single-segment rest" do
                 let result = lookupTrie trie GET ["files", "hello.txt"]
                 isMatched result `shouldBe` True
+                capturesOf result `shouldBe` ["hello.txt"]
 
         describe "mergeTrie" do
             it "merges two separate prefix trees" do

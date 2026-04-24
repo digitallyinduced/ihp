@@ -13,7 +13,7 @@ import Test.Hspec
 import IHP.Prelude
 import IHP.RouterSupport
 import IHP.Router.DSL (routes)
-import IHP.Router.Capture (renderCapture)
+import IHP.Router.Capture (renderCapture, parseCapture)
 import IHP.ControllerPrelude
 import Network.HTTP.Types.Method (StdMethod (..))
 
