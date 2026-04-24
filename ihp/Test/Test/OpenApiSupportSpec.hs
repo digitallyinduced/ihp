@@ -13,7 +13,7 @@ import Data.Text qualified as Text
 import IHP.ControllerPrelude hiding (find, get, request)
 import IHP.Environment
 import IHP.Test.Mocking
-import IHP.ViewPrelude hiding (requestBody)
+import IHP.ViewPrelude
 import Network.HTTP.Types
 import Network.Wai.Test
 import Test.Hspec
@@ -178,7 +178,7 @@ instance Controller DocumentedController where
         endpoint
             |> responseView @BandView
             |> summary "Show a band payload"
-            |> handle (pure BandView{..})
+            |> handle (pure @IO BandView{..})
     action LegacyJsonAction =
         legacyAction (renderHtmlOrJson LegacyJsonView)
     action WrongJsonAction =
@@ -186,7 +186,7 @@ instance Controller DocumentedController where
     action WrongJsonShapeAction{..} =
         endpoint
             |> responseView @WrongJsonShapeView
-            |> handle (pure WrongJsonShapeView{..})
+            |> handle (pure @IO WrongJsonShapeView{..})
 
 instance Controller CustomRouteController where
     action ListCustomAction = renderPlain "ListCustomAction"
@@ -198,7 +198,7 @@ instance Controller DocumentedCustomPathController where
     action ShowDocumentedCustomPathAction{..} =
         endpoint
             |> responseView @DocumentedCustomPathView
-            |> handle (pure DocumentedCustomPathView{..})
+            |> handle (pure @IO DocumentedCustomPathView{..})
 
 instance Controller UnsupportedCustomPathController where
     type ControllerAction UnsupportedCustomPathController = ActionDefinition UnsupportedCustomPathController
@@ -206,29 +206,27 @@ instance Controller UnsupportedCustomPathController where
     action ShowUnsupportedCustomPathAction{..} =
         endpoint
             |> responseView @UnsupportedCustomPathView
-            |> handle (pure UnsupportedCustomPathView{..})
+            |> handle (pure @IO UnsupportedCustomPathView{..})
 
 instance Controller CrudNamedApiController where
     type ControllerAction CrudNamedApiController = ActionDefinition CrudNamedApiController
 
     action CreateApiSessionAction =
         endpoint
-            |> requestBody @CreateSessionRequest
             |> responseView @AckView
             |> handle \(_ :: CreateSessionRequest) ->
-                pure AckView
+                pure @IO AckView
     action CreatePipeSessionAction =
         endpoint
-            |> requestBody @CreateSessionRequest
             |> responseView @AckView
             |> successStatus status201
             |> successResponseDescription "Created response"
             |> handle \(_ :: CreateSessionRequest) ->
-                pure AckView
+                pure @IO AckView
     action ShowApiSessionAction =
         endpoint
             |> responseView @AckView
-            |> handle (pure AckView)
+            |> handle (pure @IO AckView)
 
 instance AutoRoute DocumentedController where
     autoRoute = autoRouteWithIdType (parseIntegerId @(Id Band))

@@ -633,7 +633,7 @@ curl http://localhost:8000/Posts -H 'Accept: application/json'
 ### OpenAPI schemas for JSON views
 
 If you want an AutoRoute controller action to appear in the generated OpenAPI document, keep the OpenAPI contract next to the handler using inspectable action definitions.
-Add a [`ToSchema`](https://ihp.digitallyinduced.com/api-docs/IHP-OpenApiSupport.html#t:ToSchema) instance for the typed JSON payload, then declare the request body, response view and metadata directly in `action`:
+Add a [`ToSchema`](https://ihp.digitallyinduced.com/api-docs/IHP-OpenApiSupport.html#t:ToSchema) instance for the typed JSON payload, then declare the response view and metadata directly in `action`. When the `handle` callback takes a typed argument, IHP decodes that JSON request body and documents the same type in OpenAPI:
 
 ```haskell
 {-# LANGUAGE DeriveGeneric #-}
@@ -649,6 +649,14 @@ data PostPayload = PostPayload
 
 instance ToJSON PostPayload
 instance ToSchema PostPayload
+
+data CreatePostRequest = CreatePostRequest
+    { title :: !Text
+    }
+    deriving (Eq, Show, Generic)
+
+instance FromJSON CreatePostRequest
+instance ToSchema CreatePostRequest
 
 instance View IndexView where
     html IndexView { .. } = [hsx|...|]
@@ -668,6 +676,17 @@ instance Controller PostsController where
                 posts <- query @Post |> fetch
                 pure IndexView { .. }
 
+    action CreatePostAction =
+        endpoint
+            |> responseView @IndexView
+            |> summary "Create post"
+            |> handle \(body :: CreatePostRequest) -> do
+                _ <- newRecord @Post
+                    |> set #title body.title
+                    |> createRecord
+                posts <- query @Post |> fetch
+                pure IndexView { .. }
+
     action HtmlOnlyAction =
         legacyAction do
             render HtmlOnlyView
@@ -683,7 +702,7 @@ instance FrontController WebApplication where
         ]
 ```
 
-In this form, `handle` decodes the documented request body before the handler runs, and the handler must return the same view type declared by `responseView`. Actions wrapped in `legacyAction` are executed normally and omitted from the OpenAPI document.
+In this form, `handle` decodes the typed request body before the handler runs, and the inferred body type is the type used in the OpenAPI request schema. The handler must return the same view type declared by `responseView`. Actions wrapped in `legacyAction` are executed normally and omitted from the OpenAPI document.
 
 ### Advanced: Rendering JSON directly from actions
 

@@ -14,9 +14,7 @@
 module IHP.Controller.ActionDefinition
     ( ActionDefinition (..)
     , EndpointBuilder
-    , NoRequestBody
     , endpoint
-    , requestBody
     , requestBodyIsRequired
     , responseView
     , summary
@@ -25,7 +23,6 @@ module IHP.Controller.ActionDefinition
     , operationId
     , successStatus
     , successResponseDescription
-    , EndpointHandler
     , HandleEndpoint (handle)
     , legacyAction
     , actionDefinitionDoc
@@ -74,17 +71,14 @@ instance
     where
     openApiActionDocs = actionDefinitionDocs @controller
 
--- | Marker type for endpoints without a JSON request body.
-data NoRequestBody
-
--- | Builder used by 'endpoint', 'requestBody', 'responseView' and metadata setters.
-data EndpointBuilder controller body view = EndpointBuilder
+-- | Builder used by 'endpoint', 'responseView' and metadata setters.
+data EndpointBuilder controller view = EndpointBuilder
     { endpointDocModifiers :: [ActionDoc controller -> ActionDoc controller]
     , endpointSuccessStatus :: Status
     }
 
 -- | Starts an inspectable endpoint definition.
-endpoint :: EndpointBuilder controller NoRequestBody ()
+endpoint :: EndpointBuilder controller view
 endpoint =
     EndpointBuilder
         { endpointDocModifiers = []
@@ -94,77 +88,62 @@ endpoint =
 
 addEndpointDocModifier ::
     (ActionDoc controller -> ActionDoc controller) ->
-    EndpointBuilder controller body view ->
-    EndpointBuilder controller body view
+    EndpointBuilder controller view ->
+    EndpointBuilder controller view
 addEndpointDocModifier modifier endpointBuilder@EndpointBuilder{endpointDocModifiers} =
     endpointBuilder{endpointDocModifiers = endpointDocModifiers <> [modifier]}
 {-# INLINE addEndpointDocModifier #-}
 
--- | Documents and enables decoding of a JSON request body for the endpoint.
-requestBody ::
-    forall body controller view.
-    ( ToSchema body
-    , Typeable.Typeable body
-    ) =>
-    EndpointBuilder controller NoRequestBody view ->
-    EndpointBuilder controller body view
-requestBody EndpointBuilder{endpointDocModifiers, endpointSuccessStatus} =
-    EndpointBuilder
-        { endpointDocModifiers = endpointDocModifiers <> [setOpenApiRequestBody @body]
-        , endpointSuccessStatus
-        }
-{-# INLINE requestBody #-}
-
 -- | Overrides whether the OpenAPI request body is required.
-requestBodyIsRequired :: Bool -> EndpointBuilder controller body view -> EndpointBuilder controller body view
+requestBodyIsRequired :: Bool -> EndpointBuilder controller view -> EndpointBuilder controller view
 requestBodyIsRequired required =
     addEndpointDocModifier (setOpenApiRequestBodyRequired required)
 {-# INLINE requestBodyIsRequired #-}
 
 -- | Declares the view rendered by the endpoint.
-responseView :: forall view controller body previousView. EndpointBuilder controller body previousView -> EndpointBuilder controller body view
+responseView :: forall view controller previousView. EndpointBuilder controller previousView -> EndpointBuilder controller view
 responseView EndpointBuilder{endpointDocModifiers, endpointSuccessStatus} =
     EndpointBuilder{endpointDocModifiers, endpointSuccessStatus}
 {-# INLINE responseView #-}
 
 -- | Sets the OpenAPI operation summary.
-summary :: Text -> EndpointBuilder controller body view -> EndpointBuilder controller body view
+summary :: Text -> EndpointBuilder controller view -> EndpointBuilder controller view
 summary text =
     addEndpointDocModifier (setOpenApiSummary text)
 {-# INLINE summary #-}
 
 -- | Sets the OpenAPI operation description.
-description :: Text -> EndpointBuilder controller body view -> EndpointBuilder controller body view
+description :: Text -> EndpointBuilder controller view -> EndpointBuilder controller view
 description text =
     addEndpointDocModifier (setOpenApiDescription text)
 {-# INLINE description #-}
 
 -- | Sets the OpenAPI operation tags.
-tags :: [Text] -> EndpointBuilder controller body view -> EndpointBuilder controller body view
+tags :: [Text] -> EndpointBuilder controller view -> EndpointBuilder controller view
 tags values =
     addEndpointDocModifier (setOpenApiTags values)
 {-# INLINE tags #-}
 
 -- | Sets the OpenAPI operation id.
-operationId :: Text -> EndpointBuilder controller body view -> EndpointBuilder controller body view
+operationId :: Text -> EndpointBuilder controller view -> EndpointBuilder controller view
 operationId text =
     addEndpointDocModifier (setOpenApiOperationId text)
 {-# INLINE operationId #-}
 
 -- | Sets the documented and rendered success status.
-successStatus :: Status -> EndpointBuilder controller body view -> EndpointBuilder controller body view
+successStatus :: Status -> EndpointBuilder controller view -> EndpointBuilder controller view
 successStatus status endpointBuilder =
     addEndpointDocModifier (setOpenApiSuccessStatus status) endpointBuilder{endpointSuccessStatus = status}
 {-# INLINE successStatus #-}
 
 -- | Sets the OpenAPI success response description.
-successResponseDescription :: Text -> EndpointBuilder controller body view -> EndpointBuilder controller body view
+successResponseDescription :: Text -> EndpointBuilder controller view -> EndpointBuilder controller view
 successResponseDescription text =
     addEndpointDocModifier (setOpenApiSuccessResponseDescription text)
 {-# INLINE successResponseDescription #-}
 
 buildActionDoc ::
-    forall view controller body.
+    forall view controller.
     ( Data controller
     , ViewSupport.View view
     , ViewSupport.JsonView view
@@ -172,26 +151,24 @@ buildActionDoc ::
     , JSON.ToJSON (ViewSupport.JsonResponse view)
     , ToSchema (ViewSupport.JsonResponse view)
     ) =>
-    EndpointBuilder controller body view ->
+    [ActionDoc controller -> ActionDoc controller] ->
+    EndpointBuilder controller view ->
     controller ->
     ActionDoc controller
-buildActionDoc EndpointBuilder{endpointDocModifiers} controller =
+buildActionDoc initialDocModifiers EndpointBuilder{endpointDocModifiers} controller =
     foldl'
         (\doc modifier -> modifier doc)
         (actionDoc @view (cs (showConstr (toConstr controller))))
-        endpointDocModifiers
+        (initialDocModifiers <> endpointDocModifiers)
 {-# INLINE buildActionDoc #-}
 
-type family EndpointHandler body view where
-    EndpointHandler NoRequestBody view = IO view
-    EndpointHandler body view = body -> IO view
-
-class HandleEndpoint controller body view where
+-- | Finalizes an endpoint definition and records OpenAPI metadata from the handler type.
+class HandleEndpoint controller handler view | handler -> view where
     -- | Finalizes an endpoint definition with its handler.
     --
-    -- Endpoints with 'requestBody' expect a function from the decoded body to
-    -- the response view. Endpoints without a request body expect an @IO view@.
-    handle :: EndpointHandler body view -> EndpointBuilder controller body view -> ActionDefinition controller
+    -- An @IO view@ handler has no request body. A @body -> IO view@ handler
+    -- decodes that JSON body and uses the same body type for OpenAPI.
+    handle :: handler -> EndpointBuilder controller view -> ActionDefinition controller
 
 instance
     ( Data controller
@@ -201,11 +178,11 @@ instance
     , JSON.ToJSON (ViewSupport.JsonResponse view)
     , ToSchema (ViewSupport.JsonResponse view)
     ) =>
-    HandleEndpoint controller NoRequestBody view
+    HandleEndpoint controller (IO view) view
     where
     handle viewAction builder@EndpointBuilder{endpointSuccessStatus} =
         ActionDefinition
-            { actionDefinitionDocFor = Just . buildActionDoc @view builder
+            { actionDefinitionDocFor = Just . buildActionDoc @view [] builder
             , runActionDefinition = viewAction >>= renderHtmlOrJsonWithStatusCode endpointSuccessStatus
             }
 
@@ -213,18 +190,19 @@ instance
     {-# OVERLAPPABLE #-}
     ( Data controller
     , JSON.FromJSON body
+    , ToSchema body
+    , Typeable.Typeable body
     , ViewSupport.View view
     , ViewSupport.JsonView view
     , Typeable.Typeable view
     , JSON.ToJSON (ViewSupport.JsonResponse view)
     , ToSchema (ViewSupport.JsonResponse view)
-    , EndpointHandler body view ~ (body -> IO view)
     ) =>
-    HandleEndpoint controller body view
+    HandleEndpoint controller (body -> IO view) view
     where
     handle viewAction builder@EndpointBuilder{endpointSuccessStatus} =
         ActionDefinition
-            { actionDefinitionDocFor = Just . buildActionDoc @view builder
+            { actionDefinitionDocFor = Just . buildActionDoc @view [setOpenApiRequestBody @body] builder
             , runActionDefinition = do
                 rawBody <- getRequestBody
                 case JSON.eitherDecode rawBody of
