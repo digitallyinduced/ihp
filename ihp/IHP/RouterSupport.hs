@@ -4,6 +4,7 @@ CanRoute (..)
 , HasPath (..)
 , AutoRoute (..)
 , runAction
+, runAction'
 , get
 , post
 , startPage
@@ -49,7 +50,10 @@ import qualified IHP.ModelSupport as ModelSupport
 import IHP.FrameworkConfig
 import Data.UUID
 import Network.HTTP.Types.Method
+import Network.HTTP.Types (parseMethod)
 import Network.Wai
+import qualified IHP.Router.Trie as Trie
+import qualified IHP.Router.Middleware as RouterMiddleware
 import IHP.ControllerSupport
 import Data.Attoparsec.ByteString.Char8 (string, Parser, parseOnly, take, endOfInput, choice, takeTill, takeByteString)
 import qualified Data.Attoparsec.ByteString.Char8 as Attoparsec
@@ -145,7 +149,8 @@ defaultRouter additionalRoutes = do
 {-# INLINABLE defaultRouter #-}
 
 -- | Scan 'ControllerRouteMap' entries for a matching path.
--- Returns as soon as a HashMap contains the path. Skips 'ControllerRouteParser' entries.
+-- Returns as soon as a HashMap contains the path. Skips 'ControllerRouteParser'
+-- and 'ControllerRouteTrie' entries (those are handled elsewhere).
 findInRouteMaps :: ByteString -> [ControllerRoute application] -> Maybe (application -> Application)
 findInRouteMaps _ [] = Nothing
 findInRouteMaps path (ControllerRouteMap m _ : rest) =
@@ -154,10 +159,21 @@ findInRouteMaps path (ControllerRouteMap m _ : rest) =
         Nothing -> findInRouteMaps path rest
 findInRouteMaps path (_ : rest) = findInRouteMaps path rest
 
--- | Extract fallback parsers from controller routes.
+-- | Extract fallback Attoparsec parsers from controller routes.
+-- 'ControllerRouteTrie' entries contribute no fallback parsers — they
+-- are consumed by the trie stage of 'frontControllerToWAIApp'.
 getRouteParsers :: ControllerRoute application -> [Parser Application]
 getRouteParsers (ControllerRouteMap _ fallback) = [fallback]
 getRouteParsers (ControllerRouteParser p) = [p]
+getRouteParsers (ControllerRouteTrie _) = []
+
+-- | Merge all 'ControllerRouteTrie' fragments in the route list into a
+-- single app-wide 'RouteTrie'. Returns 'Trie.emptyTrie' if no fragments exist.
+collectTrie :: [ControllerRoute application] -> Trie.RouteTrie
+collectTrie = List.foldl' step Trie.emptyTrie
+  where
+    step acc (ControllerRouteTrie fragment) = Trie.mergeTrie acc fragment
+    step acc _ = acc
 
 -- | Returns the url to a given action.
 --
@@ -948,26 +964,40 @@ frontControllerToWAIApp middleware application notFoundAction waiRequest waiResp
 
     let path = waiRequest.rawPathInfo
 
-    -- Fast path: scan auto-route HashMaps directly (no Attoparsec overhead)
-    case findInRouteMaps path allRoutes of
-        Just handler -> (middleware (handler application)) waiRequest waiRespond
-        Nothing -> do
-            -- Slow path: Attoparsec for custom/dynamic route parsers only
-            -- Wrap any exceptions during routing in RouterException so the error handler
-            -- middleware can distinguish them from action exceptions
-            let customParsers = concatMap getRouteParsers allRoutes
+    -- Stage 1: method-aware trie (from the explicit-routes DSL, if any).
+    -- Empty for apps that only use AutoRoute, so this falls through in O(1).
+    let trie = collectTrie allRoutes
 
-            routedAction :: Either String Application <-
-                (do
-                    res <- evaluate $ parseOnly (choice (map (<* endOfInput) customParsers)) path
-                    case res of
-                        Left s -> pure $ Left s
-                        Right action -> pure $ Right action
-                    )
-                |> wrapRouterException
-            case routedAction of
-                Left _ -> notFoundAction waiRequest waiRespond
-                Right action -> (middleware action) waiRequest waiRespond
+    case parseMethod waiRequest.requestMethod of
+        Right method -> case Trie.lookupTrie trie method (Trie.splitPath path) of
+            Trie.Matched handler captures ->
+                (middleware (handler captures)) waiRequest waiRespond
+            Trie.MethodNotAllowed allowed ->
+                waiRespond (RouterMiddleware.methodNotAllowedResponse allowed)
+            Trie.NotMatched -> legacyDispatch allRoutes path
+        Left _nonStandardMethod -> legacyDispatch allRoutes path
+  where
+    legacyDispatch allRoutes path =
+        -- Stage 2: legacy AutoRoute HashMap fast path.
+        case findInRouteMaps path allRoutes of
+            Just handler -> (middleware (handler application)) waiRequest waiRespond
+            Nothing -> do
+                -- Stage 3: Attoparsec fallback for custom/dynamic route parsers.
+                -- Wrap exceptions during routing in RouterException so the error-handler
+                -- middleware can distinguish them from action exceptions.
+                let customParsers = concatMap getRouteParsers allRoutes
+
+                routedAction :: Either String Application <-
+                    (do
+                        res <- evaluate $ parseOnly (choice (map (<* endOfInput) customParsers)) path
+                        case res of
+                            Left s -> pure $ Left s
+                            Right action -> pure $ Right action
+                        )
+                    |> wrapRouterException
+                case routedAction of
+                    Left _ -> notFoundAction waiRequest waiRespond
+                    Right action -> (middleware action) waiRequest waiRespond
 {-# INLINABLE frontControllerToWAIApp #-}
 
 mountFrontController :: forall frontController application. (?request :: Request, ?respond :: Respond, FrontController frontController) => frontController -> ControllerRoute application
