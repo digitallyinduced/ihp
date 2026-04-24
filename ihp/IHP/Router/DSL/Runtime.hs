@@ -18,7 +18,7 @@ import Prelude
 import Data.Text (Text)
 import qualified Data.Text as Text
 import qualified Data.HashMap.Strict as HashMap
-import Data.Dynamic (Dynamic, toDyn, fromDynamic)
+import Data.Dynamic (toDyn, fromDynamic)
 import Data.Typeable (Typeable)
 import Network.HTTP.Types.Method (StdMethod)
 import Network.Wai (Application)

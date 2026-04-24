@@ -19,7 +19,7 @@ import qualified Data.List as List
 import Network.HTTP.Types (methodNotAllowed405, hContentType, parseMethod)
 import Network.HTTP.Types.Header (HeaderName)
 import Network.HTTP.Types.Method (StdMethod, renderStdMethod)
-import Network.Wai (Middleware, Application, Request, Response, responseLBS, requestMethod, rawPathInfo)
+import Network.Wai (Middleware, Response, responseLBS, requestMethod, rawPathInfo)
 import IHP.Router.Trie (RouteTrie, LookupResult (..), lookupTrie, splitPath)
 
 -- | Wrap a 'RouteTrie' as a WAI 'Middleware'.
