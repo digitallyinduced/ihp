@@ -13,6 +13,7 @@ import IHP.Router.DSL (routes)
 import IHP.Router.Capture (renderCapture, parseCapture)
 import IHP.ControllerPrelude
 import Network.HTTP.Types.Method (StdMethod (..))
+import Network.Wai (queryString)
 
 -- Minimal controller type used to exercise the DSL splice.
 data QuoterController
@@ -20,6 +21,9 @@ data QuoterController
     | NewItemAction
     | ShowItemAction { itemId :: Int }
     | EditItemAction { itemId :: Int }
+    -- Fields that aren't bound in the path → query-string decoded by the splice.
+    | SearchAction { q :: Text, page :: Maybe Int, tags :: [Text] }
+    | LegacyShowAction { itemId :: Int }
     deriving (Eq, Show)
 
 instance Controller QuoterController where
@@ -27,6 +31,8 @@ instance Controller QuoterController where
     action NewItemAction        = renderPlain "new"
     action ShowItemAction { itemId } = renderPlain (cs (tshow itemId))
     action EditItemAction { itemId } = renderPlain (cs ("edit " <> tshow itemId))
+    action SearchAction { q } = renderPlain (cs q)
+    action LegacyShowAction { itemId } = renderPlain (cs (tshow itemId))
 
 -- Force a TH declaration-group boundary so the QuoterController type is
 -- visible to the [routes|…|] splice via 'reify'.
@@ -34,10 +40,14 @@ $(pure [])
 
 -- The quoter emits HasPath + CanRoute for this type.
 [routes|QuoterController
-GET    /items             IndexAction
-GET    /items/new         NewItemAction
-GET    /items/{itemId}     ShowItemAction
+GET    /items               IndexAction
+GET    /items/new           NewItemAction
+GET    /items/{itemId}      ShowItemAction
 GET    /items/{itemId}/edit EditItemAction
+-- Unbound fields become query params: q (required), page (optional), tags (list)
+GET    /search              SearchAction
+-- Back-compat with AutoRoute's /LegacyShow?itemId=… URL shape.
+GET    /LegacyShow          LegacyShowAction
 |]
 
 tests = do
@@ -57,3 +67,30 @@ tests = do
                 -- test just ensures the generation is deterministic.
                 pathTo (ShowItemAction { itemId = 1 })
                     `shouldBe` pathTo (ShowItemAction { itemId = 1 })
+
+        describe "query-string fields" do
+            it "renders required string field" do
+                pathTo (SearchAction { q = "haskell", page = Nothing, tags = [] })
+                    `shouldBe` "/search?q=haskell"
+
+            it "renders optional Maybe Int field" do
+                pathTo (SearchAction { q = "x", page = Just 3, tags = [] })
+                    `shouldBe` "/search?q=x&page=3"
+
+            it "omits Maybe field when Nothing" do
+                pathTo (SearchAction { q = "x", page = Nothing, tags = [] })
+                    `shouldBe` "/search?q=x"
+
+            it "renders list field with repeated key" do
+                pathTo (SearchAction { q = "x", page = Nothing, tags = ["a", "b"] })
+                    `shouldBe` "/search?q=x&tags=a&tags=b"
+
+            it "omits list field when empty" do
+                pathTo (SearchAction { q = "x", page = Nothing, tags = [] })
+                    `shouldBe` "/search?q=x"
+
+            it "produces AutoRoute-compatible URL for LegacyShow?itemId=N" do
+                -- Preserves URL backward compatibility with AutoRoute's
+                -- ShowAction-style URLs.
+                pathTo (LegacyShowAction { itemId = 42 })
+                    `shouldBe` "/LegacyShow?itemId=42"

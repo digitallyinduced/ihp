@@ -28,6 +28,7 @@ import qualified Language.Haskell.TH as TH
 import Language.Haskell.TH (Q, Dec, Exp, Name, Pat, Type)
 import qualified Language.Haskell.TH.Quote as TH
 import qualified Language.Haskell.Meta.Parse as Meta
+import qualified Data.Set as Set
 import Data.Typeable (Typeable)
 import Network.HTTP.Types.Method (StdMethod (..))
 
@@ -35,7 +36,15 @@ import IHP.Router.DSL.AST hiding (routes)
 import qualified IHP.Router.DSL.AST as AST
 import qualified IHP.Router.DSL.Parser as Parser
 import IHP.Router.Trie (PatternSegment (..))
-import IHP.Router.DSL.Runtime (buildRouteTrie, captureSpec, dispatch)
+import IHP.Router.DSL.Runtime
+    ( buildRouteTrie
+    , captureSpec
+    , dispatch
+    , queryParamRequired
+    , queryParamOptional
+    , queryParamList
+    , renderQueryString
+    )
 
 -- | The @[routes|...|]@ quasi-quoter. Captures use RFC 6570 URI-template
 -- syntax — @{name}@ for a single segment, @{+name}@ for a splat.
@@ -172,13 +181,15 @@ reifyControllerByName tyName = do
   where
     extractCon :: TH.Con -> Q ConstructorInfo
     extractCon = \case
-        TH.RecC n flds -> pure ConstructorInfo
-            { coName = n
-            , coFields = Map.fromList
-                [ (Text.pack (TH.nameBase fn), ty) | (fn, _, ty) <- flds ]
-            }
+        TH.RecC n flds ->
+            let ordered = [ (Text.pack (TH.nameBase fn), ty) | (fn, _, ty) <- flds ]
+             in pure ConstructorInfo
+                    { coName        = n
+                    , coFields      = Map.fromList ordered
+                    , coFieldsOrder = ordered
+                    }
         TH.NormalC n [] -> pure ConstructorInfo
-            { coName = n, coFields = Map.empty }
+            { coName = n, coFields = Map.empty, coFieldsOrder = [] }
         TH.NormalC n _ -> fail $
             "routes: constructor '" <> TH.nameBase n <>
             "' must use record syntax or be nullary"
@@ -210,8 +221,13 @@ data ControllerInfo = ControllerInfo
     }
 
 data ConstructorInfo = ConstructorInfo
-    { coName   :: !Name
-    , coFields :: !(Map.Map Text Type)
+    { coName        :: !Name
+    , coFields      :: !(Map.Map Text Type)
+    -- ^ Fast lookup by name.
+    , coFieldsOrder :: ![(Text, Type)]
+    -- ^ Same entries as 'coFields' but in the record-declaration order.
+    -- Query-string rendering uses this to mirror AutoRoute's behaviour
+    -- of producing URL params in the order fields were declared.
     }
 
 reifyController :: Text -> Q ControllerInfo
@@ -235,13 +251,15 @@ reifyController name = do
   where
     extractCon :: TH.Con -> Q ConstructorInfo
     extractCon = \case
-        TH.RecC n flds -> pure ConstructorInfo
-            { coName = n
-            , coFields = Map.fromList
-                [ (Text.pack (TH.nameBase fn), ty) | (fn, _, ty) <- flds ]
-            }
+        TH.RecC n flds ->
+            let ordered = [ (Text.pack (TH.nameBase fn), ty) | (fn, _, ty) <- flds ]
+             in pure ConstructorInfo
+                    { coName        = n
+                    , coFields      = Map.fromList ordered
+                    , coFieldsOrder = ordered
+                    }
         TH.NormalC n [] -> pure ConstructorInfo
-            { coName = n, coFields = Map.empty }
+            { coName = n, coFields = Map.empty, coFieldsOrder = [] }
         TH.NormalC n _ -> fail $
             "routes: constructor '" <> TH.nameBase n <>
             "' must use record syntax or be nullary"
@@ -258,12 +276,27 @@ data ValidatedRoute = ValidatedRoute
     , vrCon               :: !ConstructorInfo
     , vrLine              :: !Int
     , vrBindingsByCapture :: !(Map.Map Text Text)
+    -- ^ Record fields of the action constructor NOT bound to a path capture.
+    -- Each entry is @(fieldName, kind, innerType)@: 'QFRequired' for plain
+    -- fields (@a@), 'QFOptional' for @'Maybe' a@ fields (absent query
+    -- params decode to 'Nothing'), 'QFList' for @[a]@ fields (0+ values).
+    -- The splice emits per-field query-string decoding for these at
+    -- handler time and renders them into the URL via 'renderQueryString'
+    -- at 'pathTo' time. Matches AutoRoute's "extra fields become query
+    -- params" semantics.
+    , vrQueryFields       :: ![(Text, QueryFieldKind, Type)]
     }
 
 data ValidatedSeg
     = VSLiteral !Text
     | VSCapture !Text !Type
     | VSSplat   !Text !Type
+
+data QueryFieldKind
+    = QFRequired  -- ^ plain @a@; 'Nothing' from decoder → 404
+    | QFOptional  -- ^ @'Maybe' a@; absent → 'Nothing', present-parseable → @'Just' v@
+    | QFList      -- ^ @[a]@; 0+ repeated query values
+    deriving (Eq, Show)
 
 validateRoute :: ControllerInfo -> Route -> Q ValidatedRoute
 validateRoute ctrl rt = do
@@ -280,13 +313,62 @@ validateRoute ctrl rt = do
             | (fieldN, captureN) <- fieldBindings (routeAction rt)
             ]
     segs <- traverse (resolveSeg rt con bindingsByCapture) (routePath rt)
+
+    -- Classify fields the path DOESN'T cover as query-string params.
+    -- A field is "path-bound" if some path segment references its
+    -- capture name (possibly via a {field = #cap} binding override).
+    let pathBoundFields :: Set.Set Text
+        pathBoundFields = Set.fromList
+            [ fieldNameForCapture bindingsByCapture capName
+            | seg <- segs
+            , capName <- pathSegCaptureName seg
+            ]
+        queryFields =
+            -- Preserve record-declaration order so pathTo's query-string
+            -- suffix matches AutoRoute's (gmapQ-based) output.
+            [ (fieldName, classifyQueryField ty, innerType ty)
+            | (fieldName, ty) <- coFieldsOrder con
+            , not (Set.member fieldName pathBoundFields)
+            ]
+
     pure ValidatedRoute
         { vrMethods = routeMethods rt
         , vrPath = segs
         , vrCon = con
         , vrLine = routeLine rt
         , vrBindingsByCapture = bindingsByCapture
+        , vrQueryFields = queryFields
         }
+
+-- | Name of the field a capture segment binds, applying any
+-- @{field = #capture}@ override map.
+fieldNameForCapture :: Map.Map Text Text -> Text -> Text
+fieldNameForCapture bindings capName =
+    Map.findWithDefault capName capName bindings
+
+-- | Capture name carried by a path segment, if any (literals carry none).
+pathSegCaptureName :: ValidatedSeg -> [Text]
+pathSegCaptureName = \case
+    VSLiteral _   -> []
+    VSCapture n _ -> [n]
+    VSSplat n _   -> [n]
+
+-- | Classify a field type as required / optional / list for query-param
+-- purposes. Unwraps one level of @Maybe@ or @[]@.
+classifyQueryField :: Type -> QueryFieldKind
+classifyQueryField = \case
+    TH.AppT (TH.ConT n) _ | n == ''Maybe -> QFOptional
+    TH.AppT TH.ListT _                   -> QFList
+    _                                    -> QFRequired
+
+-- | Unwrap a @Maybe a@ or @[a]@ to its inner @a@; identity for other
+-- types. Used at emission time to pick the right 'parseCapture @a'
+-- specialisation for the query-string decoder.
+innerType :: Type -> Type
+innerType = \case
+    TH.AppT (TH.ConT n) inner | n == ''Maybe -> inner
+    TH.AppT TH.ListT inner                   -> inner
+    ty                                       -> ty
 
 resolveSeg
     :: Route
@@ -375,18 +457,87 @@ emitPathClause vr = do
         captureFields =
             [ n | VSCapture n _ <- vrPath vr ]
                 <> [ n | VSSplat n _ <- vrPath vr ]
+        queryFields = vrQueryFields vr
         conName = coName (vrCon vr)
+
+        -- Pattern-match on all relevant fields: path captures get bound
+        -- to their capture names; query fields get bound to their field
+        -- names directly (so we can render them below).
+        recordFieldsForPat :: [(Name, Pat)]
+        recordFieldsForPat =
+               [ (fieldNameFor vr capName, TH.VarP (TH.mkName (Text.unpack capName)))
+               | capName <- captureFields
+               ]
+            <> [ (TH.mkName (Text.unpack fieldName), TH.VarP (TH.mkName (Text.unpack fieldName)))
+               | (fieldName, _, _) <- queryFields
+               ]
+
         pat :: Pat
-        pat = case captureFields of
+        pat = case recordFieldsForPat of
             [] -> TH.ConP conName [] []
-            _  -> TH.RecP conName
-                [ ( fieldNameFor vr capName
-                  , TH.VarP (TH.mkName (Text.unpack capName))
-                  )
-                | capName <- captureFields
-                ]
-    let body = pathExpr (vrPath vr)
+            _  -> TH.RecP conName recordFieldsForPat
+
+    let body = buildPathAndQueryExpr vr
     pure (TH.Clause [pat] (TH.NormalB body) [])
+
+-- | Render a route's @pathTo@ body: path segments concatenated, with a
+-- query-string suffix appended if the constructor has any unbound fields.
+buildPathAndQueryExpr :: ValidatedRoute -> Exp
+buildPathAndQueryExpr vr =
+    let pathPart = pathExpr (vrPath vr)
+        queryFields = vrQueryFields vr
+     in if null queryFields
+            then pathPart
+            else TH.InfixE
+                (Just pathPart)
+                (TH.VarE '(<>))
+                (Just (TH.AppE (TH.VarE 'renderQueryString) (queryPairsExp queryFields)))
+
+-- | Build a list expression @[(\"field1\", Just \"value1\"), …]@ from
+-- the query-field list. 'Maybe' fields only emit @Just@ when the value
+-- is @Just@; list fields emit one tuple per element; required fields
+-- always emit @Just@.
+queryPairsExp :: [(Text, QueryFieldKind, Type)] -> Exp
+queryPairsExp fields =
+    let byTupleItem (fieldName, kind, _) =
+            let fieldVarE = TH.VarE (TH.mkName (Text.unpack fieldName))
+                nameBsE = TH.SigE
+                    (TH.LitE (TH.StringL (Text.unpack fieldName)))
+                    (TH.ConT (TH.mkName "ByteString"))
+             in case kind of
+                    QFRequired ->
+                        -- [(name, Just (renderCapture field))]
+                        TH.ListE
+                            [ TH.TupE
+                                [ Just nameBsE
+                                , Just (TH.AppE (TH.ConE 'Just)
+                                        (TH.AppE (TH.VarE renderCaptureFn) fieldVarE))
+                                ]
+                            ]
+                    QFOptional ->
+                        -- [(name, fmap renderCapture field)]   — Nothing omitted
+                        TH.ListE
+                            [ TH.TupE
+                                [ Just nameBsE
+                                , Just (TH.AppE
+                                        (TH.AppE (TH.VarE 'fmap) (TH.VarE renderCaptureFn))
+                                        fieldVarE)
+                                ]
+                            ]
+                    QFList ->
+                        -- map (\v -> (name, Just (renderCapture v))) field
+                        TH.AppE
+                            (TH.AppE (TH.VarE 'map)
+                                (TH.LamE [TH.VarP (TH.mkName "_qvElem")]
+                                    (TH.TupE
+                                        [ Just nameBsE
+                                        , Just (TH.AppE (TH.ConE 'Just)
+                                                (TH.AppE (TH.VarE renderCaptureFn)
+                                                    (TH.VarE (TH.mkName "_qvElem"))))
+                                        ])))
+                            fieldVarE
+        pieces = map byTupleItem fields
+     in foldr1 (\a b -> TH.InfixE (Just a) (TH.VarE '(<>)) (Just b)) pieces
 
 fieldNameFor :: ValidatedRoute -> Text -> Name
 fieldNameFor vr capName =
@@ -509,60 +660,168 @@ handlerExpr :: ValidatedRoute -> Q Exp
 handlerExpr vr = do
     let captureSegs = [ (n, ty) | VSCapture n ty <- vrPath vr ]
                    <> [ (n, ty) | VSSplat n ty <- vrPath vr ]
-        -- Raw-bytestring pattern names, in path order.
+        queryFields = vrQueryFields vr
+        -- Raw-bytestring pattern names for path captures, in path order.
         bsNames = [ TH.mkName ("_bs" <> show (i :: Int))
                   | i <- [0 .. length captureSegs - 1]
                   ]
-        -- Decoded-value names, same order.
-        valueNames = [ TH.mkName ("_v" <> show (i :: Int))
-                     | i <- [0 .. length captureSegs - 1]
-                     ]
+        -- Decoded path-capture value names, same order.
+        pathValueNames = [ TH.mkName ("_pv" <> show (i :: Int))
+                         | i <- [0 .. length captureSegs - 1]
+                         ]
+        -- Decoded query-field value names.
+        queryValueNames = [ TH.mkName ("_qv" <> show (i :: Int))
+                          | i <- [0 .. length queryFields - 1]
+                          ]
         capturesName = TH.mkName "_dslCaptures"
+        requestName  = TH.mkName "_dslRequest"
+        respondName  = TH.mkName "_dslRespond"
+        queryName    = TH.mkName "_dslQuery"
 
     let listPat :: Pat
         listPat = TH.ListP (map TH.VarP bsNames)
 
-        -- Each capture: _vN <- parseCapture @FieldType _bsN
-        bindStmts =
+        -- Each path capture: _pvN <- parseCapture @FieldType _bsN
+        pathBindStmts =
             [ TH.BindS
                 (TH.VarP vn)
                 (TH.AppE
                     (TH.AppTypeE (TH.VarE parseCaptureFn) ty)
                     (TH.VarE bn))
-            | ((_, ty), bn, vn) <- zip3 captureSegs bsNames valueNames
+            | ((_, ty), bn, vn) <- zip3 captureSegs bsNames pathValueNames
             ]
 
-        -- Record construction wiring each value name into the matching field.
-        recordExp = case captureSegs of
+        -- Each query field: _qvN <- queryParam<Kind> @Inner "name" _dslQuery
+        -- For QFOptional / QFList the outer wrapper is @Just@ so the
+        -- Maybe-do never fails on absent values (they decode to Nothing /
+        -- [], respectively).
+        queryBindStmts =
+            [ TH.BindS
+                (TH.VarP vn)
+                (queryExtractExp kind innerTy fieldName)
+            | ((fieldName, kind, innerTy), vn) <- zip queryFields queryValueNames
+            ]
+
+        -- Map capture name → value name so record construction can
+        -- wire the right bytestring into the right field.
+        pathFieldBindings :: [(Name, Exp)]
+        pathFieldBindings =
+            [ (fieldNameFor vr capName, TH.VarE vn)
+            | ((capName, _), vn) <- zip captureSegs pathValueNames
+            ]
+
+        queryFieldBindings :: [(Name, Exp)]
+        queryFieldBindings =
+            [ (TH.mkName (Text.unpack fieldName), TH.VarE vn)
+            | ((fieldName, _, _), vn) <- zip queryFields queryValueNames
+            ]
+
+        allFieldBindings = pathFieldBindings <> queryFieldBindings
+
+        recordExp = case allFieldBindings of
             [] -> TH.ConE (coName (vrCon vr))
-            _  ->
-                let bind ((capName, _), vn) =
-                        (fieldNameFor vr capName, TH.VarE vn)
-                 in TH.RecConE (coName (vrCon vr))
-                        (map bind (zip captureSegs valueNames))
+            _  -> TH.RecConE (coName (vrCon vr)) allFieldBindings
 
         returnStmt = TH.NoBindS (TH.AppE (TH.ConE 'Just) recordExp)
 
-        maybeExp = case captureSegs of
+        allBinds = pathBindStmts <> queryBindStmts
+
+        maybeExp = case allBinds of
             [] -> TH.AppE (TH.ConE 'Just) recordExp
-            _  -> TH.DoE Nothing (bindStmts <> [returnStmt])
+            _  -> TH.DoE Nothing (allBinds <> [returnStmt])
 
         dispatchCall =
             TH.AppE
                 (TH.AppE (TH.VarE 'dispatch) (TH.VarE runActionPrimeFn))
                 maybeExp
 
-        matchedAlt = TH.Match listPat (TH.NormalB dispatchCall) []
-        fallbackAlt = TH.Match TH.WildP
-            (TH.NormalB
-                (TH.AppE (TH.VarE 'error)
-                    (TH.LitE (TH.StringL
-                        "routes: trie delivered unexpected capture arity (generated code bug)"))))
-            []
+        -- If any query params need parsing, the handler body needs access
+        -- to the WAI Request (to pull queryString). Otherwise the simpler
+        -- no-query shape is sufficient.
+        hasQuery = not (null queryFields)
 
-    pure $ TH.LamE
-        [TH.VarP capturesName]
-        (TH.CaseE (TH.VarE capturesName) [matchedAlt, fallbackAlt])
+        handlerBody
+            | hasQuery =
+                -- \captures req respond ->
+                --   let _dslQuery = queryString req
+                --   in case captures of [bs0, bs1, ...] -> dispatch … req respond
+                --                       _                -> error
+                TH.LamE
+                    [ TH.VarP capturesName
+                    , TH.VarP requestName
+                    , TH.VarP respondName
+                    ]
+                    (TH.LetE
+                        [ TH.ValD (TH.VarP queryName)
+                            (TH.NormalB
+                                (TH.AppE
+                                    (TH.VarE (TH.mkName "queryString"))
+                                    (TH.VarE requestName)))
+                            []
+                        ]
+                        (TH.CaseE (TH.VarE capturesName)
+                            [ TH.Match listPat
+                                (TH.NormalB
+                                    (TH.AppE
+                                        (TH.AppE dispatchCall (TH.VarE requestName))
+                                        (TH.VarE respondName)))
+                                []
+                            , TH.Match TH.WildP
+                                (TH.NormalB
+                                    (TH.AppE (TH.VarE 'error)
+                                        (TH.LitE (TH.StringL
+                                            "routes: trie delivered unexpected capture arity (generated code bug)"))))
+                                []
+                            ]))
+            | otherwise =
+                TH.LamE [TH.VarP capturesName]
+                    (TH.CaseE (TH.VarE capturesName)
+                        [ TH.Match listPat (TH.NormalB dispatchCall) []
+                        , TH.Match TH.WildP
+                            (TH.NormalB
+                                (TH.AppE (TH.VarE 'error)
+                                    (TH.LitE (TH.StringL
+                                        "routes: trie delivered unexpected capture arity (generated code bug)"))))
+                            []
+                        ])
+
+    pure handlerBody
+  where
+    -- Expression that extracts a single query field from _dslQuery.
+    -- Shape varies by kind so the outer Maybe-do always succeeds for
+    -- optional / list fields.
+    queryExtractExp :: QueryFieldKind -> Type -> Text -> Exp
+    queryExtractExp kind innerTy fieldName =
+        let queryName = TH.mkName "_dslQuery"
+            nameLitE = TH.LitE
+                (TH.StringL (Text.unpack fieldName))
+            -- Use stringE to get a ByteString via OverloadedStrings;
+            -- the runtime helpers want a ByteString key.
+            nameBsE = TH.SigE nameLitE
+                (TH.ConT (TH.mkName "ByteString"))
+         in case kind of
+                QFRequired ->
+                    TH.AppE
+                        (TH.AppE
+                            (TH.AppTypeE (TH.VarE 'queryParamRequired) innerTy)
+                            nameBsE)
+                        (TH.VarE queryName)
+                QFOptional ->
+                    -- queryParamOptional returns Maybe a; we want the whole
+                    -- thing wrapped so the do block doesn't fail on absence.
+                    TH.AppE (TH.ConE 'Just)
+                        (TH.AppE
+                            (TH.AppE
+                                (TH.AppTypeE (TH.VarE 'queryParamOptional) innerTy)
+                                nameBsE)
+                            (TH.VarE queryName))
+                QFList ->
+                    TH.AppE (TH.ConE 'Just)
+                        (TH.AppE
+                            (TH.AppE
+                                (TH.AppTypeE (TH.VarE 'queryParamList) innerTy)
+                                nameBsE)
+                            (TH.VarE queryName))
 
 -- | Unqualified reference to 'IHP.Router.Capture.parseCapture'. Resolved
 -- at splice use-site, so the caller just needs 'parseCapture' in scope

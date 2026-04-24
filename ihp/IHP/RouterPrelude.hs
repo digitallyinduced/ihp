@@ -16,11 +16,13 @@ module IHP.RouterPrelude
   -- Names the @[routes|...|]@ splice emits into user code. The emitted
   -- type signature for the lowercase-header binding references
   -- 'Controller', 'InitControllerContext', 'Request', and 'Respond' as
-  -- constraint classes; they must be in scope at the splice call site.
+  -- constraint classes; routes with query-string fields also reference
+  -- 'queryString'. They must be in scope at the splice call site.
 , Controller
 , InitControllerContext
 , Request
 , Respond
+, queryString
 )
 where
 
@@ -32,4 +34,4 @@ import IHP.ModelSupport (Id, Id' (..))
 import Network.HTTP.Types.Method (StdMethod (..))
 import IHP.Router.Capture (UrlCapture (..), Segment (..))
 import IHP.ControllerSupport (Controller, InitControllerContext, Respond)
-import Network.Wai (Request)
+import Network.Wai (Request, queryString)
