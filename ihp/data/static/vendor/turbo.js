@@ -1,109 +1,12 @@
 /*!
-Turbo 8.0.13
-Copyright © 2025 37signals LLC
+Turbo 8.0.23
+Copyright © 2026 37signals LLC
  */
 (function (global, factory) {
   typeof exports === 'object' && typeof module !== 'undefined' ? factory(exports) :
   typeof define === 'function' && define.amd ? define(['exports'], factory) :
   (global = typeof globalThis !== 'undefined' ? globalThis : global || self, factory(global.Turbo = {}));
 })(this, (function (exports) { 'use strict';
-
-  /**
-   * The MIT License (MIT)
-   *
-   * Copyright (c) 2019 Javan Makhmali
-   *
-   * Permission is hereby granted, free of charge, to any person obtaining a copy
-   * of this software and associated documentation files (the "Software"), to deal
-   * in the Software without restriction, including without limitation the rights
-   * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-   * copies of the Software, and to permit persons to whom the Software is
-   * furnished to do so, subject to the following conditions:
-   *
-   * The above copyright notice and this permission notice shall be included in
-   * all copies or substantial portions of the Software.
-   *
-   * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-   * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-   * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-   * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-   * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-   * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
-   * THE SOFTWARE.
-   */
-
-  (function (prototype) {
-    if (typeof prototype.requestSubmit == "function") return
-
-    prototype.requestSubmit = function (submitter) {
-      if (submitter) {
-        validateSubmitter(submitter, this);
-        submitter.click();
-      } else {
-        submitter = document.createElement("input");
-        submitter.type = "submit";
-        submitter.hidden = true;
-        this.appendChild(submitter);
-        submitter.click();
-        this.removeChild(submitter);
-      }
-    };
-
-    function validateSubmitter(submitter, form) {
-      submitter instanceof HTMLElement || raise(TypeError, "parameter 1 is not of type 'HTMLElement'");
-      submitter.type == "submit" || raise(TypeError, "The specified element is not a submit button");
-      submitter.form == form ||
-        raise(DOMException, "The specified element is not owned by this form element", "NotFoundError");
-    }
-
-    function raise(errorConstructor, message, name) {
-      throw new errorConstructor("Failed to execute 'requestSubmit' on 'HTMLFormElement': " + message + ".", name)
-    }
-  })(HTMLFormElement.prototype);
-
-  const submittersByForm = new WeakMap();
-
-  function findSubmitterFromClickTarget(target) {
-    const element = target instanceof Element ? target : target instanceof Node ? target.parentElement : null;
-    const candidate = element ? element.closest("input, button") : null;
-    return candidate?.type == "submit" ? candidate : null
-  }
-
-  function clickCaptured(event) {
-    const submitter = findSubmitterFromClickTarget(event.target);
-
-    if (submitter && submitter.form) {
-      submittersByForm.set(submitter.form, submitter);
-    }
-  }
-
-  (function () {
-    if ("submitter" in Event.prototype) return
-
-    let prototype = window.Event.prototype;
-    // Certain versions of Safari 15 have a bug where they won't
-    // populate the submitter. This hurts TurboDrive's enable/disable detection.
-    // See https://bugs.webkit.org/show_bug.cgi?id=229660
-    if ("SubmitEvent" in window) {
-      const prototypeOfSubmitEvent = window.SubmitEvent.prototype;
-
-      if (/Apple Computer/.test(navigator.vendor) && !("submitter" in prototypeOfSubmitEvent)) {
-        prototype = prototypeOfSubmitEvent;
-      } else {
-        return // polyfill not needed
-      }
-    }
-
-    addEventListener("click", clickCaptured, true);
-
-    Object.defineProperty(prototype, "submitter", {
-      get() {
-        if (this.type == "submit" && this.target instanceof HTMLFormElement) {
-          return submittersByForm.get(this.target)
-        }
-      }
-    });
-  })();
 
   const FrameLoadingStyle = {
     eager: "eager",
@@ -380,10 +283,6 @@ Copyright © 2025 37signals LLC
     return new Promise((resolve) => setTimeout(() => resolve(), 0))
   }
 
-  function nextMicrotask() {
-    return Promise.resolve()
-  }
-
   function parseHTMLDocument(html = "") {
     return new DOMParser().parseFromString(html, "text/html")
   }
@@ -412,7 +311,7 @@ Copyright © 2025 37signals LLC
         } else if (i == 19) {
           return (Math.floor(Math.random() * 4) + 8).toString(16)
         } else {
-          return Math.floor(Math.random() * 15).toString(16)
+          return Math.floor(Math.random() * 16).toString(16)
         }
       })
       .join("")
@@ -561,11 +460,16 @@ Copyright © 2025 37signals LLC
   }
 
   function findLinkFromClickTarget(target) {
-    return findClosestRecursively(target, "a[href]:not([target^=_]):not([download])")
-  }
+    const link = findClosestRecursively(target, "a[href], a[xlink\\:href]");
 
-  function getLocationForLink(link) {
-    return expandURL(link.getAttribute("href") || "")
+    if (!link) return null
+    if (link.href.startsWith("#")) return null
+    if (link.hasAttribute("download")) return null
+
+    const linkTarget = link.getAttribute("target");
+    if (linkTarget && linkTarget !== "_self") return null
+
+    return link
   }
 
   function debounce(fn, delay) {
@@ -648,12 +552,16 @@ Copyright © 2025 37signals LLC
   }
 
   function isPrefixedBy(baseURL, url) {
-    const prefix = getPrefix(url);
-    return baseURL.href === expandURL(prefix).href || baseURL.href.startsWith(prefix)
+    const prefix = addTrailingSlash(url.origin + url.pathname);
+    return addTrailingSlash(baseURL.href) === prefix || baseURL.href.startsWith(prefix)
   }
 
   function locationIsVisitable(location, rootLocation) {
     return isPrefixedBy(location, rootLocation) && !config.drive.unvisitableExtensions.has(getExtension(location))
+  }
+
+  function getLocationForLink(link) {
+    return expandURL(link.getAttribute("href") || "")
   }
 
   function getRequestURL(url) {
@@ -675,10 +583,6 @@ Copyright © 2025 37signals LLC
 
   function getLastPathComponent(url) {
     return getPathComponents(url).slice(-1)[0]
-  }
-
-  function getPrefix(url) {
-    return addTrailingSlash(url.origin + url.pathname)
   }
 
   function addTrailingSlash(value) {
@@ -761,15 +665,13 @@ Copyright © 2025 37signals LLC
 
   const recentRequests = new LimitedSet(20);
 
-  const nativeFetch = window.fetch;
-
   function fetchWithTurboHeaders(url, options = {}) {
     const modifiedHeaders = new Headers(options.headers || {});
     const requestUID = uuid();
     recentRequests.add(requestUID);
     modifiedHeaders.append("X-Turbo-Request-Id", requestUID);
 
-    return nativeFetch(url, {
+    return window.fetch(url, {
       ...options,
       headers: modifiedHeaders
     })
@@ -1077,35 +979,113 @@ Copyright © 2025 37signals LLC
     return fragment
   }
 
-  const PREFETCH_DELAY = 100;
+  const identity = key => key;
 
-  class PrefetchCache {
-    #prefetchTimeout = null
-    #prefetched = null
+  class LRUCache {
+    keys = []
+    entries = {}
+    #toCacheKey
 
-    get(url) {
-      if (this.#prefetched && this.#prefetched.url === url && this.#prefetched.expire > Date.now()) {
-        return this.#prefetched.request
+    constructor(size, toCacheKey = identity) {
+      this.size = size;
+      this.#toCacheKey = toCacheKey;
+    }
+
+    has(key) {
+      return this.#toCacheKey(key) in this.entries
+    }
+
+    get(key) {
+      if (this.has(key)) {
+        const entry = this.read(key);
+        this.touch(key);
+        return entry
       }
     }
 
-    setLater(url, request, ttl) {
-      this.clear();
-
-      this.#prefetchTimeout = setTimeout(() => {
-        request.perform();
-        this.set(url, request, ttl);
-        this.#prefetchTimeout = null;
-      }, PREFETCH_DELAY);
-    }
-
-    set(url, request, ttl) {
-      this.#prefetched = { url, request, expire: new Date(new Date().getTime() + ttl) };
+    put(key, entry) {
+      this.write(key, entry);
+      this.touch(key);
+      return entry
     }
 
     clear() {
+      for (const key of Object.keys(this.entries)) {
+        this.evict(key);
+      }
+    }
+
+    // Private
+
+    read(key) {
+      return this.entries[this.#toCacheKey(key)]
+    }
+
+    write(key, entry) {
+      this.entries[this.#toCacheKey(key)] = entry;
+    }
+
+    touch(key) {
+      key = this.#toCacheKey(key);
+      const index = this.keys.indexOf(key);
+      if (index > -1) this.keys.splice(index, 1);
+      this.keys.unshift(key);
+      this.trim();
+    }
+
+    trim() {
+      for (const key of this.keys.splice(this.size)) {
+        this.evict(key);
+      }
+    }
+
+    evict(key) {
+      delete this.entries[key];
+    }
+  }
+
+  const PREFETCH_DELAY = 100;
+
+  class PrefetchCache extends LRUCache {
+    #prefetchTimeout = null
+    #maxAges = {}
+
+    constructor(size = 1, prefetchDelay = PREFETCH_DELAY) {
+      super(size, toCacheKey);
+      this.prefetchDelay = prefetchDelay;
+    }
+
+    putLater(url, request, ttl) {
+      this.#prefetchTimeout = setTimeout(() => {
+        request.perform();
+        this.put(url, request, ttl);
+        this.#prefetchTimeout = null;
+      }, this.prefetchDelay);
+    }
+
+    put(url, request, ttl = cacheTtl) {
+      super.put(url, request);
+      this.#maxAges[toCacheKey(url)] = new Date(new Date().getTime() + ttl);
+    }
+
+    clear() {
+      super.clear();
       if (this.#prefetchTimeout) clearTimeout(this.#prefetchTimeout);
-      this.#prefetched = null;
+    }
+
+    evict(key) {
+      super.evict(key);
+      delete this.#maxAges[key];
+    }
+
+    has(key) {
+      if (super.has(key)) {
+        const maxAge = this.#maxAges[toCacheKey(key)];
+
+        return maxAge && maxAge > Date.now()
+      } else {
+        return false
+      }
     }
   }
 
@@ -1505,8 +1485,8 @@ Copyright © 2025 37signals LLC
     scrollToAnchor(anchor) {
       const element = this.snapshot.getElementForAnchor(anchor);
       if (element) {
-        this.scrollToElement(element);
         this.focusElement(element);
+        this.scrollToElement(element);
       } else {
         this.scrollToPosition({ x: 0, y: 0 });
       }
@@ -2145,6 +2125,7 @@ Copyright © 2025 37signals LLC
      * @property {ConfigInternal['callbacks']} callbacks
      * @property {ConfigInternal['head']} head
      * @property {HTMLDivElement} pantry
+     * @property {Element[]} activeElementAndParents
      */
 
     //=============================================================================
@@ -2220,14 +2201,6 @@ Copyright © 2025 37signals LLC
      */
     function morphOuterHTML(ctx, oldNode, newNode) {
       const oldParent = normalizeParent(oldNode);
-
-      // basis for calulating which nodes were morphed
-      // since there may be unmorphed sibling nodes
-      let childNodes = Array.from(oldParent.childNodes);
-      const index = childNodes.indexOf(oldNode);
-      // how many elements are to the right of the oldNode
-      const rightMargin = childNodes.length - (index + 1);
-
       morphChildren(
         ctx,
         oldParent,
@@ -2236,10 +2209,8 @@ Copyright © 2025 37signals LLC
         oldNode, // start point for iteration
         oldNode.nextSibling, // end point for iteration
       );
-
-      // return just the morphed nodes
-      childNodes = Array.from(oldParent.childNodes);
-      return childNodes.slice(index, childNodes.length - rightMargin);
+      // this is safe even with siblings, because normalizeParent returns a SlicedParentNode if needed.
+      return Array.from(oldParent.childNodes);
     }
 
     /**
@@ -2268,8 +2239,11 @@ Copyright © 2025 37signals LLC
 
       const results = fn();
 
-      if (activeElementId && activeElementId !== document.activeElement?.id) {
-        activeElement = ctx.target.querySelector(`#${activeElementId}`);
+      if (
+        activeElementId &&
+        activeElementId !== document.activeElement?.getAttribute("id")
+      ) {
+        activeElement = ctx.target.querySelector(`[id="${activeElementId}"]`);
         activeElement?.focus();
       }
       if (activeElement && !activeElement.selectionEnd && selectionEnd) {
@@ -2347,17 +2321,23 @@ Copyright © 2025 37signals LLC
           }
 
           // if the matching node is elsewhere in the original content
-          if (newChild instanceof Element && ctx.persistentIds.has(newChild.id)) {
-            // move it and all its children here and morph
-            const movedChild = moveBeforeById(
-              oldParent,
-              newChild.id,
-              insertionPoint,
-              ctx,
+          if (newChild instanceof Element) {
+            // we can pretend the id is non-null because the next `.has` line will reject it if not
+            const newChildId = /** @type {String} */ (
+              newChild.getAttribute("id")
             );
-            morphNode(movedChild, newChild, ctx);
-            insertionPoint = movedChild.nextSibling;
-            continue;
+            if (ctx.persistentIds.has(newChildId)) {
+              // move it and all its children here and morph
+              const movedChild = moveBeforeById(
+                oldParent,
+                newChildId,
+                insertionPoint,
+                ctx,
+              );
+              morphNode(movedChild, newChild, ctx);
+              insertionPoint = movedChild.nextSibling;
+              continue;
+            }
           }
 
           // last resort: insert the new node from scratch
@@ -2467,7 +2447,8 @@ Copyright © 2025 37signals LLC
 
             // if the current node contains active element, stop looking for better future matches,
             // because if one is found, this node will be moved to the pantry, reparenting it and thus losing focus
-            if (cursor.contains(document.activeElement)) break;
+            // @ts-ignore pretend cursor is Element rather than Node, we're just testing for array inclusion
+            if (ctx.activeElementAndParents.includes(cursor)) break;
 
             cursor = cursor.nextSibling;
           }
@@ -2517,7 +2498,9 @@ Copyright © 2025 37signals LLC
             // If oldElt has an `id` with possible state and it doesn't match newElt.id then avoid morphing.
             // We'll still match an anonymous node with an IDed newElt, though, because if it got this far,
             // its not persistent, and new nodes can't have any hidden state.
-            (!oldElt.id || oldElt.id === newElt.id)
+            // We can't use .id because of form input shadowing, and we can't count on .getAttribute's presence because it could be a document-fragment
+            (!oldElt.getAttribute?.("id") ||
+              oldElt.getAttribute?.("id") === newElt.getAttribute?.("id"))
           );
         }
 
@@ -2581,8 +2564,11 @@ Copyright © 2025 37signals LLC
         const target =
           /** @type {Element} - will always be found */
           (
-            ctx.target.querySelector(`#${id}`) ||
-              ctx.pantry.querySelector(`#${id}`)
+            // ctx.target.id unsafe because of form input shadowing
+            // ctx.target could be a document fragment which doesn't have `getAttribute`
+            (ctx.target.getAttribute?.("id") === id && ctx.target) ||
+              ctx.target.querySelector(`[id="${id}"]`) ||
+              ctx.pantry.querySelector(`[id="${id}"]`)
           );
         removeElementFromAncestorsIdMaps(target, ctx);
         moveBefore(parentNode, target, after);
@@ -2598,7 +2584,8 @@ Copyright © 2025 37signals LLC
        * @param {MorphContext} ctx
        */
       function removeElementFromAncestorsIdMaps(element, ctx) {
-        const id = element.id;
+        // we know id is non-null String, because this function is only called on elements with ids
+        const id = /** @type {String} */ (element.getAttribute("id"));
         /** @ts-ignore - safe to loop in this way **/
         while ((element = element.parentNode)) {
           let idSet = ctx.idMap.get(element);
@@ -3036,6 +3023,7 @@ Copyright © 2025 37signals LLC
           idMap: idMap,
           persistentIds: persistentIds,
           pantry: createPantry(),
+          activeElementAndParents: createActiveElementAndParents(oldNode),
           callbacks: mergedConfig.callbacks,
           head: mergedConfig.head,
         };
@@ -3077,6 +3065,24 @@ Copyright © 2025 37signals LLC
       }
 
       /**
+       * @param {Element} oldNode
+       * @returns {Element[]}
+       */
+      function createActiveElementAndParents(oldNode) {
+        /** @type {Element[]} */
+        let activeElementAndParents = [];
+        let elt = document.activeElement;
+        if (elt?.tagName !== "BODY" && oldNode.contains(elt)) {
+          while (elt) {
+            activeElementAndParents.push(elt);
+            if (elt === oldNode) break;
+            elt = elt.parentElement;
+          }
+        }
+        return activeElementAndParents;
+      }
+
+      /**
        * Returns all elements with an ID contained within the root element and its descendants
        *
        * @param {Element} root
@@ -3084,7 +3090,8 @@ Copyright © 2025 37signals LLC
        */
       function findIdElements(root) {
         let elements = Array.from(root.querySelectorAll("[id]"));
-        if (root.id) {
+        // root could be a document fragment which doesn't have `getAttribute`
+        if (root.getAttribute?.("id")) {
           elements.push(root);
         }
         return elements;
@@ -3103,7 +3110,9 @@ Copyright © 2025 37signals LLC
        */
       function populateIdMapWithTree(idMap, persistentIds, root, elements) {
         for (const elt of elements) {
-          if (persistentIds.has(elt.id)) {
+          // we can pretend id is non-null String, because the .has line will reject it immediately if not
+          const id = /** @type {String} */ (elt.getAttribute("id"));
+          if (persistentIds.has(id)) {
             /** @type {Element|null} */
             let current = elt;
             // walk up the parent hierarchy of that element, adding the id
@@ -3115,7 +3124,7 @@ Copyright © 2025 37signals LLC
                 idSet = new Set();
                 idMap.set(current, idSet);
               }
-              idSet.add(elt.id);
+              idSet.add(id);
 
               if (current === root) break;
               current = current.parentElement;
@@ -3229,8 +3238,9 @@ Copyright © 2025 37signals LLC
           if (newContent.parentNode) {
             // we can't use the parent directly because newContent may have siblings
             // that we don't want in the morph, and reparenting might be expensive (TODO is it?),
-            // so we create a duck-typed parent node instead.
-            return createDuckTypedParent(newContent);
+            // so instead we create a fake parent node that only sees a slice of its children.
+            /** @type {Element} */
+            return /** @type {any} */ (new SlicedParentNode(newContent));
           } else {
             // a single node is added as a child to a dummy parent
             const dummyParent = document.createElement("div");
@@ -3249,33 +3259,78 @@ Copyright © 2025 37signals LLC
       }
 
       /**
-       * Creates a fake duck-typed parent element to wrap a single node, without actually reparenting it.
+       * A fake duck-typed parent element to wrap a single node, without actually reparenting it.
+       * This is useful because the node may have siblings that we don't want in the morph, and it may also be moved
+       * or replaced with one or more elements during the morph. This class effectively allows us a window into
+       * a slice of a node's children.
        * "If it walks like a duck, and quacks like a duck, then it must be a duck!" -- James Whitcomb Riley (1849–1916)
-       *
-       * @param {Node} newContent
-       * @returns {Element}
        */
-      function createDuckTypedParent(newContent) {
-        return /** @type {Element} */ (
-          /** @type {unknown} */ ({
-            childNodes: [newContent],
-            /** @ts-ignore - cover your eyes for a minute, tsc */
-            querySelectorAll: (s) => {
-              /** @ts-ignore */
-              const elements = newContent.querySelectorAll(s);
-              /** @ts-ignore */
-              return newContent.matches(s) ? [newContent, ...elements] : elements;
-            },
-            /** @ts-ignore */
-            insertBefore: (n, r) => newContent.parentNode.insertBefore(n, r),
-            /** @ts-ignore */
-            moveBefore: (n, r) => newContent.parentNode.moveBefore(n, r),
-            // for later use with populateIdMapWithTree to halt upwards iteration
-            get __idiomorphRoot() {
-              return newContent;
-            },
-          })
-        );
+      class SlicedParentNode {
+        /** @param {Node} node */
+        constructor(node) {
+          this.originalNode = node;
+          this.realParentNode = /** @type {Element} */ (node.parentNode);
+          this.previousSibling = node.previousSibling;
+          this.nextSibling = node.nextSibling;
+        }
+
+        /** @returns {Node[]} */
+        get childNodes() {
+          // return slice of realParent's current childNodes, based on previousSibling and nextSibling
+          const nodes = [];
+          let cursor = this.previousSibling
+            ? this.previousSibling.nextSibling
+            : this.realParentNode.firstChild;
+          while (cursor && cursor != this.nextSibling) {
+            nodes.push(cursor);
+            cursor = cursor.nextSibling;
+          }
+          return nodes;
+        }
+
+        /**
+         * @param {string} selector
+         * @returns {Element[]}
+         */
+        querySelectorAll(selector) {
+          return this.childNodes.reduce((results, node) => {
+            if (node instanceof Element) {
+              if (node.matches(selector)) results.push(node);
+              const nodeList = node.querySelectorAll(selector);
+              for (let i = 0; i < nodeList.length; i++) {
+                results.push(nodeList[i]);
+              }
+            }
+            return results;
+          }, /** @type {Element[]} */ ([]));
+        }
+
+        /**
+         * @param {Node} node
+         * @param {Node} referenceNode
+         * @returns {Node}
+         */
+        insertBefore(node, referenceNode) {
+          return this.realParentNode.insertBefore(node, referenceNode);
+        }
+
+        /**
+         * @param {Node} node
+         * @param {Node} referenceNode
+         * @returns {Node}
+         */
+        moveBefore(node, referenceNode) {
+          // @ts-ignore - use new moveBefore feature
+          return this.realParentNode.moveBefore(node, referenceNode);
+        }
+
+        /**
+         * for later use with populateIdMapWithTree to halt upwards iteration
+         * @returns {Node}
+         */
+        get __idiomorphRoot() {
+          return this.originalNode;
+        }
       }
 
       /**
@@ -3338,6 +3393,14 @@ Copyright © 2025 37signals LLC
     };
   })();
 
+  /**
+   * Morph the state of the currentElement based on the attributes and contents of
+   * the newElement. Morphing may dispatch turbo:before-morph-element,
+   * turbo:before-morph-attribute, and turbo:morph-element events.
+   *
+   * @param currentElement Element destination of morphing changes
+   * @param newElement Element source of morphing changes
+   */
   function morphElements(currentElement, newElement, { callbacks, ...options } = {}) {
     Idiomorph.morph(currentElement, newElement, {
       ...options,
@@ -3345,10 +3408,37 @@ Copyright © 2025 37signals LLC
     });
   }
 
-  function morphChildren(currentElement, newElement) {
+  /**
+   * Morph the child elements of the currentElement based on the child elements of
+   * the newElement. Morphing children may dispatch turbo:before-morph-element,
+   * turbo:before-morph-attribute, and turbo:morph-element events.
+   *
+   * @param currentElement Element destination of morphing children changes
+   * @param newElement Element source of morphing children changes
+   */
+  function morphChildren(currentElement, newElement, options = {}) {
     morphElements(currentElement, newElement.childNodes, {
+      ...options,
       morphStyle: "innerHTML"
     });
+  }
+
+  function shouldRefreshFrameWithMorphing(currentFrame, newFrame) {
+    return currentFrame instanceof FrameElement &&
+      currentFrame.shouldReloadWithMorph && (!newFrame || areFramesCompatibleForRefreshing(currentFrame, newFrame)) &&
+      !currentFrame.closest("[data-turbo-permanent]")
+  }
+
+  function areFramesCompatibleForRefreshing(currentFrame, newFrame) {
+    // newFrame cannot yet be an instance of FrameElement because custom
+    // elements don't get initialized until they're attached to the DOM, so
+    // test its Element#nodeName instead
+    return newFrame instanceof Element && newFrame.nodeName === "TURBO-FRAME" && currentFrame.id === newFrame.id &&
+    (!newFrame.getAttribute("src") || urlsAreEqual(currentFrame.src, newFrame.getAttribute("src")))
+  }
+
+  function closestFrameReloadableWithMorphing(node) {
+    return node.parentElement.closest("turbo-frame[src][refresh=morph]")
   }
 
   class DefaultIdiomorphCallbacks {
@@ -3409,7 +3499,20 @@ Copyright © 2025 37signals LLC
         detail: { currentElement, newElement }
       });
 
-      morphChildren(currentElement, newElement);
+      morphChildren(currentElement, newElement, {
+        callbacks: {
+          beforeNodeMorphed: (node, newNode) => {
+            if (
+              shouldRefreshFrameWithMorphing(node, newNode) &&
+                closestFrameReloadableWithMorphing(node) === currentElement
+            ) {
+              node.reload();
+              return false
+            }
+            return true
+          }
+        }
+      });
     }
 
     async preservingPermanentElements(callback) {
@@ -3685,11 +3788,19 @@ Copyright © 2025 37signals LLC
         clonedPasswordInput.value = "";
       }
 
+      for (const clonedNoscriptElement of clonedElement.querySelectorAll("noscript")) {
+        clonedNoscriptElement.remove();
+      }
+
       return new PageSnapshot(this.documentElement, clonedElement, this.headSnapshot)
     }
 
     get lang() {
       return this.documentElement.getAttribute("lang")
+    }
+
+    get dir() {
+      return this.documentElement.getAttribute("dir")
     }
 
     get headElement() {
@@ -3718,15 +3829,16 @@ Copyright © 2025 37signals LLC
     }
 
     get prefersViewTransitions() {
-      return this.headSnapshot.getMetaValue("view-transition") === "same-origin"
+      const viewTransitionEnabled = this.getSetting("view-transition") === "true" || this.headSnapshot.getMetaValue("view-transition") === "same-origin";
+      return viewTransitionEnabled && !window.matchMedia("(prefers-reduced-motion: reduce)").matches
     }
 
-    get shouldMorphPage() {
-      return this.getSetting("refresh-method") === "morph"
+    get refreshMethod() {
+      return this.getSetting("refresh-method")
     }
 
-    get shouldPreserveScrollPosition() {
-      return this.getSetting("refresh-scroll") === "preserve"
+    get refreshScroll() {
+      return this.getSetting("refresh-scroll")
     }
 
     // Private
@@ -3765,7 +3877,8 @@ Copyright © 2025 37signals LLC
     willRender: true,
     updateHistory: true,
     shouldCacheSnapshot: true,
-    acceptsStreamResponse: false
+    acceptsStreamResponse: false,
+    refresh: {}
   };
 
   const TimingMetric = {
@@ -3825,7 +3938,8 @@ Copyright © 2025 37signals LLC
         updateHistory,
         shouldCacheSnapshot,
         acceptsStreamResponse,
-        direction
+        direction,
+        refresh
       } = {
         ...defaultOptions,
         ...options
@@ -3836,7 +3950,6 @@ Copyright © 2025 37signals LLC
       this.snapshot = snapshot;
       this.snapshotHTML = snapshotHTML;
       this.response = response;
-      this.isSamePage = this.delegate.locationWithActionIsSamePage(this.location, this.action);
       this.isPageRefresh = this.view.isPageRefresh(this);
       this.visitCachedSnapshot = visitCachedSnapshot;
       this.willRender = willRender;
@@ -3845,6 +3958,7 @@ Copyright © 2025 37signals LLC
       this.shouldCacheSnapshot = shouldCacheSnapshot;
       this.acceptsStreamResponse = acceptsStreamResponse;
       this.direction = direction || Direction[action];
+      this.refresh = refresh;
     }
 
     get adapter() {
@@ -3861,10 +3975,6 @@ Copyright © 2025 37signals LLC
 
     get restorationData() {
       return this.history.getRestorationDataForIdentifier(this.restorationIdentifier)
-    }
-
-    get silent() {
-      return this.isSamePage
     }
 
     start() {
@@ -4003,7 +4113,7 @@ Copyright © 2025 37signals LLC
         const isPreview = this.shouldIssueRequest();
         this.render(async () => {
           this.cacheSnapshot();
-          if (this.isSamePage || this.isPageRefresh) {
+          if (this.isPageRefresh) {
             this.adapter.visitRendered(this);
           } else {
             if (this.view.renderPromise) await this.view.renderPromise;
@@ -4028,17 +4138,6 @@ Copyright © 2025 37signals LLC
           willRender: false
         });
         this.followedRedirect = true;
-      }
-    }
-
-    goToSamePageAnchor() {
-      if (this.isSamePage) {
-        this.render(async () => {
-          this.cacheSnapshot();
-          this.performScroll();
-          this.changeHistory();
-          this.adapter.visitRendered(this);
-        });
       }
     }
 
@@ -4103,9 +4202,6 @@ Copyright © 2025 37signals LLC
         } else {
           this.scrollToAnchor() || this.view.scrollToTop();
         }
-        if (this.isSamePage) {
-          this.delegate.visitScrolledToSamePageLocation(this.view.lastRenderedLocation, this.location);
-        }
 
         this.scrolled = true;
       }
@@ -4144,9 +4240,7 @@ Copyright © 2025 37signals LLC
     }
 
     shouldIssueRequest() {
-      if (this.isSamePage) {
-        return false
-      } else if (this.action == "restore") {
+      if (this.action == "restore") {
         return !this.hasCachedSnapshot()
       } else {
         return this.willRender
@@ -4206,9 +4300,10 @@ Copyright © 2025 37signals LLC
 
     visitStarted(visit) {
       this.location = visit.location;
+      this.redirectedToLocation = null;
+
       visit.loadCachedSnapshot();
       visit.issueRequest();
-      visit.goToSamePageAnchor();
     }
 
     visitRequestStarted(visit) {
@@ -4222,6 +4317,10 @@ Copyright © 2025 37signals LLC
 
     visitRequestCompleted(visit) {
       visit.loadResponse();
+
+      if (visit.response.redirected) {
+        this.redirectedToLocation = visit.redirectedToLocation;
+      }
     }
 
     visitRequestFailedWithStatusCode(visit, statusCode) {
@@ -4311,7 +4410,7 @@ Copyright © 2025 37signals LLC
     reload(reason) {
       dispatch("turbo:reload", { detail: reason });
 
-      window.location.href = this.location?.toString() || window.location.href;
+      window.location.href = (this.redirectedToLocation || this.location)?.toString() || window.location.href;
     }
 
     get navigator() {
@@ -4321,7 +4420,6 @@ Copyright © 2025 37signals LLC
 
   class CacheObserver {
     selector = "[data-turbo-temporary]"
-    deprecatedSelector = "[data-turbo-cache=false]"
 
     started = false
 
@@ -4346,19 +4444,7 @@ Copyright © 2025 37signals LLC
     }
 
     get temporaryElements() {
-      return [...document.querySelectorAll(this.selector), ...this.temporaryElementsWithDeprecation]
-    }
-
-    get temporaryElementsWithDeprecation() {
-      const elements = document.querySelectorAll(this.deprecatedSelector);
-
-      if (elements.length) {
-        console.warn(
-          `The ${this.deprecatedSelector} selector is deprecated and will be removed in a future version. Use ${this.selector} instead.`
-        );
-      }
-
-      return [...elements]
+      return [...document.querySelectorAll(this.selector)]
     }
   }
 
@@ -4448,7 +4534,6 @@ Copyright © 2025 37signals LLC
     restorationIdentifier = uuid()
     restorationData = {}
     started = false
-    pageLoaded = false
     currentIndex = 0
 
     constructor(delegate) {
@@ -4458,7 +4543,6 @@ Copyright © 2025 37signals LLC
     start() {
       if (!this.started) {
         addEventListener("popstate", this.onPopState, false);
-        addEventListener("load", this.onPageLoad, false);
         this.currentIndex = history.state?.turbo?.restorationIndex || 0;
         this.started = true;
         this.replace(new URL(window.location.href));
@@ -4468,7 +4552,6 @@ Copyright © 2025 37signals LLC
     stop() {
       if (this.started) {
         removeEventListener("popstate", this.onPopState, false);
-        removeEventListener("load", this.onPageLoad, false);
         this.started = false;
       }
     }
@@ -4524,33 +4607,19 @@ Copyright © 2025 37signals LLC
     // Event handlers
 
     onPopState = (event) => {
-      if (this.shouldHandlePopState()) {
-        const { turbo } = event.state || {};
-        if (turbo) {
-          this.location = new URL(window.location.href);
-          const { restorationIdentifier, restorationIndex } = turbo;
-          this.restorationIdentifier = restorationIdentifier;
-          const direction = restorationIndex > this.currentIndex ? "forward" : "back";
-          this.delegate.historyPoppedToLocationWithRestorationIdentifierAndDirection(this.location, restorationIdentifier, direction);
-          this.currentIndex = restorationIndex;
-        }
+      const { turbo } = event.state || {};
+      this.location = new URL(window.location.href);
+
+      if (turbo) {
+        const { restorationIdentifier, restorationIndex } = turbo;
+        this.restorationIdentifier = restorationIdentifier;
+        const direction = restorationIndex > this.currentIndex ? "forward" : "back";
+        this.delegate.historyPoppedToLocationWithRestorationIdentifierAndDirection(this.location, restorationIdentifier, direction);
+        this.currentIndex = restorationIndex;
+      } else {
+        this.currentIndex++;
+        this.delegate.historyPoppedWithEmptyState(this.location);
       }
-    }
-
-    onPageLoad = async (_event) => {
-      await nextMicrotask();
-      this.pageLoaded = true;
-    }
-
-    // Private
-
-    shouldHandlePopState() {
-      // Safari dispatches a popstate event after window's load event, ignore it
-      return this.pageIsLoaded()
-    }
-
-    pageIsLoaded() {
-      return this.pageLoaded || document.readyState == "complete"
     }
   }
 
@@ -4624,7 +4693,9 @@ Copyright © 2025 37signals LLC
             target
           );
 
-          prefetchCache.setLater(location.toString(), fetchRequest, this.#cacheTtl);
+          fetchRequest.fetchOptions.priority = "low";
+
+          prefetchCache.putLater(location, fetchRequest, this.#cacheTtl);
         }
       }
     }
@@ -4640,7 +4711,7 @@ Copyright © 2025 37signals LLC
 
     #tryToUsePrefetchedRequest = (event) => {
       if (event.target.tagName !== "FORM" && event.detail.fetchOptions.method === "GET") {
-        const cached = prefetchCache.get(event.detail.url.toString());
+        const cached = prefetchCache.get(event.detail.url);
 
         if (cached) {
           // User clicked link, use cache response
@@ -4830,7 +4901,7 @@ Copyright © 2025 37signals LLC
         } else {
           await this.view.renderPage(snapshot, false, true, this.currentVisit);
         }
-        if(!snapshot.shouldPreserveScrollPosition) {
+        if (snapshot.refreshScroll !== "preserve") {
           this.view.scrollToTop();
         }
         this.view.clearSnapshotCache();
@@ -4870,20 +4941,10 @@ Copyright © 2025 37signals LLC
       delete this.currentVisit;
     }
 
+    // Same-page links are no longer handled with a Visit.
+    // This method is still needed for Turbo Native adapters.
     locationWithActionIsSamePage(location, action) {
-      const anchor = getAnchor(location);
-      const currentAnchor = getAnchor(this.view.lastRenderedLocation);
-      const isRestorationToTop = action === "restore" && typeof anchor === "undefined";
-
-      return (
-        action !== "replace" &&
-        getRequestURL(location) === getRequestURL(this.view.lastRenderedLocation) &&
-        (isRestorationToTop || (anchor != null && anchor !== currentAnchor))
-      )
-    }
-
-    visitScrolledToSamePageLocation(oldURL, newURL) {
-      this.delegate.visitScrolledToSamePageLocation(oldURL, newURL);
+      return false
     }
 
     // Visits
@@ -5276,12 +5337,17 @@ Copyright © 2025 37signals LLC
 
     #setLanguage() {
       const { documentElement } = this.currentSnapshot;
-      const { lang } = this.newSnapshot;
+      const { dir, lang } = this.newSnapshot;
 
       if (lang) {
         documentElement.setAttribute("lang", lang);
       } else {
         documentElement.removeAttribute("lang");
+      }
+      if (dir) {
+        documentElement.setAttribute("dir", dir);
+      } else {
+        documentElement.removeAttribute("dir");
       }
     }
 
@@ -5384,7 +5450,14 @@ Copyright © 2025 37signals LLC
 
     activateNewBody() {
       document.adoptNode(this.newElement);
+      this.removeNoscriptElements();
       this.activateNewBodyScriptElements();
+    }
+
+    removeNoscriptElements() {
+      for (const noscriptElement of this.newElement.querySelectorAll("noscript")) {
+        noscriptElement.remove();
+      }
     }
 
     activateNewBodyScriptElements() {
@@ -5433,13 +5506,18 @@ Copyright © 2025 37signals LLC
     static renderElement(currentElement, newElement) {
       morphElements(currentElement, newElement, {
         callbacks: {
-          beforeNodeMorphed: element => !canRefreshFrame(element)
+          beforeNodeMorphed: (node, newNode) => {
+            if (
+              shouldRefreshFrameWithMorphing(node, newNode) &&
+                !closestFrameReloadableWithMorphing(node)
+            ) {
+              node.reload();
+              return false
+            }
+            return true
+          }
         }
       });
-
-      for (const frame of currentElement.querySelectorAll("turbo-frame")) {
-        if (canRefreshFrame(frame)) frame.reload();
-      }
 
       dispatch("turbo:morph", { detail: { currentElement, newElement } });
     }
@@ -5457,65 +5535,13 @@ Copyright © 2025 37signals LLC
     }
   }
 
-  function canRefreshFrame(frame) {
-    return frame instanceof FrameElement &&
-      frame.src &&
-      frame.refresh === "morph" &&
-      !frame.closest("[data-turbo-permanent]")
-  }
-
-  class SnapshotCache {
-    keys = []
-    snapshots = {}
-
+  class SnapshotCache extends LRUCache {
     constructor(size) {
-      this.size = size;
+      super(size, toCacheKey);
     }
 
-    has(location) {
-      return toCacheKey(location) in this.snapshots
-    }
-
-    get(location) {
-      if (this.has(location)) {
-        const snapshot = this.read(location);
-        this.touch(location);
-        return snapshot
-      }
-    }
-
-    put(location, snapshot) {
-      this.write(location, snapshot);
-      this.touch(location);
-      return snapshot
-    }
-
-    clear() {
-      this.snapshots = {};
-    }
-
-    // Private
-
-    read(location) {
-      return this.snapshots[toCacheKey(location)]
-    }
-
-    write(location, snapshot) {
-      this.snapshots[toCacheKey(location)] = snapshot;
-    }
-
-    touch(location) {
-      const key = toCacheKey(location);
-      const index = this.keys.indexOf(key);
-      if (index > -1) this.keys.splice(index, 1);
-      this.keys.unshift(key);
-      this.trim();
-    }
-
-    trim() {
-      for (const key of this.keys.splice(this.size)) {
-        delete this.snapshots[key];
-      }
+    get snapshots() {
+      return this.entries
     }
   }
 
@@ -5529,7 +5555,7 @@ Copyright © 2025 37signals LLC
     }
 
     renderPage(snapshot, isPreview = false, willRender = true, visit) {
-      const shouldMorphPage = this.isPageRefresh(visit) && this.snapshot.shouldMorphPage;
+      const shouldMorphPage = this.isPageRefresh(visit) && (visit?.refresh?.method || this.snapshot.refreshMethod) === "morph";
       const rendererClass = shouldMorphPage ? MorphingPageRenderer : PageRenderer;
 
       const renderer = new rendererClass(this.snapshot, snapshot, isPreview, willRender);
@@ -5573,7 +5599,7 @@ Copyright © 2025 37signals LLC
     }
 
     shouldPreserveScrollPosition(visit) {
-      return this.isPageRefresh(visit) && this.snapshot.shouldPreserveScrollPosition
+      return this.isPageRefresh(visit) && (visit?.refresh?.scroll || this.snapshot.refreshScroll) === "preserve"
     }
 
     get snapshot() {
@@ -5763,11 +5789,14 @@ Copyright © 2025 37signals LLC
       }
     }
 
-    refresh(url, requestId) {
+    refresh(url, options = {}) {
+      options = typeof options === "string" ? { requestId: options } : options;
+
+      const { method, requestId, scroll } = options;
       const isRecentRequest = requestId && this.recentRequests.has(requestId);
       const isCurrentUrl = url === document.baseURI;
       if (!isRecentRequest && !this.navigator.currentVisit && isCurrentUrl) {
-        this.visit(url, { action: "replace", shouldCacheSnapshot: false });
+        this.visit(url, { action: "replace", shouldCacheSnapshot: false, refresh: { method, scroll } });
       }
     }
 
@@ -5871,6 +5900,12 @@ Copyright © 2025 37signals LLC
       }
     }
 
+    historyPoppedWithEmptyState(location) {
+      this.history.replace(location);
+      this.view.lastRenderedLocation = location;
+      this.view.cacheSnapshot();
+    }
+
     // Scroll observer delegate
 
     scrollPositionChanged(position) {
@@ -5915,7 +5950,7 @@ Copyright © 2025 37signals LLC
     // Navigator delegate
 
     allowsVisitingLocationWithAction(location, action) {
-      return this.locationWithActionIsSamePage(location, action) || this.applicationAllowsVisitingLocation(location)
+      return this.applicationAllowsVisitingLocation(location)
     }
 
     visitProposedToLocation(location, options) {
@@ -5931,23 +5966,13 @@ Copyright © 2025 37signals LLC
         this.view.markVisitDirection(visit.direction);
       }
       extendURLWithDeprecatedProperties(visit.location);
-      if (!visit.silent) {
-        this.notifyApplicationAfterVisitingLocation(visit.location, visit.action);
-      }
+      this.notifyApplicationAfterVisitingLocation(visit.location, visit.action);
     }
 
     visitCompleted(visit) {
       this.view.unmarkVisitDirection();
       clearBusyState(document.documentElement);
       this.notifyApplicationAfterPageLoad(visit.getTimingMetrics());
-    }
-
-    locationWithActionIsSamePage(location, action) {
-      return this.navigator.locationWithActionIsSamePage(location, action)
-    }
-
-    visitScrolledToSamePageLocation(oldURL, newURL) {
-      this.notifyApplicationAfterVisitingSamePageLocation(oldURL, newURL);
     }
 
     // Form submit observer delegate
@@ -5989,9 +6014,7 @@ Copyright © 2025 37signals LLC
     // Page view delegate
 
     viewWillCacheSnapshot() {
-      if (!this.navigator.currentVisit?.silent) {
-        this.notifyApplicationBeforeCachingSnapshot();
-      }
+      this.notifyApplicationBeforeCachingSnapshot();
     }
 
     allowsImmediateRender({ element }, options) {
@@ -6083,15 +6106,6 @@ Copyright © 2025 37signals LLC
       })
     }
 
-    notifyApplicationAfterVisitingSamePageLocation(oldURL, newURL) {
-      dispatchEvent(
-        new HashChangeEvent("hashchange", {
-          oldURL: oldURL.toString(),
-          newURL: newURL.toString()
-        })
-      );
-    }
-
     notifyApplicationAfterFrameLoad(frame) {
       return dispatch("turbo:frame-load", { target: frame })
     }
@@ -6177,7 +6191,9 @@ Copyright © 2025 37signals LLC
   };
 
   const session = new Session(recentRequests);
-  const { cache, navigator: navigator$1 } = session;
+
+  // Rename `navigator` to avoid shadowing `window.navigator`
+  const { cache, navigator: sessionNavigator } = session;
 
   /**
    * Starts the main session.
@@ -6244,19 +6260,6 @@ Copyright © 2025 37signals LLC
   }
 
   /**
-   * Removes all entries from the Turbo Drive page cache.
-   * Call this when state has changed on the server that may affect cached pages.
-   *
-   * @deprecated since version 7.2.0 in favor of `Turbo.cache.clear()`
-   */
-  function clearCache() {
-    console.warn(
-      "Please replace `Turbo.clearCache()` with `Turbo.cache.clear()`. The top-level function is deprecated and will be removed in a future version of Turbo.`"
-    );
-    session.clearCache();
-  }
-
-  /**
    * Sets the delay after which the progress bar will appear during navigation.
    *
    * The progress bar appears after 500ms by default.
@@ -6287,26 +6290,55 @@ Copyright © 2025 37signals LLC
     config.forms.mode = mode;
   }
 
+  /**
+   * Morph the state of the currentBody based on the attributes and contents of
+   * the newBody. Morphing body elements may dispatch turbo:morph,
+   * turbo:before-morph-element, turbo:before-morph-attribute, and
+   * turbo:morph-element events.
+   *
+   * @param currentBody HTMLBodyElement destination of morphing changes
+   * @param newBody HTMLBodyElement source of morphing changes
+   */
+  function morphBodyElements(currentBody, newBody) {
+    MorphingPageRenderer.renderElement(currentBody, newBody);
+  }
+
+  /**
+   * Morph the child elements of the currentFrame based on the child elements of
+   * the newFrame. Morphing turbo-frame elements may dispatch turbo:before-frame-morph,
+   * turbo:before-morph-element, turbo:before-morph-attribute, and
+   * turbo:morph-element events.
+   *
+   * @param currentFrame FrameElement destination of morphing children changes
+   * @param newFrame FrameElement source of morphing children changes
+   */
+  function morphTurboFrameElements(currentFrame, newFrame) {
+    MorphingFrameRenderer.renderElement(currentFrame, newFrame);
+  }
+
   var Turbo = /*#__PURE__*/Object.freeze({
     __proto__: null,
-    navigator: navigator$1,
-    session: session,
-    cache: cache,
     PageRenderer: PageRenderer,
     PageSnapshot: PageSnapshot,
     FrameRenderer: FrameRenderer,
     fetch: fetchWithTurboHeaders,
     config: config,
+    session: session,
+    cache: cache,
+    navigator: sessionNavigator,
     start: start,
     registerAdapter: registerAdapter,
     visit: visit,
     connectStreamSource: connectStreamSource,
     disconnectStreamSource: disconnectStreamSource,
     renderStreamMessage: renderStreamMessage,
-    clearCache: clearCache,
     setProgressBarDelay: setProgressBarDelay,
     setConfirmMethod: setConfirmMethod,
-    setFormMode: setFormMode
+    setFormMode: setFormMode,
+    morphBodyElements: morphBodyElements,
+    morphTurboFrameElements: morphTurboFrameElements,
+    morphChildren: morphChildren,
+    morphElements: morphElements
   });
 
   class TurboFrameMissingError extends Error {}
@@ -6354,17 +6386,27 @@ Copyright © 2025 37signals LLC
         this.formLinkClickObserver.stop();
         this.linkInterceptor.stop();
         this.formSubmitObserver.stop();
+
+        if (!this.element.hasAttribute("recurse")) {
+          this.#currentFetchRequest?.cancel();
+        }
       }
     }
 
     disabledChanged() {
-      if (this.loadingStyle == FrameLoadingStyle.eager) {
+      if (this.disabled) {
+        this.#currentFetchRequest?.cancel();
+      } else if (this.loadingStyle == FrameLoadingStyle.eager) {
         this.#loadSourceURL();
       }
     }
 
     sourceURLChanged() {
       if (this.#isIgnoringChangesTo("src")) return
+
+      if (!this.sourceURL) {
+        this.#currentFetchRequest?.cancel();
+      }
 
       if (this.element.isConnected) {
         this.complete = false;
@@ -6467,15 +6509,18 @@ Copyright © 2025 37signals LLC
       }
 
       this.formSubmission = new FormSubmission(this, element, submitter);
+
       const { fetchRequest } = this.formSubmission;
-      this.prepareRequest(fetchRequest);
+      const frame = this.#findFrameElement(element, submitter);
+
+      this.prepareRequest(fetchRequest, frame);
       this.formSubmission.start();
     }
 
     // Fetch request delegate
 
-    prepareRequest(request) {
-      request.headers["Turbo-Frame"] = this.id;
+    prepareRequest(request, frame = this) {
+      request.headers["Turbo-Frame"] = frame.id;
 
       if (this.currentNavigationElement?.hasAttribute("data-turbo-stream")) {
         request.acceptResponseType(StreamMessage.contentType);
@@ -6717,7 +6762,9 @@ Copyright © 2025 37signals LLC
 
     #findFrameElement(element, submitter) {
       const id = getAttribute("data-turbo-frame", submitter, element) || this.element.getAttribute("target");
-      return getFrameElementById(id) ?? this.element
+      const target = this.#getFrameElementById(id);
+
+      return target instanceof FrameElement ? target : this.element
     }
 
     async extractForeignFrameElement(container) {
@@ -6761,9 +6808,11 @@ Copyright © 2025 37signals LLC
       }
 
       if (id) {
-        const frameElement = getFrameElementById(id);
+        const frameElement = this.#getFrameElementById(id);
         if (frameElement) {
           return !frameElement.disabled
+        } else if (id == "_parent") {
+          return false
         }
       }
 
@@ -6784,8 +6833,12 @@ Copyright © 2025 37signals LLC
       return this.element.id
     }
 
+    get disabled() {
+      return this.element.disabled
+    }
+
     get enabled() {
-      return !this.element.disabled
+      return !this.disabled
     }
 
     get sourceURL() {
@@ -6845,13 +6898,15 @@ Copyright © 2025 37signals LLC
       callback();
       delete this.currentNavigationElement;
     }
-  }
 
-  function getFrameElementById(id) {
-    if (id != null) {
-      const element = document.getElementById(id);
-      if (element instanceof FrameElement) {
-        return element
+    #getFrameElementById(id) {
+      if (id != null) {
+        const element = id === "_parent" ?
+          this.element.parentElement.closest("turbo-frame") :
+          document.getElementById(id);
+        if (element instanceof FrameElement) {
+          return element
+        }
       }
     }
   }
@@ -6876,6 +6931,7 @@ Copyright © 2025 37signals LLC
 
   const StreamActions = {
     after() {
+      this.removeDuplicateTargetSiblings();
       this.targetElements.forEach((e) => e.parentElement?.insertBefore(this.templateContent, e.nextSibling));
     },
 
@@ -6885,6 +6941,7 @@ Copyright © 2025 37signals LLC
     },
 
     before() {
+      this.removeDuplicateTargetSiblings();
       this.targetElements.forEach((e) => e.parentElement?.insertBefore(this.templateContent, e));
     },
 
@@ -6923,7 +6980,11 @@ Copyright © 2025 37signals LLC
     },
 
     refresh() {
-      session.refresh(this.baseURI, this.requestId);
+      const method = this.getAttribute("method");
+      const requestId = this.requestId;
+      const scroll = this.getAttribute("scroll");
+
+      session.refresh(this.baseURI, { method, requestId, scroll });
     }
   };
 
@@ -6999,6 +7060,23 @@ Copyright © 2025 37signals LLC
       const newChildrenIds = [...(this.templateContent?.children || [])].filter((c) => !!c.getAttribute("id")).map((c) => c.getAttribute("id"));
 
       return existingChildren.filter((c) => newChildrenIds.includes(c.getAttribute("id")))
+    }
+
+    /**
+    * Removes duplicate siblings (by ID)
+    */
+    removeDuplicateTargetSiblings() {
+      this.duplicateSiblings.forEach((c) => c.remove());
+    }
+
+    /**
+    * Gets the list of duplicate siblings (i.e. those with the same ID)
+    */
+    get duplicateSiblings() {
+      const existingChildren = this.targetElements.flatMap((e) => [...e.parentElement.children]).filter((c) => !!c.id);
+      const newChildrenIds = [...(this.templateContent?.children || [])].filter((c) => !!c.id).map((c) => c.id);
+
+      return existingChildren.filter((c) => newChildrenIds.includes(c.id))
     }
 
     /**
@@ -7152,11 +7230,11 @@ Copyright © 2025 37signals LLC
   }
 
   (() => {
-    let element = document.currentScript;
-    if (!element) return
-    if (element.hasAttribute("data-turbo-suppress-warning")) return
+    const scriptElement = document.currentScript;
+    if (!scriptElement) return
+    if (scriptElement.hasAttribute("data-turbo-suppress-warning")) return
 
-    element = element.parentElement;
+    let element = scriptElement.parentElement;
     while (element) {
       if (element == document.body) {
         return console.warn(
@@ -7170,7 +7248,7 @@ Copyright © 2025 37signals LLC
         ——
         Suppress this warning by adding a "data-turbo-suppress-warning" attribute to: %s
       `,
-          element.outerHTML
+          scriptElement.outerHTML
         )
       }
 
@@ -7194,7 +7272,6 @@ Copyright © 2025 37signals LLC
   exports.StreamElement = StreamElement;
   exports.StreamSourceElement = StreamSourceElement;
   exports.cache = cache;
-  exports.clearCache = clearCache;
   exports.config = config;
   exports.connectStreamSource = connectStreamSource;
   exports.disconnectStreamSource = disconnectStreamSource;
@@ -7202,7 +7279,11 @@ Copyright © 2025 37signals LLC
   exports.fetchEnctypeFromString = fetchEnctypeFromString;
   exports.fetchMethodFromString = fetchMethodFromString;
   exports.isSafe = isSafe;
-  exports.navigator = navigator$1;
+  exports.morphBodyElements = morphBodyElements;
+  exports.morphChildren = morphChildren;
+  exports.morphElements = morphElements;
+  exports.morphTurboFrameElements = morphTurboFrameElements;
+  exports.navigator = sessionNavigator;
   exports.registerAdapter = registerAdapter;
   exports.renderStreamMessage = renderStreamMessage;
   exports.session = session;
