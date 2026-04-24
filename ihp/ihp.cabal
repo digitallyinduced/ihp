@@ -105,6 +105,8 @@ common shared-properties
             , conduit-extra
             , wai-cors
             , random
+            , openapi3
+            , hspec
             , cereal
             , cereal-text
             , neat-interpolation
@@ -165,6 +167,7 @@ library
         , IHP.AuthSupport.Authentication
         , IHP.AuthSupport.Lockable
         , IHP.Controller.Param
+        , IHP.Controller.ActionDefinition
         , IHP.Controller.FileUpload
         , IHP.Controller.Redirect
         , IHP.Controller.Render
@@ -223,6 +226,7 @@ library
         , IHP.RouterSupport
         , IHP.Router.Types
         , IHP.Router.UrlGenerator
+        , IHP.OpenApiSupport
         , IHP.Prelude
         , IHP.ErrorController
         , IHP.ScriptSupport
@@ -273,6 +277,7 @@ library
     reexported-modules: IHP.PGListener
     autogen-modules: Paths_ihp
     other-modules:
+        IHP.OpenApiSupport.ActionDoc
         Paths_ihp
 
 source-repository head
@@ -301,6 +306,7 @@ test-suite tests
         Test.ModelSupportSpec
         Test.QueryBuilderSpec
         Test.RouterSupportSpec
+        Test.OpenApiSupportSpec
         Test.ViewSupportSpec
         Test.FileStorage.ControllerFunctionsSpec
         Test.Controller.CookieSpec

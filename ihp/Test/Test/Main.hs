@@ -16,6 +16,7 @@ import qualified Test.Controller.NotFoundSpec
 import qualified Test.ModelSupportSpec
 import qualified Test.QueryBuilderSpec
 import qualified Test.RouterSupportSpec
+import qualified Test.OpenApiSupportSpec
 import qualified Test.ViewSupportSpec
 import qualified Test.FileStorage.ControllerFunctionsSpec
 import qualified Test.PGListenerSpec
@@ -42,6 +43,7 @@ main = hspec do
     Test.ModelSupportSpec.tests
     Test.QueryBuilderSpec.tests
     Test.RouterSupportSpec.tests
+    Test.OpenApiSupportSpec.tests
     Test.ViewSupportSpec.tests
     Test.FileStorage.ControllerFunctionsSpec.tests
     Test.Controller.CookieSpec.tests

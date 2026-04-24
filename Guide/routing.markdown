@@ -26,6 +26,60 @@ instance FrontController WebApplication where
 
 Now you can open e.g. `/Posts` to access the `PostsAction`.
 
+If you want a pure `AutoRoute` controller to also appear in the generated OpenAPI document, define its actions with the inspectable `endpoint` DSL and mount it using [`documentRoute`](https://ihp.digitallyinduced.com/api-docs/IHP-RouterSupport.html#v:documentRoute):
+
+```haskell
+instance FrontController WebApplication where
+    controllers =
+        [ -- ...
+        , documentRoute @PostsController
+        ]
+```
+
+`documentRoute` derives paths, methods and parameters from `AutoRoute`. Response schemas, request bodies and operation metadata come from the `endpoint` definitions next to the controller handlers.
+
+Simple `customRoutes` / `customPathTo` overrides are supported when `customPathTo` returns a path backed by `customRoutes` and all action fields appear in the path. If IHP cannot prove this during OpenAPI generation, `buildOpenApi` fails with an `OpenApiGenerationException` instead of silently generating stale docs. Lower-level parser routes stay undocumented.
+
+You can then build the OpenAPI document from the mounted router tree:
+
+```haskell
+spec :: Value
+spec = buildOpenApi RootApplication
+```
+
+[`buildOpenApi`](https://ihp.digitallyinduced.com/api-docs/IHP-OpenApiSupport.html#v:buildOpenApi) traverses the same front controller structure that serves requests, so nested `mountFrontController` prefixes are reflected in the generated paths.
+
+If you also want to serve the generated specification and a Swagger UI for it, mount [`swaggerUi`](https://ihp.digitallyinduced.com/api-docs/IHP-OpenApiSupport.html#v:swaggerUi) in the same front controller:
+
+```haskell
+instance FrontController WebApplication where
+    controllers =
+        [ documentRoute @PostsController
+        , swaggerUi
+        ]
+```
+
+This serves:
+
+- `/api-docs` with the Swagger UI
+- `/api-docs/openapi.json` with the generated OpenAPI 3 document
+
+If you want a different path or page title, use [`swaggerUiWithOptions`](https://ihp.digitallyinduced.com/api-docs/IHP-OpenApiSupport.html#v:swaggerUiWithOptions):
+
+```haskell
+instance FrontController WebApplication where
+    controllers =
+        [ documentRoute @PostsController
+        , swaggerUiWithOptions
+            ((defaultSwaggerUiOptions @WebApplication)
+                { swaggerUiPath = "/docs"
+                , swaggerUiTitle = Just "Posts API Docs"
+                })
+        ]
+```
+
+The Swagger UI route stays tied to the same front controller where you mount it, so the UI and the JSON specification are generated from the actual Haskell routes in that router. If you want to document your full root application including outer `mountFrontController` prefixes, mount `swaggerUi` in the root front controller. By default the HTML shell loads the Swagger UI assets from the `swagger-ui-dist` CDN; if you need different asset URLs you can override them in `SwaggerUiOptions`.
+
 ## Changing the Start Page / Home Page
 
 You can define a custom start page action using the [`startPage`](https://ihp.digitallyinduced.com/api-docs/IHP-RouterSupport.html#v:startPage) function like this:
@@ -207,6 +261,8 @@ With this setup:
 - `pathTo PostsAction` generates `/Posts` (the auto-generated URL as usual)
 
 The `customRoutes` parser is tried first, before the auto-generated routes. If it doesn't match, the auto-generated routes are tried as usual. Return `Nothing` from `customPathTo` for any action that should use the default URL generation.
+
+When mounted with `documentRoute`, this basic custom route is included in the OpenAPI document as `/posts/{postId}`. IHP verifies that the generated `customPathTo` path is accepted by `customRoutes`; unsupported custom paths fail OpenAPI generation with a clear error.
 
 ## Custom Routing
 

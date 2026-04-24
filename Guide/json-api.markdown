@@ -412,7 +412,9 @@ instance View ShowView where
     |]
 
 instance JsonView ShowView where
-    json ShowView { post } = toJSON post
+    type JsonResponse ShowView = Post
+
+    jsonTyped ShowView { post } = post
 ```
 
 When a browser requests the page (sending `Accept: text/html`), it gets the HTML response. When an API client requests it with `Accept: application/json`, it gets JSON. You can test this:
