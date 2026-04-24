@@ -24,6 +24,8 @@ data QuoterController
     -- Fields that aren't bound in the path → query-string decoded by the splice.
     | SearchAction { q :: Text, page :: Maybe Int, tags :: [Text] }
     | LegacyShowAction { itemId :: Int }
+    -- URL-side name differs from the record field (via { ... = #... }).
+    | RenamedQueryAction { bigProductId :: Int }
     deriving (Eq, Show)
 
 instance Controller QuoterController where
@@ -33,6 +35,7 @@ instance Controller QuoterController where
     action EditItemAction { itemId } = renderPlain (cs ("edit " <> tshow itemId))
     action SearchAction { q } = renderPlain (cs q)
     action LegacyShowAction { itemId } = renderPlain (cs (tshow itemId))
+    action RenamedQueryAction { bigProductId } = renderPlain (cs (tshow bigProductId))
 
 -- Force a TH declaration-group boundary so the QuoterController type is
 -- visible to the [routes|…|] splice via 'reify'.
@@ -49,6 +52,9 @@ GET    /items/{itemId}/edit   EditItemAction
 GET    /search?q&page&tags    SearchAction
 -- Back-compat with AutoRoute's /LegacyShow?itemId=… URL shape.
 GET    /LegacyShow?itemId     LegacyShowAction
+-- URL carries ?pid, record field is bigProductId — the rebinding maps one
+-- to the other. pathTo must emit ?pid=…, not ?bigProductId=…
+GET    /Product?pid           RenamedQueryAction { bigProductId = #pid }
 |]
 
 tests = do
@@ -95,3 +101,11 @@ tests = do
                 -- ShowAction-style URLs.
                 pathTo (LegacyShowAction { itemId = 42 })
                     `shouldBe` "/LegacyShow?itemId=42"
+
+            it "uses the URL-side name (not the record field) as the query key" do
+                -- The DSL declares ?pid on the record field bigProductId via
+                -- { bigProductId = #pid }. pathTo must use "pid" as the query
+                -- key — emitting "bigProductId" would leak an implementation
+                -- detail into the URL and break any caller linking by ?pid=.
+                pathTo (RenamedQueryAction { bigProductId = 99 })
+                    `shouldBe` "/Product?pid=99"

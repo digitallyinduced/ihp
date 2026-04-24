@@ -295,14 +295,23 @@ data ValidatedRoute = ValidatedRoute
     , vrLine              :: !Int
     , vrBindingsByCapture :: !(Map.Map Text Text)
     -- ^ Query-param bindings declared explicitly in the route's @?name&…@
-    -- suffix. Each entry is @(fieldName, kind, innerType)@: 'QFRequired'
-    -- for plain fields (@a@), 'QFOptional' for @'Maybe' a@ fields (absent
-    -- query params decode to 'Nothing'), 'QFList' for @[a]@ fields (0+
-    -- values).
+    -- suffix. Each entry is @(urlName, fieldName, kind, innerType)@:
+    --
+    -- * __urlName__ is what the user wrote in the DSL's @?urlName@
+    --   suffix — it becomes the query-string key in both the rendered
+    --   URL (@pathTo@) and the lookup at request-handling time.
+    -- * __fieldName__ is the record field the urlName binds to. They
+    --   usually match; they differ only when the user wrote a
+    --   @{ field = #urlName }@ rebinding in the 'ActionRef'.
+    -- * __kind__ is 'QFRequired' for plain fields (@a@), 'QFOptional'
+    --   for @'Maybe' a@ fields (absent query params decode to 'Nothing'),
+    --   or 'QFList' for @[a]@ fields (0+ repeated values).
+    -- * __innerType__ is the unwrapped field type (strips one level of
+    --   @Maybe@ or @[]@) used for 'parseCapture' / 'renderCapture'.
     --
     -- The order mirrors the order in the DSL so @pathTo@'s rendered query
     -- string reads left-to-right as the user wrote it.
-    , vrQueryFields       :: ![(Text, QueryFieldKind, Type)]
+    , vrQueryFields       :: ![(Text, Text, QueryFieldKind, Type)]
     }
 
 data ValidatedSeg
@@ -349,16 +358,17 @@ validateRoute ctrl rt = do
     queryFields <- traverse (resolveQueryParam rt con bindingsByCapture pathBoundFields)
                             (routeQueryParams rt)
 
-    -- Duplicate check: a name must not appear twice in the query list
-    -- (it'd produce two pathTo entries for the same field and two
-    -- handler decoders). The Map in coFields guarantees record-side
-    -- uniqueness already.
-    let duplicates = findDuplicates (map fstOf3 queryFields)
-    case duplicates of
+    -- Duplicate check: a urlName must not appear twice in the query
+    -- list (would produce two pathTo entries for the same key and two
+    -- handler decoders). Checked against the URL name, not the record
+    -- field — the rebinding form {fieldA = #x, fieldB = #x} would
+    -- otherwise slip through and render two @?x=…&x=…@ pairs.
+    let duplicateUrlNames = findDuplicates (map fstOf4 queryFields)
+    case duplicateUrlNames of
         [] -> pure ()
         (d : _) -> fail $
             "routes (line " <> show (routeLine rt) <> "): " <>
-            "query parameter '" <> Text.unpack d <>
+            "query parameter '?" <> Text.unpack d <>
             "' is declared more than once"
 
     -- Coverage check: every record field of the action constructor must
@@ -366,21 +376,21 @@ validateRoute ctrl rt = do
     -- query list. Unbound fields at runtime would leave pathTo's record
     -- pattern match incomplete and the handler's constructor call with
     -- missing fields.
-    let queryBoundFields = Set.fromList (map fstOf3 queryFields)
+    let queryBoundFields = Set.fromList [ fn | (_, fn, _, _) <- queryFields ]
         allBoundFields = pathBoundFields `Set.union` queryBoundFields
         missingFields =
             [ n | (n, _) <- coFieldsOrder con, not (Set.member n allBoundFields) ]
     case missingFields of
         [] -> pure ()
-        ms -> fail $
+        (firstField : _) -> fail $
             "routes (line " <> show (routeLine rt) <> "): " <>
             "action '" <> TH.nameBase (coName con) <>
             "' has fields not covered by the route: " <>
-            List.intercalate ", " (map Text.unpack ms) <>
+            List.intercalate ", " (map Text.unpack missingFields) <>
             ".\nAdd each to the path (e.g. '/path/{" <>
-            Text.unpack (head ms) <>
+            Text.unpack firstField <>
             "}') or the query list (e.g. '/path?" <>
-            List.intercalate "&" (map Text.unpack ms) <> "')."
+            List.intercalate "&" (map Text.unpack missingFields) <> "')."
 
     pure ValidatedRoute
         { vrMethods = routeMethods rt
@@ -391,7 +401,7 @@ validateRoute ctrl rt = do
         , vrQueryFields = queryFields
         }
   where
-    fstOf3 (a, _, _) = a
+    fstOf4 (a, _, _, _) = a
     findDuplicates xs = go Set.empty xs
       where
         go _ [] = []
@@ -399,23 +409,28 @@ validateRoute ctrl rt = do
             | Set.member x seen = x : go seen rest
             | otherwise         = go (Set.insert x seen) rest
 
--- | Resolve one query-param name from the DSL to a @(fieldName, kind,
--- innerType)@ triple by looking it up in the constructor's fields,
--- applying any @{field = #cap}@ override, and rejecting duplicates with
--- path captures.
+-- | Resolve one query-param name from the DSL to a
+-- @(urlName, fieldName, kind, innerType)@ tuple by looking it up in the
+-- constructor's fields, applying any @{field = #cap}@ override, and
+-- rejecting duplicates with path captures.
+--
+-- When the user writes @?id ShowPostAction { postId = #id }@:
+--   urlName = "id", fieldName = "postId" — the URL key is @id@ (what
+--   'pathTo' emits, what the handler looks up), the record field on
+--   'ShowPostAction' is @postId@.
 resolveQueryParam
     :: Route
     -> ConstructorInfo
     -> Map.Map Text Text      -- bindingsByCapture
     -> Set.Set Text           -- path-bound field names
-    -> Text                   -- the ?name
-    -> Q (Text, QueryFieldKind, Type)
-resolveQueryParam rt con bindingsByCapture pathBound qName = do
-    let fieldName = fieldNameForCapture bindingsByCapture qName
+    -> Text                   -- the ?name (urlName)
+    -> Q (Text, Text, QueryFieldKind, Type)
+resolveQueryParam rt con bindingsByCapture pathBound urlName = do
+    let fieldName = fieldNameForCapture bindingsByCapture urlName
     case Map.lookup fieldName (coFields con) of
         Nothing -> fail $
             "routes (line " <> show (routeLine rt) <> "): " <>
-            "query parameter '?" <> Text.unpack qName <>
+            "query parameter '?" <> Text.unpack urlName <>
             "' has no matching field on " <> TH.nameBase (coName con) <>
             ". Known fields: " <>
             List.intercalate ", " (map Text.unpack (Map.keys (coFields con)))
@@ -425,7 +440,7 @@ resolveQueryParam rt con bindingsByCapture pathBound qName = do
                 "field '" <> Text.unpack fieldName <>
                 "' is bound by a path capture — remove it from the query list"
             | otherwise ->
-                pure (fieldName, classifyQueryField ty, innerType ty)
+                pure (urlName, fieldName, classifyQueryField ty, innerType ty)
 
 -- | Name of the field a capture segment binds, applying any
 -- @{field = #capture}@ override map.
@@ -556,7 +571,7 @@ emitPathClause vr = do
                | capName <- captureFields
                ]
             <> [ (TH.mkName (Text.unpack fieldName), TH.VarP (TH.mkName (Text.unpack fieldName)))
-               | (fieldName, _, _) <- queryFields
+               | (_, fieldName, _, _) <- queryFields
                ]
 
         pat :: Pat
@@ -580,20 +595,21 @@ buildPathAndQueryExpr vr =
                 (TH.VarE '(<>))
                 (Just (TH.AppE (TH.VarE 'renderQueryString) (queryPairsExp queryFields)))
 
--- | Build a list expression @[(\"field1\", Just \"value1\"), …]@ from
--- the query-field list. 'Maybe' fields only emit @Just@ when the value
--- is @Just@; list fields emit one tuple per element; required fields
--- always emit @Just@.
-queryPairsExp :: [(Text, QueryFieldKind, Type)] -> Exp
+-- | Build a list expression @[(\"urlName1\", Just \"value1\"), …]@ from
+-- the query-field list. The URL key is @urlName@ (from the DSL's
+-- @?urlName@ suffix), the value comes from the record field @fieldName@.
+-- 'Maybe' fields only emit @Just@ when the value is @Just@; list fields
+-- emit one tuple per element; required fields always emit @Just@.
+queryPairsExp :: [(Text, Text, QueryFieldKind, Type)] -> Exp
 queryPairsExp fields =
-    let byTupleItem (fieldName, kind, _) =
+    let byTupleItem (urlName, fieldName, kind, _) =
             let fieldVarE = TH.VarE (TH.mkName (Text.unpack fieldName))
                 nameBsE = TH.SigE
-                    (TH.LitE (TH.StringL (Text.unpack fieldName)))
+                    (TH.LitE (TH.StringL (Text.unpack urlName)))
                     (TH.ConT (TH.mkName "ByteString"))
              in case kind of
                     QFRequired ->
-                        -- [(name, Just (renderCapture field))]
+                        -- [(urlName, Just (renderCapture field))]
                         TH.ListE
                             [ TH.TupE
                                 [ Just nameBsE
@@ -602,7 +618,7 @@ queryPairsExp fields =
                                 ]
                             ]
                     QFOptional ->
-                        -- [(name, fmap renderCapture field)]   — Nothing omitted
+                        -- [(urlName, fmap renderCapture field)]   — Nothing omitted
                         TH.ListE
                             [ TH.TupE
                                 [ Just nameBsE
@@ -612,7 +628,7 @@ queryPairsExp fields =
                                 ]
                             ]
                     QFList ->
-                        -- map (\v -> (name, Just (renderCapture v))) field
+                        -- map (\v -> (urlName, Just (renderCapture v))) field
                         TH.AppE
                             (TH.AppE (TH.VarE 'map)
                                 (TH.LamE [TH.VarP (TH.mkName "_qvElem")]
@@ -778,15 +794,18 @@ handlerExpr vr = do
             | ((_, ty), bn, vn) <- zip3 captureSegs bsNames pathValueNames
             ]
 
-        -- Each query field: _qvN <- queryParam<Kind> @Inner "name" _dslQuery
+        -- Each query field: _qvN <- queryParam<Kind> @Inner "urlName" _dslQuery
+        -- The lookup key in the request's query string is the DSL's urlName
+        -- (what the user wrote in @?urlName@), not the record fieldName —
+        -- these differ when the user declared a { field = #urlName } rebinding.
         -- For QFOptional / QFList the outer wrapper is @Just@ so the
         -- Maybe-do never fails on absent values (they decode to Nothing /
         -- [], respectively).
         queryBindStmts =
             [ TH.BindS
                 (TH.VarP vn)
-                (queryExtractExp kind innerTy fieldName)
-            | ((fieldName, kind, innerTy), vn) <- zip queryFields queryValueNames
+                (queryExtractExp kind innerTy urlName)
+            | ((urlName, _, kind, innerTy), vn) <- zip queryFields queryValueNames
             ]
 
         -- Map capture name → value name so record construction can
@@ -797,10 +816,11 @@ handlerExpr vr = do
             | ((capName, _), vn) <- zip captureSegs pathValueNames
             ]
 
+        -- Query-param binding: record-field name → decoded value.
         queryFieldBindings :: [(Name, Exp)]
         queryFieldBindings =
             [ (TH.mkName (Text.unpack fieldName), TH.VarE vn)
-            | ((fieldName, _, _), vn) <- zip queryFields queryValueNames
+            | ((_, fieldName, _, _), vn) <- zip queryFields queryValueNames
             ]
 
         allFieldBindings = pathFieldBindings <> queryFieldBindings
@@ -875,13 +895,16 @@ handlerExpr vr = do
     pure handlerBody
   where
     -- Expression that extracts a single query field from _dslQuery.
-    -- Shape varies by kind so the outer Maybe-do always succeeds for
-    -- optional / list fields.
+    -- The lookup key is the DSL's @urlName@ (the name after @?@),
+    -- which may differ from the record field name when the user
+    -- wrote a @{ field = #urlName }@ rebinding. Shape varies by
+    -- kind so the outer Maybe-do always succeeds for optional / list
+    -- fields.
     queryExtractExp :: QueryFieldKind -> Type -> Text -> Exp
-    queryExtractExp kind innerTy fieldName =
+    queryExtractExp kind innerTy urlName =
         let queryName = TH.mkName "_dslQuery"
             nameLitE = TH.LitE
-                (TH.StringL (Text.unpack fieldName))
+                (TH.StringL (Text.unpack urlName))
             -- Use stringE to get a ByteString via OverloadedStrings;
             -- the runtime helpers want a ByteString key.
             nameBsE = TH.SigE nameLitE
