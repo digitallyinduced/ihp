@@ -24,7 +24,6 @@ module IHP.ViewPrelude (
     module IHP.ModelSupport,
     module IHP.FrameworkConfig,
     module IHP.OpenApiSupport,
-    (!),
     module Data.Data,
     module Data.Aeson,
     module IHP.AutoRefresh.View,

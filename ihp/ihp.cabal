@@ -167,6 +167,7 @@ library
         , IHP.AuthSupport.Authentication
         , IHP.AuthSupport.Lockable
         , IHP.Controller.Param
+        , IHP.Controller.ActionDefinition
         , IHP.Controller.FileUpload
         , IHP.Controller.Redirect
         , IHP.Controller.Render

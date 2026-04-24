@@ -4,6 +4,7 @@
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE UndecidableInstances #-}
 
@@ -20,6 +21,8 @@ module IHP.RouterSupport (
     OpenApiRequestBodyDoc (..),
     HasOpenApiRequestBody (..),
     actionDoc,
+    actionDocForConstructor,
+    actionDocForRequestBodyConstructor,
     actionDocFor,
     actionDocForRequestBody,
     setOpenApiSummary,
@@ -86,6 +89,7 @@ import Data.List (find, isPrefixOf)
 import Data.List qualified as List
 import Data.Maybe (fromMaybe, mapMaybe)
 import Data.OpenApi (ToSchema)
+import Data.OpenApi.Schema.Validation qualified as SchemaValidation
 import Data.String.Conversions (ConvertibleStrings (convertString), cs)
 import Data.TMap qualified as TypeMap
 import Data.Text (Text)
@@ -108,6 +112,7 @@ import IHP.Router.UrlGenerator
 import IHP.ViewSupport qualified as ViewSupport
 import IHP.WebSocket (WSApp)
 import IHP.WebSocket qualified as WS
+import Language.Haskell.TH qualified as TH
 import Network.HTTP.Types.Header (hContentType)
 import Network.HTTP.Types.Method
 import Network.HTTP.Types.Status (Status, status200, status400, status500, statusCode)
@@ -177,6 +182,7 @@ data ActionDoc controller where
         , actionDocOperationId :: Maybe Text
         , actionDocView :: Proxy view
         , actionDocTypedJson :: view -> JSON.Value
+        , actionDocValidateJsonSchema :: view -> Maybe String
         , actionDocRequestBody :: Maybe OpenApiRequestBodyDoc
         , actionDocSuccessStatus :: Int
         , actionDocSuccessResponseDescription :: Text
@@ -218,11 +224,52 @@ actionDoc actionName =
         , actionDocOperationId = Nothing
         , actionDocView = Proxy @view
         , actionDocTypedJson = JSON.toJSON . ViewSupport.jsonTyped
+        , actionDocValidateJsonSchema = SchemaValidation.validatePrettyToJSON . ViewSupport.jsonTyped
         , actionDocRequestBody = Nothing
         , actionDocSuccessStatus = statusCode status200
         , actionDocSuccessResponseDescription = "Successful response"
         }
 {-# INLINE actionDoc #-}
+
+{- | Builds an 'ActionDoc' for a real action constructor.
+
+Use this from a Template Haskell splice:
+
+@
+$(actionDocForConstructor 'ShowBandAction ''BandView)
+@
+
+Unlike 'actionDocFor', this fails at compile time when the action
+constructor does not exist.
+-}
+actionDocForConstructor :: TH.Name -> TH.Name -> TH.Q TH.Exp
+actionDocForConstructor actionConstructor viewType = do
+    actionDocForConstructorExpression actionConstructor viewType
+
+{- | Builds an 'ActionDoc' for a real action constructor and request body type.
+
+Use this from a Template Haskell splice:
+
+@
+$(actionDocForRequestBodyConstructor 'CreateSessionAction ''CreateSessionRequest ''AckView)
+@
+
+This statically checks that the action constructor, request body type and view
+type names exist. The generated action doc still records the request body type
+used by OpenAPI.
+-}
+actionDocForRequestBodyConstructor :: TH.Name -> TH.Name -> TH.Name -> TH.Q TH.Exp
+actionDocForRequestBodyConstructor actionConstructor requestBodyType viewType = do
+    actionDocExpression <- actionDocForConstructorExpression actionConstructor viewType
+    pure (TH.AppE (TH.AppTypeE (TH.VarE 'setOpenApiRequestBody) (TH.ConT requestBodyType)) actionDocExpression)
+
+actionDocForConstructorExpression :: TH.Name -> TH.Name -> TH.Q TH.Exp
+actionDocForConstructorExpression actionConstructor viewType =
+    pure
+        ( TH.AppE
+            (TH.AppTypeE (TH.VarE 'actionDoc) (TH.ConT viewType))
+            (TH.AppE (TH.VarE 'Text.pack) (TH.LitE (TH.StringL (TH.nameBase actionConstructor))))
+        )
 
 actionDocFor ::
     forall actionName view controller.
@@ -243,6 +290,7 @@ actionDocFor =
         , actionDocOperationId = Nothing
         , actionDocView = Proxy @view
         , actionDocTypedJson = JSON.toJSON . ViewSupport.jsonTyped
+        , actionDocValidateJsonSchema = SchemaValidation.validatePrettyToJSON . ViewSupport.jsonTyped
         , actionDocRequestBody = Nothing
         , actionDocSuccessStatus = statusCode status200
         , actionDocSuccessResponseDescription = "Successful response"
@@ -269,6 +317,7 @@ actionDocForRequestBody =
         , actionDocOperationId = Nothing
         , actionDocView = Proxy @view
         , actionDocTypedJson = JSON.toJSON . ViewSupport.jsonTyped
+        , actionDocValidateJsonSchema = SchemaValidation.validatePrettyToJSON . ViewSupport.jsonTyped
         , actionDocRequestBody =
             Just
                 OpenApiRequestBodyDoc
@@ -282,7 +331,7 @@ actionDocForRequestBody =
 {-# INLINE actionDocForRequestBody #-}
 
 setOpenApiSummary :: Text -> ActionDoc controller -> ActionDoc controller
-setOpenApiSummary summary ActionDoc{actionDocName, actionDocDescription, actionDocTags, actionDocOperationId, actionDocView, actionDocTypedJson, actionDocRequestBody, actionDocSuccessStatus, actionDocSuccessResponseDescription} =
+setOpenApiSummary summary ActionDoc{actionDocName, actionDocDescription, actionDocTags, actionDocOperationId, actionDocView, actionDocTypedJson, actionDocValidateJsonSchema, actionDocRequestBody, actionDocSuccessStatus, actionDocSuccessResponseDescription} =
     ActionDoc
         { actionDocName
         , actionDocSummary = Just summary
@@ -291,6 +340,7 @@ setOpenApiSummary summary ActionDoc{actionDocName, actionDocDescription, actionD
         , actionDocOperationId
         , actionDocView
         , actionDocTypedJson
+        , actionDocValidateJsonSchema
         , actionDocRequestBody
         , actionDocSuccessStatus
         , actionDocSuccessResponseDescription
@@ -298,7 +348,7 @@ setOpenApiSummary summary ActionDoc{actionDocName, actionDocDescription, actionD
 {-# INLINE setOpenApiSummary #-}
 
 setOpenApiDescription :: Text -> ActionDoc controller -> ActionDoc controller
-setOpenApiDescription description ActionDoc{actionDocName, actionDocSummary, actionDocTags, actionDocOperationId, actionDocView, actionDocTypedJson, actionDocRequestBody, actionDocSuccessStatus, actionDocSuccessResponseDescription} =
+setOpenApiDescription description ActionDoc{actionDocName, actionDocSummary, actionDocTags, actionDocOperationId, actionDocView, actionDocTypedJson, actionDocValidateJsonSchema, actionDocRequestBody, actionDocSuccessStatus, actionDocSuccessResponseDescription} =
     ActionDoc
         { actionDocName
         , actionDocSummary
@@ -307,6 +357,7 @@ setOpenApiDescription description ActionDoc{actionDocName, actionDocSummary, act
         , actionDocOperationId
         , actionDocView
         , actionDocTypedJson
+        , actionDocValidateJsonSchema
         , actionDocRequestBody
         , actionDocSuccessStatus
         , actionDocSuccessResponseDescription
@@ -314,7 +365,7 @@ setOpenApiDescription description ActionDoc{actionDocName, actionDocSummary, act
 {-# INLINE setOpenApiDescription #-}
 
 setOpenApiTags :: [Text] -> ActionDoc controller -> ActionDoc controller
-setOpenApiTags tags ActionDoc{actionDocName, actionDocSummary, actionDocDescription, actionDocOperationId, actionDocView, actionDocTypedJson, actionDocRequestBody, actionDocSuccessStatus, actionDocSuccessResponseDescription} =
+setOpenApiTags tags ActionDoc{actionDocName, actionDocSummary, actionDocDescription, actionDocOperationId, actionDocView, actionDocTypedJson, actionDocValidateJsonSchema, actionDocRequestBody, actionDocSuccessStatus, actionDocSuccessResponseDescription} =
     ActionDoc
         { actionDocName
         , actionDocSummary
@@ -323,6 +374,7 @@ setOpenApiTags tags ActionDoc{actionDocName, actionDocSummary, actionDocDescript
         , actionDocOperationId
         , actionDocView
         , actionDocTypedJson
+        , actionDocValidateJsonSchema
         , actionDocRequestBody
         , actionDocSuccessStatus
         , actionDocSuccessResponseDescription
@@ -330,7 +382,7 @@ setOpenApiTags tags ActionDoc{actionDocName, actionDocSummary, actionDocDescript
 {-# INLINE setOpenApiTags #-}
 
 setOpenApiOperationId :: Text -> ActionDoc controller -> ActionDoc controller
-setOpenApiOperationId operationId ActionDoc{actionDocName, actionDocSummary, actionDocDescription, actionDocTags, actionDocView, actionDocTypedJson, actionDocRequestBody, actionDocSuccessStatus, actionDocSuccessResponseDescription} =
+setOpenApiOperationId operationId ActionDoc{actionDocName, actionDocSummary, actionDocDescription, actionDocTags, actionDocView, actionDocTypedJson, actionDocValidateJsonSchema, actionDocRequestBody, actionDocSuccessStatus, actionDocSuccessResponseDescription} =
     ActionDoc
         { actionDocName
         , actionDocSummary
@@ -339,6 +391,7 @@ setOpenApiOperationId operationId ActionDoc{actionDocName, actionDocSummary, act
         , actionDocOperationId = Just operationId
         , actionDocView
         , actionDocTypedJson
+        , actionDocValidateJsonSchema
         , actionDocRequestBody
         , actionDocSuccessStatus
         , actionDocSuccessResponseDescription
@@ -353,7 +406,7 @@ setOpenApiRequestBody ::
     ) =>
     ActionDoc controller ->
     ActionDoc controller
-setOpenApiRequestBody ActionDoc{actionDocName, actionDocSummary, actionDocDescription, actionDocTags, actionDocOperationId, actionDocView, actionDocTypedJson, actionDocSuccessStatus, actionDocSuccessResponseDescription} =
+setOpenApiRequestBody ActionDoc{actionDocName, actionDocSummary, actionDocDescription, actionDocTags, actionDocOperationId, actionDocView, actionDocTypedJson, actionDocValidateJsonSchema, actionDocSuccessStatus, actionDocSuccessResponseDescription} =
     ActionDoc
         { actionDocName
         , actionDocSummary
@@ -362,6 +415,7 @@ setOpenApiRequestBody ActionDoc{actionDocName, actionDocSummary, actionDocDescri
         , actionDocOperationId
         , actionDocView
         , actionDocTypedJson
+        , actionDocValidateJsonSchema
         , actionDocRequestBody =
             Just
                 OpenApiRequestBodyDoc
@@ -376,7 +430,7 @@ setOpenApiRequestBody ActionDoc{actionDocName, actionDocSummary, actionDocDescri
 
 -- | Overrides whether the documented request body is required.
 setOpenApiRequestBodyRequired :: Bool -> ActionDoc controller -> ActionDoc controller
-setOpenApiRequestBodyRequired required ActionDoc{actionDocName, actionDocSummary, actionDocDescription, actionDocTags, actionDocOperationId, actionDocView, actionDocTypedJson, actionDocRequestBody, actionDocSuccessStatus, actionDocSuccessResponseDescription} =
+setOpenApiRequestBodyRequired required ActionDoc{actionDocName, actionDocSummary, actionDocDescription, actionDocTags, actionDocOperationId, actionDocView, actionDocTypedJson, actionDocValidateJsonSchema, actionDocRequestBody, actionDocSuccessStatus, actionDocSuccessResponseDescription} =
     ActionDoc
         { actionDocName
         , actionDocSummary
@@ -385,6 +439,7 @@ setOpenApiRequestBodyRequired required ActionDoc{actionDocName, actionDocSummary
         , actionDocOperationId
         , actionDocView
         , actionDocTypedJson
+        , actionDocValidateJsonSchema
         , actionDocRequestBody = setRequired <$> actionDocRequestBody
         , actionDocSuccessStatus
         , actionDocSuccessResponseDescription
@@ -400,7 +455,7 @@ setOpenApiRequestBodyRequired required ActionDoc{actionDocName, actionDocSummary
 
 -- | Overrides the documented success response status for an action.
 setOpenApiSuccessStatus :: Status -> ActionDoc controller -> ActionDoc controller
-setOpenApiSuccessStatus status ActionDoc{actionDocName, actionDocSummary, actionDocDescription, actionDocTags, actionDocOperationId, actionDocView, actionDocTypedJson, actionDocRequestBody, actionDocSuccessResponseDescription} =
+setOpenApiSuccessStatus status ActionDoc{actionDocName, actionDocSummary, actionDocDescription, actionDocTags, actionDocOperationId, actionDocView, actionDocTypedJson, actionDocValidateJsonSchema, actionDocRequestBody, actionDocSuccessResponseDescription} =
     ActionDoc
         { actionDocName
         , actionDocSummary
@@ -409,6 +464,7 @@ setOpenApiSuccessStatus status ActionDoc{actionDocName, actionDocSummary, action
         , actionDocOperationId
         , actionDocView
         , actionDocTypedJson
+        , actionDocValidateJsonSchema
         , actionDocRequestBody
         , actionDocSuccessStatus = statusCode status
         , actionDocSuccessResponseDescription
@@ -417,7 +473,7 @@ setOpenApiSuccessStatus status ActionDoc{actionDocName, actionDocSummary, action
 
 -- | Overrides the documented success response description for an action.
 setOpenApiSuccessResponseDescription :: Text -> ActionDoc controller -> ActionDoc controller
-setOpenApiSuccessResponseDescription description ActionDoc{actionDocName, actionDocSummary, actionDocDescription, actionDocTags, actionDocOperationId, actionDocView, actionDocTypedJson, actionDocRequestBody, actionDocSuccessStatus} =
+setOpenApiSuccessResponseDescription description ActionDoc{actionDocName, actionDocSummary, actionDocDescription, actionDocTags, actionDocOperationId, actionDocView, actionDocTypedJson, actionDocValidateJsonSchema, actionDocRequestBody, actionDocSuccessStatus} =
     ActionDoc
         { actionDocName
         , actionDocSummary
@@ -426,6 +482,7 @@ setOpenApiSuccessResponseDescription description ActionDoc{actionDocName, action
         , actionDocOperationId
         , actionDocView
         , actionDocTypedJson
+        , actionDocValidateJsonSchema
         , actionDocRequestBody
         , actionDocSuccessStatus
         , actionDocSuccessResponseDescription = description
@@ -545,6 +602,7 @@ getRouteParsers ControllerRouteParser{routeParser} = [routeParser]
 data DocumentedRenderExpectation = DocumentedRenderExpectation
     { expectedViewTypeName :: Text
     , expectedTypedJson :: Dynamic -> Maybe JSON.Value
+    , expectedJsonSchemaValidationError :: Dynamic -> Maybe String
     }
 
 openApiRenderExpectationKey :: Vault.Key DocumentedRenderExpectation
@@ -568,7 +626,7 @@ validateOpenApiRenderedView
 validateOpenApiRenderedView view actualJson =
     case Vault.lookup openApiRenderExpectationKey ?request.vault of
         Nothing -> pure ()
-        Just DocumentedRenderExpectation{expectedViewTypeName, expectedTypedJson} ->
+        Just DocumentedRenderExpectation{expectedViewTypeName, expectedTypedJson, expectedJsonSchemaValidationError} ->
             let renderedViewTypeName = cs (show (Typeable.typeRep (Proxy @view)))
              in unless
                     (renderedViewTypeName == expectedViewTypeName)
@@ -580,6 +638,10 @@ validateOpenApiRenderedView view actualJson =
                             unless
                                 (actualJson == expectedJson)
                                 (throwOpenApiRenderMismatch ("OpenAPI docs expect the JSON generated from jsonTyped of view " <> cs expectedViewTypeName <> ", but render produced a different JSON value"))
+                    >> case expectedJsonSchemaValidationError (toDyn view) of
+                        Nothing -> pure ()
+                        Just validationError ->
+                            throwOpenApiRenderMismatch ("OpenAPI docs schema does not match the JSON generated from jsonTyped of view " <> cs expectedViewTypeName <> ":\n" <> cs validationError)
 {-# INLINE validateOpenApiRenderedView #-}
 
 documentedRenderExpectationForAction :: forall controller. (Data controller) => RouteDocumentation -> controller -> Maybe DocumentedRenderExpectation
@@ -589,10 +651,11 @@ documentedRenderExpectationForAction (DocumentedRoute (AutoRouteControllerInfo{d
     docs
         |> find (\ActionDoc{actionDocName} -> actionDocName == cs (showConstr (toConstr action)))
         |> fmap
-            ( \ActionDoc{actionDocView, actionDocTypedJson} ->
+            ( \ActionDoc{actionDocView, actionDocTypedJson, actionDocValidateJsonSchema} ->
                 DocumentedRenderExpectation
                     { expectedViewTypeName = cs (show (Typeable.typeRep actionDocView))
                     , expectedTypedJson = fmap actionDocTypedJson . fromDynamic
+                    , expectedJsonSchemaValidationError = join . fmap actionDocValidateJsonSchema . fromDynamic
                     }
             )
 

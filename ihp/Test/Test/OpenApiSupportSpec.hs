@@ -1,10 +1,11 @@
 {-# LANGUAGE AllowAmbiguousTypes #-}
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE DeriveGeneric #-}
+{-# LANGUAGE TemplateHaskell #-}
 
 module Test.OpenApiSupportSpec where
 
-import ClassyPrelude
+import ClassyPrelude hiding (handle)
 import Data.Aeson qualified as JSON
 import Data.Aeson.Key qualified as Key
 import Data.Aeson.KeyMap qualified as KeyMap
@@ -13,7 +14,7 @@ import Data.Text qualified as Text
 import IHP.ControllerPrelude hiding (find, get, request)
 import IHP.Environment
 import IHP.Test.Mocking
-import IHP.ViewPrelude
+import IHP.ViewPrelude hiding (requestBody)
 import Network.HTTP.Types
 import Network.Wai.Test
 import Test.Hspec
@@ -112,7 +113,7 @@ instance View LegacyJsonView where
     html LegacyJsonView = [hsx||]
 
 instance JsonView LegacyJsonView where
-    json LegacyJsonView =
+    jsonTyped LegacyJsonView =
         JSON.object
             [ "legacy" JSON..= True
             ]
@@ -129,11 +130,6 @@ instance JsonView WrongJsonShapeView where
             , page = Nothing
             , tags = []
             }
-
-    json WrongJsonShapeView{..} =
-        JSON.object
-            [ "legacyBandId" JSON..= unpackId bandId
-            ]
 
 instance View DocumentedCustomPathView where
     html DocumentedCustomPathView{..} = [hsx||]
@@ -170,17 +166,28 @@ instance Controller DocumentedCustomPathController where
     action ShowDocumentedCustomPathAction{..} = render DocumentedCustomPathView{..}
 
 instance Controller CrudNamedApiController where
-    action CreateApiSessionAction = do
-        requestBodyResult <- decodeActionRequestBody @CreateSessionRequest
-        case requestBodyResult of
-            Left _ -> renderPlain "Invalid JSON"
-            Right (_ :: CreateSessionRequest) -> renderHtmlOrJson AckView
-    action CreatePipeSessionAction = do
-        requestBodyResult <- decodeActionRequestBody @CreateSessionRequest
-        case requestBodyResult of
-            Left _ -> renderPlain "Invalid JSON"
-            Right (_ :: CreateSessionRequest) -> renderHtmlOrJson AckView
-    action ShowApiSessionAction = renderHtmlOrJson AckView
+    type ControllerAction CrudNamedApiController = ActionDefinition CrudNamedApiController
+
+    runControllerAction actionDefinition = runActionDefinition actionDefinition
+
+    action CreateApiSessionAction =
+        endpoint
+            |> requestBody @CreateSessionRequest
+            |> responseView @AckView
+            |> handle \(_ :: CreateSessionRequest) ->
+                pure AckView
+    action CreatePipeSessionAction =
+        endpoint
+            |> requestBody @CreateSessionRequest
+            |> responseView @AckView
+            |> successStatus status201
+            |> successResponseDescription "Created response"
+            |> handle \(_ :: CreateSessionRequest) ->
+                pure AckView
+    action ShowApiSessionAction =
+        endpoint
+            |> responseView @AckView
+            |> handle (pure AckView)
 
 instance AutoRoute DocumentedController where
     autoRoute = autoRouteWithIdType (parseIntegerId @(Id Band))
@@ -188,10 +195,10 @@ instance AutoRoute DocumentedController where
 
 instance OpenApiController DocumentedController where
     openApiActions =
-        [ actionDoc @BandView "ShowBandAction"
+        [ $(actionDocForConstructor 'ShowBandAction ''BandView)
             |> setOpenApiSummary "Show a band payload"
-        , actionDoc @BandView "WrongJsonAction"
-        , actionDoc @WrongJsonShapeView "WrongJsonShapeAction"
+        , $(actionDocForConstructor 'WrongJsonAction ''BandView)
+        , $(actionDocForConstructor 'WrongJsonShapeAction ''WrongJsonShapeView)
         ]
 
 instance AutoRoute CustomRouteController where
@@ -213,23 +220,18 @@ instance AutoRoute DocumentedCustomPathController where
 
 instance OpenApiController DocumentedCustomPathController where
     openApiActions =
-        [ actionDoc @DocumentedCustomPathView "ShowDocumentedCustomPathAction"
+        [ $(actionDocForConstructor 'ShowDocumentedCustomPathAction ''DocumentedCustomPathView)
         ]
 
 instance AutoRoute CrudNamedApiController
 
-instance HasOpenApiRequestBody CrudNamedApiController "CreateApiSessionAction" where
-    type OpenApiRequestBody CrudNamedApiController "CreateApiSessionAction" = CreateSessionRequest
-
 instance OpenApiController CrudNamedApiController where
     openApiActions =
-        [ actionDocForRequestBody @"CreateApiSessionAction" @AckView
-        , actionDocFor @"CreatePipeSessionAction" @AckView
-            |> setOpenApiRequestBody @CreateSessionRequest
-            |> setOpenApiSuccessStatus status201
-            |> setOpenApiSuccessResponseDescription "Created response"
-        , actionDocFor @"ShowApiSessionAction" @AckView
-        ]
+        actionDefinitionDocs
+            [ CreateApiSessionAction
+            , CreatePipeSessionAction
+            , ShowApiSessionAction
+            ]
 
 instance FrontController WebApplication where
     controllers =
@@ -258,6 +260,21 @@ testJson url =
             defaultRequest
                 { requestMethod = methodGet
                 , requestHeaders = [(hAccept, "application/json")]
+                }
+            url
+
+testPostJson :: ByteString -> JSON.Value -> Session SResponse
+testPostJson url body =
+    srequest $ SRequest request (JSON.encode body)
+  where
+    request =
+        setPath
+            defaultRequest
+                { requestMethod = methodPost
+                , requestHeaders =
+                    [ (hAccept, "application/json")
+                    , (hContentType, "application/json")
+                    ]
                 }
             url
 
@@ -303,7 +320,7 @@ tests = aroundAll (withMockContextAndApp RootApplication config) do
                         ]
             runSession (testJson "test/ShowBand?bandId=12&page=2&tags=rock,jazz") application >>= assertJsonBody expected
 
-        it "keeps legacy json overrides working" $ withContextAndApp \application -> do
+        it "keeps JSON.Value responses working through jsonTyped" $ withContextAndApp \application -> do
             let expected = JSON.object ["legacy" JSON..= True]
             runSession (testJson "test/LegacyJson") application >>= assertJsonBody expected
 
@@ -312,10 +329,23 @@ tests = aroundAll (withMockContextAndApp RootApplication config) do
             response.simpleStatus `shouldBe` status500
             Text.isInfixOf "OpenAPI docs expect view" (cs response.simpleBody) `shouldBe` True
 
-        it "fails fast when documented actions override json with a shape different from jsonTyped" $ withContextAndApp \application -> do
-            response <- runSession (testJson "test/WrongJsonShape?bandId=12") application
-            response.simpleStatus `shouldBe` status500
-            Text.isInfixOf "jsonTyped" (cs response.simpleBody) `shouldBe` True
+        it "renders documented actions from jsonTyped so the JSON shape cannot diverge from the typed response" $ withContextAndApp \application -> do
+            let expected =
+                    JSON.object
+                        [ "bandId" JSON..= (12 :: Integer)
+                        , "page" JSON..= (Nothing :: Maybe Int)
+                        , "tags" JSON..= ([] :: [Text])
+                        ]
+            runSession (testJson "test/WrongJsonShape?bandId=12") application >>= assertJsonBody expected
+
+        it "runs inspectable endpoint actions with decoded request bodies" $ withContextAndApp \application -> do
+            let expected = JSON.object ["ok" JSON..= True]
+            runSession (testPostJson "test/CreateApiSession" (JSON.object ["token" JSON..= ("abc" :: Text)])) application >>= assertJsonBody expected
+
+        it "uses endpoint success status for inspectable actions" $ withContextAndApp \application -> do
+            response <- runSession (testPostJson "test/CreatePipeSession" (JSON.object ["token" JSON..= ("abc" :: Text)])) application
+            response.simpleStatus `shouldBe` status201
+            JSON.decode response.simpleBody `shouldBe` Just (JSON.object ["ok" JSON..= True])
 
     describe "OpenAPI generation" do
         it "derives AutoRoute paths, methods, params and response schemas from the controller" $ withContextAndApp \_ -> do

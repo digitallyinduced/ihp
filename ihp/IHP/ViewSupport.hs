@@ -12,6 +12,7 @@ module IHP.ViewSupport
 , Html
 , View (..)
 , JsonView (..)
+, json
 , currentViewId
 , forEach
 , isActivePath
@@ -70,13 +71,18 @@ class JsonView theView where
     type JsonResponse theView :: Type
     type JsonResponse theView = JSON.Value
 
+    -- | Returns the typed JSON response payload for this view.
+    --
+    -- IHP renders JSON views by applying 'toJSON' to this value. This keeps
+    -- the rendered JSON and OpenAPI response schema tied to the same
+    -- 'JsonResponse' type.
     jsonTyped :: theView -> JsonResponse theView
     jsonTyped _ = error "Json View for this route is not implemented"
 
-    -- | Renders the view to a JSON
-    json :: theView -> JSON.Value
-    default json :: JSON.ToJSON (JsonResponse theView) => theView -> JSON.Value
-    json view = JSON.toJSON (jsonTyped view)
+-- | Renders a JSON view from its typed response value.
+json :: (JsonView theView, JSON.ToJSON (JsonResponse theView)) => theView -> JSON.Value
+json view = JSON.toJSON (jsonTyped view)
+{-# INLINE json #-}
 
 -- | Returns a string to be used as a html id attribute for the current view.
 -- E.g. when calling @currentViewId@ while rendering the view @Web.View.Projects.Show@, this will return @"projects-show"@

@@ -20,11 +20,15 @@ renderPlain :: (?request :: Request, ?respond :: Respond) => LByteString -> IO R
 renderPlain text = respondWith $ responseLBS status200 [(hContentType, "text/plain")] text
 {-# INLINE renderPlain #-}
 
-respondHtml :: (?request :: Request, ?respond :: Respond) => Markup -> IO ResponseReceived
-respondHtml (Markup builder) = do
+respondHtmlWithStatus :: (?request :: Request, ?respond :: Respond) => Status -> Markup -> IO ResponseReceived
+respondHtmlWithStatus status (Markup builder) = do
         -- Pass the Builder directly to WAI, avoiding the intermediate lazy
         -- ByteString allocation that responseLBS would require.
-        respondWith $ responseBuilder status200 [(hContentType, "text/html; charset=utf-8"), (hConnection, "keep-alive")] builder
+        respondWith $ responseBuilder status [(hContentType, "text/html; charset=utf-8"), (hConnection, "keep-alive")] builder
+{-# INLINE respondHtmlWithStatus #-}
+
+respondHtml :: (?request :: Request, ?respond :: Respond) => Markup -> IO ResponseReceived
+respondHtml = respondHtmlWithStatus status200
 {-# INLINE respondHtml #-}
 
 respondSvg :: (?request :: Request, ?respond :: Respond) => Markup -> IO ResponseReceived
@@ -107,6 +111,7 @@ renderHtmlOrJson
     :: forall view.
         ( ViewSupport.View view
         , ViewSupport.JsonView view
+        , Data.Aeson.ToJSON (ViewSupport.JsonResponse view)
         , Typeable view
         , ?context :: ControllerContext
         , ?request :: Request
@@ -115,19 +120,39 @@ renderHtmlOrJson
     => view
     -> IO ResponseReceived
 renderHtmlOrJson !view = do
+    renderHtmlOrJsonWithStatusCode status200 view
+
+{-# INLINE renderHtmlOrJsonWithStatusCode #-}
+renderHtmlOrJsonWithStatusCode
+    :: forall view.
+        ( ViewSupport.View view
+        , ViewSupport.JsonView view
+        , Data.Aeson.ToJSON (ViewSupport.JsonResponse view)
+        , Typeable view
+        , ?context :: ControllerContext
+        , ?request :: Request
+        , ?respond :: Respond
+        )
+    => Status
+    -> view
+    -> IO ResponseReceived
+renderHtmlOrJsonWithStatusCode status !view = do
     let !currentRequest = ?request
     renderPolymorphic PolymorphicRender
-        { html = Just (renderHtmlView currentRequest view)
+        { html = Just (renderHtmlViewWithStatus status currentRequest view)
         , json = Just do
                 let jsonValue = ViewSupport.json view
                 validateOpenApiRenderedView view jsonValue
-                renderJson jsonValue
+                renderJsonWithStatusCode status jsonValue
         }
 
 renderHtmlView :: (ViewSupport.View view, ?context :: ControllerContext, ?respond :: Respond) => Request -> view -> IO ResponseReceived
-renderHtmlView currentRequest view = do
+renderHtmlView = renderHtmlViewWithStatus status200
+
+renderHtmlViewWithStatus :: (ViewSupport.View view, ?context :: ControllerContext, ?respond :: Respond) => Status -> Request -> view -> IO ResponseReceived
+renderHtmlViewWithStatus status currentRequest view = do
     let next request respond = do
             let ?request = request
             let ?respond = respond
-            renderHtml view >>= respondHtml
+            renderHtml view >>= respondHtmlWithStatus status
     consumeFlashMessagesMiddleware next currentRequest ?respond
