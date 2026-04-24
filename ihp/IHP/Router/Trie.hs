@@ -28,13 +28,13 @@ module IHP.Router.Trie
     ) where
 
 import Prelude
+import Data.Array (Array, (!), (//), assocs, elems, listArray)
 import Data.ByteString (ByteString)
 import qualified Data.ByteString as ByteString
 import qualified Data.ByteString.Char8 as ByteString.Char8
 import Data.HashMap.Strict (HashMap)
 import qualified Data.HashMap.Strict as HashMap
-import Data.Map.Strict (Map)
-import qualified Data.Map.Strict as Map
+import Data.Maybe (isNothing)
 import Data.Text (Text)
 import Network.HTTP.Types.Method (StdMethod)
 import Network.Wai (Application)
@@ -57,10 +57,34 @@ type Captures = [ByteString]
 type WaiHandler = Captures -> Application
 
 -- | Per-method handlers at a trie leaf. Missing entries correspond to
--- @405 Method Not Allowed@. Backed by 'Map' (not 'HashMap') because
--- 'StdMethod' doesn't have a 'Hashable' instance and the per-node
--- cardinality is tiny (≤9 methods).
-type HandlersByMethod = Map StdMethod WaiHandler
+-- @405 Method Not Allowed@.
+--
+-- Backed by a fixed-size 'Array' indexed by 'StdMethod'. 'StdMethod'
+-- has 9 constructors and is 'Bounded' \/ 'Enum', so the array is
+-- always exactly 9 slots — lookup is O(1) (one bounds check + one
+-- indirection) instead of @Map@'s O(log 9) tree walk. The empty array
+-- is a single shared CAF ('emptyHandlers'), so internal trie nodes
+-- (no handlers) don't allocate per-node.
+type HandlersByMethod = Array StdMethod (Maybe WaiHandler)
+
+-- | The shared empty 'HandlersByMethod' — one CAF used by every
+-- trie node that doesn't yet have any handlers. Not exported; trie
+-- construction goes through 'emptyTrie' \/ 'insertRouteMethods'.
+emptyHandlers :: HandlersByMethod
+emptyHandlers = listArray (minBound, maxBound) (repeat Nothing)
+{-# NOINLINE emptyHandlers #-}
+
+-- | Methods that have a registered handler in this 'HandlersByMethod'.
+-- Used to compute the @Allow@ header for 405 responses.
+methodsWithHandlers :: HandlersByMethod -> [StdMethod]
+methodsWithHandlers arr = [ m | (m, Just _) <- assocs arr ]
+
+-- | Whether this 'HandlersByMethod' has any registered handler.
+-- Used to decide between 'NotMatched' (no handlers at all → keep
+-- searching for a splat fall-through) and 'MethodNotAllowed' (some
+-- handlers exist but not for this method).
+nullHandlers :: HandlersByMethod -> Bool
+nullHandlers = all isNothing . elems
 
 -- | Specification of a capture at a trie node.
 --
@@ -102,7 +126,7 @@ data LookupResult
 
 -- | An empty trie — matches nothing, has no handlers.
 emptyTrie :: RouteTrie
-emptyTrie = RouteTrie HashMap.empty Nothing Nothing Map.empty
+emptyTrie = RouteTrie HashMap.empty Nothing Nothing emptyHandlers
 
 -- | Split a path like @"/posts/123/edit"@ into @["posts","123","edit"]@.
 -- Leading, trailing, and empty segments are dropped so @"/"@ and @""@ both
@@ -139,7 +163,7 @@ insertRouteMethods
     -> RouteTrie
     -> RouteTrie
 insertRouteMethods [] methods handler trie =
-    trie { handlers = foldr (\m h -> Map.insert m handler h) (handlers trie) methods }
+    trie { handlers = handlers trie // [ (m, Just handler) | m <- methods ] }
 insertRouteMethods (seg : rest) methods handler trie = case seg of
     LiteralSeg lit ->
         let child = HashMap.lookupDefault emptyTrie lit (static trie)
@@ -154,8 +178,8 @@ insertRouteMethods (seg : rest) methods handler trie = case seg of
     SplatSeg name ->
         let existing = case splat trie of
                 Just (_, h) -> h
-                Nothing     -> Map.empty
-         in trie { splat = Just (name, foldr (\m h -> Map.insert m handler h) existing methods) }
+                Nothing     -> emptyHandlers
+         in trie { splat = Just (name, existing // [ (m, Just handler) | m <- methods ]) }
 
 -- | Deep-merge two tries. Used at application startup to combine
 -- fragments coming from separate controllers into one app-wide trie.
@@ -172,9 +196,20 @@ mergeTrie a b = RouteTrie
     , splat = case (splat a, splat b) of
         (Nothing, x) -> x
         (x, Nothing) -> x
-        (Just (_, aH), Just (bName, bH)) -> Just (bName, Map.union bH aH)
-    , handlers = Map.union (handlers b) (handlers a)
+        (Just (_, aH), Just (bName, bH)) -> Just (bName, mergeHandlers aH bH)
+    , handlers = mergeHandlers (handlers a) (handlers b)
     }
+  where
+    -- Right-biased merge: prefer @b@'s handler when both sides define
+    -- one for the same method. Mirrors the previous @Map.union (b) a@
+    -- semantics on the array representation.
+    mergeHandlers :: HandlersByMethod -> HandlersByMethod -> HandlersByMethod
+    mergeHandlers aH bH = listArray (minBound, maxBound)
+        [ case bH ! m of
+            Just h  -> Just h
+            Nothing -> aH ! m
+        | m <- [minBound .. maxBound]
+        ]
 
 -- | Look up a method+path pair in the trie.
 --
@@ -188,11 +223,11 @@ lookupTrie trie method = go trie []
   where
     -- 'captures' accumulates in REVERSE order during the walk for O(1)
     -- cons; reversed to path order before being handed to the handler.
-    go node captures [] = case Map.lookup method (handlers node) of
+    go node captures [] = case handlers node ! method of
         Just h  -> Matched h (reverse captures)
         Nothing
-            | Map.null (handlers node) -> trySplatEmpty node captures
-            | otherwise -> MethodNotAllowed (Map.keys (handlers node))
+            | nullHandlers (handlers node) -> trySplatEmpty node captures
+            | otherwise -> MethodNotAllowed (methodsWithHandlers (handlers node))
 
     go node captures (seg : rest) =
         case HashMap.lookup seg (static node) of
@@ -215,19 +250,19 @@ lookupTrie trie method = go trie []
         Just (_name, byMethod) ->
             let raw       = ByteString.intercalate "/" segs
                 captures' = reverse (raw : captures)
-             in case Map.lookup method byMethod of
+             in case byMethod ! method of
                     Just h  -> Matched h captures'
                     Nothing
-                        | Map.null byMethod -> NotMatched
-                        | otherwise -> MethodNotAllowed (Map.keys byMethod)
+                        | nullHandlers byMethod -> NotMatched
+                        | otherwise -> MethodNotAllowed (methodsWithHandlers byMethod)
         Nothing -> NotMatched
 
     trySplatEmpty node captures = case splat node of
         Just (_name, byMethod) ->
             let captures' = reverse ("" : captures)
-             in case Map.lookup method byMethod of
+             in case byMethod ! method of
                     Just h  -> Matched h captures'
                     Nothing
-                        | Map.null byMethod -> NotMatched
-                        | otherwise -> MethodNotAllowed (Map.keys byMethod)
+                        | nullHandlers byMethod -> NotMatched
+                        | otherwise -> MethodNotAllowed (methodsWithHandlers byMethod)
         Nothing -> NotMatched
