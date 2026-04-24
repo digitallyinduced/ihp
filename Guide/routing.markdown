@@ -36,9 +36,9 @@ instance FrontController WebApplication where
         ]
 ```
 
-`documentRoute` still derives the path, methods and query parameters from `AutoRoute`. Response schemas, request bodies and operation metadata come from the `endpoint` definitions next to the controller handlers.
+`documentRoute` derives paths, methods and parameters from `AutoRoute`. Response schemas, request bodies and operation metadata come from the `endpoint` definitions next to the controller handlers.
 
-Use `documentRoute` only for controllers whose routing is fully described by `AutoRoute`. Controllers that override `customRoutes` or `customPathTo`, or controllers mounted through the lower-level parser APIs, continue to work normally at runtime but are omitted from the generated OpenAPI document on purpose.
+Simple `customRoutes` / `customPathTo` overrides are supported when `customPathTo` returns a path backed by `customRoutes` and all action fields appear in the path. If IHP cannot prove this during OpenAPI generation, `buildOpenApi` fails with an `OpenApiGenerationException` instead of silently generating stale docs. Lower-level parser routes stay undocumented.
 
 You can then build the OpenAPI document from the mounted router tree:
 
@@ -262,7 +262,7 @@ With this setup:
 
 The `customRoutes` parser is tried first, before the auto-generated routes. If it doesn't match, the auto-generated routes are tried as usual. Return `Nothing` from `customPathTo` for any action that should use the default URL generation.
 
-Controllers that use `customRoutes` / `customPathTo` keep working normally at runtime, but they are intentionally omitted from IHP's OpenAPI generation. OpenAPI v1 only documents pure `AutoRoute` controllers so the generated spec cannot diverge from the real routing behavior. If you want OpenAPI output for a controller, keep its routing purely `AutoRoute` and mount it with `documentRoute`.
+When mounted with `documentRoute`, this basic custom route is included in the OpenAPI document as `/posts/{postId}`. IHP verifies that the generated `customPathTo` path is accepted by `customRoutes`; unsupported custom paths fail OpenAPI generation with a clear error.
 
 ## Custom Routing
 

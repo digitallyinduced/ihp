@@ -8,7 +8,7 @@ import ClassyPrelude hiding (handle)
 import Data.Aeson qualified as JSON
 import Data.Aeson.Key qualified as Key
 import Data.Aeson.KeyMap qualified as KeyMap
-import Data.Attoparsec.ByteString.Char8 (endOfInput, string)
+import Data.Attoparsec.ByteString.Char8 (decimal, endOfInput, string)
 import Data.Text qualified as Text
 import IHP.ControllerPrelude hiding (find, get, request)
 import IHP.Environment
@@ -51,6 +51,12 @@ data DocumentedCustomPathController
     = ShowDocumentedCustomPathAction {bandId :: !(Id Band)}
     deriving (Eq, Show, Data)
 
+data UnsupportedCustomPathApplication = UnsupportedCustomPathApplication deriving (Eq, Show, Data)
+
+data UnsupportedCustomPathController
+    = ShowUnsupportedCustomPathAction {bandId :: !(Id Band)}
+    deriving (Eq, Show, Data)
+
 data CrudNamedApiController
     = CreateApiSessionAction
     | CreatePipeSessionAction
@@ -76,6 +82,7 @@ instance ToSchema BandPayload
 data LegacyJsonView = LegacyJsonView
 data WrongJsonShapeView = WrongJsonShapeView {bandId :: !(Id Band)}
 data DocumentedCustomPathView = DocumentedCustomPathView {bandId :: !(Id Band)}
+data UnsupportedCustomPathView = UnsupportedCustomPathView {bandId :: !(Id Band)}
 data AckView = AckView
 
 data AckPayload = AckPayload
@@ -143,6 +150,19 @@ instance JsonView DocumentedCustomPathView where
             , tags = []
             }
 
+instance View UnsupportedCustomPathView where
+    html UnsupportedCustomPathView{..} = [hsx||]
+
+instance JsonView UnsupportedCustomPathView where
+    type JsonResponse UnsupportedCustomPathView = BandPayload
+
+    jsonTyped UnsupportedCustomPathView{..} =
+        BandPayload
+            { bandId = unpackId bandId
+            , page = Nothing
+            , tags = []
+            }
+
 instance View AckView where
     html AckView = [hsx||]
 
@@ -179,6 +199,14 @@ instance Controller DocumentedCustomPathController where
         endpoint
             |> responseView @DocumentedCustomPathView
             |> handle (pure DocumentedCustomPathView{..})
+
+instance Controller UnsupportedCustomPathController where
+    type ControllerAction UnsupportedCustomPathController = ActionDefinition UnsupportedCustomPathController
+
+    action ShowUnsupportedCustomPathAction{..} =
+        endpoint
+            |> responseView @UnsupportedCustomPathView
+            |> handle (pure UnsupportedCustomPathView{..})
 
 instance Controller CrudNamedApiController where
     type ControllerAction CrudNamedApiController = ActionDefinition CrudNamedApiController
@@ -221,7 +249,20 @@ instance AutoRoute DocumentedCustomPathController where
     autoRoute = autoRouteWithIdType (parseIntegerId @(Id Band))
     applyAction = applyConstr (parseIntegerId @(Id Band))
 
+    customRoutes = do
+        string "/bands/"
+        bandId <- packId <$> decimal
+        endOfInput
+        onlyAllowMethods [GET, HEAD]
+        pure ShowDocumentedCustomPathAction{bandId}
+
     customPathTo ShowDocumentedCustomPathAction{bandId} = Just ("/bands/" <> cs (Prelude.show (unpackId bandId)))
+
+instance AutoRoute UnsupportedCustomPathController where
+    autoRoute = autoRouteWithIdType (parseIntegerId @(Id Band))
+    applyAction = applyConstr (parseIntegerId @(Id Band))
+
+    customPathTo ShowUnsupportedCustomPathAction{bandId} = Just ("/unsupported-bands/" <> cs (Prelude.show (unpackId bandId)))
 
 instance AutoRoute CrudNamedApiController
 
@@ -237,6 +278,9 @@ instance FrontController WebApplication where
 instance FrontController RootApplication where
     controllers = [mountFrontController WebApplication]
 
+instance FrontController UnsupportedCustomPathApplication where
+    controllers = [documentRoute @UnsupportedCustomPathController]
+
 defaultLayout :: Html -> Html
 defaultLayout inner = [hsx|{inner}|]
 
@@ -244,6 +288,7 @@ instance InitControllerContext WebApplication where
     initContext = setLayout defaultLayout
 
 instance InitControllerContext RootApplication
+instance InitControllerContext UnsupportedCustomPathApplication
 
 testJson :: ByteString -> Session SResponse
 testJson url =
@@ -377,10 +422,18 @@ tests = aroundAll (withMockContextAndApp RootApplication config) do
             lookupPathOperation "/test/ShowCustom" "get" spec `shouldBe` Nothing
             lookupPathOperation "/custom/{performanceId}" "get" spec `shouldBe` Nothing
 
-        it "omits documented actions with customPathTo so generated paths cannot diverge" $ withContextAndApp \_ -> do
+        it "documents basic customPathTo routes verified by customRoutes" $ withContextAndApp \_ -> do
             let spec = buildOpenApi RootApplication
             lookupPathOperation "/test/ShowDocumentedCustomPath" "get" spec `shouldBe` Nothing
-            lookupPathOperation "/bands/{bandId}" "get" spec `shouldBe` Nothing
+            let Just operation = lookupPathOperation "/bands/{bandId}" "get" spec
+            let Just bandIdParameter = lookupParameter "bandId" operation
+            lookupValue "in" bandIdParameter `shouldBe` Just (JSON.String "path")
+            lookupValue "required" bandIdParameter `shouldBe` Just (JSON.Bool True)
+            (lookupValue "type" =<< lookupValue "schema" bandIdParameter) `shouldBe` Just (JSON.String "integer")
+
+        it "fails OpenAPI generation when customPathTo is not backed by customRoutes" $ withContextAndApp \_ -> do
+            evaluate (buildOpenApi UnsupportedCustomPathApplication) `shouldThrow` \(OpenApiGenerationException message) ->
+                "customRoutes does not parse that path" `Text.isInfixOf` message
 
         it "keeps CreateApi and ShowApi action names unchanged in documented AutoRoute paths" $ withContextAndApp \_ -> do
             let spec = buildOpenApi RootApplication
