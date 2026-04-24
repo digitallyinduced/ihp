@@ -42,6 +42,7 @@ import Data.Text.Encoding qualified as Text
 import Data.Typeable qualified as Typeable
 import Data.UUID (nil)
 import IHP.ModelSupport
+import IHP.OpenApiSupport.ActionDoc
 import IHP.Prelude
 import IHP.Router.Types (UnexpectedMethodException (..))
 import IHP.RouterSupport

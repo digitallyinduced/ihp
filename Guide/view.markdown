@@ -632,11 +632,11 @@ curl http://localhost:8000/Posts -H 'Accept: application/json'
 
 ### OpenAPI schemas for JSON views
 
-If you want an AutoRoute controller action to appear in the generated OpenAPI document, add a [`ToSchema`](https://ihp.digitallyinduced.com/api-docs/IHP-OpenApiSupport.html#t:ToSchema) instance for the typed JSON payload and describe the action using [`OpenApiController`](https://ihp.digitallyinduced.com/api-docs/IHP-RouterSupport.html#t:OpenApiController):
+If you want an AutoRoute controller action to appear in the generated OpenAPI document, keep the OpenAPI contract next to the handler using inspectable action definitions.
+Add a [`ToSchema`](https://ihp.digitallyinduced.com/api-docs/IHP-OpenApiSupport.html#t:ToSchema) instance for the typed JSON payload, then declare the request body, response view and metadata directly in `action`:
 
 ```haskell
 {-# LANGUAGE DeriveGeneric #-}
-{-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE TypeApplications #-}
 
 import GHC.Generics (Generic)
@@ -657,46 +657,36 @@ instance JsonView IndexView where
     type JsonResponse IndexView = [PostPayload]
     jsonTyped IndexView { .. } = posts |> map (\post -> PostPayload { id = post.id, title = post.title })
 
-instance OpenApiController PostsController where
-    openApiActions =
-        [ $(actionDocForConstructor 'PostsAction ''IndexView)
-            |> setOpenApiSummary "List all posts"
-        ]
-```
-
-When a documented action renders a different JSON view than the one declared in `openApiActions`, IHP will fail the request instead of silently letting the documentation drift away from the controller code.
-The `actionDocForConstructor` helper references the real action constructor, so renaming or removing the action fails at compile time instead of silently documenting a stale action name.
-
-For API-heavy controllers, you can opt in to inspectable action definitions and keep the OpenAPI contract next to the handler:
-
-```haskell
-instance Controller SessionsController where
-    type ControllerAction SessionsController = ActionDefinition SessionsController
+instance Controller PostsController where
+    type ControllerAction PostsController = ActionDefinition PostsController
 
     runControllerAction actionDefinition =
         runActionDefinition actionDefinition
 
-    action CreateSessionAction =
+    action PostsAction =
         endpoint
-            |> requestBody @CreateSessionRequest
-            |> responseView @AckView
-            |> summary "Create session"
-            |> handle \body -> do
-                createSession body
-                pure AckView
+            |> responseView @IndexView
+            |> summary "List all posts"
+            |> handle do
+                posts <- query @Post |> fetch
+                pure IndexView { .. }
 
     action HtmlOnlyAction =
         legacyAction do
             render HtmlOnlyView
-
-instance OpenApiController SessionsController where
-    openApiActions =
-        actionDefinitionDocs
-            [ CreateSessionAction
-            ]
 ```
 
-In this form, `handle` decodes the documented request body before the handler runs, and the handler must return the same view type declared by `responseView`. Actions that are not JSON endpoints can stay in the same controller through `legacyAction`; they are executed normally and omitted from the OpenAPI document.
+Mount the controller with [`documentRoute`](https://ihp.digitallyinduced.com/api-docs/IHP-RouterSupport.html#v:documentRoute) to include its inspectable actions in the generated OpenAPI document:
+
+```haskell
+instance FrontController WebApplication where
+    controllers =
+        [ documentRoute @PostsController
+        , swaggerUi
+        ]
+```
+
+In this form, `handle` decodes the documented request body before the handler runs, and the handler must return the same view type declared by `responseView`. Actions wrapped in `legacyAction` are executed normally and omitted from the OpenAPI document.
 
 ### Advanced: Rendering JSON directly from actions
 

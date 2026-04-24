@@ -29,19 +29,23 @@ module IHP.Controller.ActionDefinition
     , HandleEndpoint (handle)
     , legacyAction
     , actionDefinitionDoc
-    , actionDefinitionDocs
     ) where
 
 import Data.Aeson qualified as JSON
+import Data.ByteString (ByteString)
 import Data.Data
-import Data.Maybe (mapMaybe)
+import Data.Foldable (asum)
+import Data.Int
+import Data.Maybe (fromMaybe, mapMaybe)
 import Data.OpenApi (ToSchema)
 import Data.String.Conversions (cs)
 import Data.Text (Text)
 import Data.Typeable qualified as Typeable
+import Data.UUID qualified as UUID
+import Data.Word
 import IHP.Controller.Render (renderHtmlOrJsonWithStatusCode)
 import IHP.ControllerSupport
-import IHP.RouterSupport
+import IHP.OpenApiSupport.ActionDoc
 import IHP.ViewSupport qualified as ViewSupport
 import Network.HTTP.Types.Header (hContentType)
 import Network.HTTP.Types.Status (Status, status200, status400)
@@ -56,6 +60,15 @@ data ActionDefinition controller = ActionDefinition
     { actionDefinitionDocFor :: controller -> Maybe (ActionDoc controller)
     , runActionDefinition :: ControllerAction' controller
     }
+
+instance
+    ( Data controller
+    , Controller controller
+    , ControllerAction controller ~ ActionDefinition controller
+    ) =>
+    HasOpenApiActionDocs controller (ActionDefinition controller)
+    where
+    openApiActionDocs = actionDefinitionDocs @controller
 
 -- | Marker type for endpoints without a JSON request body.
 data NoRequestBody
@@ -243,12 +256,13 @@ actionDefinitionDoc controller ActionDefinition{actionDefinitionDocFor} =
 actionDefinitionDocs ::
     forall controller.
     ( Controller controller
+    , Data controller
     , ControllerAction controller ~ ActionDefinition controller
     ) =>
-    [controller] ->
     [ActionDoc controller]
-actionDefinitionDocs controllers =
-    mapMaybe buildDoc controllers
+actionDefinitionDocs =
+    dataTypeConstrs (dataTypeOf (Prelude.undefined :: controller))
+        |> mapMaybe (buildDoc . fromConstrB dummyDataValue)
   where
     buildDoc controller =
         let ?context = error "actionDefinitionDocs: endpoint construction must not use ?context"
@@ -258,3 +272,31 @@ actionDefinitionDocs controllers =
             ?request = error "actionDefinitionDocs: endpoint construction must not use ?request"
          in actionDefinitionDoc controller (action controller)
 {-# INLINE actionDefinitionDocs #-}
+
+dummyDataValue :: forall value. (Data value) => value
+dummyDataValue =
+    fromMaybe fromFirstConstructor knownDummyValue
+  where
+    knownDummyValue =
+        asum
+            [ Typeable.cast (0 :: Int)
+            , Typeable.cast (0 :: Int8)
+            , Typeable.cast (0 :: Int16)
+            , Typeable.cast (0 :: Int32)
+            , Typeable.cast (0 :: Int64)
+            , Typeable.cast (0 :: Integer)
+            , Typeable.cast (0 :: Word)
+            , Typeable.cast (0 :: Word8)
+            , Typeable.cast (0 :: Word16)
+            , Typeable.cast (0 :: Word32)
+            , Typeable.cast (0 :: Word64)
+            , Typeable.cast ("" :: Text)
+            , Typeable.cast ("" :: ByteString)
+            , Typeable.cast UUID.nil
+            ]
+
+    fromFirstConstructor =
+        case dataTypeConstrs (dataTypeOf (Prelude.undefined :: value)) of
+            constructor : _ -> fromConstrB dummyDataValue constructor
+            [] -> error ("actionDefinitionDocs: cannot build dummy value for " <> show (Typeable.typeRep (Proxy @value)))
+{-# INLINE dummyDataValue #-}

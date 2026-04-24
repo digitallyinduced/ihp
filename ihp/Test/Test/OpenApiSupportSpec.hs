@@ -1,7 +1,6 @@
 {-# LANGUAGE AllowAmbiguousTypes #-}
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE DeriveGeneric #-}
-{-# LANGUAGE TemplateHaskell #-}
 
 module Test.OpenApiSupportSpec where
 
@@ -153,21 +152,40 @@ instance JsonView AckView where
     jsonTyped AckView = AckPayload{ok = True}
 
 instance Controller DocumentedController where
-    action ShowBandAction{..} = renderHtmlOrJson BandView{..}
-    action LegacyJsonAction = renderHtmlOrJson LegacyJsonView
-    action WrongJsonAction = renderHtmlOrJson LegacyJsonView
-    action WrongJsonShapeAction{..} = renderHtmlOrJson WrongJsonShapeView{..}
+    type ControllerAction DocumentedController = ActionDefinition DocumentedController
+
+    runControllerAction actionDefinition = runActionDefinition actionDefinition
+
+    action ShowBandAction{..} =
+        endpoint
+            |> responseView @BandView
+            |> summary "Show a band payload"
+            |> handle (pure BandView{..})
+    action LegacyJsonAction =
+        legacyAction (renderHtmlOrJson LegacyJsonView)
+    action WrongJsonAction =
+        legacyAction (renderHtmlOrJson LegacyJsonView)
+    action WrongJsonShapeAction{..} =
+        endpoint
+            |> responseView @WrongJsonShapeView
+            |> handle (pure WrongJsonShapeView{..})
 
 instance Controller CustomRouteController where
     action ListCustomAction = renderPlain "ListCustomAction"
     action ShowCustomAction{..} = renderPlain (cs (Prelude.show performanceId))
 
 instance Controller DocumentedCustomPathController where
-    action ShowDocumentedCustomPathAction{..} = render DocumentedCustomPathView{..}
+    type ControllerAction DocumentedCustomPathController = ActionDefinition DocumentedCustomPathController
+
+    runControllerAction actionDefinition = runActionDefinition actionDefinition
+
+    action ShowDocumentedCustomPathAction{..} =
+        endpoint
+            |> responseView @DocumentedCustomPathView
+            |> handle (pure DocumentedCustomPathView{..})
 
 instance Controller CrudNamedApiController where
     type ControllerAction CrudNamedApiController = ActionDefinition CrudNamedApiController
-
     runControllerAction actionDefinition = runActionDefinition actionDefinition
 
     action CreateApiSessionAction =
@@ -193,14 +211,6 @@ instance AutoRoute DocumentedController where
     autoRoute = autoRouteWithIdType (parseIntegerId @(Id Band))
     applyAction = applyConstr (parseIntegerId @(Id Band))
 
-instance OpenApiController DocumentedController where
-    openApiActions =
-        [ $(actionDocForConstructor 'ShowBandAction ''BandView)
-            |> setOpenApiSummary "Show a band payload"
-        , $(actionDocForConstructor 'WrongJsonAction ''BandView)
-        , $(actionDocForConstructor 'WrongJsonShapeAction ''WrongJsonShapeView)
-        ]
-
 instance AutoRoute CustomRouteController where
     customRoutes = do
         string "/custom/"
@@ -218,20 +228,7 @@ instance AutoRoute DocumentedCustomPathController where
 
     customPathTo ShowDocumentedCustomPathAction{bandId} = Just ("/bands/" <> cs (Prelude.show (unpackId bandId)))
 
-instance OpenApiController DocumentedCustomPathController where
-    openApiActions =
-        [ $(actionDocForConstructor 'ShowDocumentedCustomPathAction ''DocumentedCustomPathView)
-        ]
-
 instance AutoRoute CrudNamedApiController
-
-instance OpenApiController CrudNamedApiController where
-    openApiActions =
-        actionDefinitionDocs
-            [ CreateApiSessionAction
-            , CreatePipeSessionAction
-            , ShowApiSessionAction
-            ]
 
 instance FrontController WebApplication where
     controllers =
@@ -323,11 +320,6 @@ tests = aroundAll (withMockContextAndApp RootApplication config) do
         it "keeps JSON.Value responses working through jsonTyped" $ withContextAndApp \application -> do
             let expected = JSON.object ["legacy" JSON..= True]
             runSession (testJson "test/LegacyJson") application >>= assertJsonBody expected
-
-        it "fails fast when documented actions render the wrong json view" $ withContextAndApp \application -> do
-            response <- runSession (testJson "test/WrongJson") application
-            response.simpleStatus `shouldBe` status500
-            Text.isInfixOf "OpenAPI docs expect view" (cs response.simpleBody) `shouldBe` True
 
         it "renders documented actions from jsonTyped so the JSON shape cannot diverge from the typed response" $ withContextAndApp \application -> do
             let expected =

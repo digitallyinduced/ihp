@@ -26,7 +26,7 @@ instance FrontController WebApplication where
 
 Now you can open e.g. `/Posts` to access the `PostsAction`.
 
-If you want a pure `AutoRoute` controller to also appear in the generated OpenAPI document, mount it using [`documentRoute`](https://ihp.digitallyinduced.com/api-docs/IHP-RouterSupport.html#v:documentRoute):
+If you want a pure `AutoRoute` controller to also appear in the generated OpenAPI document, define its actions with the inspectable `endpoint` DSL and mount it using [`documentRoute`](https://ihp.digitallyinduced.com/api-docs/IHP-RouterSupport.html#v:documentRoute):
 
 ```haskell
 instance FrontController WebApplication where
@@ -36,7 +36,7 @@ instance FrontController WebApplication where
         ]
 ```
 
-`documentRoute` still derives the path, methods and query parameters from `AutoRoute`. It only adds the extra metadata needed for OpenAPI generation.
+`documentRoute` still derives the path, methods and query parameters from `AutoRoute`. Response schemas, request bodies and operation metadata come from the `endpoint` definitions next to the controller handlers.
 
 Use `documentRoute` only for controllers whose routing is fully described by `AutoRoute`. Controllers that override `customRoutes` or `customPathTo`, or controllers mounted through the lower-level parser APIs, continue to work normally at runtime but are omitted from the generated OpenAPI document on purpose.
 

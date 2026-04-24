@@ -4,7 +4,6 @@
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE ScopedTypeVariables #-}
-{-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE UndecidableInstances #-}
 
@@ -15,25 +14,7 @@ module IHP.RouterSupport (
     RouteInspection (..),
     RouteDocumentation (..),
     DocumentedRouteInfo (..),
-    OpenApiController (..),
     documentRoute,
-    ActionDoc (..),
-    OpenApiRequestBodyDoc (..),
-    HasOpenApiRequestBody (..),
-    actionDoc,
-    actionDocForConstructor,
-    actionDocForRequestBodyConstructor,
-    actionDocFor,
-    actionDocForRequestBody,
-    setOpenApiSummary,
-    setOpenApiDescription,
-    setOpenApiTags,
-    setOpenApiOperationId,
-    setOpenApiRequestBody,
-    setOpenApiRequestBodyRequired,
-    setOpenApiSuccessStatus,
-    setOpenApiSuccessResponseDescription,
-    decodeActionRequestBody,
     runAction,
     get,
     post,
@@ -88,8 +69,6 @@ import Data.Kind
 import Data.List (find, isPrefixOf)
 import Data.List qualified as List
 import Data.Maybe (fromMaybe, mapMaybe)
-import Data.OpenApi (ToSchema)
-import Data.OpenApi.Schema.Validation qualified as SchemaValidation
 import Data.String.Conversions (ConvertibleStrings (convertString), cs)
 import Data.TMap qualified as TypeMap
 import Data.Text (Text)
@@ -98,7 +77,6 @@ import Data.Text.Encoding qualified as Text
 import Data.Typeable qualified as Typeable
 import Data.UUID
 import Data.Vault.Lazy qualified as Vault
-import GHC.TypeLits
 import GHC.TypeLits as T
 import IHP.Controller.Context
 import IHP.Controller.Param
@@ -107,15 +85,14 @@ import IHP.ErrorController qualified as ErrorController
 import IHP.FrameworkConfig
 import IHP.HaskellSupport hiding (get)
 import IHP.ModelSupport qualified as ModelSupport
+import IHP.OpenApiSupport.ActionDoc
 import IHP.Router.Types
 import IHP.Router.UrlGenerator
-import IHP.ViewSupport qualified as ViewSupport
 import IHP.WebSocket (WSApp)
 import IHP.WebSocket qualified as WS
-import Language.Haskell.TH qualified as TH
 import Network.HTTP.Types.Header (hContentType)
 import Network.HTTP.Types.Method
-import Network.HTTP.Types.Status (Status, status200, status400, status500, statusCode)
+import Network.HTTP.Types.Status (status400, status500)
 import Network.HTTP.Types.URI
 import Network.URI.Encode qualified as URI
 import Network.Wai
@@ -165,357 +142,6 @@ runAction' controller waiRequest waiRespond =
 -- routing failures from action failures.
 wrapRouterException :: IO a -> IO a
 wrapRouterException action = action `catch` \(e :: SomeException) -> throwIO (ErrorController.RouterException e)
-
-data ActionDoc controller where
-    ActionDoc ::
-        forall controller view.
-        ( ViewSupport.View view
-        , ViewSupport.JsonView view
-        , Typeable.Typeable view
-        , JSON.ToJSON (ViewSupport.JsonResponse view)
-        , ToSchema (ViewSupport.JsonResponse view)
-        ) =>
-        { actionDocName :: Text
-        , actionDocSummary :: Maybe Text
-        , actionDocDescription :: Maybe Text
-        , actionDocTags :: [Text]
-        , actionDocOperationId :: Maybe Text
-        , actionDocView :: Proxy view
-        , actionDocTypedJson :: view -> JSON.Value
-        , actionDocValidateJsonSchema :: view -> Maybe String
-        , actionDocRequestBody :: Maybe OpenApiRequestBodyDoc
-        , actionDocSuccessStatus :: Int
-        , actionDocSuccessResponseDescription :: Text
-        } ->
-        ActionDoc controller
-
-data OpenApiRequestBodyDoc where
-    OpenApiRequestBodyDoc ::
-        forall body.
-        ( ToSchema body
-        , Typeable.Typeable body
-        ) =>
-        { requestBodyRequired :: Bool
-        , requestBodySchema :: Proxy body
-        , requestBodyTypeRep :: Typeable.TypeRep
-        } ->
-        OpenApiRequestBodyDoc
-
-class (JSON.FromJSON (OpenApiRequestBody controller actionName), ToSchema (OpenApiRequestBody controller actionName)) => HasOpenApiRequestBody controller (actionName :: Symbol) where
-    type OpenApiRequestBody controller actionName :: Type
-    openApiRequestBodyRequired :: Bool
-    openApiRequestBodyRequired = True
-
-actionDoc ::
-    forall view controller.
-    ( ViewSupport.View view
-    , ViewSupport.JsonView view
-    , Typeable.Typeable view
-    , JSON.ToJSON (ViewSupport.JsonResponse view)
-    , ToSchema (ViewSupport.JsonResponse view)
-    ) =>
-    Text -> ActionDoc controller
-actionDoc actionName =
-    ActionDoc
-        { actionDocName = actionName
-        , actionDocSummary = Nothing
-        , actionDocDescription = Nothing
-        , actionDocTags = []
-        , actionDocOperationId = Nothing
-        , actionDocView = Proxy @view
-        , actionDocTypedJson = JSON.toJSON . ViewSupport.jsonTyped
-        , actionDocValidateJsonSchema = SchemaValidation.validatePrettyToJSON . ViewSupport.jsonTyped
-        , actionDocRequestBody = Nothing
-        , actionDocSuccessStatus = statusCode status200
-        , actionDocSuccessResponseDescription = "Successful response"
-        }
-{-# INLINE actionDoc #-}
-
-{- | Builds an 'ActionDoc' for a real action constructor.
-
-Use this from a Template Haskell splice:
-
-@
-$(actionDocForConstructor 'ShowBandAction ''BandView)
-@
-
-Unlike 'actionDocFor', this fails at compile time when the action
-constructor does not exist.
--}
-actionDocForConstructor :: TH.Name -> TH.Name -> TH.Q TH.Exp
-actionDocForConstructor actionConstructor viewType = do
-    actionDocForConstructorExpression actionConstructor viewType
-
-{- | Builds an 'ActionDoc' for a real action constructor and request body type.
-
-Use this from a Template Haskell splice:
-
-@
-$(actionDocForRequestBodyConstructor 'CreateSessionAction ''CreateSessionRequest ''AckView)
-@
-
-This statically checks that the action constructor, request body type and view
-type names exist. The generated action doc still records the request body type
-used by OpenAPI.
--}
-actionDocForRequestBodyConstructor :: TH.Name -> TH.Name -> TH.Name -> TH.Q TH.Exp
-actionDocForRequestBodyConstructor actionConstructor requestBodyType viewType = do
-    actionDocExpression <- actionDocForConstructorExpression actionConstructor viewType
-    pure (TH.AppE (TH.AppTypeE (TH.VarE 'setOpenApiRequestBody) (TH.ConT requestBodyType)) actionDocExpression)
-
-actionDocForConstructorExpression :: TH.Name -> TH.Name -> TH.Q TH.Exp
-actionDocForConstructorExpression actionConstructor viewType =
-    pure
-        ( TH.AppE
-            (TH.AppTypeE (TH.VarE 'actionDoc) (TH.ConT viewType))
-            (TH.AppE (TH.VarE 'Text.pack) (TH.LitE (TH.StringL (TH.nameBase actionConstructor))))
-        )
-
-actionDocFor ::
-    forall actionName view controller.
-    ( KnownSymbol actionName
-    , ViewSupport.View view
-    , ViewSupport.JsonView view
-    , Typeable.Typeable view
-    , JSON.ToJSON (ViewSupport.JsonResponse view)
-    , ToSchema (ViewSupport.JsonResponse view)
-    ) =>
-    ActionDoc controller
-actionDocFor =
-    ActionDoc
-        { actionDocName = cs (symbolVal (Proxy @actionName))
-        , actionDocSummary = Nothing
-        , actionDocDescription = Nothing
-        , actionDocTags = []
-        , actionDocOperationId = Nothing
-        , actionDocView = Proxy @view
-        , actionDocTypedJson = JSON.toJSON . ViewSupport.jsonTyped
-        , actionDocValidateJsonSchema = SchemaValidation.validatePrettyToJSON . ViewSupport.jsonTyped
-        , actionDocRequestBody = Nothing
-        , actionDocSuccessStatus = statusCode status200
-        , actionDocSuccessResponseDescription = "Successful response"
-        }
-{-# INLINE actionDocFor #-}
-
-actionDocForRequestBody ::
-    forall actionName view controller.
-    ( KnownSymbol actionName
-    , HasOpenApiRequestBody controller actionName
-    , ViewSupport.View view
-    , ViewSupport.JsonView view
-    , Typeable.Typeable view
-    , JSON.ToJSON (ViewSupport.JsonResponse view)
-    , ToSchema (ViewSupport.JsonResponse view)
-    ) =>
-    ActionDoc controller
-actionDocForRequestBody =
-    ActionDoc
-        { actionDocName = cs (symbolVal (Proxy @actionName))
-        , actionDocSummary = Nothing
-        , actionDocDescription = Nothing
-        , actionDocTags = []
-        , actionDocOperationId = Nothing
-        , actionDocView = Proxy @view
-        , actionDocTypedJson = JSON.toJSON . ViewSupport.jsonTyped
-        , actionDocValidateJsonSchema = SchemaValidation.validatePrettyToJSON . ViewSupport.jsonTyped
-        , actionDocRequestBody =
-            Just
-                OpenApiRequestBodyDoc
-                    { requestBodyRequired = openApiRequestBodyRequired @controller @actionName
-                    , requestBodySchema = Proxy @(OpenApiRequestBody controller actionName)
-                    , requestBodyTypeRep = Typeable.typeRep (Proxy @(OpenApiRequestBody controller actionName))
-                    }
-        , actionDocSuccessStatus = statusCode status200
-        , actionDocSuccessResponseDescription = "Successful response"
-        }
-{-# INLINE actionDocForRequestBody #-}
-
-setOpenApiSummary :: Text -> ActionDoc controller -> ActionDoc controller
-setOpenApiSummary summary ActionDoc{actionDocName, actionDocDescription, actionDocTags, actionDocOperationId, actionDocView, actionDocTypedJson, actionDocValidateJsonSchema, actionDocRequestBody, actionDocSuccessStatus, actionDocSuccessResponseDescription} =
-    ActionDoc
-        { actionDocName
-        , actionDocSummary = Just summary
-        , actionDocDescription
-        , actionDocTags
-        , actionDocOperationId
-        , actionDocView
-        , actionDocTypedJson
-        , actionDocValidateJsonSchema
-        , actionDocRequestBody
-        , actionDocSuccessStatus
-        , actionDocSuccessResponseDescription
-        }
-{-# INLINE setOpenApiSummary #-}
-
-setOpenApiDescription :: Text -> ActionDoc controller -> ActionDoc controller
-setOpenApiDescription description ActionDoc{actionDocName, actionDocSummary, actionDocTags, actionDocOperationId, actionDocView, actionDocTypedJson, actionDocValidateJsonSchema, actionDocRequestBody, actionDocSuccessStatus, actionDocSuccessResponseDescription} =
-    ActionDoc
-        { actionDocName
-        , actionDocSummary
-        , actionDocDescription = Just description
-        , actionDocTags
-        , actionDocOperationId
-        , actionDocView
-        , actionDocTypedJson
-        , actionDocValidateJsonSchema
-        , actionDocRequestBody
-        , actionDocSuccessStatus
-        , actionDocSuccessResponseDescription
-        }
-{-# INLINE setOpenApiDescription #-}
-
-setOpenApiTags :: [Text] -> ActionDoc controller -> ActionDoc controller
-setOpenApiTags tags ActionDoc{actionDocName, actionDocSummary, actionDocDescription, actionDocOperationId, actionDocView, actionDocTypedJson, actionDocValidateJsonSchema, actionDocRequestBody, actionDocSuccessStatus, actionDocSuccessResponseDescription} =
-    ActionDoc
-        { actionDocName
-        , actionDocSummary
-        , actionDocDescription
-        , actionDocTags = tags
-        , actionDocOperationId
-        , actionDocView
-        , actionDocTypedJson
-        , actionDocValidateJsonSchema
-        , actionDocRequestBody
-        , actionDocSuccessStatus
-        , actionDocSuccessResponseDescription
-        }
-{-# INLINE setOpenApiTags #-}
-
-setOpenApiOperationId :: Text -> ActionDoc controller -> ActionDoc controller
-setOpenApiOperationId operationId ActionDoc{actionDocName, actionDocSummary, actionDocDescription, actionDocTags, actionDocView, actionDocTypedJson, actionDocValidateJsonSchema, actionDocRequestBody, actionDocSuccessStatus, actionDocSuccessResponseDescription} =
-    ActionDoc
-        { actionDocName
-        , actionDocSummary
-        , actionDocDescription
-        , actionDocTags
-        , actionDocOperationId = Just operationId
-        , actionDocView
-        , actionDocTypedJson
-        , actionDocValidateJsonSchema
-        , actionDocRequestBody
-        , actionDocSuccessStatus
-        , actionDocSuccessResponseDescription
-        }
-{-# INLINE setOpenApiOperationId #-}
-
--- | Documents the JSON request body schema for an action.
-setOpenApiRequestBody ::
-    forall body controller.
-    ( ToSchema body
-    , Typeable.Typeable body
-    ) =>
-    ActionDoc controller ->
-    ActionDoc controller
-setOpenApiRequestBody ActionDoc{actionDocName, actionDocSummary, actionDocDescription, actionDocTags, actionDocOperationId, actionDocView, actionDocTypedJson, actionDocValidateJsonSchema, actionDocSuccessStatus, actionDocSuccessResponseDescription} =
-    ActionDoc
-        { actionDocName
-        , actionDocSummary
-        , actionDocDescription
-        , actionDocTags
-        , actionDocOperationId
-        , actionDocView
-        , actionDocTypedJson
-        , actionDocValidateJsonSchema
-        , actionDocRequestBody =
-            Just
-                OpenApiRequestBodyDoc
-                    { requestBodyRequired = True
-                    , requestBodySchema = Proxy @body
-                    , requestBodyTypeRep = Typeable.typeRep (Proxy @body)
-                    }
-        , actionDocSuccessStatus
-        , actionDocSuccessResponseDescription
-        }
-{-# INLINE setOpenApiRequestBody #-}
-
--- | Overrides whether the documented request body is required.
-setOpenApiRequestBodyRequired :: Bool -> ActionDoc controller -> ActionDoc controller
-setOpenApiRequestBodyRequired required ActionDoc{actionDocName, actionDocSummary, actionDocDescription, actionDocTags, actionDocOperationId, actionDocView, actionDocTypedJson, actionDocValidateJsonSchema, actionDocRequestBody, actionDocSuccessStatus, actionDocSuccessResponseDescription} =
-    ActionDoc
-        { actionDocName
-        , actionDocSummary
-        , actionDocDescription
-        , actionDocTags
-        , actionDocOperationId
-        , actionDocView
-        , actionDocTypedJson
-        , actionDocValidateJsonSchema
-        , actionDocRequestBody = setRequired <$> actionDocRequestBody
-        , actionDocSuccessStatus
-        , actionDocSuccessResponseDescription
-        }
-  where
-    setRequired OpenApiRequestBodyDoc{requestBodySchema, requestBodyTypeRep} =
-        OpenApiRequestBodyDoc
-            { requestBodyRequired = required
-            , requestBodySchema
-            , requestBodyTypeRep
-            }
-{-# INLINE setOpenApiRequestBodyRequired #-}
-
--- | Overrides the documented success response status for an action.
-setOpenApiSuccessStatus :: Status -> ActionDoc controller -> ActionDoc controller
-setOpenApiSuccessStatus status ActionDoc{actionDocName, actionDocSummary, actionDocDescription, actionDocTags, actionDocOperationId, actionDocView, actionDocTypedJson, actionDocValidateJsonSchema, actionDocRequestBody, actionDocSuccessResponseDescription} =
-    ActionDoc
-        { actionDocName
-        , actionDocSummary
-        , actionDocDescription
-        , actionDocTags
-        , actionDocOperationId
-        , actionDocView
-        , actionDocTypedJson
-        , actionDocValidateJsonSchema
-        , actionDocRequestBody
-        , actionDocSuccessStatus = statusCode status
-        , actionDocSuccessResponseDescription
-        }
-{-# INLINE setOpenApiSuccessStatus #-}
-
--- | Overrides the documented success response description for an action.
-setOpenApiSuccessResponseDescription :: Text -> ActionDoc controller -> ActionDoc controller
-setOpenApiSuccessResponseDescription description ActionDoc{actionDocName, actionDocSummary, actionDocDescription, actionDocTags, actionDocOperationId, actionDocView, actionDocTypedJson, actionDocValidateJsonSchema, actionDocRequestBody, actionDocSuccessStatus} =
-    ActionDoc
-        { actionDocName
-        , actionDocSummary
-        , actionDocDescription
-        , actionDocTags
-        , actionDocOperationId
-        , actionDocView
-        , actionDocTypedJson
-        , actionDocValidateJsonSchema
-        , actionDocRequestBody
-        , actionDocSuccessStatus
-        , actionDocSuccessResponseDescription = description
-        }
-{-# INLINE setOpenApiSuccessResponseDescription #-}
-
-decodeActionRequestBody ::
-    forall body controller.
-    ( OpenApiController controller
-    , JSON.FromJSON body
-    , Typeable.Typeable body
-    , Data controller
-    , ?request :: Request
-    , ?theAction :: controller
-    ) =>
-    IO (Either String body)
-decodeActionRequestBody = do
-    let currentActionName = cs (showConstr (toConstr ?theAction))
-    let maybeRequestBodyDoc =
-            openApiActions @controller
-                |> find (\ActionDoc{actionDocName} -> actionDocName == currentActionName)
-                >>= (.actionDocRequestBody)
-    case maybeRequestBodyDoc of
-        Nothing ->
-            fail ("decodeActionRequestBody found no registered request body for action " <> cs currentActionName)
-        Just OpenApiRequestBodyDoc{requestBodyTypeRep} ->
-            unless (requestBodyTypeRep == Typeable.typeRep (Proxy @body)) do
-                fail ("decodeActionRequestBody expected " <> show requestBodyTypeRep <> " for action " <> cs currentActionName <> " but handler requested " <> show (Typeable.typeRep (Proxy @body)))
-    JSON.eitherDecode <$> getRequestBody
-{-# INLINE decodeActionRequestBody #-}
-
-class (AutoRoute controller) => OpenApiController controller where
-    openApiActions :: [ActionDoc controller]
 
 data DocumentedRouteInfo where
     AutoRouteControllerInfo ::
@@ -1680,7 +1306,7 @@ documentRoute ::
     , ?respond :: Respond
     , Controller controller
     , AutoRoute controller
-    , OpenApiController controller
+    , HasOpenApiActionDocs controller (ControllerAction controller)
     , Data controller
     , InitControllerContext application
     , ?application :: application
@@ -1692,7 +1318,7 @@ documentRoute =
     buildDocumentedRoute @controller @application
         ( DocumentedRoute
             ( AutoRouteControllerInfo
-                { documentedActions = Just (openApiActions @controller)
+                { documentedActions = Just (openApiActionDocs @controller @(ControllerAction controller))
                 }
             )
         )

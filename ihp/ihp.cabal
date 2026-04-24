@@ -277,6 +277,7 @@ library
     reexported-modules: IHP.PGListener
     autogen-modules: Paths_ihp
     other-modules:
+        IHP.OpenApiSupport.ActionDoc
         Paths_ihp
 
 source-repository head
