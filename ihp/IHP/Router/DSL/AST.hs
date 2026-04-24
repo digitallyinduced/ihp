@@ -39,12 +39,22 @@ import Data.Text (Text)
 
 -- | A complete parsed @[routes| ... |]@ block.
 --
--- 'controllerName' is 'Just' when the block starts with a bare identifier
--- on its own line — the \"single controller\" form. When 'Nothing', the
--- block covers multiple controllers and the TH splice groups routes by
--- reifying each action constructor to find its parent type.
+-- The three header forms the DSL accepts:
+--
+-- * __Single-controller__ — bare identifier:
+--   @\'controllerName\' = Just \"PostsController\"@, @\'appType\' = Nothing@
+-- * __Multi-controller, no app binding__ — empty header:
+--   both fields 'Nothing'
+-- * __Multi-controller with app binding__ — @for \<AppType\>@:
+--   @\'appType\' = Just \"WebApplication\"@, @\'controllerName\' = Nothing@.
+--   In this form the TH splice emits an additional top-level value
+--   @webRoutes :: [ControllerRoute WebApplication]@ (name derived by
+--   lower-casing the first letter and stripping any @\"Application\"@
+--   suffix) so the user can splat it into 'FrontController.controllers'
+--   instead of listing each 'parseRoute' by hand.
 data Routes = Routes
     { controllerName :: !(Maybe Text)
+    , appType        :: !(Maybe Text)
     , routes         :: ![Route]
     }
     deriving (Eq, Show)

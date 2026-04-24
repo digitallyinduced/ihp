@@ -28,6 +28,7 @@ import qualified Language.Haskell.TH as TH
 import Language.Haskell.TH (Q, Dec, Exp, Name, Pat, Type)
 import qualified Language.Haskell.TH.Quote as TH
 import qualified Language.Haskell.Meta.Parse as Meta
+import Data.Typeable (Typeable)
 
 import IHP.Router.DSL.AST hiding (routes)
 import qualified IHP.Router.DSL.AST as AST
@@ -70,16 +71,21 @@ routes = TH.QuasiQuoter
 routesDec :: String -> Q [Dec]
 routesDec source = case Parser.parseRoutes (Text.pack source) of
     Left err -> fail (renderParseError err)
-    Right parsed -> case controllerName parsed of
-        Just name -> do
+    Right parsed -> case (controllerName parsed, appType parsed) of
+        (Just name, _) -> do
             ctrl <- reifyController name
             vs <- traverse (validateRoute ctrl) (AST.routes parsed)
             hasPathInst <- emitHasPath ctrl vs
             canRouteInst <- emitCanRoute ctrl vs
             pure [hasPathInst, canRouteInst]
-        Nothing -> do
+        (Nothing, Nothing) -> do
             grouped <- groupRoutesByParent (AST.routes parsed)
             fmap concat $ traverse emitGroup grouped
+        (Nothing, Just appTy) -> do
+            grouped <- groupRoutesByParent (AST.routes parsed)
+            instanceDecs <- fmap concat $ traverse emitGroup grouped
+            bindingDecs <- emitAppBinding appTy (map fst grouped)
+            pure (instanceDecs <> bindingDecs)
 
 -- | Bucket routes by the parent type of their action constructor.
 --
@@ -468,3 +474,80 @@ constructAction vr fields capturesName =
                         (TH.VarE capturesName)
                     )
             pure (TH.RecConE (coName (vrCon vr)) (map bind fields))
+
+---------------------------------------------------------------------------
+-- Code generation — @<app>Routes@ binding for @for AppType@ headers
+---------------------------------------------------------------------------
+
+-- | Emit a top-level binding of the form
+--
+-- > webRoutes :: [ControllerRoute WebApplication]
+-- > webRoutes = [ parseRoute @PostsController, parseRoute @UsersController ]
+--
+-- The binding name is derived from the application type name by
+-- lower-casing the first letter and stripping any @\"Application\"@ suffix
+-- (so @WebApplication@ → @webRoutes@, @AdminApplication@ → @adminRoutes@,
+-- @MyService@ → @myServiceRoutes@).
+--
+-- The user then composes this into their 'FrontController' without
+-- having to list each controller by hand:
+--
+-- > instance FrontController WebApplication where
+-- >     controllers = webRoutes
+-- >         <> [ startPage WelcomeAction, webSocketApp @ChatApp ]
+emitAppBinding :: Text -> [ControllerInfo] -> Q [Dec]
+emitAppBinding appTyName ctrls = do
+    let valName = TH.mkName (Text.unpack (bindingNameFor appTyName))
+        appTy = TH.ConT (TH.mkName (Text.unpack appTyName))
+        parseRouteName = TH.mkName "parseRoute"
+        entries =
+            [ TH.AppTypeE (TH.VarE parseRouteName) (TH.ConT (ciTypeName c))
+            | c <- ctrls
+            ]
+        bindingExp = TH.ListE entries
+
+        -- Implicit-parameter constraints cannot be inferred at the use
+        -- site the way ordinary class constraints can, so we spell them
+        -- out in the binding's type. These are the exact set 'parseRoute'
+        -- pulls in, plus 'InitControllerContext' and 'Typeable' on the
+        -- application type.
+        implicitReqTy  = TH.ImplicitParamT "request"  (TH.ConT (TH.mkName "Request"))
+        implicitResTy  = TH.ImplicitParamT "respond"  (TH.ConT (TH.mkName "Respond"))
+        implicitAppTy  = TH.ImplicitParamT "application" appTy
+        initContextTy  = TH.AppT (TH.ConT (TH.mkName "InitControllerContext")) appTy
+        typeableAppTy  = TH.AppT (TH.ConT ''Typeable) appTy
+        -- Per-controller: Controller Ctrl, CanRoute Ctrl, Typeable Ctrl
+        perCtrl ctrl =
+            let ctrlTy = TH.ConT (ciTypeName ctrl)
+             in [ TH.AppT (TH.ConT (TH.mkName "Controller")) ctrlTy
+                , TH.AppT (TH.ConT (TH.mkName "CanRoute")) ctrlTy
+                , TH.AppT (TH.ConT ''Typeable) ctrlTy
+                ]
+        ctx = implicitReqTy : implicitResTy : implicitAppTy
+            : initContextTy : typeableAppTy
+            : concatMap perCtrl ctrls
+        resultTy = TH.AppT TH.ListT
+            (TH.AppT (TH.ConT (TH.mkName "ControllerRoute")) appTy)
+        bindingTy = TH.ForallT [] ctx resultTy
+
+    pure
+        [ TH.SigD valName bindingTy
+        , TH.FunD valName [TH.Clause [] (TH.NormalB bindingExp) []]
+        ]
+
+-- | Derive the binding name from an application type name:
+-- lower-case the first letter, strip an \"Application\" suffix if present,
+-- append \"Routes\".
+bindingNameFor :: Text -> Text
+bindingNameFor appTy =
+    let base = case Text.stripSuffix "Application" appTy of
+            Just shorter | not (Text.null shorter) -> shorter
+            _ -> appTy
+     in lowerFirst base <> "Routes"
+  where
+    lowerFirst t = case Text.uncons t of
+        Just (c, rest) -> Text.cons (toLower1 c) rest
+        Nothing -> t
+    toLower1 c
+        | c >= 'A' && c <= 'Z' = toEnum (fromEnum c + 32)
+        | otherwise = c

@@ -44,15 +44,38 @@ parseRoutes source = do
     let linesWithNumbers = zip [1 ..] (Text.lines source)
         stripped = filter (not . isBlankOrComment . snd) (map stripComment linesWithNumbers)
     case stripped of
-        [] -> Right Routes { controllerName = Nothing, routes = [] }
+        [] -> Right Routes { controllerName = Nothing, appType = Nothing, routes = [] }
         allLines@((firstLine, firstText) : restLines)
+            | Just appTy <- forHeaderType firstText -> do
+                parsedRoutes <- traverse parseRouteLine restLines
+                pure Routes { controllerName = Nothing, appType = Just appTy, routes = parsedRoutes }
             | looksLikeHeader firstText -> do
                 ctrl <- parseHeader firstLine firstText
                 parsedRoutes <- traverse parseRouteLine restLines
-                pure Routes { controllerName = Just ctrl, routes = parsedRoutes }
+                pure Routes { controllerName = Just ctrl, appType = Nothing, routes = parsedRoutes }
             | otherwise -> do
                 parsedRoutes <- traverse parseRouteLine allLines
-                pure Routes { controllerName = Nothing, routes = parsedRoutes }
+                pure Routes { controllerName = Nothing, appType = Nothing, routes = parsedRoutes }
+
+-- | Recognise a @for \<Type\>@ header line. Returns the type name stripped
+-- of the @for @ prefix and surrounding whitespace, or 'Nothing' if the
+-- line doesn't match the pattern. The type name must start with an
+-- uppercase letter (Haskell convention) so that lowercase identifiers
+-- fall through to the route-line parser.
+forHeaderType :: Text -> Maybe Text
+forHeaderType text =
+    let trimmed = Text.strip text
+     in case Text.stripPrefix "for " trimmed of
+            Just rest ->
+                let tyName = Text.strip rest
+                 in if isValidIdent tyName && startsWithUpper tyName
+                        then Just tyName
+                        else Nothing
+            Nothing -> Nothing
+  where
+    startsWithUpper t = case Text.uncons t of
+        Just (c, _) -> isUpper c
+        Nothing     -> False
 
 -- | A header line is a single identifier with no whitespace-separated tokens.
 -- Route lines have at least three tokens (method, path, action).

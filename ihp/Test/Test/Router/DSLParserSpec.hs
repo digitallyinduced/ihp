@@ -12,7 +12,7 @@ import qualified Data.Text as Text
 
 -- | Shorthand for building expected Routes values.
 mk :: Text -> [Route] -> Routes
-mk name rs = Routes { controllerName = Just name, routes = rs }
+mk name rs = Routes { controllerName = Just name, appType = Nothing, routes = rs }
 
 rt :: Int -> [Method] -> [PathSeg] -> Text -> Route
 rt line ms ps name = Route ms ps (ActionRef name []) line
@@ -106,10 +106,26 @@ tests = do
                     `shouldBe` Right (mk "HomeController"
                         [ rt 2 [GET] [] "HomeAction" ])
 
+            it "parses `for AppType` header" do
+                parseRoutes "for WebApplication\nGET /posts PostsAction\n"
+                    `shouldBe` Right Routes
+                        { controllerName = Nothing
+                        , appType = Just "WebApplication"
+                        , routes = [ rt 2 [GET] [Literal "posts"] "PostsAction" ]
+                        }
+
+            it "treats `for foo` (lowercase) as a regular malformed route line" do
+                -- `for foo` with a lowercase name isn't a valid header; the
+                -- parser falls through and the line tries to parse as a route,
+                -- failing because "for" isn't an HTTP method.
+                case parseRoutes "for foo\n" of
+                    Left e -> (cs (errorMessage e) :: String) `shouldContain` "unknown method"
+                    Right _ -> expectationFailure "expected ParseError"
+
         describe "errors" do
             it "accepts empty block (header-less, zero routes)" do
                 parseRoutes "" `shouldBe`
-                    Right Routes { controllerName = Nothing, routes = [] }
+                    Right Routes { controllerName = Nothing, appType = Nothing, routes = [] }
 
             it "treats a single non-identifier line as a malformed route" do
                 -- When the first line isn't an uppercase identifier, the parser
