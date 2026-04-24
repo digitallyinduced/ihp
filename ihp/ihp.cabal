@@ -26,7 +26,7 @@ data-files:
     , static/vendor/ihp-ssc.js
     , static/vendor/popper-2.11.6.min.js
     , static/vendor/timeago.js
-    , static/vendor/turbo.js
+    -- static/vendor/turbo.js is fetched via Nix in devenv-module.nix (ihp-vendor-js linkFarm)
 
     , static/vendor/src-min/*.js
     , static/vendor/src-min/snippets/*.js

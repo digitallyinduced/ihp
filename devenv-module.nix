@@ -348,6 +348,12 @@ that is defined in flake-module.nix
                         url = "https://raw.githubusercontent.com/select2/select2/${select2commit}/dist/css/select2.min.css";
                         sha256 = "1fi1qdiybi30adg8vcqqa6n0jz7c658kv0z39bkvm2ama0i4g2s2";
                     };
+                    # Hotwire Turbo — UMD bundle from npm, fetched via Nix
+                    turbo = version: hash: pkgs.fetchurl {
+                        url = "https://unpkg.com/@hotwired/turbo@${version}/dist/turbo.es2017-umd.js";
+                        sha256 = hash;
+                    };
+                    turbo8023 = turbo "8.0.23" "10gc7bd3hy5klmqn36vw165rz5dcjhswlhakdpjlz1wk60x9xq7r";
                 in
                     pkgs.symlinkJoin {
                         name = "ihp-static";
@@ -381,6 +387,9 @@ that is defined in flake-module.nix
                                 # Select2 (develop branch with jQuery 4 support)
                                 { name = "vendor/select2.min.js";  path = select2js; }
                                 { name = "vendor/select2.min.css"; path = select2css; }
+
+                                # Hotwire Turbo
+                                { name = "vendor/turbo.js"; path = turbo8023; }
                             ])
                         ];
                     };
