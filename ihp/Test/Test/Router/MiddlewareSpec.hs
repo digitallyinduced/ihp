@@ -14,7 +14,6 @@ import Network.Wai (Application, Response, responseLBS, defaultRequest, requestM
 import qualified Data.ByteString as BS
 import qualified Data.ByteString.Lazy as LBS
 import qualified Data.List as List
-import Data.IORef (newIORef, readIORef, writeIORef)
 
 -- | Dummy handler that responds 200 OK with a tag.
 tagHandler :: LBS.ByteString -> WaiHandler
