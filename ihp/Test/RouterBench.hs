@@ -12,6 +12,7 @@ import IHP.RouterSupport hiding (get)
 import IHP.ControllerSupport
 import qualified IHP.Router.Trie as Trie
 import IHP.Router.Trie (RouteTrie, PatternSegment(..), LookupResult(..))
+import qualified IHP.Router.Capture as Capture
 import Test.Tasty.Bench
 
 -- ============================================================================
@@ -199,6 +200,58 @@ benchTrie !trie !path =
         NotMatched         -> ()
 
 -- ============================================================================
+-- Capture-route benchmarks
+--
+-- Four parameterised routes:
+--   GET /users/{id}
+--   GET /users/{id}/edit
+--   GET /posts/{postId}
+--   GET /posts/{postId}/comments/{commentId}
+--
+-- 'benchTrieCaptures' is lookup only — shows the cost of collecting
+-- captures as the trie walk produces them. 'benchTrieCapturesDecoded'
+-- adds a single parseCapture @Int on the first capture to approximate
+-- the handler work.
+--
+-- A head-to-head comparison with the previous Dynamic-based API is
+-- included below the main function in a comment block.
+-- ============================================================================
+
+captureIdSpec :: Trie.CaptureSpec
+captureIdSpec = Trie.CaptureSpec { Trie.captureName = "id" }
+
+capturePostIdSpec :: Trie.CaptureSpec
+capturePostIdSpec = Trie.CaptureSpec { Trie.captureName = "postId" }
+
+captureCommentIdSpec :: Trie.CaptureSpec
+captureCommentIdSpec = Trie.CaptureSpec { Trie.captureName = "commentId" }
+
+captureTrie :: RouteTrie
+captureTrie = foldr install Trie.emptyTrie routes
+  where
+    routes =
+        [ [LiteralSeg "users", CaptureSeg captureIdSpec]
+        , [LiteralSeg "users", CaptureSeg captureIdSpec, LiteralSeg "edit"]
+        , [LiteralSeg "posts", CaptureSeg capturePostIdSpec]
+        , [LiteralSeg "posts", CaptureSeg capturePostIdSpec
+          , LiteralSeg "comments", CaptureSeg captureCommentIdSpec]
+        ]
+    install pat = Trie.insertRoute pat GET stubHandler
+
+benchTrieCaptures :: ByteString -> ()
+benchTrieCaptures !path =
+    case Trie.lookupTrie captureTrie GET (Trie.splitPath path) of
+        Matched _ caps     -> caps `seq` ()
+        MethodNotAllowed _ -> ()
+        NotMatched         -> ()
+
+benchTrieCapturesDecoded :: ByteString -> Maybe Int
+benchTrieCapturesDecoded !path =
+    case Trie.lookupTrie captureTrie GET (Trie.splitPath path) of
+        Matched _ (firstBs : _) -> Capture.parseCapture firstBs
+        _                       -> Nothing
+
+-- ============================================================================
 -- main
 -- ============================================================================
 
@@ -236,4 +289,41 @@ main = defaultMain
             , bench "miss (wrong prefix)"    $ whnf (benchTrie staticTrieAll) "/other/Ctrl1Alpha"
             ]
         ]
+    , bgroup "capture routes (RouteTrie)"
+        [ bgroup "lookup only"
+            [ bench "/users/42"               $ whnf benchTrieCaptures "/users/42"
+            , bench "/users/42/edit"          $ whnf benchTrieCaptures "/users/42/edit"
+            , bench "/posts/42"               $ whnf benchTrieCaptures "/posts/42"
+            , bench "/posts/42/comments/7"    $ whnf benchTrieCaptures "/posts/42/comments/7"
+            ]
+        , bgroup "lookup + decode first capture as Int"
+            [ bench "/users/42"               $ whnf benchTrieCapturesDecoded "/users/42"
+            , bench "/users/42/edit"          $ whnf benchTrieCapturesDecoded "/users/42/edit"
+            , bench "/posts/42"               $ whnf benchTrieCapturesDecoded "/posts/42"
+            , bench "/posts/42/comments/7"    $ whnf benchTrieCapturesDecoded "/posts/42/comments/7"
+            ]
+        ]
     ]
+
+-- ============================================================================
+-- Dynamic-vs-positional head-to-head (reference results)
+--
+-- Same fixture, run on HEAD~1 (commit 8f2dc385, Dynamic-based) and HEAD
+-- (commit 339bbfcd, positional [ByteString]) in ghci interpreted mode:
+--
+-- Test                                  Dynamic     Positional   Speedup   Alloc cut
+-- /users/42              (lookup)        2.97 μs     1.67 μs      1.78×    6.4 → 2.4 KB  (-62%)
+-- /users/42/edit         (lookup)        3.42 μs     2.18 μs      1.57×    7.0 → 3.0 KB  (-57%)
+-- /posts/42              (lookup)        2.96 μs     1.71 μs      1.73×    6.4 → 2.4 KB  (-62%)
+-- /posts/42/comments/7   (lookup)        5.11 μs     2.82 μs      1.81×    12  → 3.9 KB  (-67%)
+-- /users/42              (+ decode)      3.26 μs     2.50 μs      1.30×    6.8 → 5.9 KB  (-13%)
+-- /users/42/edit         (+ decode)      3.70 μs     2.85 μs      1.30×    7.4 → 6.5 KB  (-12%)
+-- /posts/42              (+ decode)      3.57 μs     2.44 μs      1.46×    7.5 → 5.9 KB  (-21%)
+-- /posts/42/comments/7   (+ decode)      5.88 μs     3.48 μs      1.69×    13  → 7.4 KB  (-43%)
+--
+-- The trie walk itself is where the real win is (≈1.7× faster, ≈60% less
+-- allocation) — dropping the toDyn/HashMap-insert per capture. For the
+-- full lookup+decode path the win shrinks to ≈1.3–1.7× because the
+-- decoder runs in both cases; but even there, the positional version
+-- avoids the fromDynamic TypeRep check and the HashMap.lookup.
+-- ============================================================================
