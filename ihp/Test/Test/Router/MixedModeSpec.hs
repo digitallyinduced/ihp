@@ -71,7 +71,9 @@ tests = do
     describe "Mixed routing styles in one application" do
         describe "pathTo" do
             it "works for AutoRoute controllers" do
-                pathTo OldIndexAction `shouldBe` "/OldIndex"
+                -- AutoRoute prefixes with the module name segment
+                -- (lowercased) — /test/ for this spec module.
+                pathTo OldIndexAction `shouldBe` "/test/OldIndex"
 
             it "works for DSL controllers" do
                 pathTo NewIndexAction `shouldBe` "/new-items"

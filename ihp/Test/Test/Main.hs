@@ -55,6 +55,7 @@ main = hspec do
     Test.Router.MiddlewareSpec.tests
     Test.Router.DSLParserSpec.tests
     Test.Router.DSLQuoterSpec.tests
+    Test.Router.MixedModeSpec.tests
     Test.Router.MultiControllerSpec.tests
     Test.Router.AppBindingSpec.tests
     Test.ViewSupportSpec.tests
