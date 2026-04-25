@@ -70,7 +70,6 @@ common shared-properties
             , uuid
             , time
             , attoparsec
-            , array
             , ghc-prim
             , case-insensitive
             , haskell-src-meta
