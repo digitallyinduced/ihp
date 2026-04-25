@@ -1,3 +1,5 @@
+{-# LANGUAGE QuasiQuotes #-}
+{-# LANGUAGE TemplateHaskell #-}
 module Main where
 
 import IHP.Prelude
@@ -5,21 +7,27 @@ import IHP.Environment
 import IHP.FrameworkConfig
 import qualified IHP.Server
 import IHP.RouterSupport
+import IHP.Router.DSL (routes)
 import IHP.ControllerPrelude
 import IHP.Mail
 
 data DemoController = DemoAction deriving (Eq, Show, Data)
 
-instance AutoRoute DemoController
 instance InitControllerContext RootApplication
 data WebApplication = WebApplication deriving (Eq, Show)
 
 instance InitControllerContext WebApplication where
     initContext = pure ()
 
+$(pure [])
+
+[routes|DemoController
+GET / DemoAction
+|]
+
 instance FrontController WebApplication where
     controllers =
-        [ startPage DemoAction
+        [ parseRoute @DemoController
         ]
 
 instance FrontController RootApplication where

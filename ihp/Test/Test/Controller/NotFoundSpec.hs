@@ -3,6 +3,8 @@ Module: Test.Controller.NotFoundSpec
 Tests for Not found functions.
 -}
 {-# LANGUAGE AllowAmbiguousTypes #-}
+{-# LANGUAGE QuasiQuotes #-}
+{-# LANGUAGE TemplateHaskell #-}
 
 module Test.Controller.NotFoundSpec where
 import ClassyPrelude
@@ -11,9 +13,11 @@ import IHP.Test.Mocking
 import IHP.Prelude
 import IHP.Environment
 import IHP.RouterSupport hiding (get)
+import IHP.Router.DSL (routes)
 import IHP.FrameworkConfig
 import IHP.ViewPrelude
 import IHP.ControllerPrelude hiding (get, request)
+import Network.HTTP.Types.Method (StdMethod (..))
 import Network.Wai.Test
 import Test.Util (testGet)
 
@@ -32,7 +36,12 @@ instance Controller TestController where
         notFoundUnless False
         renderPlain "Test"
 
-instance AutoRoute TestController
+$(pure [])
+
+[routes|TestController
+GET /test/TestActionNotFoundWhen   TestActionNotFoundWhen
+GET /test/TestActionNotFoundUnless TestActionNotFoundUnless
+|]
 
 instance FrontController WebApplication where
   controllers = [ parseRoute @TestController ]

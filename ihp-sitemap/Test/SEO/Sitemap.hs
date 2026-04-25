@@ -1,3 +1,5 @@
+{-# LANGUAGE QuasiQuotes #-}
+{-# LANGUAGE TemplateHaskell #-}
 module Main where
 
 import Test.Hspec
@@ -5,6 +7,8 @@ import IHP.Test.Mocking
 import IHP.Environment
 import IHP.ViewPrelude
 import IHP.ControllerPrelude hiding (get, request)
+import IHP.Router.DSL (routes)
+import IHP.Router.Capture (renderCapture, parseCapture)
 import Network.Wai.Test
 import Network.HTTP.Types
 
@@ -25,7 +29,11 @@ data PostController
   = ShowPostAction { postId :: UUID }
   deriving (Eq, Show, Data)
 
-instance AutoRoute PostController
+$(pure [])
+
+[routes|PostController
+GET /main/ShowPost?postId ShowPostAction
+|]
 
 instance Controller SitemapController where
     action SitemapAction = do
