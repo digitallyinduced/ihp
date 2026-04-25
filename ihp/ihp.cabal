@@ -308,7 +308,6 @@ test-suite tests
         Test.Controller.NotFoundSpec
         Test.ModelSupportSpec
         Test.QueryBuilderSpec
-        Test.RouterSupportSpec
         Test.ViewSupportSpec
         Test.FileStorage.ControllerFunctionsSpec
         Test.Controller.CookieSpec
@@ -323,15 +322,3 @@ test-suite tests
         Test.LoginSupport.AuthVaultSpec
         Test.ModelFixtures
         Test.Util
-
-benchmark ihp-router-bench
-    import: shared-properties
-    type: exitcode-stdio-1.0
-    hs-source-dirs: .
-    main-is: Test/RouterBench.hs
-    -- tasty-bench requires -fno-static-argument-transformation to prevent
-    -- GHC from defeating the re-evaluation trick used for measurement
-    ghc-options: -fno-static-argument-transformation
-    build-depends:
-        , ihp
-        , tasty-bench
