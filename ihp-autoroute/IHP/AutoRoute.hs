@@ -37,7 +37,7 @@ import Network.HTTP.Types.Method
 import Network.Wai
 import IHP.RouterSupport
 import IHP.ControllerSupport
-import IHP.Router.Types (ControllerRoute (..), UnexpectedMethodException (..), TypedAutoRouteError (..))
+import IHP.Router.Types (UnexpectedMethodException (..), TypedAutoRouteError (..))
 import Data.Attoparsec.ByteString.Char8 (string, Parser, takeByteString)
 import Network.HTTP.Types.URI
 import GHC.TypeLits as T
