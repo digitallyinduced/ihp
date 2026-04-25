@@ -4,57 +4,49 @@ Module: IHP.Router.DSL.TH
 Description: Template Haskell splice for the @routes@ quasi-quoter
 
 The splice parses the DSL body, 'reify's the target controller type, and
-emits the declarations a routed IHP module needs:
+emits IHP-free declarations:
 
-* @instance HasPath Ctrl@ — pathTo per constructor (generic; no IHP coupling)
+* @instance HasPath Ctrl@ — pathTo per constructor.
 * @\<ctrlLower>Trie :: (Ctrl -> Application) -> RouteTrie@ — top-level
-  binding that builds the trie when applied to a dispatch function.
-  Generic; the binding is the public API for plain WAI users.
-* @instance CanRoute Ctrl@ — IHP-flavoured; @toControllerRoute@ wraps
-  @\<ctrlLower>Trie runAction'@ in a 'ControllerRouteTrie'.
-* For lowercase-header blocks: a @webRoutes :: [ControllerRoute app]@
-  binding (IHP-flavoured).
+  binding that builds the trie when applied to a user-supplied dispatch
+  function. Plug it into 'IHP.Router.Middleware.routeTrieMiddleware' for
+  a working WAI dispatcher.
 
-The splice is split internally into two halves so the upcoming extraction
-PR is a pure file-move:
+The IHP-flavoured @[routes|…|]@ quoter (which additionally emits an
+@instance CanRoute Ctrl@ and a @webRoutes :: [ControllerRoute app]@
+binding) lives in IHP's @IHP.Router.IHP@ module and calls into
+'parseAndReify' \/ 'genericEmit' here.
 
-* 'genericEmit' / 'genericRoutesDec' — the IHP-free emitters. Move to
-  @ihp-router@ verbatim.
-* 'ihpEmit' / 'ihpRoutesDec' — the IHP-flavoured emitters. Stay in @ihp@
-  (in a future @IHP.Router.IHP@ shim).
+Names referenced from inside the splice ('HasPath', 'pathTo',
+'renderCapture', 'parseCapture') are imported via 'TH.mkName' so they
+resolve at the splice call site — typically via @import IHP.Router.WAI@
+for plain WAI users or @import IHP.RouterPrelude@ for IHP apps.
 
-The default 'routesDec' calls both halves, preserving today's
-user-facing behaviour byte-for-byte.
-
-Cross-module references to names defined in "IHP.RouterSupport" and
-"IHP.Router.UrlGenerator" ('HasPath', 'pathTo', 'CanRoute', 'runAction'',
-etc.) are made via 'TH.mkName' to avoid a cyclic import. Those names must
-be in scope at the splice call site — normally via @import IHP.RouterPrelude@.
-
-Names from lower-level modules ('LiteralSeg', 'CaptureSeg', 'buildRouteTrie',
-'mkHandler', 'mkHandlerQ', etc.) are referenced hygienically via
-'TH.QuoteName' syntax.
+Names from sibling @ihp-router@ modules ('LiteralSeg', 'CaptureSeg',
+'buildRouteTrie', 'mkHandler', 'mkHandlerQ', …) are referenced
+hygienically via 'TH.QuoteName' syntax.
 -}
 module IHP.Router.DSL.TH
     ( -- * Splice entry points
       routes
     , routesDec
-      -- * Split entry points (Phase 1 of the @ihp-router@ extraction)
-      --
-      -- | These two entry points carve the splice into a generic half
-      -- and an IHP-specific half. They're both called from 'routesDec'
-      -- today, but the split makes the upcoming package extraction a
-      -- pure file-move diff:
-      --
-      --  * 'genericRoutesDec' will move to @ihp-router@ — it emits
-      --    'HasPath' + a per-controller @\<ctrlLower>Trie@ binding
-      --    parameterised on a dispatch function. No IHP imports.
-      --  * 'ihpRoutesDec' will stay in @ihp@ (in a future
-      --    @IHP.Router.IHP@ shim) — it emits the IHP-flavoured
-      --    @CanRoute@ instance and @webRoutes@-style binding on top of
-      --    whatever 'genericRoutesDec' produced.
     , genericRoutesDec
-    , ihpRoutesDec
+      -- * Shared types and helpers
+      --
+      -- | Re-exported for the IHP-side @IHP.Router.IHP@ shim, which
+      -- composes its own quoter on top of 'parseAndReify' \/
+      -- 'genericEmit'. Plain WAI users typically don't need to touch
+      -- these directly.
+    , parseAndReify
+    , genericEmit
+    , ParsedBlock (..)
+    , HeaderForm (..)
+    , ControllerInfo (..)
+    , ConstructorInfo (..)
+    , ValidatedRoute (..)
+    , ValidatedSeg (..)
+    , QueryFieldKind (..)
+    , trieValueName
     ) where
 
 import Prelude
@@ -68,7 +60,6 @@ import Language.Haskell.TH (Q, Dec, Exp, Name, Pat, Type)
 import qualified Language.Haskell.TH.Quote as TH
 import qualified Language.Haskell.Meta.Parse as Meta
 import qualified Data.Set as Set
-import Data.Typeable (Typeable)
 import Network.HTTP.Types.Method (StdMethod (..))
 
 import IHP.Router.DSL.AST hiding (routes)
@@ -113,24 +104,20 @@ import IHP.Router.DSL.Runtime
 -- > GET /ShowPost?id     ShowPostAction { postId = #id }
 -- > GET /users/{uid}     ShowUserAction { userId = #uid }
 --
+-- This is the @ihp-router@ (plain-WAI) flavour of the quoter — emits
+-- 'HasPath' instances and a per-controller @\<ctrlLower>Trie@ binding
+-- only. IHP apps use the wrapping quoter from "IHP.Router.IHP" (re-exported
+-- through "IHP.Router.DSL"), which additionally emits the IHP-flavoured
+-- @CanRoute@ instance and lowercase-header @webRoutes@ binding.
+--
 -- Three header forms — all top-level declarations:
 --
--- (1) __Binding-named__ (multi-controller). Lowercase-initial header
---     becomes the name of a 'FrontController.controllers'-ready binding.
---     The splice also emits 'HasPath' + 'CanRoute' for each reified
---     parent type.
---
--- > [routes|webRoutes
--- > GET /posts             PostsIndexAction
--- > GET /users             UsersIndexAction
--- > |]
--- >
--- > instance FrontController WebApplication where
--- >     controllers = webRoutes
---
--- (2) __Single-controller__. Uppercase-initial header = controller type.
---
--- (3) __No header__. Multi-controller, instances only (no binding).
+-- (1) __Single-controller__. Uppercase-initial header = controller type.
+-- (2) __Binding-named__ (multi-controller). Lowercase-initial header is
+--     the name of a binding the splice emits. In @ihp-router@ it carries
+--     the per-controller trie values; in IHP it additionally carries the
+--     @[ControllerRoute app]@ list for @FrontController.controllers@.
+-- (3) __No header__. Multi-controller, instances + trie values only.
 routes :: TH.QuasiQuoter
 routes = TH.QuasiQuoter
     { TH.quoteExp  = \_ -> fail
@@ -147,51 +134,27 @@ routes = TH.QuasiQuoter
     , TH.quoteDec  = routesDec
     }
 
--- | The default splice used by the @[routes|…|]@ quoter in IHP apps.
--- Emits everything an IHP @FrontController@ needs — 'HasPath' instance,
--- per-controller @<ctrlLower>Trie@ value, 'CanRoute' instance, plus
--- (for lowercase-header blocks) the top-level @webRoutes@ binding.
+-- | The default splice for the @[routes|…|]@ quoter in @ihp-router@.
+-- Emits the IHP-free declarations a plain WAI app needs — an
+-- @instance HasPath Ctrl@ per controller and a parameterised
+-- @\<ctrlLower>Trie :: (Ctrl -> Application) -> RouteTrie@ binding
+-- per controller.
 --
--- Implemented as @parseAndReify >>= \\b -> genericEmit b <> ihpEmit b@
--- so the two halves can be extracted into separate packages without a
--- behaviour change.
+-- IHP apps don't call this directly; they use the IHP-flavoured
+-- @routes@ quoter from "IHP.Router.IHP", which composes 'genericEmit'
+-- with its own IHP-specific 'CanRoute' \/ @webRoutes@ emission.
 routesDec :: String -> Q [Dec]
-routesDec source = do
-    block <- parseAndReify source
-    generic <- genericEmit block
-    ihp <- ihpEmit block
-    pure (generic <> ihp)
+routesDec = genericRoutesDec
 
--- | __Generic half.__ Parses the DSL, reifies the controller(s), and
--- emits the parts of the output that have no IHP dependency:
+-- | The IHP-free entry point: parses the DSL, reifies the
+-- controller(s), and emits 'genericEmit''s output. Suitable for plain
+-- WAI applications.
 --
---   * one @instance HasPath Ctrl where pathTo = …@ per controller
---   * one top-level @\<ctrlLower>Trie :: (Ctrl -> Application) -> RouteTrie@
---     binding per controller — a 'RouteTrie' factory parameterised on
---     a user-supplied dispatch function. Plug it into
---     'IHP.Router.Middleware.routeTrieMiddleware' for a working WAI
---     dispatcher with no IHP dependency.
---
--- This is the whole splice a plain WAI user needs. When the
--- @ihp-router@ package lands, this function moves there verbatim;
--- anything IHP-specific lives in 'ihpEmit'.
+-- Same as 'routesDec'; provided under the more descriptive name so the
+-- IHP-side shim can call it explicitly when composing the
+-- IHP-flavoured quoter.
 genericRoutesDec :: String -> Q [Dec]
 genericRoutesDec source = parseAndReify source >>= genericEmit
-
--- | __IHP half.__ Parses the DSL, reifies the controller(s), and emits
--- only the IHP-flavoured parts of the output:
---
---   * one @instance CanRoute Ctrl@ per controller (wraps the generic
---     @\<ctrlLower>Trie runAction'@ in a 'ControllerRouteTrie');
---   * for a lowercase-header block: the top-level
---     @webRoutes :: [ControllerRoute app]@ binding.
---
--- Intended to be called __alongside__ 'genericRoutesDec' for an IHP
--- app — the default 'routesDec' does exactly that. Pulled out as its
--- own entry point so the extraction PR can move it to an IHP-side
--- @IHP.Router.IHP@ shim without disturbing the generic emitter.
-ihpRoutesDec :: String -> Q [Dec]
-ihpRoutesDec source = parseAndReify source >>= ihpEmit
 
 ---------------------------------------------------------------------------
 -- Shared parse + reify
@@ -269,18 +232,6 @@ genericEmit ParsedBlock { pbGroups } = do
 ---------------------------------------------------------------------------
 -- IHP-specific emission (stays in IHP)
 ---------------------------------------------------------------------------
-
--- | Emit the IHP-flavoured declarations: a @CanRoute@ instance per
--- controller plus, for lowercase-header blocks, the @webRoutes@-style
--- binding. Extracted into its own function so the package-extraction PR
--- can move it to an IHP-side shim without churning the generic half.
-ihpEmit :: ParsedBlock -> Q [Dec]
-ihpEmit ParsedBlock { pbHeader, pbGroups } = do
-    canRouteDecs <- traverse (\(ctrl, _) -> emitCanRoute ctrl) pbGroups
-    bindingDecs <- case pbHeader of
-        HeaderLowercase name -> emitNamedBinding name (map fst pbGroups)
-        _                    -> pure []
-    pure (canRouteDecs <> bindingDecs)
 
 -- | Emit the per-controller top-level binding @\<ctrlLower>Trie@. The
 -- inferred type is @(Ctrl -> Application) -> RouteTrie@; the body is
@@ -672,15 +623,6 @@ hasPathClass    = TH.mkName "HasPath"
 pathToFn        = TH.mkName "pathTo"
 renderCaptureFn = TH.mkName "renderCapture"
 
-canRouteClass, parseRoutePrimeFn, toControllerRouteFn :: Name
-canRouteClass       = TH.mkName "CanRoute"
-parseRoutePrimeFn   = TH.mkName "parseRoute'"
-toControllerRouteFn = TH.mkName "toControllerRoute"
-
-controllerRouteTrieCon, runActionPrimeFn :: Name
-controllerRouteTrieCon = TH.mkName "ControllerRouteTrie"
-runActionPrimeFn       = TH.mkName "runAction'"
-
 stdMethodCon :: Method -> Name
 stdMethodCon m = TH.mkName (Text.unpack (methodToText m))
 
@@ -824,45 +766,14 @@ pathExpr = \case
             ]
 
 ---------------------------------------------------------------------------
--- Code generation — CanRoute + trie
+-- Code generation — trie value
 ---------------------------------------------------------------------------
-
--- | Emit the IHP-flavoured @instance CanRoute Controller@.
---
--- Post-split (this PR): the body of @toControllerRoute@ no longer
--- inlines the trie expression. It references the generic top-level
--- binding emitted by 'emitTrieValue' — @\<ctrlLower>Trie runAction'@ —
--- so the generic and IHP halves share one trie expression per
--- controller. Plain WAI users (post-extraction) call the same
--- @\<ctrlLower>Trie@ binding with their own dispatch function.
-emitCanRoute :: ControllerInfo -> Q Dec
-emitCanRoute ctrl = do
-    let trieValE = TH.AppE
-            (TH.VarE (trieValueName (ciTypeName ctrl)))
-            (TH.VarE runActionPrimeFn)
-    -- parseRoute' is unused (the trie owns dispatch) but CanRoute still
-    -- requires it. Emit `fail "..."` — MonadFail is in base so no extra
-    -- import is needed at the call site.
-    let parseRouteDecl = TH.FunD parseRoutePrimeFn
-            [TH.Clause []
-                (TH.NormalB
-                    (TH.AppE (TH.VarE 'fail)
-                        (TH.LitE (TH.StringL
-                            "routes: parseRoute' is unused; dispatch goes through the trie"))))
-                []]
-        toControllerRouteDecl = TH.FunD toControllerRouteFn
-            [TH.Clause []
-                (TH.NormalB
-                    (TH.AppE (TH.ConE controllerRouteTrieCon) trieValE))
-                []]
-    pure (TH.InstanceD Nothing []
-        (TH.AppT (TH.ConT canRouteClass) (TH.ConT (ciTypeName ctrl)))
-        [parseRouteDecl, toControllerRouteDecl])
 
 -- | Top-level binding name for the per-controller trie value: e.g.
 -- @PostsController@ becomes @postsControllerTrie@. Both the emitter
--- ('emitTrieValue') and the IHP-side reference ('emitCanRoute') use
--- this helper to agree on the name.
+-- ('emitTrieValue') and any IHP-side wrapper that wants to call the
+-- binding with a specific dispatch function (e.g.
+-- @IHP.Router.IHP.emitCanRoute@) use this helper to agree on the name.
 trieValueName :: Name -> Name
 trieValueName tyName =
     let base = TH.nameBase tyName
@@ -1134,54 +1045,3 @@ handlerExpr dispatchFnName vr = do
 parseCaptureFn :: Name
 parseCaptureFn = TH.mkName "parseCapture"
 
----------------------------------------------------------------------------
--- Code generation — named binding for lowercase-header form
----------------------------------------------------------------------------
-
--- | Emit a top-level binding named by the user. Given the header
--- @webRoutes@ and controllers @[PostsController, UsersController]@:
---
--- > webRoutes = [ parseRoute @PostsController, parseRoute @UsersController ]
---
--- The binding is polymorphic in the application type; when splatted into
--- 'FrontController.controllers' for a concrete app, GHC infers the right
--- @app@.
---
--- @parseRoute@ carries implicit-parameter constraints ('?request',
--- '?respond', '?application', plus 'Controller', 'CanRoute',
--- 'InitControllerContext', and 'Typeable') that GHC cannot abstract at
--- the use site, so we emit an explicit signature enumerating all of them.
-emitNamedBinding :: Text -> [ControllerInfo] -> Q [Dec]
-emitNamedBinding bindingTxt ctrls = do
-    let valName = TH.mkName (Text.unpack bindingTxt)
-        appTyVarName = TH.mkName "app"
-        appTy = TH.VarT appTyVarName
-        parseRouteName = TH.mkName "parseRoute"
-        entries =
-            [ TH.AppTypeE (TH.VarE parseRouteName) (TH.ConT (ciTypeName c))
-            | c <- ctrls
-            ]
-        bindingExp = TH.ListE entries
-
-        implicitReqTy  = TH.ImplicitParamT "request"  (TH.ConT (TH.mkName "Request"))
-        implicitResTy  = TH.ImplicitParamT "respond"  (TH.ConT (TH.mkName "Respond"))
-        implicitAppTy  = TH.ImplicitParamT "application" appTy
-        initContextTy  = TH.AppT (TH.ConT (TH.mkName "InitControllerContext")) appTy
-        typeableAppTy  = TH.AppT (TH.ConT ''Typeable) appTy
-        perCtrl ctrl =
-            let ctrlTy = TH.ConT (ciTypeName ctrl)
-             in [ TH.AppT (TH.ConT (TH.mkName "Controller")) ctrlTy
-                , TH.AppT (TH.ConT (TH.mkName "CanRoute")) ctrlTy
-                , TH.AppT (TH.ConT ''Typeable) ctrlTy
-                ]
-        ctx = implicitReqTy : implicitResTy : implicitAppTy
-            : initContextTy : typeableAppTy
-            : concatMap perCtrl ctrls
-        resultTy = TH.AppT TH.ListT
-            (TH.AppT (TH.ConT (TH.mkName "ControllerRoute")) appTy)
-        bindingTy = TH.ForallT [TH.PlainTV appTyVarName TH.SpecifiedSpec] ctx resultTy
-
-    pure
-        [ TH.SigD valName bindingTy
-        , TH.FunD valName [TH.Clause [] (TH.NormalB bindingExp) []]
-        ]

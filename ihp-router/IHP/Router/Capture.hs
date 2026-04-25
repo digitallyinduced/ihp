@@ -9,6 +9,11 @@ Description: Type class for parsing and rendering URL path segments
 "IHP.Router.DSL") to convert between URL path segments and typed Haskell
 values. Each instance specifies how a single segment is decoded into a
 value and re-encoded back into URL-safe text.
+
+The base instances ('Text', 'Int', 'Integer', 'UUID', 'Bool', 'Day',
+'Segment') live here in @ihp-router@ and have no IHP dependency. IHP's
+@'IHP.ModelSupport.Id''@ orphan instance lives in "IHP.Router.IHP" so
+plain WAI users of @ihp-router@ aren't dragged into IHP's model layer.
 -}
 module IHP.Router.Capture
     ( UrlCapture (..)
@@ -28,7 +33,6 @@ import qualified Data.UUID as UUID
 import Data.Time.Calendar (Day)
 import qualified Data.Time.Format as Time
 import Text.Read (readMaybe)
-import qualified IHP.ModelSupport as ModelSupport
 
 -- | A type that can appear as a URL path segment.
 --
@@ -111,17 +115,4 @@ instance UrlCapture Segment where
         | otherwise = Segment <$> parseCapture @Text bs
     {-# INLINE parseCapture #-}
     renderCapture (Segment t) = t
-    {-# INLINE renderCapture #-}
-
--- | Captures for IHP 'Id' values route through the table's primary-key type.
--- This works for any table whose 'ModelSupport.PrimaryKey' has a 'UrlCapture'
--- instance — 'UUID', 'Int', 'Integer', 'Text', etc.
-instance
-    ( Typeable table
-    , Typeable (ModelSupport.PrimaryKey table)
-    , UrlCapture (ModelSupport.PrimaryKey table)
-    ) => UrlCapture (ModelSupport.Id' table) where
-    parseCapture bs = ModelSupport.Id <$> parseCapture @(ModelSupport.PrimaryKey table) bs
-    {-# INLINE parseCapture #-}
-    renderCapture (ModelSupport.Id pk) = renderCapture pk
     {-# INLINE renderCapture #-}
