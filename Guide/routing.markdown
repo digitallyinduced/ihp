@@ -203,7 +203,11 @@ The error messages include the DSL line number and the list of known fields, so 
 
 The DSL and AutoRoute can coexist in the same application. One controller using `instance AutoRoute` and another using `[routes|…|]` is a supported configuration — both compile into the same underlying route trie at startup.
 
+### Using the DSL outside IHP
 
+The trie-based router and the `[routes|…|]` DSL are also published as a standalone `ihp-router` package with zero IHP dependencies. Plain WAI applications can `cabal install ihp-router` and use the DSL the same way IHP does — minus the `CanRoute` instance and `webRoutes` binding, which are IHP-flavoured. The package emits a generic `<ctrlLower>Trie :: (Ctrl -> Application) -> RouteTrie` binding per controller that you wire into `routeTrieMiddleware` with your own dispatch function.
+
+See [`ihp-router/README.md`](https://github.com/digitallyinduced/ihp/blob/master/ihp-router/README.md) and the [`minimal-wai` example](https://github.com/digitallyinduced/ihp/tree/master/ihp-router/examples/minimal-wai) for a full walkthrough.
 
 ## Changing the Start Page / Home Page
 
