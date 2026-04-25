@@ -2,6 +2,7 @@
 :set -idev
 :set -iihp-context
 :set -iihp-pagehead
+:set -iihp-autoroute
 :set -iihp-log
 :set -iihp-pglistener
 :set -iihp-modal

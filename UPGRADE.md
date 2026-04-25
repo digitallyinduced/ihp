@@ -4,6 +4,48 @@ After updating your project, please consult the segments from your current relea
 
 # Upgrade to 1.6.0 (unreleased) from 1.5.0
 
+## `AutoRoute` moved to optional `ihp-autoroute` package
+
+The `AutoRoute` typeclass (and its helpers — `applyConstr`, `buildAutoRouteMap`, `createAction`, `updateAction`, `customRoutes`, `customPathTo`, `QueryParam`, `parseUUIDOrTextId`) no longer ships in `ihp` core. New apps should use the `[routes|…|]` DSL. Existing apps can keep `instance AutoRoute X` by opting into the new `ihp-autoroute` package.
+
+**Migration steps for apps still using AutoRoute:**
+
+1. Add `ihp-autoroute` to your flake's `haskellPackages`:
+
+    ```diff
+    ihp.haskellPackages = p: [
+        p.ihp
+    +   p.ihp-autoroute
+        # … other packages
+    ];
+    ```
+
+2. Import `IHP.AutoRoute` in any module that defines `instance AutoRoute X`:
+
+    ```diff
+    -- Web/Routes.hs
+    import IHP.RouterPrelude
+    +import IHP.AutoRoute
+
+    instance AutoRoute PostsController
+    ```
+
+That's the entire change — URL shapes, `pathTo`, and HTTP-method dispatch behave exactly as before. The plan is to deprecate `ihp-autoroute` over the next major versions; migrate to the `[routes|…|]` DSL when convenient.
+
+If you want to migrate one controller at a time, the DSL pattern that mirrors AutoRoute's defaults is:
+
+```haskell
+[routes|PostsController
+GET    /Posts                  PostsAction
+GET    /NewPost                NewPostAction
+POST   /CreatePost             CreatePostAction
+GET    /ShowPost?postId        ShowPostAction
+GET    /EditPost?postId        EditPostAction
+POST   /UpdatePost?postId      UpdatePostAction
+DELETE /DeletePost?postId      DeletePostAction
+|]
+```
+
 ## `render` No Longer Handles JSON
 
 The `render` function now only renders HTML. Previously it used Accept header negotiation to serve both HTML and JSON, but the JSON path was unused in practice.

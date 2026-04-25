@@ -147,7 +147,7 @@ that is defined in flake-module.nix
                 ghc912 = pkgs.ghc912;
                 ihpPackageNames = [
                     "ihp-ide" "ihp-hsx" "ihp-schema-compiler"
-                    "ihp-postgres-parser" "ihp-context" "ihp-pagehead"
+                    "ihp-postgres-parser" "ihp-context" "ihp-pagehead" "ihp-autoroute"
                     "ihp-log" "ihp-modal" "ihp-mail"
                     "ihp-migrate" "ihp-openai" "ihp-ssc" "ihp-graphql"
                     "ihp-datasync-typescript" "ihp-sitemap"
@@ -177,7 +177,7 @@ that is defined in flake-module.nix
                 ghc914 = pkgs.ghc914;
                 ihpPackageNames = [
                     "ihp-ide" "ihp-hsx" "ihp-schema-compiler"
-                    "ihp-postgres-parser" "ihp-context" "ihp-pagehead"
+                    "ihp-postgres-parser" "ihp-context" "ihp-pagehead" "ihp-autoroute"
                     "ihp-log" "ihp-modal" "ihp-mail"
                     "ihp-migrate" "ihp-openai" "ihp-ssc" "ihp-graphql"
                     "ihp-datasync-typescript" "ihp-sitemap"

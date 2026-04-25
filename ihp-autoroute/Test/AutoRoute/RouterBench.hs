@@ -9,6 +9,7 @@ import Network.Wai (defaultRequest, Request(..), responseLBS)
 import Network.HTTP.Types.Method (StdMethod(..))
 import Network.HTTP.Types (status200)
 import IHP.RouterSupport hiding (get)
+import IHP.AutoRoute (AutoRoute)
 import IHP.ControllerSupport
 import qualified IHP.Router.Trie as Trie
 import IHP.Router.Trie (RouteTrie, PatternSegment(..), LookupResult(..))

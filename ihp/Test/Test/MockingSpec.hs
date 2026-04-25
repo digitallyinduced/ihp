@@ -5,6 +5,8 @@ through the middleware stack and that redirect responses preserve
 their status codes.
 -}
 {-# LANGUAGE AllowAmbiguousTypes #-}
+{-# LANGUAGE QuasiQuotes #-}
+{-# LANGUAGE TemplateHaskell #-}
 
 module Test.MockingSpec where
 import ClassyPrelude
@@ -14,7 +16,9 @@ import IHP.Prelude
 import IHP.Environment
 import IHP.FrameworkConfig
 import IHP.ControllerPrelude hiding (get, request)
+import IHP.Router.DSL (routes)
 import IHP.HSX.Markup (Html)
+import Network.HTTP.Types.Method (StdMethod (..))
 import Network.Wai.Test
 import Test.Util (testGet, testPostForm)
 
@@ -49,7 +53,13 @@ instance Controller TestController where
             Just (TestUser { id = Id uuid }) -> renderPlain (cs (UUID.toASCIIBytes uuid))
             Nothing -> renderPlain "anonymous"
 
-instance AutoRoute TestController
+$(pure [])
+
+[routes|TestController
+POST /test/EchoParam   EchoParamAction
+GET  /test/Redirect    RedirectAction
+GET  /test/RequireUser RequireUserAction
+|]
 
 instance FrontController WebApplication where
   controllers = [ parseRoute @TestController ]

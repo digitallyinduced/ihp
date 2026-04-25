@@ -4,6 +4,8 @@ Tests that AutoRefresh preserves query parameters when re-rendering
 with a bare WebSocket request (no query params).
 -}
 {-# LANGUAGE AllowAmbiguousTypes #-}
+{-# LANGUAGE QuasiQuotes #-}
+{-# LANGUAGE TemplateHaskell #-}
 
 module Test.AutoRefreshSpec where
 import Test.Hspec
@@ -11,8 +13,10 @@ import IHP.Prelude
 import IHP.Environment
 import IHP.FrameworkConfig
 import IHP.ControllerPrelude hiding (get, request)
+import IHP.Router.DSL (routes)
 import Network.Wai
 import Network.HTTP.Types
+import Network.HTTP.Types.Method (StdMethod (..))
 import IHP.AutoRefresh (globalAutoRefreshServerVar, sessionResponseHasChanged, updateSession)
 import IHP.AutoRefresh.Types
 import IHP.AutoRefresh.View (autoRefreshMeta)
@@ -43,7 +47,12 @@ instance Controller TestController where
         let meta = autoRefreshMeta
         respondHtml [hsx|<html><head>{meta}</head><body>{marketId}</body></html>|]
 
-instance AutoRoute TestController
+$(pure [])
+
+[routes|TestController
+GET /test/ShowItem     ShowItemAction
+GET /test/ShowItemHtml ShowItemHtmlAction
+|]
 
 instance FrontController WebApplication where
   controllers = [ parseRoute @TestController ]

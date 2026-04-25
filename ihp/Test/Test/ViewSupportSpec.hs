@@ -4,6 +4,8 @@ Module: Test.ViewSupportSpec
 Tests for view support functions.
 -}
 {-# LANGUAGE AllowAmbiguousTypes #-}
+{-# LANGUAGE QuasiQuotes #-}
+{-# LANGUAGE TemplateHaskell #-}
 
 module Test.ViewSupportSpec where
 import ClassyPrelude
@@ -13,8 +15,11 @@ import IHP.Prelude
 import IHP.Environment
 import IHP.FrameworkConfig
 import IHP.RouterSupport hiding (get)
+import IHP.Router.DSL (routes)
 import IHP.ViewPrelude
 import IHP.ControllerPrelude hiding (get, request)
+import IHP.Router.Capture (renderCapture, parseCapture)
+import Network.HTTP.Types.Method (StdMethod (..))
 import Network.Wai.Test
 import Test.Util (testGet)
 
@@ -34,27 +39,18 @@ data CustomPathController
     | CustomPathWithIdAction { customId :: Text }
   deriving (Eq, Show, Data)
 
-instance Controller TestController where
-    action TestAction = do
-        renderPlain "TestAction"
-    action TestWithParamAction { .. } = do
-        render ShowView { .. }
-
-instance Controller AnotherTestController where
-    action AnotherTestAction = do
-        renderPlain "AnotherTestAction"
-
-instance AutoRoute TestController
-instance AutoRoute AnotherTestController
-
-instance HasPath CustomPathController where
-    pathTo CustomPathAction = "/custom/path"
-    pathTo CustomPathWithIdAction { customId } = "/custom/path/" <> customId
-
-instance FrontController WebApplication where
-  controllers = [ parseRoute @TestController, parseRoute @AnotherTestController ]
-
 data ShowView = ShowView { param :: Text}
+
+$(pure [])
+
+[routes|TestController
+GET /test/Test                TestAction
+GET /test/TestWithParam?param TestWithParamAction
+|]
+
+[routes|AnotherTestController
+GET /test/AnotherTest AnotherTestAction
+|]
 
 instance View ShowView where
     html ShowView { .. }= [hsx|
@@ -67,6 +63,23 @@ instance View ShowView where
         isActiveController TestController: {isActiveController @TestController}
         isActiveController AnotherTestAction: {isActiveController @AnotherTestController}
     |]
+
+instance Controller TestController where
+    action TestAction = do
+        renderPlain "TestAction"
+    action TestWithParamAction { .. } = do
+        render ShowView { .. }
+
+instance Controller AnotherTestController where
+    action AnotherTestAction = do
+        renderPlain "AnotherTestAction"
+
+instance HasPath CustomPathController where
+    pathTo CustomPathAction = "/custom/path"
+    pathTo CustomPathWithIdAction { customId } = "/custom/path/" <> customId
+
+instance FrontController WebApplication where
+  controllers = [ parseRoute @TestController, parseRoute @AnotherTestController ]
 
 defaultLayout :: Html -> Html
 defaultLayout inner =  [hsx|{inner}|]

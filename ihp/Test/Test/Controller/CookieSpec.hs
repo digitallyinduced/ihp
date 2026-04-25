@@ -3,6 +3,8 @@ Module: Test.Controller.CookieSpec
 Copyright: (c) digitally induced GmbH, 2022
 -}
 {-# LANGUAGE AllowAmbiguousTypes #-}
+{-# LANGUAGE QuasiQuotes #-}
+{-# LANGUAGE TemplateHaskell #-}
 
 module Test.Controller.CookieSpec where
 
@@ -12,6 +14,8 @@ import IHP.Test.Mocking
 import IHP.Environment
 import IHP.FrameworkConfig
 import IHP.ControllerPrelude hiding (get, request)
+import IHP.Router.DSL (routes)
+import Network.HTTP.Types.Method (StdMethod (..))
 import Web.Cookie
 import Network.Wai.Test
 import Test.Util (testGet)
@@ -30,7 +34,11 @@ instance Controller CookieTestController where
             }
         renderPlain "ok"
 
-instance AutoRoute CookieTestController
+$(pure [])
+
+[routes|CookieTestController
+GET /test/SetCookie SetCookieAction
+|]
 
 instance FrontController WebApplication where
     controllers = [parseRoute @CookieTestController]
