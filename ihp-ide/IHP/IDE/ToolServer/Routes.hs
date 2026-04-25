@@ -6,59 +6,59 @@ import IHP.Router.DSL (routes)
 import IHP.IDE.ToolServer.Types
 
 [routes|SchemaController
-ANY        /PushToDb                                  PushToDbAction
-ANY        /DumpDb                                    DumpDbAction
+POST       /PushToDb                                  PushToDbAction
+POST       /DumpDb                                    DumpDbAction
 POST|PATCH /UpdateDb                                  UpdateDbAction
 GET        /ShowCode                                  ShowCodeAction
-ANY        /SaveCode                                  SaveCodeAction
+POST       /SaveCode                                  SaveCodeAction
 GET        /ShowGeneratedCode?statementName           ShowGeneratedCodeAction
 |]
 
 [routes|TablesController
-ANY        /Tables                                    TablesAction
+GET        /Tables                                    TablesAction
 GET        /ShowTable?tableName                       ShowTableAction
-ANY        /NewTable                                  NewTableAction
+GET        /NewTable                                  NewTableAction
 POST       /CreateTable                               CreateTableAction
-ANY        /EditTable?tableName&tableId               EditTableAction
+GET        /EditTable?tableName&tableId               EditTableAction
 POST|PATCH /UpdateTable                               UpdateTableAction
 DELETE     /DeleteTable?tableId&tableName             DeleteTableAction
 |]
 
 [routes|ColumnsController
-ANY        /NewColumn?tableName                                                      NewColumnAction
+GET        /NewColumn?tableName                                                      NewColumnAction
 POST       /CreateColumn                                                             CreateColumnAction
-ANY        /EditColumn?tableName&columnId                                            EditColumnAction
+GET        /EditColumn?tableName&columnId                                            EditColumnAction
 POST|PATCH /UpdateColumn                                                             UpdateColumnAction
 DELETE     /DeleteColumn?tableName&columnId&columnName                               DeleteColumnAction
-ANY        /ToggleColumnUnique?tableName&columnId                                    ToggleColumnUniqueAction
-ANY        /NewForeignKey?tableName&columnName                                       NewForeignKeyAction
+GET        /ToggleColumnUnique?tableName&columnId                                    ToggleColumnUniqueAction
+GET        /NewForeignKey?tableName&columnName                                       NewForeignKeyAction
 POST       /CreateForeignKey                                                         CreateForeignKeyAction
-ANY        /EditForeignKey?tableName&columnName&constraintName&referenceTable        EditForeignKeyAction
+GET        /EditForeignKey?tableName&columnName&constraintName&referenceTable        EditForeignKeyAction
 POST|PATCH /UpdateForeignKey                                                         UpdateForeignKeyAction
 DELETE     /DeleteForeignKey?constraintName&tableName                                DeleteForeignKeyAction
 |]
 
 [routes|PoliciesController
-ANY        /NewPolicy?tableName                       NewPolicyAction
+GET        /NewPolicy?tableName                       NewPolicyAction
 POST       /CreatePolicy                              CreatePolicyAction
-ANY        /EditPolicy?tableName&policyName           EditPolicyAction
+GET        /EditPolicy?tableName&policyName           EditPolicyAction
 POST|PATCH /UpdatePolicy                              UpdatePolicyAction
 DELETE     /DeletePolicy?tableName&policyName         DeletePolicyAction
 |]
 
 [routes|EnumsController
 GET        /ShowEnum?enumName                         ShowEnumAction
-ANY        /NewEnum                                   NewEnumAction
+GET        /NewEnum                                   NewEnumAction
 POST       /CreateEnum                                CreateEnumAction
-ANY        /EditEnum?enumName&enumId                  EditEnumAction
+GET        /EditEnum?enumName&enumId                  EditEnumAction
 POST|PATCH /UpdateEnum                                UpdateEnumAction
 DELETE     /DeleteEnum?tableId                        DeleteEnumAction
 |]
 
 [routes|EnumValuesController
-ANY        /NewEnumValue?enumName                     NewEnumValueAction
+GET        /NewEnumValue?enumName                     NewEnumValueAction
 POST       /CreateEnumValue                           CreateEnumValueAction
-ANY        /EditEnumValue?enumName&valueId            EditEnumValueAction
+GET        /EditEnumValue?enumName&valueId            EditEnumValueAction
 POST|PATCH /UpdateEnumValue                           UpdateEnumValueAction
 DELETE     /DeleteEnumValue?enumName&valueId          DeleteEnumValueAction
 |]
@@ -67,36 +67,36 @@ DELETE     /DeleteEnumValue?enumName&valueId          DeleteEnumValueAction
 GET        /ShowDatabase                                                             ShowDatabaseAction
 GET        /ShowTableRows?tableName                                                  ShowTableRowsAction
 DELETE     /DeleteTableRows?tableName                                                DeleteTableRowsAction
-ANY        /NewQuery                                                                 NewQueryAction
-ANY        /Query                                                                    QueryAction
+GET        /NewQuery                                                                 NewQueryAction
+GET        /Query                                                                    QueryAction
 DELETE     /DeleteEntry?primaryKey&tableName                                         DeleteEntryAction
 POST       /CreateRow                                                                CreateRowAction
-ANY        /NewRow?tableName                                                         NewRowAction
-ANY        /EditRow?tableName&targetPrimaryKey                                       EditRowAction
+GET        /NewRow?tableName                                                         NewRowAction
+GET        /EditRow?tableName&targetPrimaryKey                                       EditRowAction
 POST|PATCH /UpdateRow                                                                UpdateRowAction
-ANY        /EditRowValue?tableName&targetName&id                                     EditRowValueAction
-ANY        /ToggleBooleanField?tableName&targetName&targetPrimaryKey                 ToggleBooleanFieldAction
+GET        /EditRowValue?tableName&targetName&id                                     EditRowValueAction
+GET        /ToggleBooleanField?tableName&targetName&targetPrimaryKey                 ToggleBooleanFieldAction
 POST|PATCH /UpdateValue                                                              UpdateValueAction
 GET        /ShowForeignKeyHoverCard?tableName&id&columnName                          ShowForeignKeyHoverCardAction
-ANY        /AutocompleteForeignKeyColumn?tableName&columnName&term                   AutocompleteForeignKeyColumnAction
+GET        /AutocompleteForeignKeyColumn?tableName&columnName&term                   AutocompleteForeignKeyColumnAction
 |]
 
 [routes|LogsController
-ANY        /AppLogs                                   AppLogsAction
-ANY        /PostgresLogs                              PostgresLogsAction
-ANY        /ServiceLogs?serviceName                   ServiceLogsAction
-ANY        /OpenEditor                                OpenEditorAction
+GET        /AppLogs                                   AppLogsAction
+GET        /PostgresLogs                              PostgresLogsAction
+GET        /ServiceLogs?serviceName                   ServiceLogsAction
+GET        /OpenEditor                                OpenEditorAction
 |]
 
 [routes|CodeGenController
-ANY        /Generators                                GeneratorsAction
-ANY        /NewController                             NewControllerAction
-ANY        /NewScript                                 NewScriptAction
-ANY        /NewView                                   NewViewAction
-ANY        /NewMail                                   NewMailAction
-ANY        /NewAction                                 NewActionAction
-ANY        /NewApplication                            NewApplicationAction
-ANY        /NewJob                                    NewJobAction
+GET        /Generators                                GeneratorsAction
+GET        /NewController                             NewControllerAction
+GET        /NewScript                                 NewScriptAction
+GET        /NewView                                   NewViewAction
+GET        /NewMail                                   NewMailAction
+GET        /NewAction                                 NewActionAction
+GET        /NewApplication                            NewApplicationAction
+GET        /NewJob                                    NewJobAction
 POST       /CreateController                          CreateControllerAction
 POST       /CreateScript                              CreateScriptAction
 POST       /CreateView                                CreateViewAction
@@ -104,21 +104,21 @@ POST       /CreateMail                                CreateMailAction
 POST       /CreateAction                              CreateActionAction
 POST       /CreateApplication                         CreateApplicationAction
 POST       /CreateJob                                 CreateJobAction
-ANY        /OpenController                            OpenControllerAction
+GET        /OpenController                            OpenControllerAction
 |]
 
 [routes|MigrationsController
-ANY        /Migrations                                MigrationsAction
-ANY        /NewMigration                              NewMigrationAction
+GET        /Migrations                                MigrationsAction
+GET        /NewMigration                              NewMigrationAction
 POST       /CreateMigration                           CreateMigrationAction
-ANY        /EditMigration?migrationId                 EditMigrationAction
+GET        /EditMigration?migrationId                 EditMigrationAction
 POST|PATCH /UpdateMigration?migrationId               UpdateMigrationAction
 DELETE     /DeleteMigration?migrationId               DeleteMigrationAction
-ANY        /RunMigration?migrationId                  RunMigrationAction
+POST       /RunMigration?migrationId                  RunMigrationAction
 |]
 
 [routes|IndexesController
-ANY        /EditIndex?tableName&indexName             EditIndexAction
+GET        /EditIndex?tableName&indexName             EditIndexAction
 POST|PATCH /UpdateIndex?tableName&indexName           UpdateIndexAction
 DELETE     /DeleteIndex?tableName&indexName           DeleteIndexAction
 POST       /CreateIndex?tableName&columnName          CreateIndexAction
