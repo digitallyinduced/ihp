@@ -16,7 +16,6 @@ import IHP.ControllerPrelude hiding (get, request)
 import IHP.Router.DSL (routes)
 import Network.Wai
 import Network.HTTP.Types
-import Network.HTTP.Types.Method (StdMethod (..))
 import IHP.AutoRefresh (globalAutoRefreshServerVar, sessionResponseHasChanged, updateSession)
 import IHP.AutoRefresh.Types
 import IHP.AutoRefresh.View (autoRefreshMeta)
