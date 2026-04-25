@@ -8,7 +8,7 @@ import IHP.Environment
 import IHP.ViewPrelude
 import IHP.ControllerPrelude hiding (get, request)
 import IHP.Router.DSL (routes)
-import IHP.Router.Capture (renderCapture, parseCapture)
+import IHP.Router.Capture (renderCapture)
 import Network.Wai.Test
 import Network.HTTP.Types
 
