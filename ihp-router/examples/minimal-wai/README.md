@@ -54,6 +54,8 @@ Not Found
 
 The `myRoutesTrie` binding is emitted by the splice — you don't write it.
 
-## Why this exists in CI
+## How the no-IHP boundary is enforced
 
-The dedicated CI job builds this example from a fresh checkout with only `base`, `bytestring`, `http-types`, `text`, `wai`, `warp`, `ihp-router` in scope. Any future change that introduces an IHP import into the `ihp-router` package fails this build, locking in the standalone-no-IHP guarantee.
+The example's `cabal.project` lists only `.` (this example) and `../..` (the `ihp-router` package). It deliberately does NOT include `../../../ihp/`, so cabal can't see the `ihp` package when solving — any IHP import in `Main.hs` fails the build.
+
+The repository's main `nix flake check --impure` job builds `ihp-router` from its own cabal file (`ihp-router/ihp-router.cabal`), which lists no `ihp` dependency. Any change that introduces an IHP import into an `ihp-router` source file fails that check before this example is even relevant.
