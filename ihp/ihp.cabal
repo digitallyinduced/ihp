@@ -225,21 +225,6 @@ library
         , IHP.Router.Types
         , IHP.Router.IHP
         , IHP.Router.DSL
-    reexported-modules:
-        -- Re-export the ihp-router modules under the same paths so
-        -- existing user imports (`import IHP.Router.Trie`, etc.) keep
-        -- working without the user adding `ihp-router` to their own
-        -- cabal build-depends. The IHP-flavoured `routes` quoter from
-        -- IHP.Router.IHP shadows the generic one in IHP.Router.DSL.TH;
-        -- the latter is still importable directly for plain WAI use.
-          IHP.Router.UrlGenerator
-        , IHP.Router.Capture
-        , IHP.Router.Trie
-        , IHP.Router.Middleware
-        , IHP.Router.DSL.AST
-        , IHP.Router.DSL.Parser
-        , IHP.Router.DSL.Runtime
-        , IHP.Router.DSL.TH
         , IHP.Prelude
         , IHP.ErrorController
         , IHP.ScriptSupport
@@ -287,7 +272,22 @@ library
         , IHP.Hasql.Pool
         , IHP.PGSimpleCompat
         , IHP.PGVersion
-    reexported-modules: IHP.PGListener
+    reexported-modules:
+          IHP.PGListener
+        -- Re-export the ihp-router modules under the same paths so
+        -- existing user imports (`import IHP.Router.Trie`, etc.) keep
+        -- working without users adding `ihp-router` to their own cabal
+        -- build-depends. The IHP-flavoured `routes` quoter from
+        -- IHP.Router.IHP shadows the generic one in IHP.Router.DSL.TH;
+        -- the latter is still importable directly for plain WAI use.
+        , IHP.Router.UrlGenerator
+        , IHP.Router.Capture
+        , IHP.Router.Trie
+        , IHP.Router.Middleware
+        , IHP.Router.DSL.AST
+        , IHP.Router.DSL.Parser
+        , IHP.Router.DSL.Runtime
+        , IHP.Router.DSL.TH
     autogen-modules: Paths_ihp
     other-modules:
         Paths_ihp
