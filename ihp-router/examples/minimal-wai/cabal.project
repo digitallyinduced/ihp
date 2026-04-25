@@ -1,0 +1,8 @@
+-- Scope this example to itself + the sibling ihp-router package.
+-- Crucially does NOT include ../../../ihp/, so anyone trying to add an
+-- IHP-only import to Main.hs hits a build failure: cabal can't find
+-- IHP modules without ihp in build-depends, and ihp isn't in this
+-- project's package set.
+packages:
+    .
+    ../..

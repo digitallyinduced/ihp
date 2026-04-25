@@ -1,0 +1,31 @@
+cabal-version:       2.2
+name:                minimal-wai
+version:             0.0.0
+synopsis:            Minimal WAI app demonstrating ihp-router standalone
+description:
+    Proves that ihp-router works as a standalone WAI library — no IHP
+    dependency in build-depends. Built on CI (see
+    .github/workflows/ihp-router-example.yml at the repo root) to lock
+    in the boundary: any future change that introduces an IHP import
+    into ihp-router fails this build.
+license:             MIT
+license-file:        ../../LICENSE
+author:              digitally induced GmbH
+maintainer:          hello@digitallyinduced.com
+build-type:          Simple
+
+executable minimal-wai
+    main-is: Main.hs
+    default-language: GHC2021
+    ghc-options: -Werror=incomplete-patterns -Werror=unused-imports
+    build-depends:
+        base >= 4.17.0 && < 4.22
+      , bytestring
+      , http-types
+      , text
+      , wai
+      , warp
+      , ihp-router
+    -- intentionally NO ihp dependency — that's the whole point of
+    -- this example. Adding `ihp` here would silently work and defeat
+    -- the purpose; the CI build verifies the boundary.
