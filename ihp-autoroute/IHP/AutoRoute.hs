@@ -31,7 +31,6 @@ import Data.List (isPrefixOf, find)
 import Control.Monad (unless, join)
 import Control.Applicative ((<|>), empty)
 import qualified Control.Exception as Exception
-import qualified IHP.ModelSupport as ModelSupport
 import Data.UUID
 import Network.HTTP.Types.Method
 import Network.Wai
