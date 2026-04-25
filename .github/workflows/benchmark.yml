@@ -19,6 +19,7 @@ jobs:
         nix build .#default \
           --impure \
           --override-input ihp "github:${{ github.event.repository.full_name }}/${{ github.event.pull_request.head.sha }}" \
+          --override-input ihp-forum "github:digitallyinduced/ihp-forum/claude/new-routing-dsl" \
           -o result-pr -L &
         PID_PR=$!
         wait $PID_BASELINE

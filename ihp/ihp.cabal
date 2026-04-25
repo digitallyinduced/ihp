@@ -223,6 +223,14 @@ library
         , IHP.RouterSupport
         , IHP.Router.Types
         , IHP.Router.UrlGenerator
+        , IHP.Router.Capture
+        , IHP.Router.Trie
+        , IHP.Router.Middleware
+        , IHP.Router.DSL.AST
+        , IHP.Router.DSL.Parser
+        , IHP.Router.DSL.Runtime
+        , IHP.Router.DSL.TH
+        , IHP.Router.DSL
         , IHP.Prelude
         , IHP.ErrorController
         , IHP.ScriptSupport

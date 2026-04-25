@@ -4,6 +4,7 @@ CanRoute (..)
 , HasPath (..)
 , AutoRoute (..)
 , runAction
+, runAction'
 , get
 , post
 , startPage
@@ -50,6 +51,8 @@ import IHP.FrameworkConfig
 import Data.UUID
 import Network.HTTP.Types.Method
 import Network.Wai
+import qualified IHP.Router.Trie as Trie
+import qualified IHP.Router.Middleware as RouterMiddleware
 import IHP.ControllerSupport
 import Data.Attoparsec.ByteString.Char8 (string, Parser, parseOnly, take, endOfInput, choice, takeTill, takeByteString)
 import qualified Data.Attoparsec.ByteString.Char8 as Attoparsec
@@ -135,17 +138,35 @@ defaultRouter
 defaultRouter additionalRoutes = do
     let allRoutes = controllers <> additionalRoutes
         path = rawPathInfo ?request
-    -- Fast path: check auto-route HashMaps directly (no Attoparsec string matching)
-    case findInRouteMaps path allRoutes of
-        Just handler -> takeByteString *> pure (handler ?application)
-        Nothing -> do
-            -- Slow path: fall back to Attoparsec parsers for custom/dynamic routes
-            let parsers = concatMap getRouteParsers allRoutes
-            choice (map (<* endOfInput) parsers)
+        trie = collectTrie allRoutes
+        application = ?application
+        legacyParser =
+            case findInRouteMaps path allRoutes of
+                Just handler -> takeByteString *> pure (handler application)
+                Nothing -> do
+                    let parsers = concatMap getRouteParsers allRoutes
+                    choice (map (<* endOfInput) parsers)
+
+    -- Stage 1: method-aware trie (from the explicit-routes DSL, if any).
+    -- Critical for 'mountFrontController': mounted sub-apps with
+    -- '[routes|…|]' blocks flow through 'defaultRouter' via the parser
+    -- wrapper, so they need the same trie-lookup stage that
+    -- 'frontControllerToWAIApp' provides for the top-level app.
+    case parseMethod (requestMethod ?request) of
+        Right method -> case Trie.lookupTrie trie method (Trie.splitPath path) of
+            Trie.Matched handler captures ->
+                takeByteString *> pure (handler captures)
+            -- On trie 405 we still give legacy routes a chance — a mixed-mode
+            -- app may have `GET /foo` declared in the DSL and `POST /foo`
+            -- registered via the legacy Attoparsec path. Only if nothing
+            -- matches do we fall back to the legacy parser at all.
+            _ -> legacyParser
+        Left _ -> legacyParser
 {-# INLINABLE defaultRouter #-}
 
 -- | Scan 'ControllerRouteMap' entries for a matching path.
--- Returns as soon as a HashMap contains the path. Skips 'ControllerRouteParser' entries.
+-- Returns as soon as a HashMap contains the path. Skips 'ControllerRouteParser'
+-- and 'ControllerRouteTrie' entries (those are handled elsewhere).
 findInRouteMaps :: ByteString -> [ControllerRoute application] -> Maybe (application -> Application)
 findInRouteMaps _ [] = Nothing
 findInRouteMaps path (ControllerRouteMap m _ : rest) =
@@ -154,10 +175,21 @@ findInRouteMaps path (ControllerRouteMap m _ : rest) =
         Nothing -> findInRouteMaps path rest
 findInRouteMaps path (_ : rest) = findInRouteMaps path rest
 
--- | Extract fallback parsers from controller routes.
+-- | Extract fallback Attoparsec parsers from controller routes.
+-- 'ControllerRouteTrie' entries contribute no fallback parsers — they
+-- are consumed by the trie stage of 'frontControllerToWAIApp'.
 getRouteParsers :: ControllerRoute application -> [Parser Application]
 getRouteParsers (ControllerRouteMap _ fallback) = [fallback]
 getRouteParsers (ControllerRouteParser p) = [p]
+getRouteParsers (ControllerRouteTrie _) = []
+
+-- | Merge all 'ControllerRouteTrie' fragments in the route list into a
+-- single app-wide 'RouteTrie'. Returns 'Trie.emptyTrie' if no fragments exist.
+collectTrie :: [ControllerRoute application] -> Trie.RouteTrie
+collectTrie = List.foldl' step Trie.emptyTrie
+  where
+    step acc (ControllerRouteTrie fragment) = Trie.mergeTrie acc fragment
+    step acc _ = acc
 
 -- | Returns the url to a given action.
 --
@@ -928,46 +960,142 @@ startPage action = get (Text.encodeUtf8 (actionPrefixText @action)) action
 withPrefix prefix routes = string prefix >> choice (map (\r -> r <* endOfInput) routes)
 {-# INLINABLE withPrefix #-}
 
+-- | Build the static portion of a 'FrontController'\'s routing — the
+-- union of every 'ControllerRouteTrie' fragment emitted by the
+-- @[routes|…|]@ DSL across the app's controllers.
+--
+-- This is a one-shot, app-construction-time computation. We satisfy
+-- 'toControllerRoute'\'s @?request@ / @?respond@ constraints with
+-- sentinel values that must not be forced: neither 'collectTrie' nor
+-- the trie fragments themselves evaluate those implicits (trie handlers
+-- only close over @?application@, which we bind to the real
+-- application). The parser thunks stored inside sibling
+-- 'ControllerRouteMap' / 'ControllerRouteParser' entries are left
+-- unevaluated — 'collectTrie' skips them — and discarded when the list
+-- is dropped.
+--
+-- Deliberately kept as a separate top-level binding from
+-- 'frontControllerToWAIApp' so GHC has no opportunity to merge its
+-- result with the per-request 'controllers' call inside the request
+-- lambda.
+collectStaticTrie :: forall app. FrontController app => app -> Trie.RouteTrie
+collectStaticTrie application =
+    let ?request = startupRequestStub
+        ?respond = startupRespondStub
+        ?application = application
+    in collectTrie (controllers @app)
+{-# NOINLINE collectStaticTrie #-}
+
+-- | Real but unused 'Request' and 'Respond' values for
+-- 'collectStaticTrie'. We bind them as @?request@ / @?respond@ just so
+-- the 'CanRoute.toControllerRoute' methods can be called at startup,
+-- but the resulting 'RouteTrie' never actually reads per-request state
+-- — DSL-emitted trie handlers close only over @?application@, and the
+-- parser thunks inside sibling 'ControllerRouteMap' / 'ControllerRouteParser'
+-- entries are never forced by 'collectTrie' (it only inspects
+-- 'ControllerRouteTrie' payloads).
+--
+-- Using 'Network.Wai.defaultRequest' and a trivial respond function
+-- (rather than 'error' sentinels) keeps the dictionary fields accessible
+-- as real values. Class-method dispatch can evaluate those fields
+-- without crashing, which it apparently does somewhere in the AutoRoute
+-- dictionary chain — the previous @error \"...\"@ sentinels were being
+-- forced there.
+startupRequestStub :: Request
+startupRequestStub = Network.Wai.defaultRequest
+{-# NOINLINE startupRequestStub #-}
+
+startupRespondStub :: Respond
+startupRespondStub = \_ -> pure (error "frontControllerToWAIApp: startupRespondStub evaluated")
+{-# NOINLINE startupRespondStub #-}
+
 frontControllerToWAIApp :: forall app (autoRefreshApp :: Type). (FrontController app, WSApp autoRefreshApp, Typeable autoRefreshApp, InitControllerContext ()) => Middleware -> app -> Application -> Application
-frontControllerToWAIApp middleware application notFoundAction waiRequest waiRespond = do
-    let ?request = waiRequest
-    let ?respond = waiRespond
+frontControllerToWAIApp middleware application notFoundAction =
+    -- Build the static dispatch trie ONCE at Application-construction time.
+    -- The resulting RouteTrie closes over ?application (stable for the
+    -- app's lifetime) but not over ?request / ?respond. Every request
+    -- below reuses the same trie value.
+    let !staticTrie = collectStaticTrie application
+    in \waiRequest waiRespond -> do
+        let ?request = waiRequest
+        let ?respond = waiRespond
 
-    let autoRefreshWSParser :: Parser Application
-        autoRefreshWSParser =
-            let ?application = () in
-            let typeName = Typeable.typeOf (error "unreachable" :: autoRefreshApp)
-                    |> show |> ByteString.pack
-            in do
-                Attoparsec.char '/'
-                string typeName
-                pure $ withImplicits (startWebSocketAppAndFailOnHTTP @autoRefreshApp @() (WS.initialState @autoRefreshApp))
+        let autoRefreshWSParser :: Parser Application
+            autoRefreshWSParser =
+                let ?application = () in
+                let typeName = Typeable.typeOf (error "unreachable" :: autoRefreshApp)
+                        |> show |> ByteString.pack
+                in do
+                    Attoparsec.char '/'
+                    string typeName
+                    pure $ withImplicits (startWebSocketAppAndFailOnHTTP @autoRefreshApp @() (WS.initialState @autoRefreshApp))
 
-    let allRoutes = let ?application = application in
-            ControllerRouteParser autoRefreshWSParser : controllers @app
+        -- Per-request route list used for the legacy AutoRoute HashMap and
+        -- Attoparsec fallback paths. DSL-emitted ControllerRouteTrie entries
+        -- are in here too, but we don't consult them — the cached
+        -- staticTrie already covers that case.
+        let allRoutes = let ?application = application in
+                ControllerRouteParser autoRefreshWSParser : controllers @app
 
-    let path = waiRequest.rawPathInfo
+        let path = waiRequest.rawPathInfo
 
-    -- Fast path: scan auto-route HashMaps directly (no Attoparsec overhead)
-    case findInRouteMaps path allRoutes of
-        Just handler -> (middleware (handler application)) waiRequest waiRespond
-        Nothing -> do
-            -- Slow path: Attoparsec for custom/dynamic route parsers only
-            -- Wrap any exceptions during routing in RouterException so the error handler
-            -- middleware can distinguish them from action exceptions
-            let customParsers = concatMap getRouteParsers allRoutes
+        case parseMethod waiRequest.requestMethod of
+            Right method -> case Trie.lookupTrie staticTrie method (Trie.splitPath path) of
+                Trie.Matched handler captures ->
+                    (middleware (handler captures)) waiRequest waiRespond
+                -- On trie 405 we still try the legacy path before finalising
+                -- the response. In mixed-mode apps, a DSL `GET /foo` plus a
+                -- legacy `POST /foo` would otherwise reject the POST with 405
+                -- even though the legacy route exists. The trie's allowed
+                -- method list becomes the final 405 payload only if legacy
+                -- dispatch also can't find a handler.
+                Trie.MethodNotAllowed allowed ->
+                    legacyDispatchOr405 waiRequest waiRespond allRoutes path allowed
+                Trie.NotMatched -> legacyDispatch waiRequest waiRespond allRoutes path
+            Left _nonStandardMethod -> legacyDispatch waiRequest waiRespond allRoutes path
+  where
+    legacyDispatch waiRequest waiRespond allRoutes path =
+        -- Stage 2: legacy AutoRoute HashMap fast path.
+        case findInRouteMaps path allRoutes of
+            Just handler -> (middleware (handler application)) waiRequest waiRespond
+            Nothing -> do
+                -- Stage 3: Attoparsec fallback for custom/dynamic route parsers.
+                let customParsers = concatMap getRouteParsers allRoutes
 
-            routedAction :: Either String Application <-
-                (do
-                    res <- evaluate $ parseOnly (choice (map (<* endOfInput) customParsers)) path
-                    case res of
-                        Left s -> pure $ Left s
-                        Right action -> pure $ Right action
-                    )
-                |> wrapRouterException
-            case routedAction of
-                Left _ -> notFoundAction waiRequest waiRespond
-                Right action -> (middleware action) waiRequest waiRespond
+                routedAction :: Either String Application <-
+                    (do
+                        res <- evaluate $ parseOnly (choice (map (<* endOfInput) customParsers)) path
+                        case res of
+                            Left s -> pure $ Left s
+                            Right action -> pure $ Right action
+                        )
+                    |> wrapRouterException
+                case routedAction of
+                    Left _ -> notFoundAction waiRequest waiRespond
+                    Right action -> (middleware action) waiRequest waiRespond
+
+    -- Variant of 'legacyDispatch' used when the trie reports
+    -- 'MethodNotAllowed': legacy routes still get a chance to handle
+    -- the request (mixed-mode apps commonly split methods across DSL
+    -- and legacy routes for the same path). Only if legacy finds no
+    -- match do we commit to the trie's 405.
+    legacyDispatchOr405 waiRequest waiRespond allRoutes path trieAllowed =
+        case findInRouteMaps path allRoutes of
+            Just handler -> (middleware (handler application)) waiRequest waiRespond
+            Nothing -> do
+                let customParsers = concatMap getRouteParsers allRoutes
+                routedAction :: Either String Application <-
+                    (do
+                        res <- evaluate $ parseOnly (choice (map (<* endOfInput) customParsers)) path
+                        case res of
+                            Left s -> pure $ Left s
+                            Right action -> pure $ Right action
+                        )
+                    |> wrapRouterException
+                case routedAction of
+                    Right action -> (middleware action) waiRequest waiRespond
+                    Left _ ->
+                        waiRespond (RouterMiddleware.methodNotAllowedResponse trieAllowed)
 {-# INLINABLE frontControllerToWAIApp #-}
 
 mountFrontController :: forall frontController application. (?request :: Request, ?respond :: Respond, FrontController frontController) => frontController -> ControllerRoute application

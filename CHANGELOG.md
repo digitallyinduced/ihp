@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+### Features
+
+- **Explicit routes DSL** — new `[routes|…|]` quasi-quoter for `Web/Routes.hs` that declares URLs and methods explicitly, with RFC-6570 path captures (`{id}`, `{+splat}`) and explicit query-param lists (`?q&page&tags`). The splice reifies the action ADT at compile time, so capture and query-param types come from the record fields. AutoRoute continues to work unchanged — mixing both styles in one application is supported. `ihp-new` and `new-controller` now scaffold with the DSL by default, keeping AutoRoute's `/ShowPost?postId=<uuid>` URL shape for back-compat. See [Routing → Explicit Routes DSL](Guide/routing.markdown#explicit-routes-dsl) in the Guide. ([#2652](https://github.com/digitallyinduced/ihp/pull/2652))
+
 ### Breaking Changes
 
 - Controller `action` now returns `IO ResponseReceived` instead of `IO ()` — response functions like `render`, `redirectTo`, `renderJson` return the WAI `ResponseReceived` directly instead of throwing exceptions. Use `earlyReturn` for conditional early exits (e.g. `when condition (earlyReturn $ redirectTo ...)`) ([#2205](https://github.com/digitallyinduced/ihp/pull/2205))
