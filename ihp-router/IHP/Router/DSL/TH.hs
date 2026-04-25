@@ -51,6 +51,8 @@ module IHP.Router.DSL.TH
 
 import Prelude
 import qualified Data.Char as Char
+import Data.ByteString (ByteString)
+import qualified Data.ByteString.Char8 as ByteString.Char8
 import Data.Text (Text)
 import qualified Data.Text as Text
 import qualified Data.List as List
@@ -169,6 +171,15 @@ data ParsedBlock = ParsedBlock
         -- ^ Routes grouped by parent controller type, in the order
         -- those types first appear in the DSL block. For
         -- single-controller uppercase blocks this list has length 1.
+    , pbWsRoutes :: ![(Name, ByteString)]
+        -- ^ WebSocket routes (kind 'AST.WebSocketRoute'), resolved to
+        -- @(typeName, path)@ pairs in declaration order. The IHP-side
+        -- shim ('IHP.Router.IHP.ihpEmit') turns each entry into a
+        -- @webSocketRoute \@T \"\/path\"@ call inside the
+        -- lowercase-header binding. The generic 'genericEmit' ignores
+        -- this field — plain @ihp-router@ users have no @WSApp@
+        -- typeclass in scope, and v1 only registers WS routes via the
+        -- IHP-flavoured binding.
     }
 
 -- | Which of the three header forms the parser saw.
@@ -187,33 +198,89 @@ data HeaderForm
 -- | Parse the DSL body, reify each referenced controller type, and
 -- validate every route against its action constructor. Returns a
 -- 'ParsedBlock' both emitters can consume.
+--
+-- WebSocket routes (those whose @routeKind@ is 'AST.WebSocketRoute')
+-- are split out into 'pbWsRoutes' rather than going through
+-- 'groupRoutesByParent' / 'validateRoute' — they reference a 'WSApp'
+-- type by name (not an action constructor of a controller), so the
+-- HTTP-route validation pipeline doesn't apply. For v1 we also restrict
+-- WS routes to the lowercase-header form, since the IHP shim only
+-- knows how to register them through the @webRoutes@ binding the
+-- lowercase form emits.
 parseAndReify :: String -> Q ParsedBlock
 parseAndReify source = case Parser.parseRoutes (Text.pack source) of
     Left err -> fail (renderParseError err)
     Right parsed -> do
+        let (httpRoutes, wsRoutesAst) = List.partition isHttpRoute (AST.routes parsed)
         (header, groups) <- case controllerName parsed of
             Just name
                 | startsWithUpper name -> do
+                    rejectWsInNonBindingForm wsRoutesAst
+                        ("the single-controller header form '" <> Text.unpack name <> "'")
                     ctrl <- reifyController name
-                    vs <- traverse (validateRoute ctrl) (AST.routes parsed)
+                    vs <- traverse (validateRoute ctrl) httpRoutes
                     pure (HeaderUppercase name, [(ctrl, vs)])
                 | otherwise -> do
-                    grouped <- groupRoutesByParent (AST.routes parsed)
+                    grouped <- groupRoutesByParent httpRoutes
                     validated <- traverse
                         (\(ctrl, rs) -> do vs <- traverse (validateRoute ctrl) rs; pure (ctrl, vs))
                         grouped
                     pure (HeaderLowercase name, validated)
             Nothing -> do
-                grouped <- groupRoutesByParent (AST.routes parsed)
+                rejectWsInNonBindingForm wsRoutesAst "the headerless form"
+                grouped <- groupRoutesByParent httpRoutes
                 validated <- traverse
                     (\(ctrl, rs) -> do vs <- traverse (validateRoute ctrl) rs; pure (ctrl, vs))
                     grouped
                 pure (HeaderAbsent, validated)
-        pure ParsedBlock { pbHeader = header, pbGroups = groups }
+        wsBindings <- traverse resolveWsBinding wsRoutesAst
+        pure ParsedBlock
+            { pbHeader = header
+            , pbGroups = groups
+            , pbWsRoutes = wsBindings
+            }
   where
     startsWithUpper t = case Text.uncons t of
         Just (c, _) -> c >= 'A' && c <= 'Z'
         Nothing -> False
+
+    isHttpRoute r = routeKind r == HttpRoute
+
+-- | Fail with a pointed error when the user mixes WS routes into a
+-- form that can't carry them. v1 only registers WS routes via the
+-- IHP-flavoured @webRoutes@ binding, which is emitted only for the
+-- lowercase-header form.
+rejectWsInNonBindingForm :: [Route] -> String -> Q ()
+rejectWsInNonBindingForm [] _ = pure ()
+rejectWsInNonBindingForm (rt : _) form = fail $
+    "routes (line " <> show (routeLine rt) <> "): " <>
+    "WS routes are only supported in the named-binding form " <>
+    "(lowercase header, e.g. '[routes|webRoutes\\n…\\n|]'); " <>
+    "they cannot be used in " <> form <> "."
+
+-- | Resolve a WS route to a @(typeName, path)@ pair for 'pbWsRoutes'.
+-- The right-hand identifier on a WS route names the 'WSApp' instance
+-- type itself (not a constructor), so we look it up via
+-- 'TH.lookupTypeName' rather than reifying it as a data constructor.
+resolveWsBinding :: Route -> Q (Name, ByteString)
+resolveWsBinding rt = do
+    let typeNameStr = Text.unpack (actionName (routeAction rt))
+    mTyName <- TH.lookupTypeName typeNameStr
+    tyName <- case mTyName of
+        Just n  -> pure n
+        Nothing -> fail $
+            "routes (line " <> show (routeLine rt) <> "): " <>
+            "WS route references type '" <> typeNameStr <>
+            "' but no such type is in scope. Is its module imported?"
+    pure (tyName, renderStaticPath (routePath rt))
+
+-- | Render a WS route's static path back to its on-the-wire form.
+-- Parser validation guarantees every segment is a 'Literal' for WS
+-- routes, so this never sees a 'Capture' / 'Splat' in practice.
+renderStaticPath :: [PathSeg] -> ByteString
+renderStaticPath [] = "/"
+renderStaticPath segs = ByteString.Char8.pack $
+    concat [ "/" <> Text.unpack t | Literal t <- segs ]
 
 ---------------------------------------------------------------------------
 -- Generic emission (→ future ihp-router)
