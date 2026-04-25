@@ -18,7 +18,7 @@ import IHP.RouterSupport hiding (get)
 import IHP.Router.DSL (routes)
 import IHP.ViewPrelude
 import IHP.ControllerPrelude hiding (get, request)
-import IHP.Router.Capture (renderCapture, parseCapture)
+import IHP.Router.Capture (renderCapture)
 import Network.HTTP.Types.Method (StdMethod (..))
 import Network.Wai.Test
 import Test.Util (testGet)
