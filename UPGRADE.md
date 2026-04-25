@@ -176,6 +176,211 @@ forEach rows \row -> putStrLn (show row.id <> ": " <> row.title)
 
 The following types have also been removed: `HasQueryBuilder`, `JoinQueryBuilderWrapper`, `NoJoinQueryBuilderWrapper`, `LabeledQueryBuilderWrapper`, `LabeledData`, `NoJoins`. If your code references these types, replace with `QueryBuilder table` directly. For `LabeledData`, use a tuple with `typedSql` instead (see `labelResults` example above).
 
+## Optional: Migrate from `AutoRoute` to the explicit-routes DSL
+
+1.6.0 ships a new `[routes|…|]` quasi-quoter for declaring routes explicitly. `instance AutoRoute` is **fully supported** and existing apps need no changes — this is a recommendation, not a breaking change. New projects scaffolded with `ihp-new` and new controllers scaffolded with `new-controller` use the DSL by default; you can convert existing controllers at your own pace, one at a time, or leave them on `AutoRoute` forever.
+
+Why migrate? URLs and methods become visible at the route site (no decoder-from-constructor-name guessing); compile-time validation catches typos and unbound fields; dispatch is 10–50× faster on apps with many controllers because routing is one app-wide trie instead of a per-controller linear scan.
+
+### What URL shapes are preserved
+
+The DSL emits the same URL shapes `AutoRoute` does, so converting a controller is **byte-identical for existing deep links** as long as you spell the routes the way the migration recipe below shows. `pathTo` renders the same strings, links in views keep working, third-party callers keep working, search engines keep their indexed URLs.
+
+### Recipe: convert one controller
+
+Suppose `Web/Types.hs` has a typical CRUD controller:
+
+```haskell
+data PostsController
+    = PostsAction
+    | NewPostAction
+    | ShowPostAction { postId :: !(Id Post) }
+    | CreatePostAction
+    | EditPostAction { postId :: !(Id Post) }
+    | UpdatePostAction { postId :: !(Id Post) }
+    | DeletePostAction { postId :: !(Id Post) }
+    deriving (Eq, Show, Data)
+```
+
+And `Web/Routes.hs` has:
+
+```haskell
+instance AutoRoute PostsController
+```
+
+To migrate, **replace the `instance AutoRoute` line** with a `[routes|…|]` block:
+
+```haskell
+[routes|PostsController
+GET    /Posts                 PostsAction
+GET    /NewPost               NewPostAction
+POST   /CreatePost            CreatePostAction
+GET    /ShowPost?postId       ShowPostAction
+GET    /EditPost?postId       EditPostAction
+POST   /UpdatePost?postId     UpdatePostAction
+DELETE /DeletePost?postId     DeletePostAction
+|]
+```
+
+`Web/FrontController.hs` is unchanged — `parseRoute @PostsController` still works, the splice emits the same `CanRoute` instance under the hood. `Web/Types.hs` is unchanged — the splice reifies the existing action ADT. Views, controllers, callers — all unchanged.
+
+URL shapes the splice emits are deliberately identical to AutoRoute's:
+
+| Action | URL | Method |
+|---|---|---|
+| `PostsAction` | `/Posts` | `GET` |
+| `NewPostAction` | `/NewPost` | `GET` |
+| `CreatePostAction` | `/CreatePost` | `POST` |
+| `ShowPostAction { postId }` | `/ShowPost?postId=<uuid>` | `GET` |
+| `EditPostAction { postId }` | `/EditPost?postId=<uuid>` | `GET` |
+| `UpdatePostAction { postId }` | `/UpdatePost?postId=<uuid>` | `POST` |
+| `DeletePostAction { postId }` | `/DeletePost?postId=<uuid>` | `DELETE` |
+
+### What the `?fieldName` syntax means
+
+After the path, `?postId` declares that the action's `postId` record field is carried as a query-string parameter. The field's Haskell type drives parsing and rendering:
+
+- Plain `a` (e.g. `Id Post`, `Int`, `Text`) — required; missing or unparseable returns 404.
+- `Maybe a` — optional; absent decodes to `Nothing`, omitted from `pathTo` output when `Nothing`.
+- `[a]` — collected from repeated `?key=v` pairs; `pathTo` emits one `key=value` entry per element; an empty list is omitted.
+
+Multiple query params separate with `&`:
+
+```haskell
+GET /search?q&page&tags    SearchAction
+```
+
+### Coverage check — every record field must be bound
+
+The splice fails at compile time if a record field on the action constructor isn't covered by either a path capture (`{postId}`) or a query param (`?postId`). The error names the missing fields, so fixing it is usually a one-line change.
+
+If you have an action like `ShowPostAction { postId :: Id Post, viewMode :: Maybe Text }` and forget to mention `viewMode`:
+
+```
+routes (line 4): action 'ShowPostAction' has fields not covered by the route: viewMode.
+Add each to the path (e.g. '/path/{viewMode}') or the query list (e.g. '/path?viewMode').
+```
+
+Fix by adding `&viewMode` to the query list.
+
+### Field renaming — when the URL name differs from the field name
+
+If the URL spells the parameter differently from the record field (e.g. legacy `?id` carrying a `postId` value), use the `{ field = #captureName }` syntax after the action:
+
+```haskell
+GET /ShowPost?id    ShowPostAction { postId = #id }
+```
+
+Same syntax works for path captures:
+
+```haskell
+GET /orgs/{org}/users/{user}    ShowMemberAction { organizationId = #org, userId = #user }
+```
+
+### HTTP methods
+
+The DSL declares the method explicitly per route. To accept multiple methods on the same path, separate with `|`:
+
+```haskell
+GET|POST /api/widgets    WidgetsEndpointAction
+```
+
+`ANY` expands to every standard method:
+
+```haskell
+ANY /api/echo            EchoAction
+```
+
+`GET` automatically also accepts `HEAD` (matching `AutoRoute`'s built-in behaviour).
+
+If you previously overrode methods via `allowedMethodsForAction`:
+
+```haskell
+-- Before
+instance AutoRoute HelloWorldController where
+    allowedMethodsForAction "HelloAction" = [ GET ]
+```
+
+Just spell the methods directly in the DSL:
+
+```haskell
+[routes|HelloWorldController
+GET /Hello    HelloAction
+|]
+```
+
+### Path captures with non-RESTful URLs
+
+If you want to drop `?postId` and use a more RESTful path-style URL, change the path itself to capture a segment:
+
+```haskell
+-- Before (AutoRoute-compatible):
+GET /ShowPost?postId       ShowPostAction
+
+-- After (RESTful):
+GET /posts/{postId}        ShowPostAction
+```
+
+Splat captures match the rest of the path:
+
+```haskell
+GET /files/{+path}    DownloadAction    -- path :: Text captures everything after /files/
+```
+
+**Note**: changing path shapes breaks deep links. Keep the AutoRoute-shaped URLs (`/ShowPost?postId`) if existing URLs need to stay valid.
+
+### Mixed mode — converting one controller at a time
+
+You don't need to migrate the whole app at once. One controller using `instance AutoRoute` and another using `[routes|…|]` is a fully supported configuration in the same `FrontController`:
+
+```haskell
+instance FrontController WebApplication where
+    controllers =
+        [ parseRoute @LegacyPostsController    -- still on AutoRoute
+        , parseRoute @NewWidgetsController     -- migrated to [routes|…|]
+        ]
+```
+
+Both compile into the same underlying route trie at startup; there is no behavioural difference for users hitting either set of URLs.
+
+### Multi-controller blocks (advanced)
+
+For an entire application wired in one place, the lowercase-header form emits a `[ControllerRoute app]` binding you splat into `controllers`:
+
+```haskell
+-- Web/Routes.hs
+[routes|webRoutes
+GET    /Posts                 PostsAction
+GET    /ShowPost?postId       ShowPostAction
+GET    /Users                 UsersAction
+GET    /ShowUser?userId       ShowUserAction
+|]
+
+-- Web/FrontController.hs
+instance FrontController WebApplication where
+    controllers = webRoutes
+```
+
+The splice reifies each action constructor to find its parent type and emits one `HasPath` + `CanRoute` instance per type plus the `webRoutes` binding.
+
+### When *not* to migrate
+
+A few corners of `AutoRoute` don't have a 1:1 DSL equivalent. Stay on `AutoRoute` (or use the lower-level `IHP.RouterSupport` API directly) if you:
+
+- Override `autoRoute` for non-`UUID` id types via `autoRouteWithIdType` — the DSL infers capture types from record fields automatically, but if you'd been customising parsing this way, the manual route parser is the simpler path.
+- Have heavy `allowedMethodsForAction` logic that branches on action data — the DSL's per-route method declaration covers the common case, but a few exotic setups are clearer as a hand-written `parseRoute'`.
+- Generate routes programmatically at compile time via something other than the splice — keep your existing setup; the DSL is additive.
+
+### Codegen behaviour
+
+- **`ihp-new`** scaffolds new projects with a `[routes|StaticController GET / WelcomeAction|]` block in `Web/Routes.hs` instead of `instance AutoRoute StaticController`.
+- **`new-controller`** appends a per-controller `[routes|…|]` block to `Web/Routes.hs` instead of `instance AutoRoute Foo`. URL shapes match the AutoRoute defaults shown in the recipe above.
+- **Existing projects** are not touched. If you generated controllers before 1.6.0, they keep using `AutoRoute` until you choose to convert them.
+
+### Reference
+
+Full DSL syntax, including the three header forms and the compile-time validation rules, lives in [Guide/routing.markdown](Guide/routing.markdown#explicit-routes-dsl).
+
 # Upgrade to 1.5.0 from 1.4.0
 
 ## 1. Switch IHP version
