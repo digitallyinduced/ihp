@@ -86,15 +86,20 @@ test-suite tests
             , classy-prelude
             , text
             , bytestring
+            , unordered-containers
+            , attoparsec
+            , http-types
+            , uri-encode
             , uuid
             , wai
             , wai-extra
-            , http-types
-            , attoparsec
+            , blaze-html
+            , mtl
             , string-conversions
     other-modules:
         Test.AutoRoute.RouterSupportSpec
         Test.AutoRoute.MixedModeSpec
+        Test.AutoRoute.Util
 
 benchmark ihp-autoroute-router-bench
     import: shared-properties

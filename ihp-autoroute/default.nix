@@ -13,8 +13,9 @@ mkDerivation {
     wai
   ];
   testHaskellDepends = [
-    attoparsec base bytestring classy-prelude hspec http-types ihp
-    string-conversions text uuid wai wai-extra
+    attoparsec base blaze-html bytestring classy-prelude hspec
+    http-types ihp mtl string-conversions text unordered-containers
+    uri-encode uuid wai wai-extra
   ];
   benchmarkHaskellDepends = [
     base bytestring http-types ihp tasty-bench wai
