@@ -387,13 +387,23 @@ The last action is dealing with `DELETE /DeletePost?postId=postId` requests. It'
 
 #### Routes
 
-The router is configured in `Web/Routes.hs`. The generator just places a single line there:
+The router is configured in `Web/Routes.hs`. The generator places a `[routes|...|]` block there that lists every action explicitly:
 
 ```haskell
-instance AutoRoute PostsController
+[routes|PostsController
+GET    /Posts                  PostsAction
+GET    /NewPost                NewPostAction
+POST   /CreatePost             CreatePostAction
+GET    /ShowPost?postId        ShowPostAction
+GET    /EditPost?postId        EditPostAction
+POST   /UpdatePost?postId      UpdatePostAction
+DELETE /DeletePost?postId      DeletePostAction
+|]
 ```
 
-This empty instance magically sets up the routing for all the actions. Later you will learn how you can customize the URLs according to your needs (e.g. "beautiful URLs" for SEO).
+The block ties URLs and HTTP methods to action constructors at compile time. Later you will learn how you can customize the URLs according to your needs (e.g. "beautiful URLs" for SEO).
+
+> **Tip:** Older IHP projects used `instance AutoRoute PostsController` instead. AutoRoute is still available in the optional `ihp-autoroute` package — see [Routing → Option 2 — `AutoRoute`](routing.html#option-2-autoroute-legacy-opt-in) for the migration path.
 
 _Note that the word 'Post' here still refers to a post on our blog and is unrelated to the HTTP-POST request method._
 
