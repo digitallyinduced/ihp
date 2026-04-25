@@ -40,6 +40,10 @@ data ControllerRoute application
         -- ^ Pre-built trie fragment from the @routes@ DSL. Method-aware; merged
         -- into the app-wide trie at startup.
 
+-- | Thrown by the AutoRoute query-string decoder (in the optional
+-- @ihp-autoroute@ package) when a constructor argument can't be parsed.
+-- Kept in core so 'IHP.ErrorController' can render a typed 400 page even
+-- without depending on @ihp-autoroute@.
 data TypedAutoRouteError
     = BadType
         { expectedType :: !ByteString
@@ -48,12 +52,6 @@ data TypedAutoRouteError
         }
     | TooFewArguments
     | NotMatched
-    -- | Thrown when 'IHP.RouterSupport.parseUUIDArgument', 'IHP.RouterSupport.parseIntArgument', etc. get passed an invalid value
-    --
-    -- Let's say we have a @ShowProjectAction { id :: Id Project }@.
-    --
-    -- When opening @/ShowProject?projectId=ab55d579-80cd-4608-9a8f-c76dea6c2332@ everything is fine.
-    -- But when opening @/ShowProject?projectId=not-an-uuid@ this exception will be thrown.
     | NoConstructorMatched
         { expectedType :: !ByteString
         , value :: !(Maybe ByteString)

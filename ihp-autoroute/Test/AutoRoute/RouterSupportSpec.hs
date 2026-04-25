@@ -1,11 +1,11 @@
 {-|
-Module: Test.RouterSupportSpec
+Module: Test.AutoRoute.RouterSupportSpec
 
-Tests for typed auto routing.
+Tests for typed auto routing (AutoRoute typeclass).
 -}
 {-# LANGUAGE AllowAmbiguousTypes #-}
 
-module Test.RouterSupportSpec where
+module Test.AutoRoute.RouterSupportSpec where
 import ClassyPrelude
 import Test.Hspec
 import IHP.Test.Mocking
@@ -13,12 +13,13 @@ import IHP.Prelude
 import IHP.Environment
 import IHP.FrameworkConfig
 import IHP.RouterSupport hiding (get)
+import IHP.AutoRoute
 import Data.Attoparsec.ByteString.Char8 (string, endOfInput)
 import IHP.ViewPrelude
 import IHP.ControllerPrelude hiding (get, request)
 import Network.Wai.Test
 import Network.HTTP.Types
-import Test.Util (testGet)
+import Test.AutoRoute.Util (testGet)
 
 data Band' = Band {id :: (Id' "bands"), meta :: MetaBag} deriving (Eq, Show)
 type Band = Band'

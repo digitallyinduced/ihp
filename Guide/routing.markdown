@@ -35,11 +35,27 @@ instance FrontController WebApplication where
 
 See [Explicit Routes DSL](#explicit-routes-dsl) below for the full syntax.
 
-### Option 2 — `AutoRoute` (legacy)
+### Option 2 — `AutoRoute` (legacy, opt-in)
 
-`AutoRoute` derives URLs from your action ADT without any explicit spec:
+`AutoRoute` derives URLs from your action ADT without any explicit spec. As of IHP 1.5 it ships in the optional **`ihp-autoroute`** package — apps that still want to use it must opt in.
+
+**1.** Add `ihp-autoroute` to your flake's `haskellPackages`:
+
+```nix
+ihp.haskellPackages = p: [
+    p.ihp
+    p.ihp-autoroute  # opt-in to AutoRoute
+    -- … other packages
+];
+```
+
+**2.** Import `IHP.AutoRoute` in your routes module:
 
 ```haskell
+-- Web/Routes.hs
+import IHP.RouterPrelude
+import IHP.AutoRoute
+
 instance AutoRoute PostsController
 ```
 
@@ -53,7 +69,7 @@ instance FrontController WebApplication where
         ]
 ```
 
-Now you can open e.g. `/Posts` to access the `PostsAction`.
+Now you can open e.g. `/Posts` to access the `PostsAction`. New apps should prefer the `[routes|…|]` DSL — it makes the URL ↔ action mapping explicit at the call site, gives compile-time validation, and avoids the `deriving Data` requirement.
 
 ## Explicit Routes DSL
 

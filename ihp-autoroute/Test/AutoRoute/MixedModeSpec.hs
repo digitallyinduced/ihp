@@ -1,5 +1,5 @@
 {-|
-Module: Test.Router.MixedModeSpec
+Module: Test.AutoRoute.MixedModeSpec
 Copyright: (c) digitally induced GmbH, 2026
 
 Proves a single IHP app can mix controllers using the legacy 'AutoRoute'
@@ -7,11 +7,12 @@ and controllers using the new @[routes|…|]@ DSL.
 -}
 {-# LANGUAGE QuasiQuotes #-}
 {-# LANGUAGE TemplateHaskell #-}
-module Test.Router.MixedModeSpec where
+module Test.AutoRoute.MixedModeSpec where
 
 import Test.Hspec
 import IHP.Prelude
 import IHP.RouterSupport
+import IHP.AutoRoute (AutoRoute)
 import IHP.Router.DSL (routes)
 import IHP.Router.Capture (renderCapture, parseCapture)
 import IHP.ControllerPrelude

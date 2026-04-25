@@ -1,0 +1,112 @@
+cabal-version:       2.2
+name:                ihp-autoroute
+version:             1.5.0
+synopsis:            Legacy AutoRoute typeclass for IHP
+description:
+    The legacy AutoRoute typeclass, extracted from `ihp` core. New apps
+    should use the `[routes|...|]` DSL from `IHP.Router.DSL`. Existing
+    apps that still rely on `instance AutoRoute X` add this package to
+    their flake's `haskellPackages` and `import IHP.AutoRoute` in their
+    routes module.
+license:             MIT
+license-file:        LICENSE
+author:              digitally induced GmbH
+maintainer:          hello@digitallyinduced.com
+homepage:            https://ihp.digitallyinduced.com/
+bug-reports:         https://github.com/digitallyinduced/ihp/issues
+copyright:           (c) digitally induced GmbH
+category:            Web, IHP
+stability:           Stable
+tested-with:         GHC == 9.8.4
+build-type:          Simple
+
+source-repository head
+    type:     git
+    location: https://github.com/digitallyinduced/ihp
+
+common shared-properties
+    default-language: GHC2021
+    default-extensions:
+        OverloadedStrings
+        , NoImplicitPrelude
+        , ImplicitParams
+        , DisambiguateRecordFields
+        , DuplicateRecordFields
+        , OverloadedLabels
+        , DataKinds
+        , QuasiQuotes
+        , TypeFamilies
+        , PackageImports
+        , RecordWildCards
+        , DefaultSignatures
+        , FunctionalDependencies
+        , PartialTypeSignatures
+        , BlockArguments
+        , LambdaCase
+        , TemplateHaskell
+        , OverloadedRecordDot
+        , DeepSubsumption
+        , AllowAmbiguousTypes
+        , UndecidableInstances
+        , ScopedTypeVariables
+    ghc-options: -Werror=incomplete-patterns -Werror=unused-imports -Werror=missing-fields
+
+library
+    import: shared-properties
+    hs-source-dirs: .
+    build-depends:
+            base >= 4.17.0 && < 4.22
+            , ihp
+            , classy-prelude
+            , text
+            , bytestring
+            , unordered-containers
+            , attoparsec
+            , http-types
+            , uri-encode
+            , uuid
+            , wai
+            , blaze-html
+            , mtl
+            , string-conversions
+    exposed-modules:
+        IHP.AutoRoute
+
+test-suite tests
+    import: shared-properties
+    type: exitcode-stdio-1.0
+    main-is: Test/Main.hs
+    hs-source-dirs: .
+    ghc-options: -threaded
+    build-depends:
+            base >= 4.17.0 && < 4.22
+            , ihp
+            , ihp-autoroute
+            , hspec
+            , classy-prelude
+            , text
+            , bytestring
+            , uuid
+            , wai
+            , wai-extra
+            , http-types
+            , attoparsec
+            , string-conversions
+    other-modules:
+        Test.AutoRoute.RouterSupportSpec
+        Test.AutoRoute.MixedModeSpec
+
+benchmark ihp-autoroute-router-bench
+    import: shared-properties
+    type: exitcode-stdio-1.0
+    hs-source-dirs: .
+    main-is: Test/AutoRoute/RouterBench.hs
+    ghc-options: -fno-static-argument-transformation
+    build-depends:
+            base >= 4.17.0 && < 4.22
+            , ihp
+            , ihp-autoroute
+            , bytestring
+            , wai
+            , http-types
+            , tasty-bench
