@@ -16,10 +16,6 @@ import IHP.SEO.Sitemap.Types
 import IHP.SEO.Sitemap.Routes ()
 import IHP.SEO.Sitemap.ControllerFunctions
 
-main :: IO ()
-main = hspec do
-    tests
-
 data Post = Post
         { id :: UUID
         , updatedAt :: UTCTime
@@ -86,3 +82,7 @@ tests = aroundAll (withMockContextAndApp WebApplication config) do
             it "should render a XML Sitemap" $ withContextAndApp \application -> do
                 runSession (testGet "/sitemap.xml") application
                     >>= assertSuccess "<?xml version=\"1.0\" encoding=\"UTF-8\"?><urlset xmlns=\"http://www.sitemaps.org/schemas/sitemap/0.9\"><url><loc>http://localhost:8000/main/ShowPost?postId=00000000-0000-0000-0000-000000000000</loc><lastmod>2105-04-16</lastmod><changefreq>hourly</changefreq></url></urlset>"
+
+main :: IO ()
+main = hspec do
+    tests
