@@ -108,8 +108,8 @@ tests = do
                 "[typedSql| SELECT author_id IS NULL FROM typed_sql_test_items LIMIT 1 |]")
             []
 
-        compileFailTest "fails when COUNT(*) result is annotated as Maybe Integer"
-            (mkTestModule "TypedQuery (Maybe Integer)"
+        compileFailTest "fails when COUNT(*) result is annotated as Maybe Int64"
+            (mkTestModule "TypedQuery (Maybe Int64)"
                 "[typedSql| SELECT COUNT(*) FROM typed_sql_test_items |]")
             []
 
@@ -158,13 +158,13 @@ tests = do
                 "[typedSql| SELECT name FROM typed_sql_test_items WHERE views > 6 UNION ALL SELECT name FROM typed_sql_test_items WHERE views < 6 |]")
             []
 
-        compileFailTest "fails when window function result is annotated as Maybe Integer"
-            (mkTestModule "TypedQuery (Maybe Integer)"
+        compileFailTest "fails when window function result is annotated as Maybe Int64"
+            (mkTestModule "TypedQuery (Maybe Int64)"
                 "[typedSql| SELECT row_number() OVER (ORDER BY name) FROM typed_sql_test_items LIMIT 1 |]")
             []
 
         compileFailTest "fails when grouped COUNT(*) result is annotated as a tuple"
-            (mkTestModule "TypedQuery (Text, Maybe Integer)"
+            (mkTestModule "TypedQuery (Text, Maybe Int64)"
                 "[typedSql| SELECT name, COUNT(*) FROM typed_sql_test_items GROUP BY name ORDER BY name LIMIT 1 |]")
             []
 
@@ -203,8 +203,8 @@ tests = do
             (mkTestModule "TypedQuery (Maybe Bool)"
                 "[typedSql| SELECT author_id IS NULL FROM typed_sql_test_items LIMIT 1 |]")
 
-        compilePassTest "COUNT(*) inferred as Integer"
-            (mkTestModule "TypedQuery Integer"
+        compilePassTest "COUNT(*) inferred as Int64"
+            (mkTestModule "TypedQuery Int64"
                 "[typedSql| SELECT COUNT(*) FROM typed_sql_test_items |]")
 
         compilePassTest "COALESCE with non-null fallback inferred as non-Maybe"
@@ -243,12 +243,12 @@ tests = do
             (mkTestModule "TypedQuery (Maybe Text)"
                 "[typedSql| SELECT name FROM typed_sql_test_items WHERE views > 6 UNION ALL SELECT name FROM typed_sql_test_items WHERE views < 6 |]")
 
-        compilePassTest "window function inferred as Integer"
-            (mkTestModule "TypedQuery Integer"
+        compilePassTest "window function inferred as Int64"
+            (mkTestModule "TypedQuery Int64"
                 "[typedSql| SELECT row_number() OVER (ORDER BY name) FROM typed_sql_test_items LIMIT 1 |]")
 
         compilePassTest "grouped COUNT(*) returns SqlRow"
-            (mkTestModule "TypedQuery (SqlRow '[ '(\"name\", Text), '(\"count\", Integer) ])"
+            (mkTestModule "TypedQuery (SqlRow '[ '(\"name\", Text), '(\"count\", Int64) ])"
                 "[typedSql| SELECT name, COUNT(*) FROM typed_sql_test_items GROUP BY name ORDER BY name LIMIT 1 |]")
 
         compilePassTest "array literal inferred as Maybe [Text]"
@@ -271,16 +271,16 @@ tests = do
             (mkTestModule "TypedQuery (SqlRow '[ '(\"name\", Text), '(\"name_1\", Text) ])"
                 "[typedSql| SELECT i.name, a.name FROM typed_sql_test_items i INNER JOIN typed_sql_test_authors a ON a.id = i.author_id LIMIT 1 |]")
 
-        compilePassTest "COUNT through subquery alias inferred as Integer"
-            (mkTestModule "TypedQuery Integer"
+        compilePassTest "COUNT through subquery alias inferred as Int64"
+            (mkTestModule "TypedQuery Int64"
                 "[typedSql| SELECT p.c FROM (SELECT count(*) AS c FROM typed_sql_test_items) AS p |]")
 
         compilePassTest "SUM through subquery alias remains Maybe"
-            (mkTestModule "TypedQuery (Maybe Integer)"
+            (mkTestModule "TypedQuery (Maybe Int64)"
                 "[typedSql| SELECT p.s FROM (SELECT sum(views) AS s FROM typed_sql_test_items) AS p |]")
 
-        compilePassTest "COUNT through CTE inferred as Integer"
-            (mkTestModule "TypedQuery Integer"
+        compilePassTest "COUNT through CTE inferred as Int64"
+            (mkTestModule "TypedQuery Int64"
                 "[typedSql| WITH item_counts AS (SELECT count(*) AS c FROM typed_sql_test_items) SELECT c FROM item_counts |]")
 
     describe "TypedSql macro runtime execution" do
@@ -802,7 +802,7 @@ compilePassModule = Text.unlines
     , "qBoolExpr :: TypedQuery (Maybe Bool)"
     , "qBoolExpr = [typedSql| SELECT author_id IS NULL FROM typed_sql_test_items LIMIT 1 |]"
     , ""
-    , "qCountExpr :: TypedQuery Integer"
+    , "qCountExpr :: TypedQuery Int64"
     , "qCountExpr = [typedSql| SELECT COUNT(*) FROM typed_sql_test_items |]"
     , ""
     , "qLiteralInt :: TypedQuery Int"
@@ -829,10 +829,10 @@ compilePassModule = Text.unlines
     , "qUnion :: TypedQuery (Maybe Text)"
     , "qUnion = [typedSql| SELECT name FROM typed_sql_test_items WHERE views > 6 UNION ALL SELECT name FROM typed_sql_test_items WHERE views < 6 |]"
     , ""
-    , "qWindow :: TypedQuery Integer"
+    , "qWindow :: TypedQuery Int64"
     , "qWindow = [typedSql| SELECT row_number() OVER (ORDER BY name) FROM typed_sql_test_items LIMIT 1 |]"
     , ""
-    , "qGroupedCount :: TypedQuery (SqlRow '[ '(\"name\", Text), '(\"count\", Integer) ])"
+    , "qGroupedCount :: TypedQuery (SqlRow '[ '(\"name\", Text), '(\"count\", Int64) ])"
     , "qGroupedCount = [typedSql| SELECT name, COUNT(*) FROM typed_sql_test_items GROUP BY name ORDER BY name LIMIT 1 |]"
     , ""
     , "qArrayLiteral :: TypedQuery (Maybe [Text])"
@@ -968,7 +968,7 @@ runtimeModule = Text.unlines
     , ""
     , "        countRows <- sqlQueryTyped [typedSql| SELECT COUNT(*) FROM typed_sql_test_items |]"
     , ""
-    , "        when ((countRows :: [Integer]) /= [2]) do"
+    , "        when ((countRows :: [Int64]) /= [2]) do"
     , "            error (\"unexpected rows from count query: \" <> show countRows)"
     , ""
     , "        literalRows <- sqlQueryTyped [typedSql| SELECT 1 |]"
@@ -1035,7 +1035,7 @@ runtimeModule = Text.unlines
     , "            ORDER BY name"
     , "        |]"
     , ""
-    , "        when ((windowRows :: [Integer]) /= [1, 2]) do"
+    , "        when ((windowRows :: [Int64]) /= [1, 2]) do"
     , "            error (\"unexpected rows from window function: \" <> show windowRows)"
     , ""
     , "        groupedCountRows <- sqlQueryTyped [typedSql|"
@@ -1046,7 +1046,7 @@ runtimeModule = Text.unlines
     , "        |]"
     , ""
     , "        let groupedCountValues = map (\\r -> (r.name, r.count)) groupedCountRows"
-    , "        when (groupedCountValues /= [(\"First\", 1 :: Integer), (\"Second\", 1)]) do"
+    , "        when (groupedCountValues /= [(\"First\", 1 :: Int64), (\"Second\", 1)]) do"
     , "            error (\"unexpected rows from grouped count: \" <> show groupedCountRows)"
     , ""
     , "        arrayLiteralRows <- sqlQueryTyped [typedSql| SELECT ARRAY['x','y']::text[] |]"
@@ -1247,7 +1247,7 @@ runtimeEdgeCasesModule = Text.unlines
     , ""
     , "        -- COUNT on empty table"
     , "        countEmpty <- sqlQueryTyped [typedSql| SELECT COUNT(*) FROM typed_sql_test_items |]"
-    , "        assertTest \"COUNT on empty table\" ((countEmpty :: [Integer]) == [0])"
+    , "        assertTest \"COUNT on empty table\" ((countEmpty :: [Int64]) == [0])"
     , ""
     , "        -- Re-insert rows for further tests"
     , "        _ <- sqlExecTyped [typedSql|"
@@ -1328,9 +1328,9 @@ runtimeExtraTypesModule = Text.unlines
     , "        smallRows <- sqlQueryTyped [typedSql| SELECT small_count FROM typed_sql_test_extras LIMIT 1 |]"
     , "        assertTest \"smallint -> Int\" ((smallRows :: [Int]) == [7])"
     , ""
-    , "        -- bigint -> Integer"
+    , "        -- bigint -> Int64"
     , "        bigRows <- sqlQueryTyped [typedSql| SELECT big_count FROM typed_sql_test_extras LIMIT 1 |]"
-    , "        assertTest \"bigint -> Integer\" ((bigRows :: [Integer]) == [1000000000])"
+    , "        assertTest \"bigint -> Int64\" ((bigRows :: [Int64]) == [1000000000])"
     , ""
     , "        -- numeric -> Scientific"
     , "        numericRows <- sqlQueryTyped [typedSql| SELECT amount FROM typed_sql_test_extras LIMIT 1 |]"
@@ -1365,7 +1365,7 @@ runtimeExtraTypesModule = Text.unlines
     , "            FROM typed_sql_test_extras LIMIT 1"
     , "        |]"
     , "        let multiTypeValues = map (\\r -> (r.small_count, r.big_count, r.active)) multiTypeRows"
-    , "        assertTest \"multi-type record\" (multiTypeValues == [(7 :: Int, 1000000000 :: Integer, True)])"
+    , "        assertTest \"multi-type record\" (multiTypeValues == [(7 :: Int, 1000000000 :: Int64, True)])"
     , ""
     , "        putStrLn \"RUNTIME_OK\""
     ]

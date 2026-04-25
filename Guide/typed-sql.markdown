@@ -187,7 +187,7 @@ Computed expressions (aggregates, CASE, arithmetic, literals, etc.) are always w
 
 ```haskell
 counts <- sqlQueryTyped [typedSql| SELECT COUNT(*) FROM items |]
--- counts :: [Maybe Integer]
+-- counts :: [Maybe Int64]
 
 results <- sqlQueryTyped [typedSql|
     SELECT CASE WHEN views > 5 THEN name ELSE 'low' END FROM items
@@ -303,7 +303,7 @@ rows <- sqlQueryTyped [typedSql|
     SELECT name, row_number() OVER (ORDER BY views DESC)
     FROM items
 |]
--- rows :: [(Text, Maybe Integer)]
+-- rows :: [(Text, Maybe Int64)]
 ```
 
 ### GROUP BY with Aggregates
@@ -315,7 +315,7 @@ rows <- sqlQueryTyped [typedSql|
     GROUP BY name
     ORDER BY name
 |]
--- rows :: [(Text, Maybe Integer)]
+-- rows :: [(Text, Maybe Int64)]
 ```
 
 ## Type Mapping Reference
@@ -325,7 +325,7 @@ The following table shows how PostgreSQL types map to Haskell types:
 | PostgreSQL Type | Haskell Type |
 |---|---|
 | `int2`, `int4` | `Int` |
-| `int8` | `Integer` |
+| `int8` | `Int64` |
 | `text`, `varchar`, `bpchar`, `citext` | `Text` |
 | `bool` | `Bool` |
 | `uuid` | `UUID` (or `Id' "table"` for primary/foreign keys) |
