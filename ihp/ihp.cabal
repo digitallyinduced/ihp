@@ -115,6 +115,7 @@ common shared-properties
             , ihp-pagehead
             , ihp-log
             , ihp-modal
+            , ihp-router
             , mime-types
             , safe-exceptions
             , resourcet
@@ -222,7 +223,16 @@ library
         , IHP.ViewSupport
         , IHP.RouterSupport
         , IHP.Router.Types
-        , IHP.Router.UrlGenerator
+        , IHP.Router.IHP
+        , IHP.Router.DSL
+    reexported-modules:
+        -- Re-export the ihp-router modules under the same paths so
+        -- existing user imports (`import IHP.Router.Trie`, etc.) keep
+        -- working without the user adding `ihp-router` to their own
+        -- cabal build-depends. The IHP-flavoured `routes` quoter from
+        -- IHP.Router.IHP shadows the generic one in IHP.Router.DSL.TH;
+        -- the latter is still importable directly for plain WAI use.
+          IHP.Router.UrlGenerator
         , IHP.Router.Capture
         , IHP.Router.Trie
         , IHP.Router.Middleware
@@ -230,7 +240,6 @@ library
         , IHP.Router.DSL.Parser
         , IHP.Router.DSL.Runtime
         , IHP.Router.DSL.TH
-        , IHP.Router.DSL
         , IHP.Prelude
         , IHP.ErrorController
         , IHP.ScriptSupport

@@ -1,10 +1,14 @@
 {-|
 Module: IHP.Router.DSL
-Description: Public API for the explicit-routes DSL
+Description: Public API for the IHP-flavoured explicit-routes DSL
 
-Re-exports the 'routes' quasi-quoter from "IHP.Router.DSL.TH" and the
-'UrlCapture' class from "IHP.Router.Capture" so that modules defining
-routes only need a single import.
+Re-exports the IHP-flavoured 'routes' quasi-quoter from "IHP.Router.IHP"
+and the 'UrlCapture' class from "IHP.Router.Capture" so that modules
+defining routes only need a single import.
+
+Plain WAI users (no IHP dependency) should import "IHP.Router.WAI"
+from the @ihp-router@ package instead — that gives the IHP-free flavour
+of the same quoter (no 'CanRoute' instance, no @webRoutes@ binding).
 -}
 module IHP.Router.DSL
     ( routes
@@ -12,5 +16,5 @@ module IHP.Router.DSL
     , Segment (..)
     ) where
 
-import IHP.Router.DSL.TH (routes)
+import IHP.Router.IHP (routes)
 import IHP.Router.Capture (UrlCapture (..), Segment (..))
