@@ -26,6 +26,7 @@ line is a comment.
 module IHP.Router.DSL.AST
     ( Routes (..)
     , Route (..)
+    , RouteKind (..)
     , PathSeg (..)
     , ActionRef (..)
     , Method
@@ -66,7 +67,28 @@ data Route = Route
         -- must then be the empty set, or the TH splice errors out.
     , routeAction      :: !ActionRef
     , routeLine        :: !Int      -- source line number (1-based) for error messages
+    , routeKind        :: !RouteKind
+        -- ^ Discriminates HTTP and WebSocket routes. WebSocket routes are
+        -- written with the @WS@ keyword in place of an HTTP method; the
+        -- parser stores @routeMethods = [GET]@ for them so they register
+        -- under the same trie method that carries the WS handshake.
     }
+    deriving (Eq, Show)
+
+-- | Whether a route is an HTTP route or a WebSocket route.
+--
+-- WebSocket routes are written @WS \/path TypeName@; the right-hand
+-- identifier is the 'WSApp'-instance type itself (not an action
+-- constructor), and the path must be static — no @{capture}@ segments
+-- and no @?query@ list — in this v1.
+--
+-- The generic @ihp-router@ package has no notion of @WSApp@; it's
+-- the IHP-side splice in @IHP.Router.IHP@ that turns
+-- 'WebSocketRoute' entries into 'webSocketRoute' calls. The kind tag
+-- lives here so both halves of the splice can share parser output.
+data RouteKind
+    = HttpRoute
+    | WebSocketRoute
     deriving (Eq, Show)
 
 -- | A single segment of a route path.

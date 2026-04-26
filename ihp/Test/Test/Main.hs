@@ -24,6 +24,7 @@ import qualified Test.Router.DSLQuoterSpec
 import qualified Test.Router.MixedModeSpec
 import qualified Test.Router.MultiControllerSpec
 import qualified Test.Router.AppBindingSpec
+import qualified Test.Router.WebSocketSpec
 import qualified Test.ViewSupportSpec
 import qualified Test.FileStorage.ControllerFunctionsSpec
 import qualified Test.PGListenerSpec
@@ -58,6 +59,7 @@ main = hspec do
     Test.Router.MixedModeSpec.tests
     Test.Router.MultiControllerSpec.tests
     Test.Router.AppBindingSpec.tests
+    Test.Router.WebSocketSpec.tests
     Test.ViewSupportSpec.tests
     Test.FileStorage.ControllerFunctionsSpec.tests
     Test.Controller.CookieSpec.tests

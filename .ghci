@@ -6,6 +6,7 @@
 :set -iihp-pglistener
 :set -iihp-modal
 :set -iihp
+:set -iihp-router
 :set -iihp-typed-sql
 :set -iihp-typed-sql/Test
 :set -iihp/Test

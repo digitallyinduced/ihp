@@ -186,6 +186,41 @@ The line above the first route is the header. It takes three shapes:
 
 3. **Omitted** — header-less. Splice emits instances only; no binding.
 
+### WebSocket routes
+
+Use the `WS` keyword to register a WebSocket app at a static path:
+
+```haskell
+[routes|webRoutes
+GET /posts                 PostsAction
+WS  /chat                  ChatApp
+WS  /datasync              DataSyncController
+|]
+
+instance FrontController WebApplication where
+    controllers = webRoutes
+```
+
+The right-hand identifier on a `WS` line is the **type name** of a `WSApp` instance — not a controller action constructor. The splice emits a `webSocketRoute @TypeName "/path"` entry into the named binding; behaviour is identical to [`webSocketAppWithCustomPath @TypeName "/path"`](https://ihp.digitallyinduced.com/api-docs/IHP-RouterSupport.html#v:webSocketAppWithCustomPath) except the route is registered in the explicit-routes trie instead of the legacy Attoparsec fallback.
+
+The handshake is `HTTP GET` + `Upgrade: websocket`, so `WS` routes register under the `GET` method. A non-WebSocket `GET` to the same path returns `400 Bad Request`.
+
+**v1 limitations** (subject to change):
+
+- WS routes only support **static paths** — no `{capture}` or `{+splat}` segments. The parser rejects them with a pointed error.
+- WS routes don't read query parameters (`?name`).
+- `WS` cannot be combined with HTTP methods on the same line (e.g. `WS|GET` is rejected).
+- WS routes must live in a **named-binding** block (lowercase header). The single-controller and header-less forms can't currently emit the binding the WS route needs to register itself.
+- No HTTP-fallback variant — for the [`webSocketAppWithHTTPFallback`](https://ihp.digitallyinduced.com/api-docs/IHP-RouterSupport.html#v:webSocketAppWithHTTPFallback) shape, register the WS app the legacy way alongside the DSL block.
+- The splice does not emit `HasPath` for the WS type. To call `pathTo @ChatApp` from JS-client setup code, declare the instance manually:
+
+  ```haskell
+  instance HasPath ChatApp where
+      pathTo _ = "/chat"
+  ```
+
+If you need any of the above today, keep using [`webSocketApp`](https://ihp.digitallyinduced.com/api-docs/IHP-RouterSupport.html#v:webSocketApp) / [`webSocketAppWithCustomPath`](https://ihp.digitallyinduced.com/api-docs/IHP-RouterSupport.html#v:webSocketAppWithCustomPath) for those routes; both forms can coexist in the same `controllers` list.
+
 ### Compile-time validation
 
 The splice runs several checks on every `[routes|…|]` block and fails at compile time — pointing at the DSL line number — if any of the following go wrong:
@@ -195,6 +230,8 @@ The splice runs several checks on every `[routes|…|]` block and fails at compi
 - A field appears in both the path and the query list
 - An action constructor has a record field not covered by the route
 - A query parameter is declared twice
+- A `WS` route uses a path capture, splat, or query list, or `WS` is mixed with HTTP methods on the same line
+- A `WS` route appears in a non-named-binding block
 - The DSL syntax itself is malformed (unknown method, missing path, etc.)
 
 The error messages include the DSL line number and the list of known fields, so fixing them is usually a one-line change.

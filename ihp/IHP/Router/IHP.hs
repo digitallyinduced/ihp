@@ -38,6 +38,8 @@ module IHP.Router.IHP
     ) where
 
 import Prelude
+import Data.ByteString (ByteString)
+import qualified Data.ByteString.Char8 as ByteString.Char8
 import Data.Text (Text)
 import qualified Data.Text as Text
 import Data.Typeable (Typeable)
@@ -127,13 +129,16 @@ ihpRoutesDec = routesDec
 --     @toControllerRoute@ wraps @\<ctrlLower>Trie runAction'@ in a
 --     'ControllerRouteTrie';
 --   * for a lowercase-header block: a top-level
---     @webRoutes :: [ControllerRoute app]@ binding.
+--     @webRoutes :: [ControllerRoute app]@ binding that includes
+--     @webSocketRoute \@T \"\/path\"@ entries for each @WS@ route in
+--     the block alongside the regular @parseRoute \@Ctrl@ entries.
 ihpEmit :: ParsedBlock -> Q [Dec]
-ihpEmit ParsedBlock { pbHeader, pbGroups } = do
+ihpEmit ParsedBlock { pbHeader, pbGroups, pbWsRoutes } = do
     canRouteDecs <- traverse (\(ctrl, _) -> emitCanRoute ctrl) pbGroups
     bindingDecs <- case pbHeader of
-        HeaderLowercase name -> emitNamedBinding name (map fst pbGroups)
-        _                    -> pure []
+        HeaderLowercase name ->
+            emitNamedBinding name (map fst pbGroups) pbWsRoutes
+        _ -> pure []
     pure (canRouteDecs <> bindingDecs)
 
 ---------------------------------------------------------------------------
@@ -187,9 +192,14 @@ emitCanRoute ctrl = do
 ---------------------------------------------------------------------------
 
 -- | Emit a top-level binding named by the user. Given the header
--- @webRoutes@ and controllers @[PostsController, UsersController]@:
+-- @webRoutes@, HTTP controllers @[PostsController, UsersController]@,
+-- and a WS route @WS \/chat ChatApp@:
 --
--- > webRoutes = [ parseRoute @PostsController, parseRoute @UsersController ]
+-- > webRoutes =
+-- >     [ parseRoute @PostsController
+-- >     , parseRoute @UsersController
+-- >     , webSocketRoute @ChatApp "\/chat"
+-- >     ]
 --
 -- The binding is polymorphic in the application type; when splatted into
 -- 'FrontController.controllers' for a concrete app, GHC infers the right
@@ -197,19 +207,31 @@ emitCanRoute ctrl = do
 --
 -- @parseRoute@ carries implicit-parameter constraints ('?request',
 -- '?respond', '?application', plus 'Controller', 'CanRoute',
--- 'InitControllerContext', and 'Typeable') that GHC cannot abstract at
--- the use site, so we emit an explicit signature enumerating all of them.
-emitNamedBinding :: Text -> [ControllerInfo] -> Q [Dec]
-emitNamedBinding bindingTxt ctrls = do
+-- 'InitControllerContext', and 'Typeable'); @webSocketRoute@ carries
+-- the same implicits but swaps 'Controller' \/ 'CanRoute' for 'WSApp'.
+-- GHC cannot abstract those at the use site, so we emit an explicit
+-- signature enumerating all of them.
+emitNamedBinding :: Text -> [ControllerInfo] -> [(Name, ByteString)] -> Q [Dec]
+emitNamedBinding bindingTxt ctrls wsBindings = do
     let valName = TH.mkName (Text.unpack bindingTxt)
         appTyVarName = TH.mkName "app"
         appTy = TH.VarT appTyVarName
         parseRouteName = TH.mkName "parseRoute"
-        entries =
+        webSocketRouteName = TH.mkName "webSocketRoute"
+
+        httpEntries =
             [ TH.AppTypeE (TH.VarE parseRouteName) (TH.ConT (ciTypeName c))
             | c <- ctrls
             ]
-        bindingExp = TH.ListE entries
+        wsEntries =
+            [ TH.AppE
+                (TH.AppTypeE (TH.VarE webSocketRouteName) (TH.ConT wsTy))
+                (TH.SigE
+                    (TH.LitE (TH.StringL (ByteString.Char8.unpack path)))
+                    (TH.ConT (TH.mkName "ByteString")))
+            | (wsTy, path) <- wsBindings
+            ]
+        bindingExp = TH.ListE (httpEntries <> wsEntries)
 
         implicitReqTy  = TH.ImplicitParamT "request"  (TH.ConT (TH.mkName "Request"))
         implicitResTy  = TH.ImplicitParamT "respond"  (TH.ConT (TH.mkName "Respond"))
@@ -222,9 +244,15 @@ emitNamedBinding bindingTxt ctrls = do
                 , TH.AppT (TH.ConT (TH.mkName "CanRoute")) ctrlTy
                 , TH.AppT (TH.ConT ''Typeable) ctrlTy
                 ]
+        perWs (wsTy, _) =
+            let ty = TH.ConT wsTy
+             in [ TH.AppT (TH.ConT (TH.mkName "WSApp")) ty
+                , TH.AppT (TH.ConT ''Typeable) ty
+                ]
         ctx = implicitReqTy : implicitResTy : implicitAppTy
             : initContextTy : typeableAppTy
             : concatMap perCtrl ctrls
+            <> concatMap perWs wsBindings
         resultTy = TH.AppT TH.ListT
             (TH.AppT (TH.ConT (TH.mkName "ControllerRoute")) appTy)
         bindingTy = TH.ForallT [TH.PlainTV appTyVarName TH.SpecifiedSpec] ctx resultTy

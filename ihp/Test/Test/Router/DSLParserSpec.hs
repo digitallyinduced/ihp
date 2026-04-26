@@ -16,13 +16,16 @@ mk :: Text -> [Route] -> Routes
 mk name rs = Routes { controllerName = Just name, routes = rs }
 
 rt :: Int -> [Method] -> [PathSeg] -> Text -> Route
-rt line ms ps name = Route ms ps [] (ActionRef name []) line
+rt line ms ps name = Route ms ps [] (ActionRef name []) line HttpRoute
 
 rtQ :: Int -> [Method] -> [PathSeg] -> [Text] -> Text -> Route
-rtQ line ms ps qs name = Route ms ps qs (ActionRef name []) line
+rtQ line ms ps qs name = Route ms ps qs (ActionRef name []) line HttpRoute
 
 rtWithBinds :: Int -> [Method] -> [PathSeg] -> Text -> [(Text, Text)] -> Route
-rtWithBinds line ms ps name bs = Route ms ps [] (ActionRef name bs) line
+rtWithBinds line ms ps name bs = Route ms ps [] (ActionRef name bs) line HttpRoute
+
+rtWS :: Int -> [PathSeg] -> Text -> Route
+rtWS line ps name = Route [GET] ps [] (ActionRef name []) line WebSocketRoute
 
 tests = do
     describe "IHP.Router.DSL.Parser" do
@@ -132,6 +135,27 @@ tests = do
                             "ShowThreadAction"
                         ])
 
+            it "parses a WS route as WebSocketRoute kind" do
+                parseRoutes "webRoutes\nWS /chat ChatApp\n"
+                    `shouldBe` Right Routes
+                        { controllerName = Just "webRoutes"
+                        , routes = [ rtWS 2 [Literal "chat"] "ChatApp" ]
+                        }
+
+            it "parses WS routes alongside HTTP routes" do
+                let source = Text.unlines
+                        [ "webRoutes"
+                        , "GET /posts        PostsAction"
+                        , "WS  /chat         ChatApp"
+                        ]
+                parseRoutes source
+                    `shouldBe` Right Routes
+                        { controllerName = Just "webRoutes"
+                        , routes =
+                            [ rt 2 [GET] [Literal "posts"] "PostsAction"
+                            , rtWS 3 [Literal "chat"] "ChatApp"
+                            ]
+                        }
 
         describe "errors" do
             it "accepts empty block (header-less, zero routes)" do
@@ -186,4 +210,32 @@ tests = do
             it "rejects empty query-param name (stray &)" do
                 case parseRoutes "C\nGET /items?a&&b ShowAction\n" of
                     Left e -> (cs (errorMessage e) :: String) `shouldContain` "empty query-param name"
+                    Right _ -> expectationFailure "expected ParseError"
+
+            it "rejects WS combined with HTTP methods" do
+                case parseRoutes "webRoutes\nWS|GET /chat ChatApp\n" of
+                    Left e -> do
+                        errorLine e `shouldBe` 2
+                        (cs (errorMessage e) :: String) `shouldContain` "'WS' cannot be combined"
+                    Right _ -> expectationFailure "expected ParseError"
+
+            it "rejects WS routes with path captures" do
+                case parseRoutes "webRoutes\nWS /chat/{roomId} ChatApp\n" of
+                    Left e -> do
+                        errorLine e `shouldBe` 2
+                        (cs (errorMessage e) :: String) `shouldContain` "WS routes do not support path captures"
+                    Right _ -> expectationFailure "expected ParseError"
+
+            it "rejects WS routes with splat captures" do
+                case parseRoutes "webRoutes\nWS /chat/{+rest} ChatApp\n" of
+                    Left e -> do
+                        errorLine e `shouldBe` 2
+                        (cs (errorMessage e) :: String) `shouldContain` "WS routes do not support path captures"
+                    Right _ -> expectationFailure "expected ParseError"
+
+            it "rejects WS routes with query parameters" do
+                case parseRoutes "webRoutes\nWS /chat?room ChatApp\n" of
+                    Left e -> do
+                        errorLine e `shouldBe` 2
+                        (cs (errorMessage e) :: String) `shouldContain` "WS routes do not support query parameters"
                     Right _ -> expectationFailure "expected ParseError"

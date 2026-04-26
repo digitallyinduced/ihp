@@ -18,6 +18,7 @@ import Prelude
 import Data.Text (Text)
 import qualified Data.Text as Text
 import Data.Char (isUpper, isAlpha, isAlphaNum, isSpace)
+import Network.HTTP.Types.Method (StdMethod (GET))
 import IHP.Router.DSL.AST
 
 -- | Parse error from the DSL parser.
@@ -67,7 +68,7 @@ looksLikeHeader text =
     -- Even a single token could be a malformed route line; reject strings
     -- that look like HTTP methods so e.g. @GET@ alone isn't misread as a
     -- controller named "GET".
-    isHttpMethodToken t = t == "ANY" || Text.isInfixOf "|" t
+    isHttpMethodToken t = t == "ANY" || t == "WS" || Text.isInfixOf "|" t
         || case methodFromText t of
             Just _  -> True
             Nothing -> False
@@ -91,21 +92,52 @@ parseHeader line text =
             else Left (ParseError line ("routes: invalid controller name: " <> quoted trimmed))
 
 -- | Parse one route line: METHOD(|METHOD)* /path(?name&name)* ActionRef
+--
+-- A method field of @WS@ marks the route as a WebSocket route; the path
+-- is the literal handshake URL and the action identifier names the
+-- 'WSApp'-instance type (not a controller action constructor). WS routes
+-- in v1 must use a static path (no captures / splats) and no query list.
 parseRouteLine :: (Int, Text) -> Either ParseError Route
 parseRouteLine (line, text) = do
     let trimmed = Text.strip text
     (methodsField, rest1) <- splitFirstToken line trimmed
-    methods <- parseMethods line methodsField
+    (methods, kind) <- parseMethods line methodsField
     (pathAndQueryField, rest2) <- splitFirstToken line (Text.strip rest1)
     (path, queryParams) <- parsePathAndQuery line pathAndQueryField
     action <- parseActionRef line (Text.strip rest2)
+    case kind of
+        WebSocketRoute -> do
+            checkWsPathStatic line path
+            checkWsNoQuery line queryParams
+        HttpRoute -> pure ()
     pure Route
         { routeMethods     = methods
         , routePath        = path
         , routeQueryParams = queryParams
         , routeAction      = action
         , routeLine        = line
+        , routeKind        = kind
         }
+
+-- | WS routes only support literal path segments in v1. Captures and
+-- splats are rejected at parse time so we can give a pointed error
+-- before the splice tries to reify a URL-shaped action constructor.
+checkWsPathStatic :: Int -> [PathSeg] -> Either ParseError ()
+checkWsPathStatic line segs = case [ s | s <- segs, isDynamic s ] of
+    [] -> Right ()
+    _  -> Left (ParseError line
+        "routes: WS routes do not support path captures (use a static path)")
+  where
+    isDynamic (Literal _)  = False
+    isDynamic (Capture {}) = True
+    isDynamic (Splat {})   = True
+
+-- | WS routes don't read query parameters in v1.
+checkWsNoQuery :: Int -> [Text] -> Either ParseError ()
+checkWsNoQuery line = \case
+    [] -> Right ()
+    _  -> Left (ParseError line
+        "routes: WS routes do not support query parameters")
 
 -- | Split a line at the first whitespace, returning (first word, remainder).
 splitFirstToken :: Int -> Text -> Either ParseError (Text, Text)
@@ -113,15 +145,27 @@ splitFirstToken line text
     | Text.null text = Left (ParseError line "routes: unexpected end of line; expected a token")
     | otherwise = Right (Text.breakOn (Text.singleton ' ') text)
 
--- | Parse a method field like @GET@, @GET|POST@, or @ANY@.
-parseMethods :: Int -> Text -> Either ParseError [Method]
+-- | Parse a method field like @GET@, @GET|POST@, @ANY@, or @WS@.
+--
+-- @WS@ alone marks the route as a WebSocket route; the methods list
+-- becomes @[GET]@ (the WS handshake is an HTTP @GET@ + @Upgrade@), so
+-- the trie indexes the route under the same key. @WS@ cannot be combined
+-- with HTTP methods on the same line — a request is either a WebSocket
+-- upgrade or a plain HTTP method, not both.
+parseMethods :: Int -> Text -> Either ParseError ([Method], RouteKind)
 parseMethods line field
-    | field == "ANY" = Right expandAnyMethod
-    | otherwise = traverse parseOne (Text.splitOn "|" field)
+    | field == "WS" = Right ([GET], WebSocketRoute)
+    | field == "ANY" = Right (expandAnyMethod, HttpRoute)
+    | hasWsToken field = Left (ParseError line
+        "routes: 'WS' cannot be combined with HTTP methods on the same route")
+    | otherwise = do
+        methods <- traverse parseOne (Text.splitOn "|" field)
+        pure (methods, HttpRoute)
   where
     parseOne raw = case methodFromText raw of
         Just m  -> Right m
         Nothing -> Left (ParseError line ("routes: unknown method: " <> quoted raw))
+    hasWsToken raw = "WS" `elem` Text.splitOn "|" raw
 
 -- | Parse a @/path?name1&name2@ token, returning the path segments and
 -- the (possibly empty) query-param list. Anything after the first @?@ is

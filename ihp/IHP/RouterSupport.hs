@@ -26,6 +26,7 @@ CanRoute (..)
 , webSocketApp
 , webSocketAppWithCustomPath
 , webSocketAppWithHTTPFallback
+, webSocketRoute
 , onlyAllowMethods
 , getMethod
 , routeParam
@@ -950,6 +951,47 @@ webSocketAppWithCustomPathAndHTTPFallback path = ControllerRouteParser $ do
         let action = WS.initialState @webSocketApp
         pure $ withImplicits (startWebSocketApp @webSocketApp @application action (runActionWithNewContext action))
 {-# INLINABLE webSocketAppWithCustomPathAndHTTPFallback #-}
+
+-- | Trie-based registration of a WebSocket app at a static path. Used by
+-- the @[routes|...|]@ DSL to wire @WS \/path TypeName@ entries into the
+-- same 'RouteTrie' as the HTTP routes, so a single mixed-mode block can
+-- be the source of truth for an app's URLs.
+--
+-- This is the trie-flavoured analogue of 'webSocketAppWithCustomPath':
+-- same @WSApp@ / @InitControllerContext@ / @Typeable@ constraints, same
+-- 400-on-non-WebSocket-GET semantics, but the entry lives in a
+-- 'ControllerRouteTrie' rather than going through the Attoparsec
+-- fallback. The handler is registered under @GET@ — that's the method
+-- carried by a WebSocket handshake — and the trie's path-walk delivers
+-- the same behaviour as the parser-based form for static paths.
+--
+-- The path argument is the same shape as the one passed to
+-- 'webSocketAppWithCustomPath': a leading-slash literal like @"\/chat"@.
+webSocketRoute :: forall webSocketApp application.
+    ( WSApp webSocketApp
+    , InitControllerContext application
+    , ?application :: application
+    , Typeable application
+    , Typeable webSocketApp
+    ) => ByteString -> ControllerRoute application
+webSocketRoute path =
+    ControllerRouteTrie (Trie.insertRoute pattern GET handler Trie.emptyTrie)
+    where
+        pattern :: [Trie.PatternSegment]
+        pattern = map Trie.LiteralSeg (Trie.splitPath path)
+
+        -- The closure captures @?application@ from the enclosing
+        -- 'toControllerRoute' / 'controllers' scope. @?request@ and
+        -- @?respond@ are bound from the WAI arguments at call time —
+        -- mirrors the 'withImplicits' wrapping used by
+        -- 'webSocketAppWithCustomPath'.
+        handler :: Trie.WaiHandler
+        handler _captures waiReq waiRespond =
+            let ?request = waiReq
+                ?respond = waiRespond
+            in startWebSocketAppAndFailOnHTTP @webSocketApp @application
+                    (WS.initialState @webSocketApp) waiReq waiRespond
+{-# INLINABLE webSocketRoute #-}
 
 
 -- | Defines the start page for a router (when @\/@ is requested).
