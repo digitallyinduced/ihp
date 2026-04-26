@@ -11,6 +11,7 @@ module IHP.ViewSupport
 , Layout
 , Html
 , View (..)
+, JsonView (..)
 , currentViewId
 , forEach
 , isActivePath
@@ -56,15 +57,17 @@ import qualified Network.Wai.Middleware.AssetPath as AssetPath
 import IHP.ActionType (isActiveController)
 
 class View theView where
-    type JsonResponse theView :: Type
-    type JsonResponse theView = JSON.Value
-
     -- | Hook which is called before the render is called
     beforeRender :: (?context :: ControllerContext, ?request :: Request) => theView -> IO ()
     beforeRender view = pure ()
 
     -- Renders the view as html
     html :: (?context :: ControllerContext, ?view :: theView, ?request :: Request) => theView -> Markup
+
+-- | A view that can also be rendered as JSON by 'renderHtmlOrJson'.
+class JsonView theView where
+    type JsonResponse theView :: Type
+    type JsonResponse theView = JSON.Value
 
     -- | Returns the typed JSON response payload for this view.
     --

@@ -31,6 +31,7 @@ module IHP.ControllerPrelude
     , setModal
     , module IHP.Controller.Layout
     , View (..)
+    , JsonView (..)
     , module IHP.Job.Types
     , module IHP.LoginSupport.Helper.Controller
     , Only (..)
@@ -74,7 +75,7 @@ import IHP.Controller.Layout
 
 import IHP.Modal.Types
 import qualified IHP.Modal.ControllerFunctions as Modal
-import IHP.ViewSupport (View (..))
+import IHP.ViewSupport (View (..), JsonView (..))
 import qualified IHP.ViewSupport as ViewSupport
 
 import IHP.Job.Types
