@@ -293,67 +293,6 @@ The trie-based router and the `[routes|…|]` DSL are also published as a standa
 
 See [`ihp-router/README.md`](https://github.com/digitallyinduced/ihp/blob/master/ihp-router/README.md) and the [`minimal-wai` example](https://github.com/digitallyinduced/ihp/tree/master/ihp-router/examples/minimal-wai) for a full walkthrough.
 
-### OpenAPI Docs For Typed GADT Routes
-
-OpenAPI generation is tied to typed GADT routes declared with `[routes|...|]`.
-The route block provides the runtime parser, URL generator, HTTP methods, path
-template, and path/query parameter schemas. The action's `documented` block
-provides operation metadata such as summary, tags, response status, and
-description.
-
-```haskell
-data PostsAction request response where
-    ShowPostAction :: { postId :: Id Post } -> PostsAction 'NoBody ShowView
-    CreatePostAction :: PostsAction ('Body CreatePostInput) ShowView
-
-[routes|webRoutes
-GET  /posts/{postId} ShowPostAction
-POST /posts          CreatePostAction
-|]
-```
-
-`AutoRoute` and lower-level parser routes can still serve requests, but they are
-not part of the generated OpenAPI document. Use typed GADT routes for routes
-that should be documented.
-
-You can then build the OpenAPI document from the mounted router tree:
-
-```haskell
-spec :: Value
-spec = buildOpenApi RootApplication
-```
-
-[`buildOpenApi`](https://ihp.digitallyinduced.com/api-docs/IHP-OpenApiSupport.html#v:buildOpenApi) traverses the same front controller structure that serves requests, so nested `mountFrontController` prefixes are reflected in the generated paths.
-
-If you also want to serve the generated specification and a Swagger UI for it, mount [`swaggerUi`](https://ihp.digitallyinduced.com/api-docs/IHP-OpenApiSupport.html#v:swaggerUi) in the same front controller:
-
-```haskell
-instance FrontController WebApplication where
-    controllers =
-        webRoutes <> [swaggerUi]
-```
-
-This serves:
-
-- `/api-docs` with the Swagger UI
-- `/api-docs/openapi.json` with the generated OpenAPI 3 document
-
-If you want a different path or page title, use [`swaggerUiWithOptions`](https://ihp.digitallyinduced.com/api-docs/IHP-OpenApiSupport.html#v:swaggerUiWithOptions):
-
-```haskell
-instance FrontController WebApplication where
-    controllers =
-        webRoutes
-            <> [ swaggerUiWithOptions
-                    ((defaultSwaggerUiOptions @WebApplication)
-                        { swaggerUiPath = "/docs"
-                        , swaggerUiTitle = Just "Posts API Docs"
-                        })
-               ]
-```
-
-The Swagger UI route stays tied to the same front controller where you mount it, so the UI and the JSON specification are generated from the actual Haskell routes in that router. If you want to document your full root application including outer `mountFrontController` prefixes, mount `swaggerUi` in the root front controller. By default the HTML shell loads the Swagger UI assets from the `swagger-ui-dist` CDN; if you need different asset URLs you can override them in `SwaggerUiOptions`.
-
 ## Changing the Start Page / Home Page
 
 You can define a custom start page action using the [`startPage`](https://ihp.digitallyinduced.com/api-docs/IHP-RouterSupport.html#v:startPage) function like this:
@@ -449,16 +388,6 @@ Define the route shape once with `[routes|...|]`:
 [routes|webRoutes
 GET        /posts/{postId}/edit?returnTo EditPostAction
 POST|PATCH /posts/{postId}?returnTo      UpdatePostAction
-|]
-```
-
-Every route line declares the HTTP method explicitly. Use `GET|POST` when one
-route intentionally accepts multiple methods:
-
-```haskell
-[routes|webRoutes
-GET   /posts/{postId}/edit?returnTo  EditPostAction
-POST|PATCH /posts/{postId}?returnTo  UpdatePostAction
 |]
 ```
 
@@ -640,9 +569,6 @@ With this setup:
 - `pathTo PostsAction` generates `/Posts` (the auto-generated URL as usual)
 
 The `customRoutes` parser is tried first, before the auto-generated routes. If it doesn't match, the auto-generated routes are tried as usual. Return `Nothing` from `customPathTo` for any action that should use the default URL generation.
-
-Custom `AutoRoute` paths are runtime routes only. If the route should appear in
-OpenAPI, declare it in a typed GADT `[routes|...|]` block instead.
 
 ## Custom Routing
 

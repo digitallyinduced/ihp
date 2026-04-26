@@ -17,9 +17,9 @@ module IHP.View.Form.Fields where
 
 import           IHP.HSX.ConvertibleStrings ()
 import           IHP.HSX.Markup (Markup, ToHtml(..))
-import           IHP.ModelSupport (InputValue, getModelName, inputValue)
+import           IHP.ModelSupport (InputValue, inputValue)
+import           IHP.ModelSupport.Types (Violation (..))
 import           IHP.Prelude
-import           IHP.ValidationSupport
 import           IHP.View.Classes ()
 import           IHP.View.Types
 
@@ -158,18 +158,16 @@ import           IHP.View.Types
 textField :: forall fieldName model value.
     ( ?formContext :: FormContext model
     , HasField fieldName model value
-    , HasField "meta" model MetaBag
     , KnownSymbol fieldName
     , InputValue value
-    , KnownSymbol (GetModelName model)
     ) => Proxy fieldName -> FormField
 textField field = FormField
         { fieldType = TextInput
-        , fieldName = ?formContext.fieldNamePrefix <> cs fieldName
-        , fieldLabel = fieldNameToFieldLabel (cs fieldName)
+        , fieldName = ?formContext.fieldNamePrefix <> fieldName
+        , fieldLabel = fieldNameToFieldLabel fieldName
         , fieldValue =  inputValue ((getField @fieldName model) :: value)
-        , fieldInputId = cs (lcfirst (getModelName @model) <> "_" <> cs fieldName)
-        , validatorResult = getValidationViolation field model
+        , fieldInputId = formFieldInputId ?formContext field
+        , validatorResult = formFieldValidationResult ?formContext field
         , fieldClass = ""
         , labelClass = ""
         , disabled = False
@@ -184,7 +182,7 @@ textField field = FormField
         , autofocus = False
         }
     where
-        fieldName = symbolVal field
+        fieldName = cs (symbolVal field)
         FormContext { model } = ?formContext
 {-# INLINE textField #-}
 
@@ -200,10 +198,8 @@ textField field = FormField
 numberField :: forall fieldName model value.
     ( ?formContext :: FormContext model
     , HasField fieldName model value
-    , HasField "meta" model MetaBag
     , KnownSymbol fieldName
     , InputValue value
-    , KnownSymbol (GetModelName model)
     ) => Proxy fieldName -> FormField
 numberField field = (textField field) { fieldType = NumberInput }
 {-# INLINE numberField #-}
@@ -220,10 +216,8 @@ numberField field = (textField field) { fieldType = NumberInput }
 urlField :: forall fieldName model value.
     ( ?formContext :: FormContext model
     , HasField fieldName model value
-    , HasField "meta" model MetaBag
     , KnownSymbol fieldName
     , InputValue value
-    , KnownSymbol (GetModelName model)
     ) => Proxy fieldName -> FormField
 urlField field = (textField field) { fieldType = UrlInput }
 {-# INLINE urlField #-}
@@ -240,10 +234,8 @@ urlField field = (textField field) { fieldType = UrlInput }
 textareaField :: forall fieldName model value.
     ( ?formContext :: FormContext model
     , HasField fieldName model value
-    , HasField "meta" model MetaBag
     , KnownSymbol fieldName
     , InputValue value
-    , KnownSymbol (GetModelName model)
     ) => Proxy fieldName -> FormField
 textareaField field = (textField field) { fieldType = TextareaInput }
 {-# INLINE textareaField #-}
@@ -260,10 +252,8 @@ textareaField field = (textField field) { fieldType = TextareaInput }
 colorField :: forall fieldName model value.
     ( ?formContext :: FormContext model
     , HasField fieldName model value
-    , HasField "meta" model MetaBag
     , KnownSymbol fieldName
     , InputValue value
-    , KnownSymbol (GetModelName model)
     ) => Proxy fieldName -> FormField
 colorField field = (textField field) { fieldType = ColorInput }
 {-# INLINE colorField #-}
@@ -281,9 +271,7 @@ colorField field = (textField field) { fieldType = ColorInput }
 emailField :: forall fieldName model value.
     ( ?formContext :: FormContext model
     , HasField fieldName model value
-    , HasField "meta" model MetaBag
     , KnownSymbol fieldName
-    , KnownSymbol (GetModelName model)
     , InputValue value
     ) => Proxy fieldName -> FormField
 emailField field = (textField field) { fieldType = EmailInput }
@@ -310,10 +298,8 @@ emailField field = (textField field) { fieldType = EmailInput }
 dateField :: forall fieldName model value.
     ( ?formContext :: FormContext model
     , HasField fieldName model value
-    , HasField "meta" model MetaBag
     , KnownSymbol fieldName
     , InputValue value
-    , KnownSymbol (GetModelName model)
     ) => Proxy fieldName -> FormField
 dateField field = (textField field) { fieldType = DateInput }
 {-# INLINE dateField #-}
@@ -330,9 +316,7 @@ dateField field = (textField field) { fieldType = DateInput }
 passwordField :: forall fieldName model.
     ( ?formContext :: FormContext model
     , HasField fieldName model Text
-    , HasField "meta" model MetaBag
     , KnownSymbol fieldName
-    , KnownSymbol (GetModelName model)
     ) => Proxy fieldName -> FormField
 passwordField field = (textField field) { fieldType = PasswordInput }
 {-# INLINE passwordField #-}
@@ -370,11 +354,9 @@ passwordField field = (textField field) { fieldType = PasswordInput }
 dateTimeField :: forall fieldName model value.
     ( ?formContext :: FormContext model
     , HasField fieldName model value
-    , HasField "meta" model MetaBag
     , KnownSymbol fieldName
     , InputValue value
     , DateTimeValue value
-    , KnownSymbol (GetModelName model)
     ) => Proxy fieldName -> FormField
 dateTimeField alpha =
     (textField alpha)
@@ -412,10 +394,8 @@ instance DateTimeValue a => DateTimeValue (Maybe a) where
 hiddenField :: forall fieldName model value.
     ( ?formContext :: FormContext model
     , HasField fieldName model value
-    , HasField "meta" model MetaBag
     , KnownSymbol fieldName
     , InputValue value
-    , KnownSymbol (GetModelName model)
     ) => Proxy fieldName -> FormField
 hiddenField field = (textField field) { fieldType = HiddenInput, disableLabel = True, disableGroup = True, disableValidationResult = True }
 {-# INLINE hiddenField #-}
@@ -429,10 +409,8 @@ hiddenField field = (textField field) { fieldType = HiddenInput, disableLabel = 
 fileField :: forall fieldName model value.
     ( ?formContext :: FormContext model
     , HasField fieldName model value
-    , HasField "meta" model MetaBag
     , KnownSymbol fieldName
     , InputValue value
-    , KnownSymbol (GetModelName model)
     ) => Proxy fieldName -> FormField
 fileField field = (textField field) { fieldType = FileInput }
 {-# INLINE fileField #-}
@@ -449,33 +427,17 @@ fileField field = (textField field) { fieldType = FileInput }
 checkboxField :: forall fieldName model.
     ( ?formContext :: FormContext model
     , HasField fieldName model Bool
-    , HasField "meta" model MetaBag
     , KnownSymbol fieldName
-    , KnownSymbol (GetModelName model)
+    , InputValue Bool
     ) => Proxy fieldName -> FormField
-checkboxField field = FormField
+checkboxField field =
+    (textField field)
         { fieldType = CheckboxInput
-        , fieldName = cs fieldName
-        , fieldLabel = fieldNameToFieldLabel (cs fieldName)
-        , fieldValue =  if getField @fieldName model then "yes" else "no"
-        , fieldInputId = cs (lcfirst (getModelName @model) <> "_" <> cs fieldName)
-        , validatorResult = getValidationViolation field model
-        , fieldClass = ""
-        , labelClass = ""
-        , disabled = False
-        , disableLabel = False
-        , disableGroup = False
-        , disableValidationResult = False
-        , additionalAttributes = []
-        , cssFramework = ?formContext.cssFramework
-        , helpText = ""
-        , placeholder = ""
-        , required = False
-        , autofocus = False
+        , fieldValue =
+            if getField @fieldName ?formContext.model
+                then "yes"
+                else "no"
         }
-    where
-        fieldName = symbolVal field
-        FormContext { model } = ?formContext
 {-# INLINE checkboxField #-}
 
 instance ToHtml FormField where
@@ -494,14 +456,11 @@ instance ToHtml SubmitButton where
 validationResult :: forall fieldName model fieldType.
     ( ?formContext :: FormContext model
     , HasField fieldName model fieldType
-    , HasField "meta" model MetaBag
     , KnownSymbol fieldName
     , InputValue fieldType
-    , KnownSymbol (GetModelName model)
     ) => Proxy fieldName -> Markup
 validationResult field = styledValidationResult cssFramework cssFramework (textField field)
     where
-        result = getValidationFailure field model
         model = ?formContext.model
         cssFramework = ?formContext.cssFramework
 
@@ -512,8 +471,6 @@ validationResult field = styledValidationResult cssFramework cssFramework (textF
 validationResultMaybe :: forall fieldName model fieldType.
     ( ?formContext :: FormContext model
     , HasField fieldName model fieldType
-    , HasField "meta" model MetaBag
     , KnownSymbol fieldName
-    , KnownSymbol (GetModelName model)
     ) => Proxy fieldName -> Maybe Text
-validationResultMaybe field = getValidationFailure field ?formContext.model
+validationResultMaybe field = message <$> formFieldValidationResult ?formContext field

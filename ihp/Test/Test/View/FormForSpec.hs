@@ -1,8 +1,8 @@
 {-|
-Module: Test.View.FormSpec
+Module: Test.View.FormForSpec
 Copyright: (c) digitally induced GmbH, 2022
 -}
-module Test.View.FormSpec where
+module Test.View.FormForSpec where
 
 import Test.Hspec
 import IHP.FrameworkConfig as FrameworkConfig
@@ -183,7 +183,6 @@ instance UpdateField "meta" (Event' ) (Event' ) MetaBag MetaBag where
 instance FieldBit "id" (Event' ) where fieldBit = 1
 instance FieldBit "date" (Event' ) where fieldBit = 2
 instance FieldBit "createdAt" (Event' ) where fieldBit = 4
-
 
 
 

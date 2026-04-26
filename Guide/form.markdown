@@ -82,8 +82,9 @@ Rendering [`{textField #title}`](https://ihp.digitallyinduced.com/api-docs/IHP-V
 ## Forms for Typed Actions
 
 Classic `formFor` works with IHP records that have a `meta` field. For typed
-GADT actions you can use `FormSpec`, which renders a form for a plain input
-record and submits it to a typed action route.
+GADT actions use `formForAction`, which renders a normal HSX form body with the
+same field helpers (`textField`, `textareaField`, `checkboxField`,
+`submitButton`, etc.) against a plain input record.
 
 First define an input record that is also used by the action body:
 
@@ -119,31 +120,7 @@ data PostsAction request response where
 default. The same `PostInput` type is used by `formForAction`, request decoding
 and OpenAPI generation.
 
-Create a form spec with the typed form helpers:
-
-```haskell
-postForm :: FormSpec PostInput
-postForm =
-    formSpec [hsx|
-        {(formSpecTextField #title)
-            { fieldLabel = "Post title"
-            , placeholder = "Launch notes"
-            , required = True
-            , autofocus = True
-            , fieldClass = "input input-lg"
-            }}
-        {(formSpecTextareaField #body)
-            { fieldLabel = "Body"
-            , helpText = "Markdown is allowed."
-            }}
-        {(formSpecCheckboxField #published)
-            { fieldLabel = "Publish now"
-            }}
-        {formSpecSubmitButton "Save post"}
-    |]
-```
-
-Render it with `formForAction`:
+Render the form against a typed action:
 
 ```haskell
 renderPostForm :: Post -> Html
@@ -153,13 +130,37 @@ renderPostForm post =
             { postId = post.id
             , returnTo = Just "/posts"
             }
+        initialPostInput
+        [hsx|
+        {(textField #title)
+            { fieldLabel = "Post title"
+            , placeholder = "Launch notes"
+            , required = True
+            , autofocus = True
+            , fieldClass = "input input-lg"
+            }}
+        {(textareaField #body)
+            { fieldLabel = "Body"
+            , helpText = "Markdown is allowed."
+            }}
+        {(checkboxField #published)
+            { fieldLabel = "Publish now"
+            }}
+        {submitButton { label = "Save post" }}
+        |]
+  where
+    initialPostInput =
         PostInput
             { title = post.title
             , body = post.body
             , published = post.published
             }
-        postForm
 ```
+
+The second argument, `initialPostInput`, is the initial rendered form state. It
+fills `value`, `checked`, and selected options when the HTML is generated. The
+submitted request body still comes from the browser form inputs by their `name`
+attributes and is decoded into the GADT body type at runtime.
 
 The generated form action comes from `pathTo UpdatePostAction { .. }`, so path
 parameters and query parameters are encoded by the typed route. The form method
@@ -182,7 +183,12 @@ renderPostForm post =
                 |> set #formClass "stack gap-4"
                 |> set #customFormAttributes [("data-controller", "autosave")]
         )
-        postForm
+        [hsx|
+            {textField #title}
+            {textareaField #body}
+            {checkboxField #published}
+            {submitButton { label = "Save post" }}
+        |]
   where
     input =
         PostInput
@@ -192,13 +198,6 @@ renderPostForm post =
             }
 ```
 
-The typed form helpers mirror the classic field helpers, but are prefixed with
-`formSpec`: `formSpecTextField`, `formSpecNumberField`, `formSpecUrlField`,
-`formSpecTextareaField`, `formSpecColorField`, `formSpecEmailField`,
-`formSpecDateField`, `formSpecDateTimeField`, `formSpecPasswordField`,
-`formSpecHiddenField`, `formSpecCheckboxField`, `formSpecSelectField`,
-`formSpecRadioField`, and `formSpecFileField`.
-
 For file uploads, declare the action body as multipart:
 
 ```haskell
@@ -206,17 +205,10 @@ data PostsAction request response where
     UploadPostImageAction
         :: { postId :: Id Post }
         -> PostsAction ('BodyWith PostImageInput '[ 'Multipart]) ShowView
-
-imageForm :: FormSpec PostImageInput
-imageForm =
-    formSpec [hsx|
-        {(formSpecFileField #image) { fieldLabel = "Image" }}
-        {formSpecSubmitButton "Upload image"}
-    |]
 ```
 
-Calling `formForAction UploadPostImageAction { .. } input imageForm` renders
-`enctype="multipart/form-data"`. JSON-only actions such as
+Calling `formForAction UploadPostImageAction { .. } input [hsx|{fileField #image}|]`
+renders `enctype="multipart/form-data"`. JSON-only actions such as
 `'BodyWith PostInput '[ 'Json]` do not typecheck with `formForAction`, so a
 browser form cannot accidentally target a JSON-only route.
 

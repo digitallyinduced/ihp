@@ -507,7 +507,7 @@ instance FrontController WebApplication where
 
 ### Serving Both HTML and JSON from the Same Action
 
-If you want one action to serve HTML to browsers and JSON to API clients, use `renderHtmlOrJson` with a view that has a `View` instance for HTML and a `JsonView` instance for JSON:
+If you want one action to serve HTML to browsers and JSON to API clients, use `renderHtmlOrJson` with a view that implements both `View` (for HTML) and `JsonView` (for JSON):
 
 ```haskell
 -- In the controller
@@ -523,9 +523,7 @@ instance View ShowView where
     |]
 
 instance JsonView ShowView where
-    type JsonResponse ShowView = Post
-
-    json ShowView { post } = post
+    json ShowView { post } = toJSON post
 ```
 
 When a browser requests the page (sending `Accept: text/html`), it gets the HTML response. When an API client requests it with `Accept: application/json`, it gets JSON. You can test this:
