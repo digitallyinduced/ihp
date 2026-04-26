@@ -1,6 +1,7 @@
 {-# LANGUAGE FlexibleContexts      #-}
 {-# LANGUAGE FlexibleInstances     #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE RankNTypes            #-}
 {-# LANGUAGE TypeFamilies          #-}
 {-# LANGUAGE AllowAmbiguousTypes #-}
 {-# LANGUAGE InstanceSigs, UndecidableInstances, AllowAmbiguousTypes, ScopedTypeVariables, IncoherentInstances  #-}
@@ -21,6 +22,8 @@ where
 import Prelude
 import Data.Text (Text)
 import Data.ByteString (ByteString)
+import Data.Proxy (Proxy)
+import GHC.TypeLits (KnownSymbol)
 import IHP.HaskellSupport (SetField(..))
 import IHP.HSX.Markup (Html)
 import Network.Wai.Middleware.FlashMessages (FlashMessage (..))
@@ -85,6 +88,10 @@ data FormContext model = FormContext
     , disableJavascriptSubmission :: !Bool -- ^ When set to True, the IHP helpers.js will not submit the form using ajax
     , customFormAttributes :: ![(Text, Text)] -- ^ Attach custom HTML attributes here
     , fieldNamePrefix :: !Text -- ^ Used by nested forms to preprend the nested field name to the field name
+    , formFieldInputId :: forall fieldName. KnownSymbol fieldName => Proxy fieldName -> Text -- ^ Builds a stable HTML id for a field.
+    , formFieldValidationResult :: forall fieldName. KnownSymbol fieldName => Proxy fieldName -> Maybe Violation -- ^ Returns validation feedback for a field.
+    , formIsNew :: !Bool -- ^ Whether the form target represents a new record.
+    , formSubmitLabel :: Html -- ^ Default submit button label.
     }
 instance SetField "model" (FormContext record) record where setField value record = record { model = value }
 instance SetField "formAction" (FormContext record) Text where setField value record = record { formAction = value }

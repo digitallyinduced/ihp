@@ -167,6 +167,54 @@ radioField field items = (selectField field items)
     }
 {-# INLINE radioField #-}
 
+-- | Renders a select field from explicit @(label, value)@ options.
+--
+-- This is useful for typed action forms backed by plain input records, where
+-- there is no IHP model @meta@ field.
+selectFieldOptions :: forall fieldName model value.
+    ( ?formContext :: FormContext model
+    , HasField fieldName model value
+    , KnownSymbol fieldName
+    , InputValue value
+    ) => Proxy fieldName -> [(Text, Text)] -> FormField
+selectFieldOptions field options = FormField
+        { fieldType = SelectInput options
+        , fieldName = ?formContext.fieldNamePrefix <> fieldName
+        , fieldLabel = removeIdSuffix $ fieldNameToFieldLabel fieldName
+        , fieldValue = inputValue ((getField @fieldName model) :: value)
+        , fieldInputId = formFieldInputId ?formContext field
+        , validatorResult = formFieldValidationResult ?formContext field
+        , fieldClass = ""
+        , labelClass = ""
+        , disabled = False
+        , disableLabel = False
+        , disableGroup = False
+        , disableValidationResult = False
+        , additionalAttributes = []
+        , cssFramework = ?formContext.cssFramework
+        , helpText = ""
+        , placeholder = "Please select"
+        , required = False
+        , autofocus = False
+    }
+    where
+        fieldName = cs (symbolVal field)
+        FormContext { model } = ?formContext
+{-# INLINE selectFieldOptions #-}
+
+-- | Renders a radio field from explicit @(label, value)@ options.
+radioFieldOptions :: forall fieldName model value.
+    ( ?formContext :: FormContext model
+    , HasField fieldName model value
+    , KnownSymbol fieldName
+    , InputValue value
+    ) => Proxy fieldName -> [(Text, Text)] -> FormField
+radioFieldOptions field options = (selectFieldOptions field options)
+    { fieldType = RadioInput options
+    , placeholder = ""
+    }
+{-# INLINE radioFieldOptions #-}
+
 class CanSelect model where
     -- | Here we specify the type of the @<option>@ value, usually an @Id model@
     type SelectValue model :: GHC.Types.Type
@@ -180,3 +228,10 @@ class CanSelect model where
     selectValue :: model -> SelectValue model
     default selectValue :: HasField "id" model (SelectValue model) => model -> SelectValue model
     selectValue = (.id)
+
+instance CanSelect (Text, Text) where
+    type SelectValue (Text, Text) = Text
+
+    selectLabel = fst
+
+    selectValue = snd

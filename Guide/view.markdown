@@ -491,73 +491,41 @@ instance View IndexView where
     |]
 ```
 
-We can add a JSON output for all blog posts by defining a typed `JsonResponse` payload and implementing `json` in a `JsonView` instance:
+We can add a JSON output for all blog posts by adding a [`json`](https://ihp.digitallyinduced.com/api-docs/IHP-ViewSupport.html#v:json) function to a `JsonView` instance:
 
 ```haskell
-{-# LANGUAGE DeriveGeneric #-}
+import Data.Aeson -- <--- Add this import at the top of the file
 
-import Data.Aeson
-import GHC.Generics (Generic)
-
-data PostPayload = PostPayload
-    { id :: !(Id Post)
-    , title :: !Text
-    , body :: !Text
-    }
-    deriving (Eq, Show, Generic)
-
-instance ToJSON PostPayload
-```
-
-```haskell
 instance View IndexView where
     html IndexView { .. } = [hsx|
         ...
     |]
 
 instance JsonView IndexView where
-    type JsonResponse IndexView = [PostPayload]
-
-    json IndexView { .. } =
-        posts
-            |> map (\post -> PostPayload
-                { id = post.id
-                , title = post.title
-                , body = post.body
-                })
+    json IndexView { .. } = toJSON posts -- <---- The new json render function
 ```
 
-In the above code, `json` has access to all arguments passed to the view, but returns a normal Haskell value instead of raw `Value`. IHP then turns that into JSON automatically using [`toJSON`](https://ihp.digitallyinduced.com/api-docs/IHP-ViewPrelude.html#v:toJSON).
+In the above code, our [`json`](https://ihp.digitallyinduced.com/api-docs/IHP-ViewSupport.html#v:json) function has access to all arguments passed to the view. Here we call [`toJSON`](https://ihp.digitallyinduced.com/api-docs/IHP-ViewPrelude.html#v:toJSON), which is provided by the [aeson](https://hackage.haskell.org/package/aeson) Haskell library. This simply encodes all the `posts` given to this view as JSON.
 
-In the controller, use [`renderHtmlOrJson`](https://ihp.digitallyinduced.com/api-docs/IHP-Controller-Render.html#v:renderHtmlOrJson) instead of `render` for actions that should serve both formats:
+Additionally we need to define a [`ToJSON`](https://ihp.digitallyinduced.com/api-docs/IHP-ViewPrelude.html#t:ToJSON) instance which describes how the `Post` record is going to be transformed to JSON. We need to add this to our view:
 
 ```haskell
-action PostsAction = do
-    posts <- query @Post |> fetch
-    renderHtmlOrJson IndexView { .. }
+instance ToJSON Post where
+    toJSON post = object
+        [ "id" .= post.id
+        , "title" .= post.title
+        , "body" .= post.body
+        ]
 ```
 
 The full `Index` View for our `PostsController` looks like this:
 
 ```haskell
 module Web.View.Posts.Index where
-
-{-# LANGUAGE DeriveGeneric #-}
-
 import Web.View.Prelude
 import Data.Aeson
-import GHC.Generics (Generic)
 
 data IndexView = IndexView { posts :: [Post] }
-
-data PostPayload = PostPayload
-    { id :: !(Id Post)
-    , title :: !Text
-    , body :: !Text
-    }
-    deriving (Eq, Show, Generic)
-
-instance ToJSON PostPayload
 
 instance View IndexView where
     html IndexView { .. } = [hsx|
@@ -582,19 +550,15 @@ instance View IndexView where
         </div>
     |]
 
-instance View IndexView where
-    html IndexView { .. } = [hsx|...|]
-
 instance JsonView IndexView where
-    type JsonResponse IndexView = [PostPayload]
+    json IndexView { .. } = toJSON posts
 
-    json IndexView { .. } =
-        posts
-            |> map (\post -> PostPayload
-                { id = post.id
-                , title = post.title
-                , body = post.body
-                })
+instance ToJSON Post where
+    toJSON post = object
+        [ "id" .= post.id
+        , "title" .= post.title
+        , "body" .= post.body
+        ]
 
 renderPost post = [hsx|
     <tr>
@@ -605,8 +569,6 @@ renderPost post = [hsx|
     </tr>
 |]
 ```
-
-For dynamic or unstructured JSON responses, keep the escape hatch explicit by using `Value` as the response type and returning it from `json`. Documented OpenAPI actions should prefer concrete payload types with matching `ToJSON` and `ToSchema` instances.
 
 ### Getting JSON responses
 
@@ -632,93 +594,6 @@ curl http://localhost:8000/Posts -H 'Accept: application/json'
 
 [{"body":"This is a test json post","id":"d559cd60-e36e-40ef-b69a-d651e3257dc9","title":"Hello World!"}]
 ```
-
-### OpenAPI schemas for JSON views
-
-OpenAPI response schemas are generated from typed GADT actions. Add a
-[`ToSchema`](https://ihp.digitallyinduced.com/api-docs/IHP-OpenApiSupport.html#t:ToSchema)
-instance for the `JsonView` `JsonResponse` type, declare the request body in
-the action type index, and add operation metadata with `documented`:
-
-```haskell
-{-# LANGUAGE DeriveGeneric #-}
-{-# LANGUAGE GADTs #-}
-
-import GHC.Generics (Generic)
-
-data PostPayload = PostPayload
-    { id :: !(Id Post)
-    , title :: !Text
-    }
-    deriving (Eq, Show, Generic)
-
-instance ToJSON PostPayload
-instance ToSchema PostPayload
-
-data CreatePostRequest = CreatePostRequest
-    { title :: !Text
-    }
-    deriving (Eq, Show, Generic)
-
-instance FromJSON CreatePostRequest
-instance ToSchema CreatePostRequest
-
-data PostsAction request response where
-    PostsAction :: PostsAction 'NoBody IndexView
-    CreatePostAction :: PostsAction ('Body CreatePostRequest) IndexView
-
-instance View IndexView where
-    html IndexView { .. } = [hsx|...|]
-
-instance JsonView IndexView where
-    type JsonResponse IndexView = [PostPayload]
-
-    json IndexView { .. } = posts |> map (\post -> PostPayload { id = post.id, title = post.title })
-
-instance Controller (PostsAction 'NoBody IndexView) where
-    type ControllerAction (PostsAction 'NoBody IndexView) =
-        ActionDef (PostsAction 'NoBody IndexView) 'NoBody IndexView
-
-    action PostsAction =
-        documented do
-            summary "List all posts"
-        do
-            posts <- query @Post |> fetch
-            pure IndexView { .. }
-
-instance Controller (PostsAction ('Body CreatePostRequest) IndexView) where
-    type ControllerAction (PostsAction ('Body CreatePostRequest) IndexView) =
-        ActionDef (PostsAction ('Body CreatePostRequest) IndexView) ('Body CreatePostRequest) IndexView
-
-    action CreatePostAction =
-        documented do
-            summary "Create post"
-        do
-            let title = bodyParam #title
-            _ <- newRecord @Post
-                |> set #title title
-                |> createRecord
-            posts <- query @Post |> fetch
-            pure IndexView { .. }
-```
-
-Declare the routes with `[routes|...|]` and mount the generated route list:
-
-```haskell
-[routes|webRoutes
-GET  /Posts PostsAction
-POST /Posts CreatePostAction
-|]
-
-instance FrontController WebApplication where
-    controllers =
-        webRoutes <> [swaggerUi]
-```
-
-Here the request body schema comes from `'Body CreatePostRequest`, while the
-response schema comes from `IndexView`'s `JsonView` `JsonResponse` associated
-type. There is no separate response-view annotation to keep in sync with the
-handler.
 
 ### Advanced: Rendering JSON directly from actions
 

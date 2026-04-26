@@ -288,7 +288,7 @@ Inside a controller, you have several ways of sending a response. The most commo
 render ShowPostView { .. }
 ```
 
-The [`render`](https://ihp.digitallyinduced.com/api-docs/IHP-Controller-Render.html#v:render) function renders the view as HTML. If you need to serve both HTML and JSON from the same action based on the `Accept` header, use [`renderHtmlOrJson`](https://ihp.digitallyinduced.com/api-docs/IHP-Controller-Render.html#v:renderHtmlOrJson) instead — this requires a `View` instance for HTML and a `JsonView` instance for JSON. See the [JSON API guide](json-api.html) for details.
+The [`render`](https://ihp.digitallyinduced.com/api-docs/IHP-Controller-Render.html#v:render) function renders the view as HTML. If you need to serve both HTML and JSON from the same action based on the `Accept` header, use [`renderHtmlOrJson`](https://ihp.digitallyinduced.com/api-docs/IHP-Controller-Render.html#v:renderHtmlOrJson) instead — this requires your view to implement both `View` and `JsonView`. See the [JSON API guide](json-api.html) for details.
 
 ### Rendering Plain Text
 

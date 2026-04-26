@@ -1,10 +1,13 @@
 {-# LANGUAGE AllowAmbiguousTypes   #-}
+{-# LANGUAGE DataKinds             #-}
 {-# LANGUAGE FlexibleContexts      #-}
 {-# LANGUAGE FlexibleInstances     #-}
 {-# LANGUAGE IncoherentInstances   #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE RankNTypes            #-}
 {-# LANGUAGE ScopedTypeVariables   #-}
 {-# LANGUAGE TypeFamilies          #-}
+{-# LANGUAGE TypeOperators         #-}
 {-# LANGUAGE UndecidableInstances  #-}
 {-|
 Module: IHP.View.Form.FormFor
@@ -14,15 +17,22 @@ Copyright: (c) digitally induced GmbH, 2020
 module IHP.View.Form.FormFor where
 
 import           IHP.Controller.Context
+import           IHP.Controller.TypedAction
 import           IHP.HSX.ConvertibleStrings ()
 import           IHP.HSX.MarkupQQ (hsx)
 import           IHP.ModelSupport (Id', InputValue, getModelName, isNew)
 import           IHP.Prelude
+import           IHP.Router.TypedRoute
+import           IHP.Router.UrlGenerator (HasPath (..))
+import           IHP.ValidationSupport.Types (getValidationViolation)
 import           IHP.View.Form.Fields (hiddenField)
 import           IHP.View.Types
 import           IHP.ViewSupport
+import           Network.HTTP.Types.Method (StdMethod (..), renderStdMethod)
 import           Network.Wai (Request, pathInfo)
 import IHP.HSX.Markup (Markup, ToHtml(..))
+
+type FormMarkup model = (?context :: ControllerContext, ?formContext :: FormContext model) => Markup
 
 -- | Forms usually begin with a 'formFor' expression.
 --
@@ -93,7 +103,8 @@ formFor :: forall record. (
     , ?request :: Request
     , ModelFormAction record
     , HasField "meta" record MetaBag
-    ) => record -> ((?context :: ControllerContext, ?formContext :: FormContext record) => Markup) -> Markup
+    , KnownSymbol (GetModelName record)
+    ) => record -> FormMarkup record -> Markup
 formFor record formBody = formForWithOptions @record record (\c -> c) formBody
 {-# INLINE formFor #-}
 
@@ -118,8 +129,10 @@ formForWithOptions :: forall record. (
     , ?request :: Request
     , ModelFormAction record
     , HasField "meta" record MetaBag
-    ) => record -> (FormContext record -> FormContext record) -> ((?context :: ControllerContext, ?formContext :: FormContext record) => Markup) -> Markup
-formForWithOptions record applyOptions formBody = buildForm (applyOptions (createFormContext record) { formAction = modelFormAction record }) formBody
+    , KnownSymbol (GetModelName record)
+    ) => record -> (FormContext record -> FormContext record) -> FormMarkup record -> Markup
+formForWithOptions record applyOptions formBody =
+    buildForm (applyOptions (createFormContext record) { formAction = modelFormAction record }) formBody
 {-# INLINE formForWithOptions #-}
 
 -- | Like 'formFor' but disables the IHP javascript helpers.
@@ -152,6 +165,7 @@ formForWithoutJavascript :: forall record. (
     , ?request :: Request
     , ModelFormAction record
     , HasField "meta" record MetaBag
+    , KnownSymbol (GetModelName record)
     ) => record -> ((?context :: ControllerContext, ?formContext :: FormContext record) => Markup) -> Markup
 formForWithoutJavascript record formBody = formForWithOptions @record record (\formContext -> formContext { disableJavascriptSubmission = True }) formBody
 {-# INLINE formForWithoutJavascript #-}
@@ -183,6 +197,7 @@ formFor' :: forall record. (
     ?context :: ControllerContext
     , ?request :: Request
     , HasField "meta" record MetaBag
+    , KnownSymbol (GetModelName record)
     ) => record -> Text -> ((?context :: ControllerContext, ?formContext :: FormContext record) => Markup) -> Markup
 formFor' record action = buildForm (createFormContext record) { formAction = action }
 {-# INLINE formFor' #-}
@@ -191,6 +206,7 @@ formFor' record action = buildForm (createFormContext record) { formAction = act
 createFormContext :: forall record. (
         ?request :: Request
         , HasField "meta" record MetaBag
+        , KnownSymbol (GetModelName record)
         ) => record -> FormContext record
 createFormContext record =
     FormContext
@@ -204,8 +220,88 @@ createFormContext record =
         , customFormAttributes = []
         , disableJavascriptSubmission = False
         , fieldNamePrefix = ""
+        , formFieldInputId = modelFieldInputId @record
+        , formFieldValidationResult = \field -> getValidationViolation field record
+        , formIsNew = isNew record
+        , formSubmitLabel = modelSubmitLabel @record record
         }
 {-# INLINE createFormContext #-}
+
+modelFieldInputId :: forall record fieldName. (KnownSymbol (GetModelName record), KnownSymbol fieldName) => Proxy fieldName -> Text
+modelFieldInputId field =
+    cs (lcfirst (getModelName @record) <> "_" <> cs (symbolVal field))
+{-# INLINE modelFieldInputId #-}
+
+modelSubmitLabel :: forall record. (HasField "meta" record MetaBag, KnownSymbol (GetModelName record)) => record -> Markup
+modelSubmitLabel record =
+    toHtml $ (if isNew record then "Create " else "Save ") <> buttonText
+  where
+    modelName = getModelName @record
+    buttonText = modelName |> humanize
+{-# INLINE modelSubmitLabel #-}
+
+createInputFormContext :: (?request :: Request) => input -> FormContext input
+createInputFormContext input =
+    FormContext
+        { model = input
+        , formAction = ""
+        , formMethod = "POST"
+        , formEnctype = Nothing
+        , cssFramework = theCSSFramework
+        , formId = ""
+        , formClass = "typed-form"
+        , customFormAttributes = []
+        , disableJavascriptSubmission = False
+        , fieldNamePrefix = ""
+        , formFieldInputId = \field -> cs (symbolVal field)
+        , formFieldValidationResult = \_ -> Nothing
+        , formIsNew = False
+        , formSubmitLabel = toHtml ("Submit" :: Text)
+        }
+{-# INLINE createInputFormContext #-}
+
+formForAction ::
+    forall action body response.
+    ( ?context :: ControllerContext
+    , ?request :: Request
+    , HasPath (action body response)
+    , HasActionMethods (action body response)
+    , FormCompatibleBodyEncodings (BodyEncodings body)
+    ) =>
+    action body response ->
+    DecodedRequest body ->
+    FormMarkup (DecodedRequest body) ->
+    Markup
+formForAction typedAction input formBody =
+    formForActionWithOptions typedAction input (\c -> c) formBody
+{-# INLINE formForAction #-}
+
+formForActionWithOptions ::
+    forall action body response.
+    ( ?context :: ControllerContext
+    , ?request :: Request
+    , HasPath (action body response)
+    , HasActionMethods (action body response)
+    , FormCompatibleBodyEncodings (BodyEncodings body)
+    ) =>
+    action body response ->
+    DecodedRequest body ->
+    (FormContext (DecodedRequest body) -> FormContext (DecodedRequest body)) ->
+    FormMarkup (DecodedRequest body) ->
+    Markup
+formForActionWithOptions typedAction input applyOptions formBody =
+    let routeMethod = typedActionFormMethod typedAction
+        bodyEncoding = formBodyEncoding @(BodyEncodings body)
+        formContext =
+            applyOptions (createInputFormContext input)
+                { formAction = pathTo typedAction
+                , formMethod = htmlFormMethod routeMethod
+                , formEnctype = Just (encodingMediaType bodyEncoding)
+                }
+     in buildForm formContext do
+            methodOverrideField routeMethod
+            formBody
+{-# INLINE formForActionWithOptions #-}
 
 -- | Used by 'formFor' to render the form
 buildForm :: forall model. (?context :: ControllerContext) => FormContext model -> ((?context :: ControllerContext, ?formContext :: FormContext model) => Markup) -> Markup
@@ -248,7 +344,15 @@ nestedFormFor field nestedRenderForm = forEach children renderChild
         |]
 
         buildNestedFormContext :: childRecord -> FormContext childRecord
-        buildNestedFormContext record = parentFormContext { model = record, fieldNamePrefix = symbolToText @fieldName <> "_" }
+        buildNestedFormContext record =
+            parentFormContext
+                { model = record
+                , fieldNamePrefix = symbolToText @fieldName <> "_"
+                , formFieldInputId = modelFieldInputId @childRecord
+                , formFieldValidationResult = \field -> getValidationViolation field record
+                , formIsNew = isNew record
+                , formSubmitLabel = modelSubmitLabel @childRecord record
+                }
 
         children :: [childRecord]
         children = getField @fieldName ?formContext.model
@@ -309,19 +413,73 @@ nestedFormFor field nestedRenderForm = forEach children renderChild
 -- > <form method="POST" action="/CreatePost" id="" class="new-form">
 -- >     <button class="btn btn-primary create-button" disabled="disabled">Create Post</button>
 -- > </form>
-submitButton :: forall model. (?formContext :: FormContext model, HasField "meta" model MetaBag, KnownSymbol (GetModelName model)) => SubmitButton
+submitButton :: forall model. (?formContext :: FormContext model) => SubmitButton
 submitButton =
-    let
-        modelName = IHP.ModelSupport.getModelName @model
-        buttonText = modelName |> humanize -- We do this to turn 'Create ProjectTask' into 'Create Project Task'
-        isNew = IHP.ModelSupport.isNew (model ?formContext)
-    in SubmitButton
-    { label = toHtml $ (if isNew then "Create " else "Save ") <> buttonText
+    SubmitButton
+    { label = ?formContext.formSubmitLabel
     , buttonClass = mempty
     , buttonDisabled = False
     , cssFramework = ?formContext.cssFramework
     }
 {-# INLINE submitButton #-}
+
+-- | Selects the form-compatible body encoding accepted by a typed action.
+--
+-- If both URL-encoded forms and multipart forms are accepted, the first
+-- encoding in the action's type-level list wins. JSON-only actions have no
+-- instance, so they cannot be targeted by 'formForAction'.
+class FormCompatibleBodyEncodings (encodings :: [BodyEncoding]) where
+    formBodyEncoding :: BodyEncoding
+
+instance {-# OVERLAPPING #-} FormCompatibleBodyEncodings ('FormUrlEncoded ': rest) where
+    formBodyEncoding = FormUrlEncoded
+    {-# INLINE formBodyEncoding #-}
+
+instance {-# OVERLAPPING #-} FormCompatibleBodyEncodings ('Multipart ': rest) where
+    formBodyEncoding = Multipart
+    {-# INLINE formBodyEncoding #-}
+
+instance {-# OVERLAPPABLE #-} (FormCompatibleBodyEncodings rest) => FormCompatibleBodyEncodings (other ': rest) where
+    formBodyEncoding = formBodyEncoding @rest
+    {-# INLINE formBodyEncoding #-}
+
+typedActionFormMethod ::
+    forall action body response.
+    (HasActionMethods (action body response)) =>
+    action body response ->
+    StdMethod
+typedActionFormMethod typedAction =
+    case typedActionMethods typedAction of
+        Just methods -> preferredFormRouteMethod methods
+        Nothing -> error "formForAction: no typed route matched this action"
+{-# INLINE typedActionFormMethod #-}
+
+preferredFormRouteMethod :: [StdMethod] -> StdMethod
+preferredFormRouteMethod methods
+    | POST `elem` methods = POST
+    | GET `elem` methods = GET
+    | HEAD `elem` methods = GET
+    | otherwise =
+        case methods of
+            method : _ -> method
+            [] -> error "formForAction: typed route has no allowed methods"
+{-# INLINE preferredFormRouteMethod #-}
+
+htmlFormMethod :: StdMethod -> Text
+htmlFormMethod GET = "GET"
+htmlFormMethod HEAD = "GET"
+htmlFormMethod _ = "POST"
+{-# INLINE htmlFormMethod #-}
+
+methodOverrideField :: StdMethod -> Markup
+methodOverrideField GET = mempty
+methodOverrideField HEAD = mempty
+methodOverrideField POST = mempty
+methodOverrideField method = [hsx|<input type="hidden" name="_method" value={methodName}/>|]
+  where
+    methodName :: Text
+    methodName = cs (renderStdMethod method)
+{-# INLINE methodOverrideField #-}
 
 -- | Returns the form's action attribute for a given record.
 class ModelFormAction record where
