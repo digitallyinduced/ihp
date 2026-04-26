@@ -10,6 +10,7 @@ import qualified Test.View.CSSFrameworkSpec
 import qualified Test.View.FormSpec
 import qualified Test.Controller.ContextSpec
 import qualified Test.Controller.ParamSpec
+import qualified Test.Controller.TypedActionSpec
 import qualified Test.Controller.CookieSpec
 import qualified Test.Controller.AccessDeniedSpec
 import qualified Test.Controller.NotFoundSpec
@@ -25,6 +26,7 @@ import qualified Test.Router.MixedModeSpec
 import qualified Test.Router.MultiControllerSpec
 import qualified Test.Router.AppBindingSpec
 import qualified Test.Router.WebSocketSpec
+import qualified Test.OpenApiSupportSpec
 import qualified Test.ViewSupportSpec
 import qualified Test.FileStorage.ControllerFunctionsSpec
 import qualified Test.PGListenerSpec
@@ -46,6 +48,7 @@ main = hspec do
     Test.View.FormSpec.tests
     Test.Controller.ContextSpec.tests
     Test.Controller.ParamSpec.tests
+    Test.Controller.TypedActionSpec.tests
     Test.Controller.AccessDeniedSpec.tests
     Test.Controller.NotFoundSpec.tests
     Test.ModelSupportSpec.tests
@@ -60,6 +63,7 @@ main = hspec do
     Test.Router.MultiControllerSpec.tests
     Test.Router.AppBindingSpec.tests
     Test.Router.WebSocketSpec.tests
+    Test.OpenApiSupportSpec.tests
     Test.ViewSupportSpec.tests
     Test.FileStorage.ControllerFunctionsSpec.tests
     Test.Controller.CookieSpec.tests

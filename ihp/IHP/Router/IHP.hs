@@ -1,6 +1,7 @@
 {-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE UndecidableInstances #-}
 {-|
 Module: IHP.Router.IHP
@@ -40,6 +41,9 @@ module IHP.Router.IHP
 import Prelude
 import Data.ByteString (ByteString)
 import qualified Data.ByteString.Char8 as ByteString.Char8
+import Data.Dynamic (toDyn)
+import Data.Maybe (catMaybes, fromMaybe)
+import Data.OpenApi (ToSchema)
 import Data.Text (Text)
 import qualified Data.Text as Text
 import Data.Typeable (Typeable)
@@ -47,16 +51,37 @@ import qualified Language.Haskell.TH as TH
 import Language.Haskell.TH (Q, Dec, Name)
 import qualified Language.Haskell.TH.Quote as TH
 
+import IHP.Controller.TypedAction (ActionDef, ParameterLocation (..))
+import IHP.ControllerSupport (ControllerAction)
 import IHP.Router.Capture (UrlCapture (..))
+import IHP.Router.DSL.Runtime (buildRouteTrie)
 import qualified IHP.ModelSupport as ModelSupport
+import IHP.Router.TypedRoute
+    ( DummyRouteValue (..)
+    , HasActionMethods (..)
+    , mkRouteParameterDoc
+    , runTypedRouteAction
+    , typedDocumentedRenderExpectationForAction
+    , typedRouteDocumentForAction
+    )
 import IHP.Router.DSL.TH
     ( ParsedBlock (..)
     , HeaderForm (..)
     , ControllerInfo (..)
+    , ConstructorInfo (..)
+    , ValidatedRoute (..)
+    , ValidatedSeg (..)
+    , QueryFieldKind (..)
+    , controllerAppliedType
+    , expandHeadForGet
+    , handlerExpr
+    , patternExp
     , parseAndReify
     , genericEmit
+    , routePathTemplate
     , trieValueName
     )
+import Network.HTTP.Types.Method (StdMethod)
 
 -- | Captures for IHP 'Id' values route through the table's primary-key type.
 -- This works for any table whose 'ModelSupport.PrimaryKey' has a 'UrlCapture'
@@ -134,12 +159,21 @@ ihpRoutesDec = routesDec
 --     the block alongside the regular @parseRoute \@Ctrl@ entries.
 ihpEmit :: ParsedBlock -> Q [Dec]
 ihpEmit ParsedBlock { pbHeader, pbGroups, pbWsRoutes } = do
-    canRouteDecs <- traverse (\(ctrl, _) -> emitCanRoute ctrl) pbGroups
+    case pbHeader of
+        HeaderLowercase _ -> pure ()
+        _
+            | any (ciIsGadt . fst) pbGroups ->
+                fail "routes: typed GADT action routes must use a lowercase binding header, e.g. [routes|webRoutes ...|], because parseRoute cannot mount an indexed action family"
+            | otherwise -> pure ()
+    canRouteDecs <- traverse (\(ctrl, _) -> emitCanRoute ctrl) (filter shouldEmitCanRoute pbGroups)
+    actionMethodDecs <- traverse (\(ctrl, routes) -> emitHasActionMethods ctrl routes) (filter (ciIsGadt . fst) pbGroups)
     bindingDecs <- case pbHeader of
-        HeaderLowercase name ->
-            emitNamedBinding name (map fst pbGroups) pbWsRoutes
-        _ -> pure []
-    pure (canRouteDecs <> bindingDecs)
+        HeaderLowercase name -> emitNamedBinding name pbGroups pbWsRoutes
+        _                    -> pure []
+    pure (canRouteDecs <> actionMethodDecs <> bindingDecs)
+  where
+    shouldEmitCanRoute (ctrl, _) =
+        not (ciIsGadt ctrl) && null (ciTypeVars ctrl)
 
 ---------------------------------------------------------------------------
 -- IHP-specific TH names (resolved at splice use-site)
@@ -153,6 +187,10 @@ toControllerRouteFn = TH.mkName "toControllerRoute"
 controllerRouteTrieCon, runActionPrimeFn :: Name
 controllerRouteTrieCon = TH.mkName "ControllerRouteTrie"
 runActionPrimeFn       = TH.mkName "runAction'"
+
+hasActionMethodsClass, actionMethodsFn :: Name
+hasActionMethodsClass = ''HasActionMethods
+actionMethodsFn = 'actionMethods
 
 ---------------------------------------------------------------------------
 -- Code generation — CanRoute
@@ -184,8 +222,39 @@ emitCanRoute ctrl = do
                     (TH.AppE (TH.ConE controllerRouteTrieCon) trieValE))
                 []]
     pure (TH.InstanceD Nothing []
-        (TH.AppT (TH.ConT canRouteClass) (TH.ConT (ciTypeName ctrl)))
+        (TH.AppT (TH.ConT canRouteClass) (controllerAppliedType ctrl))
         [parseRouteDecl, toControllerRouteDecl])
+
+emitHasActionMethods :: ControllerInfo -> [ValidatedRoute] -> Q Dec
+emitHasActionMethods ctrl routesForController = do
+    clauses <- traverse emitActionMethodsClause routesForController
+    let fallback =
+            TH.Clause
+                [TH.WildP]
+                (TH.NormalB (TH.ConE 'Nothing))
+                []
+    pure
+        ( TH.InstanceD
+            Nothing
+            []
+            (TH.AppT (TH.ConT hasActionMethodsClass) (controllerAppliedType ctrl))
+            [TH.FunD actionMethodsFn (clauses <> [fallback])]
+        )
+
+emitActionMethodsClause :: ValidatedRoute -> Q TH.Clause
+emitActionMethodsClause route =
+    pure
+        ( TH.Clause
+            [constructorWildPattern (vrCon route)]
+            (TH.NormalB (TH.AppE (TH.ConE 'Just) (methodsListExp (expandHeadForGet (vrMethods route)))))
+            []
+        )
+
+constructorWildPattern :: ConstructorInfo -> TH.Pat
+constructorWildPattern ConstructorInfo{coName, coFieldsOrder} =
+    case coFieldsOrder of
+        [] -> TH.ConP coName [] []
+        fields -> TH.RecP coName [(TH.mkName (Text.unpack fieldName), TH.WildP) | (fieldName, _) <- fields]
 
 ---------------------------------------------------------------------------
 -- Code generation — named binding for lowercase-header form
@@ -211,17 +280,19 @@ emitCanRoute ctrl = do
 -- the same implicits but swaps 'Controller' \/ 'CanRoute' for 'WSApp'.
 -- GHC cannot abstract those at the use site, so we emit an explicit
 -- signature enumerating all of them.
-emitNamedBinding :: Text -> [ControllerInfo] -> [(Name, ByteString)] -> Q [Dec]
-emitNamedBinding bindingTxt ctrls wsBindings = do
+emitNamedBinding :: Text -> [(ControllerInfo, [ValidatedRoute])] -> [(Name, ByteString)] -> Q [Dec]
+emitNamedBinding bindingTxt groups wsBindings = do
     let valName = TH.mkName (Text.unpack bindingTxt)
         appTyVarName = TH.mkName "app"
         appTy = TH.VarT appTyVarName
-        parseRouteName = TH.mkName "parseRoute"
+    gadtEntries <- traverse (uncurry (emitGadtControllerRoute appTyVarName)) gadtGroups
+    gadtCtx <- concat <$> traverse (uncurry gadtControllerConstraints) gadtGroups
+    let
         webSocketRouteName = TH.mkName "webSocketRoute"
 
-        httpEntries =
-            [ TH.AppTypeE (TH.VarE parseRouteName) (TH.ConT (ciTypeName c))
-            | c <- ctrls
+        classicEntries =
+            [ classicControllerRouteExp appTy c
+            | c <- classicCtrls
             ]
         wsEntries =
             [ TH.AppE
@@ -231,7 +302,9 @@ emitNamedBinding bindingTxt ctrls wsBindings = do
                     (TH.ConT (TH.mkName "ByteString")))
             | (wsTy, path) <- wsBindings
             ]
-        bindingExp = TH.ListE (httpEntries <> wsEntries)
+        entries =
+            classicEntries <> gadtEntries <> wsEntries
+        bindingExp = TH.ListE entries
 
         implicitReqTy  = TH.ImplicitParamT "request"  (TH.ConT (TH.mkName "Request"))
         implicitResTy  = TH.ImplicitParamT "respond"  (TH.ConT (TH.mkName "Respond"))
@@ -239,9 +312,8 @@ emitNamedBinding bindingTxt ctrls wsBindings = do
         initContextTy  = TH.AppT (TH.ConT (TH.mkName "InitControllerContext")) appTy
         typeableAppTy  = TH.AppT (TH.ConT ''Typeable) appTy
         perCtrl ctrl =
-            let ctrlTy = TH.ConT (ciTypeName ctrl)
+            let ctrlTy = controllerAppliedTypeForBinding appTy ctrl
              in [ TH.AppT (TH.ConT (TH.mkName "Controller")) ctrlTy
-                , TH.AppT (TH.ConT (TH.mkName "CanRoute")) ctrlTy
                 , TH.AppT (TH.ConT ''Typeable) ctrlTy
                 ]
         perWs (wsTy, _) =
@@ -251,7 +323,8 @@ emitNamedBinding bindingTxt ctrls wsBindings = do
                 ]
         ctx = implicitReqTy : implicitResTy : implicitAppTy
             : initContextTy : typeableAppTy
-            : concatMap perCtrl ctrls
+            : concatMap perCtrl classicCtrls
+            <> gadtCtx
             <> concatMap perWs wsBindings
         resultTy = TH.AppT TH.ListT
             (TH.AppT (TH.ConT (TH.mkName "ControllerRoute")) appTy)
@@ -261,3 +334,213 @@ emitNamedBinding bindingTxt ctrls wsBindings = do
         [ TH.SigD valName bindingTy
         , TH.FunD valName [TH.Clause [] (TH.NormalB bindingExp) []]
         ]
+  where
+    classicCtrls = [ctrl | (ctrl, _) <- groups, not (ciIsGadt ctrl)]
+    gadtGroups = [(ctrl, routesForController) | (ctrl, routesForController) <- groups, ciIsGadt ctrl]
+
+controllerAppliedTypeForBinding :: TH.Type -> ControllerInfo -> TH.Type
+controllerAppliedTypeForBinding appTy ControllerInfo{ciTypeName, ciTypeVars} =
+    foldl TH.AppT (TH.ConT ciTypeName) (replicate (length ciTypeVars) appTy)
+
+classicControllerRouteExp :: TH.Type -> ControllerInfo -> TH.Exp
+classicControllerRouteExp appTy ctrl =
+    TH.AppE
+        (TH.ConE controllerRouteTrieCon)
+        ( TH.AppE
+            (TH.VarE (trieValueName (ciTypeName ctrl)))
+            ( TH.AppTypeE
+                (TH.AppTypeE (TH.VarE runActionPrimeFn) appTy)
+                (controllerAppliedTypeForBinding appTy ctrl)
+            )
+        )
+
+emitGadtControllerRoute :: Name -> ControllerInfo -> [ValidatedRoute] -> Q TH.Exp
+emitGadtControllerRoute appTyVarName _ctrl routesForController = do
+    entries <- traverse (emitGadtRouteEntry appTyVarName) routesForController
+    documentExps <- traverse typedRouteDocumentExp routesForController
+    let trieExp = TH.AppE (TH.VarE 'buildRouteTrie) (TH.ListE entries)
+        docsExp =
+            TH.AppE
+                (TH.AppE (TH.VarE 'map) (TH.VarE 'toDyn))
+                (TH.AppE (TH.VarE 'catMaybes) (TH.ListE documentExps))
+        inspectionExp =
+            TH.AppE
+                (TH.ConE (TH.mkName "RouteLeaf"))
+                ( TH.AppE
+                    (TH.ConE (TH.mkName "DocumentedRoute"))
+                    (TH.AppE (TH.ConE (TH.mkName "TypedRouteControllerInfo")) docsExp)
+                )
+    pure
+        ( TH.AppE
+            (TH.AppE (TH.ConE (TH.mkName "ControllerRouteTrie'")) trieExp)
+            inspectionExp
+        )
+
+emitGadtRouteEntry :: Name -> ValidatedRoute -> Q TH.Exp
+emitGadtRouteEntry appTyVarName route = do
+    handler <- typedHandlerExpr appTyVarName route
+    pure
+        ( TH.TupE
+            [ Just (methodsListExp (expandHeadForGet (vrMethods route)))
+            , Just (patternExp (vrPath route))
+            , Just handler
+            ]
+        )
+
+typedHandlerExpr :: Name -> ValidatedRoute -> Q TH.Exp
+typedHandlerExpr appTyVarName route = do
+    runnerName <- TH.newName "_typedRouteRunner"
+    typedActionName <- TH.newName "_typedAction"
+    handler <- handlerExpr runnerName route
+    let typedAction = TH.VarE typedActionName
+        runner =
+            TH.LamE
+                [TH.VarP typedActionName]
+                ( TH.AppE
+                    ( TH.AppE
+                        (TH.AppTypeE (TH.VarE 'runTypedRouteAction) (TH.VarT appTyVarName))
+                        (TH.AppE (TH.VarE 'typedDocumentedRenderExpectationForAction) typedAction)
+                    )
+                    typedAction
+                )
+    pure (TH.LetE [TH.ValD (TH.VarP runnerName) (TH.NormalB runner) []] handler)
+
+typedRouteDocumentExp :: ValidatedRoute -> Q TH.Exp
+typedRouteDocumentExp route = do
+    let constructor = vrCon route
+        routeName = Text.pack (TH.nameBase (coName constructor))
+        pathTemplate = routePathTemplate (vrPath route)
+        params = routeParameterExps route
+        dummyAction = dummyActionExp constructor
+    pure
+        ( foldl
+            TH.AppE
+            (TH.VarE 'typedRouteDocumentForAction)
+            [ TH.LitE (TH.StringL (Text.unpack routeName))
+            , TH.LitE (TH.StringL (Text.unpack pathTemplate))
+            , methodsListExp (vrMethods route)
+            , TH.ListE params
+            , dummyAction
+            ]
+        )
+
+routeParameterExps :: ValidatedRoute -> [TH.Exp]
+routeParameterExps route =
+    pathParameterExps <> queryParameterExps
+  where
+    pathParameterExps =
+        [ routeParameterDocExp name ty 'PathParameter True
+        | segment <- vrPath route
+        , (name, ty) <- case segment of
+            VSCapture captureName captureType -> [(captureName, captureType)]
+            VSSplat captureName captureType -> [(captureName, captureType)]
+            VSLiteral _ -> []
+        ]
+
+    queryParameterExps =
+        [ routeParameterDocExp urlName innerType 'QueryParameter (kind == QFRequired)
+        | (urlName, _fieldName, kind, innerType) <- vrQueryFields route
+        ]
+
+routeParameterDocExp :: Text -> TH.Type -> Name -> Bool -> TH.Exp
+routeParameterDocExp name valueType location required =
+    TH.AppE
+        ( TH.AppE
+            ( TH.AppTypeE
+                (TH.AppTypeE (TH.VarE 'mkRouteParameterDoc) (TH.LitT (TH.StrTyLit (Text.unpack name))))
+                valueType
+            )
+            (TH.ConE location)
+        )
+        (if required then TH.ConE 'True else TH.ConE 'False)
+
+dummyActionExp :: ConstructorInfo -> TH.Exp
+dummyActionExp ConstructorInfo{coName, coFieldsOrder} =
+    case coFieldsOrder of
+        [] -> TH.ConE coName
+        fields ->
+            TH.RecConE
+                coName
+                [ (TH.mkName (Text.unpack fieldName), TH.AppTypeE (TH.VarE 'dummyRouteValue) fieldType)
+                | (fieldName, fieldType) <- fields
+                ]
+
+methodsListExp :: [StdMethod] -> TH.Exp
+methodsListExp methods =
+    TH.ListE [TH.ConE (TH.mkName (show method)) | method <- methods]
+
+gadtControllerConstraints :: ControllerInfo -> [ValidatedRoute] -> Q [TH.Type]
+gadtControllerConstraints ctrl routesForController =
+    concat <$> traverse (gadtRouteConstraints ctrl) routesForController
+
+gadtRouteConstraints :: ControllerInfo -> ValidatedRoute -> Q [TH.Type]
+gadtRouteConstraints ctrl route = do
+    (bodyTy, responseTy) <- actionBodyResponse ctrl (coResultType (vrCon route))
+    let actionTy = coResultType (vrCon route)
+        actionDefTy = TH.AppT (TH.AppT (TH.AppT (TH.ConT ''ActionDef) actionTy) bodyTy) responseTy
+        controllerActionTy = TH.AppT (TH.ConT ''ControllerAction) actionTy
+        controllerConstraints =
+            [ TH.AppT (TH.ConT (TH.mkName "Controller")) actionTy
+            , TH.AppT (TH.ConT ''Typeable) actionTy
+            , TH.AppT (TH.AppT TH.EqualityT controllerActionTy) actionDefTy
+            ]
+        pathConstraints =
+            [ routeValueConstraints captureType
+            | segment <- vrPath route
+            , captureType <- case segment of
+                VSCapture _ ty -> [ty]
+                VSSplat _ ty -> [ty]
+                VSLiteral _ -> []
+            ]
+        queryConstraints =
+            [ queryValueConstraints innerType <> dummyValueConstraint fieldType
+            | (_urlName, fieldName, _kind, innerType) <- vrQueryFields route
+            , fieldType <- maybeToList (lookup fieldName (coFieldsOrder (vrCon route)))
+            ]
+        fieldDummyConstraints =
+            [ dummyValueConstraint fieldType
+            | (_fieldName, fieldType) <- coFieldsOrder (vrCon route)
+            ]
+    pure (controllerConstraints <> concat pathConstraints <> concat queryConstraints <> concat fieldDummyConstraints)
+
+routeValueConstraints :: TH.Type -> [TH.Type]
+routeValueConstraints valueType =
+    [ TH.AppT (TH.ConT ''UrlCapture) valueType
+    , TH.AppT (TH.ConT ''ToSchema) valueType
+    , TH.AppT (TH.ConT ''Typeable) valueType
+    , TH.AppT (TH.ConT ''DummyRouteValue) valueType
+    ]
+
+queryValueConstraints :: TH.Type -> [TH.Type]
+queryValueConstraints valueType =
+    [ TH.AppT (TH.ConT ''UrlCapture) valueType
+    , TH.AppT (TH.ConT ''ToSchema) valueType
+    , TH.AppT (TH.ConT ''Typeable) valueType
+    ]
+
+dummyValueConstraint :: TH.Type -> [TH.Type]
+dummyValueConstraint valueType =
+    [TH.AppT (TH.ConT ''DummyRouteValue) valueType]
+
+maybeToList :: Maybe a -> [a]
+maybeToList Nothing = []
+maybeToList (Just value) = [value]
+
+actionBodyResponse :: ControllerInfo -> TH.Type -> Q (TH.Type, TH.Type)
+actionBodyResponse ctrl actionTy =
+    case unfoldTypeApps actionTy of
+        (TH.ConT typeName, [bodyTy, responseTy])
+            | typeName == ciTypeName ctrl -> pure (bodyTy, responseTy)
+        _ ->
+            fail
+                ( "routes: typed GADT action family "
+                    <> TH.nameBase (ciTypeName ctrl)
+                    <> " must have exactly two type indices: request body and response view"
+                )
+
+unfoldTypeApps :: TH.Type -> (TH.Type, [TH.Type])
+unfoldTypeApps = go []
+  where
+    go args = \case
+        TH.AppT f x -> go (x : args) f
+        ty -> (ty, args)
