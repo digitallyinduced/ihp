@@ -293,6 +293,62 @@ The trie-based router and the `[routes|…|]` DSL are also published as a standa
 
 See [`ihp-router/README.md`](https://github.com/digitallyinduced/ihp/blob/master/ihp-router/README.md) and the [`minimal-wai` example](https://github.com/digitallyinduced/ihp/tree/master/ihp-router/examples/minimal-wai) for a full walkthrough.
 
+### OpenAPI docs for AutoRoute
+
+If you want a pure `AutoRoute` controller to also appear in the generated OpenAPI document, define its actions with the inspectable `endpoint` DSL and mount it using [`documentRoute`](https://ihp.digitallyinduced.com/api-docs/IHP-RouterSupport.html#v:documentRoute):
+
+```haskell
+instance FrontController WebApplication where
+    controllers =
+        [ -- ...
+        , documentRoute @PostsController
+        ]
+```
+
+`documentRoute` derives paths, methods and parameters from `AutoRoute`. Response schemas, request bodies and operation metadata come from the `endpoint` definitions next to the controller handlers.
+
+Simple `customRoutes` / `customPathTo` overrides are supported when `customPathTo` returns a path backed by `customRoutes` and all action fields appear in the path. If IHP cannot prove this during OpenAPI generation, `buildOpenApi` fails with an `OpenApiGenerationException` instead of silently generating stale docs. Lower-level parser routes stay undocumented.
+
+You can then build the OpenAPI document from the mounted router tree:
+
+```haskell
+spec :: Value
+spec = buildOpenApi RootApplication
+```
+
+[`buildOpenApi`](https://ihp.digitallyinduced.com/api-docs/IHP-OpenApiSupport.html#v:buildOpenApi) traverses the same front controller structure that serves requests, so nested `mountFrontController` prefixes are reflected in the generated paths.
+
+If you also want to serve the generated specification and a Swagger UI for it, mount [`swaggerUi`](https://ihp.digitallyinduced.com/api-docs/IHP-OpenApiSupport.html#v:swaggerUi) in the same front controller:
+
+```haskell
+instance FrontController WebApplication where
+    controllers =
+        [ documentRoute @PostsController
+        , swaggerUi
+        ]
+```
+
+This serves:
+
+- `/api-docs` with the Swagger UI
+- `/api-docs/openapi.json` with the generated OpenAPI 3 document
+
+If you want a different path or page title, use [`swaggerUiWithOptions`](https://ihp.digitallyinduced.com/api-docs/IHP-OpenApiSupport.html#v:swaggerUiWithOptions):
+
+```haskell
+instance FrontController WebApplication where
+    controllers =
+        [ documentRoute @PostsController
+        , swaggerUiWithOptions
+            ((defaultSwaggerUiOptions @WebApplication)
+                { swaggerUiPath = "/docs"
+                , swaggerUiTitle = Just "Posts API Docs"
+                })
+        ]
+```
+
+The Swagger UI route stays tied to the same front controller where you mount it, so the UI and the JSON specification are generated from the actual Haskell routes in that router. If you want to document your full root application including outer `mountFrontController` prefixes, mount `swaggerUi` in the root front controller. By default the HTML shell loads the Swagger UI assets from the `swagger-ui-dist` CDN; if you need different asset URLs you can override them in `SwaggerUiOptions`.
+
 ## Changing the Start Page / Home Page
 
 You can define a custom start page action using the [`startPage`](https://ihp.digitallyinduced.com/api-docs/IHP-RouterSupport.html#v:startPage) function like this:
@@ -333,6 +389,114 @@ To generate a full URL, use [`urlTo`](https://ihp.digitallyinduced.com/api-docs/
 urlTo NewUserAction
 -- http://localhost:8000/NewUser
 ```
+
+## Typed GADT Routes
+
+Typed GADT actions are an opt-in alternative to classic controller action ADTs.
+They are useful when you want the route, request body, generated forms and
+OpenAPI docs to share one typed contract.
+
+Typed GADT actions use the same `[routes|...|]` DSL as classic controllers.
+For GADT action families, use a lowercase binding header such as `webRoutes`.
+The splice emits a `ControllerRoute` list for `FrontController.controllers`,
+plus typed `pathTo`, route parameter parsing, form method lookup, and OpenAPI
+route metadata.
+
+The modules defining typed actions usually need `GADTs`, `DataKinds`,
+`TypeApplications`, `TypeFamilies` and `StandaloneDeriving` enabled.
+
+Classic actions look like this:
+
+```haskell
+data PostsController
+    = EditPostAction { postId :: !(Id Post), returnTo :: !(Maybe Text) }
+    | UpdatePostAction { postId :: !(Id Post), returnTo :: !(Maybe Text) }
+```
+
+With typed actions, the constructor fields still represent path and query
+parameters, but the action also has type indices for the request body and the
+response view:
+
+```haskell
+data PostsAction request response where
+    EditPostAction
+        :: { postId :: Id Post
+           , returnTo :: Maybe Text
+           }
+        -> PostsAction 'NoBody EditView
+
+    UpdatePostAction
+        :: { postId :: Id Post
+           , returnTo :: Maybe Text
+           }
+        -> PostsAction ('Body PostInput) ShowView
+
+deriving instance Show (PostsAction request response)
+deriving instance Eq (PostsAction request response)
+```
+
+`'NoBody` means that there is no request body. Path params and query params are
+not part of the body; they are constructor fields on the action value.
+
+Define the route shape once with `[routes|...|]`:
+
+```haskell
+[routes|webRoutes
+/posts/{postId}/edit?returnTo  EditPostAction
+/posts/{postId}?returnTo       UpdatePostAction
+|]
+```
+
+When the method column is omitted, IHP infers methods from the action name.
+`Show*` maps to `GET`/`HEAD`, `Create*` to `POST`, `Update*` to
+`POST`/`PATCH`, and `Delete*` to `DELETE`. Write the method explicitly when the
+convention is not the route contract:
+
+```haskell
+[routes|webRoutes
+GET   /posts/{postId}/edit?returnTo  EditPostAction
+PATCH /posts/{postId}?returnTo       UpdatePostAction
+|]
+```
+
+The route declaration is used for runtime parsing, query parsing, `pathTo`, the
+OpenAPI path template and OpenAPI parameter docs. You do not repeat the same
+path shape in a parser and in a documentation string.
+
+```haskell
+instance FrontController WebApplication where
+    controllers = webRoutes
+```
+
+`pathTo` works from the typed action value:
+
+```haskell
+pathTo UpdatePostAction
+    { postId = "00000000-0000-0000-0000-000000000000"
+    , returnTo = Just "/dashboard"
+    }
+-- /posts/00000000-0000-0000-0000-000000000000?returnTo=%2Fdashboard
+```
+
+The inferred methods follow IHP naming conventions:
+
+| Action prefix | Methods |
+| --- | --- |
+| `Delete` | `DELETE` |
+| `Update` | `POST`, `PATCH` |
+| `Create` | `POST` |
+| `Show` | `GET`, `HEAD` |
+| anything else | `GET`, `POST`, `HEAD` |
+
+The route declaration checks that every path and query parameter is a field on
+the action value and uses that field type for parsing, URL rendering and
+OpenAPI schemas. `Maybe` query parameters are documented as optional;
+non-`Maybe` query parameters are required.
+
+The action's `documented` block should only describe operation metadata such as
+`summary`, `tags`, response status and descriptions. Request body schemas come
+from the action body index, response schemas come from `View.JsonResponse`, and
+path/query parameter schemas come from the route type.
 
 ## AutoRoute
 
@@ -483,6 +647,8 @@ With this setup:
 - `pathTo PostsAction` generates `/Posts` (the auto-generated URL as usual)
 
 The `customRoutes` parser is tried first, before the auto-generated routes. If it doesn't match, the auto-generated routes are tried as usual. Return `Nothing` from `customPathTo` for any action that should use the default URL generation.
+
+When mounted with `documentRoute`, this basic custom route is included in the OpenAPI document as `/posts/{postId}`. IHP verifies that the generated `customPathTo` path is accepted by `customRoutes`; unsupported custom paths fail OpenAPI generation with a clear error.
 
 ## Custom Routing
 

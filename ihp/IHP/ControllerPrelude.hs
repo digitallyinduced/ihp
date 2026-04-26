@@ -2,6 +2,7 @@
 module IHP.ControllerPrelude
     ( module IHP.Prelude
     , module IHP.ControllerSupport
+    , module IHP.Controller.TypedAction
     , module IHP.Controller.AccessDenied
     , module IHP.Controller.NotFound
     , module IHP.Controller.Render
@@ -21,6 +22,7 @@ module IHP.ControllerPrelude
     , module Data.Aeson
     , module Network.Wai.Parse
     , module IHP.RouterSupport
+    , module IHP.Router.TypedRoute
     , module IHP.ValidationSupport
     , module IHP.AutoRefresh
     , module IHP.FlashMessages
@@ -28,12 +30,13 @@ module IHP.ControllerPrelude
     , module IHP.Modal.Types
     , setModal
     , module IHP.Controller.Layout
-    , JsonView (..)
+    , View (..)
     , module IHP.Job.Types
     , module IHP.LoginSupport.Helper.Controller
     , Only (..)
     , module IHP.PageHead.ControllerFunctions
     , module IHP.WebSocket
+    , module IHP.OpenApiSupport
     , module IHP.FileStorage.Types
     , module IHP.FileStorage.ControllerFunctions
     , module IHP.FileStorage.Preprocessor.ImageMagick
@@ -43,13 +46,14 @@ module IHP.ControllerPrelude
 import IHP.Prelude
 import IHP.Controller.Param
 import IHP.Controller.FileUpload
-import IHP.Controller.Render
+import IHP.Controller.Render hiding (json)
 import IHP.Controller.AccessDenied
 import IHP.Controller.NotFound
 import IHP.Controller.Session
 import IHP.Controller.BasicAuth
 import IHP.Controller.Cookie
 import IHP.ControllerSupport
+import IHP.Controller.TypedAction
 import IHP.ValidationSupport
 import IHP.HaskellSupport
 import IHP.ModelSupport
@@ -61,6 +65,7 @@ import IHP.FetchRelated
 import Data.Aeson hiding (Success)
 import Network.Wai.Parse (FileInfo(..))
 import IHP.RouterSupport hiding (get, post)
+import IHP.Router.TypedRoute
 import IHP.Controller.Redirect
 import Database.PostgreSQL.Simple.Types (Only (..))
 import IHP.FlashMessages
@@ -69,7 +74,7 @@ import IHP.Controller.Layout
 
 import IHP.Modal.Types
 import qualified IHP.Modal.ControllerFunctions as Modal
-import IHP.ViewSupport (View, JsonView(..))
+import IHP.ViewSupport (View (..))
 import qualified IHP.ViewSupport as ViewSupport
 
 import IHP.Job.Types
@@ -79,6 +84,7 @@ import IHP.LoginSupport.Helper.Controller
 import IHP.PageHead.ControllerFunctions
 
 import IHP.WebSocket
+import IHP.OpenApiSupport
 
 import IHP.FileStorage.Types
 import IHP.FileStorage.ControllerFunctions

@@ -10,6 +10,7 @@ module IHP.RouterPrelude
 , module ClassyPrelude
 , module Data.String.Conversions
 , module IHP.ModelSupport
+, module IHP.Router.TypedRoute
 , module Network.HTTP.Types.Method
 , routes
 , UrlCapture (..)
@@ -18,7 +19,7 @@ module IHP.RouterPrelude
   -- type signature for the lowercase-header binding references
   -- 'Controller', 'InitControllerContext', 'Request', and 'Respond' as
   -- constraint classes. They must be in scope at the splice call site.
-, Controller
+, Controller (..)
 , InitControllerContext
 , Request
 , Respond
@@ -30,8 +31,9 @@ import IHP.RouterSupport
 import ClassyPrelude hiding (index, delete, show, take, takeWhile, try)
 import Data.String.Conversions (cs)
 import IHP.ModelSupport (Id, Id' (..))
+import IHP.Router.TypedRoute
 import Network.HTTP.Types.Method (StdMethod (..))
 import IHP.Router.Capture (UrlCapture (..), Segment (..))
 import IHP.Router.IHP (routes)
-import IHP.ControllerSupport (Controller, InitControllerContext, Respond)
+import IHP.ControllerSupport (Controller (..), InitControllerContext, Respond)
 import Network.Wai (Request)
