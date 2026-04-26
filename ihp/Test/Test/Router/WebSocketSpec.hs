@@ -18,7 +18,7 @@ import IHP.RouterSupport
 import IHP.Router.DSL (routes)
 import IHP.ControllerPrelude
 import qualified IHP.WebSocket as WS
-import qualified IHP.Router.Trie as Trie
+import qualified "ihp-router" IHP.Router.Trie as Trie
 import qualified Data.ByteString.Lazy as LBS
 import Network.HTTP.Types.Method (StdMethod (..))
 import qualified Network.Wai as Wai
