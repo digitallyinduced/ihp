@@ -324,6 +324,54 @@ routes, the route type is also the source of truth for runtime parsing,
 `pathTo`, and OpenAPI path/query parameter docs, so typed routes do not repeat
 path parameters in a separate documentation block.
 
+To serve the generated document and Swagger UI, add the exported Swagger
+controller actions to your route DSL:
+
+```haskell
+import IHP.OpenApiSupport
+    ( OpenApiInfo (..)
+    , SwaggerUiController (..)
+    , SwaggerUiControllerConfig (..)
+    , defaultSwaggerUiOptions
+    )
+
+[routes|openApiRoutes
+GET /api-docs              SwaggerUiAction
+GET /api-docs/openapi.json OpenApiJsonAction
+|]
+```
+
+Then include the generated route binding in your front controller:
+
+```haskell
+instance FrontController WebApplication where
+    controllers =
+        webRoutes
+            <> openApiRoutes
+            <> [ startPage WelcomeAction ]
+```
+
+`SwaggerUiAction` uses `pathTo OpenApiJsonAction`, so the Swagger UI always
+fetches the OpenAPI JSON from the route you declared.
+
+To customize the generated document metadata or Swagger UI assets, add a
+`SwaggerUiControllerConfig` instance. The URL fields are ignored when using the
+controller actions because `[routes|...|]` is the source of truth for URLs:
+
+```haskell
+instance SwaggerUiControllerConfig WebApplication where
+    swaggerUiControllerOptions =
+        (defaultSwaggerUiOptions @WebApplication)
+            { swaggerUiTitle = Just "My API"
+            , swaggerUiInfo =
+                OpenApiInfo
+                    { openApiTitle = "My API"
+                    , openApiVersion = "1.0.0"
+                    , openApiDescription = Just "Public API"
+                    }
+            }
+```
+
 ## Building a REST API
 
 Here is a complete example of a CRUD API for a `posts` resource. We will assume a `posts` table with `id`, `title`, `body`, and `created_at` columns.

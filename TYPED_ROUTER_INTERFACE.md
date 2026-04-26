@@ -391,6 +391,52 @@ There are no separate body, response, path-parameter, or query-parameter
 declarations in the action docs. Those would duplicate the action and route
 types.
 
+Serve the generated document and Swagger UI through normal routes too:
+
+```haskell
+import IHP.OpenApiSupport
+    ( OpenApiInfo (..)
+    , SwaggerUiController (..)
+    , SwaggerUiControllerConfig (..)
+    , defaultSwaggerUiOptions
+    )
+
+[routes|openApiRoutes
+GET /api-docs              SwaggerUiAction
+GET /api-docs/openapi.json OpenApiJsonAction
+|]
+```
+
+```haskell
+instance FrontController WebApplication where
+    controllers =
+        webRoutes
+            <> openApiRoutes
+            <> [ startPage WelcomeAction ]
+```
+
+`SwaggerUiAction` renders Swagger UI. `OpenApiJsonAction` renders the generated
+OpenAPI JSON. The UI links to `pathTo OpenApiJsonAction`, so changing the JSON
+route in `[routes|...|]` automatically changes the URL used by Swagger UI.
+
+Customize the generated document metadata or Swagger UI assets with a
+`SwaggerUiControllerConfig` instance. The URL fields are ignored in this mode
+because the route DSL owns the URLs:
+
+```haskell
+instance SwaggerUiControllerConfig WebApplication where
+    swaggerUiControllerOptions =
+        (defaultSwaggerUiOptions @WebApplication)
+            { swaggerUiTitle = Just "My API"
+            , swaggerUiInfo =
+                OpenApiInfo
+                    { openApiTitle = "My API"
+                    , openApiVersion = "1.0.0"
+                    , openApiDescription = Just "Public API"
+                    }
+            }
+```
+
 ## Migration
 
 Use typed routes where the extra type information pays for itself:
