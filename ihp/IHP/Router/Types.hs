@@ -9,36 +9,6 @@ import Prelude
 import Data.ByteString (ByteString)
 import Control.Exception (Exception)
 import Network.HTTP.Types.Method
-import qualified Data.HashMap.Strict as HashMap
-import Data.Attoparsec.ByteString.Char8 (Parser)
-import Network.Wai (Application)
-import IHP.Router.Trie (RouteTrie)
-
--- | A controller route entry. Three flavours:
---
--- * 'ControllerRouteMap' — the legacy 'AutoRoute' path: a pre-built HashMap
---   of full paths to handlers, plus a custom-routes fallback 'Parser'.
--- * 'ControllerRouteParser' — standalone custom 'Parser' (for helpers like
---   'IHP.RouterSupport.get', 'IHP.RouterSupport.post', 'IHP.RouterSupport.webSocketApp',
---   'IHP.RouterSupport.startPage', etc.).
--- * 'ControllerRouteTrie' — the new explicit-routes path: a pre-built trie
---   fragment carrying method-aware, capture-aware route entries. Used by
---   the @routes@ quasi-quoter.
---
--- 'IHP.RouterSupport.frontControllerToWAIApp' first merges all 'ControllerRouteTrie'
--- fragments into a single 'RouteTrie' and tries a fast, method-aware lookup against
--- it. On no match it falls back to the legacy 'ControllerRouteMap' HashMap scan
--- and, finally, to Attoparsec for the remaining custom parsers.
-data ControllerRoute application
-    = ControllerRouteMap
-        !(HashMap.HashMap ByteString (application -> Application))
-        (Parser Application)
-        -- ^ Auto-route HashMap + custom routes fallback parser (lazy — only evaluated on HashMap miss)
-    | ControllerRouteParser !(Parser Application)
-        -- ^ Custom route parser (for get, post, webSocketApp, startPage, etc.)
-    | ControllerRouteTrie !RouteTrie
-        -- ^ Pre-built trie fragment from the @routes@ DSL. Method-aware; merged
-        -- into the app-wide trie at startup.
 
 data TypedAutoRouteError
     = BadType

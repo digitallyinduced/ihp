@@ -14,8 +14,8 @@ module Test.Router.AppBindingSpec where
 import Test.Hspec
 import IHP.Prelude
 import IHP.RouterSupport
-import IHP.Router.DSL (routes)
-import IHP.Router.Capture (renderCapture, parseCapture)
+import "ihp" IHP.Router.DSL (routes)
+import "ihp" IHP.Router.Capture (renderCapture, parseCapture)
 import IHP.ControllerPrelude
 import Network.HTTP.Types.Method (StdMethod (..))
 

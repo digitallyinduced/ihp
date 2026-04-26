@@ -45,6 +45,8 @@ generateGenericApplication applicationName =
                 <> "instance FrontController " <> applicationName <> "Application where\n"
                 <> "    controllers = \n"
                 <> "        [ startPage WelcomeAction\n"
+                <> "        -- Use documentRoute @YourController instead of parseRoute @YourController\n"
+                <> "        -- when you want OpenAPI docs derived from AutoRoute.\n"
                 <> "        -- Generator Marker\n"
                 <> "        ]\n\n"
                 <> "instance InitControllerContext " <> applicationName <> "Application where\n"

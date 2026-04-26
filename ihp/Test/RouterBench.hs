@@ -11,7 +11,7 @@ import Network.HTTP.Types (status200)
 import IHP.RouterSupport hiding (get)
 import IHP.ControllerSupport
 import qualified IHP.Router.Trie as Trie
-import IHP.Router.Trie (RouteTrie, PatternSegment(..), LookupResult(..))
+import "ihp" IHP.Router.Trie (RouteTrie, PatternSegment(..), LookupResult(..))
 import qualified IHP.Router.Capture as Capture
 import Test.Tasty.Bench
 

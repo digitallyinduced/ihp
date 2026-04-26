@@ -9,19 +9,21 @@ textual layer) and the TH splice (compile-time code-generation layer).
 The grammar, informally (RFC 6570 URI-template syntax for path parameters):
 
 > [routes|ControllerName
-> GET    /posts                 PostsAction
-> POST   /posts                 CreatePostAction
+> /posts                         PostsAction
+> POST   /posts                  CreatePostAction
 > GET    /posts/{postId}        ShowPostAction
 > GET    /posts/{postId}/edit   EditPostAction
 > PATCH  /posts/{postId}        UpdatePostAction
 > DELETE /posts/{postId}        DeletePostAction
 > |]
 
-@{name}@ binds the segment to a record field of the same name on the
-action constructor. @{name:Type}@ is an explicit-type escape hatch.
-@{+name}@ (RFC 6570 reserved-string expansion) matches the rest of the path.
-@GET|POST@ allows multiple methods for one route. Anything after @--@ on a
-line is a comment.
+The method column is optional. When omitted, methods are inferred from the
+action constructor name using IHP's controller naming conventions. @{name}@
+binds the segment to a record field of the same name on the action
+constructor. @{name:Type}@ is an explicit-type escape hatch. @{+name}@
+(RFC 6570 reserved-string expansion) matches the rest of the path. @GET|POST@
+allows multiple methods for one route. Anything after @--@ on a line is a
+comment.
 -}
 module IHP.Router.DSL.AST
     ( Routes (..)
@@ -33,10 +35,12 @@ module IHP.Router.DSL.AST
     , methodFromText
     , methodToText
     , expandAnyMethod
+    , inferMethodsFromActionName
     ) where
 
 import Prelude
 import Data.Text (Text)
+import qualified Data.Text as Text
 import qualified Data.Text.Encoding as Text.Encoding
 import Network.HTTP.Types.Method (StdMethod (..), parseMethod, renderStdMethod)
 
@@ -137,3 +141,16 @@ methodToText = Text.Encoding.decodeUtf8 . renderStdMethod
 -- | @ANY@ expands to every 'StdMethod' constructor.
 expandAnyMethod :: [Method]
 expandAnyMethod = [minBound .. maxBound]
+
+-- | Infer HTTP methods from IHP's controller naming conventions.
+--
+-- Used by the routes DSL when the method column is omitted:
+--
+-- > /projects/{projectId} ShowProjectAction
+inferMethodsFromActionName :: Text -> [Method]
+inferMethodsFromActionName actionName
+    | "Delete" `Text.isPrefixOf` actionName = [DELETE]
+    | "Update" `Text.isPrefixOf` actionName = [POST, PATCH]
+    | "Create" `Text.isPrefixOf` actionName = [POST]
+    | "Show" `Text.isPrefixOf` actionName = [GET, HEAD]
+    | otherwise = [GET, POST, HEAD]

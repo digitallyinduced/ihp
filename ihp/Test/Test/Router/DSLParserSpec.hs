@@ -6,8 +6,8 @@ module Test.Router.DSLParserSpec where
 
 import Test.Hspec
 import IHP.Prelude
-import IHP.Router.DSL.AST
-import IHP.Router.DSL.Parser
+import "ihp" IHP.Router.DSL.AST
+import "ihp" IHP.Router.DSL.Parser
 import qualified Data.Text as Text
 import Network.HTTP.Types.Method (StdMethod (..))
 
@@ -38,6 +38,22 @@ tests = do
                 parseRoutes "PostsController\nGET /posts PostsAction\n"
                     `shouldBe` Right (mk "PostsController"
                         [ rt 2 [GET] [Literal "posts"] "PostsAction" ])
+
+            it "infers methods from the action name when the method column is omitted" do
+                let source = Text.unlines
+                        [ "PostsController"
+                        , "/posts/{postId}      ShowPostAction"
+                        , "/posts/{postId}      UpdatePostAction"
+                        , "/posts               CreatePostAction"
+                        , "/posts/{postId}      DeletePostAction"
+                        ]
+                parseRoutes source
+                    `shouldBe` Right (mk "PostsController"
+                        [ rt 2 [GET, HEAD] [Literal "posts", Capture "postId" Nothing] "ShowPostAction"
+                        , rt 3 [POST, PATCH] [Literal "posts", Capture "postId" Nothing] "UpdatePostAction"
+                        , rt 4 [POST] [Literal "posts"] "CreatePostAction"
+                        , rt 5 [DELETE] [Literal "posts", Capture "postId" Nothing] "DeletePostAction"
+                        ])
 
             it "parses multiple routes" do
                 let source = Text.unlines
