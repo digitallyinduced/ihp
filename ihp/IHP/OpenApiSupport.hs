@@ -25,14 +25,12 @@ module IHP.OpenApiSupport (
 ) where
 
 import Control.Exception qualified as Exception
-import Control.Monad.State.Strict qualified as State
 import Data.Aeson qualified as JSON
 import Data.Aeson.Key qualified as JSON.Key
 import Data.Aeson.KeyMap qualified as JSON.KeyMap
-import Data.Attoparsec.ByteString.Char8 (endOfInput, parseOnly, string)
+import Data.Attoparsec.ByteString.Char8 (string)
 import Data.ByteString.Char8 qualified as ByteString
 import Data.ByteString.Lazy qualified as LazyByteString
-import Data.Data
 import Data.Dynamic (fromDynamic)
 import Data.Map.Strict qualified as Map
 import Data.OpenApi (Definitions, NamedSchema (..), Referenced, Schema, ToSchema (..), declareNamedSchema, declareSchemaRef, defaultSchemaOptions, genericDeclareNamedSchema, toSchema)
@@ -41,17 +39,14 @@ import Data.Semigroup (Semigroup (..))
 import Data.Text qualified as Text
 import Data.Text.Encoding qualified as Text
 import Data.Typeable qualified as Typeable
-import Data.UUID (nil)
-import Data.UUID qualified as UUID
 import IHP.Controller.TypedAction qualified as TypedAction
 import IHP.ModelSupport
-import IHP.OpenApiSupport.ActionDoc
 import IHP.Prelude
 import IHP.Router.Types (UnexpectedMethodException (..))
 import IHP.RouterSupport
 import IHP.ViewSupport qualified as ViewSupport
 import Network.HTTP.Types.Header (hContentType)
-import Network.HTTP.Types.Method (StdMethod (..), parseMethod, renderStdMethod)
+import Network.HTTP.Types.Method (StdMethod (..), parseMethod)
 import Network.HTTP.Types.Status (status200, statusCode)
 import Network.Wai (Request, Response, defaultRequest, requestMethod, responseBuilder, responseLBS)
 import Text.Blaze.Html.Renderer.Utf8 qualified as Blaze
@@ -279,49 +274,10 @@ collectPaths currentPrefix = \case
          in mconcat <$> mapM (collectPaths prefixedPath) routes
 
 collectDocumentedRoute :: Text -> DocumentedRouteInfo -> Either Text OpenApiDocument
-collectDocumentedRoute _ (AutoRouteControllerInfo{documentedActions = Nothing}) = Right mempty
-collectDocumentedRoute currentPrefix (AutoRouteControllerInfo{documentedActions = Just docs}) =
-    foldl' (insertActionOperation currentPrefix) (Right mempty) docs
 collectDocumentedRoute currentPrefix (TypedRouteControllerInfo{typedRouteDocuments}) =
     typedRouteDocuments
         |> mapMaybe (fromDynamic @TypedAction.TypedRouteDocument)
         |> foldl' (insertTypedRouteOperation currentPrefix) (Right mempty)
-
-insertActionOperation ::
-    forall controller.
-    ( AutoRoute controller
-    , Data controller
-    , Typeable.Typeable controller
-    ) =>
-    Text ->
-    Either Text OpenApiDocument ->
-    ActionDoc controller ->
-    Either Text OpenApiDocument
-insertActionOperation currentPrefix pathState doc@ActionDoc{actionDocName} = do
-    OpenApiDocument{pathOperations, componentSchemas} <- pathState
-    constructor <- findControllerConstructor @controller actionDocName
-    (actionPath, parameters) <-
-        deriveCustomPathDocumentation @controller currentPrefix constructor
-            >>= \case
-                Just customPathDocumentation -> pure customPathDocumentation
-                Nothing -> do
-                    parameters <- deriveActionParameters @controller constructor
-                    pure (appendPathPrefix currentPrefix (actionPrefixText @controller <> stripActionSuffixText actionDocName), parameters)
-    let (operation, operationSchemas) = actionDocOperationValue doc parameters
-    let methods = allowedMethodsForAction @controller (Text.encodeUtf8 actionDocName)
-    pure
-        OpenApiDocument
-            { pathOperations = foldl' (insertMethod actionPath operation) pathOperations methods
-            , componentSchemas = componentSchemas <> operationSchemas
-            }
-
-findControllerConstructor :: forall controller. (Data controller) => Text -> Either Text Constr
-findControllerConstructor actionName =
-    dataTypeConstrs (dataTypeOf (undefined :: controller))
-        |> find (\constructor -> cs (showConstr constructor) == actionName)
-        |> \case
-            Just constructor -> Right constructor
-            Nothing -> Left ("OpenAPI docs reference unknown action " <> actionName)
 
 insertMethod :: Text -> JSON.Value -> PathOperations -> StdMethod -> PathOperations
 insertMethod actionPath operation paths method = Map.alter updatePath actionPath paths
@@ -381,36 +337,6 @@ openApiComponentsValue schemas =
         [ "schemas" JSON..= schemas
         ]
 
-actionDocOperationValue :: forall controller. ActionDoc controller -> [QueryParameterDocumentation] -> (JSON.Value, Definitions Schema)
-actionDocOperationValue ActionDoc{actionDocName, actionDocSummary, actionDocDescription, actionDocTags, actionDocOperationId, actionDocView, actionDocRequestBody, actionDocSuccessStatus, actionDocSuccessResponseDescription} parameters =
-    let SchemaDocumentation{documentedSchema, documentedDefinitions} = responseSchemaValue actionDocView
-        parameterDefinitions = parameters |> map (\QueryParameterDocumentation{parameterDefinitions} -> parameterDefinitions) |> mconcat
-        requestBodyDocumentation =
-            actionDocRequestBody
-                |> fmap openApiRequestBodySchemaValue
-        requestBodyDefinitions =
-            requestBodyDocumentation
-                |> fmap (.documentedDefinitions)
-                |> fromMaybe mempty
-        requestBodyValue =
-            case (actionDocRequestBody, requestBodyDocumentation) of
-                (Just requestBodyDoc, Just schemaDocumentation) -> Just ("requestBody" JSON..= openApiRequestBodyValue requestBodyDoc schemaDocumentation.documentedSchema)
-                _ -> Nothing
-     in ( JSON.object
-            ( [ Just ("parameters" JSON..= map queryParameterValue parameters)
-              , Just ("responses" JSON..= JSON.object [cs (show actionDocSuccessStatus) JSON..= successResponseValue actionDocSuccessResponseDescription documentedSchema])
-              , requestBodyValue
-              , ("summary" JSON..=) <$> actionDocSummary
-              , ("description" JSON..=) <$> actionDocDescription
-              , if null actionDocTags then Nothing else Just ("tags" JSON..= actionDocTags)
-              , ("operationId" JSON..=) <$> actionDocOperationId
-              , Just ("x-ihp-action" JSON..= actionDocName)
-              ]
-                |> catMaybes
-            )
-        , documentedDefinitions <> parameterDefinitions <> requestBodyDefinitions
-        )
-
 insertTypedRouteOperation ::
     Text ->
     Either Text OpenApiDocument ->
@@ -466,16 +392,6 @@ validateTypedRoutePathParameters routeName actionPath routeParameters =
                     )
 {-# INLINE validateTypedRoutePathParameters #-}
 
-typedActionDocPathParameterNames :: TypedAction.TypedActionDoc controller body response -> [Text]
-typedActionDocPathParameterNames (TypedAction.TypedActionDoc parameters _ _ _ _ _ _ _ _) =
-    parameters
-        |> mapMaybe
-            ( \case
-                TypedAction.ParameterDoc name TypedAction.PathParameter _ _ _ -> Just name
-                _ -> Nothing
-            )
-{-# INLINE typedActionDocPathParameterNames #-}
-
 routePathParameterNames :: [TypedAction.ParameterDoc] -> [Text]
 routePathParameterNames parameters =
     parameters
@@ -499,10 +415,9 @@ pathParameterNames path =
 {-# INLINE pathParameterNames #-}
 
 typedActionDocOperationValue :: Text -> [TypedAction.ParameterDoc] -> TypedAction.TypedActionDoc controller body response -> (JSON.Value, Definitions Schema)
-typedActionDocOperationValue routeName routeParameters (TypedAction.TypedActionDoc actionParameters summary description tags operationId requestBody response successStatus successResponseDescription) =
+typedActionDocOperationValue routeName routeParameters (TypedAction.TypedActionDoc summary description tags operationId requestBody response successStatus successResponseDescription) =
     let SchemaDocumentation{documentedSchema, documentedDefinitions} = responseSchemaValue response
-        parameters = routeParameters <> actionParameters
-        parameterDocumentation = map typedParameterDocumentation parameters
+        parameterDocumentation = map typedParameterDocumentation routeParameters
         parameterDefinitions = parameterDocumentation |> map (\QueryParameterDocumentation{parameterDefinitions} -> parameterDefinitions) |> mconcat
         requestBodyDocumentation = typedRequestBodySchemaValue <$> requestBody
         requestBodyDefinitions = requestBodyDocumentation |> fmap (.documentedDefinitions) |> fromMaybe mempty
@@ -565,24 +480,7 @@ typedRequestBodyContentValue encodings schema =
         |> JSON.KeyMap.fromList
         |> JSON.Object
 
-openApiRequestBodySchemaValue :: OpenApiRequestBodyDoc -> SchemaDocumentation
-openApiRequestBodySchemaValue OpenApiRequestBodyDoc{requestBodySchema} =
-    declareSchemaDocumentation requestBodySchema
-
-openApiRequestBodyValue :: OpenApiRequestBodyDoc -> Referenced Schema -> JSON.Value
-openApiRequestBodyValue OpenApiRequestBodyDoc{requestBodyRequired} schema =
-    JSON.object
-        [ "required" JSON..= requestBodyRequired
-        , "content"
-            JSON..= JSON.object
-                [ "application/json"
-                    JSON..= JSON.object
-                        [ "schema" JSON..= schema
-                        ]
-                ]
-        ]
-
-responseSchemaValue :: forall view. (ToSchema (ViewSupport.JsonResponse view)) => Proxy view -> SchemaDocumentation
+responseSchemaValue :: forall view. (ViewSupport.JsonView view, ToSchema (ViewSupport.JsonResponse view)) => Proxy view -> SchemaDocumentation
 responseSchemaValue _ = declareSchemaDocumentation (Proxy @(ViewSupport.JsonResponse view))
 
 successResponseValue :: Text -> Referenced Schema -> JSON.Value
@@ -628,14 +526,6 @@ parameterLocationValue :: ParameterLocation -> Text
 parameterLocationValue QueryParameter = "query"
 parameterLocationValue PathParameter = "path"
 
-toPathParameter :: QueryParameterDocumentation -> QueryParameterDocumentation
-toPathParameter parameter =
-    parameter
-        { parameterLocation = PathParameter
-        , parameterRequired = True
-        , parameterExplode = Nothing
-        }
-
 data SchemaDocumentation = SchemaDocumentation
     { documentedSchema :: Referenced Schema
     , documentedDefinitions :: Definitions Schema
@@ -648,345 +538,6 @@ declareSchemaDocumentation proxy =
             { documentedSchema = schema
             , documentedDefinitions = definitions
             }
-
-queryParameterDocumentation :: forall field. (Data field) => Text -> Maybe QueryParameterDocumentation
-queryParameterDocumentation parameterName =
-    directParameterDocumentation @field parameterName
-        <|> wrappedIdParameterDocumentation @field parameterName
-
-directParameterDocumentation :: forall field. (Data field) => Text -> Maybe QueryParameterDocumentation
-directParameterDocumentation parameterName =
-    asum
-        [ eqT @field @Text |> fmap (\Refl -> requiredParameter @Text parameterName)
-        , eqT @field @Int |> fmap (\Refl -> requiredParameter @Int parameterName)
-        , eqT @field @Integer |> fmap (\Refl -> requiredParameter @Integer parameterName)
-        , eqT @field @UUID |> fmap (\Refl -> requiredParameter @UUID parameterName)
-        , eqT @field @(Maybe Text) |> fmap (\Refl -> optionalParameter @Text parameterName)
-        , eqT @field @(Maybe Int) |> fmap (\Refl -> optionalParameter @Int parameterName)
-        , eqT @field @(Maybe Integer) |> fmap (\Refl -> optionalParameter @Integer parameterName)
-        , eqT @field @[Text] |> fmap (\Refl -> listParameter @Text parameterName)
-        , eqT @field @[Int] |> fmap (\Refl -> listParameter @Int parameterName)
-        , eqT @field @[Integer] |> fmap (\Refl -> listParameter @Integer parameterName)
-        , eqT @field @[UUID] |> fmap (\Refl -> listParameter @UUID parameterName)
-        ]
-
-requiredParameter :: forall a. (ToSchema a) => Text -> QueryParameterDocumentation
-requiredParameter parameterName =
-    let SchemaDocumentation{documentedSchema, documentedDefinitions} = declareSchemaDocumentation (Proxy @a)
-     in QueryParameterDocumentation
-            { parameterName
-            , parameterLocation = QueryParameter
-            , parameterRequired = True
-            , parameterSchema = documentedSchema
-            , parameterDefinitions = documentedDefinitions
-            , parameterExplode = Nothing
-            }
-
-optionalParameter :: forall a. (ToSchema a) => Text -> QueryParameterDocumentation
-optionalParameter parameterName =
-    let SchemaDocumentation{documentedSchema, documentedDefinitions} = declareSchemaDocumentation (Proxy @a)
-     in QueryParameterDocumentation
-            { parameterName
-            , parameterLocation = QueryParameter
-            , parameterRequired = False
-            , parameterSchema = documentedSchema
-            , parameterDefinitions = documentedDefinitions
-            , parameterExplode = Nothing
-            }
-
-listParameter :: forall a. (ToSchema [a]) => Text -> QueryParameterDocumentation
-listParameter parameterName =
-    let SchemaDocumentation{documentedSchema, documentedDefinitions} = declareSchemaDocumentation (Proxy @[a])
-     in QueryParameterDocumentation
-            { parameterName
-            , parameterLocation = QueryParameter
-            , parameterRequired = False
-            , parameterSchema = documentedSchema
-            , parameterDefinitions = documentedDefinitions
-            , parameterExplode = Just False
-            }
-
-wrappedIdParameterDocumentation :: forall field. (Data field) => Text -> Maybe QueryParameterDocumentation
-wrappedIdParameterDocumentation parameterName
-    | dataTypeName (dataTypeOf (undefined :: field)) /= "IHP.ModelSupport.Types.Id'" = Nothing
-    | otherwise =
-        dataTypeConstrs (dataTypeOf (undefined :: field))
-            |> listToMaybe
-            >>= \constructor -> either (const Nothing) Just (deriveWrappedIdParameter @field constructor parameterName)
-
-deriveWrappedIdParameter :: forall field. (Data field) => Constr -> Text -> Either Text QueryParameterDocumentation
-deriveWrappedIdParameter constructor parameterName =
-    let nextField :: forall inner. (Data inner) => State.StateT (Maybe QueryParameterDocumentation) (Either Text) inner
-        nextField = do
-            parameter <- case queryParameterDocumentation @inner parameterName of
-                Just queryParameter -> pure queryParameter
-                Nothing -> State.lift (Left unsupportedInnerTypeMessage)
-            State.put (Just parameter)
-            case dummyValueForFieldType @inner of
-                Right dummyValue -> pure dummyValue
-                Left errorMessage -> State.lift (Left errorMessage)
-        unsupportedInnerTypeMessage =
-            "OpenAPI does not support the inner primary key type of "
-                <> parameterName
-     in case State.runStateT (fromConstrM nextField constructor :: State.StateT (Maybe QueryParameterDocumentation) (Either Text) field) Nothing of
-            Right (_, Just parameter) -> Right parameter
-            Right (_, Nothing) -> Left ("OpenAPI could not derive the inner primary key type of " <> parameterName)
-            Left errorMessage -> Left errorMessage
-
-dummyValueForFieldType :: forall field. (Data field) => Either Text field
-dummyValueForFieldType =
-    fromMaybe
-        (Left unsupportedDummyTypeMessage)
-        (directDummyValue @field <|> wrappedIdDummyValue @field)
-  where
-    unsupportedDummyTypeMessage =
-        "OpenAPI dummy value is not implemented for type "
-            <> cs (dataTypeName (dataTypeOf (undefined :: field)))
-
-directDummyValue :: forall field. (Data field) => Maybe (Either Text field)
-directDummyValue =
-    asum
-        [ eqT @field @Text |> fmap (\Refl -> Right "")
-        , eqT @field @Int |> fmap (\Refl -> Right 0)
-        , eqT @field @Integer |> fmap (\Refl -> Right 0)
-        , eqT @field @UUID |> fmap (\Refl -> Right nil)
-        , eqT @field @(Maybe Text) |> fmap (\Refl -> Right Nothing)
-        , eqT @field @(Maybe Int) |> fmap (\Refl -> Right Nothing)
-        , eqT @field @(Maybe Integer) |> fmap (\Refl -> Right Nothing)
-        , eqT @field @[Text] |> fmap (\Refl -> Right [])
-        , eqT @field @[Int] |> fmap (\Refl -> Right [])
-        , eqT @field @[Integer] |> fmap (\Refl -> Right [])
-        , eqT @field @[UUID] |> fmap (\Refl -> Right [])
-        ]
-
-wrappedIdDummyValue :: forall field. (Data field) => Maybe (Either Text field)
-wrappedIdDummyValue
-    | dataTypeName (dataTypeOf (undefined :: field)) /= "IHP.ModelSupport.Types.Id'" = Nothing
-    | otherwise =
-        dataTypeConstrs (dataTypeOf (undefined :: field))
-            |> listToMaybe
-            |> fmap deriveWrappedIdDummyValue
-
-deriveWrappedIdDummyValue :: forall field. (Data field) => Constr -> Either Text field
-deriveWrappedIdDummyValue constructor =
-    let nextField :: forall inner. (Data inner) => State.StateT () (Either Text) inner
-        nextField =
-            case dummyValueForFieldType @inner of
-                Right dummyValue -> pure dummyValue
-                Left errorMessage -> State.lift (Left errorMessage)
-     in fst <$> State.runStateT (fromConstrM nextField constructor :: State.StateT () (Either Text) field) ()
-
-buildDummyAction :: forall controller. (Data controller) => Constr -> Either Text controller
-buildDummyAction constructor =
-    let nextField :: forall field. (Data field) => State.StateT () (Either Text) field
-        nextField = State.lift (dummyValueForFieldType @field)
-     in fst <$> State.runStateT (fromConstrM nextField constructor :: State.StateT () (Either Text) controller) ()
-
-data CustomPathFieldMarker = CustomPathFieldMarker
-    { markerFieldName :: Text
-    , markerText :: Text
-    , markerParameter :: QueryParameterDocumentation
-    }
-
-data MarkedAction controller = MarkedAction
-    { markedAction :: controller
-    , markedActionFields :: [CustomPathFieldMarker]
-    }
-
-deriveCustomPathDocumentation :: forall controller. (AutoRoute controller, Data controller) => Text -> Constr -> Either Text (Maybe (Text, [QueryParameterDocumentation]))
-deriveCustomPathDocumentation currentPrefix constructor = do
-    dummyAction <- buildDummyAction @controller constructor
-    case customPathTo dummyAction of
-        Nothing -> pure Nothing
-        Just _ -> do
-            MarkedAction{markedAction, markedActionFields} <- buildMarkedAction @controller constructor
-            customPath <- case customPathTo markedAction of
-                Just path -> pure path
-                Nothing -> Left ("OpenAPI customPathTo returned a path for dummy values but not marker values for action " <> cs (showConstr constructor))
-            validateCustomRouteParser @controller constructor customPath
-            documentCustomPath currentPrefix constructor customPath markedActionFields
-
-buildMarkedAction :: forall controller. (Data controller) => Constr -> Either Text (MarkedAction controller)
-buildMarkedAction constructor =
-    let initialState = (map cs (constrFields constructor), 1, [])
-        nextField :: forall field. (Data field) => State.StateT ([Text], Int, [CustomPathFieldMarker]) (Either Text) field
-        nextField = do
-            (remainingFields, markerIndex, markers) <- State.get
-            case remainingFields of
-                [] -> State.lift (Left ("OpenAPI customPathTo field derivation failed for action " <> cs (showConstr constructor)))
-                (fieldName : restFields) -> do
-                    parameter <- case queryParameterDocumentation @field fieldName of
-                        Just queryParameter -> pure (toPathParameter queryParameter)
-                        Nothing -> State.lift (Left unsupportedTypeMessage)
-                    FieldMarkerValue{fieldMarkerText, fieldMarkerValue} <- State.lift (markerValueForFieldType @field fieldName markerIndex)
-                    State.put
-                        ( restFields
-                        , markerIndex + 1
-                        , markers
-                            <> [ CustomPathFieldMarker
-                                    { markerFieldName = fieldName
-                                    , markerText = fieldMarkerText
-                                    , markerParameter = parameter
-                                    }
-                               ]
-                        )
-                    pure fieldMarkerValue
-                  where
-                    unsupportedTypeMessage =
-                        "OpenAPI customPathTo does not support the field "
-                            <> fieldName
-                            <> " with type "
-                            <> cs (dataTypeName (dataTypeOf (undefined :: field)))
-     in case State.runStateT
-            (fromConstrM nextField constructor :: State.StateT ([Text], Int, [CustomPathFieldMarker]) (Either Text) controller)
-            initialState of
-            Left errorMessage -> Left errorMessage
-            Right (action, ([], _, markers)) -> Right MarkedAction{markedAction = action, markedActionFields = markers}
-            Right (_, (remainingFields, _, _)) ->
-                Left ("OpenAPI customPathTo field derivation did not consume all fields for action " <> cs (showConstr constructor) <> ": " <> cs (show remainingFields) :: Text)
-
-data FieldMarkerValue field = FieldMarkerValue
-    { fieldMarkerText :: Text
-    , fieldMarkerValue :: field
-    }
-
-markerValueForFieldType :: forall field. (Data field) => Text -> Int -> Either Text (FieldMarkerValue field)
-markerValueForFieldType fieldName markerIndex =
-    fromMaybe
-        (Left unsupportedMarkerTypeMessage)
-        (directMarkerValue @field fieldName markerIndex <|> wrappedIdMarkerValue @field fieldName markerIndex)
-  where
-    unsupportedMarkerTypeMessage =
-        "OpenAPI customPathTo marker value is not implemented for type "
-            <> cs (dataTypeName (dataTypeOf (undefined :: field)))
-
-directMarkerValue :: forall field. (Data field) => Text -> Int -> Maybe (Either Text (FieldMarkerValue field))
-directMarkerValue fieldName markerIndex =
-    let textMarker = "__ihp_openapi_" <> fieldName <> "_" <> cs (show markerIndex) <> "__"
-        integerMarker = 900000000 + toInteger markerIndex
-        intMarker :: Int
-        intMarker = fromInteger integerMarker
-        uuidMarkerText = "00000000-0000-0000-0000-" <> Text.justifyRight 12 '0' (cs (show markerIndex))
-        uuidMarker = fromMaybe nil (UUID.fromString (cs uuidMarkerText))
-     in asum
-            [ eqT @field @Text |> fmap (\Refl -> Right FieldMarkerValue{fieldMarkerText = textMarker, fieldMarkerValue = textMarker})
-            , eqT @field @Int |> fmap (\Refl -> Right FieldMarkerValue{fieldMarkerText = cs (show intMarker), fieldMarkerValue = intMarker})
-            , eqT @field @Integer |> fmap (\Refl -> Right FieldMarkerValue{fieldMarkerText = cs (show integerMarker), fieldMarkerValue = integerMarker})
-            , eqT @field @UUID |> fmap (\Refl -> Right FieldMarkerValue{fieldMarkerText = uuidMarkerText, fieldMarkerValue = uuidMarker})
-            , eqT @field @(Maybe Text) |> fmap (\Refl -> Right FieldMarkerValue{fieldMarkerText = textMarker, fieldMarkerValue = Just textMarker})
-            , eqT @field @(Maybe Int) |> fmap (\Refl -> Right FieldMarkerValue{fieldMarkerText = cs (show intMarker), fieldMarkerValue = Just intMarker})
-            , eqT @field @(Maybe Integer) |> fmap (\Refl -> Right FieldMarkerValue{fieldMarkerText = cs (show integerMarker), fieldMarkerValue = Just integerMarker})
-            ]
-
-wrappedIdMarkerValue :: forall field. (Data field) => Text -> Int -> Maybe (Either Text (FieldMarkerValue field))
-wrappedIdMarkerValue fieldName markerIndex
-    | dataTypeName (dataTypeOf (undefined :: field)) /= "IHP.ModelSupport.Types.Id'" = Nothing
-    | otherwise =
-        dataTypeConstrs (dataTypeOf (undefined :: field))
-            |> listToMaybe
-            |> fmap (deriveWrappedIdMarkerValue @field fieldName markerIndex)
-
-deriveWrappedIdMarkerValue :: forall field. (Data field) => Text -> Int -> Constr -> Either Text (FieldMarkerValue field)
-deriveWrappedIdMarkerValue fieldName markerIndex constructor =
-    let nextField :: forall inner. (Data inner) => State.StateT (Maybe Text) (Either Text) inner
-        nextField = do
-            FieldMarkerValue{fieldMarkerText, fieldMarkerValue} <- State.lift (markerValueForFieldType @inner fieldName markerIndex)
-            State.put (Just fieldMarkerText)
-            pure fieldMarkerValue
-     in case State.runStateT (fromConstrM nextField constructor :: State.StateT (Maybe Text) (Either Text) field) Nothing of
-            Right (fieldMarkerValue, Just fieldMarkerText) -> Right FieldMarkerValue{fieldMarkerText, fieldMarkerValue}
-            Right (_, Nothing) -> Left ("OpenAPI customPathTo could not derive the inner primary key marker for " <> fieldName)
-            Left errorMessage -> Left errorMessage
-
-documentCustomPath :: Text -> Constr -> Text -> [CustomPathFieldMarker] -> Either Text (Maybe (Text, [QueryParameterDocumentation]))
-documentCustomPath currentPrefix constructor customPath markers
-    | Text.null customPath = Left ("OpenAPI customPathTo returned an empty path for action " <> actionName)
-    | "?" `Text.isInfixOf` customPath = Left ("OpenAPI customPathTo for action " <> actionName <> " includes a query string. Put all documented route parameters in the path or use AutoRoute.")
-    | otherwise =
-        case filter (\CustomPathFieldMarker{markerText} -> not (markerText `Text.isInfixOf` customPath)) markers of
-            missingMarkers@(_ : _) ->
-                Left
-                    ( "OpenAPI customPathTo for action "
-                        <> actionName
-                        <> " does not include these action fields in the path: "
-                        <> Text.intercalate ", " (map markerFieldName missingMarkers)
-                    )
-            [] ->
-                let openApiPath =
-                        markers
-                            |> foldl'
-                                ( \path CustomPathFieldMarker{markerFieldName, markerText} ->
-                                    Text.replace markerText ("{" <> markerFieldName <> "}") path
-                                )
-                                customPath
-                            |> appendPathPrefix currentPrefix
-                    parameters = map markerParameter markers
-                 in Right (Just (openApiPath, parameters))
-  where
-    actionName = cs (showConstr constructor)
-
-validateCustomRouteParser :: forall controller. (AutoRoute controller, Data controller) => Constr -> Text -> Either Text ()
-validateCustomRouteParser constructor customPath =
-    let actionName = cs (showConstr constructor)
-        method =
-            allowedMethodsForAction @controller (cs actionName)
-                |> listToMaybe
-                |> fromMaybe GET
-        request = defaultRequest{requestMethod = renderStdMethod method}
-        dummyRespond _ = error "validateCustomRouteParser: response callback should never be called"
-        result =
-            let ?request = request
-                ?respond = dummyRespond
-             in parseOnly (customRoutes @controller <* endOfInput) (Text.encodeUtf8 customPath)
-     in case result of
-            Right action
-                | toConstr action == constructor -> Right ()
-                | otherwise ->
-                    Left
-                        ( "OpenAPI customPathTo for action "
-                            <> actionName
-                            <> " is parsed by customRoutes as "
-                            <> cs (showConstr (toConstr action))
-                        )
-            Left parseError ->
-                Left
-                    ( "OpenAPI customPathTo for action "
-                        <> actionName
-                        <> " returned "
-                        <> customPath
-                        <> ", but customRoutes does not parse that path: "
-                        <> cs parseError
-                    )
-
-deriveActionParameters :: forall controller. (Data controller) => Constr -> Either Text [QueryParameterDocumentation]
-deriveActionParameters constr =
-    let initialState = (map cs (constrFields constr), [])
-        nextField :: forall field. (Data field) => State.StateT ([Text], [QueryParameterDocumentation]) (Either Text) field
-        nextField = do
-            (remainingFields, parameters) <- State.get
-            case remainingFields of
-                [] -> State.lift (Left ("OpenAPI field derivation failed for action " <> cs (showConstr constr)))
-                (fieldName : restFields) ->
-                    case queryParameterDocumentation @field fieldName of
-                        Just parameter -> do
-                            State.put (restFields, parameters <> [parameter])
-                            case dummyValueForFieldType @field of
-                                Right dummyValue -> pure dummyValue
-                                Left errorMessage -> State.lift (Left errorMessage)
-                        Nothing -> State.lift (Left unsupportedTypeMessage)
-                  where
-                    unsupportedTypeMessage =
-                        "OpenAPI does not support the AutoRoute field "
-                            <> fieldName
-                            <> " with type "
-                            <> cs (dataTypeName (dataTypeOf (undefined :: field)))
-     in case State.runStateT
-            (fromConstrM nextField constr :: State.StateT ([Text], [QueryParameterDocumentation]) (Either Text) controller)
-            initialState of
-            Left errorMessage -> Left errorMessage
-            Right (_, ([], parameters)) -> Right parameters
-            Right (_, (remainingFields, _)) ->
-                Left ("OpenAPI field derivation did not consume all fields for action " <> cs (showConstr constr) <> ": " <> cs (show remainingFields) :: Text)
 
 instance {-# OVERLAPPABLE #-} (KnownSymbol table, ToSchema (PrimaryKey table)) => ToSchema (Id' table) where
     declareNamedSchema _ = declareNamedSchema (Proxy @(PrimaryKey table))

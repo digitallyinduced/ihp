@@ -15,7 +15,6 @@ module IHP.RouterSupport (
     RouteInspection (..),
     RouteDocumentation (..),
     DocumentedRouteInfo (..),
-    documentRoute,
     runAction,
     runAction',
     get,
@@ -91,7 +90,6 @@ import IHP.ErrorController qualified as ErrorController
 import IHP.FrameworkConfig
 import IHP.HaskellSupport hiding (get)
 import IHP.ModelSupport qualified as ModelSupport
-import IHP.OpenApiSupport.ActionDoc
 import IHP.Router.Middleware qualified as RouterMiddleware
 import IHP.Router.Trie qualified as Trie
 import IHP.Router.Types
@@ -100,7 +98,7 @@ import IHP.WebSocket (WSApp)
 import IHP.WebSocket qualified as WS
 import Network.HTTP.Types.Header (hContentType)
 import Network.HTTP.Types.Method
-import Network.HTTP.Types.Status (status400, status500)
+import Network.HTTP.Types.Status (status500)
 import Network.HTTP.Types.URI
 import Network.URI.Encode qualified as URI
 import Network.Wai
@@ -152,15 +150,6 @@ wrapRouterException :: IO a -> IO a
 wrapRouterException action = action `catch` \(e :: SomeException) -> throwIO (ErrorController.RouterException e)
 
 data DocumentedRouteInfo where
-    AutoRouteControllerInfo ::
-        forall controller.
-        ( AutoRoute controller
-        , Data controller
-        , Typeable.Typeable controller
-        ) =>
-        { documentedActions :: Maybe [ActionDoc controller]
-        } ->
-        DocumentedRouteInfo
     TypedRouteControllerInfo ::
         { typedRouteDocuments :: [Dynamic]
         } ->
@@ -327,40 +316,6 @@ validateOpenApiRenderedView view actualJson =
                         Just validationError ->
                             throwOpenApiRenderMismatch ("OpenAPI docs schema does not match the JSON generated from json of view " <> cs expectedViewTypeName <> ":\n" <> cs validationError)
 {-# INLINE validateOpenApiRenderedView #-}
-
-documentedRenderExpectationForAction :: forall controller. (Data controller) => RouteDocumentation -> controller -> Maybe DocumentedRenderExpectation
-documentedRenderExpectationForAction UndocumentedRoute _ = Nothing
-documentedRenderExpectationForAction (DocumentedRoute (TypedRouteControllerInfo{})) _ = Nothing
-documentedRenderExpectationForAction (DocumentedRoute (AutoRouteControllerInfo{documentedActions = Nothing})) _ = Nothing
-documentedRenderExpectationForAction (DocumentedRoute (AutoRouteControllerInfo{documentedActions = Just docs})) action =
-    docs
-        |> find (\ActionDoc{actionDocName} -> actionDocName == cs (showConstr (toConstr action)))
-        |> fmap
-            ( \ActionDoc{actionDocView, actionDocTypedJson, actionDocValidateJsonSchema} ->
-                DocumentedRenderExpectation
-                    { expectedViewTypeName = cs (show (Typeable.typeRep actionDocView))
-                    , expectedTypedJson = fmap actionDocTypedJson . fromDynamic
-                    , expectedJsonSchemaValidationError = join . fmap actionDocValidateJsonSchema . fromDynamic
-                    }
-            )
-
-runActionWithRouteDocumentation ::
-    forall application controller.
-    ( Controller controller
-    , InitControllerContext application
-    , ?application :: application
-    , Typeable application
-    , Typeable controller
-    , Data controller
-    ) =>
-    RouteDocumentation ->
-    controller ->
-    Application
-runActionWithRouteDocumentation routeDocumentation action waiRequest waiRespond =
-    let renderExpectation = documentedRenderExpectationForAction routeDocumentation action
-        waiRequest' = attachOpenApiRenderExpectation renderExpectation waiRequest
-     in runAction' @application action waiRequest' waiRespond
-{-# INLINE runActionWithRouteDocumentation #-}
 
 {- | Returns the url to a given action.
 
@@ -1382,27 +1337,6 @@ mountFrontController application =
             }
 {-# INLINEABLE mountFrontController #-}
 
-buildDocumentedRoute ::
-    forall controller application.
-    ( ?request :: Request
-    , ?respond :: Respond
-    , Controller controller
-    , AutoRoute controller
-    , Data controller
-    , InitControllerContext application
-    , ?application :: application
-    , Typeable application
-    , Typeable controller
-    ) =>
-    RouteDocumentation -> ControllerRoute application
-buildDocumentedRoute routeDocumentation =
-    ControllerRouteMap
-        { routeMap = buildAutoRouteMapWithDocumentation @controller @application routeDocumentation
-        , routeParser = parseRouteWithAction @controller (runActionWithRouteDocumentation @application routeDocumentation)
-        , routeInspection = RouteLeaf routeDocumentation
-        }
-{-# INLINEABLE buildDocumentedRoute #-}
-
 parseRoute ::
     forall controller application.
     ( ?request :: Request
@@ -1456,64 +1390,6 @@ buildAutoRouteMap =
     prefix :: ByteString
     prefix = Text.encodeUtf8 (actionPrefixText @controller)
 {-# NOINLINE buildAutoRouteMap #-}
-
-buildAutoRouteMapWithDocumentation ::
-    forall controller application.
-    ( AutoRoute controller
-    , Controller controller
-    , Data controller
-    , InitControllerContext application
-    , Typeable application
-    , Typeable controller
-    ) =>
-    RouteDocumentation -> HashMap.HashMap ByteString (application -> Application)
-buildAutoRouteMapWithDocumentation routeDocumentation =
-    HashMap.fromList
-        [ (prefix <> actionPath, handler)
-        | constr <- dataTypeConstrs (dataTypeOf (Prelude.undefined :: controller))
-        , let actionName = ByteString.pack (showConstr constr)
-              actionPath = stripActionSuffixByteString actionName
-              allowedMethods = allowedMethodsForAction @controller actionName
-              handler app waiRequest waiRespond =
-                let ?application = app
-                 in case parseMethod (requestMethod waiRequest) of
-                        Left err -> error ("Invalid HTTP method: " <> ByteString.unpack err)
-                        Right method -> do
-                            unless
-                                (allowedMethods |> includes method)
-                                (Exception.throw UnexpectedMethodException{allowedMethods, method})
-                            case applyAction @controller constr (queryString waiRequest) of
-                                Left e -> waiRespond $ responseLBS status400 [(hContentType, "text/plain")] (cs $ show e)
-                                Right action -> runActionWithRouteDocumentation @application routeDocumentation action waiRequest waiRespond
-        ]
-  where
-    prefix :: ByteString
-    prefix = Text.encodeUtf8 (actionPrefixText @controller)
-{-# NOINLINE buildAutoRouteMapWithDocumentation #-}
-
-documentRoute ::
-    forall controller application.
-    ( ?request :: Request
-    , ?respond :: Respond
-    , Controller controller
-    , AutoRoute controller
-    , HasOpenApiActionDocs controller (ControllerAction controller)
-    , Data controller
-    , InitControllerContext application
-    , ?application :: application
-    , Typeable application
-    , Typeable controller
-    ) =>
-    ControllerRoute application
-documentRoute =
-    buildDocumentedRoute @controller @application
-        ( DocumentedRoute
-            ( AutoRouteControllerInfo
-                { documentedActions = Just (openApiActionDocs @controller @(ControllerAction controller))
-                }
-            )
-        )
-{-# INLINEABLE documentRoute #-}
 
 parseUUIDOrTextId :: ByteString -> Maybe Dynamic
 parseUUIDOrTextId queryVal =

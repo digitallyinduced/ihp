@@ -300,13 +300,14 @@ operation metadata such as summary, tags, status, and descriptions. Path and
 query parameters are documented by the typed route definition, because the route
 definition is also responsible for parsing them and generating URLs. The request
 body schema comes from the action's `BodySpec`; and the response schema is
-inferred from the returned view's `JsonResponse` associated type.
+inferred from the returned view's `JsonView` `JsonResponse` associated type.
 
 ```haskell
 instance View ShowView where
-    type JsonResponse ShowView = PostResponse
-
     html ShowView { post } = [hsx|...|]
+
+instance JsonView ShowView where
+    type JsonResponse ShowView = PostResponse
 
     json ShowView { post } =
         PostResponse
@@ -317,11 +318,11 @@ instance View ShowView where
 ```
 
 Because OpenAPI uses the same route parameter declarations, `BodySpec`, and
-typed `View.json` method as runtime routing/rendering, there is no separate
-`requestBody @SomeType` or `responseView @SomeView` to keep in sync with the
-handler. With typed GADT routes, the route type is also the source of truth for
-runtime parsing, `pathTo`, and OpenAPI path/query parameter docs, so normal
-typed routes do not repeat path parameters in a separate documentation block.
+typed `JsonView.json` method as runtime routing/rendering, there is no separate
+body or response declaration to keep in sync with the handler. With typed GADT
+routes, the route type is also the source of truth for runtime parsing,
+`pathTo`, and OpenAPI path/query parameter docs, so typed routes do not repeat
+path parameters in a separate documentation block.
 
 ## Building a REST API
 
@@ -506,7 +507,7 @@ instance FrontController WebApplication where
 
 ### Serving Both HTML and JSON from the Same Action
 
-If you want one action to serve HTML to browsers and JSON to API clients, use `renderHtmlOrJson` with a view that implements both `html` and `json` in its `View` instance:
+If you want one action to serve HTML to browsers and JSON to API clients, use `renderHtmlOrJson` with a view that has a `View` instance for HTML and a `JsonView` instance for JSON:
 
 ```haskell
 -- In the controller
@@ -516,12 +517,13 @@ action ShowPostAction { postId } = do
 
 -- In the view
 instance View ShowView where
-    type JsonResponse ShowView = Post
-
     html ShowView { post } = [hsx|
         <h1>{post.title}</h1>
         <p>{post.body}</p>
     |]
+
+instance JsonView ShowView where
+    type JsonResponse ShowView = Post
 
     json ShowView { post } = post
 ```
