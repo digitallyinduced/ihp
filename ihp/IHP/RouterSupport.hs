@@ -1159,10 +1159,10 @@ webSocketRoute :: forall webSocketApp application.
     , Typeable webSocketApp
     ) => ByteString -> ControllerRoute application
 webSocketRoute path =
-    ControllerRouteTrie (Trie.insertRoute pattern GET handler Trie.emptyTrie)
+    ControllerRouteTrie (Trie.insertRoute routePattern GET handler Trie.emptyTrie)
     where
-        pattern :: [Trie.PatternSegment]
-        pattern = map Trie.LiteralSeg (Trie.splitPath path)
+        routePattern :: [Trie.PatternSegment]
+        routePattern = map Trie.LiteralSeg (Trie.splitPath path)
 
         -- The closure captures @?application@ from the enclosing
         -- 'toControllerRoute' / 'controllers' scope. @?request@ and
