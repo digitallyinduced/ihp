@@ -16,26 +16,24 @@ toolServerLayout inner = [hsx|
     <head>
         <meta charset="utf-8"/>
         <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no"/>
+        <meta name="turbo-refresh-method" content="morph"/>
 
         <link rel="shortcut icon" type="image/x-icon" href="/ihp-icon-white-bg.svg"/>
         <link rel="stylesheet" href={assetPath "/vendor/bootstrap.min.css"}/>
         <link rel="stylesheet" href={assetPath "/IDE/schema-designer.css"}/>
         <link rel="stylesheet" href={assetPath "/vendor/select2.min.css"}/>
 
-        <script src={assetPath "/vendor/morphdom-umd.min.js"}></script>
         <script src={assetPath "/vendor/jquery-4.0.0.min.js"}></script>
         <script src={assetPath "/vendor/timeago.js"}></script>
         <script src={assetPath "/vendor/popper-2.11.6.min.js"}></script>
         <script src={assetPath "/vendor/bootstrap.min.js"}></script>
-        
 
-        <script src={assetPath "/vendor/turbolinks.js"}></script>
-        <script src={assetPath "/vendor/morphdom-umd.min.js"}></script>
-        <script src={assetPath "/vendor/turbolinksMorphdom.js"}></script>
-        <script src={assetPath "/vendor/turbolinksInstantClick.js"}></script>
-        
+
+        <script src={assetPath "/vendor/turbo.js"}></script>
+
 
         <script src={assetPath "/helpers.js"}></script>
+        <script src={assetPath "/ihp-bc.js"}></script>
         <script src={assetPath "/IDE/contextmenu.js"}></script>
 
         <script src={assetPath "/vendor/select2.min.js"}></script>
@@ -91,6 +89,7 @@ toolServerLayout inner = [hsx|
         hpiHoogle = case hoogleUrl of
             Just url -> navItem "HOOGLE" searchIcon url False
             Nothing -> mempty
+
 
         isSchemaEditorController =
                     (  isActiveController @SchemaController

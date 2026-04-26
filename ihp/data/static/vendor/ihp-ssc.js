@@ -39,8 +39,8 @@ window.callServerAction = function (action, payload) {
 }
 
 
-if (window.Turbolinks) {
-    document.addEventListener('turbolinks:load', initializeAllSSCComponents);
+if (window.Turbo) {
+    document.addEventListener('turbo:load', initializeAllSSCComponents);
 } else {
     initializeAllSSCComponents();
 }

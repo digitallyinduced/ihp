@@ -1,9 +1,10 @@
 {-# LANGUAGE BangPatterns #-}
 module IHP.Controller.Render where
 import ClassyPrelude
-import Network.Wai (responseLBS, responseBuilder, responseFile)
-import Network.HTTP.Types (Status, status200, status406)
+import Network.Wai (responseLBS, responseBuilder, responseFile, requestMethod)
+import Network.HTTP.Types (Status, status200, status406, status422)
 import Network.HTTP.Types.Header
+import Network.HTTP.Types.Method (methodGet, methodHead)
 import qualified IHP.ViewSupport as ViewSupport
 import qualified Data.Aeson
 import IHP.ControllerSupport
@@ -20,11 +21,20 @@ renderPlain text = respondWith $ responseLBS status200 [(hContentType, "text/pla
 {-# INLINE renderPlain #-}
 
 respondHtml :: (?request :: Request, ?respond :: Respond) => Markup -> IO ResponseReceived
-respondHtml (Markup builder) = do
+respondHtml markup = respondHtmlWithStatus status200 markup
+{-# INLINE respondHtml #-}
+
+-- | Like 'respondHtml' but uses the given HTTP status code instead of 200.
+--
+-- Used by 'render' to default non-GET responses to 422 so Hotwire Turbo can
+-- re-render the form with validation errors instead of rejecting a 200 OK
+-- form response.
+respondHtmlWithStatus :: (?request :: Request, ?respond :: Respond) => Status -> Markup -> IO ResponseReceived
+respondHtmlWithStatus status (Markup builder) =
         -- Pass the Builder directly to WAI, avoiding the intermediate lazy
         -- ByteString allocation that responseLBS would require.
-        respondWith $ responseBuilder status200 [(hContentType, "text/html; charset=utf-8"), (hConnection, "keep-alive")] builder
-{-# INLINE respondHtml #-}
+        respondWith $ responseBuilder status [(hContentType, "text/html; charset=utf-8"), (hConnection, "keep-alive")] builder
+{-# INLINE respondHtmlWithStatus #-}
 
 respondSvg :: (?request :: Request, ?respond :: Respond) => Markup -> IO ResponseReceived
 respondSvg (Markup builder) =
@@ -95,5 +105,21 @@ renderHtmlView currentRequest view = do
     let next request respond = do
             let ?request = request
             let ?respond = respond
-            (renderHtml view) >>= respondHtml
+            (renderHtml view) >>= respondHtmlWithStatus (renderStatus request)
     consumeFlashMessagesMiddleware next currentRequest ?respond
+
+-- | Default HTTP status for 'render' responses.
+--
+-- GET and HEAD requests render with 200. For other methods (POST/PUT/PATCH/DELETE)
+-- we default to 422 Unprocessable Content so that Hotwire Turbo treats the
+-- response as "re-render the form with validation errors" instead of rejecting
+-- a 200 OK form response. The idiomatic IHP pattern is 'redirectTo' on success
+-- and 'render' on validation failure, so a non-GET 'render' is almost always
+-- a validation failure.
+renderStatus :: Request -> Status
+renderStatus request
+    | method == methodGet = status200
+    | method == methodHead = status200
+    | otherwise = status422
+  where
+    method = requestMethod request

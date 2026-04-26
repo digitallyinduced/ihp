@@ -14,18 +14,18 @@ Instead of the separation of concerns paradigm, htmx and hyperscript favours [Lo
 
 To learn more, htmx has an [excellent collection of essays](https://htmx.org/essays/) about using the hypermedia approach instead of the current SPA paradigm.
 
-## Make it play nice Turbolinks and AutoRefresh
+## Make it play nice with Turbo and AutoRefresh
 
-To have htmx and hyperscript play well with Turbolinks page transitions, you can add this to your main javascript file.
+To have htmx and hyperscript play well with Turbo page transitions, you can add this to your main javascript file.
 
 ```javascript
-document.addEventListener('turbolinks:load', () => {
+document.addEventListener('turbo:load', () => {
     htmx.process(document.body);
     _hyperscript.processNode(document.body);
 });
 ```
 
-This makes sure that htmx and hyperscript code does not stop working after a Turbolinks page transition or an AutoRefresh.
+This makes sure that htmx and hyperscript code does not stop working after a Turbo page transition or an AutoRefresh.
 
 ## htmx
 

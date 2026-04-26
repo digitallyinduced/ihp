@@ -4,6 +4,14 @@ After updating your project, please consult the segments from your current relea
 
 # Upgrade to 1.6.0 (unreleased) from 1.5.0
 
+## `render` Returns 422 for Non-GET Requests
+
+When `render` is called from a POST/PUT/PATCH/DELETE action it now responds with HTTP 422 (Unprocessable Content) instead of 200. GET and HEAD requests are unchanged.
+
+This makes `render` work with Hotwire Turbo, which rejects a 200 response to a form submission. The idiomatic IHP pattern is `redirectTo` on success and `render` on validation failure, so a non-GET `render` is almost always a validation failure — 422 is the correct status for "re-render the form with errors".
+
+If you rely on a non-GET action returning a 200 HTML page (uncommon), use `respondHtmlWithStatus status200` directly instead of `render`.
+
 ## `render` No Longer Handles JSON
 
 The `render` function now only renders HTML. Previously it used Accept header negotiation to serve both HTML and JSON, but the JSON path was unused in practice.
@@ -727,8 +735,6 @@ I ran devenv up. Keep tailing .devenv/state/process-compose/process-compose.log 
 
 # Upgrade to 1.4.0 from 1.3.0
 
-## Switch IHP version
-
 1. **Switch IHP version**
 
     - **IHP Basic**
@@ -744,7 +750,21 @@ I ran devenv up. Keep tailing .devenv/state/process-compose/process-compose.log 
 
         Visit https://ihp.digitallyinduced.com/Builds and copy the latest v1.4 URL into your `flake.nix`.
 
-2. **Remake Env**
+2. **Replace Turbolinks with Turbo**
+
+    In your `Web/View/Layout.hs` (or wherever you include JavaScript assets), replace the old Turbolinks scripts with the new Turbo script:
+
+    ```diff
+    - <script src={assetPath "/vendor/morphdom-umd.min.js"}></script>
+    + <script src={assetPath "/vendor/turbo.js"}></script>
+    - <script src={assetPath "/vendor/turbolinks.js"}></script>
+    - <script src={assetPath "/vendor/turbolinksInstantClick.js"}></script>
+    - <script src={assetPath "/vendor/turbolinksMorphdom.js"}></script>
+    ```
+
+    **Note**: The behavior of page transitions remains the same. IHP now uses Turbo (successor to Turbolinks) for faster page navigation while maintaining backward compatibility.
+
+3. **Remake Env**
 
     Run the following commands:
 

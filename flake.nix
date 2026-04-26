@@ -19,7 +19,7 @@
 
         # TODO use a corresponding release branch
         # import ihp-boilerplate for the templates
-        ihp-boilerplate.url = "github:digitallyinduced/ihp-boilerplate";
+        ihp-boilerplate.url = "github:digitallyinduced/ihp-boilerplate/hotwire-turbo";
 
         nix-filter.url = "github:numtide/nix-filter";
 
