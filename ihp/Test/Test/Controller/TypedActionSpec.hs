@@ -384,27 +384,25 @@ tests = do
 
                 lookupParameter "badProjectId" operation `shouldSatisfy` isJust
 
-            it "renders FormSpec forms against typed action URLs" do
+            it "renders typed action forms against typed action URLs" do
                 context <- createControllerContext
                 let ?context = context
                 let ?request = ?context.request
 
-                let projectInput = ProjectInput{name = "Acme", enabled = True}
+                let initialProjectInput = ProjectInput{name = "Acme", enabled = True}
                 let targetAction = UpdateProjectAction{projectId = 42, returnTo = Just "/dashboard"}
                 let options formContext =
                         formContext
                             |> set #formId "project-settings-form"
                             |> set #formClass "settings-form"
                             |> set #customFormAttributes [("data-controller", "autosave")]
-                let projectForm =
-                        formSpec [hsx|
-                            {(formSpecTextField #name) { fieldLabel = "Project name", placeholder = "Acme billing", required = True, autofocus = True, fieldClass = "input input-lg" }}
-                            {(formSpecCheckboxField #enabled) { fieldLabel = "Enabled?" }}
-                            {formSpecSubmitButton "Save project"}
-                        |]
 
                 let form =
-                        formForActionWithOptions targetAction projectInput options projectForm
+                        formForActionWithOptions targetAction initialProjectInput options [hsx|
+                            {(textField #name) { fieldLabel = "Project name", placeholder = "Acme billing", required = True, autofocus = True, fieldClass = "input input-lg" }}
+                            {(checkboxField #enabled) { fieldLabel = "Enabled?" }}
+                            {submitButton { label = "Save project" }}
+                        |]
 
                 let rendered = renderMarkupText form
                 rendered `shouldSatisfy` ("method=\"POST\"" `isInfixOf`)
@@ -421,22 +419,23 @@ tests = do
                 let ?context = context
                 let ?request = ?context.request
 
-                let projectInput = ProjectInput{name = "Acme", enabled = True}
+                let initialProjectInput = ProjectInput{name = "Acme", enabled = True}
                 let targetAction = ArchiveProjectAction{archiveProjectId = 42}
-                let projectForm =
-                        formSpec [hsx|
-                            {formSpecHiddenField #name}
-                            {formSpecSubmitButton "Archive project"}
-                        |]
 
-                let rendered = renderMarkupText (formForAction targetAction projectInput projectForm)
+                let rendered =
+                        renderMarkupText
+                            ( formForAction targetAction initialProjectInput [hsx|
+                                {hiddenField #name}
+                                {submitButton { label = "Archive project" }}
+                            |]
+                            )
 
                 rendered `shouldSatisfy` ("method=\"POST\"" `isInfixOf`)
                 rendered `shouldSatisfy` ("action=\"/projects/42/archive\"" `isInfixOf`)
                 rendered `shouldSatisfy` ("name=\"_method\"" `isInfixOf`)
                 rendered `shouldSatisfy` ("value=\"PATCH\"" `isInfixOf`)
 
-            it "renders common FormSpec field helpers" do
+            it "renders common form field helpers for plain typed inputs" do
                 context <- createControllerContext
                 let ?context = context
                 let ?request = ?context.request
@@ -456,23 +455,25 @@ tests = do
                         , radioValue = "public"
                         , fileValue = ""
                         }
+                let simpleOptions :: [(Text, Text)]
+                    simpleOptions = [("Team", "team"), ("Public", "public")]
 
                 let rendered =
                         renderMarkupText [hsx|
-                            {formSpecTextField #textValue}
-                            {formSpecNumberField #numberValue}
-                            {formSpecUrlField #urlValue}
-                            {formSpecTextareaField #textareaValue}
-                            {formSpecColorField #colorValue}
-                            {formSpecEmailField #emailValue}
-                            {formSpecDateField #dateValue}
-                            {formSpecDateTimeField #eventDateTime}
-                            {formSpecPasswordField #passwordValue}
-                            {formSpecHiddenField #hiddenValue}
-                            {formSpecCheckboxField #checkboxValue}
-                            {formSpecSelectField #selectValue [("team", "Team"), ("public", "Public")]}
-                            {formSpecRadioField #radioValue [("team", "Team"), ("public", "Public")]}
-                            {formSpecFileField #fileValue}
+                            {textField #textValue}
+                            {numberField #numberValue}
+                            {urlField #urlValue}
+                            {textareaField #textareaValue}
+                            {colorField #colorValue}
+                            {emailField #emailValue}
+                            {dateField #dateValue}
+                            {dateTimeField #eventDateTime}
+                            {passwordField #passwordValue}
+                            {hiddenField #hiddenValue}
+                            {checkboxField #checkboxValue}
+                            {selectFieldOptions #selectValue simpleOptions}
+                            {radioFieldOptions #radioValue simpleOptions}
+                            {fileField #fileValue}
                         |]
 
                 rendered `shouldSatisfy` ("type=\"text\"" `isInfixOf`)
@@ -490,20 +491,19 @@ tests = do
                 rendered `shouldSatisfy` ("type=\"radio\"" `isInfixOf`)
                 rendered `shouldSatisfy` ("type=\"file\"" `isInfixOf`)
 
-            it "renders multipart FormSpec forms with multipart enctype" do
+            it "renders multipart typed action forms with multipart enctype" do
                 context <- createControllerContext
                 let ?context = context
                 let ?request = ?context.request
 
-                let projectInput = ProjectInput{name = "Logo", enabled = True}
+                let initialProjectInput = ProjectInput{name = "Logo", enabled = True}
                 let targetAction = UploadProjectLogoAction{uploadProjectId = 42}
-                let projectForm =
-                        formSpec [hsx|
-                            {(formSpecFileField #name) { fieldLabel = "Logo file", additionalAttributes = [("accept", "image/png,image/jpeg")] }}
-                            {formSpecSubmitButton "Upload logo"}
-                        |]
 
-                let form = formForAction targetAction projectInput projectForm
+                let form =
+                        formForAction targetAction initialProjectInput [hsx|
+                            {(fileField #name) { fieldLabel = "Logo file", additionalAttributes = [("accept", "image/png,image/jpeg")] }}
+                            {submitButton { label = "Upload logo" }}
+                        |]
                 let rendered = renderMarkupText form
 
                 rendered `shouldSatisfy` ("action=\"/projects/42/logo\"" `isInfixOf`)
@@ -679,19 +679,7 @@ testPostForm path params =
             path
 
 complexFormContext :: (?request :: Request) => ComplexFormInput -> FormContext ComplexFormInput
-complexFormContext input =
-    FormContext
-        { model = input
-        , formAction = ""
-        , formMethod = "POST"
-        , formEnctype = Nothing
-        , cssFramework = theCSSFramework
-        , formId = ""
-        , formClass = "typed-form"
-        , customFormAttributes = []
-        , disableJavascriptSubmission = False
-        , fieldNamePrefix = ""
-        }
+complexFormContext = createInputFormContext
 
 unsafeDecode :: JSON.FromJSON value => LBS.ByteString -> value
 unsafeDecode payload =
