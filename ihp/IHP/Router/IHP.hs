@@ -18,10 +18,11 @@ This module is the IHP-specific shim that composes on top:
 
   * 'routes' \/ 'routesDec' — IHP-flavoured quoter. Emits everything
     'IHP.Router.DSL.TH.genericEmit' produces, plus a 'CanRoute'
-    instance per controller (whose @toControllerRoute@ wraps
-    @\<ctrlLower>Trie runAction'@ in a 'ControllerRouteTrie') and, for
-    lowercase-header blocks, a @webRoutes :: [ControllerRoute app]@
-    binding ready for @FrontController.controllers@.
+    instance per monomorphic classic controller (whose @toControllerRoute@
+    wraps @\<ctrlLower>Trie runAction'@ in a 'ControllerRouteTrie') and,
+    for lowercase-header blocks, a @webRoutes :: [ControllerRoute app]@
+    binding ready for @FrontController.controllers@. Lowercase bindings
+    can also mount typed GADT actions and polymorphic framework controllers.
   * 'instance UrlCapture (Id' table)' — IHP's primary-key-driven
     capture. Lives here (not in @ihp-router@) because it needs
     'IHP.ModelSupport.PrimaryKey'.
@@ -150,8 +151,8 @@ ihpRoutesDec = routesDec
 -- | Emit the IHP-flavoured declarations on top of whatever 'genericEmit'
 -- produces:
 --
---   * one @instance CanRoute Ctrl@ per controller, whose
---     @toControllerRoute@ wraps @\<ctrlLower>Trie runAction'@ in a
+--   * one @instance CanRoute Ctrl@ per monomorphic classic controller,
+--     whose @toControllerRoute@ wraps @\<ctrlLower>Trie runAction'@ in a
 --     'ControllerRouteTrie';
 --   * for a lowercase-header block: a top-level
 --     @webRoutes :: [ControllerRoute app]@ binding that includes
@@ -334,7 +335,7 @@ emitNamedBinding bindingTxt groups wsBindings = do
         [ TH.SigD valName bindingTy
         , TH.FunD valName [TH.Clause [] (TH.NormalB bindingExp) []]
         ]
-  where
+    where
     classicCtrls = [ctrl | (ctrl, _) <- groups, not (ciIsGadt ctrl)]
     gadtGroups = [(ctrl, routesForController) | (ctrl, routesForController) <- groups, ciIsGadt ctrl]
 

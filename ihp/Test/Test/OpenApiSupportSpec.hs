@@ -188,14 +188,18 @@ GET /test/wrong-json/{wrongBandId}  WrongJsonShapeAction
 POST /test/CreateApiSession         CreateApiSessionAction
 POST /test/CreatePipeSession        CreatePipeSessionAction
 GET|HEAD /test/ShowApiSession       ShowApiSessionAction
+GET /docs                          SwaggerUiAction
+GET /docs/openapi.json             OpenApiJsonAction
 |]
 
+instance SwaggerUiControllerConfig WebApplication where
+    swaggerUiControllerOptions =
+        (defaultSwaggerUiOptions @WebApplication)
+            { swaggerUiTitle = Just "Band API Docs"
+            }
+
 instance FrontController WebApplication where
-    controllers =
-        openApiTestRoutes
-            <> [ swaggerUiWithOptions
-                    ((defaultSwaggerUiOptions @WebApplication){swaggerUiPath = "/docs", swaggerUiTitle = Just "Band API Docs"})
-               ]
+    controllers = openApiTestRoutes
 
 instance FrontController RootApplication where
     controllers = [mountFrontController WebApplication]
@@ -390,5 +394,11 @@ tests = aroundAll (withMockContextAndApp RootApplication config) do
             Prelude.lookup hContentType response.simpleHeaders `shouldBe` Just "text/html; charset=utf-8"
             let body = cs response.simpleBody
             Text.isInfixOf "Band API Docs" body `shouldBe` True
-            Text.isInfixOf "./openapi.json" body `shouldBe` True
+            Text.isInfixOf "/docs/openapi.json" body `shouldBe` True
             Text.isInfixOf "SwaggerUIBundle" body `shouldBe` True
+
+        it "uses an OpenAPI URL that works with or without a trailing slash" $ withContextAndApp \application -> do
+            response <- runSession (testGet "docs/") application
+            response.simpleStatus `shouldBe` status200
+            let body = cs response.simpleBody
+            Text.isInfixOf "/docs/openapi.json" body `shouldBe` True

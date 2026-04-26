@@ -1,8 +1,11 @@
 {-# LANGUAGE AllowAmbiguousTypes #-}
+{-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE GADTs #-}
+{-# LANGUAGE ImplicitParams #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE UndecidableInstances #-}
 {-# OPTIONS_HADDOCK not-home #-}
 
@@ -20,6 +23,8 @@ module IHP.OpenApiSupport (
     buildOpenApiWithInfo,
     SwaggerUiOptions (..),
     defaultSwaggerUiOptions,
+    SwaggerUiController (..),
+    SwaggerUiControllerConfig (..),
     swaggerUi,
     swaggerUiWithOptions,
 ) where
@@ -39,7 +44,10 @@ import Data.Semigroup (Semigroup (..))
 import Data.Text qualified as Text
 import Data.Text.Encoding qualified as Text
 import Data.Typeable qualified as Typeable
+import IHP.Controller.Context qualified as Context
+import IHP.Controller.Response (respondWith)
 import IHP.Controller.TypedAction qualified as TypedAction
+import IHP.ControllerSupport (Controller (..))
 import IHP.ModelSupport
 import IHP.Prelude
 import IHP.Router.Types (UnexpectedMethodException (..))
@@ -102,6 +110,42 @@ data SwaggerUiOptions = SwaggerUiOptions
     , swaggerUiStandalonePresetJsUrl :: Text
     }
     deriving (Eq, Show)
+
+data SwaggerUiController application
+    = SwaggerUiAction
+    | OpenApiJsonAction
+    deriving (Eq, Show)
+
+{- | Configuration used by 'SwaggerUiController'.
+
+When 'SwaggerUiController' is routed via @[routes|...|]@, the
+@swaggerUiPath@ and @swaggerUiOpenApiPath@ fields are ignored: the routes DSL
+is the source of truth for both URLs. The remaining fields configure the
+document metadata and Swagger UI assets.
+-}
+class (Typeable.Typeable application) => SwaggerUiControllerConfig application where
+    swaggerUiControllerOptions :: SwaggerUiOptions
+
+instance {-# OVERLAPPABLE #-} (Typeable.Typeable application) => SwaggerUiControllerConfig application where
+    swaggerUiControllerOptions = defaultSwaggerUiOptions @application
+
+instance
+    ( FrontController application
+    , HasPath (SwaggerUiController application)
+    , SwaggerUiControllerConfig application
+    ) =>
+    Controller (SwaggerUiController application)
+    where
+    action SwaggerUiAction =
+        let options = swaggerUiControllerOptions @application
+            openApiUrl = pathTo (OpenApiJsonAction @application)
+         in respondWith (swaggerUiHtmlResponse options openApiUrl)
+
+    action OpenApiJsonAction =
+        do
+            application <- Context.fromContext @application
+            let options = swaggerUiControllerOptions @application
+            respondWith (openApiJsonResponse options.swaggerUiInfo application)
 
 {- | Default Swagger UI settings for an application.
 
@@ -180,14 +224,23 @@ swaggerUiWithOptions ::
 swaggerUiWithOptions options@SwaggerUiOptions{swaggerUiPath, swaggerUiOpenApiPath, swaggerUiInfo} =
     let normalizedBasePath = normalizeSwaggerUiBasePath swaggerUiPath
         normalizedOpenApiPath = normalizeSwaggerUiChildPath swaggerUiOpenApiPath
-        htmlResponse = responseBuilder status200 [(hContentType, "text/html; charset=utf-8")] (Blaze.renderHtmlBuilder (swaggerUiHtml options{swaggerUiPath = normalizedBasePath, swaggerUiOpenApiPath = normalizedOpenApiPath}))
+        openApiUrl = swaggerUiOpenApiUrl normalizedBasePath normalizedOpenApiPath
+        htmlResponse = swaggerUiHtmlResponse options{swaggerUiPath = normalizedBasePath, swaggerUiOpenApiPath = normalizedOpenApiPath} openApiUrl
         application = ?application
      in withPrefix
             normalizedBasePath
-            [ getResponseRoute normalizedOpenApiPath (\_ -> responseLBS status200 [(hContentType, "application/json")] (JSON.encode (buildOpenApiWithInfo swaggerUiInfo application)))
+            [ getResponseRoute normalizedOpenApiPath (\_ -> openApiJsonResponse swaggerUiInfo application)
             , getResponseRoute "" (\_ -> htmlResponse)
             , getResponseRoute "/" (\_ -> htmlResponse)
             ]
+
+openApiJsonResponse :: forall application. (FrontController application) => OpenApiInfo -> application -> Response
+openApiJsonResponse info application =
+    responseLBS status200 [(hContentType, "application/json")] (JSON.encode (buildOpenApiWithInfo info application))
+
+swaggerUiHtmlResponse :: SwaggerUiOptions -> Text -> Response
+swaggerUiHtmlResponse options openApiUrl =
+    responseBuilder status200 [(hContentType, "text/html; charset=utf-8")] (Blaze.renderHtmlBuilder (swaggerUiHtml options openApiUrl))
 
 getResponseRoute :: ByteString -> (Request -> Response) -> ControllerRoute application
 getResponseRoute path toResponse = rawRoute do
@@ -215,10 +268,10 @@ normalizeSwaggerUiChildPath path
     | ByteString.head path /= '/' = "/" <> path
     | otherwise = path
 
-swaggerUiHtml :: SwaggerUiOptions -> Html5.Html
-swaggerUiHtml SwaggerUiOptions{swaggerUiOpenApiPath, swaggerUiInfo, swaggerUiTitle, swaggerUiCssUrl, swaggerUiBundleJsUrl, swaggerUiStandalonePresetJsUrl} =
+swaggerUiHtml :: SwaggerUiOptions -> Text -> Html5.Html
+swaggerUiHtml SwaggerUiOptions{swaggerUiInfo, swaggerUiTitle, swaggerUiCssUrl, swaggerUiBundleJsUrl, swaggerUiStandalonePresetJsUrl} openApiUrl =
     let title = fromMaybe (swaggerUiInfo.openApiTitle <> " Swagger UI") swaggerUiTitle
-        openApiUrlLiteral = jsonStringLiteral (relativeSwaggerUiOpenApiUrl swaggerUiOpenApiPath)
+        openApiUrlLiteral = jsonStringLiteral openApiUrl
      in Html5.docTypeHtml do
             Html5.head do
                 Html5.meta Html5.! Attr.charset "utf-8"
@@ -232,9 +285,11 @@ swaggerUiHtml SwaggerUiOptions{swaggerUiOpenApiPath, swaggerUiInfo, swaggerUiTit
                 Html5.script mempty Html5.! Attr.src (Html5.textValue swaggerUiStandalonePresetJsUrl)
                 Html5.script (Html5.preEscapedToHtml (swaggerUiBootScript openApiUrlLiteral))
 
-relativeSwaggerUiOpenApiUrl :: ByteString -> Text
-relativeSwaggerUiOpenApiUrl openApiPath =
-    "./" <> Text.dropWhile (== '/') (Text.decodeUtf8 openApiPath)
+swaggerUiOpenApiUrl :: ByteString -> ByteString -> Text
+swaggerUiOpenApiUrl basePath openApiPath =
+    let base = Text.dropWhileEnd (== '/') (Text.decodeUtf8 basePath)
+        child = Text.dropWhile (== '/') (Text.decodeUtf8 openApiPath)
+     in (if Text.null base then "" else base) <> "/" <> child
 
 swaggerUiBootScript :: Text -> Text
 swaggerUiBootScript openApiUrlLiteral =

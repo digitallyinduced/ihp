@@ -147,6 +147,7 @@ newContextForAction controller = do
     let ?modelContext = ?request.modelContext
     controllerContext <- Context.newControllerContext
     let ?context = controllerContext
+    Context.putContext ?application
     wrapInitContextException (initContext @application)
     pure ?context
 
@@ -172,6 +173,7 @@ setupActionContext controllerTypeRep waiRequest waiRespond = do
     let ?modelContext = request'.modelContext
     controllerContext <- Context.newControllerContext
     let ?context = controllerContext
+    Context.putContext ?application
     wrapInitContextException (initContext @application)
     pure ?context
 
