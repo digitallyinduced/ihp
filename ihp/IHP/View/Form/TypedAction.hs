@@ -346,7 +346,7 @@ formSpecSubmitButton label =
 -- | Renders a 'FormSpec' so it submits to a typed GADT action.
 --
 -- The route URL is taken from @pathTo typedAction@. The HTML form method is
--- inferred from the typed route methods. Non-GET/POST methods are submitted via
+-- chosen from the typed route methods. Non-GET/POST methods are submitted via
 -- POST with IHP's existing @_method@ override field.
 --
 -- This helper only compiles when the action body accepts a form-compatible

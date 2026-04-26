@@ -39,22 +39,6 @@ tests = do
                     `shouldBe` Right (mk "PostsController"
                         [ rt 2 [GET] [Literal "posts"] "PostsAction" ])
 
-            it "infers methods from the action name when the method column is omitted" do
-                let source = Text.unlines
-                        [ "PostsController"
-                        , "/posts/{postId}      ShowPostAction"
-                        , "/posts/{postId}      UpdatePostAction"
-                        , "/posts               CreatePostAction"
-                        , "/posts/{postId}      DeletePostAction"
-                        ]
-                parseRoutes source
-                    `shouldBe` Right (mk "PostsController"
-                        [ rt 2 [GET, HEAD] [Literal "posts", Capture "postId" Nothing] "ShowPostAction"
-                        , rt 3 [POST, PATCH] [Literal "posts", Capture "postId" Nothing] "UpdatePostAction"
-                        , rt 4 [POST] [Literal "posts"] "CreatePostAction"
-                        , rt 5 [DELETE] [Literal "posts", Capture "postId" Nothing] "DeletePostAction"
-                        ])
-
             it "parses multiple routes" do
                 let source = Text.unlines
                         [ "PostsController"
@@ -191,6 +175,13 @@ tests = do
                     Left e -> do
                         errorLine e `shouldBe` 2
                         (cs (errorMessage e) :: String) `shouldContain` "unknown method"
+                    Right _ -> expectationFailure "expected ParseError"
+
+            it "rejects a route line without an HTTP method" do
+                case parseRoutes "C\n/posts/{postId} ShowPostAction\n" of
+                    Left e -> do
+                        errorLine e `shouldBe` 2
+                        (cs (errorMessage e) :: String) `shouldContain` "missing HTTP method"
                     Right _ -> expectationFailure "expected ParseError"
 
             it "rejects path not starting with /" do

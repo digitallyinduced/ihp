@@ -71,7 +71,6 @@ module IHP.Controller.TypedAction
     , TypedRouteDocument (..)
     , ParameterDoc (..)
     , ParameterLocation (..)
-    , ParameterRequired (..)
     , DocBuilder
     , summary
     , description
@@ -347,6 +346,7 @@ data ActionDef controller body response = ActionDef
 instance
     ( DecodeRequest body
     , ViewSupport.View response
+    , ViewSupport.JsonView response
     , Typeable.Typeable response
     , JSON.ToJSON (ViewSupport.JsonResponse response)
     ) =>
@@ -362,12 +362,13 @@ instance
                 runActionDef >>= renderHtmlOrJsonWithStatusCode actionDefSuccessStatus
     {-# INLINE runControllerActionDefault #-}
 
--- | Creates a documented typed action. The response schema is inferred from the
--- runtime block's @IO response@ type; no @responseView@ annotation is needed.
+-- | Creates a documented typed action. The response schema is inferred from
+-- the runtime block's @IO response@ type.
 documented ::
     forall controller body response.
     ( BuildTypedRequestBodyDoc body
     , ViewSupport.View response
+    , ViewSupport.JsonView response
     , Typeable.Typeable response
     , JSON.ToJSON (ViewSupport.JsonResponse response)
     , ToSchema (ViewSupport.JsonResponse response)
@@ -403,12 +404,12 @@ data TypedActionDoc controller body response where
     TypedActionDoc ::
         forall controller body response.
         ( ViewSupport.View response
+        , ViewSupport.JsonView response
         , Typeable.Typeable response
         , JSON.ToJSON (ViewSupport.JsonResponse response)
         , ToSchema (ViewSupport.JsonResponse response)
         ) =>
-        { typedActionDocParameters :: [ParameterDoc]
-        , typedActionDocSummary :: Maybe Text
+        { typedActionDocSummary :: Maybe Text
         , typedActionDocDescription :: Maybe Text
         , typedActionDocTags :: [Text]
         , typedActionDocOperationId :: Maybe Text
@@ -470,8 +471,7 @@ data ParameterDoc where
         ParameterDoc
 
 data TypedActionDocDraft = TypedActionDocDraft
-    { draftParameters :: [ParameterDoc]
-    , draftSummary :: Maybe Text
+    { draftSummary :: Maybe Text
     , draftDescription :: Maybe Text
     , draftTags :: [Text]
     , draftOperationId :: Maybe Text
@@ -482,8 +482,7 @@ data TypedActionDocDraft = TypedActionDocDraft
 defaultTypedActionDocDraft :: TypedActionDocDraft
 defaultTypedActionDocDraft =
     TypedActionDocDraft
-        { draftParameters = []
-        , draftSummary = Nothing
+        { draftSummary = Nothing
         , draftDescription = Nothing
         , draftTags = []
         , draftOperationId = Nothing
@@ -529,61 +528,6 @@ modifyDoc :: (TypedActionDocDraft -> TypedActionDocDraft) -> DocBuilder controll
 modifyDoc update = DocBuilder \draft -> ((), update draft)
 {-# INLINE modifyDoc #-}
 
--- | Documents a path parameter and checks that the action value has a matching
--- field. Path parameters are always required.
-pathParam ::
-    forall field controller body response value.
-    ( KnownSymbol field
-    , HasField field controller value
-    , Typeable.Typeable value
-    , ToSchema value
-    ) =>
-    Proxy field ->
-    DocBuilder controller body response ()
-pathParam _ = addParameter @field @value PathParameter True (Proxy @field)
-{-# INLINE pathParam #-}
-
--- | Documents a query parameter and checks that the action value has a matching
--- field. @Maybe@ query parameters are marked as optional.
-queryParam ::
-    forall field controller body response value.
-    ( KnownSymbol field
-    , HasField field controller value
-    , Typeable.Typeable value
-    , ToSchema value
-    , ParameterRequired value
-    ) =>
-    Proxy field ->
-    DocBuilder controller body response ()
-queryParam _ = addParameter @field @value QueryParameter (parameterRequiredValue @value) (Proxy @field)
-{-# INLINE queryParam #-}
-
-addParameter ::
-    forall field value controller body response.
-    ( KnownSymbol field
-    , Typeable.Typeable value
-    , ToSchema value
-    ) =>
-    ParameterLocation ->
-    Bool ->
-    Proxy field ->
-    DocBuilder controller body response ()
-addParameter location required _ =
-    modifyDoc \draft ->
-        draft
-            { draftParameters =
-                draft.draftParameters
-                    <> [ ParameterDoc
-                            { parameterName = cs (symbolVal (Proxy @field))
-                            , parameterLocation = location
-                            , parameterRequired = required
-                            , parameterSchema = Proxy @value
-                            , parameterTypeRep = Typeable.typeRep (Proxy @value)
-                            }
-                       ]
-            }
-{-# INLINE addParameter #-}
-
 -- | Sets the OpenAPI operation summary.
 summary :: Text -> DocBuilder controller body response ()
 summary value = modifyDoc \draft -> draft{draftSummary = Just value}
@@ -613,17 +557,6 @@ successStatus value = modifyDoc \draft -> draft{draftSuccessStatus = value}
 successResponseDescription :: Text -> DocBuilder controller body response ()
 successResponseDescription value = modifyDoc \draft -> draft{draftSuccessResponseDescription = value}
 {-# INLINE successResponseDescription #-}
-
-class ParameterRequired value where
-    parameterRequiredValue :: Bool
-
-instance {-# OVERLAPPING #-} ParameterRequired (Maybe value) where
-    parameterRequiredValue = False
-    {-# INLINE parameterRequiredValue #-}
-
-instance {-# OVERLAPPABLE #-} ParameterRequired value where
-    parameterRequiredValue = True
-    {-# INLINE parameterRequiredValue #-}
 
 class BuildTypedRequestBodyDoc (body :: BodySpec) where
     typedRequestBodyDoc :: Maybe TypedRequestBodyDoc
@@ -673,6 +606,7 @@ buildTypedActionDoc ::
     forall controller body response.
     ( BuildTypedRequestBodyDoc body
     , ViewSupport.View response
+    , ViewSupport.JsonView response
     , Typeable.Typeable response
     , JSON.ToJSON (ViewSupport.JsonResponse response)
     , ToSchema (ViewSupport.JsonResponse response)
@@ -681,8 +615,7 @@ buildTypedActionDoc ::
     TypedActionDoc controller body response
 buildTypedActionDoc draft =
     TypedActionDoc
-        { typedActionDocParameters = draft.draftParameters
-        , typedActionDocSummary = draft.draftSummary
+        { typedActionDocSummary = draft.draftSummary
         , typedActionDocDescription = draft.draftDescription
         , typedActionDocTags = draft.draftTags
         , typedActionDocOperationId = draft.draftOperationId

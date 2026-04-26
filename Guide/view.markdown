@@ -491,7 +491,7 @@ instance View IndexView where
     |]
 ```
 
-We can add a JSON output for all blog posts by defining a typed `JsonResponse` payload and implementing `json` in the `View` instance:
+We can add a JSON output for all blog posts by defining a typed `JsonResponse` payload and implementing `json` in a `JsonView` instance:
 
 ```haskell
 {-# LANGUAGE DeriveGeneric #-}
@@ -511,11 +511,12 @@ instance ToJSON PostPayload
 
 ```haskell
 instance View IndexView where
-    type JsonResponse IndexView = [PostPayload]
-
     html IndexView { .. } = [hsx|
         ...
     |]
+
+instance JsonView IndexView where
+    type JsonResponse IndexView = [PostPayload]
 
     json IndexView { .. } =
         posts
@@ -582,9 +583,10 @@ instance View IndexView where
     |]
 
 instance View IndexView where
-    type JsonResponse IndexView = [PostPayload]
-
     html IndexView { .. } = [hsx|...|]
+
+instance JsonView IndexView where
+    type JsonResponse IndexView = [PostPayload]
 
     json IndexView { .. } =
         posts
@@ -633,12 +635,14 @@ curl http://localhost:8000/Posts -H 'Accept: application/json'
 
 ### OpenAPI schemas for JSON views
 
-If you want an AutoRoute controller action to appear in the generated OpenAPI document, keep the OpenAPI contract next to the handler using inspectable action definitions.
-Add a [`ToSchema`](https://ihp.digitallyinduced.com/api-docs/IHP-OpenApiSupport.html#t:ToSchema) instance for the typed JSON payload, then declare the response view and metadata directly in `action`. When the `handle` callback takes a typed argument, IHP decodes that JSON request body and documents the same type in OpenAPI:
+OpenAPI response schemas are generated from typed GADT actions. Add a
+[`ToSchema`](https://ihp.digitallyinduced.com/api-docs/IHP-OpenApiSupport.html#t:ToSchema)
+instance for the `JsonView` `JsonResponse` type, declare the request body in
+the action type index, and add operation metadata with `documented`:
 
 ```haskell
 {-# LANGUAGE DeriveGeneric #-}
-{-# LANGUAGE TypeApplications #-}
+{-# LANGUAGE GADTs #-}
 
 import GHC.Generics (Generic)
 
@@ -659,51 +663,62 @@ data CreatePostRequest = CreatePostRequest
 instance FromJSON CreatePostRequest
 instance ToSchema CreatePostRequest
 
-instance View IndexView where
-    type JsonResponse IndexView = [PostPayload]
+data PostsAction request response where
+    PostsAction :: PostsAction 'NoBody IndexView
+    CreatePostAction :: PostsAction ('Body CreatePostRequest) IndexView
 
+instance View IndexView where
     html IndexView { .. } = [hsx|...|]
+
+instance JsonView IndexView where
+    type JsonResponse IndexView = [PostPayload]
 
     json IndexView { .. } = posts |> map (\post -> PostPayload { id = post.id, title = post.title })
 
-instance Controller PostsController where
-    type ControllerAction PostsController = ActionDefinition PostsController
+instance Controller (PostsAction 'NoBody IndexView) where
+    type ControllerAction (PostsAction 'NoBody IndexView) =
+        ActionDef (PostsAction 'NoBody IndexView) 'NoBody IndexView
 
     action PostsAction =
-        endpoint
-            |> responseView @IndexView
-            |> summary "List all posts"
-            |> handle do
-                posts <- query @Post |> fetch
-                pure IndexView { .. }
+        documented do
+            summary "List all posts"
+        do
+            posts <- query @Post |> fetch
+            pure IndexView { .. }
+
+instance Controller (PostsAction ('Body CreatePostRequest) IndexView) where
+    type ControllerAction (PostsAction ('Body CreatePostRequest) IndexView) =
+        ActionDef (PostsAction ('Body CreatePostRequest) IndexView) ('Body CreatePostRequest) IndexView
 
     action CreatePostAction =
-        endpoint
-            |> responseView @IndexView
-            |> summary "Create post"
-            |> handle \(body :: CreatePostRequest) -> do
-                _ <- newRecord @Post
-                    |> set #title body.title
-                    |> createRecord
-                posts <- query @Post |> fetch
-                pure IndexView { .. }
-
-    action HtmlOnlyAction =
-        legacyAction do
-            render HtmlOnlyView
+        documented do
+            summary "Create post"
+        do
+            let title = bodyParam #title
+            _ <- newRecord @Post
+                |> set #title title
+                |> createRecord
+            posts <- query @Post |> fetch
+            pure IndexView { .. }
 ```
 
-Mount the controller with [`documentRoute`](https://ihp.digitallyinduced.com/api-docs/IHP-RouterSupport.html#v:documentRoute) to include its inspectable actions in the generated OpenAPI document:
+Declare the routes with `[routes|...|]` and mount the generated route list:
 
 ```haskell
+[routes|webRoutes
+GET  /Posts PostsAction
+POST /Posts CreatePostAction
+|]
+
 instance FrontController WebApplication where
     controllers =
-        [ documentRoute @PostsController
-        , swaggerUi
-        ]
+        webRoutes <> [swaggerUi]
 ```
 
-In this form, `handle` decodes the typed request body before the handler runs, and the inferred body type is the type used in the OpenAPI request schema. The handler must return the same view type declared by `responseView`. Actions wrapped in `legacyAction` are executed normally and omitted from the OpenAPI document.
+Here the request body schema comes from `'Body CreatePostRequest`, while the
+response schema comes from `IndexView`'s `JsonView` `JsonResponse` associated
+type. There is no separate response-view annotation to keep in sync with the
+handler.
 
 ### Advanced: Rendering JSON directly from actions
 

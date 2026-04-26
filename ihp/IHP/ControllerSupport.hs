@@ -85,9 +85,9 @@ type ControllerAction' controller =
 
 -- | Runs a controller's 'ControllerAction' value.
 --
--- This lets action representations such as 'IHP.Controller.ActionDefinition.ActionDefinition'
--- plug into the normal controller dispatch without requiring each controller instance to
--- repeat the same 'runControllerAction' implementation.
+-- This lets typed action representations plug into the normal controller
+-- dispatch without requiring each controller instance to repeat the same
+-- 'runControllerAction' implementation.
 class RunControllerAction controller action where
     runControllerActionDefault :: (?context :: Context.ControllerContext, ?modelContext :: ModelContext, ?theAction :: controller, ?respond :: Respond, ?request :: Request) => action -> IO ResponseReceived
 

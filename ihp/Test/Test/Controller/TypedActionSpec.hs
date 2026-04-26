@@ -102,9 +102,10 @@ data ProjectView = ProjectView
     }
 
 instance View ProjectView where
-    type JsonResponse ProjectView = ProjectPayload
-
     html ProjectView{..} = [hsx||]
+
+instance JsonView ProjectView where
+    type JsonResponse ProjectView = ProjectPayload
 
     json ProjectView{..} = ProjectPayload{ok = True, projectName = viewProjectName}
 
@@ -191,8 +192,8 @@ instance Controller (BadProjectAction ('Body ProjectInput) ProjectView) where
 $(pure [])
 
 [routes|typedRouteTestRoutes
-/projects/{projectId}?returnTo                    UpdateProjectAction
-/projects/{showProjectId}?includeArchived         ShowProjectAction
+POST|PATCH /projects/{projectId}?returnTo         UpdateProjectAction
+GET        /projects/{showProjectId}?includeArchived ShowProjectAction
 PATCH /projects/{archiveProjectId}/archive        ArchiveProjectAction
 POST  /projects/{uploadProjectId}/logo            UploadProjectLogoAction
 |]
@@ -287,7 +288,6 @@ tests = do
                         typedActionDocTags `shouldBe` ["Projects"]
                         typedActionDocSuccessStatus `shouldBe` status201
                         typedActionDocSuccessResponseDescription `shouldBe` "Project updated"
-                        length typedActionDocParameters `shouldBe` 0
                         case typedActionDocRequestBody of
                             Nothing -> expectationFailure "expected request body docs"
                             Just TypedRequestBodyDoc{typedRequestBodyEncodings} ->

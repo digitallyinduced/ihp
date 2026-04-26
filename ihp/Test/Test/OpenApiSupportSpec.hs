@@ -1,77 +1,42 @@
-{-# LANGUAGE AllowAmbiguousTypes #-}
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE DeriveGeneric #-}
+{-# LANGUAGE GADTs #-}
+{-# LANGUAGE QuasiQuotes #-}
+{-# LANGUAGE StandaloneDeriving #-}
+{-# LANGUAGE TemplateHaskell #-}
+{-# LANGUAGE TypeApplications #-}
+{-# LANGUAGE TypeFamilies #-}
 
 module Test.OpenApiSupportSpec where
 
-import ClassyPrelude hiding (handle)
+import ClassyPrelude hiding (find)
 import Data.Aeson qualified as JSON
 import Data.Aeson.Key qualified as Key
 import Data.Aeson.KeyMap qualified as KeyMap
-import Data.Attoparsec.ByteString.Char8 (decimal, endOfInput, string)
 import Data.Text qualified as Text
-import IHP.Controller.ActionDefinition
-import IHP.ControllerPrelude hiding (description, find, get, operationId, request, successResponseDescription, successStatus, summary, tags)
+import Data.Vector qualified as Vector
+import IHP.Controller.TypedAction qualified as TypedAction
+import IHP.ControllerPrelude hiding (request)
 import IHP.Environment
 import IHP.Test.Mocking
-import IHP.ViewPrelude
+import IHP.ViewPrelude hiding (action)
 import Network.HTTP.Types
 import Network.Wai.Test
 import Test.Hspec
 import Prelude qualified
+import "ihp" IHP.Router.Capture (parseCapture, renderCapture)
+import "ihp" IHP.Router.DSL (routes)
 
-data Band' = Band {id :: Id' "open_api_bands", meta :: MetaBag} deriving (Eq, Show)
-type Band = Band'
-type instance GetTableName Band' = "open_api_bands"
-type instance GetModelByTableName "open_api_bands" = Band
-type instance GetModelName Band' = "Band"
-type instance PrimaryKey "open_api_bands" = Integer
-
-data Performance' = Performance {id :: Id' "open_api_performances", meta :: MetaBag} deriving (Eq, Show)
-type Performance = Performance'
-type instance GetTableName Performance' = "open_api_performances"
-type instance GetModelByTableName "open_api_performances" = Performance
-type instance GetModelName Performance' = "Performance"
-type instance PrimaryKey "open_api_performances" = UUID
-
-data WebApplication = WebApplication deriving (Eq, Show, Data)
-
-data DocumentedController
-    = ShowBandAction {bandId :: !(Id Band), page :: !(Maybe Int), tags :: ![Text]}
-    | RawJsonValueAction
-    | WrongJsonAction
-    | WrongJsonShapeAction {bandId :: !(Id Band)}
-    deriving (Eq, Show, Data)
-
-data CustomRouteController
-    = ListCustomAction
-    | ShowCustomAction {performanceId :: !(Id Performance)}
-    deriving (Eq, Show, Data)
-
-data DocumentedCustomPathController
-    = ShowDocumentedCustomPathAction {bandId :: !(Id Band)}
-    deriving (Eq, Show, Data)
-
-data UnsupportedCustomPathApplication = UnsupportedCustomPathApplication deriving (Eq, Show, Data)
-
-data UnsupportedCustomPathController
-    = ShowUnsupportedCustomPathAction {bandId :: !(Id Band)}
-    deriving (Eq, Show, Data)
-
-data CrudNamedApiController
-    = CreateApiSessionAction
-    | CreatePipeSessionAction
-    | ShowApiSessionAction
-    deriving (Eq, Show, Data)
+data WebApplication = WebApplication deriving (Eq, Show)
 
 data BandView = BandView
-    { bandId :: !(Id Band)
+    { bandId :: !Int
     , page :: !(Maybe Int)
-    , tags :: ![Text]
+    , bandTags :: ![Text]
     }
 
 data BandPayload = BandPayload
-    { bandId :: !Integer
+    { bandId :: !Int
     , page :: !(Maybe Int)
     , tags :: ![Text]
     }
@@ -81,9 +46,7 @@ instance JSON.ToJSON BandPayload
 instance ToSchema BandPayload
 
 data RawJsonValueView = RawJsonValueView
-data WrongJsonShapeView = WrongJsonShapeView {bandId :: !(Id Band)}
-data DocumentedCustomPathView = DocumentedCustomPathView {bandId :: !(Id Band)}
-data UnsupportedCustomPathView = UnsupportedCustomPathView {bandId :: !(Id Band)}
+data WrongJsonShapeView = WrongJsonShapeView {wrongBandId :: !Int}
 data AckView = AckView
 
 data AckPayload = AckPayload
@@ -104,175 +67,138 @@ instance JSON.FromJSON CreateSessionRequest
 instance ToSchema CreateSessionRequest
 
 instance View BandView where
-    type JsonResponse BandView = BandPayload
-
     html BandView{..} = [hsx||]
+
+instance JsonView BandView where
+    type JsonResponse BandView = BandPayload
 
     json BandView{..} =
         BandPayload
-            { bandId = unpackId bandId
+            { bandId
             , page
-            , tags
+            , tags = bandTags
             }
 
 instance View RawJsonValueView where
     html RawJsonValueView = [hsx||]
 
+instance JsonView RawJsonValueView where
     json RawJsonValueView =
         JSON.object
             [ "legacy" JSON..= True
             ]
 
 instance View WrongJsonShapeView where
-    type JsonResponse WrongJsonShapeView = BandPayload
-
     html WrongJsonShapeView{..} = [hsx||]
+
+instance JsonView WrongJsonShapeView where
+    type JsonResponse WrongJsonShapeView = BandPayload
 
     json WrongJsonShapeView{..} =
         BandPayload
-            { bandId = unpackId bandId
-            , page = Nothing
-            , tags = []
-            }
-
-instance View DocumentedCustomPathView where
-    type JsonResponse DocumentedCustomPathView = BandPayload
-
-    html DocumentedCustomPathView{..} = [hsx||]
-
-    json DocumentedCustomPathView{..} =
-        BandPayload
-            { bandId = unpackId bandId
-            , page = Nothing
-            , tags = []
-            }
-
-instance View UnsupportedCustomPathView where
-    type JsonResponse UnsupportedCustomPathView = BandPayload
-
-    html UnsupportedCustomPathView{..} = [hsx||]
-
-    json UnsupportedCustomPathView{..} =
-        BandPayload
-            { bandId = unpackId bandId
+            { bandId = wrongBandId
             , page = Nothing
             , tags = []
             }
 
 instance View AckView where
-    type JsonResponse AckView = AckPayload
-
     html AckView = [hsx||]
+
+instance JsonView AckView where
+    type JsonResponse AckView = AckPayload
 
     json AckView = AckPayload{ok = True}
 
-instance Controller DocumentedController where
-    type ControllerAction DocumentedController = ActionDefinition DocumentedController
+data ApiAction body response where
+    ShowBandAction ::
+        { bandId :: !Int
+        , page :: !(Maybe Int)
+        , bandTags :: ![Text]
+        } ->
+        ApiAction 'NoBody BandView
+    RawJsonValueAction :: ApiAction 'NoBody RawJsonValueView
+    WrongJsonShapeAction :: {wrongBandId :: !Int} -> ApiAction 'NoBody WrongJsonShapeView
+    CreateApiSessionAction :: ApiAction ('Body CreateSessionRequest) AckView
+    CreatePipeSessionAction :: ApiAction ('Body CreateSessionRequest) AckView
+    ShowApiSessionAction :: ApiAction 'NoBody AckView
+
+deriving instance Show (ApiAction body response)
+deriving instance Eq (ApiAction body response)
+
+instance Controller (ApiAction 'NoBody BandView) where
+    type ControllerAction (ApiAction 'NoBody BandView) = ActionDef (ApiAction 'NoBody BandView) 'NoBody BandView
 
     action ShowBandAction{..} =
-        endpoint
-            |> responseView @BandView
-            |> summary "Show a band payload"
-            |> handle (pure @IO BandView{..})
+        documented do
+            summary "Show a band payload"
+            TypedAction.tags ["Bands"]
+        do
+            pure BandView{..}
+
+instance Controller (ApiAction 'NoBody RawJsonValueView) where
+    type ControllerAction (ApiAction 'NoBody RawJsonValueView) = ActionDef (ApiAction 'NoBody RawJsonValueView) 'NoBody RawJsonValueView
+
     action RawJsonValueAction =
-        legacyAction (renderHtmlOrJson RawJsonValueView)
-    action WrongJsonAction =
-        legacyAction (renderHtmlOrJson RawJsonValueView)
+        undocumented do
+            pure RawJsonValueView
+
+instance Controller (ApiAction 'NoBody WrongJsonShapeView) where
+    type ControllerAction (ApiAction 'NoBody WrongJsonShapeView) = ActionDef (ApiAction 'NoBody WrongJsonShapeView) 'NoBody WrongJsonShapeView
+
     action WrongJsonShapeAction{..} =
-        endpoint
-            |> responseView @WrongJsonShapeView
-            |> handle (pure @IO WrongJsonShapeView{..})
+        documented do
+            summary "Wrong shape route"
+        do
+            pure WrongJsonShapeView{..}
 
-instance Controller CustomRouteController where
-    action ListCustomAction = renderPlain "ListCustomAction"
-    action ShowCustomAction{..} = renderPlain (cs (Prelude.show performanceId))
-
-instance Controller DocumentedCustomPathController where
-    type ControllerAction DocumentedCustomPathController = ActionDefinition DocumentedCustomPathController
-
-    action ShowDocumentedCustomPathAction{..} =
-        endpoint
-            |> responseView @DocumentedCustomPathView
-            |> handle (pure @IO DocumentedCustomPathView{..})
-
-instance Controller UnsupportedCustomPathController where
-    type ControllerAction UnsupportedCustomPathController = ActionDefinition UnsupportedCustomPathController
-
-    action ShowUnsupportedCustomPathAction{..} =
-        endpoint
-            |> responseView @UnsupportedCustomPathView
-            |> handle (pure @IO UnsupportedCustomPathView{..})
-
-instance Controller CrudNamedApiController where
-    type ControllerAction CrudNamedApiController = ActionDefinition CrudNamedApiController
+instance Controller (ApiAction ('Body CreateSessionRequest) AckView) where
+    type ControllerAction (ApiAction ('Body CreateSessionRequest) AckView) = ActionDef (ApiAction ('Body CreateSessionRequest) AckView) ('Body CreateSessionRequest) AckView
 
     action CreateApiSessionAction =
-        endpoint
-            |> responseView @AckView
-            |> handle \(_ :: CreateSessionRequest) ->
-                pure @IO AckView
+        documented do
+            summary "Create API session"
+        do
+            let _token = bodyParam #token
+            pure AckView
+
     action CreatePipeSessionAction =
-        endpoint
-            |> responseView @AckView
-            |> successStatus status201
-            |> successResponseDescription "Created response"
-            |> handle \(_ :: CreateSessionRequest) ->
-                pure @IO AckView
+        documented do
+            summary "Create pipe session"
+            successStatus status201
+            successResponseDescription "Created response"
+        do
+            let _token = bodyParam #token
+            pure AckView
+
+instance Controller (ApiAction 'NoBody AckView) where
+    type ControllerAction (ApiAction 'NoBody AckView) = ActionDef (ApiAction 'NoBody AckView) 'NoBody AckView
+
     action ShowApiSessionAction =
-        endpoint
-            |> responseView @AckView
-            |> handle (pure @IO AckView)
+        documented do
+            summary "Show API session"
+        do
+            pure AckView
 
-instance AutoRoute DocumentedController where
-    autoRoute = autoRouteWithIdType (parseIntegerId @(Id Band))
-    applyAction = applyConstr (parseIntegerId @(Id Band))
+$(pure [])
 
-instance AutoRoute CustomRouteController where
-    customRoutes = do
-        string "/custom/"
-        performanceId <- parseId
-        endOfInput
-        onlyAllowMethods [GET, HEAD]
-        pure ShowCustomAction{performanceId}
-
-    customPathTo ShowCustomAction{performanceId} = Just ("/custom/" <> cs (Prelude.show performanceId))
-    customPathTo _ = Nothing
-
-instance AutoRoute DocumentedCustomPathController where
-    autoRoute = autoRouteWithIdType (parseIntegerId @(Id Band))
-    applyAction = applyConstr (parseIntegerId @(Id Band))
-
-    customRoutes = do
-        string "/bands/"
-        bandId <- packId <$> decimal
-        endOfInput
-        onlyAllowMethods [GET, HEAD]
-        pure ShowDocumentedCustomPathAction{bandId}
-
-    customPathTo ShowDocumentedCustomPathAction{bandId} = Just ("/bands/" <> cs (Prelude.show (unpackId bandId)))
-
-instance AutoRoute UnsupportedCustomPathController where
-    autoRoute = autoRouteWithIdType (parseIntegerId @(Id Band))
-    applyAction = applyConstr (parseIntegerId @(Id Band))
-
-    customPathTo ShowUnsupportedCustomPathAction{bandId} = Just ("/unsupported-bands/" <> cs (Prelude.show (unpackId bandId)))
-
-instance AutoRoute CrudNamedApiController
+[routes|openApiTestRoutes
+GET|HEAD /test/bands/{bandId}?page&tags ShowBandAction { bandTags = #tags }
+GET /test/raw-json                  RawJsonValueAction
+GET /test/wrong-json/{wrongBandId}  WrongJsonShapeAction
+POST /test/CreateApiSession         CreateApiSessionAction
+POST /test/CreatePipeSession        CreatePipeSessionAction
+GET|HEAD /test/ShowApiSession       ShowApiSessionAction
+|]
 
 instance FrontController WebApplication where
     controllers =
-        [ documentRoute @DocumentedController
-        , documentRoute @DocumentedCustomPathController
-        , documentRoute @CrudNamedApiController
-        , parseRoute @CustomRouteController
-        , swaggerUiWithOptions ((defaultSwaggerUiOptions @WebApplication){swaggerUiPath = "/docs", swaggerUiTitle = Just "Band API Docs"})
-        ]
+        openApiTestRoutes
+            <> [ swaggerUiWithOptions
+                    ((defaultSwaggerUiOptions @WebApplication){swaggerUiPath = "/docs", swaggerUiTitle = Just "Band API Docs"})
+               ]
 
 instance FrontController RootApplication where
     controllers = [mountFrontController WebApplication]
-
-instance FrontController UnsupportedCustomPathApplication where
-    controllers = [documentRoute @UnsupportedCustomPathController]
 
 defaultLayout :: Html -> Html
 defaultLayout inner = [hsx|{inner}|]
@@ -281,7 +207,11 @@ instance InitControllerContext WebApplication where
     initContext = setLayout defaultLayout
 
 instance InitControllerContext RootApplication
-instance InitControllerContext UnsupportedCustomPathApplication
+
+config :: ConfigBuilder
+config = do
+    option Development
+    option (AppPort 8000)
 
 testJson :: ByteString -> Session SResponse
 testJson url =
@@ -330,13 +260,8 @@ lookupParameter :: Text -> JSON.Value -> Maybe JSON.Value
 lookupParameter name operation = do
     JSON.Array parameters <- lookupValue "parameters" operation
     parameters
-        |> toList
-        |> ClassyPrelude.find (\parameter -> lookupValue "name" parameter == Just (JSON.String name))
-
-config :: ConfigBuilder
-config = do
-    option Development
-    option (AppPort 8000)
+        |> Vector.toList
+        |> find (\parameter -> lookupValue "name" parameter == Just (JSON.String name))
 
 tests :: Spec
 tests = aroundAll (withMockContextAndApp RootApplication config) do
@@ -344,42 +269,42 @@ tests = aroundAll (withMockContextAndApp RootApplication config) do
         it "renders typed json values through renderHtmlOrJson" $ withContextAndApp \application -> do
             let expected =
                     JSON.object
-                        [ "bandId" JSON..= (12 :: Integer)
+                        [ "bandId" JSON..= (12 :: Int)
                         , "page" JSON..= Just (2 :: Int)
                         , "tags" JSON..= (["rock", "jazz"] :: [Text])
                         ]
-            runSession (testJson "test/ShowBand?bandId=12&page=2&tags=rock,jazz") application >>= assertJsonBody expected
+            runSession (testJson "test/bands/12?page=2&tags=rock&tags=jazz") application >>= assertJsonBody expected
 
         it "keeps JSON.Value responses working through json" $ withContextAndApp \application -> do
             let expected = JSON.object ["legacy" JSON..= True]
-            runSession (testJson "test/RawJsonValue") application >>= assertJsonBody expected
+            runSession (testJson "test/raw-json") application >>= assertJsonBody expected
 
-        it "renders documented actions from json so the JSON shape cannot diverge from the typed response" $ withContextAndApp \application -> do
+        it "uses typed JsonView.json as the rendered JSON response" $ withContextAndApp \application -> do
             let expected =
                     JSON.object
-                        [ "bandId" JSON..= (12 :: Integer)
+                        [ "bandId" JSON..= (12 :: Int)
                         , "page" JSON..= (Nothing :: Maybe Int)
                         , "tags" JSON..= ([] :: [Text])
                         ]
-            runSession (testJson "test/WrongJsonShape?bandId=12") application >>= assertJsonBody expected
+            runSession (testJson "test/wrong-json/12") application >>= assertJsonBody expected
 
-        it "runs inspectable endpoint actions with decoded request bodies" $ withContextAndApp \application -> do
+        it "runs documented typed actions with decoded request bodies" $ withContextAndApp \application -> do
             let expected = JSON.object ["ok" JSON..= True]
             runSession (testPostJson "test/CreateApiSession" (JSON.object ["token" JSON..= ("abc" :: Text)])) application >>= assertJsonBody expected
 
-        it "uses endpoint success status for inspectable actions" $ withContextAndApp \application -> do
+        it "uses documented success status for typed actions" $ withContextAndApp \application -> do
             response <- runSession (testPostJson "test/CreatePipeSession" (JSON.object ["token" JSON..= ("abc" :: Text)])) application
             response.simpleStatus `shouldBe` status201
             JSON.decode response.simpleBody `shouldBe` Just (JSON.object ["ok" JSON..= True])
 
     describe "OpenAPI generation" do
-        it "derives AutoRoute paths, methods, params and response schemas from the controller" $ withContextAndApp \_ -> do
-            let spec = buildOpenApi RootApplication
+        it "derives paths, methods, params and response schemas from typed routes" $ withContextAndApp \_ -> do
+            let spec = buildOpenApi WebApplication
 
             lookupValue "openapi" spec `shouldBe` Just (JSON.String "3.0.3")
 
-            let getOperation = lookupPathOperation "/test/ShowBand" "get" spec
-            let headOperation = lookupPathOperation "/test/ShowBand" "head" spec
+            let getOperation = lookupPathOperation "/test/bands/{bandId}" "get" spec
+            let headOperation = lookupPathOperation "/test/bands/{bandId}" "head" spec
 
             headOperation `shouldSatisfy` isJust
             getOperation `shouldSatisfy` isJust
@@ -387,14 +312,16 @@ tests = aroundAll (withMockContextAndApp RootApplication config) do
             let Just operation = getOperation
 
             let Just bandIdParameter = lookupParameter "bandId" operation
+            lookupValue "in" bandIdParameter `shouldBe` Just (JSON.String "path")
             lookupValue "required" bandIdParameter `shouldBe` Just (JSON.Bool True)
             (lookupValue "type" =<< lookupValue "schema" bandIdParameter) `shouldBe` Just (JSON.String "integer")
 
             let Just pageParameter = lookupParameter "page" operation
+            lookupValue "in" pageParameter `shouldBe` Just (JSON.String "query")
             lookupValue "required" pageParameter `shouldBe` Just (JSON.Bool False)
 
             let Just tagsParameter = lookupParameter "tags" operation
-            lookupValue "explode" tagsParameter `shouldBe` Just (JSON.Bool False)
+            lookupValue "required" tagsParameter `shouldBe` Just (JSON.Bool False)
             (lookupValue "type" =<< lookupValue "schema" tagsParameter) `shouldBe` Just (JSON.String "array")
 
             let Just schema =
@@ -410,26 +337,12 @@ tests = aroundAll (withMockContextAndApp RootApplication config) do
             lookupValue "type" bandPayloadSchema `shouldBe` Just (JSON.String "object")
             (lookupValue "properties" bandPayloadSchema >>= lookupValue "bandId") `shouldSatisfy` isJust
 
-        it "omits undocumented custom routes from the generated spec" $ withContextAndApp \_ -> do
-            let spec = buildOpenApi RootApplication
-            lookupPathOperation "/test/ShowCustom" "get" spec `shouldBe` Nothing
-            lookupPathOperation "/custom/{performanceId}" "get" spec `shouldBe` Nothing
+        it "omits undocumented typed actions from the generated spec" $ withContextAndApp \_ -> do
+            let spec = buildOpenApi WebApplication
+            lookupPathOperation "/test/raw-json" "get" spec `shouldBe` Nothing
 
-        it "documents basic customPathTo routes verified by customRoutes" $ withContextAndApp \_ -> do
-            let spec = buildOpenApi RootApplication
-            lookupPathOperation "/test/ShowDocumentedCustomPath" "get" spec `shouldBe` Nothing
-            let Just operation = lookupPathOperation "/bands/{bandId}" "get" spec
-            let Just bandIdParameter = lookupParameter "bandId" operation
-            lookupValue "in" bandIdParameter `shouldBe` Just (JSON.String "path")
-            lookupValue "required" bandIdParameter `shouldBe` Just (JSON.Bool True)
-            (lookupValue "type" =<< lookupValue "schema" bandIdParameter) `shouldBe` Just (JSON.String "integer")
-
-        it "fails OpenAPI generation when customPathTo is not backed by customRoutes" $ withContextAndApp \_ -> do
-            evaluate (buildOpenApi UnsupportedCustomPathApplication) `shouldThrow` \(OpenApiGenerationException message) ->
-                "customRoutes does not parse that path" `Text.isInfixOf` message
-
-        it "keeps CreateApi and ShowApi action names unchanged in documented AutoRoute paths" $ withContextAndApp \_ -> do
-            let spec = buildOpenApi RootApplication
+        it "keeps CreateApi and ShowApi action names unchanged in inferred typed route paths" $ withContextAndApp \_ -> do
+            let spec = buildOpenApi WebApplication
 
             lookupPathOperation "/test/CreateApiSession" "post" spec `shouldSatisfy` isJust
             lookupPathOperation "/test/CreatePipeSession" "post" spec `shouldSatisfy` isJust
@@ -439,25 +352,8 @@ tests = aroundAll (withMockContextAndApp RootApplication config) do
             lookupPathOperation "/test/ApiSession" "post" spec `shouldBe` Nothing
             lookupPathOperation "/test/ApiSession" "get" spec `shouldBe` Nothing
 
-        it "includes request body schemas for documented JSON actions" $ withContextAndApp \_ -> do
-            let spec = buildOpenApi RootApplication
-
-            let Just operation = lookupPathOperation "/test/CreateApiSession" "post" spec
-            let Just requestBody =
-                    lookupValue "requestBody" operation
-                        >>= lookupValue "content"
-                        >>= lookupValue "application/json"
-                        >>= lookupValue "schema"
-
-            lookupValue "$ref" requestBody `shouldBe` Just (JSON.String "#/components/schemas/CreateSessionRequest")
-
-            let Just componentsSchemas = lookupValue "components" spec >>= lookupValue "schemas"
-            let Just createSessionRequestSchema = lookupValue "CreateSessionRequest" componentsSchemas
-            lookupValue "type" createSessionRequestSchema `shouldBe` Just (JSON.String "object")
-            (lookupValue "properties" createSessionRequestSchema >>= lookupValue "token") `shouldSatisfy` isJust
-
-        it "supports request body and success metadata setters on action docs" $ withContextAndApp \_ -> do
-            let spec = buildOpenApi RootApplication
+        it "includes request body schemas and success metadata for typed actions" $ withContextAndApp \_ -> do
+            let spec = buildOpenApi WebApplication
 
             let Just operation = lookupPathOperation "/test/CreatePipeSession" "post" spec
             let Just requestBody =
@@ -467,6 +363,12 @@ tests = aroundAll (withMockContextAndApp RootApplication config) do
                         >>= lookupValue "schema"
 
             lookupValue "$ref" requestBody `shouldBe` Just (JSON.String "#/components/schemas/CreateSessionRequest")
+
+            let Just formBody =
+                    lookupValue "requestBody" operation
+                        >>= lookupValue "content"
+                        >>= lookupValue "application/x-www-form-urlencoded"
+            formBody `shouldSatisfy` const True
 
             let Just createdResponse =
                     lookupValue "responses" operation
