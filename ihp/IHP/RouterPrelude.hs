@@ -23,6 +23,7 @@ module IHP.RouterPrelude
 , InitControllerContext
 , Request
 , Respond
+, SwaggerUiController (..)
 )
 where
 
@@ -37,3 +38,4 @@ import IHP.Router.Capture (UrlCapture (..), Segment (..))
 import IHP.Router.IHP (routes)
 import IHP.ControllerSupport (Controller (..), InitControllerContext, Respond)
 import Network.Wai (Request)
+import IHP.OpenApiSupport (SwaggerUiController (..))
