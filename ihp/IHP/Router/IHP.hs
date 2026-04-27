@@ -52,6 +52,9 @@ import qualified Language.Haskell.TH.Quote as TH
 
 import IHP.Router.Capture (UrlCapture (..))
 import qualified IHP.ModelSupport as ModelSupport
+import IHP.ModelSupport (isNew)
+import IHP.Router.UrlGenerator (pathTo)
+import IHP.View.Form.FormFor (ModelFormAction (..))
 import IHP.Router.DSL.TH
     ( ParsedBlock (..)
     , HeaderForm (..)
@@ -272,13 +275,16 @@ emitNamedBinding bindingTxt ctrls wsBindings = do
 ---------------------------------------------------------------------------
 
 -- | TH names referenced from the emitted @ModelFormAction@ instance.
--- All resolved at the splice use-site so the emitted code only needs the
--- standard IHP imports a controller/view module already has.
+-- We use fully-qualified names (resolved here at TH compile time) rather
+-- than 'TH.mkName', so the emitted instance keeps compiling regardless
+-- of what a user's @Web/Routes.hs@ happens to import. 'IHP.RouterPrelude'
+-- doesn't re-export 'ModelFormAction' or 'isNew', so 'mkName' references
+-- would fail in real apps.
 modelFormActionClass, modelFormActionFn, isNewFn, pathToFn :: Name
-modelFormActionClass = TH.mkName "ModelFormAction"
-modelFormActionFn    = TH.mkName "modelFormAction"
-isNewFn              = TH.mkName "isNew"
-pathToFn             = TH.mkName "pathTo"
+modelFormActionClass = ''ModelFormAction
+modelFormActionFn    = 'modelFormAction
+isNewFn              = 'isNew
+pathToFn             = 'pathTo
 
 -- | Emit a per-model @instance \{-\# OVERLAPPING \#-\} ModelFormAction X@
 -- for each controller whose actions follow the standard scaffold shape:
