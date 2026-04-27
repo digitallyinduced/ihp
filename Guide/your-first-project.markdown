@@ -423,7 +423,7 @@ instance View ShowView where
                             ]
 ```
 
-We can see that `ShowView` is just a data definition. There is also a `View ShowView` instance. The HTML-like syntax inside the [`html`](https://ihp.digitallyinduced.com/api-docs/IHP-ViewSupport.html#v:html) function is [`hsx`](https://ihp.digitallyinduced.com/Guide/hsx.html) code. It's similar to React's [JSX](https://reactjs.org/docs/introducing-jsx.html). You can write HTML code as usual there. Everything inside the [`[hsx|...|]`](https://ihp.digitallyinduced.com/api-docs/IHP-ViewPrelude.html#v:hsx) block is also type-checked and converted to Haskell code at compile-time.
+We can see that `ShowView` is just a data definition. There is also a `View ShowView` instance. The HTML-like syntax inside the [`html`](https://ihp.digitallyinduced.com/api-docs/IHP-ViewSupport.html#v:html) function is [`hsx`](https://ihp.digitallyinduced.com/Guide/hsx.html) code. It's similar to React's [JSX](https://reactjs.org/docs/introducing-jsx.html). You can write HTML code as usual there. Everything inside the [`[hsx|...|]`](https://ihp.digitallyinduced.com/api-docs/IHP-HSX-QQ.html#v:hsx) block is also type-checked and converted to Haskell code at compile-time.
 
 Now that we have a rough overview of all the parts belonging to our `Post`, it's time to do some coding ourselves.
 
@@ -961,7 +961,7 @@ Inside the `Show.hs` we need to update the type signature to tell our action wha
 data ShowView = ShowView { post :: Post }
 ```
 
-Add an [`Include "comments"`](https://ihp.digitallyinduced.com/api-docs/IHP-MailPrelude.html#t:Include) like this:
+Add an [`Include "comments"`](https://ihp.digitallyinduced.com/api-docs/IHP-ModelSupport-Types.html#t:Include) like this:
 
 ```haskell
 data ShowView = ShowView { post :: Include "comments" Post }
@@ -982,7 +982,7 @@ post <- fetch postId
     >>= fetchRelated #comments
 ```
 
-The type of `post` has changed from `Post` to [`Include "comments" Post`](https://ihp.digitallyinduced.com/api-docs/IHP-MailPrelude.html#t:Include). In general, when you're dealing with has-many relationships, use [`Include "relatedRecords"`](https://ihp.digitallyinduced.com/api-docs/IHP-MailPrelude.html#t:Include) and [`fetchRelated`](https://ihp.digitallyinduced.com/api-docs/IHP-FetchRelated.html#v:fetchRelated) to specify and fetch data according to your needs.
+The type of `post` has changed from `Post` to [`Include "comments" Post`](https://ihp.digitallyinduced.com/api-docs/IHP-ModelSupport-Types.html#t:Include). In general, when you're dealing with has-many relationships, use [`Include "relatedRecords"`](https://ihp.digitallyinduced.com/api-docs/IHP-ModelSupport-Types.html#t:Include) and [`fetchRelated`](https://ihp.digitallyinduced.com/api-docs/IHP-FetchRelated.html#v:fetchRelated) to specify and fetch data according to your needs.
 
 The type error is fixed now. When opening the Show View of a post, you will see that the comments are displayed. When you take a look at the [`Logs` in the Dev tools](http://localhost:8001/AppLogs) you can see, that when opening a Post, two SQL queries will be fired:
 
