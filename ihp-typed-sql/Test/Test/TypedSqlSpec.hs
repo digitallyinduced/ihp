@@ -178,6 +178,11 @@ tests = do
                 "[typedSql| SELECT NULLIF(name, 'First') FROM typed_sql_test_items LIMIT 1 |]")
             []
 
+        compileFailTest "explains polymorphic-argument inference failure with placeholder context"
+            (mkTestModule "TypedQuery Text"
+                "let chunk = (\"x\" :: Text) in [typedSql| SELECT CONCAT(name, ${chunk}) FROM typed_sql_test_items LIMIT 1 |]")
+            ["could not determine the type of `${chunk}`", "polymorphic-argument context", "::text"]
+
     describe "TypedSql macro compile-time success" do
         compilePassTest "primary key inferred as Id'"
             (mkTestModuleWithPK ["typed_sql_test_items"] "TypedQuery (Id' \"typed_sql_test_items\")"

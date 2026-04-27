@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+- Better error message when a `${...}` placeholder appears in a polymorphic-argument
+  position (e.g. `CONCAT`, `COALESCE`, `GREATEST`, `LEAST`). Instead of surfacing
+  the raw Postgres `could not determine data type of parameter $N` text,
+  `typedSql` now points at the offending `${expr}` and suggests an explicit
+  `${expr}::text` cast (#2667).
+
 - **Breaking:** `int8` / `bigint` columns and placeholders now map to `Int64`
   instead of `Integer`, exactly matching PostgreSQL's 64-bit wire format.
   Migration: search for `Integer` values flowing through `typedSql` results

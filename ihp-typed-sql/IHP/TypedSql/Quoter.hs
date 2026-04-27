@@ -8,6 +8,7 @@ module IHP.TypedSql.Quoter
     , typedSqlStar
     ) where
 
+import qualified Control.Exception              as Exception
 import           Data.Coerce                    (coerce)
 import qualified Data.List                      as List
 import qualified Data.Map.Strict                as Map
@@ -16,6 +17,8 @@ import qualified Data.String.Conversions        as CS
 import qualified Hasql.DynamicStatements.Snippet as Snippet
 import qualified Language.Haskell.TH            as TH
 import qualified Language.Haskell.TH.Quote      as TH
+import           Text.Read                      (readMaybe)
+import qualified Prelude
 import           IHP.Prelude
 import           IHP.Hasql.Encoders              ()
 
@@ -62,7 +65,11 @@ typedSqlExp allowStar rawSql = do
     let PlaceholderPlan { ppDescribeSql, ppRuntimeSql, ppExprs } = planPlaceholders rawSql
     parsedExprs <- mapM parseExpr ppExprs
 
-    describeResult <- TH.runIO $ describeStatement (CS.cs ppDescribeSql)
+    describeResultE <- TH.runIO $ Exception.try (describeStatement (CS.cs ppDescribeSql))
+    describeResult <- case describeResultE of
+        Right ok -> pure ok
+        Left (e :: Exception.IOException) ->
+            fail (rephraseDescribeError ppExprs (ioeGetErrorString e))
 
     let DescribeResult { drParams, drColumns, drTables, drTypes } = describeResult
     when (length drParams /= length parsedExprs) $
@@ -151,6 +158,37 @@ typedSqlExp allowStar rawSql = do
                 resultDecoder
 
     pure (TH.SigE typedQueryExpr (TH.AppT (TH.ConT ''TypedQuery) resultType))
+
+-- | Rephrase a describe-step error to point at the offending ${...} placeholder.
+-- Postgres reports type-inference failures as "could not determine data type of parameter $N".
+-- Map $N back to the corresponding ${expr} on the Haskell side and suggest the fix
+-- (an explicit ::type cast). Other errors are passed through unchanged.
+rephraseDescribeError :: [String] -> String -> String
+rephraseDescribeError exprs originalMsg =
+    case extractUnknownParamIndex originalMsg of
+        Just paramIdx
+            | paramIdx >= 1 && paramIdx <= length exprs ->
+                let expr = exprs !! (paramIdx - 1)
+                in "typedSql: could not determine the type of `${" <> expr <> "}` "
+                    <> "(parameter $" <> Prelude.show paramIdx <> "). "
+                    <> "Postgres cannot infer the type because the placeholder appears in a polymorphic-argument context "
+                    <> "(e.g. CONCAT, COALESCE, GREATEST, LEAST). "
+                    <> "Add an explicit cast, e.g. `${" <> expr <> "}::text`.\n"
+                    <> "Original error: " <> originalMsg
+        _ -> originalMsg
+
+-- | Parse the parameter index out of a Postgres "could not determine data type of parameter $N" error.
+extractUnknownParamIndex :: String -> Maybe Int
+extractUnknownParamIndex = go
+  where
+    needle = "could not determine data type of parameter $"
+    go [] = Nothing
+    go str
+        | needle `List.isPrefixOf` str =
+            let rest = drop (length needle) str
+                digits = takeWhile (\c -> c >= '0' && c <= '9') rest
+            in if null digits then Nothing else readMaybe digits
+        | otherwise = go (drop 1 str)
 
 buildSnippetExpression :: String -> [TH.Exp] -> TH.ExpQ
 buildSnippetExpression sql params = do
