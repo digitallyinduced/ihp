@@ -94,9 +94,10 @@ shouldWatchDirectory path = do
     osPath <- encodeUtf path
     Directory.doesDirectoryExist osPath
 
--- | Filter out directories that are git-ignored.
--- Falls back to the old hardcoded exclusion list if git is not available
--- or the project is not a git repo.
+-- | Filter out directories that are git-ignored or in the always-excluded list
+-- (.devenv, .direnv, .claude). The always-excluded list applies even when
+-- git check-ignore succeeds, so directories like .claude (used by Claude Code
+-- for worktrees) are skipped regardless of their .gitignore status.
 filterGitIgnored :: [String] -> IO [String]
 filterGitIgnored [] = pure []
 filterGitIgnored dirs = do
@@ -112,12 +113,12 @@ filterGitIgnored dirs = do
             _ <- Process.waitForProcess processHandle
             pure ignored
     case result of
-        Right ignored -> pure (filter (`notElem` ignored) dirs)
+        Right ignored -> pure (filter (\d -> d `notElem` ignored && isDirectoryWatchable d) dirs)
         Left _ -> pure (filter isDirectoryWatchable dirs)
 
 isDirectoryWatchable :: String -> Bool
 isDirectoryWatchable path =
-    path /= ".devenv" && path /= ".direnv"
+    path /= ".devenv" && path /= ".direnv" && path /= ".claude"
 
 fileWatcherConfig :: FS.WatchConfig
 fileWatcherConfig = FS.defaultConfig
