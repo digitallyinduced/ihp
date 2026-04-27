@@ -40,19 +40,26 @@ module IHP.Router.IHP
 import Prelude
 import Data.ByteString (ByteString)
 import qualified Data.ByteString.Char8 as ByteString.Char8
+import qualified Data.Char as Char
+import qualified Data.Map.Strict as Map
 import Data.Text (Text)
 import qualified Data.Text as Text
 import Data.Typeable (Typeable)
+import qualified GHC.Records
 import qualified Language.Haskell.TH as TH
 import Language.Haskell.TH (Q, Dec, Name)
 import qualified Language.Haskell.TH.Quote as TH
 
 import IHP.Router.Capture (UrlCapture (..))
 import qualified IHP.ModelSupport as ModelSupport
+import IHP.ModelSupport (isNew)
+import IHP.Router.UrlGenerator (pathTo)
+import IHP.View.Form.FormFor (ModelFormAction (..))
 import IHP.Router.DSL.TH
     ( ParsedBlock (..)
     , HeaderForm (..)
     , ControllerInfo (..)
+    , ConstructorInfo (..)
     , parseAndReify
     , genericEmit
     , trieValueName
@@ -135,11 +142,12 @@ ihpRoutesDec = routesDec
 ihpEmit :: ParsedBlock -> Q [Dec]
 ihpEmit ParsedBlock { pbHeader, pbGroups, pbWsRoutes } = do
     canRouteDecs <- traverse (\(ctrl, _) -> emitCanRoute ctrl) pbGroups
+    formActionDecs <- fmap concat (traverse (emitModelFormAction . fst) pbGroups)
     bindingDecs <- case pbHeader of
         HeaderLowercase name ->
             emitNamedBinding name (map fst pbGroups) pbWsRoutes
         _ -> pure []
-    pure (canRouteDecs <> bindingDecs)
+    pure (canRouteDecs <> formActionDecs <> bindingDecs)
 
 ---------------------------------------------------------------------------
 -- IHP-specific TH names (resolved at splice use-site)
@@ -261,3 +269,88 @@ emitNamedBinding bindingTxt ctrls wsBindings = do
         [ TH.SigD valName bindingTy
         , TH.FunD valName [TH.Clause [] (TH.NormalB bindingExp) []]
         ]
+
+---------------------------------------------------------------------------
+-- Code generation — ModelFormAction
+---------------------------------------------------------------------------
+
+-- | TH names referenced from the emitted @ModelFormAction@ instance.
+-- We use fully-qualified names (resolved here at TH compile time) rather
+-- than 'TH.mkName', so the emitted instance keeps compiling regardless
+-- of what a user's @Web/Routes.hs@ happens to import. 'IHP.RouterPrelude'
+-- doesn't re-export 'ModelFormAction' or 'isNew', so 'mkName' references
+-- would fail in real apps.
+modelFormActionClass, modelFormActionFn, isNewFn, pathToFn :: Name
+modelFormActionClass = ''ModelFormAction
+modelFormActionFn    = 'modelFormAction
+isNewFn              = 'isNew
+pathToFn             = 'pathTo
+
+-- | Emit a per-model @instance \{-\# OVERLAPPING \#-\} ModelFormAction X@
+-- for each controller whose actions follow the standard scaffold shape:
+--
+-- > Create<X>Action                          -- nullary
+-- > Update<X>Action { <x>Id :: Id <X> }      -- single field, conventional name
+--
+-- The instance body delegates to the 'HasPath' instances 'genericEmit' has
+-- already produced:
+--
+-- > instance {-# OVERLAPPING #-} ModelFormAction X where
+-- >     modelFormAction record =
+-- >         if isNew record
+-- >             then pathTo Create<X>Action
+-- >             else pathTo (Update<X>Action (getField @"id" record))
+--
+-- Emission is opportunistic: if any check fails (constructor missing, extra
+-- fields, non-conventional id field name, or @\<X\>@ not in scope), the
+-- splice silently skips that controller and the OVERLAPPABLE default
+-- instance handles 'formFor' the way it does today.
+emitModelFormAction :: ControllerInfo -> Q [Dec]
+emitModelFormAction ctrl =
+    let candidates =
+            [ stripped
+            | name <- Map.keys (ciConstructors ctrl)
+            , Just stripped <- [Text.stripPrefix "Create" name >>= Text.stripSuffix "Action"]
+            , not (Text.null stripped)
+            ]
+    in fmap concat (traverse (tryEmitModelFormAction ctrl) candidates)
+
+tryEmitModelFormAction :: ControllerInfo -> Text -> Q [Dec]
+tryEmitModelFormAction ctrl modelText = do
+    let createName  = "Create" <> modelText <> "Action"
+        updateName  = "Update" <> modelText <> "Action"
+        expectedFld = lcfirstText modelText <> "Id"
+    case (Map.lookup createName (ciConstructors ctrl), Map.lookup updateName (ciConstructors ctrl)) of
+        (Just createCon, Just updateCon)
+            | null (coFieldsOrder createCon)
+            , [(fieldName, _)] <- coFieldsOrder updateCon
+            , fieldName == expectedFld -> do
+                mTy <- TH.lookupTypeName (Text.unpack modelText)
+                case mTy of
+                    Nothing      -> pure []
+                    Just modelTy ->
+                        pure [buildModelFormActionInstance modelTy (coName createCon) (coName updateCon)]
+        _ -> pure []
+
+buildModelFormActionInstance :: Name -> Name -> Name -> Dec
+buildModelFormActionInstance modelTy createCon updateCon =
+    let recordVar = TH.mkName "record"
+        getIdExpr =
+            TH.AppE
+                (TH.AppTypeE (TH.VarE 'GHC.Records.getField) (TH.LitT (TH.StrTyLit "id")))
+                (TH.VarE recordVar)
+        body = TH.CondE
+            (TH.AppE (TH.VarE isNewFn) (TH.VarE recordVar))
+            (TH.AppE (TH.VarE pathToFn) (TH.ConE createCon))
+            (TH.AppE (TH.VarE pathToFn)
+                (TH.AppE (TH.ConE updateCon) getIdExpr))
+        method = TH.FunD modelFormActionFn
+            [TH.Clause [TH.VarP recordVar] (TH.NormalB body) []]
+    in TH.InstanceD (Just TH.Overlapping) []
+        (TH.AppT (TH.ConT modelFormActionClass) (TH.ConT modelTy))
+        [method]
+
+lcfirstText :: Text -> Text
+lcfirstText t = case Text.uncons t of
+    Just (c, rest) -> Text.cons (Char.toLower c) rest
+    Nothing        -> t
