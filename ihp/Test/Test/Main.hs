@@ -8,6 +8,7 @@ import qualified Test.NameSupportSpec
 import qualified Test.HaskellSupportSpec
 import qualified Test.View.CSSFrameworkSpec
 import qualified Test.View.FormSpec
+import qualified Test.View.FormForDSLSpec
 import qualified Test.Controller.ContextSpec
 import qualified Test.Controller.ParamSpec
 import qualified Test.Controller.CookieSpec
@@ -44,6 +45,7 @@ main = hspec do
     Test.HaskellSupportSpec.tests
     Test.View.CSSFrameworkSpec.tests
     Test.View.FormSpec.tests
+    Test.View.FormForDSLSpec.tests
     Test.Controller.ContextSpec.tests
     Test.Controller.ParamSpec.tests
     Test.Controller.AccessDeniedSpec.tests
