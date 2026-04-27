@@ -132,6 +132,41 @@ Field type drives the URL shape:
 
 Every record field of the action constructor must be covered by either a path capture or a query-param entry. Leftover fields fail at splice time with a pointer to the exact fields not yet bound.
 
+### Custom capture types
+
+The DSL ships with `UrlCapture` instances for the common scalar types: `Text`, `Int`, `Integer`, `UUID`, `Bool`, `Day`, and `Segment` (a non-empty `Text`). IHP additionally provides a polymorphic instance for `Id' table` so any model id captures out of the box, regardless of the table's `PrimaryKey` type.
+
+For your own types — typically SQL enums — declare a `UrlCapture` instance alongside the type:
+
+```haskell
+data MarketStatus
+    = MarketStatusDraft
+    | MarketStatusOpen
+    | MarketStatusClosed
+    | MarketStatusResolved
+    | MarketStatusRefunded
+    deriving (Eq, Show)
+
+instance UrlCapture MarketStatus where
+    parseCapture = \case
+        "draft"    -> Just MarketStatusDraft
+        "open"     -> Just MarketStatusOpen
+        "closed"   -> Just MarketStatusClosed
+        "resolved" -> Just MarketStatusResolved
+        "refunded" -> Just MarketStatusRefunded
+        _          -> Nothing
+    renderCapture = \case
+        MarketStatusDraft    -> "draft"
+        MarketStatusOpen     -> "open"
+        MarketStatusClosed   -> "closed"
+        MarketStatusResolved -> "resolved"
+        MarketStatusRefunded -> "refunded"
+```
+
+`parseCapture :: ByteString -> Maybe a` decodes a single (already URL-decoded) path segment or query-param value; returning `Nothing` makes the route miss. `renderCapture :: a -> Text` is the reverse direction used by [`pathTo`](https://ihp.digitallyinduced.com/api-docs/IHP-RouterSupport.html#v:pathTo).
+
+The instance can live in `Web/Routes.hs`, in `Web/Types.hs` next to the data declaration, or in any module reachable from the splice site.
+
 ### Rename a field
 
 To map a URL-side name to a differently named record field, use `{ field = #captureName }` after the action. Works for path captures and query params alike:
@@ -183,6 +218,18 @@ The line above the first route is the header. It takes three shapes:
    instance FrontController WebApplication where
        controllers = webRoutes
    ```
+
+   **When migrating an existing app from AutoRoute,** make sure `Web/FrontController.hs` imports `Web.Routes` *with* the `webRoutes` identifier in scope:
+
+   ```haskell
+   -- before (AutoRoute) — only typeclass instances were needed:
+   import Web.Routes ()
+
+   -- after (DSL with lowercase header) — the binding must be in scope:
+   import Web.Routes (webRoutes)
+   ```
+
+   The empty-parens import form (`Web.Routes ()`) brings only the `CanRoute` / `HasPath` instances in. The lowercase-header form additionally emits `webRoutes` as a top-level value, which won't resolve until the import is widened.
 
 3. **Omitted** — header-less. Splice emits instances only; no binding.
 
@@ -257,6 +304,15 @@ instance FrontController WebApplication where
         -- Generator Marker
         ]
 ```
+
+When using the `[routes|webRoutes …|]` DSL, the `webRoutes` binding is just a `[ControllerRoute app]`, so prepend `startPage` with list cons:
+
+```haskell
+instance FrontController WebApplication where
+    controllers = startPage ProjectsAction : webRoutes
+```
+
+This keeps every URL declared in the DSL block intact and additionally maps `/` to `ProjectsAction`. `pathTo ProjectsAction` still returns the path declared in the DSL.
 
 In a new IHP project, you usually have a [`startPage WelcomeAction`](https://ihp.digitallyinduced.com/api-docs/IHP-RouterSupport.html#v:startPage) defined. Make sure to remove this line. Otherwise, you will still see the default IHP welcome page.
 
