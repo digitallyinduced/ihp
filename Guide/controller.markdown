@@ -26,7 +26,7 @@ data PostsController
     deriving (Eq, Show, Data)
 ```
 
-This defines a type `PostsController` with a data constructor `ShowPostAction { postId :: !(Id Post) }`. The argument `postId` will later be filled with the `postId` parameter of the request URL. This is done automatically by the IHP router. IHP also requires the controller to have [`Eq`](https://ihp.digitallyinduced.com/api-docs/IHP-Prelude.html#t:Eq), [`Show`](https://ihp.digitallyinduced.com/api-docs/IHP-Prelude.html#t:Show) and [`Data`](https://ihp.digitallyinduced.com/api-docs/IHP-Prelude.html#t:Data) instances. Therefore we derive them here.
+This defines a type `PostsController` with a data constructor `ShowPostAction { postId :: !(Id Post) }`. The argument `postId` will later be filled with the `postId` parameter of the request URL. This is done automatically by the IHP router. IHP also requires the controller to have `Eq`, `Show` and `Data` instances. Therefore we derive them here.
 
 After we have defined the "interface" for our controller, we need to implement the actual request handling logic. IHP expects to find this inside the [`action`](https://ihp.digitallyinduced.com/api-docs/IHP-ControllerSupport.html#v:action) function of the [`Controller`](https://ihp.digitallyinduced.com/api-docs/IHP-ControllerSupport.html#t:Controller) instance. We can define this instance in `Web/Controller/Posts.hs`:
 
@@ -61,7 +61,7 @@ An alternative request to that action can use a form for passing the `maxItems`:
 </form>
 ```
 
-The value is automatically transformed to an [`Int`](https://ihp.digitallyinduced.com/api-docs/IHP-MailPrelude.html#t:Int). This parsing works out of the box for [Ids](https://ihp.digitallyinduced.com/api-docs/IHP-Prelude.html#t:Id), [UUID](https://ihp.digitallyinduced.com/api-docs/IHP-MailPrelude.html#t:UUID), [Bools](https://ihp.digitallyinduced.com/api-docs/IHP-MailPrelude.html#t:Bool), [Timestamps](https://ihp.digitallyinduced.com/api-docs/IHP-RouterPrelude.html#t:UTCTime), etc. Here are some more examples:
+The value is automatically transformed to an `Int`. This parsing works out of the box for [Ids](https://ihp.digitallyinduced.com/api-docs/IHP-ModelSupport-Types.html#t:Id), UUID, Bools, Timestamps, etc. Here are some more examples:
 
 ```haskell
 action ExampleAction = do
@@ -83,7 +83,7 @@ action UsersAction = do
 
 When this action is called without the `maxItems` parameter being set (or when invalid), it will fall back to the default value `50`.
 
-There is also [`paramOrNothing`](https://ihp.digitallyinduced.com/api-docs/IHP-Controller-Param.html#v:paramOrNothing) which will return [`Nothing`](https://ihp.digitallyinduced.com/api-docs/IHP-Prelude.html#t:Maybe) when the parameter is missing and [`Just theValue`](https://ihp.digitallyinduced.com/api-docs/IHP-Prelude.html#t:Maybe) otherwise.
+There is also [`paramOrNothing`](https://ihp.digitallyinduced.com/api-docs/IHP-Controller-Param.html#v:paramOrNothing) which will return `Nothing` when the parameter is missing and `Just theValue` otherwise.
 
 ### Multiple Params With Same Name (Checkboxes)
 
@@ -106,7 +106,7 @@ action BuildFood = do
 
 When this action is called with both checkboxes checked `ingredients` will be set to `["milk", "egg"]`. When no checkbox is checked it will return an empty list.
 
-Similar to [`param`](https://ihp.digitallyinduced.com/api-docs/IHP-Controller-Param.html#v:param) this works out of the box for [Ids](https://ihp.digitallyinduced.com/api-docs/IHP-Prelude.html#t:Id), [UUID](https://ihp.digitallyinduced.com/api-docs/IHP-Prelude.html#t:UUID), [Bools](https://ihp.digitallyinduced.com/api-docs/IHP-Prelude.html#t:Bool), [Timestamps](https://ihp.digitallyinduced.com/api-docs/IHP-RouterPrelude.html#t:UTCTime), etc.
+Similar to [`param`](https://ihp.digitallyinduced.com/api-docs/IHP-Controller-Param.html#v:param) this works out of the box for [Ids](https://ihp.digitallyinduced.com/api-docs/IHP-ModelSupport-Types.html#t:Id), UUID, Bools, Timestamps, etc.
 
 ### Passing Data from the Action to the View
 
@@ -310,7 +310,7 @@ action ExampleAction = do
     respondHtml [hsx|<div>Hello World</div>|]
 ```
 
-You will need to import [`hsx`](https://ihp.digitallyinduced.com/api-docs/IHP-ViewPrelude.html#v:hsx) into your controller: [`import IHP.ViewPrelude (hsx)`](https://ihp.digitallyinduced.com/api-docs/IHP-ViewPrelude.html#v:hsx).
+You will need to import [`hsx`](https://ihp.digitallyinduced.com/api-docs/IHP-HSX-QQ.html#v:hsx) into your controller: [`import IHP.ViewPrelude (hsx)`](https://ihp.digitallyinduced.com/api-docs/IHP-HSX-QQ.html#v:hsx).
 
 ### Rendering a Static File
 

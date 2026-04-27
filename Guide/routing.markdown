@@ -264,14 +264,14 @@ In a new IHP project, you usually have a [`startPage WelcomeAction`](https://ihp
 
 ## URL Generation
 
-Use [`pathTo`](https://ihp.digitallyinduced.com/api-docs/IHP-ViewPrelude.html#v:pathTo) to generate a path to a given action:
+Use [`pathTo`](https://ihp.digitallyinduced.com/api-docs/IHP-RouterSupport.html#v:pathTo) to generate a path to a given action:
 
 ```haskell
 pathTo ShowPostAction { postId = "adddfb12-da34-44ef-a743-797e54ce3786" }
 -- /ShowPost?postId=adddfb12-da34-44ef-a743-797e54ce3786
 ```
 
-To generate a full URL, use [`urlTo`](https://ihp.digitallyinduced.com/api-docs/IHP-ViewPrelude.html#v:urlTo):
+To generate a full URL, use [`urlTo`](https://ihp.digitallyinduced.com/api-docs/IHP-RouterSupport.html#v:urlTo):
 
 ```haskell
 urlTo NewUserAction
