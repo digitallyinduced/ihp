@@ -11,6 +11,7 @@ module IHP.RouterPrelude
 , module Data.String.Conversions
 , module IHP.ModelSupport
 , module Network.HTTP.Types.Method
+, routes
 , UrlCapture (..)
 , Segment (..)
   -- Names the @[routes|...|]@ splice emits into user code. The emitted
@@ -31,5 +32,6 @@ import Data.String.Conversions (cs)
 import IHP.ModelSupport (Id, Id' (..))
 import Network.HTTP.Types.Method (StdMethod (..))
 import IHP.Router.Capture (UrlCapture (..), Segment (..))
+import IHP.Router.IHP (routes)
 import IHP.ControllerSupport (Controller, InitControllerContext, Respond)
 import Network.Wai (Request)
