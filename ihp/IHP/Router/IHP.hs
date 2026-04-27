@@ -40,11 +40,15 @@ module IHP.Router.IHP
 import Prelude
 import Data.ByteString (ByteString)
 import qualified Data.ByteString.Char8 as ByteString.Char8
+import qualified Data.Char as Char
+import qualified Data.Map.Strict as Map
+import qualified Data.Set as Set
 import Data.Text (Text)
 import qualified Data.Text as Text
 import Data.Typeable (Typeable)
+import qualified GHC.Records
 import qualified Language.Haskell.TH as TH
-import Language.Haskell.TH (Q, Dec, Name)
+import Language.Haskell.TH (Q, Dec, Name, Type)
 import qualified Language.Haskell.TH.Quote as TH
 
 import IHP.Router.Capture (UrlCapture (..))
@@ -53,6 +57,8 @@ import IHP.Router.DSL.TH
     ( ParsedBlock (..)
     , HeaderForm (..)
     , ControllerInfo (..)
+    , ConstructorInfo (..)
+    , ValidatedRoute (..)
     , parseAndReify
     , genericEmit
     , trieValueName
@@ -135,11 +141,12 @@ ihpRoutesDec = routesDec
 ihpEmit :: ParsedBlock -> Q [Dec]
 ihpEmit ParsedBlock { pbHeader, pbGroups, pbWsRoutes } = do
     canRouteDecs <- traverse (\(ctrl, _) -> emitCanRoute ctrl) pbGroups
+    formActionDecs <- fmap concat (traverse (uncurry emitModelFormAction) pbGroups)
     bindingDecs <- case pbHeader of
         HeaderLowercase name ->
             emitNamedBinding name (map fst pbGroups) pbWsRoutes
         _ -> pure []
-    pure (canRouteDecs <> bindingDecs)
+    pure (canRouteDecs <> formActionDecs <> bindingDecs)
 
 ---------------------------------------------------------------------------
 -- IHP-specific TH names (resolved at splice use-site)
@@ -261,3 +268,141 @@ emitNamedBinding bindingTxt ctrls wsBindings = do
         [ TH.SigD valName bindingTy
         , TH.FunD valName [TH.Clause [] (TH.NormalB bindingExp) []]
         ]
+
+---------------------------------------------------------------------------
+-- Code generation — ModelFormAction
+---------------------------------------------------------------------------
+
+-- | TH names referenced from the emitted @ModelFormAction@ instance.
+-- All resolved at the splice use-site so the emitted code only needs the
+-- standard IHP imports a controller/view module already has.
+modelFormActionClass, modelFormActionFn, isNewFn, pathToFn :: Name
+modelFormActionClass = TH.mkName "ModelFormAction"
+modelFormActionFn    = TH.mkName "modelFormAction"
+isNewFn              = TH.mkName "isNew"
+pathToFn             = TH.mkName "pathTo"
+
+-- | Emit a per-model @instance \{-\# OVERLAPPING \#-\} ModelFormAction X@
+-- for each controller whose routed actions follow the standard scaffold shape:
+--
+-- > Create<X>Action                          -- nullary
+-- > Update<X>Action { <x>Id :: Id <X> }      -- single field, conventional name
+--
+-- The instance body delegates to the 'HasPath' instances 'genericEmit' has
+-- already produced:
+--
+-- > instance {-# OVERLAPPING #-} ModelFormAction X where
+-- >     modelFormAction record =
+-- >         if isNew record
+-- >             then pathTo Create<X>Action
+-- >             else pathTo (Update<X>Action (getField @"id" record))
+--
+-- Emission is opportunistic: if any check fails (constructor route missing,
+-- extra fields, non-conventional id field name, incompatible id type, existing
+-- exact override, or @\<X\>@ not in scope), the splice silently skips that
+-- controller and the OVERLAPPABLE default or manual instance handles 'formFor'.
+emitModelFormAction :: ControllerInfo -> [ValidatedRoute] -> Q [Dec]
+emitModelFormAction ctrl routes =
+    let coveredConstructors =
+            Set.fromList
+                [ Text.pack (TH.nameBase (coName (vrCon route)))
+                | route <- routes
+                ]
+        candidates =
+            [ stripped
+            | name <- Set.toList coveredConstructors
+            , Just stripped <- [Text.stripPrefix "Create" name >>= Text.stripSuffix "Action"]
+            , not (Text.null stripped)
+            ]
+    in fmap concat (traverse (tryEmitModelFormAction ctrl coveredConstructors) candidates)
+
+tryEmitModelFormAction :: ControllerInfo -> Set.Set Text -> Text -> Q [Dec]
+tryEmitModelFormAction ctrl coveredConstructors modelText = do
+    let createName  = "Create" <> modelText <> "Action"
+        updateName  = "Update" <> modelText <> "Action"
+        expectedFld = lcfirstText modelText <> "Id"
+    case (Map.lookup createName (ciConstructors ctrl), Map.lookup updateName (ciConstructors ctrl)) of
+        (Just createCon, Just updateCon)
+            | null (coFieldsOrder createCon)
+            , [(fieldName, fieldTy)] <- coFieldsOrder updateCon
+            , fieldName == expectedFld
+            , Set.member createName coveredConstructors
+            , Set.member updateName coveredConstructors -> do
+                mTy <- TH.lookupTypeName (Text.unpack modelText)
+                case mTy of
+                    Nothing      -> pure []
+                    Just modelTy -> do
+                        modelTypes <- modelTypeVariants modelTy
+                        hasExactInstance <- hasExactModelFormActionInstance modelTypes
+                        if updateFieldTypeMatches modelTypes fieldTy && not hasExactInstance
+                            then pure [buildModelFormActionInstance modelTy (coName createCon) (coName updateCon)]
+                            else pure []
+        _ -> pure []
+
+modelTypeVariants :: Name -> Q [Type]
+modelTypeVariants modelTy = do
+    info <- TH.reify modelTy
+    let direct = TH.ConT modelTy
+    pure case info of
+        TH.TyConI (TH.TySynD _ _ rhs) -> [direct, stripType rhs]
+        _ -> [direct]
+
+hasExactModelFormActionInstance :: [Type] -> Q Bool
+hasExactModelFormActionInstance modelTypes = do
+    instances <- fmap concat $
+        traverse (\modelTy -> TH.reifyInstances modelFormActionClass [modelTy]) modelTypes
+    pure (any (isExactModelFormActionInstance modelTypes) instances)
+
+isExactModelFormActionInstance :: [Type] -> Dec -> Bool
+isExactModelFormActionInstance modelTypes = \case
+    TH.InstanceD _ _ instanceHead _ ->
+        case stripType instanceHead of
+            TH.AppT (TH.ConT className) modelTy
+                | className == modelFormActionClass ->
+                    stripType modelTy `elem` modelTypes
+            _ -> False
+    _ -> False
+
+updateFieldTypeMatches :: [Type] -> Type -> Bool
+updateFieldTypeMatches modelTypes fieldTy =
+    case stripType fieldTy of
+        TH.AppT (TH.ConT idName) modelTy
+            | idName == ''ModelSupport.Id
+            , isModelType modelTy -> True
+        TH.AppT (TH.ConT idPrimeName) (TH.AppT (TH.ConT getTableNameName) modelTy)
+            | idPrimeName == ''ModelSupport.Id'
+            , getTableNameName == ''ModelSupport.GetTableName
+            , isModelType modelTy -> True
+        _ -> False
+    where
+        isModelType ty = stripType ty `elem` modelTypes
+
+stripType :: Type -> Type
+stripType = \case
+    TH.SigT ty _ -> stripType ty
+    TH.ParensT ty -> stripType ty
+    TH.ForallT _ _ ty -> stripType ty
+    ty -> ty
+
+buildModelFormActionInstance :: Name -> Name -> Name -> Dec
+buildModelFormActionInstance modelTy createCon updateCon =
+    let recordVar = TH.mkName "record"
+        getIdExpr =
+            TH.AppE
+                (TH.AppTypeE (TH.VarE 'GHC.Records.getField) (TH.LitT (TH.StrTyLit "id")))
+                (TH.VarE recordVar)
+        body = TH.CondE
+            (TH.AppE (TH.VarE isNewFn) (TH.VarE recordVar))
+            (TH.AppE (TH.VarE pathToFn) (TH.ConE createCon))
+            (TH.AppE (TH.VarE pathToFn)
+                (TH.AppE (TH.ConE updateCon) getIdExpr))
+        method = TH.FunD modelFormActionFn
+            [TH.Clause [TH.VarP recordVar] (TH.NormalB body) []]
+    in TH.InstanceD (Just TH.Overlapping) []
+        (TH.AppT (TH.ConT modelFormActionClass) (TH.ConT modelTy))
+        [method]
+
+lcfirstText :: Text -> Text
+lcfirstText t = case Text.uncons t of
+    Just (c, rest) -> Text.cons (Char.toLower c) rest
+    Nothing        -> t
