@@ -17,7 +17,6 @@ import qualified Data.String.Conversions        as CS
 import qualified Hasql.DynamicStatements.Snippet as Snippet
 import qualified Language.Haskell.TH            as TH
 import qualified Language.Haskell.TH.Quote      as TH
-import           System.IO.Error                (ioeGetErrorString)
 import           Text.Read                      (readMaybe)
 import qualified Prelude
 import           IHP.Prelude
