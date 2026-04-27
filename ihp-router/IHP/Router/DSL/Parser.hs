@@ -101,6 +101,9 @@ parseRouteLine :: (Int, Text) -> Either ParseError Route
 parseRouteLine (line, text) = do
     let trimmed = Text.strip text
     (methodsField, rest1) <- splitFirstToken line trimmed
+    if Text.singleton '/' `Text.isPrefixOf` methodsField
+        then Left (ParseError line ("routes: missing HTTP method before path: " <> quoted methodsField))
+        else pure ()
     (methods, kind) <- parseMethods line methodsField
     (pathAndQueryField, rest2) <- splitFirstToken line (Text.strip rest1)
     (path, queryParams) <- parsePathAndQuery line pathAndQueryField

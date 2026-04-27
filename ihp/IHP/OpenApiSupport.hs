@@ -1,0 +1,598 @@
+{-# LANGUAGE AllowAmbiguousTypes #-}
+{-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE GADTs #-}
+{-# LANGUAGE ImplicitParams #-}
+{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE TypeApplications #-}
+{-# LANGUAGE UndecidableInstances #-}
+{-# OPTIONS_HADDOCK not-home #-}
+
+module IHP.OpenApiSupport (
+    ToSchema (..),
+    NamedSchema (..),
+    Schema,
+    toSchema,
+    genericDeclareNamedSchema,
+    defaultSchemaOptions,
+    OpenApiGenerationException (..),
+    OpenApiInfo (..),
+    defaultOpenApiInfo,
+    buildOpenApi,
+    buildOpenApiWithInfo,
+    SwaggerUiOptions (..),
+    defaultSwaggerUiOptions,
+    SwaggerUiController (..),
+    SwaggerUiControllerConfig (..),
+    swaggerUi,
+    swaggerUiWithOptions,
+) where
+
+import Control.Exception qualified as Exception
+import Data.Aeson qualified as JSON
+import Data.Aeson.Key qualified as JSON.Key
+import Data.Aeson.KeyMap qualified as JSON.KeyMap
+import Data.Attoparsec.ByteString.Char8 (string)
+import Data.ByteString.Char8 qualified as ByteString
+import Data.ByteString.Lazy qualified as LazyByteString
+import Data.Dynamic (fromDynamic)
+import Data.Map.Strict qualified as Map
+import Data.OpenApi (Definitions, NamedSchema (..), Referenced, Schema, ToSchema (..), declareNamedSchema, declareSchemaRef, defaultSchemaOptions, genericDeclareNamedSchema, toSchema)
+import Data.OpenApi.Declare (runDeclare)
+import Data.Semigroup (Semigroup (..))
+import Data.Text qualified as Text
+import Data.Text.Encoding qualified as Text
+import Data.Typeable qualified as Typeable
+import IHP.Controller.Context qualified as Context
+import IHP.Controller.Response (respondWith)
+import IHP.Controller.TypedAction qualified as TypedAction
+import IHP.ControllerSupport (Controller (..))
+import IHP.ModelSupport
+import IHP.Prelude
+import IHP.Router.Types (UnexpectedMethodException (..))
+import IHP.RouterSupport
+import IHP.ViewSupport qualified as ViewSupport
+import Network.HTTP.Types.Header (hContentType)
+import Network.HTTP.Types.Method (StdMethod (..), parseMethod)
+import Network.HTTP.Types.Status (status200, statusCode)
+import Network.Wai (Request, Response, defaultRequest, requestMethod, responseBuilder, responseLBS)
+import Text.Blaze.Html.Renderer.Utf8 qualified as Blaze
+import Text.Blaze.Html5 qualified as Html5
+import Text.Blaze.Html5.Attributes qualified as Attr
+
+data OpenApiInfo = OpenApiInfo
+    { openApiTitle :: Text
+    , openApiVersion :: Text
+    , openApiDescription :: Maybe Text
+    }
+    deriving (Eq, Show)
+
+data OpenApiGenerationException = OpenApiGenerationException Text
+    deriving (Eq, Show, Typeable.Typeable)
+
+instance Exception.Exception OpenApiGenerationException
+
+data OpenApiDocument = OpenApiDocument
+    { pathOperations :: PathOperations
+    , componentSchemas :: Definitions Schema
+    }
+
+instance Semigroup OpenApiDocument where
+    left <> right =
+        OpenApiDocument
+            { pathOperations = Map.unionWith Map.union left.pathOperations right.pathOperations
+            , componentSchemas = left.componentSchemas <> right.componentSchemas
+            }
+
+instance Monoid OpenApiDocument where
+    mempty =
+        OpenApiDocument
+            { pathOperations = mempty
+            , componentSchemas = mempty
+            }
+
+defaultOpenApiInfo :: forall application. (Typeable.Typeable application) => OpenApiInfo
+defaultOpenApiInfo =
+    OpenApiInfo
+        { openApiTitle = cs (show (Typeable.typeRep (Proxy @application))) <> " API"
+        , openApiVersion = "1.0.0"
+        , openApiDescription = Nothing
+        }
+
+data SwaggerUiOptions = SwaggerUiOptions
+    { swaggerUiPath :: ByteString
+    , swaggerUiOpenApiPath :: ByteString
+    , swaggerUiInfo :: OpenApiInfo
+    , swaggerUiTitle :: Maybe Text
+    , swaggerUiCssUrl :: Text
+    , swaggerUiBundleJsUrl :: Text
+    , swaggerUiStandalonePresetJsUrl :: Text
+    }
+    deriving (Eq, Show)
+
+data SwaggerUiController application
+    = SwaggerUiAction
+    | OpenApiJsonAction
+    deriving (Eq, Show)
+
+{- | Configuration used by 'SwaggerUiController'.
+
+When 'SwaggerUiController' is routed via @[routes|...|]@, the
+@swaggerUiPath@ and @swaggerUiOpenApiPath@ fields are ignored: the routes DSL
+is the source of truth for both URLs. The remaining fields configure the
+document metadata and Swagger UI assets.
+-}
+class (Typeable.Typeable application) => SwaggerUiControllerConfig application where
+    swaggerUiControllerOptions :: SwaggerUiOptions
+
+instance {-# OVERLAPPABLE #-} (Typeable.Typeable application) => SwaggerUiControllerConfig application where
+    swaggerUiControllerOptions = defaultSwaggerUiOptions @application
+
+instance
+    ( FrontController application
+    , HasPath (SwaggerUiController application)
+    , SwaggerUiControllerConfig application
+    ) =>
+    Controller (SwaggerUiController application)
+    where
+    action SwaggerUiAction =
+        let options = swaggerUiControllerOptions @application
+            openApiUrl = pathTo (OpenApiJsonAction @application)
+         in respondWith (swaggerUiHtmlResponse options openApiUrl)
+
+    action OpenApiJsonAction =
+        do
+            application <- Context.fromContext @application
+            let options = swaggerUiControllerOptions @application
+            respondWith (openApiJsonResponse options.swaggerUiInfo application)
+
+{- | Default Swagger UI settings for an application.
+
+This serves the generated OpenAPI JSON at @/api-docs/openapi.json@ and the
+Swagger UI at @/api-docs@.
+-}
+defaultSwaggerUiOptions :: forall application. (Typeable.Typeable application) => SwaggerUiOptions
+defaultSwaggerUiOptions =
+    let info = defaultOpenApiInfo @application
+     in SwaggerUiOptions
+            { swaggerUiPath = "/api-docs"
+            , swaggerUiOpenApiPath = "/openapi.json"
+            , swaggerUiInfo = info
+            , swaggerUiTitle = Nothing
+            , swaggerUiCssUrl = "https://cdn.jsdelivr.net/npm/swagger-ui-dist@5/swagger-ui.css"
+            , swaggerUiBundleJsUrl = "https://cdn.jsdelivr.net/npm/swagger-ui-dist@5/swagger-ui-bundle.js"
+            , swaggerUiStandalonePresetJsUrl = "https://cdn.jsdelivr.net/npm/swagger-ui-dist@5/swagger-ui-standalone-preset.js"
+            }
+
+buildOpenApi :: forall application. (FrontController application, Typeable.Typeable application) => application -> JSON.Value
+buildOpenApi = buildOpenApiWithInfo (defaultOpenApiInfo @application)
+
+buildOpenApiWithInfo :: forall application. (FrontController application) => OpenApiInfo -> application -> JSON.Value
+buildOpenApiWithInfo info application =
+    let ?request = defaultRequest
+        ?respond = dummyRespond
+        ?application = application
+     in let routeTree = RouteCollection (controllers @application |> map routeInspection)
+         in case collectPaths "" routeTree of
+                Left errorMessage -> throwOpenApiGenerationException errorMessage
+                Right OpenApiDocument{pathOperations, componentSchemas} ->
+                    JSON.object
+                        ( [ Just ("openapi" JSON..= ("3.0.3" :: Text))
+                          , Just ("info" JSON..= openApiInfoValue info)
+                          , Just ("paths" JSON..= openApiPathsValue pathOperations)
+                          , if componentSchemas == mempty then Nothing else Just ("components" JSON..= openApiComponentsValue componentSchemas)
+                          ]
+                            |> catMaybes
+                        )
+  where
+    dummyRespond _ = error "buildOpenApi: response callback should never be called"
+
+throwOpenApiGenerationException :: Text -> a
+throwOpenApiGenerationException = Exception.throw . OpenApiGenerationException
+{-# INLINE throwOpenApiGenerationException #-}
+
+{- | Mounts Swagger UI for the current front controller using 'defaultSwaggerUiOptions'.
+
+This adds two undocumented routes:
+
+- the Swagger UI HTML at @/api-docs@
+- the generated OpenAPI document at @/api-docs/openapi.json@
+-}
+swaggerUi ::
+    forall application.
+    ( FrontController application
+    , Typeable.Typeable application
+    , ?application :: application
+    ) =>
+    ControllerRoute application
+swaggerUi = swaggerUiWithOptions (defaultSwaggerUiOptions @application)
+
+{- | Mounts Swagger UI and the generated OpenAPI JSON for the current front controller.
+
+The JSON endpoint is derived from the same mounted router tree via
+'buildOpenApiWithInfo', so the documentation stays aligned with the
+application routing.
+-}
+swaggerUiWithOptions ::
+    forall application.
+    ( FrontController application
+    , ?application :: application
+    ) =>
+    SwaggerUiOptions ->
+    ControllerRoute application
+swaggerUiWithOptions options@SwaggerUiOptions{swaggerUiPath, swaggerUiOpenApiPath, swaggerUiInfo} =
+    let normalizedBasePath = normalizeSwaggerUiBasePath swaggerUiPath
+        normalizedOpenApiPath = normalizeSwaggerUiChildPath swaggerUiOpenApiPath
+        openApiUrl = swaggerUiOpenApiUrl normalizedBasePath normalizedOpenApiPath
+        htmlResponse = swaggerUiHtmlResponse options{swaggerUiPath = normalizedBasePath, swaggerUiOpenApiPath = normalizedOpenApiPath} openApiUrl
+        application = ?application
+     in withPrefix
+            normalizedBasePath
+            [ getResponseRoute normalizedOpenApiPath (\_ -> openApiJsonResponse swaggerUiInfo application)
+            , getResponseRoute "" (\_ -> htmlResponse)
+            , getResponseRoute "/" (\_ -> htmlResponse)
+            ]
+
+openApiJsonResponse :: forall application. (FrontController application) => OpenApiInfo -> application -> Response
+openApiJsonResponse info application =
+    responseLBS status200 [(hContentType, "application/json")] (JSON.encode (buildOpenApiWithInfo info application))
+
+swaggerUiHtmlResponse :: SwaggerUiOptions -> Text -> Response
+swaggerUiHtmlResponse options openApiUrl =
+    responseBuilder status200 [(hContentType, "text/html; charset=utf-8")] (Blaze.renderHtmlBuilder (swaggerUiHtml options openApiUrl))
+
+getResponseRoute :: ByteString -> (Request -> Response) -> ControllerRoute application
+getResponseRoute path toResponse = rawRoute do
+    string path
+    pure (\request respond -> handleGet request respond (toResponse request))
+
+handleGet :: Request -> (Response -> IO responseReceived) -> Response -> IO responseReceived
+handleGet request respond response =
+    case parseMethod (requestMethod request) of
+        Right GET -> respond response
+        Right HEAD -> respond response
+        Right method -> Exception.throw UnexpectedMethodException{allowedMethods = [GET, HEAD], method}
+        Left err -> Exception.throwIO (OpenApiGenerationException ("Invalid HTTP method: " <> cs err))
+
+normalizeSwaggerUiBasePath :: ByteString -> ByteString
+normalizeSwaggerUiBasePath path
+    | ByteString.null path = "/api-docs"
+    | ByteString.head path /= '/' = normalizeSwaggerUiBasePath ("/" <> path)
+    | ByteString.length path > 1 && ByteString.last path == '/' = ByteString.init path
+    | otherwise = path
+
+normalizeSwaggerUiChildPath :: ByteString -> ByteString
+normalizeSwaggerUiChildPath path
+    | ByteString.null path = "/openapi.json"
+    | ByteString.head path /= '/' = "/" <> path
+    | otherwise = path
+
+swaggerUiHtml :: SwaggerUiOptions -> Text -> Html5.Html
+swaggerUiHtml SwaggerUiOptions{swaggerUiInfo, swaggerUiTitle, swaggerUiCssUrl, swaggerUiBundleJsUrl, swaggerUiStandalonePresetJsUrl} openApiUrl =
+    let title = fromMaybe (swaggerUiInfo.openApiTitle <> " Swagger UI") swaggerUiTitle
+        openApiUrlLiteral = jsonStringLiteral openApiUrl
+     in Html5.docTypeHtml do
+            Html5.head do
+                Html5.meta Html5.! Attr.charset "utf-8"
+                Html5.meta Html5.! Attr.name "viewport" Html5.! Attr.content "width=device-width, initial-scale=1"
+                Html5.title (Html5.toHtml title)
+                Html5.link Html5.! Attr.rel "stylesheet" Html5.! Attr.href (Html5.textValue swaggerUiCssUrl)
+                Html5.style "html { box-sizing: border-box; overflow-y: scroll; } *, *:before, *:after { box-sizing: inherit; } body { margin: 0; background: #fafafa; }"
+            Html5.body do
+                Html5.div mempty Html5.! Attr.id "swagger-ui"
+                Html5.script mempty Html5.! Attr.src (Html5.textValue swaggerUiBundleJsUrl)
+                Html5.script mempty Html5.! Attr.src (Html5.textValue swaggerUiStandalonePresetJsUrl)
+                Html5.script (Html5.preEscapedToHtml (swaggerUiBootScript openApiUrlLiteral))
+
+swaggerUiOpenApiUrl :: ByteString -> ByteString -> Text
+swaggerUiOpenApiUrl basePath openApiPath =
+    let base = Text.dropWhileEnd (== '/') (Text.decodeUtf8 basePath)
+        child = Text.dropWhile (== '/') (Text.decodeUtf8 openApiPath)
+     in (if Text.null base then "" else base) <> "/" <> child
+
+swaggerUiBootScript :: Text -> Text
+swaggerUiBootScript openApiUrlLiteral =
+    Text.unlines
+        [ "window.onload = function () {"
+        , "  window.ui = SwaggerUIBundle({"
+        , "    url: " <> openApiUrlLiteral <> ","
+        , "    dom_id: '#swagger-ui',"
+        , "    deepLinking: true,"
+        , "    presets: [SwaggerUIBundle.presets.apis, SwaggerUIStandalonePreset],"
+        , "    layout: 'BaseLayout'"
+        , "  });"
+        , "};"
+        ]
+
+jsonStringLiteral :: Text -> Text
+jsonStringLiteral = cs . LazyByteString.toStrict . JSON.encode
+openApiInfoValue :: OpenApiInfo -> JSON.Value
+openApiInfoValue OpenApiInfo{openApiTitle, openApiVersion, openApiDescription} =
+    JSON.object
+        ( [ Just ("title" JSON..= openApiTitle)
+          , Just ("version" JSON..= openApiVersion)
+          , ("description" JSON..=) <$> openApiDescription
+          ]
+            |> catMaybes
+        )
+
+type PathOperations = Map.Map Text (Map.Map Text JSON.Value)
+
+collectPaths :: Text -> RouteInspection -> Either Text OpenApiDocument
+collectPaths currentPrefix = \case
+    RouteLeaf UndocumentedRoute -> Right mempty
+    RouteLeaf (DocumentedRoute documentedRoute) -> collectDocumentedRoute currentPrefix documentedRoute
+    RouteCollection routes -> mconcat <$> mapM (collectPaths currentPrefix) routes
+    RoutePrefix routePrefix routes ->
+        let prefixedPath = appendPathPrefix currentPrefix (Text.decodeUtf8 routePrefix)
+         in mconcat <$> mapM (collectPaths prefixedPath) routes
+
+collectDocumentedRoute :: Text -> DocumentedRouteInfo -> Either Text OpenApiDocument
+collectDocumentedRoute currentPrefix (TypedRouteControllerInfo{typedRouteDocuments}) =
+    typedRouteDocuments
+        |> mapMaybe (fromDynamic @TypedAction.TypedRouteDocument)
+        |> foldl' (insertTypedRouteOperation currentPrefix) (Right mempty)
+
+insertMethod :: Text -> JSON.Value -> PathOperations -> StdMethod -> PathOperations
+insertMethod actionPath operation paths method = Map.alter updatePath actionPath paths
+  where
+    methodName = httpMethodName method
+    updatePath Nothing = Just (Map.singleton methodName operation)
+    updatePath (Just operations) = Just (Map.insert methodName operation operations)
+
+httpMethodName :: StdMethod -> Text
+httpMethodName = \case
+    GET -> "get"
+    POST -> "post"
+    PUT -> "put"
+    DELETE -> "delete"
+    OPTIONS -> "options"
+    HEAD -> "head"
+    PATCH -> "patch"
+    TRACE -> "trace"
+    CONNECT -> error "OpenAPI does not support CONNECT routes"
+
+appendPathPrefix :: Text -> Text -> Text
+appendPathPrefix currentPrefix nextPrefix =
+    let normalize text
+            | Text.null text = ""
+            | "/" `Text.isPrefixOf` text = text
+            | otherwise = "/" <> text
+        trimTrailingSlash text
+            | Text.length text > 1 && "/" `Text.isSuffixOf` text = Text.dropEnd 1 text
+            | otherwise = text
+        normalizedCurrent = currentPrefix |> normalize |> trimTrailingSlash
+        normalizedNext = normalize nextPrefix
+     in case (normalizedCurrent, normalizedNext) of
+            ("", next) -> next
+            (current, "/") -> current <> "/"
+            (current, next) -> current <> next
+
+openApiPathsValue :: PathOperations -> JSON.Value
+openApiPathsValue paths =
+    paths
+        |> Map.toList
+        |> map
+            ( \(path, operations) ->
+                ( JSON.Key.fromText path
+                , operations
+                    |> Map.toList
+                    |> map (\(method, operation) -> (JSON.Key.fromText method, operation))
+                    |> JSON.KeyMap.fromList
+                    |> JSON.Object
+                )
+            )
+        |> JSON.KeyMap.fromList
+        |> JSON.Object
+
+openApiComponentsValue :: Definitions Schema -> JSON.Value
+openApiComponentsValue schemas =
+    JSON.object
+        [ "schemas" JSON..= schemas
+        ]
+
+insertTypedRouteOperation ::
+    Text ->
+    Either Text OpenApiDocument ->
+    TypedAction.TypedRouteDocument ->
+    Either Text OpenApiDocument
+insertTypedRouteOperation currentPrefix pathState (TypedAction.TypedRouteDocument routeName routePath methods routeParameters typedActionDoc) = do
+    OpenApiDocument{pathOperations, componentSchemas} <- pathState
+    let actionPath = appendPathPrefix currentPrefix routePath
+    validateTypedRoutePathParameters routeName actionPath routeParameters
+    let (operation, operationSchemas) = typedActionDocOperationValue routeName routeParameters typedActionDoc
+    pure
+        OpenApiDocument
+            { pathOperations = foldl' (insertMethod actionPath operation) pathOperations methods
+            , componentSchemas = componentSchemas <> operationSchemas
+            }
+
+validateTypedRoutePathParameters :: Text -> Text -> [TypedAction.ParameterDoc] -> Either Text ()
+validateTypedRoutePathParameters routeName actionPath routeParameters =
+    let routePathParams = pathParameterNames actionPath
+        documentedPathParams = routePathParameterNames routeParameters
+        undocumentedPathParams = filter (`notElem` documentedPathParams) routePathParams
+        paramsMissingFromRoute = filter (`notElem` routePathParams) documentedPathParams
+     in case (undocumentedPathParams, paramsMissingFromRoute) of
+            ([], []) -> Right ()
+            (missingDocs, []) ->
+                Left
+                    ( "OpenAPI docs for "
+                        <> routeName
+                        <> " are missing route path-parameter docs for route path "
+                        <> actionPath
+                        <> ": "
+                        <> Text.intercalate ", " missingDocs
+                    )
+            ([], missingRouteParams) ->
+                Left
+                    ( "OpenAPI docs for "
+                        <> routeName
+                        <> " document path params not present in route path "
+                        <> actionPath
+                        <> ": "
+                        <> Text.intercalate ", " missingRouteParams
+                    )
+            (missingDocs, missingRouteParams) ->
+                Left
+                    ( "OpenAPI docs for "
+                        <> routeName
+                        <> " disagree with route path "
+                        <> actionPath
+                        <> "; missing route path-parameter docs for: "
+                        <> Text.intercalate ", " missingDocs
+                        <> "; documented params not present in route path: "
+                        <> Text.intercalate ", " missingRouteParams
+                    )
+{-# INLINE validateTypedRoutePathParameters #-}
+
+routePathParameterNames :: [TypedAction.ParameterDoc] -> [Text]
+routePathParameterNames parameters =
+    parameters
+        |> mapMaybe
+            ( \case
+                TypedAction.ParameterDoc name TypedAction.PathParameter _ _ _ -> Just name
+                _ -> Nothing
+            )
+{-# INLINE routePathParameterNames #-}
+
+pathParameterNames :: Text -> [Text]
+pathParameterNames path =
+    case Text.breakOn "{" path of
+        (_, "") -> []
+        (_, rest) ->
+            let afterOpen = Text.drop 1 rest
+                (name, afterName) = Text.breakOn "}" afterOpen
+             in if Text.null afterName
+                    then []
+                    else name : pathParameterNames (Text.drop 1 afterName)
+{-# INLINE pathParameterNames #-}
+
+typedActionDocOperationValue :: Text -> [TypedAction.ParameterDoc] -> TypedAction.TypedActionDoc controller body response -> (JSON.Value, Definitions Schema)
+typedActionDocOperationValue routeName routeParameters (TypedAction.TypedActionDoc summary description tags operationId requestBody response successStatus successResponseDescription) =
+    let SchemaDocumentation{documentedSchema, documentedDefinitions} = responseSchemaValue response
+        parameterDocumentation = map typedParameterDocumentation routeParameters
+        parameterDefinitions = parameterDocumentation |> map (\QueryParameterDocumentation{parameterDefinitions} -> parameterDefinitions) |> mconcat
+        requestBodyDocumentation = typedRequestBodySchemaValue <$> requestBody
+        requestBodyDefinitions = requestBodyDocumentation |> fmap (.documentedDefinitions) |> fromMaybe mempty
+        requestBodyValue =
+            case (requestBody, requestBodyDocumentation) of
+                (Just requestBodyDoc, Just schemaDocumentation) -> Just ("requestBody" JSON..= typedRequestBodyValue requestBodyDoc schemaDocumentation.documentedSchema)
+                _ -> Nothing
+     in ( JSON.object
+            ( [ Just ("parameters" JSON..= map queryParameterValue parameterDocumentation)
+              , Just ("responses" JSON..= JSON.object [cs (show (statusCode successStatus)) JSON..= successResponseValue successResponseDescription documentedSchema])
+              , requestBodyValue
+              , ("summary" JSON..=) <$> summary
+              , ("description" JSON..=) <$> description
+              , if null tags then Nothing else Just ("tags" JSON..= tags)
+              , ("operationId" JSON..=) <$> operationId
+              , Just ("x-ihp-action" JSON..= routeName)
+              ]
+                |> catMaybes
+            )
+        , documentedDefinitions <> parameterDefinitions <> requestBodyDefinitions
+        )
+
+typedParameterDocumentation :: TypedAction.ParameterDoc -> QueryParameterDocumentation
+typedParameterDocumentation (TypedAction.ParameterDoc name location required schema _) =
+    let SchemaDocumentation{documentedSchema, documentedDefinitions} = declareSchemaDocumentation schema
+     in QueryParameterDocumentation
+            { parameterName = name
+            , parameterLocation = typedParameterLocationValue location
+            , parameterRequired = required
+            , parameterSchema = documentedSchema
+            , parameterDefinitions = documentedDefinitions
+            , parameterExplode = Nothing
+            }
+
+typedParameterLocationValue :: TypedAction.ParameterLocation -> ParameterLocation
+typedParameterLocationValue = \case
+    TypedAction.PathParameter -> PathParameter
+    TypedAction.QueryParameter -> QueryParameter
+
+typedRequestBodySchemaValue :: TypedAction.TypedRequestBodyDoc -> SchemaDocumentation
+typedRequestBodySchemaValue (TypedAction.TypedRequestBodyDoc schema _ _) =
+    declareSchemaDocumentation schema
+
+typedRequestBodyValue :: TypedAction.TypedRequestBodyDoc -> Referenced Schema -> JSON.Value
+typedRequestBodyValue (TypedAction.TypedRequestBodyDoc _ _ encodings) schema =
+    JSON.object
+        [ "required" JSON..= True
+        , "content" JSON..= typedRequestBodyContentValue encodings schema
+        ]
+
+typedRequestBodyContentValue :: [TypedAction.BodyEncoding] -> Referenced Schema -> JSON.Value
+typedRequestBodyContentValue encodings schema =
+    encodings
+        |> map
+            ( \encoding ->
+                ( JSON.Key.fromText (TypedAction.encodingMediaType encoding)
+                , JSON.object ["schema" JSON..= schema]
+                )
+            )
+        |> JSON.KeyMap.fromList
+        |> JSON.Object
+
+responseSchemaValue :: forall view. (ViewSupport.JsonView view, ToSchema (ViewSupport.JsonResponse view)) => Proxy view -> SchemaDocumentation
+responseSchemaValue _ = declareSchemaDocumentation (Proxy @(ViewSupport.JsonResponse view))
+
+successResponseValue :: Text -> Referenced Schema -> JSON.Value
+successResponseValue responseDescription schema =
+    JSON.object
+        [ "description" JSON..= responseDescription
+        , "content"
+            JSON..= JSON.object
+                [ "application/json"
+                    JSON..= JSON.object
+                        [ "schema" JSON..= schema
+                        ]
+                ]
+        ]
+
+data ParameterLocation
+    = QueryParameter
+    | PathParameter
+
+data QueryParameterDocumentation = QueryParameterDocumentation
+    { parameterName :: Text
+    , parameterLocation :: ParameterLocation
+    , parameterRequired :: Bool
+    , parameterSchema :: Referenced Schema
+    , parameterDefinitions :: Definitions Schema
+    , parameterExplode :: Maybe Bool
+    }
+
+queryParameterValue :: QueryParameterDocumentation -> JSON.Value
+queryParameterValue QueryParameterDocumentation{parameterName, parameterLocation, parameterRequired, parameterSchema, parameterExplode} =
+    JSON.object
+        ( [ Just ("name" JSON..= parameterName)
+          , Just ("in" JSON..= parameterLocationValue parameterLocation)
+          , Just ("required" JSON..= parameterRequired)
+          , Just ("schema" JSON..= parameterSchema)
+          , if isJust parameterExplode then Just ("style" JSON..= ("form" :: Text)) else Nothing
+          , ("explode" JSON..=) <$> parameterExplode
+          ]
+            |> catMaybes
+        )
+
+parameterLocationValue :: ParameterLocation -> Text
+parameterLocationValue QueryParameter = "query"
+parameterLocationValue PathParameter = "path"
+
+data SchemaDocumentation = SchemaDocumentation
+    { documentedSchema :: Referenced Schema
+    , documentedDefinitions :: Definitions Schema
+    }
+
+declareSchemaDocumentation :: forall schema. (ToSchema schema) => Proxy schema -> SchemaDocumentation
+declareSchemaDocumentation proxy =
+    let (definitions, schema) = runDeclare (declareSchemaRef proxy) mempty
+     in SchemaDocumentation
+            { documentedSchema = schema
+            , documentedDefinitions = definitions
+            }
+
+instance {-# OVERLAPPABLE #-} (KnownSymbol table, ToSchema (PrimaryKey table)) => ToSchema (Id' table) where
+    declareNamedSchema _ = declareNamedSchema (Proxy @(PrimaryKey table))

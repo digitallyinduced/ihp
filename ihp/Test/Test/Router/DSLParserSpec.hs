@@ -6,8 +6,8 @@ module Test.Router.DSLParserSpec where
 
 import Test.Hspec
 import IHP.Prelude
-import IHP.Router.DSL.AST
-import IHP.Router.DSL.Parser
+import "ihp" IHP.Router.DSL.AST
+import "ihp" IHP.Router.DSL.Parser
 import qualified Data.Text as Text
 import Network.HTTP.Types.Method (StdMethod (..))
 
@@ -175,6 +175,13 @@ tests = do
                     Left e -> do
                         errorLine e `shouldBe` 2
                         (cs (errorMessage e) :: String) `shouldContain` "unknown method"
+                    Right _ -> expectationFailure "expected ParseError"
+
+            it "rejects a route line without an HTTP method" do
+                case parseRoutes "C\n/posts/{postId} ShowPostAction\n" of
+                    Left e -> do
+                        errorLine e `shouldBe` 2
+                        (cs (errorMessage e) :: String) `shouldContain` "missing HTTP method"
                     Right _ -> expectationFailure "expected ParseError"
 
             it "rejects path not starting with /" do

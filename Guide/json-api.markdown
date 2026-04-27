@@ -213,6 +213,165 @@ instance Controller PostsController where
                 renderJsonWithStatusCode status400 (object ["error" .= err])
 ```
 
+## Typed Request Bodies and OpenAPI
+
+For new API endpoints, you can opt into typed GADT actions. With this style the
+action constructor contains path and query parameters, while a type index
+declares the request body. IHP then uses the same body type for JSON decoding,
+form decoding, typed controller helpers, typed forms, and OpenAPI docs.
+
+```haskell
+data PostInput = PostInput
+    { title :: Text
+    , body :: Text
+    }
+    deriving (Generic)
+
+instance FromJSON PostInput
+instance ToJSON PostInput
+instance ToSchema PostInput
+
+data PostsAction request response where
+    UpdatePostAction
+        :: { postId :: Id Post
+           , returnTo :: Maybe Text
+           }
+        -> PostsAction ('Body PostInput) ShowView
+
+deriving instance Show (PostsAction request response)
+deriving instance Eq (PostsAction request response)
+```
+
+The JSON decoder uses `FromJSON`. Form requests use the generic `FromFormBody`
+instance when all fields have `ParamReader` instances.
+
+`'Body PostInput` accepts both `application/json` and
+`application/x-www-form-urlencoded` by default. If an endpoint should accept only
+some encodings, use `BodyWith`:
+
+```haskell
+data PostsAction request response where
+    CreatePostAction
+        :: PostsAction ('BodyWith PostInput '[ 'Json]) ShowView
+
+    UploadPostImageAction
+        :: { postId :: Id Post }
+        -> PostsAction ('BodyWith PostImageInput '[ 'Multipart]) ShowView
+```
+
+Use `'NoBody` when the route has no request body. Path and query parameters are
+still constructor fields, so `'NoBody` does not mean "no request data":
+
+```haskell
+data PostsAction request response where
+    EditPostAction
+        :: { postId :: Id Post
+           , returnTo :: Maybe Text
+           }
+        -> PostsAction 'NoBody EditView
+```
+
+Inside the action, read the decoded request body with `bodyParam` or copy fields
+with `fillBody`. These helpers only compile for fields that exist on the body
+type.
+
+```haskell
+instance Controller (PostsAction ('Body PostInput) ShowView) where
+    type ControllerAction (PostsAction ('Body PostInput) ShowView) =
+        ActionDef (PostsAction ('Body PostInput) ShowView) ('Body PostInput) ShowView
+
+    action UpdatePostAction { postId, returnTo } =
+        documented do
+            summary "Update post"
+            tags ["Posts"]
+        do
+            post <- fetch postId
+
+            post <-
+                post
+                    |> fillBody @'["title", "body"]
+                    |> updateRecord
+
+            pure ShowView { .. }
+```
+
+The `documented` block lives directly next to the runtime action. It documents
+operation metadata such as summary, tags, status, and descriptions. Path and
+query parameters are documented by the typed route definition, because the route
+definition is also responsible for parsing them and generating URLs. The request
+body schema comes from the action's `BodySpec`; and the response schema is
+inferred from the returned view's `JsonView` `JsonResponse` associated type.
+
+```haskell
+instance View ShowView where
+    html ShowView { post } = [hsx|...|]
+
+instance JsonView ShowView where
+    type JsonResponse ShowView = PostResponse
+
+    json ShowView { post } =
+        PostResponse
+            { id = post.id
+            , title = post.title
+            , body = post.body
+            }
+```
+
+Because OpenAPI uses the same route parameter declarations, `BodySpec`, and
+typed `JsonView.json` method as runtime routing/rendering, there is no separate
+body or response declaration to keep in sync with the handler. With typed GADT
+routes, the route type is also the source of truth for runtime parsing,
+`pathTo`, and OpenAPI path/query parameter docs, so typed routes do not repeat
+path parameters in a separate documentation block.
+
+To serve the generated document and Swagger UI, add the exported Swagger
+controller actions to your route DSL:
+
+```haskell
+import IHP.OpenApiSupport
+    ( OpenApiInfo (..)
+    , SwaggerUiController (..)
+    , SwaggerUiControllerConfig (..)
+    , defaultSwaggerUiOptions
+    )
+
+[routes|openApiRoutes
+GET /api-docs              SwaggerUiAction
+GET /api-docs/openapi.json OpenApiJsonAction
+|]
+```
+
+Then include the generated route binding in your front controller:
+
+```haskell
+instance FrontController WebApplication where
+    controllers =
+        webRoutes
+            <> openApiRoutes
+            <> [ startPage WelcomeAction ]
+```
+
+`SwaggerUiAction` uses `pathTo OpenApiJsonAction`, so the Swagger UI always
+fetches the OpenAPI JSON from the route you declared.
+
+To customize the generated document metadata or Swagger UI assets, add a
+`SwaggerUiControllerConfig` instance. The URL fields are ignored when using the
+controller actions because `[routes|...|]` is the source of truth for URLs:
+
+```haskell
+instance SwaggerUiControllerConfig WebApplication where
+    swaggerUiControllerOptions =
+        (defaultSwaggerUiOptions @WebApplication)
+            { swaggerUiTitle = Just "My API"
+            , swaggerUiInfo =
+                OpenApiInfo
+                    { openApiTitle = "My API"
+                    , openApiVersion = "1.0.0"
+                    , openApiDescription = Just "Public API"
+                    }
+            }
+```
+
 ## Building a REST API
 
 Here is a complete example of a CRUD API for a `posts` resource. We will assume a `posts` table with `id`, `title`, `body`, and `created_at` columns.

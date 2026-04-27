@@ -9,19 +9,19 @@ textual layer) and the TH splice (compile-time code-generation layer).
 The grammar, informally (RFC 6570 URI-template syntax for path parameters):
 
 > [routes|ControllerName
-> GET    /posts                 PostsAction
-> POST   /posts                 CreatePostAction
+> /posts                         PostsAction
+> POST   /posts                  CreatePostAction
 > GET    /posts/{postId}        ShowPostAction
 > GET    /posts/{postId}/edit   EditPostAction
 > PATCH  /posts/{postId}        UpdatePostAction
 > DELETE /posts/{postId}        DeletePostAction
 > |]
 
-@{name}@ binds the segment to a record field of the same name on the
-action constructor. @{name:Type}@ is an explicit-type escape hatch.
-@{+name}@ (RFC 6570 reserved-string expansion) matches the rest of the path.
-@GET|POST@ allows multiple methods for one route. Anything after @--@ on a
-line is a comment.
+Every route line starts with one or more explicit HTTP methods. @{name}@ binds
+the segment to a record field of the same name on the action constructor.
+@{name:Type}@ is an explicit-type escape hatch. @{+name}@ (RFC 6570
+reserved-string expansion) matches the rest of the path. @GET|POST@ allows
+multiple methods for one route. Anything after @--@ on a line is a comment.
 -}
 module IHP.Router.DSL.AST
     ( Routes (..)
