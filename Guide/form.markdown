@@ -763,7 +763,7 @@ renderForm :: Post -> Html
 renderForm post = formFor' post "/my-custom-endpoint" [hsx||]
 ```
 
-If you pass an action to that, you need to wrap it with [`pathTo`](https://ihp.digitallyinduced.com/api-docs/IHP-ViewPrelude.html#v:pathTo):
+If you pass an action to that, you need to wrap it with [`pathTo`](https://ihp.digitallyinduced.com/api-docs/IHP-RouterSupport.html#v:pathTo):
 
 ```haskell
 renderForm :: Post -> Html
