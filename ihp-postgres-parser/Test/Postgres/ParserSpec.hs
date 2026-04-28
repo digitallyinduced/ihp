@@ -171,6 +171,29 @@ spec = do
                         )
                     }
 
+        -- pg_dump qualifies every column with its table name, so policies
+        -- exporting `col IN (SELECT …)` come back as `tab.col IN (SELECT …)`.
+        -- Both `dot` and `IN` are postfix at the same precedence; without
+        -- chaining, only `dot` would apply and `IN` would be left dangling.
+        it "should parse 'CREATE POLICY' with qualified column and IN (SELECT …)" do
+            parseSql "CREATE POLICY \"p\" ON tasks USING (tasks.user_id IN (SELECT users.id FROM users WHERE users.active));" `shouldBe`
+                    (policy "p" "tasks")
+                    { using = Just (
+                        InExpression
+                            (DotExpression (VarExpression "tasks") "user_id")
+                            (InArrayExpression
+                                [ SelectExpression Select
+                                    { columns = [DotExpression (VarExpression "users") "id"]
+                                    , from = VarExpression "users"
+                                    , alias = Nothing
+                                    , whereClause = DotExpression (VarExpression "users") "active"
+                                    }
+                                ]
+                            )
+                        )
+                    , check = Nothing
+                    }
+
         it "should parse 'DROP TABLE ..' statements" do
             parseSql "DROP TABLE tasks;" `shouldBe` DropTable { tableName = "tasks" }
 
