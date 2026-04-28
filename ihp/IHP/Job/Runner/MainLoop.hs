@@ -1,7 +1,6 @@
 module IHP.Job.Runner.MainLoop
 ( runJobWorkers
 , dedicatedProcessMainLoop
-, devServerMainLoop
 , installSignalHandlers
 , stopExitHandler
 ) where
@@ -24,11 +23,8 @@ import Control.Concurrent.STM (atomically, writeTBQueue)
 runJobWorkers :: [JobWorker] -> Script
 runJobWorkers jobWorkers = dedicatedProcessMainLoop jobWorkers
 
--- | This job worker main loop is used when the job workers are running as part of their own binary
---
--- In dev mode the IHP dev server is using the 'devServerMainLoop' instead. We have two main loops
--- as the stop handling works a different in those cases.
---
+-- | This job worker main loop is used when the job workers are running as part of their own binary.
+-- Both the production @RunJobs@ binary and the dev-mode @RunDevWorker@ use this.
 dedicatedProcessMainLoop :: (?modelContext :: ModelContext, ?context :: FrameworkConfig) => [JobWorker] -> IO ()
 dedicatedProcessMainLoop jobWorkers = do
     threadId <- Concurrent.myThreadId
@@ -88,24 +84,6 @@ dedicatedProcessMainLoop jobWorkers = do
                 Async.wait dispatcherAsync
 
             liftIO $ Concurrent.throwTo threadId Exit.ExitSuccess
-
-devServerMainLoop :: (?modelContext :: ModelContext) => FrameworkConfig -> PGListener.PGListener -> [JobWorker] -> IO ()
-devServerMainLoop frameworkConfig pgListener jobWorkers = do
-    workerId <- UUID.nextRandom
-    let ?context = frameworkConfig
-    let logger = frameworkConfig.logger
-
-    Log.info ("Starting worker " <> tshow workerId)
-
-    runResourceT do
-        let jobWorkerArgs = JobWorkerArgs { workerId, modelContext = ?modelContext, frameworkConfig = ?context, pgListener }
-
-        processes <- jobWorkers
-                |> mapM (\(JobWorker listenAndRun) -> listenAndRun jobWorkerArgs)
-
-        liftIO $ (forever (Concurrent.threadDelay maxBound)) `Exception.finally` do
-            forEach processes \JobWorkerProcess { action } -> do
-                atomically $ writeTBQueue action Stop
 
 -- | Installs signals handlers and returns an IO action that blocks until the next sigINT or sigTERM is sent
 installSignalHandlers :: IO (IO ())

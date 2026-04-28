@@ -17,6 +17,8 @@ import qualified Test.IDE.CodeGeneration.MigrationGenerator
 import qualified Test.SchemaCompilerSpec
 import qualified Test.IDE.ToolServer.MiddlewareSpec
 import qualified Test.IDE.Logs.ControllerSpec
+import qualified Test.IDE.SplitModeSpec
+import qualified Test.IDE.WorkerSignalSpec
 import qualified Test.ServerSpec
 
 main :: IO ()
@@ -32,6 +34,8 @@ main = hspec do
     Test.IDE.CodeGeneration.JobGenerator.tests
     Test.IDE.SchemaDesigner.SchemaOperationsSpec.tests
     Test.IDE.CodeGeneration.MigrationGenerator.tests
+    Test.IDE.SplitModeSpec.tests
+    Test.IDE.WorkerSignalSpec.tests
     Test.SchemaCompilerSpec.tests
     Test.IDE.ToolServer.MiddlewareSpec.tests
     Test.IDE.Logs.ControllerSpec.tests

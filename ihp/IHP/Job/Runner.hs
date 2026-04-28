@@ -2,7 +2,6 @@
 module IHP.Job.Runner
 ( runJobWorkers
 , dedicatedProcessMainLoop
-, devServerMainLoop
 , installSignalHandlers
 , stopExitHandler
 , worker
@@ -12,7 +11,6 @@ module IHP.Job.Runner
 import IHP.Job.Runner.MainLoop
     ( runJobWorkers
     , dedicatedProcessMainLoop
-    , devServerMainLoop
     , installSignalHandlers
     , stopExitHandler
     )

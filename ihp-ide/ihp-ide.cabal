@@ -226,9 +226,12 @@ library
         , IHP.IDE.CodeGen.MigrationGenerator
         , IHP.IDE.LiveReloadNotificationServer
         , IHP.IDE.FileWatcher
+        , IHP.IDE.GhciSupport
         , IHP.IDE.PortConfig
         , IHP.IDE.Postgres
+        , IHP.IDE.SplitMode
         , IHP.IDE.StatusServer
+        , IHP.IDE.WorkerSignal
         , IHP.IDE.SchemaDesigner.Compiler
         , IHP.IDE.SchemaDesigner.Types
         , IHP.Telemetry
@@ -275,6 +278,32 @@ executable RunDevServer
             -Werror=incomplete-patterns
     autogen-modules: Paths_ihp_ide
     other-modules: Paths_ihp_ide
+
+executable RunDevWorker
+    import: shared-properties
+    build-depends: ihp, ihp-ide
+    hs-source-dirs: exe
+    main-is: IHP/IDE/DevWorker.hs
+    ghc-options: -rtsopts=all
+    if flag(FastBuild)
+        ghc-options:
+            -threaded
+            -with-rtsopts=-A64m
+            -with-rtsopts=-N
+            -with-rtsopts=-n4m
+            -with-rtsopts=--nonmoving-gc
+            -Wno-ambiguous-fields
+            -Werror=incomplete-patterns
+    else
+        ghc-options:
+            -funbox-strict-fields
+            -threaded
+            -with-rtsopts=-A64m
+            -with-rtsopts=-N
+            -with-rtsopts=-n4m
+            -with-rtsopts=--nonmoving-gc
+            -Wno-ambiguous-fields
+            -Werror=incomplete-patterns
 
 executable new-application
     import: shared-properties
@@ -342,5 +371,7 @@ test-suite tests
         Test.IDE.CodeGeneration.JobGenerator
         Test.IDE.SchemaDesigner.SchemaOperationsSpec
         Test.IDE.CodeGeneration.MigrationGenerator
+        Test.IDE.SplitModeSpec
+        Test.IDE.WorkerSignalSpec
         Test.SchemaCompilerSpec
         Test.ServerSpec

@@ -4,6 +4,39 @@ After updating your project, please consult the segments from your current relea
 
 # Upgrade to 1.6.0 (unreleased) from 1.5.0
 
+## Dev mode now runs the web server and the job worker as separate processes
+
+`devenv up` previously launched a single `ihp` process that ran both the web server and the in-process job worker. It now launches two processes: `web` (the existing `RunDevServer`) and `worker` (a new `RunDevWorker`). They each own one GHCi session and reload independently. This mirrors the production split between `RunProdServer` and `RunJobs`.
+
+Action required if your project has jobs:
+
+1. **Move the `instance Worker RootApplication` out of `Main.hs`.** Create a new file `Application/Worker.hs`:
+
+   ```haskell
+   module Application.Worker () where
+
+   import IHP.Prelude
+   import IHP.FrameworkConfig (RootApplication (..))
+   import IHP.Job.Runner (Worker (..))
+   import Web.Types (WebApplication (..))
+   import Web.Worker ()
+
+   instance Worker RootApplication where
+       workers _ = workers WebApplication
+   ```
+
+   For multi-application projects, extend `workers _` to combine each application's workers (`workers WebApplication ++ workers AdminApplication`, etc.).
+
+2. **Delete the `instance Worker RootApplication` block from `Main.hs`** along with the `import Web.Worker` (and `IHP.Job.Runner` import if it's only used for `Worker`). `Main.hs` no longer needs to depend on the job module dep graph.
+
+3. **`IHP.Server.run`'s type signature relaxed** — it no longer requires `Job.Worker RootApplication`. Existing app `Main.hs` files keep working unchanged once step 2 is done.
+
+4. **`IHP.Server.withBackgroundWorkers` and `IHP.Job.Runner.devServerMainLoop` were removed.** They were undocumented internal helpers; if you imported them downstream, switch to running `RunJobs` (or its dev equivalent `RunDevWorker`) as a separate process.
+
+5. **devenv users:** the `processes.ihp` entry has been renamed to `processes.web` and a sibling `processes.worker` runs the new dev worker. If you have CI scripts targeting the old name, update them.
+
+The `new-job` codegen now creates `Application/Worker.hs` automatically the first time it runs in a project, so newly scaffolded projects don't need any manual migration.
+
 ## `render` No Longer Handles JSON
 
 The `render` function now only renders HTML. Previously it used Accept header negotiation to serve both HTML and JSON, but the JSON path was unused in practice.

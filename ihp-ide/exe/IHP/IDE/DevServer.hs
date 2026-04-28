@@ -27,6 +27,8 @@ import Main.Utf8 (withUtf8)
 import qualified IHP.FrameworkConfig as FrameworkConfig
 import qualified Control.Concurrent.Chan.Unagi as Queue
 import IHP.IDE.FileWatcher
+import qualified IHP.IDE.SplitMode as SplitMode
+import qualified IHP.IDE.WorkerSignal as WorkerSignal
 import qualified System.Environment as Env
 import qualified System.Directory.OsPath as Directory
 import qualified Control.Exception.Safe as Exception
@@ -102,6 +104,13 @@ mainWithOptions wrapWithDirenv = withUtf8 do
             ghciIsLoadingVar <- newIORef False
             reloadGhciVar :: MVar () <- newEmptyMVar
 
+            -- The worker is a separate process. Detect whether the project
+            -- has any Job modules; if so, write the build/RunJobs.hs entry
+            -- module that the worker GHCi will load, and arrange for file
+            -- changes to be forwarded to the worker over its Unix socket.
+            hasJobs <- SplitMode.hasJobs
+            when hasJobs SplitMode.generateRunJobsModule
+
             withStatusServer ghciIsLoadingVar \startStatusServer stopStatusServer statusServerStandardOutput statusServerErrorOutput statusServerClients -> do
                 -- Compile Schema before loading the app
                 tryCompileSchema reloadGhciVar startStatusServer
@@ -119,7 +128,7 @@ mainWithOptions wrapWithDirenv = withUtf8 do
                         <*> Concurrently (runToolServer toolServerApplication liveReloadClients)
                         <*> Concurrently (consumeGhciOutput statusServerStandardOutput statusServerErrorOutput statusServerClients)
                         <*> Concurrently Telemetry.reportTelemetry
-                        <*> Concurrently (runFileWatcherWithDebounce (fileWatcherParams liveReloadClients databaseNeedsMigration reloadGhciVar startStatusServer))
+                        <*> Concurrently (runFileWatcherWithDebounce (fileWatcherParams hasJobs liveReloadClients databaseNeedsMigration reloadGhciVar startStatusServer))
                         <*> Concurrently (runAppGhci mainThreadId ghciIsLoadingVar startStatusServer stopStatusServer statusServerStandardOutput statusServerErrorOutput statusServerClients reloadGhciVar)
 
 withSigTermHandler :: IO () -> IO a -> IO a
@@ -144,16 +153,26 @@ stopProcessHandle processHandle = do
         signalGhciGroup Signals.sigKILL
         void (timeout (1 * 1000000) (Process.waitForProcess processHandle `Exception.catchAny` \_ -> pure Exit.ExitSuccess))
 
-fileWatcherParams liveReloadClients databaseNeedsMigration reloadGhciVar startStatusServer =
+fileWatcherParams hasJobs liveReloadClients databaseNeedsMigration reloadGhciVar startStatusServer =
     FileWatcherParams
         { onHaskellFileChanged = do
             -- Use tryPutMVar to avoid blocking if a reload is already pending.
             -- This handles the case where multiple file changes happen in quick succession.
             void $ tryPutMVar reloadGhciVar ()
+            when hasJobs (signalWorker)
         , onSchemaChanged = do
             concurrently_ (tryCompileSchema reloadGhciVar startStatusServer) (updateDatabaseIsOutdated databaseNeedsMigration)
+            -- Schema regeneration touches build/Generated/Types.hs which the worker
+            -- depends on; tell it to reload too.
+            when hasJobs (signalWorker)
         , onAssetChanged = notifyAssetChange liveReloadClients
         }
+  where
+    -- Fire and forget — sendReload handles its own retry/backoff. We don't want
+    -- the file watcher to block on a slow worker.
+    signalWorker = void $ Concurrent.forkIO $ Exception.handleAny
+        (\_ -> pure ())
+        (WorkerSignal.sendReload SplitMode.workerSocketPath)
 
 ghciArguments :: [String]
 ghciArguments =
