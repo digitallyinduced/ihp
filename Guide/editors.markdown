@@ -17,6 +17,7 @@ You will also find steps on how to get autocompletion and smart IDE features. Th
 - [`direnv`](https://marketplace.visualstudio.com/items?itemName=mkhl.direnv), this loads the project `.envrc` file, so all the right Haskell packages are available to VSCode
 - [`Haskell`](https://marketplace.visualstudio.com/items?itemName=haskell.haskell), this gets smart IDE features with haskell-language-server
 - [`Haskell HSX`](https://marketplace.visualstudio.com/items?itemName=s0kil.vscode-hsx), provides support for [HSX](https://ihp.digitallyinduced.com/Guide/hsx.html)
+- [`IHP Routes QQ`](https://marketplace.visualstudio.com/items?itemName=avitkauskas.ihp-routes-quasi), provides support for IHP [routes|...|] quasiquote syntax highlighting
 
 To make file paths clickable inside the web browser (e.g. when a type error happens), export this env var in your shell (e.g. in `.bashrc`):
 
