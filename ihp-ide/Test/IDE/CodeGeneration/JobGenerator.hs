@@ -101,7 +101,7 @@ tests = do
                 , CreateFile {filePath = "Admin/Worker.hs", fileContent = "module Admin.Worker where\n\nimport IHP.Prelude\nimport Admin.Types\nimport Generated.Types\nimport IHP.Job.Runner\nimport IHP.Job.Types\n\nimport Admin.Job.CreateContainer\n\ninstance Worker AdminApplication where\n    workers _ =\n        [ worker @CreateContainerJob\n        -- Generator Marker\n        ]\n"}
                 ]
 
-        it "should create Application/Worker.hs on the very first job in the project" do
+        it "should create WorkerMain.hs on the very first job in the project" do
             let applicationName = "Web"
             let tableName = "create_container_jobs"
             let modelName = "CreateContainerJob"
@@ -116,6 +116,5 @@ tests = do
                 , AppendToFile {filePath = "Application/Schema.sql", fileContent = "CREATE TABLE create_container_jobs (\n    id UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL,\n    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,\n    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,\n    status JOB_STATUS DEFAULT 'job_status_not_started' NOT NULL,\n    last_error TEXT DEFAULT NULL,\n    attempts_count INT DEFAULT 0 NOT NULL,\n    locked_at TIMESTAMP WITH TIME ZONE DEFAULT NULL,\n    locked_by UUID DEFAULT NULL,\n    run_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL\n);\n"}
                 , CreateFile {filePath = "Web/Job/CreateContainer.hs", fileContent = "module Web.Job.CreateContainer where\nimport Web.Controller.Prelude\n\ninstance Job CreateContainerJob where\n    perform CreateContainerJob { .. } = do\n        putStrLn \"Hello World!\"\n"}
                 , CreateFile {filePath = "Web/Worker.hs", fileContent = "module Web.Worker where\n\nimport IHP.Prelude\nimport Web.Types\nimport Generated.Types\nimport IHP.Job.Runner\nimport IHP.Job.Types\n\nimport Web.Job.CreateContainer\n\ninstance Worker WebApplication where\n    workers _ =\n        [ worker @CreateContainerJob\n        -- Generator Marker\n        ]\n"}
-                , EnsureDirectory {directory = "Application"}
-                , CreateFile {filePath = "Application/Worker.hs", fileContent = "module Application.Worker () where\n\nimport IHP.Prelude\nimport IHP.FrameworkConfig (RootApplication (..))\nimport IHP.Job.Runner (Worker (..))\nimport Web.Types (WebApplication (..))\nimport Web.Worker ()\n\ninstance Worker RootApplication where\n    workers _ = workers WebApplication\n"}
+                , CreateFile {filePath = "WorkerMain.hs", fileContent = "module WorkerMain () where\n\nimport IHP.Prelude\nimport IHP.FrameworkConfig (RootApplication (..))\nimport IHP.Job.Runner (Worker (..))\nimport Web.Types (WebApplication (..))\nimport Web.Worker ()\n\ninstance Worker RootApplication where\n    workers _ = workers WebApplication\n"}
                 ]

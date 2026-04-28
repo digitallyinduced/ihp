@@ -67,11 +67,11 @@ The `runAt` field determines when the job should be executed. If not set, the jo
 
 This can be done in a controller action or in a script as will be shown below.
 
-The first time you scaffold a job with `new-job`, IHP creates `Application/Worker.hs` for you. This is the project-level Worker registration that composes each application's workers into the root:
+The first time you scaffold a job with `new-job`, IHP creates `WorkerMain.hs` at the project root (parallel to `Main.hs`). This is the project-level Worker registration that composes each application's workers into the root:
 
 ```haskell
--- Application/Worker.hs
-module Application.Worker () where
+-- WorkerMain.hs
+module WorkerMain () where
 
 import IHP.Prelude
 import IHP.FrameworkConfig (RootApplication (..))

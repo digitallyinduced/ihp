@@ -71,11 +71,11 @@ tests = do
                 mtime2 <- Directory.getModificationTime path
                 mtime2 `shouldBe` mtime1
 
-        it "imports Application.Worker rather than Main (for dev/prod parity)" do
+        it "imports WorkerMain rather than Main (for dev/prod parity)" do
             withTempCwd \_ -> do
                 SplitMode.generateRunJobsModule
                 contents <- ByteString.readFile "build/RunJobs.hs"
-                ("Application.Worker" `ByteString.isInfixOf` contents) `shouldBe` True
+                ("WorkerMain" `ByteString.isInfixOf` contents) `shouldBe` True
                 ("import Main" `ByteString.isInfixOf` contents) `shouldBe` False
 
 -- | Run an action with a fresh temporary directory as the current working

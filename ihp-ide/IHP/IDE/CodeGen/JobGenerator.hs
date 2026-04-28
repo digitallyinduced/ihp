@@ -10,14 +10,14 @@ data JobConfig = JobConfig
     , tableName :: Text -- E.g. create_container_jobs
     , modelName :: Text -- E.g. CreateContainerJob
     , isFirstJobInApplication :: Bool -- If true, creates Worker.hs in application directory
-    , isFirstJobInProject :: Bool -- If true, creates Application/Worker.hs at the project root
+    , isFirstJobInProject :: Bool -- If true, creates WorkerMain.hs at the project root
     , uuidFunction :: Text -- E.g. "uuid_generate_v4" or "uuidv7"
     } deriving (Eq, Show)
 
 buildPlan :: Text -> Text -> IO (Either Text [GeneratorAction])
 buildPlan jobName applicationName = do
     let workerPath = textToOsPath (applicationName <> "/Worker.hs")
-    let rootWorkerPath = textToOsPath "Application/Worker.hs"
+    let rootWorkerPath = textToOsPath "WorkerMain.hs"
     isFirstJobInApplication <- not <$> Directory.doesFileExist workerPath
     isFirstJobInProject <- not <$> Directory.doesFileExist rootWorkerPath
     uuidFunction <- defaultUuidFunction
@@ -95,17 +95,17 @@ instance Worker #{applicationName}Application where
 |]
 
             -- Composed Worker instance for RootApplication. Lives in
-            -- Application/Worker.hs so that:
+            -- WorkerMain.hs at the project root (parallel to Main.hs) so that:
             --   * Main.hs no longer needs to import Web.Worker (which would
             --     transitively pull every Job module into Main's dep graph).
             --   * The dev-mode worker GHCi can load only this file (via
             --     build/RunJobs.hs) without dragging in Web.FrontController
             --     and the Controller / View tree.
-            applicationWorkerHs :: Text
-            applicationWorkerHs =
+            workerMainHs :: Text
+            workerMainHs =
                         let
                             applicationName = config.applicationName
-                        in cs [plain|module Application.Worker () where
+                        in cs [plain|module WorkerMain () where
 
 import IHP.Prelude
 import IHP.FrameworkConfig (RootApplication (..))
@@ -128,8 +128,5 @@ instance Worker RootApplication where
                         , AppendToMarker { marker = "-- Generator Marker", filePath = textToOsPath (config.applicationName <> "/Worker.hs"), fileContent = "        , worker @" <> nameWithSuffix }
                         ])
             <> (if config.isFirstJobInProject
-                    then
-                        [ EnsureDirectory { directory = textToOsPath "Application" }
-                        , CreateFile { filePath = textToOsPath "Application/Worker.hs", fileContent = applicationWorkerHs }
-                        ]
+                    then [ CreateFile { filePath = textToOsPath "WorkerMain.hs", fileContent = workerMainHs } ]
                     else [])

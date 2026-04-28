@@ -10,10 +10,10 @@ After updating your project, please consult the segments from your current relea
 
 Action required if your project has jobs:
 
-1. **Move the `instance Worker RootApplication` out of `Main.hs`.** Create a new file `Application/Worker.hs`:
+1. **Move the `instance Worker RootApplication` out of `Main.hs`.** Create a new file `WorkerMain.hs` at the project root (parallel to `Main.hs`):
 
    ```haskell
-   module Application.Worker () where
+   module WorkerMain () where
 
    import IHP.Prelude
    import IHP.FrameworkConfig (RootApplication (..))
@@ -35,7 +35,7 @@ Action required if your project has jobs:
 
 5. **devenv users:** the `processes.ihp` entry has been renamed to `processes.web` and a sibling `processes.worker` runs the new dev worker. If you have CI scripts targeting the old name, update them.
 
-The `new-job` codegen now creates `Application/Worker.hs` automatically the first time it runs in a project, so newly scaffolded projects don't need any manual migration.
+The `new-job` codegen now creates `WorkerMain.hs` automatically the first time it runs in a project, so newly scaffolded projects don't need any manual migration.
 
 ## `render` No Longer Handles JSON
 

@@ -92,7 +92,7 @@ runJobsModuleContents =
     \import IHP.ScriptSupport\n\
     \import IHP.Job.Runner\n\
     \import qualified Config\n\
-    \import Application.Worker ()\n\
+    \import WorkerMain ()\n\
     \main :: IO ()\n\
     \main = runScript Config.config (runJobWorkers (workers RootApplication))\n"
 
