@@ -10,15 +10,14 @@ module Main (main) where
 
 import ClassyPrelude
 import qualified Control.Concurrent as Concurrent
-import qualified Control.Exception.Safe as Exception
 import qualified Data.ByteString.Builder as Builder
 import qualified Data.ByteString.Char8 as ByteString
 import qualified System.Directory as Directory
-import qualified System.Exit as Exit
 import qualified System.IO as IO
 import qualified System.Process as Process
 import Main.Utf8 (withUtf8)
 
+import qualified Control.Concurrent.Async as Async
 import qualified IHP.EnvVar as EnvVar
 import IHP.IDE.GhciSupport
 import qualified IHP.IDE.SplitMode as SplitMode
@@ -33,41 +32,53 @@ main = withUtf8 do
     IO.hSetBuffering IO.stdout IO.LineBuffering
     IO.hSetBuffering IO.stderr IO.LineBuffering
 
-    SplitMode.hasJobs >>= \case
-        False -> do
-            putStrLn "[worker] No jobs found, idling. Add a *.hs file under any Job/ directory to enable the worker."
-            forever (Concurrent.threadDelay maxBound)
-        True -> runWithJobs mainThreadId
+    -- Always start the signal server, regardless of whether jobs exist yet.
+    -- The web process re-checks 'hasJobs' on every file change and writes
+    -- build/RunJobs.hs as soon as the project gains its first job; the signal
+    -- it sends here is what wakes us up to discover the new file. Gating on
+    -- 'hasJobs' at boot would leave the worker permanently idle for projects
+    -- whose first job is scaffolded *after* `devenv up` has started.
+    WorkerSignal.withWorkerSignalServer SplitMode.workerSocketPath \waitForReload -> do
+        waitUntilJobsReady waitForReload
+        runWithJobs mainThreadId waitForReload
 
-runWithJobs :: Concurrent.ThreadId -> IO ()
-runWithJobs mainThreadId = do
-    -- The web process compiles the schema and writes build/Generated/Types.hs.
-    -- Our GHCi load will fail until that exists, so wait for it on cold start.
-    putStrLn "[worker] Waiting for build/Generated/Types.hs (web process owns schema compilation)..."
-    schemaReady <- waitForFile "build/Generated/Types.hs" 60
-    if not schemaReady
-        then do
-            putStrLn "[worker] Timed out after 60s waiting for the schema. Is the web process running?"
-            Exit.exitFailure
-        else pure ()
+-- | Block until both the schema (build/Generated/Types.hs, written by the web
+-- process when it compiles the schema) and the worker entry module
+-- (build/RunJobs.hs, written by the web process when it detects 'hasJobs')
+-- are present. Wakes immediately on any reload signal from the web (which
+-- fires on every Haskell change), with a 2-second poll fallback so we still
+-- recover if a signal is dropped.
+waitUntilJobsReady :: IO () -> IO ()
+waitUntilJobsReady waitForReload = do
+    putStrLn "[worker] waiting for build/Generated/Types.hs and build/RunJobs.hs..."
+    let pollInterval = 2 * 1000000
+    let loop = do
+            ready <- bothReady
+            unless ready do
+                void $ Async.race waitForReload (Concurrent.threadDelay pollInterval)
+                loop
+    loop
+  where
+    bothReady = (&&)
+        <$> Directory.doesFileExist "build/Generated/Types.hs"
+        <*> Directory.doesFileExist "build/RunJobs.hs"
 
-    SplitMode.generateRunJobsModule
-
+runWithJobs :: Concurrent.ThreadId -> IO () -> IO ()
+runWithJobs mainThreadId waitForReload = do
     wrapWithDirenv <- EnvVar.envOrDefault "IHP_DEV_WRAP_DIRENV" False
 
-    WorkerSignal.withWorkerSignalServer SplitMode.workerSocketPath \waitForReload ->
-        withGhci wrapWithDirenv mainThreadId \input output err processHandle -> do
-            -- Initial load and start of the worker app.
-            initialLoad <- loadRunJobs input output err
-            case initialLoad of
-                Left out -> do
-                    putStrLn "[worker] GHCi failed to load RunJobs.hs:"
-                    ByteString.putStrLn (toStrict out)
-                    -- Wait for a reload before retrying so we don't busy-loop.
-                    reloadLoop input output err processHandle waitForReload Nothing
-                Right _ -> do
-                    appHandle <- startWorkerApp input output err
-                    reloadLoop input output err processHandle waitForReload (Just appHandle)
+    withGhci wrapWithDirenv mainThreadId \input output err processHandle -> do
+        -- Initial load and start of the worker app.
+        initialLoad <- loadRunJobs input output err
+        case initialLoad of
+            Left out -> do
+                putStrLn "[worker] GHCi failed to load RunJobs.hs:"
+                ByteString.putStrLn (toStrict out)
+                -- Wait for a reload before retrying so we don't busy-loop.
+                reloadLoop input output err processHandle waitForReload Nothing
+            Right _ -> do
+                appHandle <- startWorkerApp input output err
+                reloadLoop input output err processHandle waitForReload (Just appHandle)
 
 reloadLoop
     :: Handle -> Handle -> Handle -> Process.ProcessHandle
@@ -168,16 +179,3 @@ ghciLoadOrReload _input output err sendLoadCmd = do
         <*> Concurrently (readHandleLines resultVar outputVar err putForward onMatch)
 
     pure result
-
--- | Poll for a file's existence with a 100ms tick. Returns False on timeout.
-waitForFile :: FilePath -> Int -> IO Bool
-waitForFile path timeoutSec = go (timeoutSec * 10)
-  where
-    go 0 = pure False
-    go n = do
-        exists <- Directory.doesFileExist path
-        if exists
-            then pure True
-            else do
-                Concurrent.threadDelay 100000
-                go (n - 1)

@@ -68,12 +68,16 @@ acceptLoop sock reloadVar = forever do
 sendReload :: FilePath -> IO ()
 sendReload path = retryWithBackoff 25 100000 attempt
   where
-    attempt = do
-        sock <- Socket.socket Socket.AF_UNIX Socket.Stream Socket.defaultProtocol
-        Exception.bracket_
-            (Socket.connect sock (Socket.SockAddrUnix path))
-            (Socket.close sock)
-            (SocketBS.sendAll sock "reload\n")
+    -- Use 'Exception.bracket' with the socket allocation as acquire so the
+    -- close handler runs even when 'Socket.connect' fails (e.g. while the
+    -- worker is still starting). Otherwise a failed connect would leak the
+    -- FD on every retry / every reload.
+    attempt = Exception.bracket
+        (Socket.socket Socket.AF_UNIX Socket.Stream Socket.defaultProtocol)
+        (\sock -> Socket.close sock `Exception.catchAny` \_ -> pure ())
+        \sock -> do
+            Socket.connect sock (Socket.SockAddrUnix path)
+            SocketBS.sendAll sock "reload\n"
 
 retryWithBackoff :: Int -> Int -> IO () -> IO ()
 retryWithBackoff 0 _ action = action  -- last attempt: let exceptions escape

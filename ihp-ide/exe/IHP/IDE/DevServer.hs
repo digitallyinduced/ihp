@@ -104,12 +104,12 @@ mainWithOptions wrapWithDirenv = withUtf8 do
             ghciIsLoadingVar <- newIORef False
             reloadGhciVar :: MVar () <- newEmptyMVar
 
-            -- The worker is a separate process. Detect whether the project
-            -- has any Job modules; if so, write the build/RunJobs.hs entry
-            -- module that the worker GHCi will load, and arrange for file
-            -- changes to be forwarded to the worker over its Unix socket.
-            hasJobs <- SplitMode.hasJobs
-            when hasJobs SplitMode.generateRunJobsModule
+            -- One-shot: if the project already has jobs at boot, write
+            -- build/RunJobs.hs so the worker process can load it. The file
+            -- watcher below re-checks on every change, so this also kicks in
+            -- when the user scaffolds their first job after `devenv up`.
+            initialHasJobs <- SplitMode.hasJobs
+            when initialHasJobs SplitMode.generateRunJobsModule
 
             withStatusServer ghciIsLoadingVar \startStatusServer stopStatusServer statusServerStandardOutput statusServerErrorOutput statusServerClients -> do
                 -- Compile Schema before loading the app
@@ -128,7 +128,7 @@ mainWithOptions wrapWithDirenv = withUtf8 do
                         <*> Concurrently (runToolServer toolServerApplication liveReloadClients)
                         <*> Concurrently (consumeGhciOutput statusServerStandardOutput statusServerErrorOutput statusServerClients)
                         <*> Concurrently Telemetry.reportTelemetry
-                        <*> Concurrently (runFileWatcherWithDebounce (fileWatcherParams hasJobs liveReloadClients databaseNeedsMigration reloadGhciVar startStatusServer))
+                        <*> Concurrently (runFileWatcherWithDebounce (fileWatcherParams liveReloadClients databaseNeedsMigration reloadGhciVar startStatusServer))
                         <*> Concurrently (runAppGhci mainThreadId ghciIsLoadingVar startStatusServer stopStatusServer statusServerStandardOutput statusServerErrorOutput statusServerClients reloadGhciVar)
 
 withSigTermHandler :: IO () -> IO a -> IO a
@@ -153,26 +153,35 @@ stopProcessHandle processHandle = do
         signalGhciGroup Signals.sigKILL
         void (timeout (1 * 1000000) (Process.waitForProcess processHandle `Exception.catchAny` \_ -> pure Exit.ExitSuccess))
 
-fileWatcherParams hasJobs liveReloadClients databaseNeedsMigration reloadGhciVar startStatusServer =
+fileWatcherParams liveReloadClients databaseNeedsMigration reloadGhciVar startStatusServer =
     FileWatcherParams
         { onHaskellFileChanged = do
             -- Use tryPutMVar to avoid blocking if a reload is already pending.
             -- This handles the case where multiple file changes happen in quick succession.
             void $ tryPutMVar reloadGhciVar ()
-            when hasJobs (signalWorker)
+            signalWorker
         , onSchemaChanged = do
             concurrently_ (tryCompileSchema reloadGhciVar startStatusServer) (updateDatabaseIsOutdated databaseNeedsMigration)
             -- Schema regeneration touches build/Generated/Types.hs which the worker
             -- depends on; tell it to reload too.
-            when hasJobs (signalWorker)
+            signalWorker
         , onAssetChanged = notifyAssetChange liveReloadClients
         }
   where
     -- Fire and forget — sendReload handles its own retry/backoff. We don't want
     -- the file watcher to block on a slow worker.
+    --
+    -- We re-check 'hasJobs' on every signal (rather than caching at boot) so
+    -- that scaffolding the first job after `devenv up` correctly activates
+    -- the worker process. The check is a small recursive scan and runs off
+    -- the watcher thread.
     signalWorker = void $ Concurrent.forkIO $ Exception.handleAny
         (\_ -> pure ())
-        (WorkerSignal.sendReload SplitMode.workerSocketPath)
+        do
+            currentHasJobs <- SplitMode.hasJobs
+            when currentHasJobs do
+                SplitMode.generateRunJobsModule
+                WorkerSignal.sendReload SplitMode.workerSocketPath
 
 ghciArguments :: [String]
 ghciArguments =
