@@ -15,7 +15,6 @@ import qualified System.Posix.Signals as Signals
 import qualified System.Exit as Exit
 import qualified IHP.PGListener as PGListener
 import Control.Monad.Trans.Resource
-import qualified Control.Exception.Safe as Exception
 import qualified IHP.Log as Log
 import Control.Concurrent.STM (atomically, writeTBQueue)
 
