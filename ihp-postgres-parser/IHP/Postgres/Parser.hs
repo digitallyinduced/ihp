@@ -492,11 +492,13 @@ table = [
             , binary "||" ConcatenationExpression
 
             , binary "IS" IsExpression
-            , inExpr
             , prefix "NOT" NotExpression
             , prefix "EXISTS" ExistsExpression
-            , typeCast
-            , dot
+            -- Chain multiple postfix operators at the same precedence so we can
+            -- parse e.g. `table.col IN (SELECT …)` — pg_dump qualifies columns
+            -- with their table name and `makeExprParser`'s `Postfix` only
+            -- applies one postfix per term.
+            , Postfix (foldl1 (flip (.)) <$> some (typeCastOp <|> dotOp <|> inOp))
             ],
             [ binary "AND" AndExpression, binary "OR" OrExpression ]
         ]
@@ -507,17 +509,17 @@ table = [
 
         -- Cannot be implemented as a infix operator as that requires two expression operands,
         -- but the second is the type-cast type which is not an expression
-        typeCast = Postfix do
+        typeCastOp = do
             symbol "::"
             castType <- sqlType
             pure $ \expr -> TypeCastExpression expr castType
 
-        dot = Postfix do
+        dotOp = do
             char '.'
             name <- identifier
             pure $ \expr -> DotExpression expr name
 
-        inExpr = Postfix do
+        inOp = do
             lexeme "IN"
             right <- try inArrayExpression <|> expression
             pure $ \expr -> InExpression expr right
