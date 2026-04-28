@@ -67,18 +67,39 @@ The `runAt` field determines when the job should be executed. If not set, the jo
 
 This can be done in a controller action or in a script as will be shown below.
 
-The file `Main.hs` also has to have the workers registered. Add the following:
+The first time you scaffold a job with `new-job`, IHP creates `Application/Worker.hs` for you. This is the project-level Worker registration that composes each application's workers into the root:
 
 ```haskell
-import Web.Worker
+-- Application/Worker.hs
+module Application.Worker () where
+
+import IHP.Prelude
+import IHP.FrameworkConfig (RootApplication (..))
+import IHP.Job.Runner (Worker (..))
+import Web.Types (WebApplication (..))
+import Web.Worker ()
 
 instance Worker RootApplication where
     workers _ = workers WebApplication
 ```
 
+If your project mounts more than one application (e.g. `Web` and `Admin`), update the body to combine them:
+
+```haskell
+import Admin.Types (AdminApplication (..))
+import Admin.Worker ()
+
+instance Worker RootApplication where
+    workers _ = workers WebApplication ++ workers AdminApplication
+```
+
+`Main.hs` does **not** carry this instance any more — that intentionally keeps job modules out of `Main.hs`'s dependency graph so editing a controller doesn't recompile your jobs.
+
 #### Development vs. Production
 
-In development mode, these watchers are started with the dev server. In production however, the `RunJobs` binary is automatically built when you run `nix build .#optimized-prod-server` or `nix build .#unoptimized-prod-server`. You can deploy this binary (found at `result/bin/RunJobs`) alongside your IHP app to watch for added jobs and run them.
+In development mode, `devenv up` spawns two processes — `web` and `worker` — that own one GHCi session each. The web process owns the file watcher and signals the worker over a Unix socket whenever a Haskell change occurs, so the worker reloads independently. Projects with no `**/Job/*.hs` files have the `worker` process idling.
+
+In production, the `RunJobs` binary is automatically built when you run `nix build .#optimized-prod-server` or `nix build .#unoptimized-prod-server`. Deploy it at `result/bin/RunJobs` alongside your IHP app to watch for added jobs and run them.
 
 ### Viewing job status
 
