@@ -59,6 +59,8 @@ module IHP.Controller.TypedAction
     , RequestDecodeError (..)
     , FromJsonBody (..)
     , FromFormBody (..)
+    , formBodyParam
+    , genericParseFormBody
     , FromMultipartBody (..)
     , DecodeRequest (..)
     , bodyParam
@@ -211,15 +213,30 @@ instance {-# OVERLAPPABLE #-} (JSON.FromJSON input) => FromJsonBody input where
     {-# INLINE parseJsonBody #-}
 
 -- | Decodes URL-encoded form bodies into typed input values.
---
--- The default instance uses 'Generic' and existing IHP 'ParamReader' instances
--- for each record field.
 class FromFormBody input where
     parseFormBody :: Request -> Either RequestDecodeError input
 
-instance {-# OVERLAPPABLE #-} (Generic input, GFromFormBody (Rep input)) => FromFormBody input where
-    parseFormBody request = to <$> gParseFormBody request
-    {-# INLINE parseFormBody #-}
+-- | Read one URL-encoded form field from a request using IHP's existing
+-- 'ParamReader' instances.
+formBodyParam ::
+    forall value.
+    (ParamReader value) =>
+    ByteString ->
+    Request ->
+    Either RequestDecodeError value
+formBodyParam name request =
+    case Params.paramOrError request.parsedBody request name of
+        Right value -> Right value
+        Left exception -> Left (paramExceptionToDecodeError exception)
+{-# INLINE formBodyParam #-}
+
+-- | Opt-in 'Generic' implementation for small request records.
+--
+-- Prefer explicit 'FromFormBody' instances for larger records to keep IHP live
+-- reloads fast.
+genericParseFormBody :: (Generic input, GFromFormBody (Rep input)) => Request -> Either RequestDecodeError input
+genericParseFormBody request = to <$> gParseFormBody request
+{-# INLINE genericParseFormBody #-}
 
 -- | Decodes multipart request bodies into typed input values.
 --
@@ -656,9 +673,7 @@ instance
     where
     gParseFormBody request =
         let name = cs (symbolVal (Proxy @fieldName))
-         in case Params.paramOrError request.parsedBody request name of
-                Right value -> Right (M1 (K1 value))
-                Left exception -> Left (paramExceptionToDecodeError exception)
+         in M1 . K1 <$> formBodyParam name request
     {-# INLINE gParseFormBody #-}
 
 paramExceptionToDecodeError :: ParamException -> RequestDecodeError

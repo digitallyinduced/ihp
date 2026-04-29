@@ -50,8 +50,23 @@ data ProjectInput = ProjectInput
 instance JSON.FromJSON ProjectInput
 instance JSON.ToJSON ProjectInput
 instance ToSchema ProjectInput
+instance FromFormBody ProjectInput where
+    parseFormBody request =
+        ProjectInput
+            <$> formBodyParam "name" request
+            <*> formBodyParam "enabled" request
+
 instance FromMultipartBody ProjectInput where
     parseMultipartBody _ = Right ProjectInput{name = "from multipart", enabled = True}
+
+data GenericFormInput = GenericFormInput
+    { genericName :: Text
+    , genericEnabled :: Bool
+    }
+    deriving (Eq, Show, Generic)
+
+instance FromFormBody GenericFormInput where
+    parseFormBody = genericParseFormBody
 
 data ComplexFormInput = ComplexFormInput
     { textValue :: Text
@@ -259,6 +274,11 @@ tests = do
                 let ?request = requestWithBody [(hContentType, "application/x-www-form-urlencoded")] FormBody{params = [("name", "Acme"), ("enabled", "on")], files = [], rawPayload = ""}
 
                 decodeRequest @('Body ProjectInput) >>= shouldBe (Right ProjectInput{name = "Acme", enabled = True})
+
+            it "supports generic form decoding only via explicit opt-in" do
+                let ?request = requestWithBody [(hContentType, "application/x-www-form-urlencoded")] FormBody{params = [("genericName", "Acme"), ("genericEnabled", "on")], files = [], rawPayload = ""}
+
+                decodeRequest @('BodyWith GenericFormInput '[ 'FormUrlEncoded]) >>= shouldBe (Right GenericFormInput{genericName = "Acme", genericEnabled = True})
 
             it "decodes multipart bodies with content-type boundaries" do
                 let ?request = requestWithBody [(hContentType, "multipart/form-data; boundary=abc")] FormBody{params = [], files = [], rawPayload = ""}
