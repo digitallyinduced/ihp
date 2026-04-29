@@ -230,6 +230,11 @@ data PostInput = PostInput
 instance FromJSON PostInput
 instance ToJSON PostInput
 instance ToSchema PostInput
+instance FromFormBody PostInput where
+    parseFormBody request =
+        PostInput
+            <$> formBodyParam "title" request
+            <*> formBodyParam "body" request
 
 data PostsAction request response where
     UpdatePostAction
@@ -242,8 +247,9 @@ deriving instance Show (PostsAction request response)
 deriving instance Eq (PostsAction request response)
 ```
 
-The JSON decoder uses `FromJSON`. Form requests use the generic `FromFormBody`
-instance when all fields have `ParamReader` instances.
+The JSON decoder uses `FromJSON`. Form requests use the explicit
+`FromFormBody` instance. If an endpoint should only accept JSON, use
+`'BodyWith PostInput '[ 'Json]` and omit the form decoder.
 
 `'Body PostInput` accepts both `application/json` and
 `application/x-www-form-urlencoded` by default. If an endpoint should accept only

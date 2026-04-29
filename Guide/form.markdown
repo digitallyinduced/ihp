@@ -82,9 +82,32 @@ Rendering [`{textField #title}`](https://ihp.digitallyinduced.com/api-docs/IHP-V
 ## Forms for Typed Actions
 
 Classic `formFor` works with IHP records that have a `meta` field. For typed
-GADT actions use `formForAction`, which renders a normal HSX form body with the
-same field helpers (`textField`, `textareaField`, `checkboxField`,
+GADT actions, use `formForAction`, which renders a normal HSX form body with
+the same field helpers (`textField`, `textareaField`, `checkboxField`,
 `submitButton`, etc.) against a plain input record.
+
+Use `formFor` for classic model-backed create and update forms. It is built
+around a database record: the record type provides the fields, validation
+messages, generated input ids, submit label, and default create/update action.
+
+Use `formForAction` when the submit target is a typed action. The action URL,
+HTTP method, form encoding, decoded request body, and, for documented actions,
+OpenAPI request body all come from the same typed route and body definition.
+This avoids the drift that can happen with the older `formFor'` escape hatch:
+`formFor'` lets a model-backed form point at any `Text` URL, but the method,
+`_method` override, enctype, and action-side parameter handling still live
+elsewhere. If a route changes from `POST` to `PATCH`, a file field is added and
+the form needs `multipart/form-data`, or the action starts reading a different
+parameter name, the old form can keep rendering because those facts are not part
+of the `formFor'` type.
+
+Typed action forms are also useful when there is no natural database model for
+the form. For example, an organization settings page can render an invite form
+with `InviteMemberInput { email, role, personalMessage }`: submitting it sends
+an email and creates an invite token, but there might be no single
+`InviteMember` table row with exactly those fields. A search form, password
+reset request, import wizard, or checkout form often has the same shape: it is
+an action input, not a model.
 
 First define an input record that is also used by the action body:
 
@@ -94,15 +117,18 @@ data PostInput = PostInput
     , body :: Text
     , published :: Bool
     }
-    deriving (Generic)
 
-instance FromJSON PostInput
-instance ToJSON PostInput
-instance ToSchema PostInput
+instance FromFormBody PostInput where
+    parseFormBody request =
+        PostInput
+            <$> formBodyParam "title" request
+            <*> formBodyParam "body" request
+            <*> formBodyParam "published" request
 ```
 
-The generic `FromFormBody` instance is used automatically when all fields have
-`ParamReader` instances.
+`formBodyParam` uses IHP's existing `ParamReader` instances. For small records
+you can opt into generic form decoding with `genericParseFormBody`, but explicit
+instances keep reloads faster for larger input records.
 
 Then define the typed action:
 
@@ -112,13 +138,13 @@ data PostsAction request response where
         :: { postId :: Id Post
            , returnTo :: Maybe Text
            }
-        -> PostsAction ('Body PostInput) ShowView
+        -> PostsAction ('BodyWith PostInput '[ 'FormUrlEncoded]) ShowView
 ```
 
-`'Body PostInput` accepts both browser form submissions
-(`application/x-www-form-urlencoded`) and JSON requests (`application/json`) by
-default. The same `PostInput` type is used by `formForAction`, request decoding
-and OpenAPI generation.
+`'BodyWith PostInput '[ 'FormUrlEncoded]` accepts browser form submissions. Use
+`'Body PostInput` when the action should accept both forms and JSON requests;
+then add the matching `FromJSON`, `ToJSON` and `ToSchema` instances to reuse the
+same input type for request decoding and OpenAPI generation.
 
 Render the form against a typed action:
 
