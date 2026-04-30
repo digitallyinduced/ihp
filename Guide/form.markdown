@@ -94,12 +94,11 @@ Use `formForAction` when the submit target is a typed action. The action URL,
 HTTP method, form encoding, decoded request body, and, for documented actions,
 OpenAPI request body all come from the same typed route and body definition.
 This avoids the drift that can happen with the older `formFor'` escape hatch:
-`formFor'` lets a model-backed form point at any `Text` URL, but the method,
-`_method` override, enctype, and action-side parameter handling still live
-elsewhere. If a route changes from `POST` to `PATCH`, a file field is added and
-the form needs `multipart/form-data`, or the action starts reading a different
-parameter name, the old form can keep rendering because those facts are not part
-of the `formFor'` type.
+`formFor'` lets a model-backed form point at any `Text` URL, but the HTTP
+method, `_method` override, and enctype still have to be kept in sync manually.
+For example, if a typed route changes from `POST` to `PATCH`, or from
+`application/x-www-form-urlencoded` to `multipart/form-data`, `formForAction`
+updates the generated form attributes from the route type.
 
 Typed action forms are also useful when there is no natural database model for
 the form. For example, an organization settings page can render an invite form
