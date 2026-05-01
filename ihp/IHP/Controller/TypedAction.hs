@@ -216,6 +216,10 @@ instance {-# OVERLAPPABLE #-} (JSON.FromJSON input) => FromJsonBody input where
 class FromFormBody input where
     parseFormBody :: Request -> Either RequestDecodeError input
 
+instance {-# OVERLAPPABLE #-} (Generic input, GFromFormBody (Rep input)) => FromFormBody input where
+    parseFormBody = genericParseFormBody
+    {-# INLINE parseFormBody #-}
+
 -- | Read one URL-encoded form field from a request using IHP's existing
 -- 'ParamReader' instances.
 formBodyParam ::
@@ -230,10 +234,11 @@ formBodyParam name request =
         Left exception -> Left (paramExceptionToDecodeError exception)
 {-# INLINE formBodyParam #-}
 
--- | Opt-in 'Generic' implementation for small request records.
+-- | Generic implementation for record-style request bodies.
 --
--- Prefer explicit 'FromFormBody' instances for larger records to keep IHP live
--- reloads fast.
+-- This is used by the default 'FromFormBody' instance. You can also call it
+-- from custom instances when you want to combine generic decoding with
+-- application-specific parsing.
 genericParseFormBody :: (Generic input, GFromFormBody (Rep input)) => Request -> Either RequestDecodeError input
 genericParseFormBody request = to <$> gParseFormBody request
 {-# INLINE genericParseFormBody #-}

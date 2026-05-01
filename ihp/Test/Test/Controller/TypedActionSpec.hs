@@ -50,11 +50,6 @@ data ProjectInput = ProjectInput
 instance JSON.FromJSON ProjectInput
 instance JSON.ToJSON ProjectInput
 instance ToSchema ProjectInput
-instance FromFormBody ProjectInput where
-    parseFormBody request =
-        ProjectInput
-            <$> formBodyParam "name" request
-            <*> formBodyParam "enabled" request
 
 instance FromMultipartBody ProjectInput where
     parseMultipartBody _ = Right ProjectInput{name = "from multipart", enabled = True}
@@ -64,9 +59,6 @@ data GenericFormInput = GenericFormInput
     , genericEnabled :: Bool
     }
     deriving (Eq, Show, Generic)
-
-instance FromFormBody GenericFormInput where
-    parseFormBody = genericParseFormBody
 
 data ComplexFormInput = ComplexFormInput
     { textValue :: Text

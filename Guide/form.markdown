@@ -116,18 +116,15 @@ data PostInput = PostInput
     , body :: Text
     , published :: Bool
     }
+    deriving (Generic)
 
-instance FromFormBody PostInput where
-    parseFormBody request =
-        PostInput
-            <$> formBodyParam "title" request
-            <*> formBodyParam "body" request
-            <*> formBodyParam "published" request
+instance ToSchema PostInput
 ```
 
-`formBodyParam` uses IHP's existing `ParamReader` instances. For small records
-you can opt into generic form decoding with `genericParseFormBody`, but explicit
-instances keep reloads faster for larger input records.
+The default `FromFormBody` instance uses `Generic` and IHP's existing
+`ParamReader` instances to decode form fields with matching names. For custom
+parsing, define an explicit `FromFormBody` instance and read individual fields
+with `formBodyParam`.
 
 Then define the typed action:
 
