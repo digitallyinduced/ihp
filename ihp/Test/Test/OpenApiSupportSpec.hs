@@ -65,9 +65,6 @@ data CreateSessionRequest = CreateSessionRequest
 instance JSON.ToJSON CreateSessionRequest
 instance JSON.FromJSON CreateSessionRequest
 instance ToSchema CreateSessionRequest
-instance FromFormBody CreateSessionRequest where
-    parseFormBody request =
-        CreateSessionRequest <$> formBodyParam "token" request
 
 instance View BandView where
     html BandView{..} = [hsx||]
