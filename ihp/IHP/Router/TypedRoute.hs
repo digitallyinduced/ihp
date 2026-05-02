@@ -83,8 +83,10 @@ typedActionMethods = actionMethods
 {-# INLINE typedActionMethods #-}
 
 runTypedRouteAction ::
-    forall application controller.
+    forall application controller body response.
     ( Controller controller
+    , ControllerAction controller ~ TypedControllerAction body response
+    , RunTypedControllerAction body (ControllerAction controller) response
     , InitControllerContext application
     , ?application :: application
     , Typeable.Typeable application
@@ -98,15 +100,17 @@ runTypedRouteAction renderExpectation successStatus controller waiRequest waiRes
     earlyReturnMiddleware
         ( \request respond -> do
             context <- setupActionContext @application (Typeable.typeOf controller) request respond
+            let ?theAction = controller
             let ?context = context
             let ?respond = respond
             let ?request = context.request
             let ?modelContext = ?request.modelContext
-            runAction controller
+            authenticatedModelContext <- prepareRLSIfNeeded ?modelContext
+            let ?modelContext = authenticatedModelContext
+            beforeAction
+            runTypedControllerAction @body @(ControllerAction controller) @response successStatus (action controller)
         )
-        ( attachTypedRouteSuccessStatus successStatus
-            (attachOpenApiRenderExpectation renderExpectation waiRequest)
-        )
+        (attachOpenApiRenderExpectation renderExpectation waiRequest)
         waiRespond
 {-# INLINE runTypedRouteAction #-}
 

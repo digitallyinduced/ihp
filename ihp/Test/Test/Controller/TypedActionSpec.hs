@@ -149,36 +149,31 @@ deriving instance Show (BadProjectAction body response)
 deriving instance Eq (BadProjectAction body response)
 
 instance Controller (ProjectAction 'NoBody ProjectView) where
-    type ControllerAction (ProjectAction 'NoBody ProjectView) = ActionDef (ProjectAction 'NoBody ProjectView) 'NoBody ProjectView
+    type ControllerAction (ProjectAction 'NoBody ProjectView) = TypedControllerAction 'NoBody ProjectView
 
     action ShowProjectAction{..} =
-        typedAction do
-            pure ProjectView{viewProjectName = "show"}
+        pure ProjectView{viewProjectName = "show"}
 
 instance Controller (ProjectAction ('Body ProjectInput) ProjectView) where
-    type ControllerAction (ProjectAction ('Body ProjectInput) ProjectView) = ActionDef (ProjectAction ('Body ProjectInput) ProjectView) ('Body ProjectInput) ProjectView
+    type ControllerAction (ProjectAction ('Body ProjectInput) ProjectView) = TypedControllerAction ('Body ProjectInput) ProjectView
 
-    action UpdateProjectAction{..} =
-        typedAction do
-            pure ProjectView{viewProjectName = bodyParam #name}
+    action UpdateProjectAction{..} body =
+        pure ProjectView{viewProjectName = bodyParam body #name}
 
-    action ArchiveProjectAction{..} =
-        typedAction do
-            pure ProjectView{viewProjectName = bodyParam #name}
+    action ArchiveProjectAction{..} body =
+        pure ProjectView{viewProjectName = bodyParam body #name}
 
 instance Controller (ProjectAction ('BodyWith ProjectInput '[ 'Multipart]) ProjectView) where
-    type ControllerAction (ProjectAction ('BodyWith ProjectInput '[ 'Multipart]) ProjectView) = ActionDef (ProjectAction ('BodyWith ProjectInput '[ 'Multipart]) ProjectView) ('BodyWith ProjectInput '[ 'Multipart]) ProjectView
+    type ControllerAction (ProjectAction ('BodyWith ProjectInput '[ 'Multipart]) ProjectView) = TypedControllerAction ('BodyWith ProjectInput '[ 'Multipart]) ProjectView
 
-    action UploadProjectLogoAction{..} =
-        typedAction do
-            pure ProjectView{viewProjectName = bodyParam #name}
+    action UploadProjectLogoAction{..} body =
+        pure ProjectView{viewProjectName = bodyParam body #name}
 
 instance Controller (BadProjectAction ('Body ProjectInput) ProjectView) where
-    type ControllerAction (BadProjectAction ('Body ProjectInput) ProjectView) = ActionDef (BadProjectAction ('Body ProjectInput) ProjectView) ('Body ProjectInput) ProjectView
+    type ControllerAction (BadProjectAction ('Body ProjectInput) ProjectView) = TypedControllerAction ('Body ProjectInput) ProjectView
 
-    action BadUpdateProjectAction{..} =
-        typedAction do
-            pure ProjectView{viewProjectName = bodyParam #name}
+    action BadUpdateProjectAction{..} body =
+        pure ProjectView{viewProjectName = bodyParam body #name}
 
 $(pure [])
 
@@ -224,18 +219,18 @@ tests = do
     describe "IHP.Controller.TypedAction" do
         describe "typed body helpers" do
             it "reads fields from the decoded typed body" do
-                let ?typedBody = ProjectInput{name = "Acme", enabled = True}
+                let typedBody = ProjectInput{name = "Acme", enabled = True}
 
-                bodyParam #name `shouldBe` ("Acme" :: Text)
-                bodyParam #enabled `shouldBe` True
+                bodyParam typedBody #name `shouldBe` ("Acme" :: Text)
+                bodyParam typedBody #enabled `shouldBe` True
 
             it "fills a destination record from selected body fields" do
-                let ?typedBody = ProjectInput{name = "Acme", enabled = True}
+                let typedBody = ProjectInput{name = "Acme", enabled = True}
                 let emptyRecord = ProjectRecord{name = "", enabled = False, meta = def}
                 let expectedRecord = ProjectRecord{name = "Acme", enabled = True, meta = def{touchedFields = 3}}
 
                 emptyRecord
-                    |> fillBody @'["name", "enabled"]
+                    |> fillBody @'["name", "enabled"] typedBody
                     |> shouldBe expectedRecord
 
         describe "request decoding" do
@@ -281,14 +276,11 @@ tests = do
                     Right value ->
                         expectationFailure ("expected an unsupported content type error, got " <> cs (show value))
 
-        describe "typedAction" do
-            it "creates runtime-only action definitions" do
-                let actionDef :: ActionDef () 'NoBody ProjectView
-                    actionDef =
-                        typedAction do
-                            pure ProjectView{viewProjectName = "Acme"}
-                let ?typedBody = ()
-                view <- runActionDef actionDef
+        describe "TypedControllerAction" do
+            it "uses plain IO for NoBody actions" do
+                let runAction :: TypedControllerAction 'NoBody ProjectView
+                    runAction = pure ProjectView{viewProjectName = "Acme"}
+                view <- runAction
                 view.viewProjectName `shouldBe` "Acme"
 
         describe "typed routes" do

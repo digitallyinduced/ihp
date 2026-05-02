@@ -20,8 +20,7 @@ This module contains the opt-in typed action core. It is designed for GADT
 action types where the action value carries path/query parameters and the action
 indices carry the request body and response types.
 
-The runtime action uses IHP-style helpers like 'bodyParam' and 'fillBody'
-instead of taking a body argument directly:
+Actions with a request body take the decoded body as their second argument:
 
 @
 data ProjectsAction request response where
@@ -31,11 +30,10 @@ data ProjectsAction request response where
 
 instance Controller (ProjectsAction request response) where
     type ControllerAction (ProjectsAction request response) =
-        ActionDef (ProjectsAction request response) request response
+        TypedControllerAction request response
 
-    action UpdateProjectAction { projectId, returnTo } =
-        typedAction do
-            let name = bodyParam #name
+    action UpdateProjectAction { projectId, returnTo } body = do
+        let name = bodyParam body #name
             ...
 @
 
@@ -59,12 +57,12 @@ module IHP.Controller.TypedAction
     , genericParseFormBody
     , FromMultipartBody (..)
     , DecodeRequest (..)
+    , TypedControllerAction
+    , RenderTypedResponse
+    , RunTypedControllerAction (..)
     , BuildTypedRequestBodyDoc (..)
     , bodyParam
     , fillBody
-    , ActionDef (..)
-    , typedAction
-    , attachTypedRouteSuccessStatus
     , TypedRequestBodyDoc (..)
     , TypedRouteDocument (..)
     , ParameterDoc (..)
@@ -82,7 +80,6 @@ import Data.Proxy (Proxy (..))
 import Data.String.Conversions (cs)
 import Data.Text (Text)
 import Data.Typeable qualified as Typeable
-import Data.Vault.Lazy qualified as Vault
 import GHC.Generics
 import GHC.Records (HasField (..))
 import GHC.TypeLits
@@ -95,8 +92,7 @@ import IHP.ViewSupport qualified as ViewSupport
 import Network.HTTP.Types.Header (hContentType)
 import Network.HTTP.Types.Method (StdMethod)
 import Network.HTTP.Types.Status (Status, status200, status400, status415)
-import Network.Wai (responseLBS, vault)
-import System.IO.Unsafe (unsafePerformIO)
+import Network.Wai (responseLBS)
 import Prelude
 import Wai.Request.Params qualified as Params
 
@@ -321,82 +317,115 @@ unsupportedContentTypeError =
         }
 {-# INLINE unsupportedContentTypeError #-}
 
--- | Read a field from the decoded typed request body.
+-- | Controller action type for a typed route body and response pair.
+type family TypedControllerAction (body :: BodySpec) response :: Type where
+    TypedControllerAction 'NoBody response = IO response
+    TypedControllerAction ('Body input) response = input -> IO response
+    TypedControllerAction ('BodyWith input encodings) response = input -> IO response
+
+type RenderTypedResponse response =
+    ( ViewSupport.View response
+    , ViewSupport.JsonView response
+    , Typeable.Typeable response
+    , JSON.ToJSON (ViewSupport.JsonResponse response)
+    )
+
+class RunTypedControllerAction (body :: BodySpec) action response where
+    runTypedControllerAction ::
+        ( ?context :: ControllerContext
+        , ?request :: Request
+        , ?respond :: Respond
+        ) =>
+        Status ->
+        action ->
+        IO ResponseReceived
+
+instance (RenderTypedResponse response) => RunTypedControllerAction 'NoBody (IO response) response where
+    runTypedControllerAction status runAction =
+        runDecodedTypedControllerAction @'NoBody status (\() -> runAction)
+    {-# INLINE runTypedControllerAction #-}
+
+instance
+    ( DecodeRequest ('Body input)
+    , RenderTypedResponse response
+    ) =>
+    RunTypedControllerAction ('Body input) (input -> IO response) response
+    where
+    runTypedControllerAction status runAction =
+        runDecodedTypedControllerAction @('Body input) status runAction
+    {-# INLINE runTypedControllerAction #-}
+
+instance
+    ( DecodeRequest ('BodyWith input encodings)
+    , RenderTypedResponse response
+    ) =>
+    RunTypedControllerAction ('BodyWith input encodings) (input -> IO response) response
+    where
+    runTypedControllerAction status runAction =
+        runDecodedTypedControllerAction @('BodyWith input encodings) status runAction
+    {-# INLINE runTypedControllerAction #-}
+
+instance {-# OVERLAPPABLE #-} (RenderTypedResponse response) => RunControllerAction controller (IO response) where
+    runControllerActionDefault runAction =
+        runDecodedTypedControllerAction @'NoBody status200 (\() -> runAction)
+    {-# INLINE runControllerActionDefault #-}
+
+instance
+    {-# OVERLAPPABLE #-}
+    ( DecodeRequest ('Body input)
+    , RenderTypedResponse response
+    ) =>
+    RunControllerAction controller (input -> IO response)
+    where
+    runControllerActionDefault runAction =
+        runDecodedTypedControllerAction @('Body input) status200 runAction
+    {-# INLINE runControllerActionDefault #-}
+
+runDecodedTypedControllerAction ::
+    forall body response.
+    ( DecodeRequest body
+    , RenderTypedResponse response
+    , ?context :: ControllerContext
+    , ?request :: Request
+    , ?respond :: Respond
+    ) =>
+    Status ->
+    (DecodedRequest body -> IO response) ->
+    IO ResponseReceived
+runDecodedTypedControllerAction status runAction = do
+    decodedBody <- decodeRequest @body
+    case decodedBody of
+        Left RequestDecodeError{requestDecodeErrorStatus, requestDecodeErrorMessage} ->
+            respondAndExit (responseLBS requestDecodeErrorStatus [(hContentType, "text/plain")] (cs requestDecodeErrorMessage))
+        Right typedBody ->
+            runAction typedBody >>= renderHtmlOrJsonWithStatusCode status
+{-# INLINE runDecodedTypedControllerAction #-}
+
+-- | Read a field from a decoded typed request body.
 bodyParam ::
     forall field input value.
-    ( ?typedBody :: input
-    , KnownSymbol field
+    ( KnownSymbol field
     , HasField field input value
     ) =>
+    input ->
     Proxy field ->
     value
-bodyParam _ = getField @field ?typedBody
+bodyParam input _ = getField @field input
 {-# INLINE bodyParam #-}
 
--- | Copy a type-level list of fields from the decoded typed request body into
--- a destination record.
+-- | Copy a type-level list of fields from a decoded typed request body into a
+-- destination record.
 --
 -- This only compiles when every listed field exists on both the decoded body
 -- and the destination record with the same type.
 fillBody ::
     forall fields model input.
-    ( ?typedBody :: input
-    , CopyFields fields model input
-    ) =>
+    (CopyFields fields model input) =>
+    input ->
     model ->
     model
-fillBody = copyFields @fields ?typedBody
+fillBody input = copyFields @fields input
 {-# INLINE fillBody #-}
-
--- | Typed action definition. The runtime block can use '?typedBody'.
-data ActionDef controller body response = ActionDef
-    { runActionDef :: (?typedBody :: DecodedRequest body) => IO response
-    }
-
-instance
-    ( DecodeRequest body
-    , ViewSupport.View response
-    , ViewSupport.JsonView response
-    , Typeable.Typeable response
-    , JSON.ToJSON (ViewSupport.JsonResponse response)
-    ) =>
-    RunControllerAction controller (ActionDef controller body response)
-    where
-    runControllerActionDefault ActionDef{runActionDef} = do
-        decodedBody <- decodeRequest @body
-        case decodedBody of
-            Left RequestDecodeError{requestDecodeErrorStatus, requestDecodeErrorMessage} ->
-                respondAndExit (responseLBS requestDecodeErrorStatus [(hContentType, "text/plain")] (cs requestDecodeErrorMessage))
-            Right typedBody -> do
-                let ?typedBody = typedBody
-                runActionDef >>= renderHtmlOrJsonWithStatusCode typedRouteSuccessStatus
-    {-# INLINE runControllerActionDefault #-}
-
--- | Creates a typed action. The route DSL owns OpenAPI metadata and the
--- rendered success status.
-typedAction ::
-    ((?typedBody :: DecodedRequest body) => IO response) ->
-    ActionDef controller body response
-typedAction runAction = ActionDef{runActionDef = runAction}
-{-# INLINE typedAction #-}
-
-typedRouteSuccessStatusVaultKey :: Vault.Key Status
-typedRouteSuccessStatusVaultKey = unsafePerformIO Vault.newKey
-{-# NOINLINE typedRouteSuccessStatusVaultKey #-}
-
-typedRouteSuccessStatus :: (?request :: Request) => Status
-typedRouteSuccessStatus =
-    case Vault.lookup typedRouteSuccessStatusVaultKey ?request.vault of
-        Just status -> status
-        Nothing -> status200
-{-# INLINE typedRouteSuccessStatus #-}
-
--- | Stores the success status selected by the matched typed route in the
--- request. Used by typed-route dispatch before the controller action runs.
-attachTypedRouteSuccessStatus :: Status -> Request -> Request
-attachTypedRouteSuccessStatus status request =
-    request{vault = Vault.insert typedRouteSuccessStatusVaultKey status request.vault}
-{-# INLINE attachTypedRouteSuccessStatus #-}
 
 -- | Request body schema metadata for a typed route.
 data TypedRequestBodyDoc where

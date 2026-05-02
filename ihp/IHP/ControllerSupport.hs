@@ -31,6 +31,7 @@ module IHP.ControllerSupport
 , Request
 , rlsContextVaultKey
 , setupActionContext
+, prepareRLSIfNeeded
 , ResponseReceived
 ) where
 

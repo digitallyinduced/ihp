@@ -279,25 +279,24 @@ data PostsAction request response where
         -> PostsAction 'NoBody EditView
 ```
 
-Inside the action, read the decoded request body with `bodyParam` or copy fields
-with `fillBody`. These helpers only compile for fields that exist on the body
-type.
+Inside the action, the decoded request body is passed as the second argument.
+You can read fields directly, use `bodyParam`, or copy selected fields with
+`fillBody`. These helpers only compile for fields that exist on the body type.
 
 ```haskell
 instance Controller (PostsAction ('Body PostInput) ShowView) where
     type ControllerAction (PostsAction ('Body PostInput) ShowView) =
-        ActionDef (PostsAction ('Body PostInput) ShowView) ('Body PostInput) ShowView
+        TypedControllerAction ('Body PostInput) ShowView
 
-    action UpdatePostAction { postId, returnTo } =
-        typedAction do
-            post <- fetch postId
+    action UpdatePostAction { postId, returnTo } input = do
+        post <- fetch postId
 
-            post <-
-                post
-                    |> fillBody @'["title", "body"]
-                    |> updateRecord
+        post <-
+            post
+                |> fillBody @'["title", "body"] input
+                |> updateRecord
 
-            pure ShowView { .. }
+        pure ShowView { .. }
 ```
 
 The indented metadata block under the route documents operation metadata such

@@ -55,7 +55,7 @@ import Language.Haskell.TH (Q, Dec, Name)
 import qualified Language.Haskell.TH.Quote as TH
 import Text.Read (readMaybe)
 
-import IHP.Controller.TypedAction (ActionDef, BuildTypedRequestBodyDoc, ParameterLocation (..), mkTypedRouteDocument)
+import IHP.Controller.TypedAction (BuildTypedRequestBodyDoc, RunTypedControllerAction, TypedControllerAction, ParameterLocation (..), mkTypedRouteDocument)
 import IHP.ControllerSupport (ControllerAction)
 import IHP.Router.Capture (UrlCapture (..))
 import IHP.Router.DSL.AST (RouteAnnotation (..))
@@ -546,11 +546,11 @@ emitGadtRouteEntry appTyVarName ctrl route = do
 typedHandlerExpr :: Name -> ControllerInfo -> ValidatedRoute -> Q TH.Exp
 typedHandlerExpr appTyVarName ctrl route = do
     runnerName <- TH.newName "_typedRouteRunner"
-    typedActionName <- TH.newName "_typedAction"
-    (_bodyTy, responseTy) <- actionBodyResponse ctrl (coResultType (vrCon route))
+    controllerActionName <- TH.newName "_controllerAction"
+    (bodyTy, responseTy) <- actionBodyResponse ctrl (coResultType (vrCon route))
     metadata <- typedRouteMetadata route
     handler <- handlerExpr runnerName route
-    let typedAction = TH.VarE typedActionName
+    let controllerAction = TH.VarE controllerActionName
         renderExpectation =
             if routePrivate metadata
                 then TH.ConE 'Nothing
@@ -560,13 +560,22 @@ typedHandlerExpr appTyVarName ctrl route = do
                         (TH.AppTypeE (TH.VarE 'typedDocumentedRenderExpectationForResponse) responseTy)
         runner =
             TH.LamE
-                [TH.VarP typedActionName]
+                [TH.VarP controllerActionName]
                 ( foldl
                     TH.AppE
-                    (TH.AppTypeE (TH.VarE 'runTypedRouteAction) (TH.VarT appTyVarName))
+                    ( TH.AppTypeE
+                        ( TH.AppTypeE
+                            ( TH.AppTypeE
+                                (TH.AppTypeE (TH.VarE 'runTypedRouteAction) (TH.VarT appTyVarName))
+                                (coResultType (vrCon route))
+                            )
+                            bodyTy
+                        )
+                        responseTy
+                    )
                     [ renderExpectation
                     , statusExp metadata
-                    , typedAction
+                    , controllerAction
                     ]
                 )
     pure (TH.LetE [TH.ValD (TH.VarP runnerName) (TH.NormalB runner) []] handler)
@@ -677,12 +686,13 @@ gadtRouteConstraints ctrl route = do
     metadata <- typedRouteMetadata route
     let actionTy = coResultType (vrCon route)
         publicRoute = not (routePrivate metadata)
-        actionDefTy = TH.AppT (TH.AppT (TH.AppT (TH.ConT ''ActionDef) actionTy) bodyTy) responseTy
         controllerActionTy = TH.AppT (TH.ConT ''ControllerAction) actionTy
+        typedControllerActionTy = TH.AppT (TH.AppT (TH.ConT ''TypedControllerAction) bodyTy) responseTy
         controllerConstraints =
             [ TH.AppT (TH.ConT (TH.mkName "Controller")) actionTy
             , TH.AppT (TH.ConT ''Typeable) actionTy
-            , TH.AppT (TH.AppT TH.EqualityT controllerActionTy) actionDefTy
+            , TH.AppT (TH.AppT TH.EqualityT controllerActionTy) typedControllerActionTy
+            , TH.AppT (TH.AppT (TH.AppT (TH.ConT ''RunTypedControllerAction) bodyTy) typedControllerActionTy) responseTy
             ]
         typedDocumentConstraints =
             if publicRoute
