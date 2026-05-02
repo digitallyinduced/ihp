@@ -124,45 +124,39 @@ deriving instance Show (ApiAction body response)
 deriving instance Eq (ApiAction body response)
 
 instance Controller (ApiAction 'NoBody BandView) where
-    type ControllerAction (ApiAction 'NoBody BandView) = ActionDef (ApiAction 'NoBody BandView) 'NoBody BandView
+    type ControllerAction (ApiAction 'NoBody BandView) = TypedControllerAction 'NoBody BandView
 
     action ShowBandAction{..} =
-        typedAction do
-            pure BandView{..}
+        pure BandView{..}
 
 instance Controller (ApiAction 'NoBody RawJsonValueView) where
-    type ControllerAction (ApiAction 'NoBody RawJsonValueView) = ActionDef (ApiAction 'NoBody RawJsonValueView) 'NoBody RawJsonValueView
+    type ControllerAction (ApiAction 'NoBody RawJsonValueView) = TypedControllerAction 'NoBody RawJsonValueView
 
     action RawJsonValueAction =
-        typedAction do
-            pure RawJsonValueView
+        pure RawJsonValueView
 
 instance Controller (ApiAction 'NoBody WrongJsonShapeView) where
-    type ControllerAction (ApiAction 'NoBody WrongJsonShapeView) = ActionDef (ApiAction 'NoBody WrongJsonShapeView) 'NoBody WrongJsonShapeView
+    type ControllerAction (ApiAction 'NoBody WrongJsonShapeView) = TypedControllerAction 'NoBody WrongJsonShapeView
 
     action WrongJsonShapeAction{..} =
-        typedAction do
-            pure WrongJsonShapeView{..}
+        pure WrongJsonShapeView{..}
 
 instance Controller (ApiAction ('Body CreateSessionRequest) AckView) where
-    type ControllerAction (ApiAction ('Body CreateSessionRequest) AckView) = ActionDef (ApiAction ('Body CreateSessionRequest) AckView) ('Body CreateSessionRequest) AckView
+    type ControllerAction (ApiAction ('Body CreateSessionRequest) AckView) = TypedControllerAction ('Body CreateSessionRequest) AckView
 
-    action CreateApiSessionAction =
-        typedAction do
-            let _token = bodyParam #token
-            pure AckView
+    action CreateApiSessionAction body = do
+        let _token = bodyParam body #token
+        pure AckView
 
-    action CreatePipeSessionAction =
-        typedAction do
-            let _token = bodyParam #token
-            pure AckView
+    action CreatePipeSessionAction body = do
+        let _token = bodyParam body #token
+        pure AckView
 
 instance Controller (ApiAction 'NoBody AckView) where
-    type ControllerAction (ApiAction 'NoBody AckView) = ActionDef (ApiAction 'NoBody AckView) 'NoBody AckView
+    type ControllerAction (ApiAction 'NoBody AckView) = TypedControllerAction 'NoBody AckView
 
     action ShowApiSessionAction =
-        typedAction do
-            pure AckView
+        pure AckView
 
 $(pure [])
 
