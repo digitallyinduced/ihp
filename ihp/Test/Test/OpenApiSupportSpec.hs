@@ -15,7 +15,7 @@ import Data.Aeson.Key qualified as Key
 import Data.Aeson.KeyMap qualified as KeyMap
 import Data.Text qualified as Text
 import Data.Vector qualified as Vector
-import IHP.ControllerPrelude hiding (request)
+import IHP.TypedControllerPrelude hiding (request)
 import IHP.Environment
 import IHP.Test.Mocking
 import IHP.ViewPrelude hiding (action)
@@ -123,26 +123,15 @@ data ApiAction body response where
 deriving instance Show (ApiAction body response)
 deriving instance Eq (ApiAction body response)
 
-instance Controller (ApiAction 'NoBody BandView) where
-    type ControllerAction (ApiAction 'NoBody BandView) = TypedControllerAction 'NoBody BandView
-
-    action ShowBandAction{..} =
+instance TypedController ApiAction where
+    action ShowBandAction{..} () =
         pure BandView{..}
 
-instance Controller (ApiAction 'NoBody RawJsonValueView) where
-    type ControllerAction (ApiAction 'NoBody RawJsonValueView) = TypedControllerAction 'NoBody RawJsonValueView
-
-    action RawJsonValueAction =
+    action RawJsonValueAction () =
         pure RawJsonValueView
 
-instance Controller (ApiAction 'NoBody WrongJsonShapeView) where
-    type ControllerAction (ApiAction 'NoBody WrongJsonShapeView) = TypedControllerAction 'NoBody WrongJsonShapeView
-
-    action WrongJsonShapeAction{..} =
+    action WrongJsonShapeAction{..} () =
         pure WrongJsonShapeView{..}
-
-instance Controller (ApiAction ('Body CreateSessionRequest) AckView) where
-    type ControllerAction (ApiAction ('Body CreateSessionRequest) AckView) = TypedControllerAction ('Body CreateSessionRequest) AckView
 
     action CreateApiSessionAction body = do
         let _token = bodyParam body #token
@@ -152,10 +141,7 @@ instance Controller (ApiAction ('Body CreateSessionRequest) AckView) where
         let _token = bodyParam body #token
         pure AckView
 
-instance Controller (ApiAction 'NoBody AckView) where
-    type ControllerAction (ApiAction 'NoBody AckView) = TypedControllerAction 'NoBody AckView
-
-    action ShowApiSessionAction =
+    action ShowApiSessionAction () =
         pure AckView
 
 $(pure [])

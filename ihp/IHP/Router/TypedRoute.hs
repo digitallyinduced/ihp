@@ -37,16 +37,18 @@ import Data.Proxy (Proxy (..))
 import Data.String.Conversions (cs)
 import Data.Typeable qualified as Typeable
 import GHC.TypeLits (KnownSymbol, symbolVal)
-import IHP.Controller.TypedAction
-import IHP.ControllerSupport
+import IHP.Controller.Render (renderHtmlOrJsonWithStatusCode)
+import IHP.Controller.TypedAction (DecodeRequest (..), DecodedRequest, ParameterDoc (..), ParameterLocation (..), RenderTypedResponse, RequestDecodeError (..), TypedController, action, beforeAction)
+import IHP.ControllerSupport (ControllerContext, InitControllerContext, Request, Respond, ResponseReceived, prepareRLSIfNeeded, respondAndExit, setupActionContext)
 import IHP.RouterSupport
     ( DocumentedRenderExpectation (..)
     , attachOpenApiRenderExpectation
     )
 import IHP.ViewSupport qualified as ViewSupport
+import Network.HTTP.Types.Header (hContentType)
 import Network.HTTP.Types.Method (StdMethod)
 import Network.HTTP.Types.Status (Status)
-import Network.Wai (Application)
+import Network.Wai (Application, responseLBS)
 import Network.Wai.Middleware.EarlyReturn (earlyReturnMiddleware)
 import Prelude
 
@@ -84,35 +86,55 @@ typedActionMethods = actionMethods
 
 runTypedRouteAction ::
     forall application controller body response.
-    ( Controller controller
-    , ControllerAction controller ~ TypedControllerAction body response
-    , RunTypedControllerAction body (ControllerAction controller) response
+    ( TypedController controller
+    , DecodeRequest body
+    , RenderTypedResponse response
     , InitControllerContext application
     , ?application :: application
     , Typeable.Typeable application
-    , Typeable.Typeable controller
+    , Typeable.Typeable (controller body response)
     ) =>
     Maybe DocumentedRenderExpectation ->
     Status ->
-    controller ->
+    controller body response ->
     Application
-runTypedRouteAction renderExpectation successStatus controller waiRequest waiRespond =
+runTypedRouteAction renderExpectation successStatus typedAction waiRequest waiRespond =
     earlyReturnMiddleware
         ( \request respond -> do
-            context <- setupActionContext @application (Typeable.typeOf controller) request respond
-            let ?theAction = controller
+            context <- setupActionContext @application (Typeable.typeOf typedAction) request respond
+            let ?theAction = typedAction
             let ?context = context
             let ?respond = respond
             let ?request = context.request
             let ?modelContext = ?request.modelContext
             authenticatedModelContext <- prepareRLSIfNeeded ?modelContext
             let ?modelContext = authenticatedModelContext
-            beforeAction
-            runTypedControllerAction @body @(ControllerAction controller) @response successStatus (action controller)
+            beforeAction @controller @body @response
+            runTypedControllerAction @body @response successStatus (action typedAction)
         )
         (attachOpenApiRenderExpectation renderExpectation waiRequest)
         waiRespond
 {-# INLINE runTypedRouteAction #-}
+
+runTypedControllerAction ::
+    forall body response.
+    ( DecodeRequest body
+    , RenderTypedResponse response
+    , ?context :: ControllerContext
+    , ?request :: Request
+    , ?respond :: Respond
+    ) =>
+    Status ->
+    (DecodedRequest body -> IO response) ->
+    IO ResponseReceived
+runTypedControllerAction status runAction = do
+    decodedBody <- decodeRequest @body
+    case decodedBody of
+        Left RequestDecodeError{requestDecodeErrorStatus, requestDecodeErrorMessage} ->
+            respondAndExit (responseLBS requestDecodeErrorStatus [(hContentType, "text/plain")] (cs requestDecodeErrorMessage))
+        Right typedBody ->
+            runAction typedBody >>= renderHtmlOrJsonWithStatusCode status
+{-# INLINE runTypedControllerAction #-}
 
 typedDocumentedRenderExpectationForResponse ::
     forall response.

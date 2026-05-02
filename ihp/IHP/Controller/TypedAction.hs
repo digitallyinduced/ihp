@@ -24,14 +24,12 @@ Actions with a request body take the decoded body as their second argument:
 
 @
 data ProjectsAction request response where
-    UpdateProjectAction
-        :: { projectId :: Id Project, returnTo :: Maybe Text }
-        -> ProjectsAction ('Body ProjectInput) EditView
+    IndexProjectsAction :: ProjectsAction 'NoBody IndexView
+    UpdateProjectAction :: { projectId :: Id Project, returnTo :: Maybe Text } -> ProjectsAction ('Body ProjectInput) EditView
 
-instance Controller (ProjectsAction request response) where
-    type ControllerAction (ProjectsAction request response) =
-        TypedControllerAction request response
-
+instance TypedController ProjectsAction where
+    action IndexProjectsAction () = do
+        ...
     action UpdateProjectAction { projectId, returnTo } body = do
         let name = bodyParam body #name
             ...
@@ -57,9 +55,8 @@ module IHP.Controller.TypedAction
     , genericParseFormBody
     , FromMultipartBody (..)
     , DecodeRequest (..)
-    , TypedControllerAction
+    , TypedController (..)
     , RenderTypedResponse
-    , RunTypedControllerAction (..)
     , BuildTypedRequestBodyDoc (..)
     , bodyParam
     , fillBody
@@ -84,15 +81,15 @@ import GHC.Generics
 import GHC.Records (HasField (..))
 import GHC.TypeLits
 import IHP.Controller.Param (ParamException (..), ParamReader)
-import IHP.Controller.Render (renderHtmlOrJsonWithStatusCode)
-import IHP.ControllerSupport
+import IHP.ControllerSupport (ControllerContext, Request, Respond, getRequestBody)
+import IHP.ModelSupport (ModelContext)
 import IHP.Record (CopyFields (..))
 import IHP.RequestVault.ModelContext ()
 import IHP.ViewSupport qualified as ViewSupport
 import Network.HTTP.Types.Header (hContentType)
 import Network.HTTP.Types.Method (StdMethod)
-import Network.HTTP.Types.Status (Status, status200, status400, status415)
-import Network.Wai (responseLBS)
+import Network.HTTP.Types.Status (Status, status400, status415)
+import Network.Wai (requestHeaders)
 import Prelude
 import Wai.Request.Params qualified as Params
 
@@ -317,12 +314,6 @@ unsupportedContentTypeError =
         }
 {-# INLINE unsupportedContentTypeError #-}
 
--- | Controller action type for a typed route body and response pair.
-type family TypedControllerAction (body :: BodySpec) response :: Type where
-    TypedControllerAction 'NoBody response = IO response
-    TypedControllerAction ('Body input) response = input -> IO response
-    TypedControllerAction ('BodyWith input encodings) response = input -> IO response
-
 type RenderTypedResponse response =
     ( ViewSupport.View response
     , ViewSupport.JsonView response
@@ -330,76 +321,32 @@ type RenderTypedResponse response =
     , JSON.ToJSON (ViewSupport.JsonResponse response)
     )
 
-class RunTypedControllerAction (body :: BodySpec) action response where
-    runTypedControllerAction ::
+-- | Controller class for typed GADT action families.
+--
+-- A single instance covers all constructors of the GADT family. Routes provide
+-- the concrete body and response indices at dispatch time.
+class TypedController (controller :: BodySpec -> Type -> Type) where
+    beforeAction ::
         ( ?context :: ControllerContext
+        , ?modelContext :: ModelContext
+        , ?theAction :: controller body response
         , ?request :: Request
         , ?respond :: Respond
         ) =>
-        Status ->
-        action ->
-        IO ResponseReceived
+        IO ()
+    beforeAction = pure ()
+    {-# INLINE beforeAction #-}
 
-instance (RenderTypedResponse response) => RunTypedControllerAction 'NoBody (IO response) response where
-    runTypedControllerAction status runAction =
-        runDecodedTypedControllerAction @'NoBody status (\() -> runAction)
-    {-# INLINE runTypedControllerAction #-}
-
-instance
-    ( DecodeRequest ('Body input)
-    , RenderTypedResponse response
-    ) =>
-    RunTypedControllerAction ('Body input) (input -> IO response) response
-    where
-    runTypedControllerAction status runAction =
-        runDecodedTypedControllerAction @('Body input) status runAction
-    {-# INLINE runTypedControllerAction #-}
-
-instance
-    ( DecodeRequest ('BodyWith input encodings)
-    , RenderTypedResponse response
-    ) =>
-    RunTypedControllerAction ('BodyWith input encodings) (input -> IO response) response
-    where
-    runTypedControllerAction status runAction =
-        runDecodedTypedControllerAction @('BodyWith input encodings) status runAction
-    {-# INLINE runTypedControllerAction #-}
-
-instance {-# OVERLAPPABLE #-} (RenderTypedResponse response) => RunControllerAction controller (IO response) where
-    runControllerActionDefault runAction =
-        runDecodedTypedControllerAction @'NoBody status200 (\() -> runAction)
-    {-# INLINE runControllerActionDefault #-}
-
-instance
-    {-# OVERLAPPABLE #-}
-    ( DecodeRequest ('Body input)
-    , RenderTypedResponse response
-    ) =>
-    RunControllerAction controller (input -> IO response)
-    where
-    runControllerActionDefault runAction =
-        runDecodedTypedControllerAction @('Body input) status200 runAction
-    {-# INLINE runControllerActionDefault #-}
-
-runDecodedTypedControllerAction ::
-    forall body response.
-    ( DecodeRequest body
-    , RenderTypedResponse response
-    , ?context :: ControllerContext
-    , ?request :: Request
-    , ?respond :: Respond
-    ) =>
-    Status ->
-    (DecodedRequest body -> IO response) ->
-    IO ResponseReceived
-runDecodedTypedControllerAction status runAction = do
-    decodedBody <- decodeRequest @body
-    case decodedBody of
-        Left RequestDecodeError{requestDecodeErrorStatus, requestDecodeErrorMessage} ->
-            respondAndExit (responseLBS requestDecodeErrorStatus [(hContentType, "text/plain")] (cs requestDecodeErrorMessage))
-        Right typedBody ->
-            runAction typedBody >>= renderHtmlOrJsonWithStatusCode status
-{-# INLINE runDecodedTypedControllerAction #-}
+    action ::
+        ( ?context :: ControllerContext
+        , ?modelContext :: ModelContext
+        , ?theAction :: controller body response
+        , ?request :: Request
+        , ?respond :: Respond
+        ) =>
+        controller body response ->
+        DecodedRequest body ->
+        IO response
 
 -- | Read a field from a decoded typed request body.
 bodyParam ::

@@ -348,6 +348,9 @@ route metadata.
 
 The modules defining typed actions usually need `GADTs`, `DataKinds`,
 `TypeApplications`, `TypeFamilies` and `StandaloneDeriving` enabled.
+Typed controller modules can import `IHP.TypedControllerPrelude` to get the
+typed `action` and `beforeAction` methods instead of the classic controller
+methods.
 
 Classic actions look like this:
 
@@ -423,6 +426,24 @@ response status and descriptions. Request body schemas come from the action
 body index, response schemas come from `JsonView.JsonResponse`, and path/query
 parameter schemas come from the route type. Add `private` under a typed route
 to omit it from OpenAPI without changing runtime routing.
+
+Implement the whole action family with one `TypedController` instance:
+
+```haskell
+instance TypedController PostsAction where
+    action EditPostAction { postId, returnTo } () = do
+        post <- fetch postId
+        pure EditView { .. }
+
+    action UpdatePostAction { postId, returnTo } input = do
+        post <- fetch postId
+        post <-
+            post
+                |> fillBody @'["title", "body"] input
+                |> updateRecord
+
+        pure ShowView { .. }
+```
 
 ## AutoRoute
 
