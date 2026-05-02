@@ -14,7 +14,7 @@
 
 {-|
 Module: IHP.Controller.TypedAction
-Description: Typed controller actions with request body specs and colocated OpenAPI metadata
+Description: Typed controller actions with request body specs
 
 This module contains the opt-in typed action core. It is designed for GADT
 action types where the action value carries path/query parameters and the action
@@ -34,16 +34,12 @@ instance Controller (ProjectsAction request response) where
         ActionDef (ProjectsAction request response) request response
 
     action UpdateProjectAction { projectId, returnTo } =
-        documented do
-            summary "Update project"
-        do
+        typedAction do
             let name = bodyParam #name
             ...
 @
 
-Path/query parameter documentation belongs to the typed route definition. The
-action documentation block only describes operation metadata such as summary,
-tags, success status, request body, and response.
+The route DSL owns the HTTP contract. Actions only contain runtime behavior.
 -}
 module IHP.Controller.TypedAction
     ( BodyEncoding (..)
@@ -63,23 +59,17 @@ module IHP.Controller.TypedAction
     , genericParseFormBody
     , FromMultipartBody (..)
     , DecodeRequest (..)
+    , BuildTypedRequestBodyDoc (..)
     , bodyParam
     , fillBody
     , ActionDef (..)
-    , documented
-    , undocumented
-    , TypedActionDoc (..)
+    , typedAction
+    , attachTypedRouteSuccessStatus
     , TypedRequestBodyDoc (..)
     , TypedRouteDocument (..)
     , ParameterDoc (..)
     , ParameterLocation (..)
-    , DocBuilder
-    , summary
-    , description
-    , tags
-    , operationId
-    , successStatus
-    , successResponseDescription
+    , mkTypedRouteDocument
     ) where
 
 import Data.Aeson qualified as JSON
@@ -92,6 +82,7 @@ import Data.Proxy (Proxy (..))
 import Data.String.Conversions (cs)
 import Data.Text (Text)
 import Data.Typeable qualified as Typeable
+import Data.Vault.Lazy qualified as Vault
 import GHC.Generics
 import GHC.Records (HasField (..))
 import GHC.TypeLits
@@ -104,7 +95,8 @@ import IHP.ViewSupport qualified as ViewSupport
 import Network.HTTP.Types.Header (hContentType)
 import Network.HTTP.Types.Method (StdMethod)
 import Network.HTTP.Types.Status (Status, status200, status400, status415)
-import Network.Wai (responseLBS)
+import Network.Wai (responseLBS, vault)
+import System.IO.Unsafe (unsafePerformIO)
 import Prelude
 import Wai.Request.Params qualified as Params
 
@@ -356,13 +348,9 @@ fillBody ::
 fillBody = copyFields @fields ?typedBody
 {-# INLINE fillBody #-}
 
--- | Typed action definition. The runtime block can use '?typedBody', while the
--- documentation block is pure metadata and can be inspected without running
--- the action.
+-- | Typed action definition. The runtime block can use '?typedBody'.
 data ActionDef controller body response = ActionDef
     { runActionDef :: (?typedBody :: DecodedRequest body) => IO response
-    , actionDefDoc :: Maybe (TypedActionDoc controller body response)
-    , actionDefSuccessStatus :: !Status
     }
 
 instance
@@ -374,75 +362,43 @@ instance
     ) =>
     RunControllerAction controller (ActionDef controller body response)
     where
-    runControllerActionDefault ActionDef{runActionDef, actionDefSuccessStatus} = do
+    runControllerActionDefault ActionDef{runActionDef} = do
         decodedBody <- decodeRequest @body
         case decodedBody of
             Left RequestDecodeError{requestDecodeErrorStatus, requestDecodeErrorMessage} ->
                 respondAndExit (responseLBS requestDecodeErrorStatus [(hContentType, "text/plain")] (cs requestDecodeErrorMessage))
             Right typedBody -> do
                 let ?typedBody = typedBody
-                runActionDef >>= renderHtmlOrJsonWithStatusCode actionDefSuccessStatus
+                runActionDef >>= renderHtmlOrJsonWithStatusCode typedRouteSuccessStatus
     {-# INLINE runControllerActionDefault #-}
 
--- | Creates a documented typed action. The response schema is inferred from
--- the runtime block's @IO response@ type.
-documented ::
-    forall controller body response.
-    ( BuildTypedRequestBodyDoc body
-    , ViewSupport.View response
-    , ViewSupport.JsonView response
-    , Typeable.Typeable response
-    , JSON.ToJSON (ViewSupport.JsonResponse response)
-    , ToSchema (ViewSupport.JsonResponse response)
-    ) =>
-    DocBuilder controller body response () ->
+-- | Creates a typed action. The route DSL owns OpenAPI metadata and the
+-- rendered success status.
+typedAction ::
     ((?typedBody :: DecodedRequest body) => IO response) ->
     ActionDef controller body response
-documented builder runAction =
-    let draft = execDocBuilder builder defaultTypedActionDocDraft
-        doc = buildTypedActionDoc @controller @body @response draft
-     in ActionDef
-            { runActionDef = runAction
-            , actionDefDoc = Just doc
-            , actionDefSuccessStatus = draft.draftSuccessStatus
-            }
-{-# INLINE documented #-}
+typedAction runAction = ActionDef{runActionDef = runAction}
+{-# INLINE typedAction #-}
 
--- | Creates a private typed action. The body still gets decoded and installed
--- as '?typedBody', but the route is omitted from typed OpenAPI metadata.
-undocumented ::
-    ((?typedBody :: DecodedRequest body) => IO response) ->
-    ActionDef controller body response
-undocumented runAction =
-    ActionDef
-        { runActionDef = runAction
-        , actionDefDoc = Nothing
-        , actionDefSuccessStatus = status200
-        }
-{-# INLINE undocumented #-}
+typedRouteSuccessStatusVaultKey :: Vault.Key Status
+typedRouteSuccessStatusVaultKey = unsafePerformIO Vault.newKey
+{-# NOINLINE typedRouteSuccessStatusVaultKey #-}
 
--- | OpenAPI-style metadata for a documented typed action.
-data TypedActionDoc controller body response where
-    TypedActionDoc ::
-        forall controller body response.
-        ( ViewSupport.View response
-        , ViewSupport.JsonView response
-        , Typeable.Typeable response
-        , JSON.ToJSON (ViewSupport.JsonResponse response)
-        , ToSchema (ViewSupport.JsonResponse response)
-        ) =>
-        { typedActionDocSummary :: Maybe Text
-        , typedActionDocDescription :: Maybe Text
-        , typedActionDocTags :: [Text]
-        , typedActionDocOperationId :: Maybe Text
-        , typedActionDocRequestBody :: Maybe TypedRequestBodyDoc
-        , typedActionDocResponse :: Proxy response
-        , typedActionDocSuccessStatus :: Status
-        , typedActionDocSuccessResponseDescription :: Text
-        } ->
-        TypedActionDoc controller body response
+typedRouteSuccessStatus :: (?request :: Request) => Status
+typedRouteSuccessStatus =
+    case Vault.lookup typedRouteSuccessStatusVaultKey ?request.vault of
+        Just status -> status
+        Nothing -> status200
+{-# INLINE typedRouteSuccessStatus #-}
 
--- | Request body schema metadata for a documented typed action.
+-- | Stores the success status selected by the matched typed route in the
+-- request. Used by typed-route dispatch before the controller action runs.
+attachTypedRouteSuccessStatus :: Status -> Request -> Request
+attachTypedRouteSuccessStatus status request =
+    request{vault = Vault.insert typedRouteSuccessStatusVaultKey status request.vault}
+{-# INLINE attachTypedRouteSuccessStatus #-}
+
+-- | Request body schema metadata for a typed route.
 data TypedRequestBodyDoc where
     TypedRequestBodyDoc ::
         forall input.
@@ -455,23 +411,32 @@ data TypedRequestBodyDoc where
         } ->
         TypedRequestBodyDoc
 
--- | A documented typed route with concrete routing metadata.
---
--- This is produced by typed route definitions and consumed by OpenAPI
--- generation. The action documentation itself still comes from the action's
--- colocated 'documented' block.
+-- | A typed route with concrete OpenAPI metadata.
 data TypedRouteDocument where
     TypedRouteDocument ::
-        forall controller body response.
+        forall response.
+        ( ViewSupport.View response
+        , ViewSupport.JsonView response
+        , Typeable.Typeable response
+        , JSON.ToJSON (ViewSupport.JsonResponse response)
+        , ToSchema (ViewSupport.JsonResponse response)
+        ) =>
         { typedRouteDocumentName :: Text
         , typedRouteDocumentPath :: Text
         , typedRouteDocumentMethods :: [StdMethod]
         , typedRouteDocumentParameters :: [ParameterDoc]
-        , typedRouteDocumentActionDoc :: TypedActionDoc controller body response
+        , typedRouteDocumentSummary :: Maybe Text
+        , typedRouteDocumentDescription :: Maybe Text
+        , typedRouteDocumentTags :: [Text]
+        , typedRouteDocumentOperationId :: Maybe Text
+        , typedRouteDocumentRequestBody :: Maybe TypedRequestBodyDoc
+        , typedRouteDocumentResponse :: Proxy response
+        , typedRouteDocumentSuccessStatus :: Status
+        , typedRouteDocumentSuccessResponseDescription :: Text
         } ->
         TypedRouteDocument
 
--- | Whether a documented parameter belongs in the route path or query string.
+-- | Whether a parameter belongs in the route path or query string.
 data ParameterLocation
     = PathParameter
     | QueryParameter
@@ -491,94 +456,6 @@ data ParameterDoc where
         , parameterTypeRep :: Typeable.TypeRep
         } ->
         ParameterDoc
-
-data TypedActionDocDraft = TypedActionDocDraft
-    { draftSummary :: Maybe Text
-    , draftDescription :: Maybe Text
-    , draftTags :: [Text]
-    , draftOperationId :: Maybe Text
-    , draftSuccessStatus :: Status
-    , draftSuccessResponseDescription :: Text
-    }
-
-defaultTypedActionDocDraft :: TypedActionDocDraft
-defaultTypedActionDocDraft =
-    TypedActionDocDraft
-        { draftSummary = Nothing
-        , draftDescription = Nothing
-        , draftTags = []
-        , draftOperationId = Nothing
-        , draftSuccessStatus = status200
-        , draftSuccessResponseDescription = "Successful response"
-        }
-
--- | Metadata builder used by 'documented'.
-newtype DocBuilder controller body response a = DocBuilder
-    { runDocBuilder :: TypedActionDocDraft -> (a, TypedActionDocDraft)
-    }
-
-instance Functor (DocBuilder controller body response) where
-    fmap f (DocBuilder run) =
-        DocBuilder \draft ->
-            let (value, draft') = run draft
-             in (f value, draft')
-    {-# INLINE fmap #-}
-
-instance Applicative (DocBuilder controller body response) where
-    pure value = DocBuilder \draft -> (value, draft)
-    {-# INLINE pure #-}
-
-    DocBuilder runFunction <*> DocBuilder runValue =
-        DocBuilder \draft ->
-            let (function, draft') = runFunction draft
-                (value, draft'') = runValue draft'
-             in (function value, draft'')
-    {-# INLINE (<*>) #-}
-
-instance Monad (DocBuilder controller body response) where
-    DocBuilder run >>= next =
-        DocBuilder \draft ->
-            let (value, draft') = run draft
-             in runDocBuilder (next value) draft'
-    {-# INLINE (>>=) #-}
-
-execDocBuilder :: DocBuilder controller body response () -> TypedActionDocDraft -> TypedActionDocDraft
-execDocBuilder (DocBuilder run) draft = snd (run draft)
-{-# INLINE execDocBuilder #-}
-
-modifyDoc :: (TypedActionDocDraft -> TypedActionDocDraft) -> DocBuilder controller body response ()
-modifyDoc update = DocBuilder \draft -> ((), update draft)
-{-# INLINE modifyDoc #-}
-
--- | Sets the OpenAPI operation summary.
-summary :: Text -> DocBuilder controller body response ()
-summary value = modifyDoc \draft -> draft{draftSummary = Just value}
-{-# INLINE summary #-}
-
--- | Sets the OpenAPI operation description.
-description :: Text -> DocBuilder controller body response ()
-description value = modifyDoc \draft -> draft{draftDescription = Just value}
-{-# INLINE description #-}
-
--- | Sets the OpenAPI operation tags.
-tags :: [Text] -> DocBuilder controller body response ()
-tags value = modifyDoc \draft -> draft{draftTags = value}
-{-# INLINE tags #-}
-
--- | Sets the OpenAPI operation id.
-operationId :: Text -> DocBuilder controller body response ()
-operationId value = modifyDoc \draft -> draft{draftOperationId = Just value}
-{-# INLINE operationId #-}
-
--- | Sets the documented and rendered success status.
-successStatus :: Status -> DocBuilder controller body response ()
-successStatus value = modifyDoc \draft -> draft{draftSuccessStatus = value}
-{-# INLINE successStatus #-}
-
--- | Sets the OpenAPI success response description.
-successResponseDescription :: Text -> DocBuilder controller body response ()
-successResponseDescription value = modifyDoc \draft -> draft{draftSuccessResponseDescription = value}
-{-# INLINE successResponseDescription #-}
 
 class BuildTypedRequestBodyDoc (body :: BodySpec) where
     typedRequestBodyDoc :: Maybe TypedRequestBodyDoc
@@ -624,8 +501,8 @@ mkTypedRequestBodyDoc =
         }
 {-# INLINE mkTypedRequestBodyDoc #-}
 
-buildTypedActionDoc ::
-    forall controller body response.
+mkTypedRouteDocument ::
+    forall body response.
     ( BuildTypedRequestBodyDoc body
     , ViewSupport.View response
     , ViewSupport.JsonView response
@@ -633,20 +510,33 @@ buildTypedActionDoc ::
     , JSON.ToJSON (ViewSupport.JsonResponse response)
     , ToSchema (ViewSupport.JsonResponse response)
     ) =>
-    TypedActionDocDraft ->
-    TypedActionDoc controller body response
-buildTypedActionDoc draft =
-    TypedActionDoc
-        { typedActionDocSummary = draft.draftSummary
-        , typedActionDocDescription = draft.draftDescription
-        , typedActionDocTags = draft.draftTags
-        , typedActionDocOperationId = draft.draftOperationId
-        , typedActionDocRequestBody = typedRequestBodyDoc @body
-        , typedActionDocResponse = Proxy @response
-        , typedActionDocSuccessStatus = draft.draftSuccessStatus
-        , typedActionDocSuccessResponseDescription = draft.draftSuccessResponseDescription
+    Text ->
+    Text ->
+    [StdMethod] ->
+    [ParameterDoc] ->
+    Maybe Text ->
+    Maybe Text ->
+    [Text] ->
+    Maybe Text ->
+    Status ->
+    Text ->
+    TypedRouteDocument
+mkTypedRouteDocument routeName routePath routeMethods routeParameters summary description tags operationId successStatus successResponseDescription =
+    TypedRouteDocument
+        { typedRouteDocumentName = routeName
+        , typedRouteDocumentPath = routePath
+        , typedRouteDocumentMethods = routeMethods
+        , typedRouteDocumentParameters = routeParameters
+        , typedRouteDocumentSummary = summary
+        , typedRouteDocumentDescription = description
+        , typedRouteDocumentTags = tags
+        , typedRouteDocumentOperationId = operationId
+        , typedRouteDocumentRequestBody = typedRequestBodyDoc @body
+        , typedRouteDocumentResponse = Proxy @response
+        , typedRouteDocumentSuccessStatus = successStatus
+        , typedRouteDocumentSuccessResponseDescription = successResponseDescription
         }
-{-# INLINE buildTypedActionDoc #-}
+{-# INLINE mkTypedRouteDocument #-}
 
 class GFromFormBody f where
     gParseFormBody :: Request -> Either RequestDecodeError (f p)

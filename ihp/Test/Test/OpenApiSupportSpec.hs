@@ -15,7 +15,6 @@ import Data.Aeson.Key qualified as Key
 import Data.Aeson.KeyMap qualified as KeyMap
 import Data.Text qualified as Text
 import Data.Vector qualified as Vector
-import IHP.Controller.TypedAction qualified as TypedAction
 import IHP.ControllerPrelude hiding (request)
 import IHP.Environment
 import IHP.Test.Mocking
@@ -40,10 +39,9 @@ data BandPayload = BandPayload
     , page :: !(Maybe Int)
     , tags :: ![Text]
     }
-    deriving (Eq, Show, Generic)
+    deriving (Eq, Show)
 
-instance JSON.ToJSON BandPayload
-instance ToSchema BandPayload
+$(deriveApiRecord ''BandPayload)
 
 data RawJsonValueView = RawJsonValueView
 data WrongJsonShapeView = WrongJsonShapeView {wrongBandId :: !Int}
@@ -129,44 +127,33 @@ instance Controller (ApiAction 'NoBody BandView) where
     type ControllerAction (ApiAction 'NoBody BandView) = ActionDef (ApiAction 'NoBody BandView) 'NoBody BandView
 
     action ShowBandAction{..} =
-        documented do
-            summary "Show a band payload"
-            TypedAction.tags ["Bands"]
-        do
+        typedAction do
             pure BandView{..}
 
 instance Controller (ApiAction 'NoBody RawJsonValueView) where
     type ControllerAction (ApiAction 'NoBody RawJsonValueView) = ActionDef (ApiAction 'NoBody RawJsonValueView) 'NoBody RawJsonValueView
 
     action RawJsonValueAction =
-        undocumented do
+        typedAction do
             pure RawJsonValueView
 
 instance Controller (ApiAction 'NoBody WrongJsonShapeView) where
     type ControllerAction (ApiAction 'NoBody WrongJsonShapeView) = ActionDef (ApiAction 'NoBody WrongJsonShapeView) 'NoBody WrongJsonShapeView
 
     action WrongJsonShapeAction{..} =
-        documented do
-            summary "Wrong shape route"
-        do
+        typedAction do
             pure WrongJsonShapeView{..}
 
 instance Controller (ApiAction ('Body CreateSessionRequest) AckView) where
     type ControllerAction (ApiAction ('Body CreateSessionRequest) AckView) = ActionDef (ApiAction ('Body CreateSessionRequest) AckView) ('Body CreateSessionRequest) AckView
 
     action CreateApiSessionAction =
-        documented do
-            summary "Create API session"
-        do
+        typedAction do
             let _token = bodyParam #token
             pure AckView
 
     action CreatePipeSessionAction =
-        documented do
-            summary "Create pipe session"
-            successStatus status201
-            successResponseDescription "Created response"
-        do
+        typedAction do
             let _token = bodyParam #token
             pure AckView
 
@@ -174,20 +161,29 @@ instance Controller (ApiAction 'NoBody AckView) where
     type ControllerAction (ApiAction 'NoBody AckView) = ActionDef (ApiAction 'NoBody AckView) 'NoBody AckView
 
     action ShowApiSessionAction =
-        documented do
-            summary "Show API session"
-        do
+        typedAction do
             pure AckView
 
 $(pure [])
 
 [routes|openApiTestRoutes
 GET|HEAD /test/bands/{bandId}?page&tags ShowBandAction { bandTags = #tags }
+  summary: Show a band payload
+  tags: Bands
 GET /test/raw-json                  RawJsonValueAction
+  private
 GET /test/wrong-json/{wrongBandId}  WrongJsonShapeAction
+  summary: Wrong shape route
 POST /test/CreateApiSession         CreateApiSessionAction
+  summary: Create API session
+  description: Creates a JSON API session.
+  operationId: createApiSession
 POST /test/CreatePipeSession        CreatePipeSessionAction
+  summary: Create pipe session
+  tags: Sessions
+  success: 201 Created response
 GET|HEAD /test/ShowApiSession       ShowApiSessionAction
+  summary: Show API session
 GET /docs                          SwaggerUiAction
 GET /docs/openapi.json             OpenApiJsonAction
 |]
@@ -292,11 +288,11 @@ tests = aroundAll (withMockContextAndApp RootApplication config) do
                         ]
             runSession (testJson "test/wrong-json/12") application >>= assertJsonBody expected
 
-        it "runs documented typed actions with decoded request bodies" $ withContextAndApp \application -> do
+        it "runs typed actions with decoded request bodies" $ withContextAndApp \application -> do
             let expected = JSON.object ["ok" JSON..= True]
             runSession (testPostJson "test/CreateApiSession" (JSON.object ["token" JSON..= ("abc" :: Text)])) application >>= assertJsonBody expected
 
-        it "uses documented success status for typed actions" $ withContextAndApp \application -> do
+        it "uses route success status for typed actions" $ withContextAndApp \application -> do
             response <- runSession (testPostJson "test/CreatePipeSession" (JSON.object ["token" JSON..= ("abc" :: Text)])) application
             response.simpleStatus `shouldBe` status201
             JSON.decode response.simpleBody `shouldBe` Just (JSON.object ["ok" JSON..= True])
@@ -314,6 +310,9 @@ tests = aroundAll (withMockContextAndApp RootApplication config) do
             getOperation `shouldSatisfy` isJust
 
             let Just operation = getOperation
+
+            lookupValue "summary" operation `shouldBe` Just (JSON.String "Show a band payload")
+            lookupValue "tags" operation `shouldBe` Just (JSON.Array (Vector.fromList [JSON.String "Bands"]))
 
             let Just bandIdParameter = lookupParameter "bandId" operation
             lookupValue "in" bandIdParameter `shouldBe` Just (JSON.String "path")
@@ -340,15 +339,20 @@ tests = aroundAll (withMockContextAndApp RootApplication config) do
             let Just bandPayloadSchema = lookupValue "BandPayload" componentsSchemas
             lookupValue "type" bandPayloadSchema `shouldBe` Just (JSON.String "object")
             (lookupValue "properties" bandPayloadSchema >>= lookupValue "bandId") `shouldSatisfy` isJust
+            lookupValue "required" bandPayloadSchema
+                `shouldBe` Just (JSON.Array (Vector.fromList [JSON.String "bandId", JSON.String "tags"]))
 
-        it "omits undocumented typed actions from the generated spec" $ withContextAndApp \_ -> do
+        it "omits private typed routes from the generated spec" $ withContextAndApp \_ -> do
             let spec = buildOpenApi WebApplication
             lookupPathOperation "/test/raw-json" "get" spec `shouldBe` Nothing
 
         it "keeps CreateApi and ShowApi action names unchanged in inferred typed route paths" $ withContextAndApp \_ -> do
             let spec = buildOpenApi WebApplication
 
-            lookupPathOperation "/test/CreateApiSession" "post" spec `shouldSatisfy` isJust
+            let createApiOperation = lookupPathOperation "/test/CreateApiSession" "post" spec
+            createApiOperation `shouldSatisfy` isJust
+            (lookupValue "description" =<< createApiOperation) `shouldBe` Just (JSON.String "Creates a JSON API session.")
+            (lookupValue "operationId" =<< createApiOperation) `shouldBe` Just (JSON.String "createApiSession")
             lookupPathOperation "/test/CreatePipeSession" "post" spec `shouldSatisfy` isJust
             lookupPathOperation "/test/CreateApiSession" "get" spec `shouldBe` Nothing
             lookupPathOperation "/test/ShowApiSession" "get" spec `shouldSatisfy` isJust

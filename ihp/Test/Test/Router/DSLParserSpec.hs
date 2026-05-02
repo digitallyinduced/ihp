@@ -16,16 +16,24 @@ mk :: Text -> [Route] -> Routes
 mk name rs = Routes { controllerName = Just name, routes = rs }
 
 rt :: Int -> [Method] -> [PathSeg] -> Text -> Route
-rt line ms ps name = Route ms ps [] (ActionRef name []) line HttpRoute
+rt line ms ps name = Route ms ps [] (ActionRef name []) line HttpRoute []
 
 rtQ :: Int -> [Method] -> [PathSeg] -> [Text] -> Text -> Route
-rtQ line ms ps qs name = Route ms ps qs (ActionRef name []) line HttpRoute
+rtQ line ms ps qs name = Route ms ps qs (ActionRef name []) line HttpRoute []
 
 rtWithBinds :: Int -> [Method] -> [PathSeg] -> Text -> [(Text, Text)] -> Route
-rtWithBinds line ms ps name bs = Route ms ps [] (ActionRef name bs) line HttpRoute
+rtWithBinds line ms ps name bs = Route ms ps [] (ActionRef name bs) line HttpRoute []
 
 rtWS :: Int -> [PathSeg] -> Text -> Route
-rtWS line ps name = Route [GET] ps [] (ActionRef name []) line WebSocketRoute
+rtWS line ps name = Route [GET] ps [] (ActionRef name []) line WebSocketRoute []
+
+ann :: Int -> Text -> Maybe Text -> RouteAnnotation
+ann line name value =
+    RouteAnnotation
+        { annotationName = name
+        , annotationValue = value
+        , annotationLine = line
+        }
 
 tests = do
     describe "IHP.Router.DSL.Parser" do
@@ -157,6 +165,63 @@ tests = do
                             ]
                         }
 
+            it "attaches indented metadata lines to the previous route" do
+                let source = Text.unlines
+                        [ "ApiController"
+                        , "GET /bands/{bandId}?page&tags ShowBandAction { bandTags = #tags }"
+                        , "  summary: Show a band payload"
+                        , "  tags: Bands, Search"
+                        , "POST /sessions CreateSessionAction"
+                        , "  success: 201 Created response"
+                        ]
+                    showRoute =
+                        (rtQ 2 [GET] [Literal "bands", Capture "bandId" Nothing] ["page", "tags"] "ShowBandAction")
+                            { routeAction = ActionRef "ShowBandAction" [("bandTags", "tags")]
+                            , routeAnnotations =
+                                [ ann 3 "summary" (Just "Show a band payload")
+                                , ann 4 "tags" (Just "Bands, Search")
+                                ]
+                            }
+                    createRoute =
+                        (rt 5 [POST] [Literal "sessions"] "CreateSessionAction")
+                            { routeAnnotations = [ann 6 "success" (Just "201 Created response")]
+                            }
+                parseRoutes source
+                    `shouldBe` Right (mk "ApiController" [showRoute, createRoute])
+
+            it "parses flag metadata such as private" do
+                let source = Text.unlines
+                        [ "ApiController"
+                        , "GET /raw RawJsonAction"
+                        , "  private"
+                        ]
+                parseRoutes source
+                    `shouldBe` Right
+                        ( mk
+                            "ApiController"
+                            [ (rt 2 [GET] [Literal "raw"] "RawJsonAction")
+                                { routeAnnotations = [ann 3 "private" Nothing]
+                                }
+                            ]
+                        )
+
+            it "keeps duplicate and unknown metadata syntactically valid" do
+                let source = Text.unlines
+                        [ "ApiController"
+                        , "GET /raw RawJsonAction"
+                        , "  summary: One"
+                        , "  summary: Two"
+                        , "  xCustom: Value"
+                        ]
+                case parseRoutes source of
+                    Right Routes{routes = [Route{routeAnnotations}]} ->
+                        routeAnnotations
+                            `shouldBe` [ ann 3 "summary" (Just "One")
+                                       , ann 4 "summary" (Just "Two")
+                                       , ann 5 "xCustom" (Just "Value")
+                                       ]
+                    _ -> expectationFailure "expected metadata to remain syntactically valid"
+
         describe "errors" do
             it "accepts empty block (header-less, zero routes)" do
                 parseRoutes "" `shouldBe`
@@ -245,4 +310,18 @@ tests = do
                     Left e -> do
                         errorLine e `shouldBe` 2
                         (cs (errorMessage e) :: String) `shouldContain` "WS routes do not support query parameters"
+                    Right _ -> expectationFailure "expected ParseError"
+
+            it "rejects metadata before any route" do
+                case parseRoutes "ApiController\n  summary: Missing route\nGET /raw RawJsonAction\n" of
+                    Left e -> do
+                        errorLine e `shouldBe` 2
+                        (cs (errorMessage e) :: String) `shouldContain` "metadata line must follow a route"
+                    Right _ -> expectationFailure "expected ParseError"
+
+            it "rejects invalid metadata names" do
+                case parseRoutes "ApiController\nGET /raw RawJsonAction\n  not valid: nope\n" of
+                    Left e -> do
+                        errorLine e `shouldBe` 3
+                        (cs (errorMessage e) :: String) `shouldContain` "invalid metadata name"
                     Right _ -> expectationFailure "expected ParseError"

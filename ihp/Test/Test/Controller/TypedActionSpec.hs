@@ -152,61 +152,55 @@ instance Controller (ProjectAction 'NoBody ProjectView) where
     type ControllerAction (ProjectAction 'NoBody ProjectView) = ActionDef (ProjectAction 'NoBody ProjectView) 'NoBody ProjectView
 
     action ShowProjectAction{..} =
-        documented do
-            summary "Show project"
-            tags ["Projects"]
-        do
+        typedAction do
             pure ProjectView{viewProjectName = "show"}
 
 instance Controller (ProjectAction ('Body ProjectInput) ProjectView) where
     type ControllerAction (ProjectAction ('Body ProjectInput) ProjectView) = ActionDef (ProjectAction ('Body ProjectInput) ProjectView) ('Body ProjectInput) ProjectView
 
     action UpdateProjectAction{..} =
-        documented do
-            summary "Update project"
-            tags ["Projects"]
-            successStatus status201
-            successResponseDescription "Project updated"
-        do
+        typedAction do
             pure ProjectView{viewProjectName = bodyParam #name}
 
     action ArchiveProjectAction{..} =
-        documented do
-            summary "Archive project"
-            tags ["Projects"]
-        do
+        typedAction do
             pure ProjectView{viewProjectName = bodyParam #name}
 
 instance Controller (ProjectAction ('BodyWith ProjectInput '[ 'Multipart]) ProjectView) where
     type ControllerAction (ProjectAction ('BodyWith ProjectInput '[ 'Multipart]) ProjectView) = ActionDef (ProjectAction ('BodyWith ProjectInput '[ 'Multipart]) ProjectView) ('BodyWith ProjectInput '[ 'Multipart]) ProjectView
 
     action UploadProjectLogoAction{..} =
-        documented do
-            summary "Upload project logo"
-            tags ["Projects"]
-        do
+        typedAction do
             pure ProjectView{viewProjectName = bodyParam #name}
 
 instance Controller (BadProjectAction ('Body ProjectInput) ProjectView) where
     type ControllerAction (BadProjectAction ('Body ProjectInput) ProjectView) = ActionDef (BadProjectAction ('Body ProjectInput) ProjectView) ('Body ProjectInput) ProjectView
 
     action BadUpdateProjectAction{..} =
-        documented do
-            summary "Bad update project"
-        do
+        typedAction do
             pure ProjectView{viewProjectName = bodyParam #name}
 
 $(pure [])
 
 [routes|typedRouteTestRoutes
 POST|PATCH /projects/{projectId}?returnTo         UpdateProjectAction
+  summary: Update project
+  tags: Projects
+  success: 201 Project updated
 GET        /projects/{showProjectId}?includeArchived ShowProjectAction
+  summary: Show project
+  tags: Projects
 PATCH /projects/{archiveProjectId}/archive        ArchiveProjectAction
+  summary: Archive project
+  tags: Projects
 POST  /projects/{uploadProjectId}/logo            UploadProjectLogoAction
+  summary: Upload project logo
+  tags: Projects
 |]
 
 [routes|badTypedRouteTestRoutes
 POST /bad-projects/{badProjectId} BadUpdateProjectAction
+  summary: Bad update project
 |]
 
 data TypedRouteApplication = TypedRouteApplication
@@ -287,38 +281,15 @@ tests = do
                     Right value ->
                         expectationFailure ("expected an unsupported content type error, got " <> cs (show value))
 
-        describe "documented" do
-            it "keeps operation metadata next to the action and infers the response view" do
-                let typedAction = UpdateProjectAction{projectId = 1, returnTo = Nothing}
-                let actionDef = withDummyControllerContext typedAction (action typedAction)
-
-                actionDefSuccessStatus actionDef `shouldBe` status201
-                case actionDefDoc actionDef of
-                    Nothing -> expectationFailure "expected typed action docs"
-                    Just TypedActionDoc{..} -> do
-                        typedActionDocSummary `shouldBe` Just "Update project"
-                        typedActionDocTags `shouldBe` ["Projects"]
-                        typedActionDocSuccessStatus `shouldBe` status201
-                        typedActionDocSuccessResponseDescription `shouldBe` "Project updated"
-                        case typedActionDocRequestBody of
-                            Nothing -> expectationFailure "expected request body docs"
-                            Just TypedRequestBodyDoc{typedRequestBodyEncodings} ->
-                                typedRequestBodyEncodings `shouldBe` [FormUrlEncoded, Json]
-
-            it "uses BodyWith encodings when the route narrows accepted media types" do
-                let actionDef :: ActionDef () ('BodyWith ProjectInput '[ 'Json]) ProjectView
+        describe "typedAction" do
+            it "creates runtime-only action definitions" do
+                let actionDef :: ActionDef () 'NoBody ProjectView
                     actionDef =
-                        documented do
-                            summary "Create project"
-                        do
+                        typedAction do
                             pure ProjectView{viewProjectName = "Acme"}
-
-                case actionDefDoc actionDef of
-                    Nothing -> expectationFailure "expected typed action docs"
-                    Just TypedActionDoc{typedActionDocRequestBody = Just TypedRequestBodyDoc{typedRequestBodyEncodings}} ->
-                        typedRequestBodyEncodings `shouldBe` [Json]
-                    Just _ ->
-                        expectationFailure "expected request body docs"
+                let ?typedBody = ()
+                view <- runActionDef actionDef
+                view.viewProjectName `shouldBe` "Acme"
 
         describe "typed routes" do
             it "generates URLs from the typed route spec" do
@@ -344,7 +315,7 @@ tests = do
                 typedActionMethods ArchiveProjectAction{archiveProjectId = 42}
                     `shouldBe` Just [PATCH]
 
-            it "adds documented typed routes to OpenAPI" do
+            it "adds route-owned typed route metadata to OpenAPI" do
                 let spec = OpenApiSupport.buildOpenApi TypedRouteApplication
                 let Just operation = lookupPathOperation "/projects/{projectId}" "post" spec
 
@@ -580,25 +551,6 @@ tests = do
                         app
 
                 response.simpleStatus `shouldBe` status400
-
-withDummyControllerContext ::
-    controller ->
-    ( ( ?context :: ControllerContext
-      , ?modelContext :: ModelContext
-      , ?theAction :: controller
-      , ?respond :: Respond
-      , ?request :: Request
-      ) =>
-      value
-    ) ->
-    value
-withDummyControllerContext controller value =
-    let ?context = error "withDummyControllerContext: documentation must not use ?context"
-     in let ?modelContext = error "withDummyControllerContext: documentation must not use ?modelContext"
-         in let ?theAction = controller
-             in let ?respond = error "withDummyControllerContext: documentation must not use ?respond"
-                 in let ?request = Wai.defaultRequest
-                     in value
 
 requestWithBody :: [Header] -> RequestBody -> Wai.Request
 requestWithBody headers body =

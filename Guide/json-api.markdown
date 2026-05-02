@@ -240,6 +240,13 @@ data PostsAction request response where
 
 deriving instance Show (PostsAction request response)
 deriving instance Eq (PostsAction request response)
+
+[routes|webRoutes
+POST|PATCH /posts/{postId}?returnTo UpdatePostAction
+  summary: Update post
+  tags: Posts
+  success: 200 Successful response
+|]
 ```
 
 The JSON decoder uses `FromJSON`. Form requests use the default generic
@@ -282,10 +289,7 @@ instance Controller (PostsAction ('Body PostInput) ShowView) where
         ActionDef (PostsAction ('Body PostInput) ShowView) ('Body PostInput) ShowView
 
     action UpdatePostAction { postId, returnTo } =
-        documented do
-            summary "Update post"
-            tags ["Posts"]
-        do
+        typedAction do
             post <- fetch postId
 
             post <-
@@ -296,12 +300,11 @@ instance Controller (PostsAction ('Body PostInput) ShowView) where
             pure ShowView { .. }
 ```
 
-The `documented` block lives directly next to the runtime action. It documents
-operation metadata such as summary, tags, status, and descriptions. Path and
-query parameters are documented by the typed route definition, because the route
-definition is also responsible for parsing them and generating URLs. The request
-body schema comes from the action's `BodySpec`; and the response schema is
-inferred from the returned view's `JsonView` `JsonResponse` associated type.
+The indented metadata block under the route documents operation metadata such
+as summary, tags, status, and descriptions. The request body schema comes from
+the action's `BodySpec`; and the response schema is inferred from the returned
+view's `JsonView` `JsonResponse` associated type. Use `private` under a typed
+route to keep it routable while omitting it from OpenAPI.
 
 ```haskell
 instance View ShowView where
