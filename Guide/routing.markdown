@@ -388,6 +388,9 @@ Define the route shape once with `[routes|...|]`:
 [routes|webRoutes
 GET        /posts/{postId}/edit?returnTo EditPostAction
 POST|PATCH /posts/{postId}?returnTo      UpdatePostAction
+  summary: Update post
+  tags: Posts
+  success: 200 Successful response
 |]
 ```
 
@@ -415,10 +418,11 @@ the action value and uses that field type for parsing, URL rendering and
 OpenAPI schemas. `Maybe` query parameters are documented as optional;
 non-`Maybe` query parameters are required.
 
-The action's `documented` block should only describe operation metadata such as
-`summary`, `tags`, response status and descriptions. Request body schemas come
-from the action body index, response schemas come from `JsonView.JsonResponse`,
-and path/query parameter schemas come from the route type.
+Indented route metadata describes operation metadata such as `summary`, `tags`,
+response status and descriptions. Request body schemas come from the action
+body index, response schemas come from `JsonView.JsonResponse`, and path/query
+parameter schemas come from the route type. Add `private` under a typed route
+to omit it from OpenAPI without changing runtime routing.
 
 ## AutoRoute
 

@@ -15,6 +15,8 @@ module IHP.OpenApiSupport (
     Schema,
     toSchema,
     genericDeclareNamedSchema,
+    deriveApiRecord,
+    deriveToSchema,
     defaultSchemaOptions,
     OpenApiGenerationException (..),
     OpenApiInfo (..),
@@ -33,19 +35,23 @@ import Control.Exception qualified as Exception
 import Data.Aeson qualified as JSON
 import Data.Aeson.Key qualified as JSON.Key
 import Data.Aeson.KeyMap qualified as JSON.KeyMap
+import Data.Aeson.TH qualified as AesonTH
 import Data.Attoparsec.ByteString.Char8 (string)
 import Data.ByteString.Char8 qualified as ByteString
 import Data.ByteString.Lazy qualified as LazyByteString
 import Data.Dynamic (fromDynamic)
 import Data.Map.Strict qualified as Map
-import Data.OpenApi (Definitions, NamedSchema (..), Referenced, Schema, ToSchema (..), declareNamedSchema, declareSchemaRef, defaultSchemaOptions, genericDeclareNamedSchema, toSchema)
-import Data.OpenApi.Declare (runDeclare)
+import Data.OpenApi (Definitions, NamedSchema (..), OpenApiType (..), Referenced, Schema (..), ToSchema (..), declareNamedSchema, declareSchemaRef, defaultSchemaOptions, genericDeclareNamedSchema, toSchema)
+import Data.OpenApi.Declare (Declare, runDeclare)
 import Data.Semigroup (Semigroup (..))
+import Data.String qualified as String
 import Data.Text qualified as Text
 import Data.Text.Encoding qualified as Text
 import Data.Typeable qualified as Typeable
+import GHC.Exts qualified as Exts
 import IHP.Controller.Context qualified as Context
 import IHP.Controller.Response (respondWith)
+import IHP.Controller.TypedAction (FromFormBody (..))
 import IHP.Controller.TypedAction qualified as TypedAction
 import IHP.ControllerSupport (Controller (..))
 import IHP.ModelSupport
@@ -57,6 +63,8 @@ import Network.HTTP.Types.Header (hContentType)
 import Network.HTTP.Types.Method (StdMethod (..), parseMethod)
 import Network.HTTP.Types.Status (status200, statusCode)
 import Network.Wai (Request, Response, defaultRequest, requestMethod, responseBuilder, responseLBS)
+import Language.Haskell.TH qualified as TH
+import Prelude qualified
 import Text.Blaze.Html.Renderer.Utf8 qualified as Blaze
 import Text.Blaze.Html5 qualified as Html5
 import Text.Blaze.Html5.Attributes qualified as Attr
@@ -90,6 +98,204 @@ instance Monoid OpenApiDocument where
         OpenApiDocument
             { pathOperations = mempty
             , componentSchemas = mempty
+            }
+
+{- | Generates 'JSON.FromJSON', 'JSON.ToJSON', 'FromFormBody' and 'ToSchema'
+instances for a plain API record without using 'Generic'.
+
+@
+data PostInput = PostInput { title :: Text, body :: Text }
+$(deriveApiRecord ''PostInput)
+@
+
+Use this for request/response DTOs that should be accepted as JSON, returned as
+JSON, accepted as @application/x-www-form-urlencoded@, and included in OpenAPI
+schemas.
+-}
+deriveApiRecord :: TH.Name -> TH.DecsQ
+deriveApiRecord typeName = do
+    jsonDecs <- AesonTH.deriveJSON JSON.defaultOptions typeName
+    formDecs <- deriveFromFormBody typeName
+    schemaDecs <- deriveToSchema typeName
+    pure (jsonDecs <> formDecs <> schemaDecs)
+
+deriveFromFormBody :: TH.Name -> TH.DecsQ
+deriveFromFormBody typeName = do
+    RecordInfo{recordConstructorName, recordFields} <- reifyRecordInfo typeName
+    requestName <- TH.newName "request"
+
+    fieldVariableNames <-
+        recordFields
+            |> mapM \(fieldName, _) -> TH.newName (TH.nameBase fieldName)
+
+    fieldStatements <-
+        recordFields
+            |> zip fieldVariableNames
+            |> mapM \(fieldVariableName, (fieldName, _)) ->
+                TH.bindS
+                    (TH.varP fieldVariableName)
+                    [| TypedAction.formBodyParam (String.fromString $(TH.stringE (TH.nameBase fieldName))) $(TH.varE requestName) |]
+
+    let recordExpression =
+            TH.RecConE recordConstructorName
+                ( recordFields
+                    |> zip fieldVariableNames
+                    |> map \(fieldVariableName, (fieldName, _)) ->
+                        (fieldName, TH.VarE fieldVariableName)
+                )
+
+    finalStatement <- TH.noBindS [| pure $(pure recordExpression) |]
+
+    pure
+        [ TH.InstanceD
+            Nothing
+            []
+            (TH.AppT (TH.ConT ''FromFormBody) (TH.ConT typeName))
+            [ TH.FunD
+                'parseFormBody
+                [ TH.Clause [TH.VarP requestName] (TH.NormalB (TH.DoE Nothing (fieldStatements <> [finalStatement]))) []
+                ]
+            ]
+        ]
+
+{- | Generates a 'ToSchema' instance for a plain record without using 'Generic'.
+
+This is intentionally small and aimed at request/response DTOs:
+
+@
+data PostInput = PostInput { title :: Text, body :: Text }
+$(deriveToSchema ''PostInput)
+@
+
+The generated schema marks every field as required except fields whose type is
+'Maybe'.
+-}
+deriveToSchema :: TH.Name -> TH.DecsQ
+deriveToSchema typeName = do
+    RecordInfo{recordTypeName, recordFields} <- reifyRecordInfo typeName
+
+    schemaVariableNames <-
+        recordFields
+            |> zip [(1 :: Int) ..]
+            |> mapM \(index, _) -> TH.newName ("fieldSchema" <> Prelude.show index)
+
+    schemaStatements <-
+        recordFields
+            |> zip schemaVariableNames
+            |> mapM \(schemaVariableName, (_, fieldType)) -> do
+                proxyExpression <- TH.sigE (TH.conE 'Proxy) (TH.appT (TH.conT ''Proxy) (pure fieldType))
+                TH.bindS (TH.varP schemaVariableName) [| recordSchemaField $(pure proxyExpression) |]
+
+    let propertyExpressions =
+            recordFields
+                |> zip schemaVariableNames
+                |> map \(schemaVariableName, (fieldName, _)) ->
+                    [| ($(TH.stringE (TH.nameBase fieldName)), $(TH.varE schemaVariableName)) |]
+
+    let requiredExpressions =
+            recordFields
+                |> filter (not . isMaybeType . snd)
+                |> map (TH.stringE . TH.nameBase . fst)
+
+    finalStatement <-
+        TH.noBindS
+            [| pure (recordNamedSchema $(TH.stringE recordTypeName) $(TH.listE propertyExpressions) $(TH.listE requiredExpressions)) |]
+
+    let body = TH.DoE Nothing (schemaStatements <> [finalStatement])
+
+    pure
+        [ TH.InstanceD
+            Nothing
+            []
+            (TH.AppT (TH.ConT ''ToSchema) (TH.ConT typeName))
+            [ TH.FunD
+                'declareNamedSchema
+                [ TH.Clause [TH.WildP] (TH.NormalB body) []
+                ]
+            ]
+        ]
+
+data RecordInfo = RecordInfo
+    { recordTypeName :: String
+    , recordConstructorName :: TH.Name
+    , recordFields :: [(TH.Name, TH.Type)]
+    }
+
+reifyRecordInfo :: TH.Name -> TH.Q RecordInfo
+reifyRecordInfo typeName = do
+    info <- TH.reify typeName
+    reifyRecordInfoFromType typeName info
+
+reifyRecordInfoFromType :: TH.Name -> TH.Info -> TH.Q RecordInfo
+reifyRecordInfoFromType requestedName (TH.TyConI declaration) =
+    case declaration of
+        TH.DataD _ typeName typeVariables _ constructors _ ->
+            recordInfoFor requestedName typeName typeVariables constructors
+        TH.NewtypeD _ typeName typeVariables _ constructor _ ->
+            recordInfoFor requestedName typeName typeVariables [constructor]
+        _ ->
+            fail ("deriveToSchema: expected a data or newtype declaration for " <> TH.nameBase requestedName)
+reifyRecordInfoFromType requestedName _ =
+    fail ("deriveToSchema: expected a type constructor, but got " <> TH.nameBase requestedName)
+
+recordInfoFor :: TH.Name -> TH.Name -> [TH.TyVarBndr TH.BndrVis] -> [TH.Con] -> TH.Q RecordInfo
+recordInfoFor requestedName typeName typeVariables constructors = do
+    unless (null typeVariables) do
+        fail ("deriveToSchema: type parameters are not supported yet for " <> TH.nameBase requestedName)
+
+    case constructors of
+        [constructor] -> do
+            (constructorName, fields) <- constructorRecordFields requestedName constructor
+            pure
+                RecordInfo
+                    { recordTypeName = TH.nameBase typeName
+                    , recordConstructorName = constructorName
+                    , recordFields = fields
+                    }
+        _ ->
+            fail ("deriveToSchema: only single-constructor records are supported for " <> TH.nameBase requestedName)
+
+constructorRecordFields :: TH.Name -> TH.Con -> TH.Q (TH.Name, [(TH.Name, TH.Type)])
+constructorRecordFields requestedName = \case
+    TH.RecC constructorName fields -> do
+        recordFields <- mapM recordField fields
+        pure (constructorName, recordFields)
+    TH.RecGadtC [constructorName] fields _ -> do
+        recordFields <- mapM recordField fields
+        pure (constructorName, recordFields)
+    TH.RecGadtC _ _ _ ->
+        fail ("deriveToSchema: only single-constructor records are supported for " <> TH.nameBase requestedName)
+    TH.ForallC _ _ constructor ->
+        constructorRecordFields requestedName constructor
+    _ ->
+        fail ("deriveToSchema: only record constructors are supported for " <> TH.nameBase requestedName)
+
+recordField :: TH.VarBangType -> TH.Q (TH.Name, TH.Type)
+recordField (fieldName, _, fieldType) =
+    pure (fieldName, fieldType)
+
+isMaybeType :: TH.Type -> Bool
+isMaybeType = \case
+    TH.AppT (TH.ConT maybeName) _ | maybeName == ''Maybe -> True
+    TH.SigT fieldType _ -> isMaybeType fieldType
+    TH.ParensT fieldType -> isMaybeType fieldType
+    _ -> False
+
+recordSchemaField :: forall schema. ToSchema schema => Proxy schema -> Declare (Definitions Schema) (Referenced Schema)
+recordSchemaField = declareSchemaRef
+
+recordNamedSchema :: String -> [(String, Referenced Schema)] -> [String] -> NamedSchema
+recordNamedSchema schemaName propertySchemas requiredFields =
+    NamedSchema (Just (Text.pack schemaName)) schema
+  where
+    schema =
+        mempty
+            { _schemaType = Just OpenApiObject
+            , _schemaRequired = map Text.pack requiredFields
+            , _schemaProperties =
+                propertySchemas
+                    |> map (\(propertyName, propertySchema) -> (Text.pack propertyName, propertySchema))
+                    |> Exts.fromList
             }
 
 defaultOpenApiInfo :: forall application. (Typeable.Typeable application) => OpenApiInfo
@@ -397,14 +603,14 @@ insertTypedRouteOperation ::
     Either Text OpenApiDocument ->
     TypedAction.TypedRouteDocument ->
     Either Text OpenApiDocument
-insertTypedRouteOperation currentPrefix pathState (TypedAction.TypedRouteDocument routeName routePath methods routeParameters typedActionDoc) = do
+insertTypedRouteOperation currentPrefix pathState routeDocument@TypedAction.TypedRouteDocument{typedRouteDocumentName, typedRouteDocumentPath, typedRouteDocumentMethods, typedRouteDocumentParameters} = do
     OpenApiDocument{pathOperations, componentSchemas} <- pathState
-    let actionPath = appendPathPrefix currentPrefix routePath
-    validateTypedRoutePathParameters routeName actionPath routeParameters
-    let (operation, operationSchemas) = typedActionDocOperationValue routeName routeParameters typedActionDoc
+    let actionPath = appendPathPrefix currentPrefix typedRouteDocumentPath
+    validateTypedRoutePathParameters typedRouteDocumentName actionPath typedRouteDocumentParameters
+    let (operation, operationSchemas) = typedRouteDocumentOperationValue routeDocument
     pure
         OpenApiDocument
-            { pathOperations = foldl' (insertMethod actionPath operation) pathOperations methods
+            { pathOperations = foldl' (insertMethod actionPath operation) pathOperations typedRouteDocumentMethods
             , componentSchemas = componentSchemas <> operationSchemas
             }
 
@@ -469,26 +675,38 @@ pathParameterNames path =
                     else name : pathParameterNames (Text.drop 1 afterName)
 {-# INLINE pathParameterNames #-}
 
-typedActionDocOperationValue :: Text -> [TypedAction.ParameterDoc] -> TypedAction.TypedActionDoc controller body response -> (JSON.Value, Definitions Schema)
-typedActionDocOperationValue routeName routeParameters (TypedAction.TypedActionDoc summary description tags operationId requestBody response successStatus successResponseDescription) =
-    let SchemaDocumentation{documentedSchema, documentedDefinitions} = responseSchemaValue response
-        parameterDocumentation = map typedParameterDocumentation routeParameters
+typedRouteDocumentOperationValue :: TypedAction.TypedRouteDocument -> (JSON.Value, Definitions Schema)
+typedRouteDocumentOperationValue
+    TypedAction.TypedRouteDocument
+        { typedRouteDocumentName
+        , typedRouteDocumentParameters
+        , typedRouteDocumentSummary
+        , typedRouteDocumentDescription
+        , typedRouteDocumentTags
+        , typedRouteDocumentOperationId
+        , typedRouteDocumentRequestBody
+        , typedRouteDocumentResponse
+        , typedRouteDocumentSuccessStatus
+        , typedRouteDocumentSuccessResponseDescription
+        } =
+    let SchemaDocumentation{documentedSchema, documentedDefinitions} = responseSchemaValue typedRouteDocumentResponse
+        parameterDocumentation = map typedParameterDocumentation typedRouteDocumentParameters
         parameterDefinitions = parameterDocumentation |> map (\QueryParameterDocumentation{parameterDefinitions} -> parameterDefinitions) |> mconcat
-        requestBodyDocumentation = typedRequestBodySchemaValue <$> requestBody
+        requestBodyDocumentation = typedRequestBodySchemaValue <$> typedRouteDocumentRequestBody
         requestBodyDefinitions = requestBodyDocumentation |> fmap (.documentedDefinitions) |> fromMaybe mempty
         requestBodyValue =
-            case (requestBody, requestBodyDocumentation) of
+            case (typedRouteDocumentRequestBody, requestBodyDocumentation) of
                 (Just requestBodyDoc, Just schemaDocumentation) -> Just ("requestBody" JSON..= typedRequestBodyValue requestBodyDoc schemaDocumentation.documentedSchema)
                 _ -> Nothing
      in ( JSON.object
             ( [ Just ("parameters" JSON..= map queryParameterValue parameterDocumentation)
-              , Just ("responses" JSON..= JSON.object [cs (show (statusCode successStatus)) JSON..= successResponseValue successResponseDescription documentedSchema])
+              , Just ("responses" JSON..= JSON.object [cs (show (statusCode typedRouteDocumentSuccessStatus)) JSON..= successResponseValue typedRouteDocumentSuccessResponseDescription documentedSchema])
               , requestBodyValue
-              , ("summary" JSON..=) <$> summary
-              , ("description" JSON..=) <$> description
-              , if null tags then Nothing else Just ("tags" JSON..= tags)
-              , ("operationId" JSON..=) <$> operationId
-              , Just ("x-ihp-action" JSON..= routeName)
+              , ("summary" JSON..=) <$> typedRouteDocumentSummary
+              , ("description" JSON..=) <$> typedRouteDocumentDescription
+              , if null typedRouteDocumentTags then Nothing else Just ("tags" JSON..= typedRouteDocumentTags)
+              , ("operationId" JSON..=) <$> typedRouteDocumentOperationId
+              , Just ("x-ihp-action" JSON..= typedRouteDocumentName)
               ]
                 |> catMaybes
             )

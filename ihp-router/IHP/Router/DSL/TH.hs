@@ -592,6 +592,7 @@ data ValidatedRoute = ValidatedRoute
     -- The order mirrors the order in the DSL so @pathTo@'s rendered query
     -- string reads left-to-right as the user wrote it.
     , vrQueryFields       :: ![(Text, Text, QueryFieldKind, Type)]
+    , vrAnnotations       :: ![RouteAnnotation]
     }
 
 data ValidatedSeg
@@ -679,6 +680,7 @@ validateRoute ctrl rt = do
         , vrLine = routeLine rt
         , vrBindingsByCapture = bindingsByCapture
         , vrQueryFields = queryFields
+        , vrAnnotations = routeAnnotations rt
         }
   where
     fstOf4 (a, _, _, _) = a

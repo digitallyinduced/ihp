@@ -91,8 +91,8 @@ around a database record: the record type provides the fields, validation
 messages, generated input ids, submit label, and default create/update action.
 
 Use `formForAction` when the submit target is a typed action. The action URL,
-HTTP method, form encoding, decoded request body, and, for documented actions,
-OpenAPI request body all come from the same typed route and body definition.
+HTTP method, form encoding, decoded request body, and OpenAPI request body all
+come from the same typed route and body definition.
 This avoids the drift that can happen with the older `formFor'` escape hatch:
 `formFor'` lets a model-backed form point at any `Text` URL, but the HTTP
 method, `_method` override, and enctype still have to be kept in sync manually.
