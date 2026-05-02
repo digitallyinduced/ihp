@@ -22,7 +22,7 @@ import Data.Vault.Lazy qualified as Vault
 import IHP.AutoRefresh (AutoRefreshWSApp)
 import GHC.Generics (Generic)
 import IHP.Controller.TypedAction
-import IHP.ControllerSupport
+import IHP.ControllerSupport hiding (Controller (..))
 import IHP.FrameworkConfig qualified as FrameworkConfig
 import IHP.HSX.Markup (renderMarkupText)
 import IHP.ModelSupport
@@ -148,14 +148,9 @@ data BadProjectAction body response where
 deriving instance Show (BadProjectAction body response)
 deriving instance Eq (BadProjectAction body response)
 
-instance Controller (ProjectAction 'NoBody ProjectView) where
-    type ControllerAction (ProjectAction 'NoBody ProjectView) = TypedControllerAction 'NoBody ProjectView
-
-    action ShowProjectAction{..} =
+instance TypedController ProjectAction where
+    action ShowProjectAction{..} () =
         pure ProjectView{viewProjectName = "show"}
-
-instance Controller (ProjectAction ('Body ProjectInput) ProjectView) where
-    type ControllerAction (ProjectAction ('Body ProjectInput) ProjectView) = TypedControllerAction ('Body ProjectInput) ProjectView
 
     action UpdateProjectAction{..} body =
         pure ProjectView{viewProjectName = bodyParam body #name}
@@ -163,15 +158,10 @@ instance Controller (ProjectAction ('Body ProjectInput) ProjectView) where
     action ArchiveProjectAction{..} body =
         pure ProjectView{viewProjectName = bodyParam body #name}
 
-instance Controller (ProjectAction ('BodyWith ProjectInput '[ 'Multipart]) ProjectView) where
-    type ControllerAction (ProjectAction ('BodyWith ProjectInput '[ 'Multipart]) ProjectView) = TypedControllerAction ('BodyWith ProjectInput '[ 'Multipart]) ProjectView
-
     action UploadProjectLogoAction{..} body =
         pure ProjectView{viewProjectName = bodyParam body #name}
 
-instance Controller (BadProjectAction ('Body ProjectInput) ProjectView) where
-    type ControllerAction (BadProjectAction ('Body ProjectInput) ProjectView) = TypedControllerAction ('Body ProjectInput) ProjectView
-
+instance TypedController BadProjectAction where
     action BadUpdateProjectAction{..} body =
         pure ProjectView{viewProjectName = bodyParam body #name}
 
@@ -275,13 +265,6 @@ tests = do
                         requestDecodeErrorStatus `shouldBe` status415
                     Right value ->
                         expectationFailure ("expected an unsupported content type error, got " <> cs (show value))
-
-        describe "TypedControllerAction" do
-            it "uses plain IO for NoBody actions" do
-                let runAction :: TypedControllerAction 'NoBody ProjectView
-                    runAction = pure ProjectView{viewProjectName = "Acme"}
-                view <- runAction
-                view.viewProjectName `shouldBe` "Acme"
 
         describe "typed routes" do
             it "generates URLs from the typed route spec" do

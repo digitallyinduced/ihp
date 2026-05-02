@@ -284,9 +284,10 @@ You can read fields directly, use `bodyParam`, or copy selected fields with
 `fillBody`. These helpers only compile for fields that exist on the body type.
 
 ```haskell
-instance Controller (PostsAction ('Body PostInput) ShowView) where
-    type ControllerAction (PostsAction ('Body PostInput) ShowView) =
-        TypedControllerAction ('Body PostInput) ShowView
+instance TypedController PostsAction where
+    action EditPostAction { postId, returnTo } () = do
+        post <- fetch postId
+        pure EditView { .. }
 
     action UpdatePostAction { postId, returnTo } input = do
         post <- fetch postId

@@ -55,8 +55,7 @@ import Language.Haskell.TH (Q, Dec, Name)
 import qualified Language.Haskell.TH.Quote as TH
 import Text.Read (readMaybe)
 
-import IHP.Controller.TypedAction (BuildTypedRequestBodyDoc, RunTypedControllerAction, TypedControllerAction, ParameterLocation (..), mkTypedRouteDocument)
-import IHP.ControllerSupport (ControllerAction)
+import IHP.Controller.TypedAction (BuildTypedRequestBodyDoc, DecodeRequest, ParameterLocation (..), RenderTypedResponse, TypedController, mkTypedRouteDocument)
 import IHP.Router.Capture (UrlCapture (..))
 import IHP.Router.DSL.AST (RouteAnnotation (..))
 import IHP.Router.DSL.Runtime (buildRouteTrie)
@@ -430,12 +429,13 @@ constructorWildPattern ConstructorInfo{coName, coFieldsOrder} =
 -- 'FrontController.controllers' for a concrete app, GHC infers the right
 -- @app@.
 --
--- @parseRoute@ carries implicit-parameter constraints ('?request',
--- '?respond', '?application', plus 'Controller', 'CanRoute',
--- 'InitControllerContext', and 'Typeable'); @webSocketRoute@ carries
--- the same implicits but swaps 'Controller' \/ 'CanRoute' for 'WSApp'.
--- GHC cannot abstract those at the use site, so we emit an explicit
--- signature enumerating all of them.
+-- Classic @parseRoute@ entries carry implicit-parameter constraints
+-- ('?request', '?respond', '?application'), plus 'Controller', 'CanRoute',
+-- 'InitControllerContext', and 'Typeable'. Typed GADT entries add their
+-- 'TypedController' and typed body/response constraints directly.
+-- @webSocketRoute@ carries the same implicits but swaps controller constraints
+-- for 'WSApp'. GHC cannot abstract those at the use site, so we emit an
+-- explicit signature enumerating all of them.
 emitNamedBinding :: Text -> [(ControllerInfo, [ValidatedRoute])] -> [(Name, ByteString)] -> Q [Dec]
 emitNamedBinding bindingTxt groups wsBindings = do
     let valName = TH.mkName (Text.unpack bindingTxt)
@@ -546,11 +546,11 @@ emitGadtRouteEntry appTyVarName ctrl route = do
 typedHandlerExpr :: Name -> ControllerInfo -> ValidatedRoute -> Q TH.Exp
 typedHandlerExpr appTyVarName ctrl route = do
     runnerName <- TH.newName "_typedRouteRunner"
-    controllerActionName <- TH.newName "_controllerAction"
+    typedActionName <- TH.newName "_typedAction"
     (bodyTy, responseTy) <- actionBodyResponse ctrl (coResultType (vrCon route))
     metadata <- typedRouteMetadata route
     handler <- handlerExpr runnerName route
-    let controllerAction = TH.VarE controllerActionName
+    let typedAction = TH.VarE typedActionName
         renderExpectation =
             if routePrivate metadata
                 then TH.ConE 'Nothing
@@ -560,14 +560,14 @@ typedHandlerExpr appTyVarName ctrl route = do
                         (TH.AppTypeE (TH.VarE 'typedDocumentedRenderExpectationForResponse) responseTy)
         runner =
             TH.LamE
-                [TH.VarP controllerActionName]
+                [TH.VarP typedActionName]
                 ( foldl
                     TH.AppE
                     ( TH.AppTypeE
                         ( TH.AppTypeE
                             ( TH.AppTypeE
                                 (TH.AppTypeE (TH.VarE 'runTypedRouteAction) (TH.VarT appTyVarName))
-                                (coResultType (vrCon route))
+                                (TH.ConT (ciTypeName ctrl))
                             )
                             bodyTy
                         )
@@ -575,7 +575,7 @@ typedHandlerExpr appTyVarName ctrl route = do
                     )
                     [ renderExpectation
                     , statusExp metadata
-                    , controllerAction
+                    , typedAction
                     ]
                 )
     pure (TH.LetE [TH.ValD (TH.VarP runnerName) (TH.NormalB runner) []] handler)
@@ -686,13 +686,11 @@ gadtRouteConstraints ctrl route = do
     metadata <- typedRouteMetadata route
     let actionTy = coResultType (vrCon route)
         publicRoute = not (routePrivate metadata)
-        controllerActionTy = TH.AppT (TH.ConT ''ControllerAction) actionTy
-        typedControllerActionTy = TH.AppT (TH.AppT (TH.ConT ''TypedControllerAction) bodyTy) responseTy
         controllerConstraints =
-            [ TH.AppT (TH.ConT (TH.mkName "Controller")) actionTy
+            [ TH.AppT (TH.ConT ''TypedController) (TH.ConT (ciTypeName ctrl))
             , TH.AppT (TH.ConT ''Typeable) actionTy
-            , TH.AppT (TH.AppT TH.EqualityT controllerActionTy) typedControllerActionTy
-            , TH.AppT (TH.AppT (TH.AppT (TH.ConT ''RunTypedControllerAction) bodyTy) typedControllerActionTy) responseTy
+            , TH.AppT (TH.ConT ''DecodeRequest) bodyTy
+            , TH.AppT (TH.ConT ''RenderTypedResponse) responseTy
             ]
         typedDocumentConstraints =
             if publicRoute

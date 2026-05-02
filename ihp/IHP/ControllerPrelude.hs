@@ -54,7 +54,7 @@ import IHP.Controller.Session
 import IHP.Controller.BasicAuth
 import IHP.Controller.Cookie
 import IHP.ControllerSupport
-import IHP.Controller.TypedAction
+import IHP.Controller.TypedAction hiding (TypedController (..))
 import IHP.ValidationSupport
 import IHP.HaskellSupport
 import IHP.ModelSupport
