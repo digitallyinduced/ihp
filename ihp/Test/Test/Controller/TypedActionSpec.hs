@@ -16,15 +16,22 @@ import Data.Aeson.Key qualified as Key
 import Data.Aeson.KeyMap qualified as KeyMap
 import Data.Bits ((.|.))
 import Data.ByteString.Lazy qualified as LBS
+import Data.IORef
 import Data.TMap qualified as TypeMap
+import Data.Text qualified as Text
+import Data.Text.Encoding qualified as TextEncoding
 import Data.Vector qualified as Vector
 import Data.Vault.Lazy qualified as Vault
 import IHP.AutoRefresh (AutoRefreshWSApp)
+import Control.Exception qualified as Exception
 import GHC.Generics (Generic)
 import IHP.Controller.TypedAction
 import IHP.ControllerSupport hiding (Controller (..))
+import IHP.ErrorController qualified as ErrorController
 import IHP.FrameworkConfig qualified as FrameworkConfig
 import IHP.HSX.Markup (renderMarkupText)
+import IHP.Log qualified as Log
+import IHP.Log.Types (LogDestination (..))
 import IHP.ModelSupport
 import IHP.OpenApiSupport qualified as OpenApiSupport
 import IHP.Prelude
@@ -135,6 +142,10 @@ data ProjectAction body response where
         { uploadProjectId :: Int
         } ->
         ProjectAction ('BodyWith ProjectInput '[ 'Multipart]) ProjectView
+    FailAfterBodyDecodeAction ::
+        { failProjectId :: Int
+        } ->
+        ProjectAction ('Body ProjectInput) ProjectView
 
 deriving instance Show (ProjectAction body response)
 deriving instance Eq (ProjectAction body response)
@@ -161,6 +172,9 @@ instance TypedController ProjectAction where
     action UploadProjectLogoAction{..} body =
         pure ProjectView{viewProjectName = bodyParam body #name}
 
+    action FailAfterBodyDecodeAction{..} _body =
+        Exception.throwIO (userError "typed route failed after body decode")
+
 instance TypedController BadProjectAction where
     action BadUpdateProjectAction{..} body =
         pure ProjectView{viewProjectName = bodyParam body #name}
@@ -180,6 +194,9 @@ PATCH /projects/{archiveProjectId}/archive        ArchiveProjectAction
   tags: Projects
 POST  /projects/{uploadProjectId}/logo            UploadProjectLogoAction
   summary: Upload project logo
+  tags: Projects
+POST  /projects/{failProjectId}/fail              FailAfterBodyDecodeAction
+  summary: Fail after body decode
   tags: Projects
 |]
 
@@ -527,6 +544,35 @@ tests = do
 
                 response.simpleStatus `shouldBe` status400
 
+            it "logs request context and decoded body state for typed route 500s" do
+                logsRef <- newIORef []
+                logger <-
+                    Log.newLogger def
+                        { Log.destination =
+                            Callback
+                                (\logStr -> modifyIORef' logsRef (<> [TextEncoding.decodeUtf8Lenient (Log.fromLogStr logStr)]))
+                                (pure ())
+                        }
+                app <- createTypedRouteTestApplicationWithConfig (FrameworkConfig.option logger)
+
+                response <-
+                    WaiTest.runSession
+                        (testPostJson "projects/42/fail" (JSON.object ["name" JSON..= ("Acme" :: Text), "enabled" JSON..= True]))
+                        app
+
+                response.simpleStatus `shouldBe` status500
+
+                logText <- Text.concat <$> readIORef logsRef
+                logText `shouldSatisfyTextInfix` "Unhandled exception during request"
+                logText `shouldSatisfyTextInfix` "status: 500 Internal Server Error"
+                logText `shouldSatisfyTextInfix` "method: POST"
+                logText `shouldSatisfyTextInfix` "path: /projects/42/fail"
+                logText `shouldSatisfyTextInfix` "accept: application/json"
+                logText `shouldSatisfyTextInfix` "content-type: application/json"
+                logText `shouldSatisfyTextInfix` "body: json length="
+                logText `shouldSatisfyTextInfix` "decode=ok"
+                logText `shouldSatisfyTextInfix` "typed route failed after body decode"
+
 requestWithBody :: [Header] -> RequestBody -> Wai.Request
 requestWithBody headers body =
     Wai.defaultRequest
@@ -548,11 +594,15 @@ createControllerContext = do
     pure FrozenControllerContext{customFields}
 
 createTypedRouteTestApplication :: IO Wai.Application
-createTypedRouteTestApplication = do
-    frameworkConfig <- FrameworkConfig.buildFrameworkConfig (pure ())
+createTypedRouteTestApplication =
+    createTypedRouteTestApplicationWithConfig (pure ())
+
+createTypedRouteTestApplicationWithConfig :: FrameworkConfig.ConfigBuilder -> IO Wai.Application
+createTypedRouteTestApplicationWithConfig config = do
+    frameworkConfig <- FrameworkConfig.buildFrameworkConfig config
     let modelContext = notConnectedModelContext frameworkConfig.logger
     middleware <- Server.initMiddlewareStack frameworkConfig modelContext Nothing
-    pure (middleware (frontControllerToWAIApp @TypedRouteApplication @AutoRefreshWSApp id TypedRouteApplication typedRouteNotFound))
+    pure (ErrorController.errorHandlerMiddleware frameworkConfig (middleware (frontControllerToWAIApp @TypedRouteApplication @AutoRefreshWSApp id TypedRouteApplication typedRouteNotFound)))
 
 typedRouteNotFound :: Wai.Application
 typedRouteNotFound _ respond =
@@ -625,6 +675,10 @@ unsafeDecode payload =
     case JSON.decode payload of
         Just value -> value
         Nothing -> error "invalid test json"
+
+shouldSatisfyTextInfix :: Text -> Text -> Expectation
+shouldSatisfyTextInfix haystack needle =
+    haystack `shouldSatisfy` Text.isInfixOf needle
 
 parameterShape :: ParameterDoc -> (Text, ParameterLocation, Bool)
 parameterShape ParameterDoc{parameterName, parameterLocation, parameterRequired} =
