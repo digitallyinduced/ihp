@@ -306,6 +306,9 @@ the action's `BodySpec`; and the response schema is inferred from the returned
 view's `JsonView` `JsonResponse` associated type. Use `private` under a typed
 route to keep it routable while omitting it from OpenAPI.
 
+Use comma-separated names for multiple OpenAPI operation tags:
+`tags: Tickets, Organizations`.
+
 ```haskell
 instance View ShowView where
     html ShowView { post } = [hsx|...|]
@@ -332,11 +335,15 @@ To serve the generated document and Swagger UI, add the exported Swagger
 controller actions to your route DSL:
 
 ```haskell
+import qualified Data.OpenApi as OpenApi
+
 import IHP.OpenApiSupport
-    ( OpenApiInfo (..)
+    ( OpenApiOptions (..)
     , SwaggerUiController (..)
     , SwaggerUiControllerConfig (..)
+    , defaultOpenApiOptions
     , defaultSwaggerUiOptions
+    , overrideOpenApiTopLevel
     )
 
 [routes|openApiRoutes
@@ -358,22 +365,59 @@ instance FrontController WebApplication where
 `SwaggerUiAction` uses `pathTo OpenApiJsonAction`, so the Swagger UI always
 fetches the OpenAPI JSON from the route you declared.
 
-To customize the generated document metadata or Swagger UI assets, add a
-`SwaggerUiControllerConfig` instance. The URL fields are ignored when using the
-controller actions because `[routes|...|]` is the source of truth for URLs:
+To customize top-level OpenAPI metadata such as `servers`, `tags`,
+`externalDocs`, `security`, or reusable `components`, pass `OpenApiOptions`.
+The metadata fields use the types from the `openapi3` package:
+
+```haskell
+openApiOptions :: OpenApiOptions
+openApiOptions =
+    (defaultOpenApiOptions @WebApplication)
+        { openApiOptionsInfo =
+            OpenApi.Info
+                "Posts API"
+                (Just "JSON endpoints for posts")
+                (Just "https://example.com/terms")
+                Nothing
+                Nothing
+                "1.0.0"
+        , openApiOptionsServers =
+            [ OpenApi.Server "https://api.example.com" (Just "Production") mempty
+            ]
+        , openApiOptionsTags =
+            [ OpenApi.Tag "Posts" (Just "Post endpoints") Nothing
+            ]
+        , openApiOptionsExternalDocs =
+            Just (OpenApi.ExternalDocs (Just "Full API docs") (OpenApi.URL "https://docs.example.com"))
+        }
+```
+
+For OpenAPI fields not yet modeled by `OpenApiOptions`, use
+`overrideOpenApiTopLevel` with a JSON object. The override is shallow and wins
+over generated top-level fields:
+
+```haskell
+openApiOptionsWithLogo =
+    openApiOptions
+        |> overrideOpenApiTopLevel
+            (object
+                [ "x-logo" .= object
+                    [ "url" .= ("/logo.svg" :: Text)
+                    ]
+                ])
+```
+
+To customize the generated document metadata or Swagger UI assets when using the
+Swagger UI controller actions, add a `SwaggerUiControllerConfig` instance. The
+URL fields are ignored because `[routes|...|]` is the source of truth for URLs:
 
 ```haskell
 instance SwaggerUiControllerConfig WebApplication where
     swaggerUiControllerOptions =
         (defaultSwaggerUiOptions @WebApplication)
             { swaggerUiTitle = Just "My API"
-            , swaggerUiInfo =
-                OpenApiInfo
-                    { openApiTitle = "My API"
-                    , openApiVersion = "1.0.0"
-                    , openApiDescription = Just "Public API"
-                    }
             }
+    swaggerUiControllerOpenApiOptions = openApiOptions
 ```
 
 ## Building a REST API

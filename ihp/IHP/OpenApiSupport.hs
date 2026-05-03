@@ -21,14 +21,21 @@ module IHP.OpenApiSupport (
     OpenApiGenerationException (..),
     OpenApiInfo (..),
     defaultOpenApiInfo,
+    OpenApiOptions (..),
+    defaultOpenApiOptions,
+    openApiOptionsWithInfo,
+    overrideOpenApiTopLevel,
     buildOpenApi,
     buildOpenApiWithInfo,
+    buildOpenApiWithOptions,
     SwaggerUiOptions (..),
     defaultSwaggerUiOptions,
     SwaggerUiController (..),
     SwaggerUiControllerConfig (..),
     swaggerUi,
     swaggerUiWithOptions,
+    swaggerUiWithOpenApiOptions,
+    swaggerUiWithOptionsAndOpenApiOptions,
 ) where
 
 import Control.Exception qualified as Exception
@@ -43,6 +50,7 @@ import Data.Dynamic (fromDynamic)
 import Data.Map.Strict qualified as Map
 import Data.OpenApi (Definitions, NamedSchema (..), OpenApiType (..), Referenced, Schema (..), ToSchema (..), declareNamedSchema, declareSchemaRef, defaultSchemaOptions, genericDeclareNamedSchema, toSchema)
 import Data.OpenApi.Declare (Declare, runDeclare)
+import Data.OpenApi qualified as OpenApi
 import Data.Semigroup (Semigroup (..))
 import Data.String qualified as String
 import Data.Text qualified as Text
@@ -306,6 +314,51 @@ defaultOpenApiInfo =
         , openApiDescription = Nothing
         }
 
+data OpenApiOptions = OpenApiOptions
+    { openApiOptionsInfo :: OpenApi.Info
+    , openApiOptionsServers :: [OpenApi.Server]
+    , openApiOptionsComponents :: OpenApi.Components
+    , openApiOptionsSecurity :: [OpenApi.SecurityRequirement]
+    , openApiOptionsTags :: [OpenApi.Tag]
+    , openApiOptionsExternalDocs :: Maybe OpenApi.ExternalDocs
+    , openApiOptionsTopLevelOverride :: Maybe JSON.Value
+    }
+    deriving (Eq, Show)
+
+defaultOpenApiOptions :: forall application. (Typeable.Typeable application) => OpenApiOptions
+defaultOpenApiOptions = openApiOptionsWithInfo (defaultOpenApiInfo @application)
+
+openApiOptionsWithInfo :: OpenApiInfo -> OpenApiOptions
+openApiOptionsWithInfo info =
+    OpenApiOptions
+        { openApiOptionsInfo = openApiInfoToInfo info
+        , openApiOptionsServers = []
+        , openApiOptionsComponents = mempty
+        , openApiOptionsSecurity = []
+        , openApiOptionsTags = []
+        , openApiOptionsExternalDocs = Nothing
+        , openApiOptionsTopLevelOverride = Nothing
+        }
+
+-- | Applies a shallow top-level JSON object override to the generated OpenAPI
+-- document. This is intended as an escape hatch for OpenAPI fields not yet
+-- modeled by 'OpenApiOptions'.
+overrideOpenApiTopLevel :: JSON.Value -> OpenApiOptions -> OpenApiOptions
+overrideOpenApiTopLevel override options =
+    options{openApiOptionsTopLevelOverride = Just override}
+
+openApiInfoToInfo :: OpenApiInfo -> OpenApi.Info
+openApiInfoToInfo OpenApiInfo{openApiTitle, openApiVersion, openApiDescription} =
+    OpenApi.Info openApiTitle openApiDescription Nothing Nothing Nothing openApiVersion
+
+infoToOpenApiInfo :: OpenApi.Info -> OpenApiInfo
+infoToOpenApiInfo (OpenApi.Info title description _ _ _ version) =
+    OpenApiInfo
+        { openApiTitle = title
+        , openApiVersion = version
+        , openApiDescription = description
+        }
+
 data SwaggerUiOptions = SwaggerUiOptions
     { swaggerUiPath :: ByteString
     , swaggerUiOpenApiPath :: ByteString
@@ -331,6 +384,8 @@ document metadata and Swagger UI assets.
 -}
 class (Typeable.Typeable application) => SwaggerUiControllerConfig application where
     swaggerUiControllerOptions :: SwaggerUiOptions
+    swaggerUiControllerOpenApiOptions :: OpenApiOptions
+    swaggerUiControllerOpenApiOptions = openApiOptionsWithInfo (swaggerUiControllerOptions @application).swaggerUiInfo
 
 instance {-# OVERLAPPABLE #-} (Typeable.Typeable application) => SwaggerUiControllerConfig application where
     swaggerUiControllerOptions = defaultSwaggerUiOptions @application
@@ -344,14 +399,15 @@ instance
     where
     action SwaggerUiAction =
         let options = swaggerUiControllerOptions @application
+            openApiOptions = swaggerUiControllerOpenApiOptions @application
             openApiUrl = pathTo (OpenApiJsonAction @application)
-         in respondWith (swaggerUiHtmlResponse options openApiUrl)
+         in respondWith (swaggerUiHtmlResponse (swaggerUiOptionsWithOpenApiOptions options openApiOptions) openApiUrl)
 
     action OpenApiJsonAction =
         do
             application <- Context.fromContext @application
-            let options = swaggerUiControllerOptions @application
-            respondWith (openApiJsonResponse options.swaggerUiInfo application)
+            let openApiOptions = swaggerUiControllerOpenApiOptions @application
+            respondWith (openApiJsonResponse openApiOptions application)
 
 {- | Default Swagger UI settings for an application.
 
@@ -372,10 +428,13 @@ defaultSwaggerUiOptions =
             }
 
 buildOpenApi :: forall application. (FrontController application, Typeable.Typeable application) => application -> JSON.Value
-buildOpenApi = buildOpenApiWithInfo (defaultOpenApiInfo @application)
+buildOpenApi = buildOpenApiWithOptions (defaultOpenApiOptions @application)
 
 buildOpenApiWithInfo :: forall application. (FrontController application) => OpenApiInfo -> application -> JSON.Value
-buildOpenApiWithInfo info application =
+buildOpenApiWithInfo info = buildOpenApiWithOptions (openApiOptionsWithInfo info)
+
+buildOpenApiWithOptions :: forall application. (FrontController application) => OpenApiOptions -> application -> JSON.Value
+buildOpenApiWithOptions options application =
     let ?request = defaultRequest
         ?respond = dummyRespond
         ?application = application
@@ -383,14 +442,7 @@ buildOpenApiWithInfo info application =
          in case collectPaths "" routeTree of
                 Left errorMessage -> throwOpenApiGenerationException errorMessage
                 Right OpenApiDocument{pathOperations, componentSchemas} ->
-                    JSON.object
-                        ( [ Just ("openapi" JSON..= ("3.0.3" :: Text))
-                          , Just ("info" JSON..= openApiInfoValue info)
-                          , Just ("paths" JSON..= openApiPathsValue pathOperations)
-                          , if componentSchemas == mempty then Nothing else Just ("components" JSON..= openApiComponentsValue componentSchemas)
-                          ]
-                            |> catMaybes
-                        )
+                    openApiDocumentValue options pathOperations componentSchemas
   where
     dummyRespond _ = error "buildOpenApi: response callback should never be called"
 
@@ -414,6 +466,17 @@ swaggerUi ::
     ControllerRoute application
 swaggerUi = swaggerUiWithOptions (defaultSwaggerUiOptions @application)
 
+swaggerUiWithOpenApiOptions ::
+    forall application.
+    ( FrontController application
+    , Typeable.Typeable application
+    , ?application :: application
+    ) =>
+    OpenApiOptions ->
+    ControllerRoute application
+swaggerUiWithOpenApiOptions openApiOptions =
+    swaggerUiWithOptionsAndOpenApiOptions (defaultSwaggerUiOptions @application) openApiOptions
+
 {- | Mounts Swagger UI and the generated OpenAPI JSON for the current front controller.
 
 The JSON endpoint is derived from the same mounted router tree via
@@ -428,21 +491,40 @@ swaggerUiWithOptions ::
     SwaggerUiOptions ->
     ControllerRoute application
 swaggerUiWithOptions options@SwaggerUiOptions{swaggerUiPath, swaggerUiOpenApiPath, swaggerUiInfo} =
+    swaggerUiWithOptionsAndOpenApiOptions options (openApiOptionsWithInfo swaggerUiInfo)
+
+swaggerUiWithOptionsAndOpenApiOptions ::
+    forall application.
+    ( FrontController application
+    , ?application :: application
+    ) =>
+    SwaggerUiOptions ->
+    OpenApiOptions ->
+    ControllerRoute application
+swaggerUiWithOptionsAndOpenApiOptions options@SwaggerUiOptions{swaggerUiPath, swaggerUiOpenApiPath} openApiOptions =
     let normalizedBasePath = normalizeSwaggerUiBasePath swaggerUiPath
         normalizedOpenApiPath = normalizeSwaggerUiChildPath swaggerUiOpenApiPath
         openApiUrl = swaggerUiOpenApiUrl normalizedBasePath normalizedOpenApiPath
-        htmlResponse = swaggerUiHtmlResponse options{swaggerUiPath = normalizedBasePath, swaggerUiOpenApiPath = normalizedOpenApiPath} openApiUrl
+        normalizedOptions =
+            swaggerUiOptionsWithOpenApiOptions
+                options{swaggerUiPath = normalizedBasePath, swaggerUiOpenApiPath = normalizedOpenApiPath}
+                openApiOptions
+        htmlResponse = swaggerUiHtmlResponse normalizedOptions openApiUrl
         application = ?application
      in withPrefix
             normalizedBasePath
-            [ getResponseRoute normalizedOpenApiPath (\_ -> openApiJsonResponse swaggerUiInfo application)
+            [ getResponseRoute normalizedOpenApiPath (\_ -> openApiJsonResponse openApiOptions application)
             , getResponseRoute "" (\_ -> htmlResponse)
             , getResponseRoute "/" (\_ -> htmlResponse)
             ]
 
-openApiJsonResponse :: forall application. (FrontController application) => OpenApiInfo -> application -> Response
-openApiJsonResponse info application =
-    responseLBS status200 [(hContentType, "application/json")] (JSON.encode (buildOpenApiWithInfo info application))
+swaggerUiOptionsWithOpenApiOptions :: SwaggerUiOptions -> OpenApiOptions -> SwaggerUiOptions
+swaggerUiOptionsWithOpenApiOptions options openApiOptions =
+    options{swaggerUiInfo = infoToOpenApiInfo openApiOptions.openApiOptionsInfo}
+
+openApiJsonResponse :: forall application. (FrontController application) => OpenApiOptions -> application -> Response
+openApiJsonResponse options application =
+    responseLBS status200 [(hContentType, "application/json")] (JSON.encode (buildOpenApiWithOptions options application))
 
 swaggerUiHtmlResponse :: SwaggerUiOptions -> Text -> Response
 swaggerUiHtmlResponse options openApiUrl =
@@ -513,15 +595,46 @@ swaggerUiBootScript openApiUrlLiteral =
 
 jsonStringLiteral :: Text -> Text
 jsonStringLiteral = cs . LazyByteString.toStrict . JSON.encode
-openApiInfoValue :: OpenApiInfo -> JSON.Value
-openApiInfoValue OpenApiInfo{openApiTitle, openApiVersion, openApiDescription} =
+
+openApiDocumentValue :: OpenApiOptions -> PathOperations -> Definitions Schema -> JSON.Value
+openApiDocumentValue options@OpenApiOptions{openApiOptionsInfo, openApiOptionsServers, openApiOptionsSecurity, openApiOptionsTags, openApiOptionsExternalDocs, openApiOptionsTopLevelOverride} pathOperations componentSchemas =
     JSON.object
-        ( [ Just ("title" JSON..= openApiTitle)
-          , Just ("version" JSON..= openApiVersion)
-          , ("description" JSON..=) <$> openApiDescription
+        ( [ Just ("openapi" JSON..= ("3.0.3" :: Text))
+          , Just ("info" JSON..= openApiOptionsInfo)
+          , if null openApiOptionsServers then Nothing else Just ("servers" JSON..= openApiOptionsServers)
+          , Just ("paths" JSON..= openApiPathsValue pathOperations)
+          , openApiComponentsValue options componentSchemas
+          , if null openApiOptionsSecurity then Nothing else Just ("security" JSON..= openApiOptionsSecurity)
+          , if null openApiOptionsTags then Nothing else Just ("tags" JSON..= openApiOptionsTags)
+          , ("externalDocs" JSON..=) <$> openApiOptionsExternalDocs
           ]
             |> catMaybes
         )
+        |> applyOpenApiTopLevelOverride openApiOptionsTopLevelOverride
+
+applyOpenApiTopLevelOverride :: Maybe JSON.Value -> JSON.Value -> JSON.Value
+applyOpenApiTopLevelOverride Nothing document = document
+applyOpenApiTopLevelOverride (Just override) document =
+    mergeTopLevelJsonObject document override
+
+mergeTopLevelJsonObject :: JSON.Value -> JSON.Value -> JSON.Value
+mergeTopLevelJsonObject (JSON.Object document) (JSON.Object override) =
+    JSON.Object (foldl' insertOverride document (JSON.KeyMap.toList override))
+  where
+    insertOverride object (key, value) = JSON.KeyMap.insert key value object
+mergeTopLevelJsonObject _ _ =
+    throwOpenApiGenerationException "OpenAPI top-level override must be a JSON object"
+
+mergeJsonObjectsDeep :: JSON.Value -> JSON.Value -> JSON.Value
+mergeJsonObjectsDeep (JSON.Object left) (JSON.Object right) =
+    JSON.Object (foldl' insertMerged left (JSON.KeyMap.toList right))
+  where
+    insertMerged object (key, rightValue) =
+        let mergedValue = case JSON.KeyMap.lookup key object of
+                Just leftValue -> mergeJsonObjectsDeep leftValue rightValue
+                Nothing -> rightValue
+         in JSON.KeyMap.insert key mergedValue object
+mergeJsonObjectsDeep _ right = right
 
 type PathOperations = Map.Map Text (Map.Map Text JSON.Value)
 
@@ -592,11 +705,20 @@ openApiPathsValue paths =
         |> JSON.KeyMap.fromList
         |> JSON.Object
 
-openApiComponentsValue :: Definitions Schema -> JSON.Value
-openApiComponentsValue schemas =
-    JSON.object
-        [ "schemas" JSON..= schemas
-        ]
+openApiComponentsValue :: OpenApiOptions -> Definitions Schema -> Maybe (JSON.Key, JSON.Value)
+openApiComponentsValue OpenApiOptions{openApiOptionsComponents} schemas =
+    let optionsComponents = JSON.toJSON openApiOptionsComponents
+        generatedComponents
+            | schemas == mempty = JSON.Object JSON.KeyMap.empty
+            | otherwise = JSON.object ["schemas" JSON..= schemas]
+        components = mergeJsonObjectsDeep optionsComponents generatedComponents
+     in if isEmptyJsonObject components
+            then Nothing
+            else Just ("components", components)
+
+isEmptyJsonObject :: JSON.Value -> Bool
+isEmptyJsonObject (JSON.Object object) = JSON.KeyMap.null object
+isEmptyJsonObject _ = False
 
 insertTypedRouteOperation ::
     Text ->

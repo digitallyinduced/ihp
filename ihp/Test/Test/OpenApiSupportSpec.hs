@@ -13,6 +13,7 @@ import ClassyPrelude hiding (find)
 import Data.Aeson qualified as JSON
 import Data.Aeson.Key qualified as Key
 import Data.Aeson.KeyMap qualified as KeyMap
+import Data.OpenApi qualified as OpenApi
 import Data.Text qualified as Text
 import Data.Vector qualified as Vector
 import IHP.TypedControllerPrelude hiding (request)
@@ -149,7 +150,7 @@ $(pure [])
 [routes|openApiTestRoutes
 GET|HEAD /test/bands/{bandId}?page&tags ShowBandAction { bandTags = #tags }
   summary: Show a band payload
-  tags: Bands
+  tags: Bands, Search
 GET /test/raw-json                  RawJsonValueAction
   private
 GET /test/wrong-json/{wrongBandId}  WrongJsonShapeAction
@@ -173,6 +174,31 @@ instance SwaggerUiControllerConfig WebApplication where
         (defaultSwaggerUiOptions @WebApplication)
             { swaggerUiTitle = Just "Band API Docs"
             }
+    swaggerUiControllerOpenApiOptions = webApplicationOpenApiOptions
+
+webApplicationOpenApiOptions :: OpenApiOptions
+webApplicationOpenApiOptions =
+    (defaultOpenApiOptions @WebApplication)
+        { openApiOptionsInfo =
+            OpenApi.Info
+                "Band API"
+                (Just "JSON endpoints for bands and sessions")
+                (Just "https://example.com/terms")
+                (Just (OpenApi.Contact (Just "Band Support") (Just (OpenApi.URL "https://example.com/support")) (Just "support@example.com")))
+                (Just (OpenApi.License "MIT" (Just (OpenApi.URL "https://example.com/license"))))
+                "2026.1"
+        , openApiOptionsServers =
+            [ OpenApi.Server "https://api.example.com" (Just "Production") mempty
+            ]
+        , openApiOptionsTags =
+            [ OpenApi.Tag
+                "Bands"
+                (Just "Band payload endpoints")
+                (Just (OpenApi.ExternalDocs (Just "Band guide") (OpenApi.URL "https://docs.example.com/bands")))
+            ]
+        , openApiOptionsExternalDocs =
+            Just (OpenApi.ExternalDocs (Just "Full API documentation") (OpenApi.URL "https://docs.example.com"))
+        }
 
 instance FrontController WebApplication where
     controllers = openApiTestRoutes
@@ -292,7 +318,7 @@ tests = aroundAll (withMockContextAndApp RootApplication config) do
             let Just operation = getOperation
 
             lookupValue "summary" operation `shouldBe` Just (JSON.String "Show a band payload")
-            lookupValue "tags" operation `shouldBe` Just (JSON.Array (Vector.fromList [JSON.String "Bands"]))
+            lookupValue "tags" operation `shouldBe` Just (JSON.Array (Vector.fromList [JSON.String "Bands", JSON.String "Search"]))
 
             let Just bandIdParameter = lookupParameter "bandId" operation
             lookupValue "in" bandIdParameter `shouldBe` Just (JSON.String "path")
@@ -365,12 +391,59 @@ tests = aroundAll (withMockContextAndApp RootApplication config) do
             lookupValue "description" createdResponse `shouldBe` Just (JSON.String "Created response")
             (lookupValue "responses" operation >>= lookupValue "200") `shouldBe` Nothing
 
+        it "emits typed top-level OpenAPI metadata" $ withContextAndApp \_ -> do
+            let spec = buildOpenApiWithOptions webApplicationOpenApiOptions WebApplication
+
+            let Just info = lookupValue "info" spec
+            lookupValue "title" info `shouldBe` Just (JSON.String "Band API")
+            lookupValue "description" info `shouldBe` Just (JSON.String "JSON endpoints for bands and sessions")
+            lookupValue "termsOfService" info `shouldBe` Just (JSON.String "https://example.com/terms")
+            lookupValue "version" info `shouldBe` Just (JSON.String "2026.1")
+
+            let Just contact = lookupValue "contact" info
+            lookupValue "name" contact `shouldBe` Just (JSON.String "Band Support")
+            lookupValue "url" contact `shouldBe` Just (JSON.String "https://example.com/support")
+            lookupValue "email" contact `shouldBe` Just (JSON.String "support@example.com")
+
+            let Just license = lookupValue "license" info
+            lookupValue "name" license `shouldBe` Just (JSON.String "MIT")
+            lookupValue "url" license `shouldBe` Just (JSON.String "https://example.com/license")
+
+            let Just (JSON.Array servers) = lookupValue "servers" spec
+            let Just server = Vector.toList servers |> listToMaybe
+            lookupValue "url" server `shouldBe` Just (JSON.String "https://api.example.com")
+            lookupValue "description" server `shouldBe` Just (JSON.String "Production")
+
+            let Just (JSON.Array tags) = lookupValue "tags" spec
+            let Just tag = Vector.toList tags |> listToMaybe
+            lookupValue "name" tag `shouldBe` Just (JSON.String "Bands")
+            lookupValue "description" tag `shouldBe` Just (JSON.String "Band payload endpoints")
+
+            let Just externalDocs = lookupValue "externalDocs" spec
+            lookupValue "description" externalDocs `shouldBe` Just (JSON.String "Full API documentation")
+            lookupValue "url" externalDocs `shouldBe` Just (JSON.String "https://docs.example.com")
+
+        it "allows free JSON top-level overrides" $ withContextAndApp \_ -> do
+            let options =
+                    (defaultOpenApiOptions @RootApplication)
+                        |> overrideOpenApiTopLevel
+                            ( JSON.object
+                                [ "openapi" JSON..= ("3.1.0" :: Text)
+                                , "x-logo" JSON..= JSON.object ["url" JSON..= ("/logo.svg" :: Text)]
+                                ]
+                            )
+                spec = buildOpenApiWithOptions options RootApplication
+
+            lookupValue "openapi" spec `shouldBe` Just (JSON.String "3.1.0")
+            (lookupValue "x-logo" spec >>= lookupValue "url") `shouldBe` Just (JSON.String "/logo.svg")
+            lookupValue "paths" spec `shouldSatisfy` isJust
+
     describe "Swagger UI" do
         it "serves the generated OpenAPI JSON from the mounted router" $ withContextAndApp \application -> do
             response <- runSession (testGet "docs/openapi.json") application
             response.simpleStatus `shouldBe` status200
             Prelude.lookup hContentType response.simpleHeaders `shouldBe` Just "application/json"
-            JSON.decode response.simpleBody `shouldBe` Just (buildOpenApi WebApplication)
+            JSON.decode response.simpleBody `shouldBe` Just (buildOpenApiWithOptions webApplicationOpenApiOptions WebApplication)
 
         it "serves a Swagger UI page pointing at the generated OpenAPI JSON" $ withContextAndApp \application -> do
             response <- runSession (testGet "docs") application

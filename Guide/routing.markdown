@@ -427,6 +427,9 @@ body index, response schemas come from `JsonView.JsonResponse`, and path/query
 parameter schemas come from the route type. Add `private` under a typed route
 to omit it from OpenAPI without changing runtime routing.
 
+Use comma-separated names for multiple OpenAPI operation tags:
+`tags: Tickets, Organizations`.
+
 Implement the whole action family with one `TypedController` instance:
 
 ```haskell
