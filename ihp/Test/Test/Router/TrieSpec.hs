@@ -6,7 +6,7 @@ module Test.Router.TrieSpec where
 
 import Test.Hspec
 import IHP.Prelude
-import IHP.Router.Trie
+import "ihp" IHP.Router.Trie
 import Network.HTTP.Types.Method (StdMethod (..))
 import Network.Wai (responseLBS)
 import qualified Data.ByteString.Lazy as LBS

@@ -46,6 +46,13 @@ module IHP.Router.DSL.TH
     , ValidatedRoute (..)
     , ValidatedSeg (..)
     , QueryFieldKind (..)
+    , controllerAppliedType
+    , expandHeadForGet
+    , emitTrieFragment
+    , emitOneEntry
+    , patternExp
+    , handlerExpr
+    , routePathTemplate
     , trieValueName
     ) where
 
@@ -293,7 +300,7 @@ renderStaticPath segs = ByteString.Char8.pack $
 genericEmit :: ParsedBlock -> Q [Dec]
 genericEmit ParsedBlock { pbGroups } = do
     hasPathDecs <- traverse (\(ctrl, vs) -> emitHasPath ctrl vs) pbGroups
-    trieValueDecs <- fmap concat $ traverse emitTrieValue pbGroups
+    trieValueDecs <- fmap concat $ traverse emitTrieValue (filter (not . ciIsGadt . fst) pbGroups)
     pure (hasPathDecs <> trieValueDecs)
 
 ---------------------------------------------------------------------------
@@ -363,33 +370,76 @@ parentTypeOfAction rt = do
 reifyControllerByName :: Name -> Q ControllerInfo
 reifyControllerByName tyName = do
     info <- TH.reify tyName
-    cs <- case info of
-        TH.TyConI (TH.DataD _ _ _ _ cs _) -> traverse extractCon cs
-        TH.TyConI (TH.NewtypeD _ _ _ _ c _) -> fmap (: []) (extractCon c)
+    (typeVars, cs) <- case info of
+        TH.TyConI (TH.DataD _ _ typeVars _ cs _) -> do
+            constructors <- fmap concat (traverse (extractCon tyName typeVars) cs)
+            pure (typeVars, constructors)
+        TH.TyConI (TH.NewtypeD _ _ typeVars _ c _) -> do
+            constructors <- extractCon tyName typeVars c
+            pure (typeVars, constructors)
         _ -> fail $
             "routes: '" <> TH.nameBase tyName <>
             "' is not a data or newtype declaration"
     pure ControllerInfo
         { ciTypeName = tyName
+        , ciTypeVars = map tyVarBndrName typeVars
         , ciConstructors = Map.fromList
             [ (Text.pack (TH.nameBase (coName c)), c) | c <- cs ]
+        , ciIsGadt = any coIsGadt cs
         }
   where
-    extractCon :: TH.Con -> Q ConstructorInfo
-    extractCon = \case
+    extractCon :: Name -> [TH.TyVarBndr TH.BndrVis] -> TH.Con -> Q [ConstructorInfo]
+    extractCon tyName typeVars = \case
         TH.RecC n flds ->
             let ordered = [ (Text.pack (TH.nameBase fn), ty) | (fn, _, ty) <- flds ]
-             in pure ConstructorInfo
+             in pure
+                [ ConstructorInfo
                     { coName        = n
                     , coFields      = Map.fromList ordered
                     , coFieldsOrder = ordered
+                    , coResultType  = controllerAppliedTypeName tyName (map tyVarBndrName typeVars)
+                    , coIsGadt      = False
                     }
-        TH.NormalC n [] -> pure ConstructorInfo
-            { coName = n, coFields = Map.empty, coFieldsOrder = [] }
+                ]
+        TH.NormalC n [] -> pure
+            [ ConstructorInfo
+                { coName = n
+                , coFields = Map.empty
+                , coFieldsOrder = []
+                , coResultType = controllerAppliedTypeName tyName (map tyVarBndrName typeVars)
+                , coIsGadt = False
+                }
+            ]
         TH.NormalC n _ -> fail $
             "routes: constructor '" <> TH.nameBase n <>
             "' must use record syntax or be nullary"
-        TH.ForallC _ _ inner -> extractCon inner
+        TH.RecGadtC names flds resultTy ->
+            let ordered = [ (Text.pack (TH.nameBase fn), ty) | (fn, _, ty) <- flds ]
+             in pure
+                [ ConstructorInfo
+                    { coName = n
+                    , coFields = Map.fromList ordered
+                    , coFieldsOrder = ordered
+                    , coResultType = resultTy
+                    , coIsGadt = True
+                    }
+                | n <- names
+                ]
+        TH.GadtC names [] resultTy ->
+            pure
+                [ ConstructorInfo
+                    { coName = n
+                    , coFields = Map.empty
+                    , coFieldsOrder = []
+                    , coResultType = resultTy
+                    , coIsGadt = True
+                    }
+                | n <- names
+                ]
+        TH.GadtC names _ _ -> fail $
+            "routes: GADT constructor '" <> List.intercalate ", " (map TH.nameBase names) <>
+            "' must use record syntax or be nullary"
+        TH.ForallC _ _ inner -> extractCon tyName typeVars inner
         c -> fail $ "routes: unsupported constructor form: " <> show (TH.ppr c)
 
 renderParseError :: Parser.ParseError -> String
@@ -405,7 +455,9 @@ renderParseError e =
 
 data ControllerInfo = ControllerInfo
     { ciTypeName     :: !Name
+    , ciTypeVars     :: ![Name]
     , ciConstructors :: !(Map.Map Text ConstructorInfo)
+    , ciIsGadt       :: !Bool
     }
 
 data ConstructorInfo = ConstructorInfo
@@ -416,7 +468,22 @@ data ConstructorInfo = ConstructorInfo
     -- ^ Same entries as 'coFields' but in the record-declaration order.
     -- Query-string rendering uses this to mirror AutoRoute's behaviour
     -- of producing URL params in the order fields were declared.
+    , coResultType  :: !Type
+    , coIsGadt      :: !Bool
     }
+
+tyVarBndrName :: TH.TyVarBndr flag -> Name
+tyVarBndrName = \case
+    TH.PlainTV name _ -> name
+    TH.KindedTV name _ _ -> name
+
+controllerAppliedTypeName :: Name -> [Name] -> Type
+controllerAppliedTypeName typeName typeVars =
+    foldl TH.AppT (TH.ConT typeName) (map TH.VarT typeVars)
+
+controllerAppliedType :: ControllerInfo -> Type
+controllerAppliedType ControllerInfo{ciTypeName, ciTypeVars} =
+    controllerAppliedTypeName ciTypeName ciTypeVars
 
 reifyController :: Text -> Q ControllerInfo
 reifyController name = do
@@ -425,33 +492,76 @@ reifyController name = do
         (fail $ "routes: cannot find type '" <> Text.unpack name <>
                 "' in scope. Is it defined or imported?")
         (TH.reify tyName)
-    cs <- case info of
-        TH.TyConI (TH.DataD _ _ _ _ cs _) -> traverse extractCon cs
-        TH.TyConI (TH.NewtypeD _ _ _ _ c _) -> fmap (: []) (extractCon c)
+    (typeVars, cs) <- case info of
+        TH.TyConI (TH.DataD _ _ typeVars _ cs _) -> do
+            constructors <- fmap concat (traverse (extractCon tyName typeVars) cs)
+            pure (typeVars, constructors)
+        TH.TyConI (TH.NewtypeD _ _ typeVars _ c _) -> do
+            constructors <- extractCon tyName typeVars c
+            pure (typeVars, constructors)
         _ -> fail $
             "routes: '" <> Text.unpack name <>
             "' is not a data or newtype declaration"
     pure ControllerInfo
         { ciTypeName = tyName
+        , ciTypeVars = map tyVarBndrName typeVars
         , ciConstructors = Map.fromList
             [ (Text.pack (TH.nameBase (coName c)), c) | c <- cs ]
+        , ciIsGadt = any coIsGadt cs
         }
   where
-    extractCon :: TH.Con -> Q ConstructorInfo
-    extractCon = \case
+    extractCon :: Name -> [TH.TyVarBndr TH.BndrVis] -> TH.Con -> Q [ConstructorInfo]
+    extractCon tyName typeVars = \case
         TH.RecC n flds ->
             let ordered = [ (Text.pack (TH.nameBase fn), ty) | (fn, _, ty) <- flds ]
-             in pure ConstructorInfo
+             in pure
+                [ ConstructorInfo
                     { coName        = n
                     , coFields      = Map.fromList ordered
                     , coFieldsOrder = ordered
+                    , coResultType  = controllerAppliedTypeName tyName (map tyVarBndrName typeVars)
+                    , coIsGadt      = False
                     }
-        TH.NormalC n [] -> pure ConstructorInfo
-            { coName = n, coFields = Map.empty, coFieldsOrder = [] }
+                ]
+        TH.NormalC n [] -> pure
+            [ ConstructorInfo
+                { coName = n
+                , coFields = Map.empty
+                , coFieldsOrder = []
+                , coResultType = controllerAppliedTypeName tyName (map tyVarBndrName typeVars)
+                , coIsGadt = False
+                }
+            ]
         TH.NormalC n _ -> fail $
             "routes: constructor '" <> TH.nameBase n <>
             "' must use record syntax or be nullary"
-        TH.ForallC _ _ inner -> extractCon inner
+        TH.RecGadtC names flds resultTy ->
+            let ordered = [ (Text.pack (TH.nameBase fn), ty) | (fn, _, ty) <- flds ]
+             in pure
+                [ ConstructorInfo
+                    { coName = n
+                    , coFields = Map.fromList ordered
+                    , coFieldsOrder = ordered
+                    , coResultType = resultTy
+                    , coIsGadt = True
+                    }
+                | n <- names
+                ]
+        TH.GadtC names [] resultTy ->
+            pure
+                [ ConstructorInfo
+                    { coName = n
+                    , coFields = Map.empty
+                    , coFieldsOrder = []
+                    , coResultType = resultTy
+                    , coIsGadt = True
+                    }
+                | n <- names
+                ]
+        TH.GadtC names _ _ -> fail $
+            "routes: GADT constructor '" <> List.intercalate ", " (map TH.nameBase names) <>
+            "' must use record syntax or be nullary"
+        TH.ForallC _ _ inner -> extractCon tyName typeVars inner
         c -> fail $ "routes: unsupported constructor form: " <> show (TH.ppr c)
 
 ---------------------------------------------------------------------------
@@ -482,6 +592,7 @@ data ValidatedRoute = ValidatedRoute
     -- The order mirrors the order in the DSL so @pathTo@'s rendered query
     -- string reads left-to-right as the user wrote it.
     , vrQueryFields       :: ![(Text, Text, QueryFieldKind, Type)]
+    , vrAnnotations       :: ![RouteAnnotation]
     }
 
 data ValidatedSeg
@@ -569,6 +680,7 @@ validateRoute ctrl rt = do
         , vrLine = routeLine rt
         , vrBindingsByCapture = bindingsByCapture
         , vrQueryFields = queryFields
+        , vrAnnotations = routeAnnotations rt
         }
   where
     fstOf4 (a, _, _, _) = a
@@ -711,7 +823,7 @@ emitHasPath ctrl vs = do
                             <> TH.nameBase (ciTypeName ctrl))))))
             []
     pure (TH.InstanceD Nothing []
-        (TH.AppT (TH.ConT hasPathClass) (TH.ConT (ciTypeName ctrl)))
+        (TH.AppT (TH.ConT hasPathClass) (controllerAppliedType ctrl))
         [TH.FunD pathToFn (clauses <> [fallback])])
 
 emitPathClause :: ValidatedRoute -> Q TH.Clause
@@ -831,6 +943,15 @@ pathExpr = \case
             , TH.AppE (TH.VarE renderCaptureFn)
                 (TH.VarE (TH.mkName (Text.unpack n)))
             ]
+
+routePathTemplate :: [ValidatedSeg] -> Text
+routePathTemplate [] = "/"
+routePathTemplate segments = Text.concat (map segmentTemplate segments)
+  where
+    segmentTemplate = \case
+        VSLiteral text -> "/" <> text
+        VSCapture name _ -> "/{" <> name <> "}"
+        VSSplat name _ -> "/{" <> name <> "}"
 
 ---------------------------------------------------------------------------
 -- Code generation — trie value
@@ -1111,4 +1232,3 @@ handlerExpr dispatchFnName vr = do
 -- (provided by @IHP.RouterPrelude@ via @IHP.Router.Capture@).
 parseCaptureFn :: Name
 parseCaptureFn = TH.mkName "parseCapture"
-

@@ -105,6 +105,8 @@ common shared-properties
             , conduit-extra
             , wai-cors
             , random
+            , openapi3
+            , hspec
             , cereal
             , cereal-text
             , neat-interpolation
@@ -166,6 +168,7 @@ library
         , IHP.AuthSupport.Authentication
         , IHP.AuthSupport.Lockable
         , IHP.Controller.Param
+        , IHP.Controller.TypedAction
         , IHP.Controller.FileUpload
         , IHP.Controller.Redirect
         , IHP.Controller.Render
@@ -188,11 +191,13 @@ library
         , IHP.View.Form.Fields
         , IHP.View.Form.FormFor
         , IHP.View.Form.Select
+        , IHP.View.Form.TypedAction
         , IHP.View.TimeAgo
         , IHP.RequestVault
         , IHP.RequestVault.Helper
         , IHP.RequestVault.ModelContext
         , IHP.ControllerPrelude
+        , IHP.TypedControllerPrelude
         , IHP.ControllerSupport
         , IHP.Environment
         , IHP.FetchRelated
@@ -222,9 +227,19 @@ library
         , IHP.ViewPrelude
         , IHP.ViewSupport
         , IHP.RouterSupport
+        , IHP.Router.TypedRoute
         , IHP.Router.Types
         , IHP.Router.IHP
         , IHP.Router.DSL
+        , IHP.Router.UrlGenerator
+        , IHP.Router.Capture
+        , IHP.Router.Trie
+        , IHP.Router.Middleware
+        , IHP.Router.DSL.AST
+        , IHP.Router.DSL.Parser
+        , IHP.Router.DSL.Runtime
+        , IHP.Router.DSL.TH
+        , IHP.OpenApiSupport
         , IHP.Prelude
         , IHP.ErrorController
         , IHP.ScriptSupport
@@ -274,20 +289,6 @@ library
         , IHP.PGVersion
     reexported-modules:
           IHP.PGListener
-        -- Re-export the ihp-router modules under the same paths so
-        -- existing user imports (`import IHP.Router.Trie`, etc.) keep
-        -- working without users adding `ihp-router` to their own cabal
-        -- build-depends. The IHP-flavoured `routes` quoter from
-        -- IHP.Router.IHP shadows the generic one in IHP.Router.DSL.TH;
-        -- the latter is still importable directly for plain WAI use.
-        , IHP.Router.UrlGenerator
-        , IHP.Router.Capture
-        , IHP.Router.Trie
-        , IHP.Router.Middleware
-        , IHP.Router.DSL.AST
-        , IHP.Router.DSL.Parser
-        , IHP.Router.DSL.Runtime
-        , IHP.Router.DSL.TH
     autogen-modules: Paths_ihp
     other-modules:
         Paths_ihp
@@ -310,14 +311,16 @@ test-suite tests
         Test.NameSupportSpec
         Test.HaskellSupportSpec
         Test.View.CSSFrameworkSpec
-        Test.View.FormSpec
+        Test.View.FormForSpec
         Test.Controller.ContextSpec
         Test.Controller.ParamSpec
+        Test.Controller.TypedActionSpec
         Test.Controller.AccessDeniedSpec
         Test.Controller.NotFoundSpec
         Test.ModelSupportSpec
         Test.QueryBuilderSpec
         Test.RouterSupportSpec
+        Test.OpenApiSupportSpec
         Test.ViewSupportSpec
         Test.FileStorage.ControllerFunctionsSpec
         Test.Controller.CookieSpec

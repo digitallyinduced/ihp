@@ -1,7 +1,9 @@
-{-# LANGUAGE TypeSynonymInstances, FlexibleInstances, TypeFamilies, ConstrainedClassMethods, ScopedTypeVariables, FunctionalDependencies, AllowAmbiguousTypes #-}
+{-# LANGUAGE TypeSynonymInstances, FlexibleInstances, TypeFamilies, ConstrainedClassMethods, ScopedTypeVariables, FunctionalDependencies, AllowAmbiguousTypes, RankNTypes, DefaultSignatures, MultiParamTypeClasses, TypeApplications #-}
 
 module IHP.ControllerSupport
 ( Action'
+, ControllerAction'
+, RunControllerAction (..)
 , (|>)
 , getRequestBody
 , getRequestPath
@@ -29,6 +31,7 @@ module IHP.ControllerSupport
 , Request
 , rlsContextVaultKey
 , setupActionContext
+, prepareRLSIfNeeded
 , ResponseReceived
 ) where
 
@@ -36,6 +39,7 @@ import Prelude
 import Data.IORef (IORef, modifyIORef', readIORef)
 import Data.ByteString (ByteString)
 import qualified Data.ByteString.Lazy as LBS
+import Data.Kind (Type)
 import Data.Maybe (fromMaybe)
 import Control.Exception.Safe (SomeException, fromException, try, throwIO)
 import qualified Control.Exception as Exception
@@ -71,11 +75,41 @@ import System.IO.Unsafe (unsafePerformIO)
 
 type Action' = IO ResponseReceived
 
+type ControllerAction' controller =
+    ( ?context :: Context.ControllerContext
+    , ?modelContext :: ModelContext
+    , ?theAction :: controller
+    , ?respond :: Respond
+    , ?request :: Request
+    ) =>
+    IO ResponseReceived
+
+-- | Runs a controller's 'ControllerAction' value.
+--
+-- This lets typed action representations plug into the normal controller
+-- dispatch without requiring each controller instance to repeat the same
+-- 'runControllerAction' implementation.
+class RunControllerAction controller action where
+    runControllerActionDefault :: (?context :: Context.ControllerContext, ?modelContext :: ModelContext, ?theAction :: controller, ?respond :: Respond, ?request :: Request) => action -> IO ResponseReceived
+
+instance RunControllerAction controller (IO ResponseReceived) where
+    runControllerActionDefault controllerAction = controllerAction
+    {-# INLINABLE runControllerActionDefault #-}
+
 class (Show controller, Eq controller) => Controller controller where
+    type ControllerAction controller :: Type
+    type ControllerAction controller = IO ResponseReceived
+
     beforeAction :: (?context :: Context.ControllerContext, ?modelContext :: ModelContext, ?theAction :: controller, ?respond :: Respond, ?request :: Request) => IO ()
     beforeAction = pure ()
     {-# INLINABLE beforeAction #-}
-    action :: (?context :: Context.ControllerContext, ?modelContext :: ModelContext, ?theAction :: controller, ?respond :: Respond, ?request :: Request) => controller -> IO ResponseReceived
+
+    action :: (?context :: Context.ControllerContext, ?modelContext :: ModelContext, ?theAction :: controller, ?respond :: Respond, ?request :: Request) => controller -> ControllerAction controller
+
+    runControllerAction :: (?context :: Context.ControllerContext, ?modelContext :: ModelContext, ?theAction :: controller, ?respond :: Respond, ?request :: Request) => ControllerAction controller -> IO ResponseReceived
+    default runControllerAction :: (RunControllerAction controller (ControllerAction controller), ?context :: Context.ControllerContext, ?modelContext :: ModelContext, ?theAction :: controller, ?respond :: Respond, ?request :: Request) => ControllerAction controller -> IO ResponseReceived
+    runControllerAction = runControllerActionDefault @controller
+    {-# INLINABLE runControllerAction #-}
 
 class InitControllerContext application where
     initContext :: (?modelContext :: ModelContext, ?request :: Request, ?respond :: Respond, ?context :: Context.ControllerContext) => IO ()
@@ -90,13 +124,13 @@ runAction :: forall controller. (Controller controller, ?context :: Context.Cont
 runAction controller = do
     let ?theAction = controller
     let ?request = ?context.request
+    ErrorController.withRequestContext ?request do
+        -- Exceptions are now caught by the error handler middleware
+        authenticatedModelContext <- prepareRLSIfNeeded ?modelContext
 
-    -- Exceptions are now caught by the error handler middleware
-    authenticatedModelContext <- prepareRLSIfNeeded ?modelContext
-
-    let ?modelContext = authenticatedModelContext
-    beforeAction
-    action controller
+        let ?modelContext = authenticatedModelContext
+        beforeAction
+        runControllerAction @controller (action controller)
 
 {-# INLINE newContextForAction #-}
 newContextForAction
@@ -111,11 +145,13 @@ newContextForAction
        )
     => controller -> IO Context.ControllerContext
 newContextForAction controller = do
-    let ?modelContext = ?request.modelContext
-    controllerContext <- Context.newControllerContext
-    let ?context = controllerContext
-    wrapInitContextException (initContext @application)
-    pure ?context
+    ErrorController.withRequestContext ?request do
+        let ?modelContext = ?request.modelContext
+        controllerContext <- Context.newControllerContext
+        let ?context = controllerContext
+        Context.putContext ?application
+        wrapInitContextException (initContext @application)
+        pure ?context
 
 -- | Shared request context setup, specialized once per application type.
 -- Takes a pre-computed TypeRep to avoid per-controller-type code duplication.
@@ -134,13 +170,15 @@ setupActionContext
     -> IO Context.ControllerContext
 setupActionContext controllerTypeRep waiRequest waiRespond = do
     let !request' = waiRequest { vault = Vault.insert actionTypeVaultKey (ActionType controllerTypeRep) waiRequest.vault }
-    let ?request = request'
-    let ?respond = waiRespond
-    let ?modelContext = request'.modelContext
-    controllerContext <- Context.newControllerContext
-    let ?context = controllerContext
-    wrapInitContextException (initContext @application)
-    pure ?context
+    ErrorController.withRequestContext request' do
+        let ?request = request'
+        let ?respond = waiRespond
+        let ?modelContext = request'.modelContext
+        controllerContext <- Context.newControllerContext
+        let ?context = controllerContext
+        Context.putContext ?application
+        wrapInitContextException (initContext @application)
+        pure ?context
 
 -- | Wraps non-EarlyReturn exceptions from initContext in InitContextException
 -- so the error handler middleware can show "while calling initContext".
@@ -251,7 +289,7 @@ jumpToAction :: forall action. (Controller action, ?context :: Context.Controlle
 jumpToAction theAction = do
     let ?theAction = theAction
     beforeAction @action
-    action theAction
+    runControllerAction @action (action theAction)
 
 getRequestBody :: (?request :: Request) => IO LBS.ByteString
 getRequestBody =

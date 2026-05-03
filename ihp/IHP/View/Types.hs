@@ -1,6 +1,7 @@
 {-# LANGUAGE FlexibleContexts      #-}
 {-# LANGUAGE FlexibleInstances     #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE RankNTypes            #-}
 {-# LANGUAGE TypeFamilies          #-}
 {-# LANGUAGE AllowAmbiguousTypes #-}
 {-# LANGUAGE InstanceSigs, UndecidableInstances, AllowAmbiguousTypes, ScopedTypeVariables, IncoherentInstances  #-}
@@ -21,6 +22,8 @@ where
 import Prelude
 import Data.Text (Text)
 import Data.ByteString (ByteString)
+import Data.Proxy (Proxy)
+import GHC.TypeLits (KnownSymbol)
 import IHP.HaskellSupport (SetField(..))
 import IHP.HSX.Markup (Html)
 import Network.Wai.Middleware.FlashMessages (FlashMessage (..))
@@ -78,16 +81,22 @@ data FormContext model = FormContext
     { model :: model -- ^ The record this form is based on
     , formAction :: !Text -- ^ Url where the form is submitted to
     , formMethod :: !Text -- ^ Usually "POST", sometimes set to "GET"
+    , formEnctype :: !(Maybe Text) -- ^ Optional encoding used for form submission
     , cssFramework :: !CSSFramework
     , formClass :: !Text -- ^ In the generated HTML, the @class@  attribute will be set to this value
     , formId :: !Text -- ^ In the generated HTML, the @id@ attribute will be set to this value
     , disableJavascriptSubmission :: !Bool -- ^ When set to True, the IHP helpers.js will not submit the form using ajax
     , customFormAttributes :: ![(Text, Text)] -- ^ Attach custom HTML attributes here
     , fieldNamePrefix :: !Text -- ^ Used by nested forms to preprend the nested field name to the field name
+    , formFieldInputId :: forall fieldName. KnownSymbol fieldName => Proxy fieldName -> Text -- ^ Builds a stable HTML id for a field.
+    , formFieldValidationResult :: forall fieldName. KnownSymbol fieldName => Proxy fieldName -> Maybe Violation -- ^ Returns validation feedback for a field.
+    , formIsNew :: !Bool -- ^ Whether the form target represents a new record.
+    , formSubmitLabel :: Html -- ^ Default submit button label.
     }
 instance SetField "model" (FormContext record) record where setField value record = record { model = value }
 instance SetField "formAction" (FormContext record) Text where setField value record = record { formAction = value }
 instance SetField "formMethod" (FormContext record) Text where setField value record = record { formMethod = value }
+instance SetField "formEnctype" (FormContext record) (Maybe Text) where setField value record = record { formEnctype = value }
 instance SetField "cssFramework" (FormContext record) CSSFramework where setField value record = record { cssFramework = value }
 instance SetField "formClass" (FormContext record) Text where setField value record = record { formClass = value }
 instance SetField "formId" (FormContext record) Text where setField value record = record { formId = value }

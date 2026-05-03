@@ -334,6 +334,117 @@ urlTo NewUserAction
 -- http://localhost:8000/NewUser
 ```
 
+## Typed GADT Routes
+
+Typed GADT actions are an opt-in alternative to classic controller action ADTs.
+They are useful when you want the route, request body, generated forms and
+OpenAPI docs to share one typed contract.
+
+Typed GADT actions use the same `[routes|...|]` DSL as classic controllers.
+For GADT action families, use a lowercase binding header such as `webRoutes`.
+The splice emits a `ControllerRoute` list for `FrontController.controllers`,
+plus typed `pathTo`, route parameter parsing, form method lookup, and OpenAPI
+route metadata.
+
+The modules defining typed actions usually need `GADTs`, `DataKinds`,
+`TypeApplications`, `TypeFamilies` and `StandaloneDeriving` enabled.
+Typed controller modules can import `IHP.TypedControllerPrelude` to get the
+typed `action` and `beforeAction` methods instead of the classic controller
+methods.
+
+Classic actions look like this:
+
+```haskell
+data PostsController
+    = EditPostAction { postId :: !(Id Post), returnTo :: !(Maybe Text) }
+    | UpdatePostAction { postId :: !(Id Post), returnTo :: !(Maybe Text) }
+```
+
+With typed actions, the constructor fields still represent path and query
+parameters, but the action also has type indices for the request body and the
+response view:
+
+```haskell
+data PostsAction request response where
+    EditPostAction
+        :: { postId :: Id Post
+           , returnTo :: Maybe Text
+           }
+        -> PostsAction 'NoBody EditView
+
+    UpdatePostAction
+        :: { postId :: Id Post
+           , returnTo :: Maybe Text
+           }
+        -> PostsAction ('Body PostInput) ShowView
+
+deriving instance Show (PostsAction request response)
+deriving instance Eq (PostsAction request response)
+```
+
+`'NoBody` means that there is no request body. Path params and query params are
+not part of the body; they are constructor fields on the action value.
+
+Define the route shape once with `[routes|...|]`:
+
+```haskell
+[routes|webRoutes
+GET        /posts/{postId}/edit?returnTo EditPostAction
+POST|PATCH /posts/{postId}?returnTo      UpdatePostAction
+  summary: Update post
+  tags: Posts
+  success: 200 Successful response
+|]
+```
+
+The route declaration is used for runtime parsing, query parsing, `pathTo`, the
+OpenAPI path template and OpenAPI parameter docs. You do not repeat the same
+path shape in a parser and in a documentation string.
+
+```haskell
+instance FrontController WebApplication where
+    controllers = webRoutes
+```
+
+`pathTo` works from the typed action value:
+
+```haskell
+pathTo UpdatePostAction
+    { postId = "00000000-0000-0000-0000-000000000000"
+    , returnTo = Just "/dashboard"
+    }
+-- /posts/00000000-0000-0000-0000-000000000000?returnTo=%2Fdashboard
+```
+
+The route declaration checks that every path and query parameter is a field on
+the action value and uses that field type for parsing, URL rendering and
+OpenAPI schemas. `Maybe` query parameters are documented as optional;
+non-`Maybe` query parameters are required.
+
+Indented route metadata describes operation metadata such as `summary`, `tags`,
+response status and descriptions. Request body schemas come from the action
+body index, response schemas come from `JsonView.JsonResponse`, and path/query
+parameter schemas come from the route type. Add `private` under a typed route
+to omit it from OpenAPI without changing runtime routing.
+
+Implement the whole action family with one `TypedController` instance:
+
+```haskell
+instance TypedController PostsAction where
+    action EditPostAction { postId, returnTo } () = do
+        post <- fetch postId
+        pure EditView { .. }
+
+    action UpdatePostAction { postId, returnTo } input = do
+        post <- fetch postId
+        post <-
+            post
+                |> fillBody @'["title", "body"] input
+                |> updateRecord
+
+        pure ShowView { .. }
+```
+
 ## AutoRoute
 
 Let's say our `PostsController` is defined in `Web/Types.hs` like this:

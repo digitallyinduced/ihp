@@ -179,6 +179,7 @@ initMiddlewareStack frameworkConfig modelContext maybePgListener = do
         . loggerMiddleware frameworkConfig.logger
         . frameworkConfigMiddleware frameworkConfig
         . requestBodyMiddleware frameworkConfig.parseRequestBodyOptions
+        . ErrorController.requestContextMiddleware
         . pgListenerMw
         . assetPathMiddleware
 

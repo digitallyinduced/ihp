@@ -6,6 +6,9 @@ The parser consumes the textual body of a @[routes| ... |]@ block and
 produces a 'Routes' AST. Errors carry the source line number so the TH
 splice can report them with useful context.
 
+Indented metadata lines are attached to the previous route and kept
+uninterpreted in the generic AST.
+
 The parser is intentionally hand-rolled — the DSL is small (~7 production
 rules) and we want precise control over error messages.
 -}
@@ -49,10 +52,10 @@ parseRoutes source = do
         allLines@((firstLine, firstText) : restLines)
             | looksLikeHeader firstText -> do
                 ctrl <- parseHeader firstLine firstText
-                parsedRoutes <- traverse parseRouteLine restLines
+                parsedRoutes <- parseRouteLines restLines
                 pure Routes { controllerName = Just ctrl, routes = parsedRoutes }
             | otherwise -> do
-                parsedRoutes <- traverse parseRouteLine allLines
+                parsedRoutes <- parseRouteLines allLines
                 pure Routes { controllerName = Nothing, routes = parsedRoutes }
 
 -- | A header line is a single identifier with no whitespace-separated tokens.
@@ -83,6 +86,70 @@ stripComment (n, line) =
 isBlankOrComment :: Text -> Bool
 isBlankOrComment = Text.null . Text.strip
 
+parseRouteLines :: [(Int, Text)] -> Either ParseError [Route]
+parseRouteLines = go [] Nothing
+  where
+    go completed current = \case
+        [] -> Right (reverse (maybe completed (: completed) current))
+        lineWithText@(_, text) : rest
+            | isIndented text && not (looksLikeRouteLine text) -> do
+                annotation <- parseAnnotationLine lineWithText
+                case current of
+                    Nothing ->
+                        Left
+                            ( ParseError
+                                (annotationLine annotation)
+                                "routes: metadata line must follow a route"
+                            )
+                    Just route ->
+                        go completed (Just route{routeAnnotations = routeAnnotations route <> [annotation]}) rest
+            | otherwise -> do
+                route <- parseRouteLine lineWithText
+                go (maybe completed (: completed) current) (Just route) rest
+
+isIndented :: Text -> Bool
+isIndented text =
+    case Text.uncons text of
+        Just (c, _) -> isSpace c
+        Nothing -> False
+
+looksLikeRouteLine :: Text -> Bool
+looksLikeRouteLine text =
+    case Text.words (Text.strip text) of
+        [] -> False
+        firstToken : _ ->
+            firstToken == "ANY"
+                || firstToken == "WS"
+                || Text.singleton '/' `Text.isPrefixOf` firstToken
+                || Text.isInfixOf "|" firstToken
+                || case methodFromText firstToken of
+                    Just _ -> True
+                    Nothing -> False
+
+parseAnnotationLine :: (Int, Text) -> Either ParseError RouteAnnotation
+parseAnnotationLine (line, text) = do
+    let trimmed = Text.strip text
+        (nameRaw, valueRaw) = Text.breakOn ":" trimmed
+        name = Text.strip nameRaw
+    if isValidIdent name
+        then
+            let value =
+                    case Text.stripPrefix ":" valueRaw of
+                        Nothing -> Nothing
+                        Just rest -> Just (Text.strip rest)
+             in Right
+                    RouteAnnotation
+                        { annotationName = name
+                        , annotationValue = value
+                        , annotationLine = line
+                        }
+        else
+            Left
+                ( ParseError
+                    line
+                    ("routes: invalid metadata name: " <> quoted name)
+                )
+
 -- | Parse the controller-name header line.
 parseHeader :: Int -> Text -> Either ParseError Text
 parseHeader line text =
@@ -101,6 +168,9 @@ parseRouteLine :: (Int, Text) -> Either ParseError Route
 parseRouteLine (line, text) = do
     let trimmed = Text.strip text
     (methodsField, rest1) <- splitFirstToken line trimmed
+    if Text.singleton '/' `Text.isPrefixOf` methodsField
+        then Left (ParseError line ("routes: missing HTTP method before path: " <> quoted methodsField))
+        else pure ()
     (methods, kind) <- parseMethods line methodsField
     (pathAndQueryField, rest2) <- splitFirstToken line (Text.strip rest1)
     (path, queryParams) <- parsePathAndQuery line pathAndQueryField
@@ -117,6 +187,7 @@ parseRouteLine (line, text) = do
         , routeAction      = action
         , routeLine        = line
         , routeKind        = kind
+        , routeAnnotations = []
         }
 
 -- | WS routes only support literal path segments in v1. Captures and

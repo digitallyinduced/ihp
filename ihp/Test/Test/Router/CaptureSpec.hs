@@ -6,7 +6,7 @@ module Test.Router.CaptureSpec where
 
 import Test.Hspec
 import IHP.Prelude
-import IHP.Router.Capture
+import "ihp" IHP.Router.Capture
 import qualified Data.UUID as UUID
 
 tests = do

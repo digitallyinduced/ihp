@@ -79,6 +79,161 @@ Rendering [`{textField #title}`](https://ihp.digitallyinduced.com/api-docs/IHP-V
 <input ... value="Hello World" />
 ```
 
+## Forms for Typed Actions
+
+Classic `formFor` works with IHP records that have a `meta` field. For typed
+GADT actions, use `formForAction`, which renders a normal HSX form body with
+the same field helpers (`textField`, `textareaField`, `checkboxField`,
+`submitButton`, etc.) against a plain input record.
+
+Use `formFor` for classic model-backed create and update forms. It is built
+around a database record: the record type provides the fields, validation
+messages, generated input ids, submit label, and default create/update action.
+
+Use `formForAction` when the submit target is a typed action. The action URL,
+HTTP method, form encoding, decoded request body, and OpenAPI request body all
+come from the same typed route and body definition.
+This avoids the drift that can happen with the older `formFor'` escape hatch:
+`formFor'` lets a model-backed form point at any `Text` URL, but the HTTP
+method, `_method` override, and enctype still have to be kept in sync manually.
+For example, if a typed route changes from `POST` to `PATCH`, or from
+`application/x-www-form-urlencoded` to `multipart/form-data`, `formForAction`
+updates the generated form attributes from the route type.
+
+Typed action forms are also useful when there is no natural database model for
+the form. For example, an organization settings page can render an invite form
+with `InviteMemberInput { email, role, personalMessage }`: submitting it sends
+an email and creates an invite token, but there might be no single
+`InviteMember` table row with exactly those fields. A search form, password
+reset request, import wizard, or checkout form often has the same shape: it is
+an action input, not a model.
+
+First define an input record that is also used by the action body:
+
+```haskell
+data PostInput = PostInput
+    { title :: Text
+    , body :: Text
+    , published :: Bool
+    }
+    deriving (Generic)
+
+instance ToSchema PostInput
+```
+
+The default `FromFormBody` instance uses `Generic` and IHP's existing
+`ParamReader` instances to decode form fields with matching names. For custom
+parsing, define an explicit `FromFormBody` instance and read individual fields
+with `formBodyParam`.
+
+Then define the typed action:
+
+```haskell
+data PostsAction request response where
+    UpdatePostAction
+        :: { postId :: Id Post
+           , returnTo :: Maybe Text
+           }
+        -> PostsAction ('BodyWith PostInput '[ 'FormUrlEncoded]) ShowView
+```
+
+`'BodyWith PostInput '[ 'FormUrlEncoded]` accepts browser form submissions. Use
+`'Body PostInput` when the action should accept both forms and JSON requests;
+then add the matching `FromJSON`, `ToJSON` and `ToSchema` instances to reuse the
+same input type for request decoding and OpenAPI generation.
+
+Render the form against a typed action:
+
+```haskell
+renderPostForm :: Post -> Html
+renderPostForm post =
+    formForAction
+        UpdatePostAction
+            { postId = post.id
+            , returnTo = Just "/posts"
+            }
+        initialPostInput
+        [hsx|
+        {(textField #title)
+            { fieldLabel = "Post title"
+            , placeholder = "Launch notes"
+            , required = True
+            , autofocus = True
+            , fieldClass = "input input-lg"
+            }}
+        {(textareaField #body)
+            { fieldLabel = "Body"
+            , helpText = "Markdown is allowed."
+            }}
+        {(checkboxField #published)
+            { fieldLabel = "Publish now"
+            }}
+        {submitButton { label = "Save post" }}
+        |]
+  where
+    initialPostInput =
+        PostInput
+            { title = post.title
+            , body = post.body
+            , published = post.published
+            }
+```
+
+The second argument, `initialPostInput`, is the initial rendered form state. It
+fills `value`, `checked`, and selected options when the HTML is generated. The
+submitted request body still comes from the browser form inputs by their `name`
+attributes and is decoded into the GADT body type at runtime.
+
+The generated form action comes from `pathTo UpdatePostAction { .. }`, so path
+parameters and query parameters are encoded by the typed route. The form method
+comes from the typed route method. If the route uses `PATCH`, `PUT` or `DELETE`,
+IHP renders a POST form with a hidden `_method` field.
+
+Use `formForActionWithOptions` to customize the generated `FormContext`:
+
+```haskell
+renderPostForm post =
+    formForActionWithOptions
+        UpdatePostAction
+            { postId = post.id
+            , returnTo = Just "/posts"
+            }
+        input
+        ( \formContext ->
+            formContext
+                |> set #formId "post-form"
+                |> set #formClass "stack gap-4"
+                |> set #customFormAttributes [("data-controller", "autosave")]
+        )
+        [hsx|
+            {textField #title}
+            {textareaField #body}
+            {checkboxField #published}
+            {submitButton { label = "Save post" }}
+        |]
+  where
+    input =
+        PostInput
+            { title = post.title
+            , body = post.body
+            , published = post.published
+            }
+```
+
+For file uploads, declare the action body as multipart:
+
+```haskell
+data PostsAction request response where
+    UploadPostImageAction
+        :: { postId :: Id Post }
+        -> PostsAction ('BodyWith PostImageInput '[ 'Multipart]) ShowView
+```
+
+Calling `formForAction UploadPostImageAction { .. } input [hsx|{fileField #image}|]`
+renders `enctype="multipart/form-data"`. JSON-only actions such as
+`'BodyWith PostInput '[ 'Json]` do not typecheck with `formForAction`, so a
+browser form cannot accidentally target a JSON-only route.
+
 ### Date and DateTime Fields
 
 Use [`dateField`](https://ihp.digitallyinduced.com/api-docs/IHP-View-Form.html#v:dateField) for date-only inputs and [`dateTimeField`](https://ihp.digitallyinduced.com/api-docs/IHP-View-Form.html#v:dateTimeField) for date-and-time inputs:

@@ -6,8 +6,8 @@ module Test.Router.MiddlewareSpec where
 
 import Test.Hspec
 import IHP.Prelude
-import IHP.Router.Trie
-import IHP.Router.Middleware
+import "ihp" IHP.Router.Trie
+import "ihp" IHP.Router.Middleware
 import Network.HTTP.Types (status200, status404, status405)
 import Network.HTTP.Types.Method (StdMethod (..), renderStdMethod)
 import Network.Wai (Application, Response, responseLBS, defaultRequest, requestMethod, rawPathInfo, responseStatus, responseHeaders)
