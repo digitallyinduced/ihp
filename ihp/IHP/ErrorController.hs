@@ -6,6 +6,8 @@ Copyright: (c) digitally induced GmbH, 2020
 module IHP.ErrorController
 ( displayException
 , errorHandlerMiddleware
+, requestContextMiddleware
+, withRequestContext
 , RouterException(..)
 , InitContextException(..)
 ) where
@@ -17,6 +19,7 @@ import Data.Maybe (mapMaybe, fromMaybe, listToMaybe)
 import Data.String.Conversions (cs)
 import Data.ByteString (ByteString)
 import qualified Data.ByteString as ByteString
+import qualified Data.ByteString.Lazy as LByteString
 import qualified Data.Text as Text
 import qualified Data.Text.Encoding as Text
 import IHP.HaskellSupport (isEmpty, forEach, (|>))
@@ -25,9 +28,11 @@ import qualified IHP.Router.Types as Router
 import qualified Network.HTTP.Types.Method as Router
 import qualified Control.Exception as Exception
 import Data.Text (Text)
-import Wai.Request.Params.Middleware (Respond)
-import Network.HTTP.Types (Status, status404, status500, status400)
+import Wai.Request.Params.Middleware (RequestBody (..), Respond, requestBodyVaultKey)
+import Network.HTTP.Types (Status, status404, status500, status400, statusCode, statusMessage)
 import Network.Wai (Request, Middleware, Response, ResponseReceived, responseBuilder, responseLBS, queryString, requestHeaders, vault)
+import qualified Network.Wai as Wai
+import Network.Wai.Middleware.EarlyReturn (EarlyReturnException (..))
 import Network.HTTP.Types.Header
 import qualified Network.HTTP.Media as Accept
 import qualified Data.Aeson as Aeson
@@ -68,6 +73,45 @@ newtype InitContextException = InitContextException SomeException
     deriving (Show)
 
 instance Exception.Exception InitContextException
+
+-- | Wraps downstream exceptions with the current request value.
+--
+-- IHP's top-level error handler sits outside the middleware stack so it can
+-- catch early middleware failures. This wrapper can be placed deeper in the
+-- stack, after request body parsing, so error logs can still see request vault
+-- values added by earlier middleware.
+data RequestContextException = RequestContextException Request SomeException
+    deriving (Show)
+
+instance Exception.Exception RequestContextException
+
+requestContextMiddleware :: Middleware
+requestContextMiddleware app request respond =
+    withRequestContext request (app request respond)
+
+withRequestContext :: Request -> IO a -> IO a
+withRequestContext request action =
+    action `catch` handleRequestContextException request
+
+handleRequestContextException :: Request -> SomeException -> IO a
+handleRequestContextException request exception =
+    case fromException exception of
+        Just (EarlyReturnException _) ->
+            Exception.throwIO exception
+        Nothing ->
+            case fromException exception of
+                Just RequestContextException {} ->
+                    Exception.throwIO exception
+                Nothing ->
+                    Exception.throwIO (RequestContextException request exception)
+
+unwrapRequestContext :: Request -> SomeException -> (Request, SomeException)
+unwrapRequestContext request exception =
+    case fromException exception of
+        Just (RequestContextException requestWithContext inner) ->
+            unwrapRequestContext requestWithContext inner
+        Nothing ->
+            (request, exception)
 
 -- | Returns 'True' only when the request's Accept header explicitly prefers
 -- @application/json@ over @text/html@. @Accept: */*@ or a missing header
@@ -492,20 +536,73 @@ errorHandlerMiddleware :: FrameworkConfig -> Middleware
 errorHandlerMiddleware frameworkConfig app request respond =
     app request respond `catch` \(exception :: SomeException) -> do
         let environment = frameworkConfig.environment
-        let actionType = Vault.lookup actionTypeVaultKey (vault request)
+        let (contextRequest, exceptionWithRequestContext) = unwrapRequestContext request exception
+        let actionType = Vault.lookup actionTypeVaultKey (vault contextRequest)
         let actionDescription = maybe "" (\(ActionType t) -> " while running " <> tshow t) actionType
 
         -- Unwrap InitContextException to get the inner exception and add context
-        let (actualException, fullDescription) = case fromException exception of
+        let (actualException, fullDescription) = case fromException exceptionWithRequestContext of
                 Just (InitContextException inner) -> (inner, actionDescription <> " while calling initContext")
-                Nothing -> (exception, actionDescription)
+                Nothing -> (exceptionWithRequestContext, actionDescription)
 
         -- Call exception tracker in production
         when (environment == Environment.Production) do
-            frameworkConfig.exceptionTracker.onException (Just request) actualException
+            frameworkConfig.exceptionTracker.onException (Just contextRequest) actualException
 
-        response <- handleExceptionMiddleware frameworkConfig request actualException fullDescription
+        response <- handleExceptionMiddleware frameworkConfig contextRequest actualException fullDescription
+        logServerException frameworkConfig contextRequest actualException fullDescription (Wai.responseStatus response)
         respond response
+
+logServerException :: FrameworkConfig -> Request -> SomeException -> Text -> Status -> IO ()
+logServerException frameworkConfig request exception actionDescription status =
+    when (statusCode status >= 500) do
+        writeLog Error frameworkConfig.logger $
+            Text.intercalate "\n"
+                [ "Unhandled exception during request"
+                , "  status: " <> tshow (statusCode status) <> " " <> decodeUtf8 (statusMessage status)
+                , "  method: " <> decodeUtf8 (Wai.requestMethod request)
+                , "  path: " <> decodeUtf8 (Wai.rawPathInfo request <> Wai.rawQueryString request)
+                , "  accept: " <> headerValue hAccept
+                , "  content-type: " <> headerValue hContentType
+                , "  action: " <> if Text.null actionDescription then "<unknown>" else actionDescription
+                , "  body: " <> requestBodyLogSummary frameworkConfig.environment request
+                , "  exception: " <> cs (Exception.displayException exception)
+                ]
+    where
+        decodeUtf8 = Text.decodeUtf8Lenient
+        headerValue headerName = maybe "<missing>" decodeUtf8 (lookup headerName (requestHeaders request))
+
+requestBodyLogSummary :: Environment.Environment -> Request -> Text
+requestBodyLogSummary environment request =
+    case Vault.lookup requestBodyVaultKey (vault request) of
+        Just requestBody ->
+            summarizeRequestBody requestBody
+        Nothing ->
+            "unavailable (request body middleware did not finish or body was not parsed)"
+    where
+        summarizeRequestBody FormBody { params, files, rawPayload } =
+            "form length=" <> payloadLength rawPayload
+                <> " params=" <> tshow (length params)
+                <> " files=" <> tshow (length files)
+                <> preview environment rawPayload
+        summarizeRequestBody JSONBody { jsonPayload, rawPayload } =
+            "json length=" <> payloadLength rawPayload
+                <> " decode=" <> jsonDecodeStatus jsonPayload rawPayload
+                <> preview environment rawPayload
+        payloadLength rawPayload = tshow (LByteString.length rawPayload)
+        jsonDecodeStatus (Just _) _ = "ok"
+        jsonDecodeStatus Nothing rawPayload =
+            case Aeson.eitherDecode rawPayload :: Either String Aeson.Value of
+                Right _ -> "ok"
+                Left errorMessage -> "failed error=" <> Text.pack errorMessage
+        preview Environment.Development rawPayload
+            | LByteString.null rawPayload = ""
+            | otherwise =
+                let maxPreviewBytes = 500
+                    rawPreview = LByteString.take maxPreviewBytes rawPayload
+                    suffix = if LByteString.length rawPayload > maxPreviewBytes then "... (truncated)" else ""
+                 in " preview=" <> Text.decodeUtf8Lenient (LByteString.toStrict rawPreview) <> suffix
+        preview Environment.Production _ = ""
 
 -- | Handle an exception and return an appropriate Response.
 --
@@ -550,8 +647,6 @@ genericHandlerMiddleware frameworkConfig request exception actionDescription = d
 
     let devErrorMessage = [hsx|{errorMessageText}|]
     let devTitle = [hsx|{errorMessageTitle}|]
-
-    writeLog Error frameworkConfig.logger (errorMessageText <> ": " <> cs errorMessageTitle)
 
     let prodErrorMessage = [hsx|An exception was raised while running the action|]
     let prodTitle = [hsx|An error happened|]

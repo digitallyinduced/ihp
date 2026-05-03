@@ -40,6 +40,7 @@ import GHC.TypeLits (KnownSymbol, symbolVal)
 import IHP.Controller.Render (renderHtmlOrJsonWithStatusCode)
 import IHP.Controller.TypedAction (DecodeRequest (..), DecodedRequest, ParameterDoc (..), ParameterLocation (..), RenderTypedResponse, RequestDecodeError (..), TypedController, action, beforeAction)
 import IHP.ControllerSupport (ControllerContext, InitControllerContext, Request, Respond, ResponseReceived, prepareRLSIfNeeded, respondAndExit, setupActionContext)
+import IHP.ErrorController qualified as ErrorController
 import IHP.RouterSupport
     ( DocumentedRenderExpectation (..)
     , attachOpenApiRenderExpectation
@@ -128,12 +129,13 @@ runTypedControllerAction ::
     (DecodedRequest body -> IO response) ->
     IO ResponseReceived
 runTypedControllerAction status runAction = do
-    decodedBody <- decodeRequest @body
-    case decodedBody of
-        Left RequestDecodeError{requestDecodeErrorStatus, requestDecodeErrorMessage} ->
-            respondAndExit (responseLBS requestDecodeErrorStatus [(hContentType, "text/plain")] (cs requestDecodeErrorMessage))
-        Right typedBody ->
-            runAction typedBody >>= renderHtmlOrJsonWithStatusCode status
+    ErrorController.withRequestContext ?request do
+        decodedBody <- decodeRequest @body
+        case decodedBody of
+            Left RequestDecodeError{requestDecodeErrorStatus, requestDecodeErrorMessage} ->
+                respondAndExit (responseLBS requestDecodeErrorStatus [(hContentType, "text/plain")] (cs requestDecodeErrorMessage))
+            Right typedBody ->
+                runAction typedBody >>= renderHtmlOrJsonWithStatusCode status
 {-# INLINE runTypedControllerAction #-}
 
 typedDocumentedRenderExpectationForResponse ::
