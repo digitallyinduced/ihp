@@ -27,7 +27,8 @@ import           IHP.TypedSql.Metadata          (DescribeColumn (..), DescribeRe
                                                  describeStatement)
 import           IHP.TypedSql.ParamHints        (extractParamHintsFromAst, extractJoinNullableTablesFromAst,
                                                  extractNonNullableComputedColumnsFromAst,
-                                                 parseSql, resolveParamHintTypes, detectStarSelects)
+                                                 parseSql, resolveParamHintTypes, detectStarSelects,
+                                                 detectInsertWithoutColumns)
 import           IHP.TypedSql.Placeholders      (PlaceholderPlan (..), parseExpr,
                                                  planPlaceholders)
 import           IHP.TypedSql.RowType           (SqlRow (..), sanitizeColumnName, deduplicateNames, sqlRowType)
@@ -91,6 +92,13 @@ typedSqlExp allowStar rawSql = do
                     fail ("typedSql: SELECT " <> List.intercalate ", " stars
                         <> " is not allowed because it can break at runtime when the schema changes. "
                         <> "List columns explicitly:\n  SELECT " <> suggestion <> " FROM ...\n"
+                        <> "Or use [typedSqlStar| ... |] if you understand the risk.")
+                let inserts = detectInsertWithoutColumns ast
+                unless (null inserts) do
+                    fail ("typedSql: " <> List.intercalate ", " inserts
+                        <> " without an explicit column list is not allowed because "
+                        <> "column order can drift between dev and production. "
+                        <> "List columns explicitly:\n  INSERT INTO table (col1, col2, ...) VALUES (...)\n"
                         <> "Or use [typedSqlStar| ... |] if you understand the risk.")
             Nothing -> pure ()
 
