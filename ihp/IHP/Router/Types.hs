@@ -69,3 +69,12 @@ data UnexpectedMethodException
     , method :: StdMethod
     }
     deriving (Show, Exception)
+
+-- | Thrown when the request uses an HTTP method that isn't part of the
+-- standard set (GET, POST, PUT, DELETE, HEAD, OPTIONS, PATCH, CONNECT, TRACE).
+--
+-- For example, a @PROPFIND@ request from a WebDAV scanner. The error handler
+-- middleware translates this into a @400 Bad Request@ response.
+newtype BadHttpMethodException
+    = BadHttpMethodException { method :: ByteString }
+    deriving (Show, Exception)

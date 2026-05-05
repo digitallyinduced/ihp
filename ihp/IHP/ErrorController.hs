@@ -26,8 +26,8 @@ import qualified Network.HTTP.Types.Method as Router
 import qualified Control.Exception as Exception
 import Data.Text (Text)
 import Wai.Request.Params.Middleware (Respond)
-import Network.HTTP.Types (Status, status404, status500, status400)
-import Network.Wai (Request, Middleware, Response, ResponseReceived, responseBuilder, responseLBS, queryString, requestHeaders, vault)
+import Network.HTTP.Types (Status, status404, status500, status400, status405)
+import Network.Wai (Request, Middleware, Response, ResponseReceived, mapResponseHeaders, responseBuilder, responseLBS, queryString, requestHeaders, vault)
 import Network.HTTP.Types.Header
 import qualified Network.HTTP.Media as Accept
 import qualified Data.Aeson as Aeson
@@ -111,6 +111,22 @@ respondError request environment status title body json
         pure $ responseBuilder status
             [(hContentType, "text/html")]
             (getBuilder (renderError environment title body))
+
+-- | Render a @405 Method Not Allowed@ response. RFC 7231 requires the @Allow@
+-- header on 405 responses.
+respondMethodNotAllowed
+    :: Request
+    -> Environment.Environment
+    -> [Router.StdMethod]
+    -> Markup
+    -> Markup
+    -> Aeson.Value
+    -> IO Response
+respondMethodNotAllowed request environment allowedMethods title body json = do
+    response <- respondError request environment status405 title body json
+    pure $ mapResponseHeaders ((hAllow, allowHeaderValue) :) response
+  where
+    allowHeaderValue = ByteString.intercalate ", " (map (cs . show) allowedMethods)
 
 displayException :: (Show action, ?context :: ControllerContext, ?request :: Request, ?respond :: Respond) => SomeException -> action -> Text -> IO ResponseReceived
 displayException exception action additionalInfo = do
@@ -886,7 +902,7 @@ handleRouterExceptionImpl request environment exception =
                         , "method" .= tshow Router.GET
                         , "allowedMethods" .= [tshow Router.DELETE]
                         ]
-                respondError request environment status400 title errorMessage json
+                respondMethodNotAllowed request environment [Router.DELETE] title errorMessage json
             Just Router.UnexpectedMethodException { allowedMethods = [Router.POST], method = Router.GET } -> do
                 let errorMessage = [hsx|
                         <p>
@@ -905,7 +921,7 @@ handleRouterExceptionImpl request environment exception =
                         , "method" .= tshow Router.GET
                         , "allowedMethods" .= [tshow Router.POST]
                         ]
-                respondError request environment status400 title errorMessage json
+                respondMethodNotAllowed request environment [Router.POST] title errorMessage json
             Just Router.UnexpectedMethodException { allowedMethods, method } -> do
                 let errorMessage = [hsx|
                         <p>Routing failed with: {tshow exception}</p>
@@ -920,18 +936,29 @@ handleRouterExceptionImpl request environment exception =
                         , "method" .= tshow method
                         , "allowedMethods" .= map tshow allowedMethods
                         ]
-                respondError request environment status400 title errorMessage json
+                respondMethodNotAllowed request environment allowedMethods title errorMessage json
             -- Fallback for any other exception during routing
-            _ -> do
-                let errorMessage = [hsx|
-                        Routing failed with: {tshow exception}
+            _ -> case fromException exception of
+                Just Router.BadHttpMethodException { method } -> do
+                    let errorMessage = [hsx|
+                            <p>The request used a non-standard HTTP method: <q>{Text.decodeUtf8Lenient method}</q></p>
+                        |]
+                    let title = [hsx|Bad HTTP method|]
+                    let json = Aeson.object
+                            [ "error" .= ("Bad HTTP method" :: Text)
+                            , "method" .= Text.decodeUtf8Lenient method
+                            ]
+                    respondError request environment status400 title errorMessage json
+                _ -> do
+                    let errorMessage = [hsx|
+                            Routing failed with: {tshow exception}
 
-                        <h2>Possible Solutions</h2>
-                        <p>Are you trying to do a DELETE action, but your link is missing class="js-delete"?</p>
-                    |]
-                let title = toHtml ("Routing failed" :: Text)
-                let json = Aeson.object
-                        [ "error" .= ("Routing failed" :: Text)
-                        , "detail" .= tshow exception
-                        ]
-                respondError request environment status500 title errorMessage json
+                            <h2>Possible Solutions</h2>
+                            <p>Are you trying to do a DELETE action, but your link is missing class="js-delete"?</p>
+                        |]
+                    let title = toHtml ("Routing failed" :: Text)
+                    let json = Aeson.object
+                            [ "error" .= ("Routing failed" :: Text)
+                            , "detail" .= tshow exception
+                            ]
+                    respondError request environment status500 title errorMessage json
