@@ -424,7 +424,7 @@ CABAL_EOF
                 import IHP.ScriptSupport
                 import IHP.Job.Runner
                 import qualified Config
-                import Main ()
+                import WorkerMain ()
                 main :: IO ()
                 main = runScript Config.config (runJobWorkers (workers RootApplication))
                 EOF

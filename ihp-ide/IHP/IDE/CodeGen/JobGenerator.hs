@@ -10,13 +10,16 @@ data JobConfig = JobConfig
     , tableName :: Text -- E.g. create_container_jobs
     , modelName :: Text -- E.g. CreateContainerJob
     , isFirstJobInApplication :: Bool -- If true, creates Worker.hs in application directory
+    , isFirstJobInProject :: Bool -- If true, creates WorkerMain.hs at the project root
     , uuidFunction :: Text -- E.g. "uuid_generate_v4" or "uuidv7"
     } deriving (Eq, Show)
 
 buildPlan :: Text -> Text -> IO (Either Text [GeneratorAction])
 buildPlan jobName applicationName = do
     let workerPath = textToOsPath (applicationName <> "/Worker.hs")
+    let rootWorkerPath = textToOsPath "WorkerMain.hs"
     isFirstJobInApplication <- not <$> Directory.doesFileExist workerPath
+    isFirstJobInProject <- not <$> Directory.doesFileExist rootWorkerPath
     uuidFunction <- defaultUuidFunction
     if null jobName
         then pure $ Left "Job name cannot be empty"
@@ -26,6 +29,7 @@ buildPlan jobName applicationName = do
                     , tableName = jobName
                     , modelName = tableNameToModelName jobName
                     , isFirstJobInApplication
+                    , isFirstJobInProject
                     , uuidFunction
                     }
             pure $ Right $ buildPlan' jobConfig
@@ -89,14 +93,40 @@ instance Worker #{applicationName}Application where
         -- Generator Marker
         ]
 |]
+
+            -- Composed Worker instance for RootApplication. Lives in
+            -- WorkerMain.hs at the project root (parallel to Main.hs) so that:
+            --   * Main.hs no longer needs to import Web.Worker (which would
+            --     transitively pull every Job module into Main's dep graph).
+            --   * The dev-mode worker GHCi can load only this file (via
+            --     build/RunJobs.hs) without dragging in Web.FrontController
+            --     and the Controller / View tree.
+            workerMainHs :: Text
+            workerMainHs =
+                        let
+                            applicationName = config.applicationName
+                        in cs [plain|module WorkerMain () where
+
+import IHP.Prelude
+import IHP.FrameworkConfig (RootApplication (..))
+import IHP.Job.Runner (Worker (..))
+import #{applicationName}.Types (#{applicationName}Application (..))
+import #{applicationName}.Worker ()
+
+instance Worker RootApplication where
+    workers _ = workers #{applicationName}Application
+|]
         in
             [ EnsureDirectory { directory = textToOsPath (config.applicationName <> "/Job") }
             , AppendToFile { filePath = "Application/Schema.sql", fileContent = schemaSql }
             , CreateFile { filePath = textToOsPath (config.applicationName <> "/Job/" <> nameWithoutSuffix <> ".hs"), fileContent = job }
             ]
-            <> if config.isFirstJobInApplication
+            <> (if config.isFirstJobInApplication
                     then [ CreateFile { filePath = textToOsPath (config.applicationName <> "/Worker.hs"), fileContent = emptyWorkerHs } ]
                     else
                         [ AddImport { filePath = textToOsPath (config.applicationName <> "/Worker.hs"), fileContent = "import " <> qualifiedJobModuleName config }
                         , AppendToMarker { marker = "-- Generator Marker", filePath = textToOsPath (config.applicationName <> "/Worker.hs"), fileContent = "        , worker @" <> nameWithSuffix }
-                        ]
+                        ])
+            <> (if config.isFirstJobInProject
+                    then [ CreateFile { filePath = textToOsPath "WorkerMain.hs", fileContent = workerMainHs } ]
+                    else [])
