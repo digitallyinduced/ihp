@@ -675,7 +675,7 @@ instance {-# OVERLAPPABLE #-} (AutoRoute controller, Controller controller) => C
                             unless (allowedMethods |> includes method)
                                 (Exception.throw UnexpectedMethodException { allowedMethods, method })
                             toApp action waiRequest waiRespond
-                        Left err -> error ("Invalid HTTP method: " <> ByteString.unpack err)
+                        Left err -> throwIO BadHttpMethodException { method = err }
       )
     {-# INLINABLE parseRouteWithAction #-}
 
@@ -805,12 +805,12 @@ get :: (Controller action
     ) => ByteString -> action -> ControllerRoute application
 get path action = ControllerRouteParser $ do
     string path
-    pure $ \waiRequest waiRespond ->
+    pure $ \waiRequest waiRespond -> wrapRouterException do
         case parseMethod (requestMethod waiRequest) of
             Right GET -> runAction' action waiRequest waiRespond
             Right HEAD -> runAction' action waiRequest waiRespond
-            Right method -> Exception.throw UnexpectedMethodException { allowedMethods = [GET, HEAD], method }
-            Left err -> error ("Invalid HTTP method: " <> ByteString.unpack err)
+            Right method -> throwIO UnexpectedMethodException { allowedMethods = [GET, HEAD], method }
+            Left err -> throwIO BadHttpMethodException { method = err }
 {-# INLINABLE get #-}
 
 -- | Routes a given path to an action when requested via POST.
@@ -833,11 +833,11 @@ post :: (Controller action
     ) => ByteString -> action -> ControllerRoute application
 post path action = ControllerRouteParser $ do
     string path
-    pure $ \waiRequest waiRespond ->
+    pure $ \waiRequest waiRespond -> wrapRouterException do
         case parseMethod (requestMethod waiRequest) of
             Right POST -> runAction' action waiRequest waiRespond
-            Right method -> Exception.throw UnexpectedMethodException { allowedMethods = [POST], method }
-            Left err -> error ("Invalid HTTP method: " <> ByteString.unpack err)
+            Right method -> throwIO UnexpectedMethodException { allowedMethods = [POST], method }
+            Left err -> throwIO BadHttpMethodException { method = err }
 {-# INLINABLE post #-}
 
 -- | Filter methods when writing a custom routing parser
@@ -1186,7 +1186,7 @@ buildAutoRouteMap = HashMap.fromList
               let ?application = app
               in wrapRouterException do
                   case parseMethod (requestMethod waiRequest) of
-                      Left err -> error ("Invalid HTTP method: " <> ByteString.unpack err)
+                      Left err -> throwIO BadHttpMethodException { method = err }
                       Right method -> do
                           unless (allowedMethods |> includes method)
                               (Exception.throw UnexpectedMethodException { allowedMethods, method })

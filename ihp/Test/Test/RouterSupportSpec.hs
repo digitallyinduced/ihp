@@ -239,11 +239,12 @@ tests = aroundAll (withMockContextAndApp WebApplication config) do
             let postReq url = request $ setPath defaultRequest { requestMethod = methodPost } url
             runSession (postReq "test/CreatePerformance" >>= assertSuccess "CreatePerformanceAction") application
     describe "router error handling" $ do
-        it "returns 400 with guidance for wrong HTTP method" $ withContextAndApp \application -> do
-            -- CreatePerformance is POST-only, calling with GET should give a helpful 400
+        it "returns 405 with Allow header and guidance for wrong HTTP method" $ withContextAndApp \application -> do
+            -- CreatePerformance is POST-only, calling with GET should give a helpful 405
             runSession (do
                 response <- testGet "test/CreatePerformance"
-                assertStatus 400 response
+                assertStatus 405 response
+                assertHeader "Allow" "POST" response
                 assertBodyContains "POST" response
                 ) application
         it "returns 400 for invalid typed parameter" $ withContextAndApp \application -> do
@@ -252,6 +253,13 @@ tests = aroundAll (withMockContextAndApp WebApplication config) do
                 response <- testGet "test/TestInt?intParam=hello"
                 assertStatus 400 response
                 assertBodyContains "intParam" response
+                ) application
+        it "returns 400 for non-standard HTTP methods like PROPFIND" $ withContextAndApp \application -> do
+            -- WebDAV scanners hit unrelated endpoints with PROPFIND. We respond with 400 rather than 500.
+            let propfindReq url = request $ setPath defaultRequest { requestMethod = "PROPFIND" } url
+            runSession (do
+                response <- propfindReq "test/ListPerformances"
+                assertStatus 400 response
                 ) application
     describe "customPathTo" $ do
         it "generates custom path for overridden action" $ withContextAndApp \application -> do
