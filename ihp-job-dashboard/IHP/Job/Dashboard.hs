@@ -148,8 +148,8 @@ instance JobsDashboard '[] where
             function initPopover() {
                 $('[data-bs-toggle="popover"]').popover({ trigger: 'hover click' })
             }
-            $(document).on('ready turbolinks:load', initPopover);
-            $(initPopover);
+            document.addEventListener('DOMContentLoaded', initPopover);
+            document.addEventListener('turbo:load', initPopover);
         </script>
         <style>
         .popover-body {

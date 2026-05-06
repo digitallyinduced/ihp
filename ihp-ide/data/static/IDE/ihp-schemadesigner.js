@@ -200,11 +200,11 @@ function initTooltip() {
     });
 }
 
-document.addEventListener('turbolinks:load', initSchemaDesigner);
-document.addEventListener('turbolinks:load', initCodeEditor);
-document.addEventListener('turbolinks:load', initQueryAce);
-document.addEventListener('turbolinks:load', initTooltip);
-document.addEventListener('turbolinks:load', initDataEditorForeignKeyAutocomplete);
+document.addEventListener('ihp:load', initSchemaDesigner);
+document.addEventListener('ihp:load', initCodeEditor);
+document.addEventListener('ihp:load', initQueryAce);
+document.addEventListener('ihp:load', initTooltip);
+document.addEventListener('ihp:load', initDataEditorForeignKeyAutocomplete);
 
 // Dispose all tooltips before Turbolinks replaces the page to prevent orphaned tooltip elements
 document.addEventListener('turbolinks:before-render', function () {

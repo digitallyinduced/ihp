@@ -1,4 +1,4 @@
-document.addEventListener('turbolinks:load', function () {
+document.addEventListener('turbo:load', function () {
     var navHelp = document.getElementById('nav-help');
     if (!navHelp) return;
 
