@@ -261,6 +261,38 @@ tests = aroundAll (withMockContextAndApp WebApplication config) do
                 response <- propfindReq "test/ListPerformances"
                 assertStatus 400 response
                 ) application
+        it "returns 405 with multi-method Allow header for Show actions" $ withContextAndApp \application -> do
+            -- ShowPerformance follows the AutoRoute "Show" convention which allows GET and HEAD.
+            -- A POST should yield 405 with `Allow: GET, HEAD`.
+            let postReq url = request $ setPath defaultRequest { requestMethod = methodPost } url
+            runSession (do
+                response <- postReq "test/ShowPerformance?performanceId=8dd57d19-490a-4323-8b94-6081ab93bf34"
+                assertStatus 405 response
+                assertHeader "Allow" "GET, HEAD" response
+                ) application
+        it "returns JSON 405 when Accept header prefers application/json" $ withContextAndApp \application -> do
+            let getJsonReq url = request $ setPath defaultRequest
+                    { requestMethod = methodGet
+                    , requestHeaders = [(hAccept, "application/json")]
+                    } url
+            runSession (do
+                response <- getJsonReq "test/CreatePerformance"
+                assertStatus 405 response
+                assertHeader "Allow" "POST" response
+                assertContentType "application/json" response
+                assertBodyContains "\"allowedMethods\"" response
+                ) application
+        it "returns JSON 400 for non-standard HTTP method when Accept prefers JSON" $ withContextAndApp \application -> do
+            let propfindJsonReq url = request $ setPath defaultRequest
+                    { requestMethod = "PROPFIND"
+                    , requestHeaders = [(hAccept, "application/json")]
+                    } url
+            runSession (do
+                response <- propfindJsonReq "test/ListPerformances"
+                assertStatus 400 response
+                assertContentType "application/json" response
+                assertBodyContains "\"PROPFIND\"" response
+                ) application
     describe "customPathTo" $ do
         it "generates custom path for overridden action" $ withContextAndApp \application -> do
             pathTo (ShowPerformanceAction "8dd57d19-490a-4323-8b94-6081ab93bf34") `shouldBe` "/performances/8dd57d19-490a-4323-8b94-6081ab93bf34"

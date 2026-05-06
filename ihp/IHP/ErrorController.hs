@@ -126,7 +126,7 @@ respondMethodNotAllowed request environment allowedMethods title body json = do
     response <- respondError request environment status405 title body json
     pure $ mapResponseHeaders ((hAllow, allowHeaderValue) :) response
   where
-    allowHeaderValue = ByteString.intercalate ", " (map (cs . show) allowedMethods)
+    allowHeaderValue = ByteString.intercalate ", " (map Router.renderStdMethod allowedMethods)
 
 displayException :: (Show action, ?context :: ControllerContext, ?request :: Request, ?respond :: Respond) => SomeException -> action -> Text -> IO ResponseReceived
 displayException exception action additionalInfo = do
