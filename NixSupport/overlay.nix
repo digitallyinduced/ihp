@@ -81,6 +81,7 @@ let
             ihp-imagemagick = localPackage "ihp-imagemagick";
             ihp-hspec = localPackage "ihp-hspec";
             ihp-welcome = localPackage "ihp-welcome";
+            wai-csp = localPackage "wai-csp";
 
             # Forks of wai-session / wai-session-clientsession with deferred
             # session decryption and optional Set-Cookie (Maybe ByteString).
