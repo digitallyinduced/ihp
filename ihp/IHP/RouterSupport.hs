@@ -673,7 +673,7 @@ instance {-# OVERLAPPABLE #-} (AutoRoute controller, Controller controller) => C
                     case parseMethod (requestMethod waiRequest) of
                         Right method -> do
                             unless (allowedMethods |> includes method)
-                                (Exception.throw UnexpectedMethodException { allowedMethods, method })
+                                (throwIO UnexpectedMethodException { allowedMethods, method })
                             toApp action waiRequest waiRespond
                         Left err -> throwIO BadHttpMethodException { method = err }
       )
@@ -1189,7 +1189,7 @@ buildAutoRouteMap = HashMap.fromList
                       Left err -> throwIO BadHttpMethodException { method = err }
                       Right method -> do
                           unless (allowedMethods |> includes method)
-                              (Exception.throw UnexpectedMethodException { allowedMethods, method })
+                              (throwIO UnexpectedMethodException { allowedMethods, method })
                           case applyAction @controller constr (queryString waiRequest) of
                               Left e -> Exception.throw e
                               Right action -> runAction' @application action waiRequest waiRespond
