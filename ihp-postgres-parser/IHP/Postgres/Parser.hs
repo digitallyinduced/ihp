@@ -477,7 +477,7 @@ intervalFields =  [ "YEAR TO MONTH", "DAY TO HOUR", "DAY TO MINUTE", "DAY TO SEC
                    , "YEAR",  "MONTH", "DAY", "HOUR", "MINUTE", "SECOND"]
 
 
-term = parens expression <|> try arrayExpr <|> try callExpr <|> try doubleExpr <|> try intExpr <|> selectExpr <|> varExpr <|> (textExpr <* optional space)
+term = parens expression <|> try variadicExpr <|> try arrayExpr <|> try callExpr <|> try doubleExpr <|> try intExpr <|> selectExpr <|> varExpr <|> (textExpr <* optional space)
     where
         parens f = between (char '(' >> space) (char ')' >> space) f
 
@@ -560,6 +560,14 @@ arrayExpr = do
     values <- between (char '[' >> space) (char ']') (expression `sepBy` (char ',' >> space))
     space
     pure (ArrayLiteralExpression values)
+
+-- | Parses a PostgreSQL VARIADIC function argument like @VARIADIC ARRAY['a']@.
+variadicExpr :: Parser Expression
+variadicExpr = do
+    lexeme do
+        string' "VARIADIC"
+        notFollowedBy (satisfy \c -> isAlphaNum c || c == '_')
+    VariadicExpression <$> expression
 
 textExpr :: Parser Expression
 textExpr = TextExpression <$> textExpr'

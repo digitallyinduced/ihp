@@ -147,6 +147,7 @@ compileExpression (IsExpression a b) = compileExpressionWithOptionalParenthese a
 compileExpression (InExpression a b) = compileExpressionWithOptionalParenthese a <> " IN " <> compileExpressionWithOptionalParenthese b
 compileExpression (InArrayExpression values) = "(" <> intercalate ", " (map compileExpression values) <> ")"
 compileExpression (ArrayLiteralExpression values) = "ARRAY[" <> intercalate ", " (map compileExpression values) <> "]"
+compileExpression (VariadicExpression value) = "VARIADIC " <> compileExpressionWithOptionalParenthese value
 compileExpression (NotExpression a) = "NOT " <> compileExpressionWithOptionalParenthese a
 compileExpression (AndExpression a b) = compileExpressionWithOptionalParenthese a <> " AND " <> compileExpressionWithOptionalParenthese b
 compileExpression (OrExpression a b) = compileExpressionWithOptionalParenthese a <> " OR " <> compileExpressionWithOptionalParenthese b
@@ -178,6 +179,7 @@ compileExpressionWithOptionalParenthese expr@(DotExpression (VarExpression {}) b
 compileExpressionWithOptionalParenthese expr@(ConcatenationExpression a b ) = compileExpression expr
 compileExpressionWithOptionalParenthese expr@(InArrayExpression values) = compileExpression expr
 compileExpressionWithOptionalParenthese expr@(ArrayLiteralExpression _) = compileExpression expr
+compileExpressionWithOptionalParenthese expr@(VariadicExpression _) = compileExpression expr
 compileExpressionWithOptionalParenthese expression = "(" <> compileExpression expression <> ")"
 
 -- | Compare statements for sorting in schema output
