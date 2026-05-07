@@ -603,7 +603,7 @@ tests = do
                     { indexName = "users_index"
                     , unique = True
                     , tableName = "users"
-                    , columns = [IndexColumn { column = VarExpression "user_name", columnOrder = [Asc, NullsFirst]}]
+                    , columns = [IndexColumn { column = VarExpression "user_name", columnOperatorClass = Nothing, columnOrder = [Asc, NullsFirst]}]
                     , whereClause = Nothing
                     , indexType = Nothing
                     , nullsDistinct = True
@@ -616,9 +616,30 @@ tests = do
                     { indexName = "users_index"
                     , unique = True
                     , tableName = "users"
-                    , columns = [IndexColumn { column = VarExpression "user_name", columnOrder = [Desc, NullsLast]}]
+                    , columns = [IndexColumn { column = VarExpression "user_name", columnOperatorClass = Nothing, columnOrder = [Desc, NullsLast]}]
                     , whereClause = Nothing
                     , indexType = Nothing
+                    , nullsDistinct = True
+                    }
+            compileSql [statement] `shouldBe` sql
+
+        it "should compile pgvector column types with dimensions" do
+            let sql = "ALTER TABLE knowledge_chunks ADD COLUMN embedding VECTOR(1536) DEFAULT NULL;\n"
+            let statement = AddColumn
+                    { tableName = "knowledge_chunks"
+                    , column = (col "embedding" (PCustomType "VECTOR(1536)")) { defaultValue = Just (VarExpression "NULL") }
+                    }
+            compileSql [statement] `shouldBe` sql
+
+        it "should compile pgvector HNSW indexes with operator classes" do
+            let sql = "CREATE INDEX knowledge_chunks_embedding_hnsw_idx ON knowledge_chunks USING HNSW (embedding vector_cosine_ops) WHERE embedding IS NOT NULL;\n"
+            let statement = CreateIndex
+                    { indexName = "knowledge_chunks_embedding_hnsw_idx"
+                    , unique = False
+                    , tableName = "knowledge_chunks"
+                    , columns = [IndexColumn { column = VarExpression "embedding", columnOperatorClass = Just "vector_cosine_ops", columnOrder = [] }]
+                    , whereClause = Just (IsExpression (VarExpression "embedding") (NotExpression (VarExpression "NULL")))
+                    , indexType = Just Hnsw
                     , nullsDistinct = True
                     }
             compileSql [statement] `shouldBe` sql

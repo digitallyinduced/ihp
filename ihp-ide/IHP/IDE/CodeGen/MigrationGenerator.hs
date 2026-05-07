@@ -738,9 +738,10 @@ normalizeIndexType (Just Btree) = Nothing
 normalizeIndexType indexType = indexType
 
 normalizeIndexColumn :: IndexColumn -> IndexColumn
-normalizeIndexColumn IndexColumn { column, columnOrder } =
+normalizeIndexColumn IndexColumn { column, columnOperatorClass, columnOrder } =
     IndexColumn
         { column = normalizeExpression column
+        , columnOperatorClass
         , columnOrder = normalizeIndexColumnOrder columnOrder
         }
 
