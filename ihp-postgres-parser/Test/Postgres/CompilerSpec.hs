@@ -153,6 +153,25 @@ spec = do
                     }
             compileSql [statement] `shouldBe` sql
 
+        it "should compile a CREATE FUNCTION with SET options" do
+            let sql = "CREATE OR REPLACE FUNCTION sync_access() RETURNS TRIGGER SECURITY DEFINER SET search_path = public, private, pg_temp AS $$BEGIN\n    RETURN NEW;\nEND;$$ language plpgsql;\n"
+            let statement = CreateFunction
+                    { functionName = "sync_access"
+                    , functionArguments = []
+                    , functionBody = "BEGIN\n    RETURN NEW;\nEND;"
+                    , orReplace = True
+                    , returns = PTrigger
+                    , language = "plpgsql"
+                    , securityDefiner = True
+                    , functionSettings =
+                        [ FunctionSetting
+                            { settingName = "search_path"
+                            , settingValue = "public, private, pg_temp"
+                            }
+                        ]
+                    }
+            compileSql [statement] `shouldBe` sql
+
         it "should compile 'ENABLE ROW LEVEL SECURITY' statements" do
             let sql = "ALTER TABLE tasks ENABLE ROW LEVEL SECURITY;\n"
             let statements = [EnableRowLevelSecurity { tableName = "tasks" }]

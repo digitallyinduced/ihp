@@ -36,7 +36,7 @@ data Statement
     -- | DROP INDEX indexName;
     | DropIndex { indexName :: Text }
     -- | CREATE OR REPLACE FUNCTION functionName(param1 TEXT, param2 INT) RETURNS TRIGGER AS $$functionBody$$ language plpgsql;
-    | CreateFunction { functionName :: Text, functionArguments :: [(Text, PostgresType)], functionBody :: Text, orReplace :: Bool, returns :: PostgresType, language :: Text, securityDefiner :: Bool }
+    | CreateFunction { functionName :: Text, functionArguments :: [(Text, PostgresType)], functionBody :: Text, orReplace :: Bool, returns :: PostgresType, language :: Text, securityDefiner :: Bool, functionSettings :: [FunctionSetting] }
     -- | ALTER TABLE tableName ENABLE ROW LEVEL SECURITY;
     | EnableRowLevelSecurity { tableName :: Text }
     -- CREATE POLICY name ON tableName USING using WITH CHECK check;
@@ -81,6 +81,12 @@ data Statement
 data DeferrableType
     = InitiallyImmediate
     | InitiallyDeferred
+    deriving (Eq, Show)
+
+data FunctionSetting = FunctionSetting
+    { settingName :: Text
+    , settingValue :: Text
+    }
     deriving (Eq, Show)
 
 data CreateTable
@@ -308,6 +314,7 @@ function functionName = CreateFunction
     , returns = PTrigger
     , language = "plpgsql"
     , securityDefiner = False
+    , functionSettings = []
     }
 
 -- | Helper to create an 'IndexColumn' with no column ordering.

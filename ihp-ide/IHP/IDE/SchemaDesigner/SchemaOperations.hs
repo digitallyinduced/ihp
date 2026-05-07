@@ -534,6 +534,7 @@ addUpdatedAtTrigger tableName schema =
                 , returns = PTrigger
                 , language = "plpgsql"
                 , securityDefiner = False
+                , functionSettings = []
                 }
 
 deleteTriggerIfExists :: Text -> [Statement] -> [Statement]
