@@ -567,6 +567,8 @@ variadicExpr = do
     lexeme do
         string' "VARIADIC"
         notFollowedBy (satisfy \c -> isAlphaNum c || c == '_')
+    -- Use expression rather than term so postfix type casts stay part of the
+    -- variadic argument, e.g. VARIADIC ARRAY['a']::text[].
     VariadicExpression <$> expression
 
 textExpr :: Parser Expression
