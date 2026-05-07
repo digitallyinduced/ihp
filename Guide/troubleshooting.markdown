@@ -195,6 +195,42 @@ export IHP_RELATION_SUPPORT=0
 
 See [Relationships: Disabling Relation Support for Faster Compilation](relationships.html#disabling-relation-support-for-faster-compilation) for details on what changes and what stops working.
 
+### `devenv up` eats all the RAM and OOM-kills the desktop
+
+**Problem:**
+
+When you run `devenv up`, the IHP dev server has no upper bound on how much memory it can consume. A memory leak in your code — accumulated thunks, retained job records, AutoRefresh sessions that never get released, an unbounded cache in a request handler — will grow the dev-server's resident set without bound until the kernel's OOM killer fires. Because the dev server is rarely the largest process at that moment, the OOM killer often takes down the desktop session, the browser, or another shell instead. You lose unrelated work and get no actionable signal.
+
+**Solution:**
+
+Cap the dev-server heap by exporting `GHCRTS` from your project's `.envrc`:
+
+```bash
+# Cap the dev-server heap so runaway memory growth dies cleanly
+# (HeapOverflow) instead of OOM-killing the whole desktop.
+export GHCRTS="-M8G"
+```
+
+`GHCRTS` is picked up automatically by IHP's dev server because it inherits the environment from `.envrc`.
+
+A reasonable default is **roughly half of system RAM**: `-M8G` on a 16 GB box, `-M4G` on an 8 GB box, `-M16G` on a 32 GB workstation. The cap should be generous, not tight — it exists to protect the desktop from a leak, not to shrink the dev-server footprint.
+
+**Setting the cap too low.** IHP runs the dev server with the non-moving garbage collector, which is great for latency but lets the heap grow freely between collection cycles. A tight cap will trip on legitimate workloads (large fixture loads, schema reload after a big migration, code generation passes). If `-M4G` keeps firing on a box with plenty of free RAM, raise the cap rather than fight the GC.
+
+**What happens when the cap is hit.** The dev server panics with:
+
+```
+<<ghc: heap overflow>>
+```
+
+…and exits. This is a clean death: the kernel never gets involved, your desktop and browser keep running, and you can scroll back to the panic in the dev-server log.
+
+```bash
+export GHCRTS="-M8G -hT -l"
+```
+
+`-hT` writes a heap profile broken down by closure type, and `-l` writes an eventlog (`<process>.eventlog`) alongside it. The eventlog records what kind of values are growing over time.
+
 ### OAuth/HTTPS in Docker fails: `certificate has unknown CA`
 
 **Problem:**
