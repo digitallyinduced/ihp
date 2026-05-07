@@ -468,10 +468,11 @@ sqlType = choice $ map optionalArray
                         lexeme "public"
                         char '.'
                     theType <- try (takeWhile1P (Just "Custom type") (\c -> isAlphaNum c || c == '_'))
-                    typeModifier <- optional do
+                    -- Custom typmods are flat here; nested parenthesized
+                    -- modifiers are not supported by this parser.
+                    typeModifier <- optional $ try do
                         char '('
-                        space
-                        value <- Text.strip <$> takeWhile1P (Just "Custom type modifier") (/= ')')
+                        value <- takeWhile1P (Just "Custom type modifier") (/= ')')
                         char ')'
                         space
                         pure value
@@ -650,6 +651,9 @@ parseIndexColumn = do
 
 parseIndexColumnOperatorClass = try do
     operatorClass <- qualifiedIdentifier
+    -- These tokens belong to index column ordering, not operator classes.
+    -- Extend this list if the parser grows support for more index-column
+    -- clauses such as COLLATE.
     when (Text.toUpper operatorClass `elem` ["ASC", "DESC", "NULLS"]) do
         fail "Expected index operator class"
     pure operatorClass
@@ -657,16 +661,23 @@ parseIndexColumnOperatorClass = try do
 parseIndexType = do
     lexeme "USING"
 
-    choice $ map (\(s, v) -> do symbol' s; pure v)
+    choice $ map (uncurry parseIndexTypeKeyword)
         [ ("btree", Btree)
         , ("hash", Hash)
-        , ("gist", Gist)
         , ("spgist", Spgist)
+        , ("gist", Gist)
         , ("gin", Gin)
         , ("brin", Brin)
         , ("hnsw", Hnsw)
         , ("ivfflat", Ivfflat)
         ]
+
+parseIndexTypeKeyword :: Text -> IndexType -> Parser IndexType
+parseIndexTypeKeyword keyword indexType = try do
+    string' keyword
+    notFollowedBy (satisfy \c -> isAlphaNum c || c == '_')
+    space
+    pure indexType
 
 createFunction = do
     lexeme "CREATE"

@@ -518,7 +518,7 @@ compileIndexType Ivfflat = "IVFFLAT"
 
 compileIndexColumn :: IndexColumn -> Text
 compileIndexColumn IndexColumn { column, columnOperatorClass, columnOrder } =
-    unwords ([compileExpression column] <> maybeToList columnOperatorClass <> (columnOrder & map compileIndexColumnOrder))
+    unwords ([compileExpression column] <> maybeToList (compileIdentifier <$> columnOperatorClass) <> (columnOrder & map compileIndexColumnOrder))
 
 compileIndexColumnOrder :: IndexColumnOrder -> Text
 compileIndexColumnOrder Asc = "ASC"

@@ -644,6 +644,19 @@ tests = do
                     }
             compileSql [statement] `shouldBe` sql
 
+        it "should compile pgvector IVFFLAT indexes with operator classes" do
+            let sql = "CREATE INDEX knowledge_chunks_embedding_ivfflat_idx ON knowledge_chunks USING IVFFLAT (embedding vector_l2_ops);\n"
+            let statement = CreateIndex
+                    { indexName = "knowledge_chunks_embedding_ivfflat_idx"
+                    , unique = False
+                    , tableName = "knowledge_chunks"
+                    , columns = [IndexColumn { column = VarExpression "embedding", columnOperatorClass = Just "vector_l2_ops", columnOrder = [] }]
+                    , whereClause = Nothing
+                    , indexType = Just Ivfflat
+                    , nullsDistinct = True
+                    }
+            compileSql [statement] `shouldBe` sql
+
         it "should compile a CREATE OR REPLACE FUNCTION ..() RETURNS TRIGGER .." do
             let sql = cs [plain|CREATE OR REPLACE FUNCTION notify_did_insert_webrtc_connection() RETURNS TRIGGER AS $$ BEGIN PERFORM pg_notify('did_insert_webrtc_connection', json_build_object('id', NEW.id, 'floor_id', NEW.floor_id, 'source_user_id', NEW.source_user_id, 'target_user_id', NEW.target_user_id)::text); RETURN NEW; END; $$ language plpgsql;\n|]
             let statement = (function "notify_did_insert_webrtc_connection")

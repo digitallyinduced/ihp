@@ -159,6 +159,12 @@ spec = do
                     , column = (col "embedding" (PCustomType "VECTOR(1536)")) { defaultValue = Just (VarExpression "NULL") }
                     }
 
+        it "should preserve custom type modifier contents" do
+            parseSql "ALTER TABLE knowledge_chunks ADD COLUMN embedding VECTOR( 1536 ) DEFAULT NULL;" `shouldBe` AddColumn
+                    { tableName = "knowledge_chunks"
+                    , column = (col "embedding" (PCustomType "VECTOR( 1536 )")) { defaultValue = Just (VarExpression "NULL") }
+                    }
+
         it "should parse pgvector HNSW indexes with operator classes" do
             parseSql "CREATE INDEX knowledge_chunks_embedding_hnsw_idx ON knowledge_chunks USING hnsw (embedding vector_cosine_ops) WHERE embedding IS NOT NULL;" `shouldBe` CreateIndex
                     { indexName = "knowledge_chunks_embedding_hnsw_idx"
@@ -180,6 +186,14 @@ spec = do
                     , indexType = Just Ivfflat
                     , nullsDistinct = True
                     }
+
+        it "should parse additional PostgreSQL index methods" do
+            let parseMethod method = case parseSql ("CREATE INDEX users_email_idx ON users USING " <> method <> " (email);") of
+                    CreateIndex { indexType } -> indexType
+                    _ -> error "Expected CreateIndex"
+            parseMethod "hash" `shouldBe` Just Hash
+            parseMethod "spgist" `shouldBe` Just Spgist
+            parseMethod "brin" `shouldBe` Just Brin
 
         it "should parse 'ENABLE ROW LEVEL SECURITY' statements" do
             parseSql "ALTER TABLE tasks ENABLE ROW LEVEL SECURITY;" `shouldBe` EnableRowLevelSecurity { tableName = "tasks" }

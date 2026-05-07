@@ -713,6 +713,17 @@ tests = do
                     , nullsDistinct = True
                     }
 
+        it "should parse pgvector IVFFLAT indexes with operator classes" do
+            parseSql "CREATE INDEX knowledge_chunks_embedding_ivfflat_idx ON knowledge_chunks USING ivfflat (embedding vector_l2_ops);" `shouldBe` CreateIndex
+                    { indexName = "knowledge_chunks_embedding_ivfflat_idx"
+                    , unique = False
+                    , tableName = "knowledge_chunks"
+                    , columns = [IndexColumn { column = VarExpression "embedding", columnOperatorClass = Just "vector_l2_ops", columnOrder = [] }]
+                    , whereClause = Nothing
+                    , indexType = Just Ivfflat
+                    , nullsDistinct = True
+                    }
+
         it "should parse a CREATE INDEX with a coalesce expression" do
             parseSql "CREATE UNIQUE INDEX user_invite_uniqueness ON user_invites (organization_id, email, coalesce(expires_at, '0001-01-01 01:01:01-04'));\n" `shouldBe` CreateIndex
                     { indexName = "user_invite_uniqueness"
