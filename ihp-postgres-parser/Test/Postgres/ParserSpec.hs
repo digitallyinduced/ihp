@@ -171,6 +171,24 @@ spec = do
                         ]
                     }
 
+        it "should not stop CREATE FUNCTION SET values at keyword prefixes" do
+            let sql = "CREATE OR REPLACE FUNCTION set_tz()\nRETURNS TRIGGER\nSET TimeZone = 'Asia/Tokyo'\nAS $$BEGIN\n    RETURN NEW;\nEND;$$ language plpgsql;"
+            parseSql sql `shouldBe` CreateFunction
+                    { functionName = "set_tz"
+                    , functionArguments = []
+                    , functionBody = "BEGIN\n    RETURN NEW;\nEND;"
+                    , orReplace = True
+                    , returns = PTrigger
+                    , language = "plpgsql"
+                    , securityDefiner = False
+                    , functionSettings =
+                        [ FunctionSetting
+                            { settingName = "TimeZone"
+                            , settingValue = "'Asia/Tokyo'"
+                            }
+                        ]
+                    }
+
         it "should parse 'ENABLE ROW LEVEL SECURITY' statements" do
             parseSql "ALTER TABLE tasks ENABLE ROW LEVEL SECURITY;" `shouldBe` EnableRowLevelSecurity { tableName = "tasks" }
 

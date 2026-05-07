@@ -720,11 +720,17 @@ parseFunctionSetting = do
 functionOptionBoundary :: Parser ()
 functionOptionBoundary =
     choice
-        [ try (space >> symbol' "LANGUAGE" $> ())
-        , try (space >> symbol' "SECURITY" $> ())
-        , try (space >> symbol' "SET" $> ())
-        , try (space >> symbol' "AS" $> ())
+        [ try (space1 >> functionOptionBoundaryKeyword "LANGUAGE")
+        , try (space1 >> functionOptionBoundaryKeyword "SECURITY")
+        , try (space1 >> functionOptionBoundaryKeyword "SET")
+        , try (space1 >> functionOptionBoundaryKeyword "AS")
         ]
+
+functionOptionBoundaryKeyword :: Text -> Parser ()
+functionOptionBoundaryKeyword keyword = do
+    string' keyword
+    notFollowedBy (satisfy \c -> isAlphaNum c || c == '_')
+    space
 
 createTrigger = do
     lexeme "CREATE"
