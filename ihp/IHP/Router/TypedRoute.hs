@@ -1,4 +1,5 @@
 {-# LANGUAGE AllowAmbiguousTypes #-}
+{-# LANGUAGE ConstraintKinds #-}
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FlexibleInstances #-}
@@ -24,6 +25,8 @@ module IHP.Router.TypedRoute
     ( HasActionMethods (..)
     , typedActionMethods
     , mkRouteParameterDoc
+    , TypedRouteResponseHandler
+    , mkTypedRouteResponseHandler
     , runTypedRouteAction
     , typedDocumentedRenderExpectationForResponse
     ) where
@@ -35,6 +38,7 @@ import Data.OpenApi (ToSchema)
 import Data.OpenApi.Schema.Validation qualified as SchemaValidation
 import Data.Proxy (Proxy (..))
 import Data.String.Conversions (cs)
+import Data.Text (Text)
 import Data.Typeable qualified as Typeable
 import GHC.TypeLits (KnownSymbol, symbolVal)
 import IHP.Controller.Render (renderHtmlOrJsonWithStatusCode)
@@ -48,7 +52,7 @@ import IHP.RouterSupport
 import IHP.ViewSupport qualified as ViewSupport
 import Network.HTTP.Types.Header (hContentType)
 import Network.HTTP.Types.Method (StdMethod)
-import Network.HTTP.Types.Status (Status)
+import Network.HTTP.Types.Status (Status, status500)
 import Network.Wai (Application, responseLBS)
 import Network.Wai.Middleware.EarlyReturn (earlyReturnMiddleware)
 import Prelude
@@ -85,21 +89,47 @@ typedActionMethods :: forall action. (HasActionMethods action) => action -> Mayb
 typedActionMethods = actionMethods
 {-# INLINE typedActionMethods #-}
 
+data TypedRouteResponseHandler response where
+    TypedRouteResponseHandler ::
+        forall response view.
+        (RenderTypedResponse view) =>
+        { typedRouteResponseHandlerName :: Text
+        , typedRouteResponseHandlerStatus :: Status
+        , typedRouteResponseHandlerExpectation :: Maybe DocumentedRenderExpectation
+        , typedRouteResponseHandlerMatch :: response -> Maybe view
+        } ->
+        TypedRouteResponseHandler response
+
+mkTypedRouteResponseHandler ::
+    forall response view.
+    (RenderTypedResponse view) =>
+    Text ->
+    Status ->
+    Maybe DocumentedRenderExpectation ->
+    (response -> Maybe view) ->
+    TypedRouteResponseHandler response
+mkTypedRouteResponseHandler name status expectation match =
+    TypedRouteResponseHandler
+        { typedRouteResponseHandlerName = name
+        , typedRouteResponseHandlerStatus = status
+        , typedRouteResponseHandlerExpectation = expectation
+        , typedRouteResponseHandlerMatch = match
+        }
+{-# INLINE mkTypedRouteResponseHandler #-}
+
 runTypedRouteAction ::
     forall application controller body response.
     ( TypedController controller
     , DecodeRequest body
-    , RenderTypedResponse response
     , InitControllerContext application
     , ?application :: application
     , Typeable.Typeable application
     , Typeable.Typeable (controller body response)
     ) =>
-    Maybe DocumentedRenderExpectation ->
-    Status ->
+    [TypedRouteResponseHandler response] ->
     controller body response ->
     Application
-runTypedRouteAction renderExpectation successStatus typedAction waiRequest waiRespond =
+runTypedRouteAction responseHandlers typedAction waiRequest waiRespond =
     earlyReturnMiddleware
         ( \request respond -> do
             context <- setupActionContext @application (Typeable.typeOf typedAction) request respond
@@ -111,32 +141,51 @@ runTypedRouteAction renderExpectation successStatus typedAction waiRequest waiRe
             authenticatedModelContext <- prepareRLSIfNeeded ?modelContext
             let ?modelContext = authenticatedModelContext
             beforeAction @controller @body @response
-            runTypedControllerAction @body @response successStatus (action typedAction)
+            runTypedControllerAction @body @response responseHandlers (action typedAction)
         )
-        (attachOpenApiRenderExpectation renderExpectation waiRequest)
+        waiRequest
         waiRespond
 {-# INLINE runTypedRouteAction #-}
 
 runTypedControllerAction ::
     forall body response.
     ( DecodeRequest body
-    , RenderTypedResponse response
     , ?context :: ControllerContext
     , ?request :: Request
     , ?respond :: Respond
     ) =>
-    Status ->
+    [TypedRouteResponseHandler response] ->
     (DecodedRequest body -> IO response) ->
     IO ResponseReceived
-runTypedControllerAction status runAction = do
+runTypedControllerAction responseHandlers runAction = do
     ErrorController.withRequestContext ?request do
         decodedBody <- decodeRequest @body
         case decodedBody of
             Left RequestDecodeError{requestDecodeErrorStatus, requestDecodeErrorMessage} ->
                 respondAndExit (responseLBS requestDecodeErrorStatus [(hContentType, "text/plain")] (cs requestDecodeErrorMessage))
             Right typedBody ->
-                runAction typedBody >>= renderHtmlOrJsonWithStatusCode status
+                runAction typedBody >>= renderTypedRouteResponse responseHandlers
 {-# INLINE runTypedControllerAction #-}
+
+renderTypedRouteResponse ::
+    forall response.
+    ( ?context :: ControllerContext
+    , ?request :: Request
+    , ?respond :: Respond
+    ) =>
+    [TypedRouteResponseHandler response] ->
+    response ->
+    IO ResponseReceived
+renderTypedRouteResponse [] _ =
+    respondAndExit (responseLBS status500 [(hContentType, "text/plain")] "Typed route response did not match any response metadata")
+renderTypedRouteResponse (TypedRouteResponseHandler{typedRouteResponseHandlerStatus, typedRouteResponseHandlerExpectation, typedRouteResponseHandlerMatch} : rest) response =
+    case typedRouteResponseHandlerMatch response of
+        Nothing -> renderTypedRouteResponse rest response
+        Just view -> do
+            let currentRequest = ?request
+            let ?request = attachOpenApiRenderExpectation typedRouteResponseHandlerExpectation currentRequest
+            renderHtmlOrJsonWithStatusCode typedRouteResponseHandlerStatus view
+{-# INLINE renderTypedRouteResponse #-}
 
 typedDocumentedRenderExpectationForResponse ::
     forall response.

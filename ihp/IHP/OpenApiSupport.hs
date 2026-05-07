@@ -807,22 +807,26 @@ typedRouteDocumentOperationValue
         , typedRouteDocumentTags
         , typedRouteDocumentOperationId
         , typedRouteDocumentRequestBody
-        , typedRouteDocumentResponse
-        , typedRouteDocumentSuccessStatus
-        , typedRouteDocumentSuccessResponseDescription
+        , typedRouteDocumentResponses
         } =
-    let SchemaDocumentation{documentedSchema, documentedDefinitions} = responseSchemaValue typedRouteDocumentResponse
-        parameterDocumentation = map typedParameterDocumentation typedRouteDocumentParameters
+    let parameterDocumentation = map typedParameterDocumentation typedRouteDocumentParameters
         parameterDefinitions = parameterDocumentation |> map (\QueryParameterDocumentation{parameterDefinitions} -> parameterDefinitions) |> mconcat
         requestBodyDocumentation = typedRequestBodySchemaValue <$> typedRouteDocumentRequestBody
         requestBodyDefinitions = requestBodyDocumentation |> fmap (.documentedDefinitions) |> fromMaybe mempty
+        responseDocumentation = map typedRouteResponseDocumentation typedRouteDocumentResponses
+        responseDefinitions = responseDocumentation |> map snd |> mconcat
+        responsesValue =
+            responseDocumentation
+                |> map fst
+                |> JSON.KeyMap.fromList
+                |> JSON.Object
         requestBodyValue =
             case (typedRouteDocumentRequestBody, requestBodyDocumentation) of
                 (Just requestBodyDoc, Just schemaDocumentation) -> Just ("requestBody" JSON..= typedRequestBodyValue requestBodyDoc schemaDocumentation.documentedSchema)
                 _ -> Nothing
      in ( JSON.object
             ( [ Just ("parameters" JSON..= map queryParameterValue parameterDocumentation)
-              , Just ("responses" JSON..= JSON.object [cs (show (statusCode typedRouteDocumentSuccessStatus)) JSON..= successResponseValue typedRouteDocumentSuccessResponseDescription documentedSchema])
+              , Just ("responses" JSON..= responsesValue)
               , requestBodyValue
               , ("summary" JSON..=) <$> typedRouteDocumentSummary
               , ("description" JSON..=) <$> typedRouteDocumentDescription
@@ -832,7 +836,21 @@ typedRouteDocumentOperationValue
               ]
                 |> catMaybes
             )
-        , documentedDefinitions <> parameterDefinitions <> requestBodyDefinitions
+        , parameterDefinitions <> requestBodyDefinitions <> responseDefinitions
+        )
+
+typedRouteResponseDocumentation :: TypedAction.TypedRouteResponseDocument -> ((JSON.Key, JSON.Value), Definitions Schema)
+typedRouteResponseDocumentation
+    TypedAction.TypedRouteResponseDocument
+        { typedRouteResponseStatus
+        , typedRouteResponseDescription
+        , typedRouteResponseSchema
+        } =
+    let SchemaDocumentation{documentedSchema, documentedDefinitions} = responseSchemaValue typedRouteResponseSchema
+     in ( ( JSON.Key.fromText (cs (show (statusCode typedRouteResponseStatus)))
+          , successResponseValue typedRouteResponseDescription documentedSchema
+          )
+        , documentedDefinitions
         )
 
 typedParameterDocumentation :: TypedAction.ParameterDoc -> QueryParameterDocumentation

@@ -131,7 +131,7 @@ parseAnnotationLine (line, text) = do
     let trimmed = Text.strip text
         (nameRaw, valueRaw) = Text.breakOn ":" trimmed
         name = Text.strip nameRaw
-    if isValidIdent name
+    if isValidAnnotationName name
         then
             let value =
                     case Text.stripPrefix ":" valueRaw of
@@ -149,6 +149,12 @@ parseAnnotationLine (line, text) = do
                     line
                     ("routes: invalid metadata name: " <> quoted name)
                 )
+
+isValidAnnotationName :: Text -> Bool
+isValidAnnotationName name =
+    case Text.words name of
+        [] -> False
+        parts -> all isValidIdent parts
 
 -- | Parse the controller-name header line.
 parseHeader :: Int -> Text -> Either ParseError Text

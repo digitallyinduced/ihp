@@ -57,6 +57,7 @@ module IHP.Controller.TypedAction
     , DecodeRequest (..)
     , TypedController (..)
     , RenderTypedResponse
+    , TypedRouteResponseDocument (..)
     , BuildTypedRequestBodyDoc (..)
     , bodyParam
     , fillBody
@@ -387,9 +388,9 @@ data TypedRequestBodyDoc where
         } ->
         TypedRequestBodyDoc
 
--- | A typed route with concrete OpenAPI metadata.
-data TypedRouteDocument where
-    TypedRouteDocument ::
+-- | A documented response variant for a typed route.
+data TypedRouteResponseDocument where
+    TypedRouteResponseDocument ::
         forall response.
         ( ViewSupport.View response
         , ViewSupport.JsonView response
@@ -397,20 +398,26 @@ data TypedRouteDocument where
         , JSON.ToJSON (ViewSupport.JsonResponse response)
         , ToSchema (ViewSupport.JsonResponse response)
         ) =>
-        { typedRouteDocumentName :: Text
-        , typedRouteDocumentPath :: Text
-        , typedRouteDocumentMethods :: [StdMethod]
-        , typedRouteDocumentParameters :: [ParameterDoc]
-        , typedRouteDocumentSummary :: Maybe Text
-        , typedRouteDocumentDescription :: Maybe Text
-        , typedRouteDocumentTags :: [Text]
-        , typedRouteDocumentOperationId :: Maybe Text
-        , typedRouteDocumentRequestBody :: Maybe TypedRequestBodyDoc
-        , typedRouteDocumentResponse :: Proxy response
-        , typedRouteDocumentSuccessStatus :: Status
-        , typedRouteDocumentSuccessResponseDescription :: Text
+        { typedRouteResponseName :: Text
+        , typedRouteResponseStatus :: Status
+        , typedRouteResponseDescription :: Text
+        , typedRouteResponseSchema :: Proxy response
         } ->
-        TypedRouteDocument
+        TypedRouteResponseDocument
+
+-- | A typed route with concrete OpenAPI metadata.
+data TypedRouteDocument = TypedRouteDocument
+    { typedRouteDocumentName :: Text
+    , typedRouteDocumentPath :: Text
+    , typedRouteDocumentMethods :: [StdMethod]
+    , typedRouteDocumentParameters :: [ParameterDoc]
+    , typedRouteDocumentSummary :: Maybe Text
+    , typedRouteDocumentDescription :: Maybe Text
+    , typedRouteDocumentTags :: [Text]
+    , typedRouteDocumentOperationId :: Maybe Text
+    , typedRouteDocumentRequestBody :: Maybe TypedRequestBodyDoc
+    , typedRouteDocumentResponses :: [TypedRouteResponseDocument]
+    }
 
 -- | Whether a parameter belongs in the route path or query string.
 data ParameterLocation
@@ -478,14 +485,8 @@ mkTypedRequestBodyDoc =
 {-# INLINE mkTypedRequestBodyDoc #-}
 
 mkTypedRouteDocument ::
-    forall body response.
-    ( BuildTypedRequestBodyDoc body
-    , ViewSupport.View response
-    , ViewSupport.JsonView response
-    , Typeable.Typeable response
-    , JSON.ToJSON (ViewSupport.JsonResponse response)
-    , ToSchema (ViewSupport.JsonResponse response)
-    ) =>
+    forall body.
+    (BuildTypedRequestBodyDoc body) =>
     Text ->
     Text ->
     [StdMethod] ->
@@ -494,10 +495,9 @@ mkTypedRouteDocument ::
     Maybe Text ->
     [Text] ->
     Maybe Text ->
-    Status ->
-    Text ->
+    [TypedRouteResponseDocument] ->
     TypedRouteDocument
-mkTypedRouteDocument routeName routePath routeMethods routeParameters summary description tags operationId successStatus successResponseDescription =
+mkTypedRouteDocument routeName routePath routeMethods routeParameters summary description tags operationId responses =
     TypedRouteDocument
         { typedRouteDocumentName = routeName
         , typedRouteDocumentPath = routePath
@@ -508,9 +508,7 @@ mkTypedRouteDocument routeName routePath routeMethods routeParameters summary de
         , typedRouteDocumentTags = tags
         , typedRouteDocumentOperationId = operationId
         , typedRouteDocumentRequestBody = typedRequestBodyDoc @body
-        , typedRouteDocumentResponse = Proxy @response
-        , typedRouteDocumentSuccessStatus = successStatus
-        , typedRouteDocumentSuccessResponseDescription = successResponseDescription
+        , typedRouteDocumentResponses = responses
         }
 {-# INLINE mkTypedRouteDocument #-}
 

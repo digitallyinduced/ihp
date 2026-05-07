@@ -173,6 +173,7 @@ tests = do
                         , "  tags: Bands, Search"
                         , "POST /sessions CreateSessionAction"
                         , "  success: 201 Created response"
+                        , "  response Created: 201 Created response"
                         ]
                     showRoute =
                         (rtQ 2 [GET] [Literal "bands", Capture "bandId" Nothing] ["page", "tags"] "ShowBandAction")
@@ -184,7 +185,10 @@ tests = do
                             }
                     createRoute =
                         (rt 5 [POST] [Literal "sessions"] "CreateSessionAction")
-                            { routeAnnotations = [ann 6 "success" (Just "201 Created response")]
+                            { routeAnnotations =
+                                [ ann 6 "success" (Just "201 Created response")
+                                , ann 7 "response Created" (Just "201 Created response")
+                                ]
                             }
                 parseRoutes source
                     `shouldBe` Right (mk "ApiController" [showRoute, createRoute])
@@ -320,7 +324,7 @@ tests = do
                     Right _ -> expectationFailure "expected ParseError"
 
             it "rejects invalid metadata names" do
-                case parseRoutes "ApiController\nGET /raw RawJsonAction\n  not valid: nope\n" of
+                case parseRoutes "ApiController\nGET /raw RawJsonAction\n  not-valid: nope\n" of
                     Left e -> do
                         errorLine e `shouldBe` 3
                         (cs (errorMessage e) :: String) `shouldContain` "invalid metadata name"

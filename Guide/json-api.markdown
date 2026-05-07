@@ -231,12 +231,25 @@ instance FromJSON PostInput
 instance ToJSON PostInput
 instance ToSchema PostInput
 
+data ApiError = ApiError
+    { code :: Text
+    , message :: Text
+    }
+    deriving (Generic)
+
+instance ToJSON ApiError
+instance ToSchema ApiError
+
+data UpdatePostResponse
+    = PostUpdated ShowView
+    | UpdateRejected ErrorView
+
 data PostsAction request response where
     UpdatePostAction
         :: { postId :: Id Post
            , returnTo :: Maybe Text
            }
-        -> PostsAction ('Body PostInput) ShowView
+        -> PostsAction ('Body PostInput) UpdatePostResponse
 
 deriving instance Show (PostsAction request response)
 deriving instance Eq (PostsAction request response)
@@ -245,7 +258,8 @@ deriving instance Eq (PostsAction request response)
 POST|PATCH /posts/{postId}?returnTo UpdatePostAction
   summary: Update post
   tags: Posts
-  success: 200 Successful response
+  response PostUpdated: 200 Successful response
+  response UpdateRejected: 422 Validation failed
 |]
 ```
 
@@ -292,19 +306,37 @@ instance TypedController PostsAction where
     action UpdatePostAction { postId, returnTo } input = do
         post <- fetch postId
 
-        post <-
+        updatedPost <-
             post
                 |> fillBody @'["title", "body"] input
                 |> updateRecord
 
-        pure ShowView { .. }
+        pure (PostUpdated ShowView { post = updatedPost })
 ```
 
 The indented metadata block under the route documents operation metadata such
-as summary, tags, status, and descriptions. The request body schema comes from
-the action's `BodySpec`; and the response schema is inferred from the returned
-view's `JsonView` `JsonResponse` associated type. Use `private` under a typed
-route to keep it routable while omitting it from OpenAPI.
+as summary, tags, response statuses, and descriptions. The request body schema
+comes from the action's `BodySpec`. Response schemas come from the view wrapped
+by each response constructor's `JsonView` `JsonResponse` associated type. Use
+`private` under a typed route to keep it routable while omitting it from
+OpenAPI.
+
+Use a response sum type when an endpoint can return multiple status codes. The
+controller returns a constructor such as `PostUpdated` or `UpdateRejected`; the
+route DSL owns the HTTP status for that constructor:
+
+```haskell
+data UpdatePostResponse
+    = PostUpdated ShowView
+    | UpdateRejected ErrorView
+
+instance View ErrorView where
+    html (ErrorView _) = [hsx|...|]
+
+instance JsonView ErrorView where
+    type JsonResponse ErrorView = ApiError
+    json (ErrorView errorPayload) = errorPayload
+```
 
 Use comma-separated names for multiple OpenAPI operation tags:
 `tags: Tickets, Organizations`.
@@ -324,12 +356,13 @@ instance JsonView ShowView where
             }
 ```
 
-Because OpenAPI uses the same route parameter declarations, `BodySpec`, and
-typed `JsonView.json` method as runtime routing/rendering, there is no separate
-body or response declaration to keep in sync with the handler. With typed GADT
-routes, the route type is also the source of truth for runtime parsing,
-`pathTo`, and OpenAPI path/query parameter docs, so typed routes do not repeat
-path parameters in a separate documentation block.
+Because OpenAPI uses the same route parameter declarations, `BodySpec`, response
+constructor metadata, and typed `JsonView.json` methods as runtime
+routing/rendering, there is no separate body, status, or response schema
+declaration to keep in sync with the handler. With typed GADT routes, the route
+type is also the source of truth for runtime parsing, `pathTo`, and OpenAPI
+path/query parameter docs, so typed routes do not repeat path parameters in a
+separate documentation block.
 
 To serve the generated document and Swagger UI, add the exported Swagger
 controller actions to your route DSL:

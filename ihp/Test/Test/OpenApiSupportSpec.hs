@@ -47,6 +47,7 @@ $(deriveApiRecord ''BandPayload)
 data RawJsonValueView = RawJsonValueView
 data WrongJsonShapeView = WrongJsonShapeView {wrongBandId :: !Int}
 data AckView = AckView
+data ErrorView = ErrorView ApiError
 
 data AckPayload = AckPayload
     { ok :: !Bool
@@ -55,6 +56,15 @@ data AckPayload = AckPayload
 
 instance JSON.ToJSON AckPayload
 instance ToSchema AckPayload
+
+data ApiError = ApiError
+    { code :: !Text
+    , message :: !Text
+    }
+    deriving (Eq, Show, Generic)
+
+instance JSON.ToJSON ApiError
+instance ToSchema ApiError
 
 data CreateSessionRequest = CreateSessionRequest
     { token :: !Text
@@ -108,6 +118,19 @@ instance JsonView AckView where
 
     json AckView = AckPayload{ok = True}
 
+instance View ErrorView where
+    html (ErrorView _) = [hsx||]
+
+instance JsonView ErrorView where
+    type JsonResponse ErrorView = ApiError
+
+    json (ErrorView errorPayload) = errorPayload
+
+data CreatePipeSessionResponse success
+    = PipeSessionCreated success
+    | PipeSessionRejected ErrorView
+    | PipeSessionConflict ErrorView
+
 data ApiAction body response where
     ShowBandAction ::
         { bandId :: !Int
@@ -118,7 +141,7 @@ data ApiAction body response where
     RawJsonValueAction :: ApiAction 'NoBody RawJsonValueView
     WrongJsonShapeAction :: {wrongBandId :: !Int} -> ApiAction 'NoBody WrongJsonShapeView
     CreateApiSessionAction :: ApiAction ('Body CreateSessionRequest) AckView
-    CreatePipeSessionAction :: ApiAction ('Body CreateSessionRequest) AckView
+    CreatePipeSessionAction :: ApiAction ('Body CreateSessionRequest) (CreatePipeSessionResponse AckView)
     ShowApiSessionAction :: ApiAction 'NoBody AckView
 
 deriving instance Show (ApiAction body response)
@@ -138,9 +161,14 @@ instance TypedController ApiAction where
         let _token = bodyParam body #token
         pure AckView
 
-    action CreatePipeSessionAction body = do
-        let _token = bodyParam body #token
-        pure AckView
+    action CreatePipeSessionAction body =
+        case bodyParam body #token of
+            "bad" ->
+                pure (PipeSessionRejected (ErrorView ApiError{code = "invalid_token", message = "Invalid token"}))
+            "exists" ->
+                pure (PipeSessionConflict (ErrorView ApiError{code = "session_exists", message = "Session already exists"}))
+            _ ->
+                pure (PipeSessionCreated AckView)
 
     action ShowApiSessionAction () =
         pure AckView
@@ -162,7 +190,9 @@ POST /test/CreateApiSession         CreateApiSessionAction
 POST /test/CreatePipeSession        CreatePipeSessionAction
   summary: Create pipe session
   tags: Sessions
-  success: 201 Created response
+  response PipeSessionCreated: 201 Created response
+  response PipeSessionRejected: 400 Invalid session request
+  response PipeSessionConflict: 409 Session already exists
 GET|HEAD /test/ShowApiSession       ShowApiSessionAction
   summary: Show API session
 GET /docs                          SwaggerUiAction
@@ -303,6 +333,17 @@ tests = aroundAll (withMockContextAndApp RootApplication config) do
             response.simpleStatus `shouldBe` status201
             JSON.decode response.simpleBody `shouldBe` Just (JSON.object ["ok" JSON..= True])
 
+        it "uses route response statuses for typed error outcomes" $ withContextAndApp \application -> do
+            badResponse <- runSession (testPostJson "test/CreatePipeSession" (JSON.object ["token" JSON..= ("bad" :: Text)])) application
+            badResponse.simpleStatus `shouldBe` status400
+            JSON.decode badResponse.simpleBody
+                `shouldBe` Just (JSON.object ["code" JSON..= ("invalid_token" :: Text), "message" JSON..= ("Invalid token" :: Text)])
+
+            conflictResponse <- runSession (testPostJson "test/CreatePipeSession" (JSON.object ["token" JSON..= ("exists" :: Text)])) application
+            conflictResponse.simpleStatus `shouldBe` status409
+            JSON.decode conflictResponse.simpleBody
+                `shouldBe` Just (JSON.object ["code" JSON..= ("session_exists" :: Text), "message" JSON..= ("Session already exists" :: Text)])
+
     describe "OpenAPI generation" do
         it "derives paths, methods, params and response schemas from typed routes" $ withContextAndApp \_ -> do
             let spec = buildOpenApi WebApplication
@@ -366,7 +407,7 @@ tests = aroundAll (withMockContextAndApp RootApplication config) do
             lookupPathOperation "/test/ApiSession" "post" spec `shouldBe` Nothing
             lookupPathOperation "/test/ApiSession" "get" spec `shouldBe` Nothing
 
-        it "includes request body schemas and success metadata for typed actions" $ withContextAndApp \_ -> do
+        it "includes request body schemas and response metadata for typed actions" $ withContextAndApp \_ -> do
             let spec = buildOpenApi WebApplication
 
             let Just operation = lookupPathOperation "/test/CreatePipeSession" "post" spec
@@ -390,6 +431,22 @@ tests = aroundAll (withMockContextAndApp RootApplication config) do
 
             lookupValue "description" createdResponse `shouldBe` Just (JSON.String "Created response")
             (lookupValue "responses" operation >>= lookupValue "200") `shouldBe` Nothing
+
+            let Just rejectedSchema =
+                    lookupValue "responses" operation
+                        >>= lookupValue "400"
+                        >>= lookupValue "content"
+                        >>= lookupValue "application/json"
+                        >>= lookupValue "schema"
+            lookupValue "$ref" rejectedSchema `shouldBe` Just (JSON.String "#/components/schemas/ApiError")
+
+            let Just conflictSchema =
+                    lookupValue "responses" operation
+                        >>= lookupValue "409"
+                        >>= lookupValue "content"
+                        >>= lookupValue "application/json"
+                        >>= lookupValue "schema"
+            lookupValue "$ref" conflictSchema `shouldBe` Just (JSON.String "#/components/schemas/ApiError")
 
         it "emits typed top-level OpenAPI metadata" $ withContextAndApp \_ -> do
             let spec = buildOpenApiWithOptions webApplicationOpenApiOptions WebApplication
