@@ -221,13 +221,13 @@ initAuthentication :: forall user normalizedModel.
         , KnownSymbol (GetModelName user)
     ) => IO ()
 initAuthentication = do
-    userId <- case lookupSessionVault ?request of
+    maybeUuid <- case lookupSessionVault ?request of
         Just (lookupFn, _) -> do
             rawValue <- lookupFn (sessionKey @user)
             pure $ case rawValue of
                 Nothing -> Nothing
                 Just "" -> Nothing
-                Just bs -> Id <$> parseSessionUUID bs
+                Just bs -> parseSessionUUID bs
         Nothing -> pure Nothing
-    user <- fetchOneOrNothing userId
+    user <- fetchOneOrNothing (fmap Id maybeUuid :: Maybe (Id user))
     putContext user
