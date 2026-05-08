@@ -1128,6 +1128,12 @@ CREATE POLICY "Users can read and edit their own record" ON public.users USING (
 
                 diffSchemas targetSchema actualSchema `shouldBe` migration 
 
+            it "should normalize variadic index expressions" do
+                let targetSchema = sql "CREATE INDEX agent_runs_source_idx ON agent_runs (jsonb_extract_path_text(input, VARIADIC ARRAY['source'::text]));"
+                let actualSchema = sql "CREATE INDEX agent_runs_source_idx ON agent_runs (JSONB_EXTRACT_PATH_TEXT(input, VARIADIC ARRAY['source'::TEXT]));"
+
+                diffSchemas targetSchema actualSchema `shouldBe` []
+
             it "should handle complex renames" do
                 -- See https://github.com/digitallyinduced/thin-backend/issues/66
                 let targetSchema = sql $ cs [plain|

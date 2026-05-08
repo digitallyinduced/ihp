@@ -195,6 +195,81 @@ spec = do
             parseMethod "spgist" `shouldBe` Just Spgist
             parseMethod "brin" `shouldBe` Just Brin
 
+        it "should parse CREATE FUNCTION with SET options before AS" do
+            let sql = "CREATE OR REPLACE FUNCTION sync_access()\nRETURNS TRIGGER\nLANGUAGE plpgsql\nSECURITY DEFINER\nSET search_path = public, private, pg_temp\nAS $$BEGIN\n    RETURN NEW;\nEND;$$;"
+            parseSql sql `shouldBe` CreateFunction
+                    { functionName = "sync_access"
+                    , functionArguments = []
+                    , functionBody = "BEGIN\n    RETURN NEW;\nEND;"
+                    , orReplace = True
+                    , returns = PTrigger
+                    , language = "plpgsql"
+                    , securityDefiner = True
+                    , functionSettings =
+                        [ FunctionSetting
+                            { settingName = "search_path"
+                            , settingValue = "public, private, pg_temp"
+                            }
+                        ]
+                    }
+
+        it "should not stop CREATE FUNCTION SET values at keyword prefixes" do
+            let sql = "CREATE OR REPLACE FUNCTION set_tz()\nRETURNS TRIGGER\nSET TimeZone = 'Asia/Tokyo'\nAS $$BEGIN\n    RETURN NEW;\nEND;$$ language plpgsql;"
+            parseSql sql `shouldBe` CreateFunction
+                    { functionName = "set_tz"
+                    , functionArguments = []
+                    , functionBody = "BEGIN\n    RETURN NEW;\nEND;"
+                    , orReplace = True
+                    , returns = PTrigger
+                    , language = "plpgsql"
+                    , securityDefiner = False
+                    , functionSettings =
+                        [ FunctionSetting
+                            { settingName = "TimeZone"
+                            , settingValue = "'Asia/Tokyo'"
+                            }
+                        ]
+                    }
+
+        it "should parse a pg_dump CREATE INDEX with VARIADIC function arguments" do
+            let sql = "CREATE INDEX agent_runs_ingest_gmail_message_latest_idx ON public.agent_runs USING btree (organization_id, jsonb_extract_path_text(input, VARIADIC ARRAY['gmailMessageId'::text]), COALESCE(completed_at, last_event_at, started_at, created_at) DESC, id DESC) WHERE ((type = 'ingest'::public.agent_run_type) AND (jsonb_extract_path_text(input, VARIADIC ARRAY['source'::text]) = 'gmail_email_ingest'::text));"
+            parseSql sql `shouldBe` CreateIndex
+                    { indexName = "agent_runs_ingest_gmail_message_latest_idx"
+                    , unique = False
+                    , tableName = "agent_runs"
+                    , columns =
+                            [ indexCol (VarExpression "organization_id")
+                            , indexCol (CallExpression "jsonb_extract_path_text"
+                                [ VarExpression "input"
+                                , VariadicExpression (ArrayLiteralExpression [TypeCastExpression (TextExpression "gmailMessageId") PText])
+                                ])
+                            , IndexColumn
+                                { column = CallExpression "COALESCE"
+                                    [ VarExpression "completed_at"
+                                    , VarExpression "last_event_at"
+                                    , VarExpression "started_at"
+                                    , VarExpression "created_at"
+                                    ]
+                                , columnOperatorClass = Nothing
+                                , columnOrder = [Desc]
+                                }
+                            , IndexColumn { column = VarExpression "id", columnOperatorClass = Nothing, columnOrder = [Desc] }
+                            ]
+                    , whereClause = Just
+                        (AndExpression
+                            (EqExpression
+                                (VarExpression "type")
+                                (TypeCastExpression (TextExpression "ingest") (PCustomType "agent_run_type")))
+                            (EqExpression
+                                (CallExpression "jsonb_extract_path_text"
+                                    [ VarExpression "input"
+                                    , VariadicExpression (ArrayLiteralExpression [TypeCastExpression (TextExpression "source") PText])
+                                    ])
+                                (TypeCastExpression (TextExpression "gmail_email_ingest") PText)))
+                    , indexType = Just Btree
+                    , nullsDistinct = True
+                    }
+
         it "should parse 'ENABLE ROW LEVEL SECURITY' statements" do
             parseSql "ALTER TABLE tasks ENABLE ROW LEVEL SECURITY;" `shouldBe` EnableRowLevelSecurity { tableName = "tasks" }
 

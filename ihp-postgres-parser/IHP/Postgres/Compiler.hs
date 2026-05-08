@@ -43,7 +43,7 @@ compileStatement RenameColumn { tableName, from, to } = "ALTER TABLE " <> compil
 compileStatement DropTable { tableName } = "DROP TABLE " <> compileIdentifier tableName <> ";"
 compileStatement Comment { content } = "--" <> content
 compileStatement CreateIndex { indexName, unique, tableName, columns, whereClause, indexType, nullsDistinct } = "CREATE" <> (if unique then " UNIQUE " else " ") <> "INDEX " <> compileIdentifier indexName <> " ON " <> compileIdentifier tableName <> (maybe "" (\indexType -> " USING " <> compileIndexType indexType) indexType) <> " (" <> (intercalate ", " (map compileIndexColumn columns)) <> ")" <> (if nullsDistinct then "" else " NULLS NOT DISTINCT") <> (case whereClause of Just expression -> " WHERE " <> compileExpression expression; Nothing -> "") <> ";"
-compileStatement CreateFunction { functionName, functionArguments, functionBody, orReplace, returns, language, securityDefiner } = "CREATE " <> (if orReplace then "OR REPLACE " else "") <> "FUNCTION " <> functionName <> "(" <> (functionArguments & map (\(argName, argType) -> argName <> " " <> compilePostgresType argType) & intercalate  ", ") <> ")" <> " RETURNS " <> compilePostgresType returns <> (if securityDefiner then " SECURITY DEFINER" else "") <> " AS $$" <> functionBody <> "$$ language " <> language <> ";"
+compileStatement CreateFunction { functionName, functionArguments, functionBody, orReplace, returns, language, securityDefiner, functionSettings } = "CREATE " <> (if orReplace then "OR REPLACE " else "") <> "FUNCTION " <> functionName <> "(" <> (functionArguments & map (\(argName, argType) -> argName <> " " <> compilePostgresType argType) & intercalate  ", ") <> ")" <> " RETURNS " <> compilePostgresType returns <> (if securityDefiner then " SECURITY DEFINER" else "") <> mconcat (map compileFunctionSetting functionSettings) <> " AS $$" <> functionBody <> "$$ language " <> language <> ";"
 compileStatement EnableRowLevelSecurity { tableName } = "ALTER TABLE " <> compileIdentifier tableName <> " ENABLE ROW LEVEL SECURITY;"
 compileStatement CreatePolicy { name, action, tableName, using, check } = "CREATE POLICY " <> compileIdentifier name <> " ON " <> compileIdentifier tableName <> maybe "" (\action -> " FOR " <> compilePolicyAction action) action  <> maybe "" (\expr -> " USING (" <> compileExpression expr <> ")") using <> maybe "" (\expr -> " WITH CHECK (" <> compileExpression expr <> ")") check <> ";"
 compileStatement CreateSequence { name } = "CREATE SEQUENCE " <> compileIdentifier name <> ";"
@@ -147,6 +147,7 @@ compileExpression (IsExpression a b) = compileExpressionWithOptionalParenthese a
 compileExpression (InExpression a b) = compileExpressionWithOptionalParenthese a <> " IN " <> compileExpressionWithOptionalParenthese b
 compileExpression (InArrayExpression values) = "(" <> intercalate ", " (map compileExpression values) <> ")"
 compileExpression (ArrayLiteralExpression values) = "ARRAY[" <> intercalate ", " (map compileExpression values) <> "]"
+compileExpression (VariadicExpression value) = "VARIADIC " <> compileExpressionWithOptionalParenthese value
 compileExpression (NotExpression a) = "NOT " <> compileExpressionWithOptionalParenthese a
 compileExpression (AndExpression a b) = compileExpressionWithOptionalParenthese a <> " AND " <> compileExpressionWithOptionalParenthese b
 compileExpression (OrExpression a b) = compileExpressionWithOptionalParenthese a <> " OR " <> compileExpressionWithOptionalParenthese b
@@ -178,6 +179,7 @@ compileExpressionWithOptionalParenthese expr@(DotExpression (VarExpression {}) b
 compileExpressionWithOptionalParenthese expr@(ConcatenationExpression a b ) = compileExpression expr
 compileExpressionWithOptionalParenthese expr@(InArrayExpression values) = compileExpression expr
 compileExpressionWithOptionalParenthese expr@(ArrayLiteralExpression _) = compileExpression expr
+compileExpressionWithOptionalParenthese expr@(VariadicExpression _) = compileExpression expr
 compileExpressionWithOptionalParenthese expression = "(" <> compileExpression expression <> ")"
 
 -- | Compare statements for sorting in schema output
@@ -515,6 +517,9 @@ compileIndexType Gin = "GIN"
 compileIndexType Brin = "BRIN"
 compileIndexType Hnsw = "HNSW"
 compileIndexType Ivfflat = "IVFFLAT"
+
+compileFunctionSetting :: FunctionSetting -> Text
+compileFunctionSetting FunctionSetting { settingName, settingValue } = " SET " <> settingName <> " = " <> settingValue
 
 compileIndexColumn :: IndexColumn -> Text
 compileIndexColumn IndexColumn { column, columnOperatorClass, columnOrder } =
