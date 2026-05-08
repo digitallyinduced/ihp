@@ -679,7 +679,7 @@ tests = do
                     { indexName = "users_index"
                     , unique = True
                     , tableName = "users"
-                    , columns = [IndexColumn { column = VarExpression "user_name", columnOrder = [Asc, NullsFirst] }]
+                    , columns = [IndexColumn { column = VarExpression "user_name", columnOperatorClass = Nothing, columnOrder = [Asc, NullsFirst] }]
                     , whereClause = Nothing
                     , indexType = Nothing
                     , nullsDistinct = True
@@ -690,9 +690,37 @@ tests = do
                     { indexName = "users_index"
                     , unique = True
                     , tableName = "users"
-                    , columns = [IndexColumn { column = VarExpression "user_name", columnOrder = [Desc, NullsLast] }]
+                    , columns = [IndexColumn { column = VarExpression "user_name", columnOperatorClass = Nothing, columnOrder = [Desc, NullsLast] }]
                     , whereClause = Nothing
                     , indexType = Nothing
+                    , nullsDistinct = True
+                    }
+
+        it "should parse pgvector column types with dimensions" do
+            parseSql "ALTER TABLE knowledge_chunks ADD COLUMN embedding VECTOR(1536) DEFAULT NULL;" `shouldBe` AddColumn
+                    { tableName = "knowledge_chunks"
+                    , column = (col "embedding" (PCustomType "VECTOR(1536)")) { defaultValue = Just (VarExpression "NULL") }
+                    }
+
+        it "should parse pgvector HNSW indexes with operator classes" do
+            parseSql "CREATE INDEX knowledge_chunks_embedding_hnsw_idx ON knowledge_chunks USING hnsw (embedding vector_cosine_ops) WHERE embedding IS NOT NULL;" `shouldBe` CreateIndex
+                    { indexName = "knowledge_chunks_embedding_hnsw_idx"
+                    , unique = False
+                    , tableName = "knowledge_chunks"
+                    , columns = [IndexColumn { column = VarExpression "embedding", columnOperatorClass = Just "vector_cosine_ops", columnOrder = [] }]
+                    , whereClause = Just (IsExpression (VarExpression "embedding") (NotExpression (VarExpression "NULL")))
+                    , indexType = Just Hnsw
+                    , nullsDistinct = True
+                    }
+
+        it "should parse pgvector IVFFLAT indexes with operator classes" do
+            parseSql "CREATE INDEX knowledge_chunks_embedding_ivfflat_idx ON knowledge_chunks USING ivfflat (embedding vector_l2_ops);" `shouldBe` CreateIndex
+                    { indexName = "knowledge_chunks_embedding_ivfflat_idx"
+                    , unique = False
+                    , tableName = "knowledge_chunks"
+                    , columns = [IndexColumn { column = VarExpression "embedding", columnOperatorClass = Just "vector_l2_ops", columnOrder = [] }]
+                    , whereClause = Nothing
+                    , indexType = Just Ivfflat
                     , nullsDistinct = True
                     }
 
@@ -732,9 +760,10 @@ CREATE INDEX agent_runs_ingest_gmail_message_latest_idx ON public.agent_runs USI
                                     , VarExpression "started_at"
                                     , VarExpression "created_at"
                                     ]
+                                , columnOperatorClass = Nothing
                                 , columnOrder = [Desc]
                                 }
-                            , IndexColumn { column = VarExpression "id", columnOrder = [Desc] }
+                            , IndexColumn { column = VarExpression "id", columnOperatorClass = Nothing, columnOrder = [Desc] }
                             ]
                     , whereClause = Just
                         (AndExpression

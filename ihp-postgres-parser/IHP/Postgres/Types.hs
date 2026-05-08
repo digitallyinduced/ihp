@@ -273,11 +273,11 @@ data PolicyAction
     | PolicyForDelete
     deriving (Eq, Show)
 
-data IndexType = Btree | Gin | Gist
+data IndexType = Btree | Hash | Gist | Spgist | Gin | Brin | Hnsw | Ivfflat
     deriving (Eq, Show)
 
 data IndexColumn
-    = IndexColumn { column :: Expression, columnOrder :: [IndexColumnOrder] }
+    = IndexColumn { column :: Expression, columnOperatorClass :: Maybe Text, columnOrder :: [IndexColumnOrder] }
     deriving (Eq, Show)
 
 data IndexColumnOrder
@@ -321,7 +321,7 @@ function functionName = CreateFunction
 
 -- | Helper to create an 'IndexColumn' with no column ordering.
 indexCol :: Expression -> IndexColumn
-indexCol column = IndexColumn { column = column, columnOrder = [] }
+indexCol column = IndexColumn { column = column, columnOperatorClass = Nothing, columnOrder = [] }
 
 -- | Helper to create a 'CreatePolicy' with sensible defaults (no action, no using, no check).
 policy :: Text -> Text -> Statement

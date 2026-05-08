@@ -468,7 +468,15 @@ sqlType = choice $ map optionalArray
                         lexeme "public"
                         char '.'
                     theType <- try (takeWhile1P (Just "Custom type") (\c -> isAlphaNum c || c == '_'))
-                    pure (PCustomType theType)
+                    -- Custom typmods are flat here; nested parenthesized
+                    -- modifiers are not supported by this parser.
+                    typeModifier <- optional $ try do
+                        char '('
+                        value <- takeWhile1P (Just "Custom type modifier") (/= ')')
+                        char ')'
+                        space
+                        pure value
+                    pure (PCustomType (maybe theType (\value -> theType <> "(" <> value <> ")") typeModifier))
 
 
 intervalFields :: [Text]
@@ -646,18 +654,40 @@ parseIndexColumns = parseIndexColumn `sepBy` (char ',' >> space)
 
 parseIndexColumn = do
     column <- expression
+    columnOperatorClass <- optional parseIndexColumnOperatorClass
     orderOption1 <- optional $ space *> lexeme "ASC" $> Asc <|> space *> lexeme "DESC" $> Desc
     orderOption2 <- optional $ space *> lexeme "NULLS FIRST" $> NullsFirst <|> space *> lexeme "NULLS LAST" $> NullsLast
-    pure IndexColumn { column, columnOrder = catMaybes [orderOption1, orderOption2] }
+    pure IndexColumn { column, columnOperatorClass, columnOrder = catMaybes [orderOption1, orderOption2] }
+
+parseIndexColumnOperatorClass = try do
+    operatorClass <- qualifiedIdentifier
+    -- These tokens belong to index column ordering, not operator classes.
+    -- Extend this list if the parser grows support for more index-column
+    -- clauses such as COLLATE.
+    when (Text.toUpper operatorClass `elem` ["ASC", "DESC", "NULLS"]) do
+        fail "Expected index operator class"
+    pure operatorClass
 
 parseIndexType = do
     lexeme "USING"
 
-    choice $ map (\(s, v) -> do symbol' s; pure v)
+    choice $ map (uncurry parseIndexTypeKeyword)
         [ ("btree", Btree)
-        , ("gin", Gin)
+        , ("hash", Hash)
+        , ("spgist", Spgist)
         , ("gist", Gist)
+        , ("gin", Gin)
+        , ("brin", Brin)
+        , ("hnsw", Hnsw)
+        , ("ivfflat", Ivfflat)
         ]
+
+parseIndexTypeKeyword :: Text -> IndexType -> Parser IndexType
+parseIndexTypeKeyword keyword indexType = try do
+    string' keyword
+    notFollowedBy (satisfy \c -> isAlphaNum c || c == '_')
+    space
+    pure indexType
 
 data FunctionOption
     = FunctionLanguage Text

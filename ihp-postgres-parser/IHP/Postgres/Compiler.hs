@@ -7,7 +7,7 @@ module IHP.Postgres.Compiler (compileSql, compileIdentifier, compileExpression, 
 
 import Prelude hiding (unlines, unwords)
 import IHP.Postgres.Types
-import Data.Maybe (fromJust, isJust, catMaybes, fromMaybe)
+import Data.Maybe (fromJust, isJust, catMaybes, fromMaybe, maybeToList)
 import Data.Text (Text)
 import qualified Data.Text as Text
 import Data.Function ((&))
@@ -509,16 +509,21 @@ compileGenerator ColumnGenerator { generate, stored } =
     <> (if stored then " STORED" else "")
 
 compileIndexType :: IndexType -> Text
-compileIndexType Gin = "GIN"
 compileIndexType Btree = "BTREE"
+compileIndexType Hash = "HASH"
 compileIndexType Gist = "GIST"
+compileIndexType Spgist = "SPGIST"
+compileIndexType Gin = "GIN"
+compileIndexType Brin = "BRIN"
+compileIndexType Hnsw = "HNSW"
+compileIndexType Ivfflat = "IVFFLAT"
 
 compileFunctionSetting :: FunctionSetting -> Text
 compileFunctionSetting FunctionSetting { settingName, settingValue } = " SET " <> settingName <> " = " <> settingValue
 
 compileIndexColumn :: IndexColumn -> Text
-compileIndexColumn IndexColumn { column, columnOrder = [] } = compileExpression column
-compileIndexColumn IndexColumn { column, columnOrder } = compileExpression column <> " " <> unwords (columnOrder & map compileIndexColumnOrder)
+compileIndexColumn IndexColumn { column, columnOperatorClass, columnOrder } =
+    unwords ([compileExpression column] <> maybeToList (compileIdentifier <$> columnOperatorClass) <> (columnOrder & map compileIndexColumnOrder))
 
 compileIndexColumnOrder :: IndexColumnOrder -> Text
 compileIndexColumnOrder Asc = "ASC"
