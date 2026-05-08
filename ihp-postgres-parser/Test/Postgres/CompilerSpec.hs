@@ -153,6 +153,25 @@ spec = do
                     }
             compileSql [statement] `shouldBe` sql
 
+        it "should compile a CREATE FUNCTION with SET options" do
+            let sql = "CREATE OR REPLACE FUNCTION sync_access() RETURNS TRIGGER SECURITY DEFINER SET search_path = public, private, pg_temp AS $$BEGIN\n    RETURN NEW;\nEND;$$ language plpgsql;\n"
+            let statement = CreateFunction
+                    { functionName = "sync_access"
+                    , functionArguments = []
+                    , functionBody = "BEGIN\n    RETURN NEW;\nEND;"
+                    , orReplace = True
+                    , returns = PTrigger
+                    , language = "plpgsql"
+                    , securityDefiner = True
+                    , functionSettings =
+                        [ FunctionSetting
+                            { settingName = "search_path"
+                            , settingValue = "public, private, pg_temp"
+                            }
+                        ]
+                    }
+            compileSql [statement] `shouldBe` sql
+
         it "should compile a CREATE INDEX with VARIADIC function arguments" do
             let sql = "CREATE INDEX agent_runs_ingest_gmail_message_latest_idx ON agent_runs USING BTREE (organization_id, jsonb_extract_path_text(input, VARIADIC ARRAY['gmailMessageId'::TEXT]), COALESCE(completed_at, last_event_at, started_at, created_at) DESC, id DESC) WHERE type = ('ingest'::agent_run_type) AND jsonb_extract_path_text(input, VARIADIC ARRAY['source'::TEXT]) = ('gmail_email_ingest'::TEXT);\n"
             let statement = CreateIndex

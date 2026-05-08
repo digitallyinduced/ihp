@@ -153,6 +153,42 @@ spec = do
                     , nullsDistinct = True
                     }
 
+        it "should parse CREATE FUNCTION with SET options before AS" do
+            let sql = "CREATE OR REPLACE FUNCTION sync_access()\nRETURNS TRIGGER\nLANGUAGE plpgsql\nSECURITY DEFINER\nSET search_path = public, private, pg_temp\nAS $$BEGIN\n    RETURN NEW;\nEND;$$;"
+            parseSql sql `shouldBe` CreateFunction
+                    { functionName = "sync_access"
+                    , functionArguments = []
+                    , functionBody = "BEGIN\n    RETURN NEW;\nEND;"
+                    , orReplace = True
+                    , returns = PTrigger
+                    , language = "plpgsql"
+                    , securityDefiner = True
+                    , functionSettings =
+                        [ FunctionSetting
+                            { settingName = "search_path"
+                            , settingValue = "public, private, pg_temp"
+                            }
+                        ]
+                    }
+
+        it "should not stop CREATE FUNCTION SET values at keyword prefixes" do
+            let sql = "CREATE OR REPLACE FUNCTION set_tz()\nRETURNS TRIGGER\nSET TimeZone = 'Asia/Tokyo'\nAS $$BEGIN\n    RETURN NEW;\nEND;$$ language plpgsql;"
+            parseSql sql `shouldBe` CreateFunction
+                    { functionName = "set_tz"
+                    , functionArguments = []
+                    , functionBody = "BEGIN\n    RETURN NEW;\nEND;"
+                    , orReplace = True
+                    , returns = PTrigger
+                    , language = "plpgsql"
+                    , securityDefiner = False
+                    , functionSettings =
+                        [ FunctionSetting
+                            { settingName = "TimeZone"
+                            , settingValue = "'Asia/Tokyo'"
+                            }
+                        ]
+                    }
+
         it "should parse a pg_dump CREATE INDEX with VARIADIC function arguments" do
             let sql = "CREATE INDEX agent_runs_ingest_gmail_message_latest_idx ON public.agent_runs USING btree (organization_id, jsonb_extract_path_text(input, VARIADIC ARRAY['gmailMessageId'::text]), COALESCE(completed_at, last_event_at, started_at, created_at) DESC, id DESC) WHERE ((type = 'ingest'::public.agent_run_type) AND (jsonb_extract_path_text(input, VARIADIC ARRAY['source'::text]) = 'gmail_email_ingest'::text));"
             parseSql sql `shouldBe` CreateIndex
