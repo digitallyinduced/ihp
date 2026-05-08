@@ -175,6 +175,8 @@ data Expression =
     | InArrayExpression [Expression]
     -- | ARRAY['a', 'b']
     | ArrayLiteralExpression [Expression]
+    -- | VARIADIC ARRAY['a', 'b']
+    | VariadicExpression Expression
     -- | NOT a
     | NotExpression Expression
     -- | EXISTS a

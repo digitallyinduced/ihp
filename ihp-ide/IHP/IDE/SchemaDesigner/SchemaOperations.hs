@@ -590,6 +590,7 @@ deleteColumn DeleteColumnOptions { .. } schema =
                 isRef (NotExpression a) = isRef a
                 isRef (ExistsExpression a) = isRef a
                 isRef (OrExpression a b) = isRef a || isRef b
+                isRef (VariadicExpression a) = isRef a
                 isRef (LessThanExpression a b) = isRef a || isRef b
                 isRef (LessThanOrEqualToExpression a b) = isRef a || isRef b
                 isRef (GreaterThanExpression a b) = isRef a || isRef b
@@ -651,6 +652,7 @@ isIndexStatementReferencingTableColumn statement tableName columnName = isRefere
             NotExpression a -> expressionReferencesColumn a
             ExistsExpression a -> expressionReferencesColumn a
             OrExpression a b -> expressionReferencesColumn a || expressionReferencesColumn b
+            VariadicExpression a -> expressionReferencesColumn a
             LessThanExpression a b -> expressionReferencesColumn a || expressionReferencesColumn b
             LessThanOrEqualToExpression a b -> expressionReferencesColumn a || expressionReferencesColumn b
             GreaterThanExpression a b -> expressionReferencesColumn a || expressionReferencesColumn b
