@@ -6,8 +6,8 @@ module Test.Router.DSLParserSpec where
 
 import Test.Hspec
 import IHP.Prelude
-import "ihp" IHP.Router.DSL.AST
-import "ihp" IHP.Router.DSL.Parser
+import IHP.Router.DSL.AST
+import IHP.Router.DSL.Parser
 import qualified Data.Text as Text
 import Network.HTTP.Types.Method (StdMethod (..))
 

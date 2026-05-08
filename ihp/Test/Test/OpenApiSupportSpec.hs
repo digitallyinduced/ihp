@@ -24,8 +24,8 @@ import Network.HTTP.Types
 import Network.Wai.Test
 import Test.Hspec
 import Prelude qualified
-import "ihp" IHP.Router.Capture (parseCapture, renderCapture)
-import "ihp" IHP.Router.DSL (routes)
+import IHP.Router.Capture (parseCapture, renderCapture)
+import IHP.Router.DSL (routes)
 
 data WebApplication = WebApplication deriving (Eq, Show)
 

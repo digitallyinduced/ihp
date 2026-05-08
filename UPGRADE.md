@@ -8,7 +8,7 @@ After updating your project, please consult the segments from your current relea
 
 The `render` function now only renders HTML. Previously it used Accept header negotiation to serve both HTML and JSON, but the JSON path was unused in practice.
 
-If you had a `View` instance that defined `json`, keep it on the `View` instance and use `renderHtmlOrJson` for actions that should still negotiate HTML vs JSON. `json` can return a typed payload by setting the view's `JsonResponse` associated type:
+If you had a `JsonView` instance that returned an Aeson `Value`, keep the JSON renderer in the `JsonView` instance and use `renderHtmlOrJson` for actions that should still negotiate HTML vs JSON. `json` can return a typed payload by setting the view's `JsonResponse` associated type:
 
 ```haskell
 -- Before
@@ -22,9 +22,11 @@ action ShowPostAction { postId } = do
 
 -- After
 instance View ShowView where
+    html ShowView { .. } = [hsx|...|]
+
+instance JsonView ShowView where
     type JsonResponse ShowView = Post
 
-    html ShowView { .. } = [hsx|...|]
     json ShowView { .. } = post
 
 action ShowPostAction { postId } = do

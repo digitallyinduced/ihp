@@ -36,8 +36,8 @@ import IHP.ModelSupport
 import IHP.OpenApiSupport qualified as OpenApiSupport
 import IHP.Prelude
 import IHP.RequestVault qualified as RequestVault
-import "ihp" IHP.Router.Capture (parseCapture, renderCapture)
-import "ihp" IHP.Router.DSL (routes)
+import IHP.Router.Capture (parseCapture, renderCapture)
+import IHP.Router.DSL (routes)
 import IHP.Router.TypedRoute
 import IHP.RouterSupport
 import IHP.Server qualified as Server
