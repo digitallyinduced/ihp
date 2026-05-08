@@ -230,9 +230,9 @@ data PostsAction request response where
 ```
 
 Calling `formForAction UploadPostImageAction { .. } input [hsx|{fileField #image}|]`
-renders `enctype="multipart/form-data"`. JSON-only actions such as
-`'BodyWith PostInput '[ 'Json]` do not typecheck with `formForAction`, so a
-browser form cannot accidentally target a JSON-only route.
+renders `enctype="multipart/form-data"`. JSON-body-only actions such as
+`'BodyWith PostInput '[ 'JsonBody]` do not typecheck with `formForAction`, so a
+browser form cannot accidentally target a route that only accepts JSON bodies.
 
 ### Date and DateTime Fields
 

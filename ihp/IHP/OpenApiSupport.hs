@@ -66,7 +66,6 @@ import IHP.ModelSupport
 import IHP.Prelude
 import IHP.Router.Types (UnexpectedMethodException (..))
 import IHP.RouterSupport
-import IHP.ViewSupport qualified as ViewSupport
 import Network.HTTP.Types.Header (hContentType)
 import Network.HTTP.Types.Method (StdMethod (..), parseMethod)
 import Network.HTTP.Types.Status (status200, statusCode)
@@ -846,9 +845,12 @@ typedRouteResponseDocumentation
         , typedRouteResponseDescription
         , typedRouteResponseSchema
         } =
-    let SchemaDocumentation{documentedSchema, documentedDefinitions} = responseSchemaValue typedRouteResponseSchema
+    let (responseValue, documentedDefinitions) =
+            typedResponseDocumentationValue
+                typedRouteResponseDescription
+                (TypedAction.typedResponseDocumentation typedRouteResponseSchema)
      in ( ( JSON.Key.fromText (cs (show (statusCode typedRouteResponseStatus)))
-          , successResponseValue typedRouteResponseDescription documentedSchema
+          , responseValue
           )
         , documentedDefinitions
         )
@@ -893,21 +895,50 @@ typedRequestBodyContentValue encodings schema =
         |> JSON.KeyMap.fromList
         |> JSON.Object
 
-responseSchemaValue :: forall view. (ViewSupport.JsonView view, ToSchema (ViewSupport.JsonResponse view)) => Proxy view -> SchemaDocumentation
-responseSchemaValue _ = declareSchemaDocumentation (Proxy @(ViewSupport.JsonResponse view))
+typedResponseDocumentationValue :: Text -> TypedAction.TypedResponseDocumentation -> (JSON.Value, Definitions Schema)
+typedResponseDocumentationValue responseDescription (TypedAction.TypedResponseDocumentation typedResponseContents typedResponseHeaders) =
+    let contentDocumentation = map typedResponseContentDocumentation typedResponseContents
+        headerDocumentation = map typedResponseHeaderDocumentation typedResponseHeaders
+        contentDefinitions = map snd contentDocumentation |> mconcat
+        headerDefinitions = map snd headerDocumentation |> mconcat
+        contentValue =
+            if null contentDocumentation
+                then Nothing
+                else Just ("content" JSON..= JSON.Object (JSON.KeyMap.fromList (map fst contentDocumentation)))
+        headersValue =
+            if null headerDocumentation
+                then Nothing
+                else Just ("headers" JSON..= JSON.Object (JSON.KeyMap.fromList (map fst headerDocumentation)))
+     in ( JSON.object
+            ( [ Just ("description" JSON..= responseDescription)
+              , contentValue
+              , headersValue
+              ]
+                |> catMaybes
+            )
+        , contentDefinitions <> headerDefinitions
+        )
 
-successResponseValue :: Text -> Referenced Schema -> JSON.Value
-successResponseValue responseDescription schema =
-    JSON.object
-        [ "description" JSON..= responseDescription
-        , "content"
-            JSON..= JSON.object
-                [ "application/json"
-                    JSON..= JSON.object
-                        [ "schema" JSON..= schema
-                        ]
+typedResponseContentDocumentation :: TypedAction.TypedResponseContent -> ((JSON.Key, JSON.Value), Definitions Schema)
+typedResponseContentDocumentation (TypedAction.TypedResponseContent mediaType schemaProxy) =
+    let SchemaDocumentation{documentedSchema, documentedDefinitions} = declareSchemaDocumentation schemaProxy
+     in ( ( JSON.Key.fromText mediaType
+          , JSON.object ["schema" JSON..= documentedSchema]
+          )
+        , documentedDefinitions
+        )
+
+typedResponseHeaderDocumentation :: TypedAction.TypedResponseHeader -> ((JSON.Key, JSON.Value), Definitions Schema)
+typedResponseHeaderDocumentation (TypedAction.TypedResponseHeader headerName headerDescription schemaProxy) =
+    let SchemaDocumentation{documentedSchema, documentedDefinitions} = declareSchemaDocumentation schemaProxy
+     in ( ( JSON.Key.fromText headerName
+          , JSON.object
+                [ "description" JSON..= headerDescription
+                , "schema" JSON..= documentedSchema
                 ]
-        ]
+          )
+        , documentedDefinitions
+        )
 
 data ParameterLocation
     = QueryParameter

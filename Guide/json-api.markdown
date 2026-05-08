@@ -240,9 +240,15 @@ data ApiError = ApiError
 instance ToJSON ApiError
 instance ToSchema ApiError
 
+data ApiErrorView = ApiErrorView { apiError :: ApiError }
+
+instance JsonView ApiErrorView where
+    type JsonResponse ApiErrorView = ApiError
+    json ApiErrorView { apiError } = apiError
+
 data UpdatePostResponse
-    = PostUpdated ShowView
-    | UpdateRejected ErrorView
+    = PostUpdated (ViewOrJsonResponse ShowView)
+    | UpdateRejected (JsonViewResponse ApiErrorView)
 
 data PostsAction request response where
     UpdatePostAction
@@ -265,7 +271,7 @@ POST|PATCH /posts/{postId}?returnTo UpdatePostAction
 
 The JSON decoder uses `FromJSON`. Form requests use the default generic
 `FromFormBody` instance. If an endpoint should only accept JSON, use
-`'BodyWith PostInput '[ 'Json]`.
+`'BodyWith PostInput '[ 'JsonBody]`.
 
 `'Body PostInput` accepts both `application/json` and
 `application/x-www-form-urlencoded` by default. If an endpoint should accept only
@@ -274,11 +280,11 @@ some encodings, use `BodyWith`:
 ```haskell
 data PostsAction request response where
     CreatePostAction
-        :: PostsAction ('BodyWith PostInput '[ 'Json]) ShowView
+        :: PostsAction ('BodyWith PostInput '[ 'JsonBody]) (JsonViewResponse ShowView)
 
     UploadPostImageAction
         :: { postId :: Id Post }
-        -> PostsAction ('BodyWith PostImageInput '[ 'Multipart]) ShowView
+        -> PostsAction ('BodyWith PostImageInput '[ 'Multipart]) (ViewResponse ShowView)
 ```
 
 Use `'NoBody` when the route has no request body. Path and query parameters are
@@ -290,7 +296,7 @@ data PostsAction request response where
         :: { postId :: Id Post
            , returnTo :: Maybe Text
            }
-        -> PostsAction 'NoBody EditView
+        -> PostsAction 'NoBody (ViewResponse EditView)
 ```
 
 Inside the action, the decoded request body is passed as the second argument.
@@ -301,7 +307,7 @@ You can read fields directly, use `bodyParam`, or copy selected fields with
 instance TypedController PostsAction where
     action EditPostAction { postId, returnTo } () = do
         post <- fetch postId
-        pure EditView { .. }
+        pure (ViewResponse EditView { .. })
 
     action UpdatePostAction { postId, returnTo } input = do
         post <- fetch postId
@@ -311,15 +317,16 @@ instance TypedController PostsAction where
                 |> fillBody @'["title", "body"] input
                 |> updateRecord
 
-        pure (PostUpdated ShowView { post = updatedPost })
+        pure (PostUpdated (ViewOrJsonResponse ShowView { post = updatedPost }))
 ```
 
 The indented metadata block under the route documents operation metadata such
 as summary, tags, response statuses, and descriptions. The request body schema
-comes from the action's `BodySpec`. Response schemas come from the view wrapped
-by each response constructor's `JsonView` `JsonResponse` associated type. Use
-`private` under a typed route to keep it routable while omitting it from
-OpenAPI.
+comes from the action's `BodySpec`. Response schemas and media types come from
+the explicit response wrapper returned by the action, such as `ViewResponse`,
+`ViewOrJsonResponse`, `JsonViewResponse`, `PlainText`, `NoContent`, `Redirect`,
+or `FileResponse`. Use `private` under a typed route to keep it routable while
+omitting it from OpenAPI.
 
 Use a response sum type when an endpoint can return multiple status codes. The
 controller returns a constructor such as `PostUpdated` or `UpdateRejected`; the
@@ -327,42 +334,37 @@ route DSL owns the HTTP status for that constructor:
 
 ```haskell
 data UpdatePostResponse
-    = PostUpdated ShowView
-    | UpdateRejected ErrorView
-
-instance View ErrorView where
-    html (ErrorView _) = [hsx|...|]
-
-instance JsonView ErrorView where
-    type JsonResponse ErrorView = ApiError
-    json (ErrorView errorPayload) = errorPayload
+    = PostUpdated (ViewOrJsonResponse ShowView)
+    | UpdateRejected (JsonViewResponse ApiErrorView)
 ```
 
 Use comma-separated names for multiple OpenAPI operation tags:
 `tags: Tickets, Organizations`.
 
 ```haskell
+postResponse :: Post -> PostResponse
+postResponse post =
+    PostResponse
+        { id = post.id
+        , title = post.title
+        , body = post.body
+        }
+
 instance View ShowView where
     html ShowView { post } = [hsx|...|]
 
 instance JsonView ShowView where
     type JsonResponse ShowView = PostResponse
-
-    json ShowView { post } =
-        PostResponse
-            { id = post.id
-            , title = post.title
-            , body = post.body
-            }
+    json ShowView { post } = postResponse post
 ```
 
 Because OpenAPI uses the same route parameter declarations, `BodySpec`, response
-constructor metadata, and typed `JsonView.json` methods as runtime
-routing/rendering, there is no separate body, status, or response schema
-declaration to keep in sync with the handler. With typed GADT routes, the route
-type is also the source of truth for runtime parsing, `pathTo`, and OpenAPI
-path/query parameter docs, so typed routes do not repeat path parameters in a
-separate documentation block.
+constructor metadata, and explicit response wrappers as runtime routing/rendering,
+there is no separate body, status, media type, or response schema declaration to
+keep in sync with the handler. With typed GADT routes, the route type is also the
+source of truth for runtime parsing, `pathTo`, and OpenAPI path/query parameter
+docs, so typed routes do not repeat path parameters in a separate documentation
+block.
 
 To serve the generated document and Swagger UI, add the exported Swagger
 controller actions to your route DSL:

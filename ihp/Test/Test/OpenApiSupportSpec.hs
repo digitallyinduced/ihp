@@ -44,11 +44,6 @@ data BandPayload = BandPayload
 
 $(deriveApiRecord ''BandPayload)
 
-data RawJsonValueView = RawJsonValueView
-data WrongJsonShapeView = WrongJsonShapeView {wrongBandId :: !Int}
-data AckView = AckView
-data ErrorView = ErrorView ApiError
-
 data AckPayload = AckPayload
     { ok :: !Bool
     }
@@ -81,55 +76,63 @@ instance View BandView where
 instance JsonView BandView where
     type JsonResponse BandView = BandPayload
 
-    json BandView{..} =
-        BandPayload
-            { bandId
-            , page
-            , tags = bandTags
-            }
+    json = bandPayloadFromView
 
-instance View RawJsonValueView where
-    html RawJsonValueView = [hsx||]
+bandPayloadFromView :: BandView -> BandPayload
+bandPayloadFromView BandView{..} =
+    BandPayload
+        { bandId
+        , page
+        , tags = bandTags
+        }
+
+data RawJsonValueView = RawJsonValueView
+    deriving (Eq, Show)
 
 instance JsonView RawJsonValueView where
+    type JsonResponse RawJsonValueView = JSON.Value
+
     json RawJsonValueView =
-        JSON.object
-            [ "legacy" JSON..= True
-            ]
+        JSON.object ["legacy" JSON..= True]
 
-instance View WrongJsonShapeView where
-    html WrongJsonShapeView{..} = [hsx||]
+data WrongBandView = WrongBandView
+    { wrongBandId :: !Int
+    }
+    deriving (Eq, Show)
 
-instance JsonView WrongJsonShapeView where
-    type JsonResponse WrongJsonShapeView = BandPayload
+instance JsonView WrongBandView where
+    type JsonResponse WrongBandView = BandPayload
 
-    json WrongJsonShapeView{..} =
-        BandPayload
-            { bandId = wrongBandId
-            , page = Nothing
-            , tags = []
-            }
+    json WrongBandView{..} =
+        BandPayload{bandId = wrongBandId, page = Nothing, tags = []}
 
-instance View AckView where
-    html AckView = [hsx||]
+data AckView = AckView
+    { ackOk :: !Bool
+    }
+    deriving (Eq, Show)
 
 instance JsonView AckView where
     type JsonResponse AckView = AckPayload
 
-    json AckView = AckPayload{ok = True}
+    json AckView{..} =
+        AckPayload{ok = ackOk}
 
-instance View ErrorView where
-    html (ErrorView _) = [hsx||]
+data ApiErrorView = ApiErrorView
+    { errorCode :: !Text
+    , errorMessage :: !Text
+    }
+    deriving (Eq, Show)
 
-instance JsonView ErrorView where
-    type JsonResponse ErrorView = ApiError
+instance JsonView ApiErrorView where
+    type JsonResponse ApiErrorView = ApiError
 
-    json (ErrorView errorPayload) = errorPayload
+    json ApiErrorView{..} =
+        ApiError{code = errorCode, message = errorMessage}
 
-data CreatePipeSessionResponse success
-    = PipeSessionCreated success
-    | PipeSessionRejected ErrorView
-    | PipeSessionConflict ErrorView
+data CreatePipeSessionResponse
+    = PipeSessionCreated (JsonViewResponse AckView)
+    | PipeSessionRejected (JsonViewResponse ApiErrorView)
+    | PipeSessionConflict (JsonViewResponse ApiErrorView)
 
 data ApiAction body response where
     ShowBandAction ::
@@ -137,41 +140,56 @@ data ApiAction body response where
         , page :: !(Maybe Int)
         , bandTags :: ![Text]
         } ->
-        ApiAction 'NoBody BandView
-    RawJsonValueAction :: ApiAction 'NoBody RawJsonValueView
-    WrongJsonShapeAction :: {wrongBandId :: !Int} -> ApiAction 'NoBody WrongJsonShapeView
-    CreateApiSessionAction :: ApiAction ('Body CreateSessionRequest) AckView
-    CreatePipeSessionAction :: ApiAction ('Body CreateSessionRequest) (CreatePipeSessionResponse AckView)
-    ShowApiSessionAction :: ApiAction 'NoBody AckView
+        ApiAction 'NoBody (ViewOrJsonResponse BandView)
+    RawJsonValueAction :: ApiAction 'NoBody (JsonViewResponse RawJsonValueView)
+    WrongJsonShapeAction :: {wrongBandId :: !Int} -> ApiAction 'NoBody (JsonViewResponse WrongBandView)
+    CreateApiSessionAction :: ApiAction ('Body CreateSessionRequest) (JsonViewResponse AckView)
+    CreatePipeSessionAction :: ApiAction ('Body CreateSessionRequest) CreatePipeSessionResponse
+    ShowApiSessionAction :: ApiAction 'NoBody (JsonViewResponse AckView)
+    DeleteApiSessionAction :: ApiAction 'NoBody NoContent
+    PlainTextHealthAction :: ApiAction 'NoBody PlainText
 
 deriving instance Show (ApiAction body response)
 deriving instance Eq (ApiAction body response)
 
 instance TypedController ApiAction where
     action ShowBandAction{..} () =
-        pure BandView{..}
+        let view = BandView{..}
+         in pure (ViewOrJsonResponse view)
 
     action RawJsonValueAction () =
-        pure RawJsonValueView
+        pure (JsonViewResponse RawJsonValueView)
 
     action WrongJsonShapeAction{..} () =
-        pure WrongJsonShapeView{..}
+        pure (JsonViewResponse WrongBandView{wrongBandId})
 
     action CreateApiSessionAction body = do
         let _token = bodyParam body #token
-        pure AckView
+        pure (JsonViewResponse AckView{ackOk = True})
 
     action CreatePipeSessionAction body =
         case bodyParam body #token of
             "bad" ->
-                pure (PipeSessionRejected (ErrorView ApiError{code = "invalid_token", message = "Invalid token"}))
+                pure
+                    ( PipeSessionRejected
+                        (JsonViewResponse ApiErrorView{errorCode = "invalid_token", errorMessage = "Invalid token"})
+                    )
             "exists" ->
-                pure (PipeSessionConflict (ErrorView ApiError{code = "session_exists", message = "Session already exists"}))
+                pure
+                    ( PipeSessionConflict
+                        (JsonViewResponse ApiErrorView{errorCode = "session_exists", errorMessage = "Session already exists"})
+                    )
             _ ->
-                pure (PipeSessionCreated AckView)
+                pure (PipeSessionCreated (JsonViewResponse AckView{ackOk = True}))
 
     action ShowApiSessionAction () =
-        pure AckView
+        pure (JsonViewResponse AckView{ackOk = True})
+
+    action DeleteApiSessionAction () =
+        pure NoContent
+
+    action PlainTextHealthAction () =
+        pure (PlainText "ok")
 
 $(pure [])
 
@@ -195,6 +213,11 @@ POST /test/CreatePipeSession        CreatePipeSessionAction
   response PipeSessionConflict: 409 Session already exists
 GET|HEAD /test/ShowApiSession       ShowApiSessionAction
   summary: Show API session
+DELETE /test/DeleteApiSession       DeleteApiSessionAction
+  summary: Delete API session
+  success: 204 No Content
+GET /test/health.txt                PlainTextHealthAction
+  summary: Plain text health check
 GET /docs                          SwaggerUiAction
 GET /docs/openapi.json             OpenApiJsonAction
 |]
@@ -280,6 +303,9 @@ testPostJson url body =
 testGet :: ByteString -> Session SResponse
 testGet url = request $ setPath defaultRequest{requestMethod = methodGet} url
 
+testDelete :: ByteString -> Session SResponse
+testDelete url = request $ setPath defaultRequest{requestMethod = methodDelete} url
+
 assertJsonBody :: JSON.Value -> SResponse -> IO ()
 assertJsonBody expected response = do
     response.simpleStatus `shouldBe` status200
@@ -305,7 +331,7 @@ lookupParameter name operation = do
 tests :: Spec
 tests = aroundAll (withMockContextAndApp RootApplication config) do
     describe "JSON rendering" do
-        it "renders typed json values through renderHtmlOrJson" $ withContextAndApp \application -> do
+        it "renders ViewOrJsonResponse responses as JSON for API clients" $ withContextAndApp \application -> do
             let expected =
                     JSON.object
                         [ "bandId" JSON..= (12 :: Int)
@@ -314,11 +340,18 @@ tests = aroundAll (withMockContextAndApp RootApplication config) do
                         ]
             runSession (testJson "test/bands/12?page=2&tags=rock&tags=jazz") application >>= assertJsonBody expected
 
-        it "keeps JSON.Value responses working through json" $ withContextAndApp \application -> do
+        it "renders ViewOrJsonResponse responses as HTML for browser requests" $ withContextAndApp \application -> do
+            response <- runSession (testGet "test/bands/12?page=2") application
+
+            response.simpleStatus `shouldBe` status200
+            Prelude.lookup hContentType response.simpleHeaders `shouldBe` Just "text/html; charset=utf-8"
+            (JSON.decode response.simpleBody :: Maybe JSON.Value) `shouldBe` Nothing
+
+        it "keeps JSON.Value responses working through JsonViewResponse" $ withContextAndApp \application -> do
             let expected = JSON.object ["legacy" JSON..= True]
             runSession (testJson "test/raw-json") application >>= assertJsonBody expected
 
-        it "uses typed JsonView.json as the rendered JSON response" $ withContextAndApp \application -> do
+        it "renders JSON-only JsonViewResponse payloads" $ withContextAndApp \application -> do
             let expected =
                     JSON.object
                         [ "bandId" JSON..= (12 :: Int)
@@ -330,6 +363,17 @@ tests = aroundAll (withMockContextAndApp RootApplication config) do
         it "runs typed actions with decoded request bodies" $ withContextAndApp \application -> do
             let expected = JSON.object ["ok" JSON..= True]
             runSession (testPostJson "test/CreateApiSession" (JSON.object ["token" JSON..= ("abc" :: Text)])) application >>= assertJsonBody expected
+
+        it "renders NoContent responses without a body" $ withContextAndApp \application -> do
+            response <- runSession (testDelete "test/DeleteApiSession") application
+            response.simpleStatus `shouldBe` status204
+            response.simpleBody `shouldBe` ""
+
+        it "renders PlainText responses" $ withContextAndApp \application -> do
+            response <- runSession (testGet "test/health.txt") application
+            response.simpleStatus `shouldBe` status200
+            response.simpleBody `shouldBe` "ok"
+            Prelude.lookup hContentType response.simpleHeaders `shouldBe` Just "text/plain"
 
         it "routes typed DSL actions mounted with withPrefix" $ withContextAndApp \application -> do
             let expected =
@@ -393,6 +437,12 @@ tests = aroundAll (withMockContextAndApp RootApplication config) do
                         >>= lookupValue "application/json"
                         >>= lookupValue "schema"
             lookupValue "$ref" schema `shouldBe` Just (JSON.String "#/components/schemas/BandPayload")
+            ( lookupValue "responses" operation
+                >>= lookupValue "200"
+                >>= lookupValue "content"
+                >>= lookupValue "text/html"
+                )
+                `shouldSatisfy` isJust
 
             let Just componentsSchemas = lookupValue "components" spec >>= lookupValue "schemas"
             let Just bandPayloadSchema = lookupValue "BandPayload" componentsSchemas
@@ -463,6 +513,19 @@ tests = aroundAll (withMockContextAndApp RootApplication config) do
                         >>= lookupValue "application/json"
                         >>= lookupValue "schema"
             lookupValue "$ref" conflictSchema `shouldBe` Just (JSON.String "#/components/schemas/ApiError")
+
+            let Just deleteOperation = lookupPathOperation "/test/DeleteApiSession" "delete" spec
+            let Just noContentResponse = lookupValue "responses" deleteOperation >>= lookupValue "204"
+            lookupValue "description" noContentResponse `shouldBe` Just (JSON.String "No Content")
+            lookupValue "content" noContentResponse `shouldBe` Nothing
+
+            let Just plainTextOperation = lookupPathOperation "/test/health.txt" "get" spec
+            ( lookupValue "responses" plainTextOperation
+                >>= lookupValue "200"
+                >>= lookupValue "content"
+                >>= lookupValue "text/plain"
+                )
+                `shouldSatisfy` isJust
 
         it "emits typed top-level OpenAPI metadata" $ withContextAndApp \_ -> do
             let spec = buildOpenApiWithOptions webApplicationOpenApiOptions WebApplication

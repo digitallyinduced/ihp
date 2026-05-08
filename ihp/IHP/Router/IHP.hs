@@ -56,7 +56,7 @@ import Language.Haskell.TH (Q, Dec, Name)
 import qualified Language.Haskell.TH.Quote as TH
 import Text.Read (readMaybe)
 
-import IHP.Controller.TypedAction (BuildTypedRequestBodyDoc, DecodeRequest, ParameterLocation (..), RenderTypedResponse, TypedController, TypedRouteResponseDocument (..), mkTypedRouteDocument)
+import IHP.Controller.TypedAction (BuildTypedRequestBodyDoc, DecodeRequest, DocumentTypedResponse, ParameterLocation (..), RenderTypedResponse, TypedController, TypedRouteResponseDocument (..), mkTypedRouteDocument)
 import IHP.Router.Capture (UrlCapture (..))
 import IHP.Router.DSL.AST (RouteAnnotation (..))
 import IHP.Router.DSL.Runtime (buildRouteTrie)
@@ -87,7 +87,6 @@ import IHP.Router.DSL.TH
     )
 import Network.HTTP.Types.Method (StdMethod)
 import Network.HTTP.Types.Status (mkStatus)
-import qualified IHP.ViewSupport as ViewSupport
 
 -- | Captures for IHP 'Id' values route through the table's primary-key type.
 -- This works for any table whose 'ModelSupport.PrimaryKey' has a 'UrlCapture'
@@ -241,7 +240,7 @@ data RouteResponseMetadata = RouteResponseMetadata
 data RouteResponseSpec = RouteResponseSpec
     { responseSpecConstructorName :: Name
     , responseSpecConstructorText :: Text
-    , responseSpecViewType :: TH.Type
+    , responseSpecPayloadType :: TH.Type
     , responseSpecStatusCode :: Int
     , responseSpecDescription :: Text
     }
@@ -669,8 +668,8 @@ typedRouteResponseDocumentExps ctrl route responseTy metadata =
         _ -> do
             specs <- typedRouteResponseSpecs ctrl route responseTy metadata
             pure
-                [ typedRouteResponseDocumentExp responseSpecConstructorText responseSpecViewType responseSpecStatusCode responseSpecDescription
-                | RouteResponseSpec{responseSpecConstructorText, responseSpecViewType, responseSpecStatusCode, responseSpecDescription} <- specs
+                [ typedRouteResponseDocumentExp responseSpecConstructorText responseSpecPayloadType responseSpecStatusCode responseSpecDescription
+                | RouteResponseSpec{responseSpecConstructorText, responseSpecPayloadType, responseSpecStatusCode, responseSpecDescription} <- specs
                 ]
 
 typedRouteResponseSpecs :: ControllerInfo -> ValidatedRoute -> TH.Type -> TypedRouteMetadata -> Q [RouteResponseSpec]
@@ -733,7 +732,7 @@ routeResponseSpec route substitution constructors RouteResponseMetadata{response
                         <> Text.unpack responseConstructorName
                         <> "'"
                     )
-    viewType <-
+    payloadType <-
         case responseConstructorFieldTypes constructor of
             [fieldType] -> pure (substituteType substitution fieldType)
             [] ->
@@ -742,7 +741,7 @@ routeResponseSpec route substitution constructors RouteResponseMetadata{response
                         <> show responseAnnotationLine
                         <> "): response constructor '"
                         <> Text.unpack responseConstructorName
-                        <> "' must wrap one view value"
+                        <> "' must wrap one response payload"
                     )
             _ ->
                 fail
@@ -750,13 +749,13 @@ routeResponseSpec route substitution constructors RouteResponseMetadata{response
                         <> show responseAnnotationLine
                         <> "): response constructor '"
                         <> Text.unpack responseConstructorName
-                        <> "' must wrap exactly one view value"
+                        <> "' must wrap exactly one response payload"
                     )
     pure
         RouteResponseSpec
             { responseSpecConstructorName = constructorName
             , responseSpecConstructorText = responseConstructorName
-            , responseSpecViewType = viewType
+            , responseSpecPayloadType = payloadType
             , responseSpecStatusCode = responseStatusCode
             , responseSpecDescription = responseDescription
             }
@@ -867,46 +866,43 @@ singleTypedRouteResponseHandlerExp responseTy metadata =
     typedRouteResponseHandlerBase responseTy responseTy "success" (routeSuccessStatusCode metadata) (routeSuccessResponseDescription metadata) (not (routePrivate metadata)) (TH.ConE 'Just)
 
 typedRouteResponseHandlerExp :: TH.Type -> TypedRouteMetadata -> RouteResponseSpec -> TH.Exp
-typedRouteResponseHandlerExp responseTy metadata RouteResponseSpec{responseSpecConstructorName, responseSpecConstructorText, responseSpecViewType, responseSpecStatusCode, responseSpecDescription} =
-    typedRouteResponseHandlerBase responseTy responseSpecViewType responseSpecConstructorText responseSpecStatusCode responseSpecDescription (not (routePrivate metadata)) (constructorMatcherExp responseSpecConstructorName)
+typedRouteResponseHandlerExp responseTy metadata RouteResponseSpec{responseSpecConstructorName, responseSpecConstructorText, responseSpecPayloadType, responseSpecStatusCode, responseSpecDescription} =
+    typedRouteResponseHandlerBase responseTy responseSpecPayloadType responseSpecConstructorText responseSpecStatusCode responseSpecDescription (not (routePrivate metadata)) (constructorMatcherExp responseSpecConstructorName)
 
 typedRouteResponseHandlerBase :: TH.Type -> TH.Type -> Text -> Int -> Text -> Bool -> TH.Exp -> TH.Exp
-typedRouteResponseHandlerBase responseTy viewTy responseName statusCode description publicRoute matcher =
+typedRouteResponseHandlerBase responseTy payloadTy responseName statusCode description publicRoute matcher =
     foldl
         TH.AppE
         ( TH.AppTypeE
             (TH.AppTypeE (TH.VarE 'mkTypedRouteResponseHandler) responseTy)
-            viewTy
+            payloadTy
         )
         [ textExp responseName
         , statusExpFrom statusCode description
-        , documentedExpectationExp publicRoute viewTy
+        , documentedExpectationExp publicRoute payloadTy
         , matcher
         ]
 
 constructorMatcherExp :: Name -> TH.Exp
 constructorMatcherExp constructorName =
     let responseName = TH.mkName "_typedResponse"
-        viewName = TH.mkName "_typedView"
+        payloadName = TH.mkName "_typedPayload"
      in TH.LamE
             [TH.VarP responseName]
             ( TH.CaseE
                 (TH.VarE responseName)
                 [ TH.Match
-                    (TH.ConP constructorName [] [TH.VarP viewName])
-                    (TH.NormalB (TH.AppE (TH.ConE 'Just) (TH.VarE viewName)))
+                    (TH.ConP constructorName [] [TH.VarP payloadName])
+                    (TH.NormalB (TH.AppE (TH.ConE 'Just) (TH.VarE payloadName)))
                     []
                 , TH.Match TH.WildP (TH.NormalB (TH.ConE 'Nothing)) []
                 ]
             )
 
 documentedExpectationExp :: Bool -> TH.Type -> TH.Exp
-documentedExpectationExp publicRoute viewTy =
+documentedExpectationExp publicRoute payloadTy =
     if publicRoute
-        then
-            TH.AppE
-                (TH.ConE 'Just)
-                (TH.AppTypeE (TH.VarE 'typedDocumentedRenderExpectationForResponse) viewTy)
+        then TH.AppTypeE (TH.VarE 'typedDocumentedRenderExpectationForResponse) payloadTy
         else TH.ConE 'Nothing
 
 typedRouteResponseDocumentExp :: Text -> TH.Type -> Int -> Text -> TH.Exp
@@ -993,7 +989,7 @@ gadtRouteConstraints ctrl route = do
     responseTypes <-
         case routeResponses metadata of
             [] -> pure [responseTy]
-            _ -> map responseSpecViewType <$> typedRouteResponseSpecs ctrl route responseTy metadata
+            _ -> map responseSpecPayloadType <$> typedRouteResponseSpecs ctrl route responseTy metadata
     let actionTy = coResultType (vrCon route)
         publicRoute = not (routePrivate metadata)
         controllerConstraints =
@@ -1029,9 +1025,7 @@ renderTypedResponseConstraint responseTy =
 
 documentedResponseConstraints :: TH.Type -> [TH.Type]
 documentedResponseConstraints responseTy =
-    [ renderTypedResponseConstraint responseTy
-    , TH.AppT (TH.ConT ''ToSchema) (TH.AppT (TH.ConT ''ViewSupport.JsonResponse) responseTy)
-    ]
+    [TH.AppT (TH.ConT ''DocumentTypedResponse) responseTy]
 
 routeValueConstraints :: Bool -> TH.Type -> [TH.Type]
 routeValueConstraints includeSchema valueType =

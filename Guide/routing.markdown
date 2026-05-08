@@ -365,16 +365,22 @@ parameters, but the action also has type indices for the request body and the
 response type:
 
 ```haskell
+data ApiErrorView = ApiErrorView { apiError :: ApiError }
+
+instance JsonView ApiErrorView where
+    type JsonResponse ApiErrorView = ApiError
+    json ApiErrorView { apiError } = apiError
+
 data UpdatePostResponse
-    = PostUpdated ShowView
-    | UpdateRejected ErrorView
+    = PostUpdated (ViewOrJsonResponse ShowView)
+    | UpdateRejected (JsonViewResponse ApiErrorView)
 
 data PostsAction request response where
     EditPostAction
         :: { postId :: Id Post
            , returnTo :: Maybe Text
            }
-        -> PostsAction 'NoBody EditView
+        -> PostsAction 'NoBody (ViewResponse EditView)
 
     UpdatePostAction
         :: { postId :: Id Post
@@ -428,10 +434,11 @@ non-`Maybe` query parameters are required.
 
 Indented route metadata describes operation metadata such as `summary`, `tags`,
 response statuses and descriptions. Request body schemas come from the action
-body index. Response schemas come from the `JsonView.JsonResponse` of the view
-wrapped by each route-declared response constructor. Path/query parameter
-schemas come from the route type. Add `private` under a typed route to omit it
-from OpenAPI without changing runtime routing.
+body index. Response schemas and media types come from the explicit response
+wrapper returned by the action, such as `ViewResponse`, `ViewOrJsonResponse`,
+`JsonViewResponse`, `PlainText`, `NoContent`, `Redirect`, or `FileResponse`.
+Path/query parameter schemas come from the route type. Add `private` under a
+typed route to omit it from OpenAPI without changing runtime routing.
 
 For single-response endpoints you can still use:
 
@@ -444,8 +451,8 @@ constructor in the route:
 
 ```haskell
 data UpdatePostResponse
-    = PostUpdated ShowView
-    | UpdateRejected ErrorView
+    = PostUpdated (ViewOrJsonResponse ShowView)
+    | UpdateRejected (JsonViewResponse ApiErrorView)
 
 [routes|webRoutes
 PATCH /posts/{postId} UpdatePostAction
@@ -455,9 +462,9 @@ PATCH /posts/{postId} UpdatePostAction
 ```
 
 The action returns the constructor, not the HTTP status. The generated route
-code type-checks that each named constructor exists, wraps exactly one view
-value, and that the wrapped view has the required `View`, `JsonView`, `ToJSON`
-and `ToSchema` instances for OpenAPI.
+code type-checks that each named constructor exists and wraps exactly one
+response payload. Public routes also require `DocumentTypedResponse`, so OpenAPI
+cannot silently document an unsupported response shape.
 
 Use comma-separated names for multiple OpenAPI operation tags:
 `tags: Tickets, Organizations`.
@@ -465,10 +472,20 @@ Use comma-separated names for multiple OpenAPI operation tags:
 Implement the whole action family with one `TypedController` instance:
 
 ```haskell
+postResponse :: Post -> PostResponse
+postResponse post = PostResponse { id = post.id, title = post.title, body = post.body }
+
+instance View ShowView where
+    html ShowView { post } = [hsx|...|]
+
+instance JsonView ShowView where
+    type JsonResponse ShowView = PostResponse
+    json ShowView { post } = postResponse post
+
 instance TypedController PostsAction where
     action EditPostAction { postId, returnTo } () = do
         post <- fetch postId
-        pure EditView { .. }
+        pure (ViewResponse EditView { .. })
 
     action UpdatePostAction { postId, returnTo } input = do
         post <- fetch postId
@@ -477,7 +494,7 @@ instance TypedController PostsAction where
                 |> fillBody @'["title", "body"] input
                 |> updateRecord
 
-        pure (PostUpdated ShowView { .. })
+        pure (PostUpdated (ViewOrJsonResponse ShowView { .. }))
 ```
 
 ## AutoRoute

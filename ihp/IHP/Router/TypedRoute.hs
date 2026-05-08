@@ -31,25 +31,21 @@ module IHP.Router.TypedRoute
     , typedDocumentedRenderExpectationForResponse
     ) where
 
-import Control.Monad (join)
-import Data.Aeson qualified as JSON
 import Data.Dynamic (fromDynamic)
 import Data.OpenApi (ToSchema)
-import Data.OpenApi.Schema.Validation qualified as SchemaValidation
 import Data.Proxy (Proxy (..))
 import Data.String.Conversions (cs)
 import Data.Text (Text)
 import Data.Typeable qualified as Typeable
 import GHC.TypeLits (KnownSymbol, symbolVal)
-import IHP.Controller.Render (renderHtmlOrJsonWithStatusCode)
-import IHP.Controller.TypedAction (DecodeRequest (..), DecodedRequest, ParameterDoc (..), ParameterLocation (..), RenderTypedResponse, RequestDecodeError (..), TypedController, action, beforeAction)
+import IHP.Controller.TypedAction (DecodeRequest (..), DecodedRequest, DocumentTypedResponse (..), ParameterDoc (..), ParameterLocation (..), RenderTypedResponse (..), RequestDecodeError (..), TypedController, action, beforeAction)
 import IHP.ControllerSupport (ControllerContext, InitControllerContext, Request, Respond, ResponseReceived, prepareRLSIfNeeded, respondAndExit, setupActionContext)
 import IHP.ErrorController qualified as ErrorController
 import IHP.RouterSupport
     ( DocumentedRenderExpectation (..)
     , attachOpenApiRenderExpectation
+    , validateOpenApiRenderedResponse
     )
-import IHP.ViewSupport qualified as ViewSupport
 import Network.HTTP.Types.Header (hContentType)
 import Network.HTTP.Types.Method (StdMethod)
 import Network.HTTP.Types.Status (Status, status500)
@@ -91,22 +87,22 @@ typedActionMethods = actionMethods
 
 data TypedRouteResponseHandler response where
     TypedRouteResponseHandler ::
-        forall response view.
-        (RenderTypedResponse view) =>
+        forall response payload.
+        (RenderTypedResponse payload) =>
         { typedRouteResponseHandlerName :: Text
         , typedRouteResponseHandlerStatus :: Status
         , typedRouteResponseHandlerExpectation :: Maybe DocumentedRenderExpectation
-        , typedRouteResponseHandlerMatch :: response -> Maybe view
+        , typedRouteResponseHandlerMatch :: response -> Maybe payload
         } ->
         TypedRouteResponseHandler response
 
 mkTypedRouteResponseHandler ::
-    forall response view.
-    (RenderTypedResponse view) =>
+    forall response payload.
+    (RenderTypedResponse payload) =>
     Text ->
     Status ->
     Maybe DocumentedRenderExpectation ->
-    (response -> Maybe view) ->
+    (response -> Maybe payload) ->
     TypedRouteResponseHandler response
 mkTypedRouteResponseHandler name status expectation match =
     TypedRouteResponseHandler
@@ -181,25 +177,23 @@ renderTypedRouteResponse [] _ =
 renderTypedRouteResponse (TypedRouteResponseHandler{typedRouteResponseHandlerStatus, typedRouteResponseHandlerExpectation, typedRouteResponseHandlerMatch} : rest) response =
     case typedRouteResponseHandlerMatch response of
         Nothing -> renderTypedRouteResponse rest response
-        Just view -> do
+        Just payload -> do
             let currentRequest = ?request
             let ?request = attachOpenApiRenderExpectation typedRouteResponseHandlerExpectation currentRequest
-            renderHtmlOrJsonWithStatusCode typedRouteResponseHandlerStatus view
+            validateOpenApiRenderedResponse payload (typedResponseJson payload)
+            renderTypedResponse typedRouteResponseHandlerStatus payload
 {-# INLINE renderTypedRouteResponse #-}
 
 typedDocumentedRenderExpectationForResponse ::
     forall response.
-    ( Typeable.Typeable response
-    , ViewSupport.JsonView response
-    , JSON.ToJSON (ViewSupport.JsonResponse response)
-    , ToSchema (ViewSupport.JsonResponse response)
-    ) =>
-    DocumentedRenderExpectation
+    (DocumentTypedResponse response) =>
+    Maybe DocumentedRenderExpectation
 typedDocumentedRenderExpectationForResponse =
     let response = Proxy @response
-     in DocumentedRenderExpectation
-        { expectedViewTypeName = cs (show (Typeable.typeRep response))
-        , expectedTypedJson = fmap (JSON.toJSON . ViewSupport.json) . fromDynamic @response
-        , expectedJsonSchemaValidationError = join . fmap (SchemaValidation.validatePrettyToJSON . ViewSupport.json) . fromDynamic @response
-        }
+     in Just
+            DocumentedRenderExpectation
+                { expectedResponseTypeName = cs (show (Typeable.typeRep response))
+                , expectedTypedJson = \value -> fromDynamic @response value >>= typedResponseJson
+                , expectedJsonSchemaValidationError = \value -> fromDynamic @response value >>= typedResponseJsonSchemaValidationError
+                }
 {-# INLINE typedDocumentedRenderExpectationForResponse #-}

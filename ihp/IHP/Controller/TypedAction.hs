@@ -24,11 +24,11 @@ Actions with a request body take the decoded body as their second argument:
 
 @
 data ProjectsAction request response where
-    IndexProjectsAction :: ProjectsAction 'NoBody IndexView
-    UpdateProjectAction :: { projectId :: Id Project, returnTo :: Maybe Text } -> ProjectsAction ('Body ProjectInput) EditView
+    IndexProjectsAction :: ProjectsAction 'NoBody (JsonViewResponse IndexProjectsView)
+    UpdateProjectAction :: { projectId :: Id Project, returnTo :: Maybe Text } -> ProjectsAction ('Body ProjectInput) (ViewOrJsonResponse EditView)
 
 instance TypedController ProjectsAction where
-    action IndexProjectsAction () = do
+    action IndexProjectsAction () =
         ...
     action UpdateProjectAction { projectId, returnTo } body = do
         let name = bodyParam body #name
@@ -56,7 +56,20 @@ module IHP.Controller.TypedAction
     , FromMultipartBody (..)
     , DecodeRequest (..)
     , TypedController (..)
-    , RenderTypedResponse
+    , ViewResponse (..)
+    , ViewOrJsonResponse (..)
+    , JsonViewResponse (..)
+    , PlainText (..)
+    , NoContent (..)
+    , Redirect (..)
+    , FileResponse (..)
+    , RawResponse (..)
+    , BinaryResponseBody (..)
+    , RenderTypedResponse (..)
+    , DocumentTypedResponse (..)
+    , TypedResponseDocumentation (..)
+    , TypedResponseContent (..)
+    , TypedResponseHeader (..)
     , TypedRouteResponseDocument (..)
     , BuildTypedRequestBodyDoc (..)
     , bodyParam
@@ -73,7 +86,8 @@ import Data.ByteString (ByteString)
 import Data.ByteString.Char8 qualified as ByteString
 import Data.Char (toLower)
 import Data.Kind (Type)
-import Data.OpenApi (ToSchema)
+import Data.OpenApi (NamedSchema (..), OpenApiType (..), Schema (..), ToSchema (..))
+import Data.OpenApi.Schema.Validation qualified as SchemaValidation
 import Data.Proxy (Proxy (..))
 import Data.String.Conversions (cs)
 import Data.Text (Text)
@@ -82,15 +96,17 @@ import GHC.Generics
 import GHC.Records (HasField (..))
 import GHC.TypeLits
 import IHP.Controller.Param (ParamException (..), ParamReader)
-import IHP.ControllerSupport (ControllerContext, Request, Respond, getRequestBody)
+import IHP.Controller.Render (PolymorphicRender (..), renderHtmlViewWithStatus, renderJsonWithStatusCode, renderPolymorphic)
+import IHP.ControllerSupport (ControllerContext, Request, Respond, ResponseReceived, getRequestBody)
 import IHP.ModelSupport (ModelContext)
 import IHP.Record (CopyFields (..))
 import IHP.RequestVault.ModelContext ()
+import IHP.RouterSupport (HasPath, pathTo)
 import IHP.ViewSupport qualified as ViewSupport
-import Network.HTTP.Types.Header (hContentType)
+import Network.HTTP.Types.Header (hContentType, hLocation)
 import Network.HTTP.Types.Method (StdMethod)
 import Network.HTTP.Types.Status (Status, status400, status415)
-import Network.Wai (requestHeaders)
+import Network.Wai (Response, requestHeaders, responseFile, responseLBS)
 import Prelude
 import Wai.Request.Params qualified as Params
 
@@ -104,7 +120,7 @@ data BodySpec
     | BodyWith Type [BodyEncoding]
 
 -- | Default body encodings for 'Body': browser forms and JSON API clients.
-type DefaultBodyEncodings = '[ 'FormUrlEncoded, 'Json]
+type DefaultBodyEncodings = '[ 'FormUrlEncoded, 'JsonBody]
 
 -- | Runtime Haskell value produced after decoding a 'BodySpec'.
 type family DecodedRequest (request :: BodySpec) :: Type where
@@ -121,7 +137,7 @@ type family BodyEncodings (request :: BodySpec) :: [BodyEncoding] where
 -- | Wire formats accepted for a typed request body.
 data BodyEncoding
     = FormUrlEncoded
-    | Json
+    | JsonBody
     | Multipart
     deriving (Eq, Show)
 
@@ -133,8 +149,8 @@ instance KnownBodyEncoding 'FormUrlEncoded where
     bodyEncoding = FormUrlEncoded
     {-# INLINE bodyEncoding #-}
 
-instance KnownBodyEncoding 'Json where
-    bodyEncoding = Json
+instance KnownBodyEncoding 'JsonBody where
+    bodyEncoding = JsonBody
     {-# INLINE bodyEncoding #-}
 
 instance KnownBodyEncoding 'Multipart where
@@ -165,7 +181,7 @@ instance {-# OVERLAPPABLE #-} (HasBodyEncoding encoding rest) => HasBodyEncoding
 encodingContentType :: BodyEncoding -> ByteString
 encodingContentType = \case
     FormUrlEncoded -> "application/x-www-form-urlencoded"
-    Json -> "application/json"
+    JsonBody -> "application/json"
     Multipart -> "multipart/form-data"
 {-# INLINE encodingContentType #-}
 
@@ -275,7 +291,7 @@ instance
 class DecodeBodyEncoding (encoding :: BodyEncoding) input where
     decodeBodyEncoding :: (?request :: Request) => IO (Either RequestDecodeError input)
 
-instance (FromJsonBody input) => DecodeBodyEncoding 'Json input where
+instance (FromJsonBody input) => DecodeBodyEncoding 'JsonBody input where
     decodeBodyEncoding = pure . parseJsonBody @input . cs =<< getRequestBody
     {-# INLINE decodeBodyEncoding #-}
 
@@ -301,7 +317,7 @@ contentTypeMatches :: BodyEncoding -> ByteString -> Bool
 contentTypeMatches encoding contentType =
     let expected = encodingContentType encoding
      in case encoding of
-            Json -> contentType == expected || "+json" `ByteString.isSuffixOf` contentType
+            JsonBody -> contentType == expected || "+json" `ByteString.isSuffixOf` contentType
             _ -> contentType == expected
 {-# INLINE contentTypeMatches #-}
 
@@ -315,12 +331,281 @@ unsupportedContentTypeError =
         }
 {-# INLINE unsupportedContentTypeError #-}
 
-type RenderTypedResponse response =
-    ( ViewSupport.View response
-    , ViewSupport.JsonView response
-    , Typeable.Typeable response
-    , JSON.ToJSON (ViewSupport.JsonResponse response)
-    )
+-- | Render an IHP 'ViewSupport.View' as HTML.
+newtype ViewResponse view = ViewResponse { viewResponseView :: view }
+    deriving (Eq, Show)
+
+-- | Render an IHP view as HTML for browsers and use the view's 'ViewSupport.JsonView'
+-- instance for JSON clients.
+newtype ViewOrJsonResponse view = ViewOrJsonResponse { viewOrJsonResponseView :: view }
+    deriving (Eq, Show)
+
+-- | Render an IHP 'ViewSupport.JsonView' as JSON only.
+newtype JsonViewResponse view = JsonViewResponse { jsonViewResponseView :: view }
+    deriving (Eq, Show)
+
+-- | Render a plain text response.
+newtype PlainText = PlainText { plainText :: Text }
+    deriving (Eq, Show)
+
+-- | Render an empty response body.
+data NoContent = NoContent
+    deriving (Eq, Show)
+
+-- | Render a redirect to another action.
+newtype Redirect action = Redirect { redirectAction :: action }
+    deriving (Eq, Show)
+
+-- | Render a file response with a type-level content type.
+newtype FileResponse (contentType :: Symbol) = FileResponse { fileResponsePath :: FilePath }
+    deriving (Eq, Show)
+
+-- | Escape hatch for responses rendered outside the typed response abstraction.
+-- Public typed routes cannot document this automatically; prefer this for
+-- private routes or custom framework internals.
+newtype RawResponse = RawResponse { rawResponse :: Response }
+
+-- | Marker type used only for OpenAPI schemas of file responses.
+data BinaryResponseBody = BinaryResponseBody
+
+instance ToSchema BinaryResponseBody where
+    declareNamedSchema _ =
+        pure
+            ( NamedSchema Nothing
+                mempty
+                    { _schemaType = Just OpenApiString
+                    , _schemaFormat = Just "binary"
+                    }
+            )
+    {-# INLINE declareNamedSchema #-}
+
+-- | One documented OpenAPI media type for a typed response.
+data TypedResponseContent where
+    TypedResponseContent ::
+        forall body.
+        (ToSchema body) =>
+        { typedResponseContentType :: Text
+        , typedResponseContentSchema :: Proxy body
+        } ->
+        TypedResponseContent
+
+-- | One documented OpenAPI response header for a typed response.
+data TypedResponseHeader where
+    TypedResponseHeader ::
+        forall value.
+        (ToSchema value) =>
+        { typedResponseHeaderName :: Text
+        , typedResponseHeaderDescription :: Text
+        , typedResponseHeaderSchema :: Proxy value
+        } ->
+        TypedResponseHeader
+
+-- | OpenAPI documentation emitted by a typed response.
+data TypedResponseDocumentation = TypedResponseDocumentation
+    { typedResponseContents :: [TypedResponseContent]
+    , typedResponseHeaders :: [TypedResponseHeader]
+    }
+
+-- | Runtime rendering for typed route responses.
+class (Typeable.Typeable response) => RenderTypedResponse response where
+    renderTypedResponse ::
+        ( ?context :: ControllerContext
+        , ?request :: Request
+        , ?respond :: Respond
+        ) =>
+        Status ->
+        response ->
+        IO ResponseReceived
+
+    -- | JSON value produced while rendering this response, when the response has
+    -- a JSON representation. Used to validate OpenAPI docs during development.
+    typedResponseJson :: response -> Maybe JSON.Value
+    typedResponseJson _ = Nothing
+    {-# INLINE typedResponseJson #-}
+
+-- | OpenAPI documentation and schema validation for public typed route responses.
+class (RenderTypedResponse response) => DocumentTypedResponse response where
+    typedResponseDocumentation :: Proxy response -> TypedResponseDocumentation
+
+    -- | Returns a validation error when the response's JSON representation does
+    -- not match the OpenAPI schema declared for it.
+    typedResponseJsonSchemaValidationError :: response -> Maybe String
+    typedResponseJsonSchemaValidationError _ = Nothing
+    {-# INLINE typedResponseJsonSchemaValidationError #-}
+
+instance
+    ( ViewSupport.View view
+    , Typeable.Typeable view
+    ) =>
+    RenderTypedResponse (ViewResponse view)
+    where
+    renderTypedResponse status (ViewResponse view) = do
+        let currentRequest = ?request
+        renderHtmlViewWithStatus status currentRequest view
+    {-# INLINE renderTypedResponse #-}
+
+instance
+    ( ViewSupport.View view
+    , Typeable.Typeable view
+    ) =>
+    DocumentTypedResponse (ViewResponse view)
+    where
+    typedResponseDocumentation _ =
+        TypedResponseDocumentation
+            { typedResponseContents = [TypedResponseContent "text/html" (Proxy @Text)]
+            , typedResponseHeaders = []
+            }
+    {-# INLINE typedResponseDocumentation #-}
+
+instance
+    ( ViewSupport.View view
+    , ViewSupport.JsonView view
+    , JSON.ToJSON (ViewSupport.JsonResponse view)
+    , Typeable.Typeable view
+    ) =>
+    RenderTypedResponse (ViewOrJsonResponse view)
+    where
+    renderTypedResponse status (ViewOrJsonResponse view) = do
+        let currentRequest = ?request
+        renderPolymorphic PolymorphicRender
+            { html = Just (renderHtmlViewWithStatus status currentRequest view)
+            , json = Just (renderJsonWithStatusCode status (ViewSupport.json view))
+            }
+    {-# INLINE renderTypedResponse #-}
+
+    typedResponseJson (ViewOrJsonResponse view) =
+        Just (JSON.toJSON (ViewSupport.json view))
+    {-# INLINE typedResponseJson #-}
+
+instance
+    ( ViewSupport.View view
+    , ViewSupport.JsonView view
+    , JSON.ToJSON (ViewSupport.JsonResponse view)
+    , ToSchema (ViewSupport.JsonResponse view)
+    , Typeable.Typeable view
+    ) =>
+    DocumentTypedResponse (ViewOrJsonResponse view)
+    where
+    typedResponseDocumentation _ =
+        TypedResponseDocumentation
+            { typedResponseContents =
+                [ TypedResponseContent "text/html" (Proxy @Text)
+                , TypedResponseContent "application/json" (Proxy @(ViewSupport.JsonResponse view))
+                ]
+            , typedResponseHeaders = []
+            }
+    {-# INLINE typedResponseDocumentation #-}
+
+    typedResponseJsonSchemaValidationError (ViewOrJsonResponse view) =
+        SchemaValidation.validatePrettyToJSON (ViewSupport.json view)
+    {-# INLINE typedResponseJsonSchemaValidationError #-}
+
+instance
+    ( ViewSupport.JsonView view
+    , JSON.ToJSON (ViewSupport.JsonResponse view)
+    , Typeable.Typeable view
+    ) =>
+    RenderTypedResponse (JsonViewResponse view)
+    where
+    renderTypedResponse status (JsonViewResponse view) =
+        renderJsonWithStatusCode status (ViewSupport.json view)
+    {-# INLINE renderTypedResponse #-}
+
+    typedResponseJson (JsonViewResponse view) =
+        Just (JSON.toJSON (ViewSupport.json view))
+    {-# INLINE typedResponseJson #-}
+
+instance
+    ( ViewSupport.JsonView view
+    , JSON.ToJSON (ViewSupport.JsonResponse view)
+    , ToSchema (ViewSupport.JsonResponse view)
+    , Typeable.Typeable view
+    ) =>
+    DocumentTypedResponse (JsonViewResponse view)
+    where
+    typedResponseDocumentation _ =
+        TypedResponseDocumentation
+            { typedResponseContents = [TypedResponseContent "application/json" (Proxy @(ViewSupport.JsonResponse view))]
+            , typedResponseHeaders = []
+            }
+    {-# INLINE typedResponseDocumentation #-}
+
+    typedResponseJsonSchemaValidationError (JsonViewResponse view) =
+        SchemaValidation.validatePrettyToJSON (ViewSupport.json view)
+    {-# INLINE typedResponseJsonSchemaValidationError #-}
+
+instance RenderTypedResponse PlainText where
+    renderTypedResponse status (PlainText text) =
+        ?respond (responseLBS status [(hContentType, "text/plain")] (cs text))
+    {-# INLINE renderTypedResponse #-}
+
+instance DocumentTypedResponse PlainText where
+    typedResponseDocumentation _ =
+        TypedResponseDocumentation
+            { typedResponseContents = [TypedResponseContent "text/plain" (Proxy @Text)]
+            , typedResponseHeaders = []
+            }
+    {-# INLINE typedResponseDocumentation #-}
+
+instance RenderTypedResponse NoContent where
+    renderTypedResponse status NoContent =
+        ?respond (responseLBS status [] "")
+    {-# INLINE renderTypedResponse #-}
+
+instance DocumentTypedResponse NoContent where
+    typedResponseDocumentation _ =
+        TypedResponseDocumentation
+            { typedResponseContents = []
+            , typedResponseHeaders = []
+            }
+    {-# INLINE typedResponseDocumentation #-}
+
+instance
+    ( HasPath action
+    , Typeable.Typeable action
+    ) =>
+    RenderTypedResponse (Redirect action)
+    where
+    renderTypedResponse status (Redirect action) =
+        ?respond (responseLBS status [(hLocation, cs (pathTo action))] "")
+    {-# INLINE renderTypedResponse #-}
+
+instance
+    ( HasPath action
+    , Typeable.Typeable action
+    ) =>
+    DocumentTypedResponse (Redirect action)
+    where
+    typedResponseDocumentation _ =
+        TypedResponseDocumentation
+            { typedResponseContents = []
+            , typedResponseHeaders = [TypedResponseHeader "Location" "Redirect target" (Proxy @Text)]
+            }
+    {-# INLINE typedResponseDocumentation #-}
+
+instance
+    (KnownSymbol contentType) =>
+    RenderTypedResponse (FileResponse contentType)
+    where
+    renderTypedResponse status (FileResponse filePath) =
+        ?respond (responseFile status [(hContentType, cs (symbolVal (Proxy @contentType)))] filePath Nothing)
+    {-# INLINE renderTypedResponse #-}
+
+instance
+    (KnownSymbol contentType) =>
+    DocumentTypedResponse (FileResponse contentType)
+    where
+    typedResponseDocumentation _ =
+        TypedResponseDocumentation
+            { typedResponseContents = [TypedResponseContent (cs (symbolVal (Proxy @contentType))) (Proxy @BinaryResponseBody)]
+            , typedResponseHeaders = []
+            }
+    {-# INLINE typedResponseDocumentation #-}
+
+instance RenderTypedResponse RawResponse where
+    renderTypedResponse _ (RawResponse response) =
+        ?respond response
+    {-# INLINE renderTypedResponse #-}
 
 -- | Controller class for typed GADT action families.
 --
@@ -392,12 +677,7 @@ data TypedRequestBodyDoc where
 data TypedRouteResponseDocument where
     TypedRouteResponseDocument ::
         forall response.
-        ( ViewSupport.View response
-        , ViewSupport.JsonView response
-        , Typeable.Typeable response
-        , JSON.ToJSON (ViewSupport.JsonResponse response)
-        , ToSchema (ViewSupport.JsonResponse response)
-        ) =>
+        (DocumentTypedResponse response) =>
         { typedRouteResponseName :: Text
         , typedRouteResponseStatus :: Status
         , typedRouteResponseDescription :: Text

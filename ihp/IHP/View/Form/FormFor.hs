@@ -426,8 +426,8 @@ submitButton =
 -- | Selects the form-compatible body encoding accepted by a typed action.
 --
 -- If both URL-encoded forms and multipart forms are accepted, the first
--- encoding in the action's type-level list wins. JSON-only actions have no
--- instance, so they cannot be targeted by 'formForAction'.
+-- encoding in the action's type-level list wins. JSON-body-only actions have
+-- no instance, so they cannot be targeted by 'formForAction'.
 class FormCompatibleBodyEncodings (encodings :: [BodyEncoding]) where
     formBodyEncoding :: BodyEncoding
 

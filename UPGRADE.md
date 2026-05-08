@@ -38,6 +38,50 @@ If your `View` instances only defined `html` (the common case), no changes are n
 
 The `renderJson` function is unchanged and can still be used directly in controllers.
 
+## Typed Routes Return Explicit Responses
+
+Typed GADT routes now return explicit response wrappers instead of views directly. This makes JSON-only endpoints, hybrid HTML/JSON endpoints, `204 No Content`, plain text, redirects, files, and raw WAI responses part of the typed route interface.
+
+```haskell
+-- Before
+data ApiAction body response where
+    ShowPostAction :: ApiAction 'NoBody ShowView
+
+instance TypedController ApiAction where
+    action ShowPostAction () =
+        pure ShowView { post }
+
+-- After
+data CreatePostView = CreatePostView { post :: Post }
+
+instance JsonView CreatePostView where
+    type JsonResponse CreatePostView = Post
+    json CreatePostView { post } = post
+
+data ApiAction body response where
+    ShowPostAction :: ApiAction 'NoBody (ViewOrJsonResponse ShowView)
+    CreatePostAction :: ApiAction ('Body PostInput) (JsonViewResponse CreatePostView)
+    DeletePostAction :: ApiAction 'NoBody NoContent
+
+instance TypedController ApiAction where
+    action ShowPostAction () =
+        pure (ViewOrJsonResponse ShowView { post })
+
+    action CreatePostAction body =
+        pure (JsonViewResponse CreatePostView { post })
+
+    action DeletePostAction () =
+        pure NoContent
+```
+
+For HTML-only typed routes, use `ViewResponse view`. For hybrid routes backed by an IHP `View` and `JsonView`, use `ViewOrJsonResponse view`. For JSON-only endpoints backed by an IHP `JsonView`, use `JsonViewResponse view`. For plain text use `PlainText`, for redirects use `Redirect action`, for files use `FileResponse "application/pdf"`, and for private escape hatches use `RawResponse`.
+
+If you use `BodyWith` with a JSON-only request body, the request-body encoding constructor is now `JsonBody`:
+
+```haskell
+type JsonOnlyBody = 'BodyWith Input '[ 'JsonBody]
+```
+
 ## Authentication moved to WAI middleware
 
 The `initAuthentication` function has been deprecated in favor of a WAI middleware approach. Authentication now runs as middleware before your controllers, storing the current user in the WAI request vault.

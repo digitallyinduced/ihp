@@ -121,31 +121,36 @@ instance View ProjectView where
 instance JsonView ProjectView where
     type JsonResponse ProjectView = ProjectPayload
 
-    json ProjectView{..} = ProjectPayload{ok = True, projectName = viewProjectName}
+    json ProjectView{..} =
+        ProjectPayload{ok = True, projectName = viewProjectName}
+
+projectResponse :: Text -> ViewOrJsonResponse ProjectView
+projectResponse projectName =
+    ViewOrJsonResponse ProjectView{viewProjectName = projectName}
 
 data ProjectAction body response where
     ShowProjectAction ::
         { showProjectId :: Int
         , includeArchived :: Maybe Bool
         } ->
-        ProjectAction 'NoBody ProjectView
+        ProjectAction 'NoBody (ViewOrJsonResponse ProjectView)
     UpdateProjectAction ::
         { projectId :: Int
         , returnTo :: Maybe Text
         } ->
-        ProjectAction ('Body ProjectInput) ProjectView
+        ProjectAction ('Body ProjectInput) (ViewOrJsonResponse ProjectView)
     ArchiveProjectAction ::
         { archiveProjectId :: Int
         } ->
-        ProjectAction ('Body ProjectInput) ProjectView
+        ProjectAction ('Body ProjectInput) (ViewOrJsonResponse ProjectView)
     UploadProjectLogoAction ::
         { uploadProjectId :: Int
         } ->
-        ProjectAction ('BodyWith ProjectInput '[ 'Multipart]) ProjectView
+        ProjectAction ('BodyWith ProjectInput '[ 'Multipart]) (ViewOrJsonResponse ProjectView)
     FailAfterBodyDecodeAction ::
         { failProjectId :: Int
         } ->
-        ProjectAction ('Body ProjectInput) ProjectView
+        ProjectAction ('Body ProjectInput) (ViewOrJsonResponse ProjectView)
 
 deriving instance Show (ProjectAction body response)
 deriving instance Eq (ProjectAction body response)
@@ -154,30 +159,30 @@ data BadProjectAction body response where
     BadUpdateProjectAction ::
         { badProjectId :: Int
         } ->
-        BadProjectAction ('Body ProjectInput) ProjectView
+        BadProjectAction ('Body ProjectInput) (ViewOrJsonResponse ProjectView)
 
 deriving instance Show (BadProjectAction body response)
 deriving instance Eq (BadProjectAction body response)
 
 instance TypedController ProjectAction where
     action ShowProjectAction{..} () =
-        pure ProjectView{viewProjectName = "show"}
+        pure (projectResponse "show")
 
     action UpdateProjectAction{..} body =
-        pure ProjectView{viewProjectName = bodyParam body #name}
+        pure (projectResponse (bodyParam body #name))
 
     action ArchiveProjectAction{..} body =
-        pure ProjectView{viewProjectName = bodyParam body #name}
+        pure (projectResponse (bodyParam body #name))
 
     action UploadProjectLogoAction{..} body =
-        pure ProjectView{viewProjectName = bodyParam body #name}
+        pure (projectResponse (bodyParam body #name))
 
     action FailAfterBodyDecodeAction{..} _body =
         Exception.throwIO (userError "typed route failed after body decode")
 
 instance TypedController BadProjectAction where
     action BadUpdateProjectAction{..} body =
-        pure ProjectView{viewProjectName = bodyParam body #name}
+        pure (projectResponse (bodyParam body #name))
 
 $(pure [])
 
@@ -256,7 +261,7 @@ tests = do
 
                 do
                     let ?request = requestWithBody [(hContentType, "application/vnd.api+json")] JSONBody{jsonPayload = Just (unsafeDecode payload), rawPayload = payload}
-                    decodeRequest @('BodyWith ProjectInput '[ 'Json]) >>= shouldBe (Right ProjectInput{name = "Acme", enabled = True})
+                    decodeRequest @('BodyWith ProjectInput '[ 'JsonBody]) >>= shouldBe (Right ProjectInput{name = "Acme", enabled = True})
 
             it "decodes Body from form data by default" do
                 let ?request = requestWithBody [(hContentType, "application/x-www-form-urlencoded")] FormBody{params = [("name", "Acme"), ("enabled", "on")], files = [], rawPayload = ""}
@@ -276,7 +281,7 @@ tests = do
             it "rejects encodings not listed by BodyWith" do
                 let ?request = requestWithBody [(hContentType, "application/x-www-form-urlencoded")] FormBody{params = [("name", "Acme"), ("enabled", "on")], files = [], rawPayload = ""}
 
-                result <- decodeRequest @('BodyWith ProjectInput '[ 'Json])
+                result <- decodeRequest @('BodyWith ProjectInput '[ 'JsonBody])
                 case result of
                     Left RequestDecodeError{requestDecodeErrorStatus} ->
                         requestDecodeErrorStatus `shouldBe` status415
@@ -348,6 +353,18 @@ tests = do
 
                 let Just showOperation = lookupPathOperation "/projects/{showProjectId}" "get" spec
                 lookupValue "summary" showOperation `shouldBe` Just (JSON.String "Show project")
+                ( lookupValue "responses" showOperation
+                    >>= lookupValue "200"
+                    >>= lookupValue "content"
+                    >>= lookupValue "application/json"
+                    )
+                    `shouldSatisfy` isJust
+                ( lookupValue "responses" showOperation
+                    >>= lookupValue "200"
+                    >>= lookupValue "content"
+                    >>= lookupValue "text/html"
+                    )
+                    `shouldSatisfy` isJust
 
                 let Just includeArchivedParameter = lookupParameter "includeArchived" showOperation
                 lookupValue "in" includeArchivedParameter `shouldBe` Just (JSON.String "query")
