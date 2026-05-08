@@ -529,6 +529,7 @@ normalizeExpression (DotExpression a b) = DotExpression (normalizeExpression a) 
 normalizeExpression (ExistsExpression a) = ExistsExpression (normalizeExpression a)
 normalizeExpression (InArrayExpression exprs) = InArrayExpression (map normalizeExpression exprs)
 normalizeExpression (ArrayLiteralExpression exprs) = ArrayLiteralExpression (map normalizeExpression exprs)
+normalizeExpression (VariadicExpression expr) = VariadicExpression (normalizeExpression expr)
 
 -- | Replaces @table.field@ with just @field@
 --
@@ -566,6 +567,7 @@ unqualifyExpression scope expression = doUnqualify expression
         doUnqualify (ExistsExpression a) = ExistsExpression (doUnqualify a)
         doUnqualify (InArrayExpression exprs) = InArrayExpression (map doUnqualify exprs)
         doUnqualify (ArrayLiteralExpression exprs) = ArrayLiteralExpression (map doUnqualify exprs)
+        doUnqualify (VariadicExpression expr) = VariadicExpression (doUnqualify expr)
         doUnqualify (DotExpression (VarExpression scope') b) | scope == scope' = VarExpression b
         doUnqualify (DotExpression a b) = DotExpression (doUnqualify a) b
 
@@ -600,6 +602,7 @@ resolveAlias (Just alias) fromExpression expression =
         e@(ConcatenationExpression a b) -> ConcatenationExpression (rec a) (rec b)
         e@(InArrayExpression exprs) -> InArrayExpression (map rec exprs)
         e@(ArrayLiteralExpression exprs) -> ArrayLiteralExpression (map rec exprs)
+        e@(VariadicExpression expr) -> VariadicExpression (rec expr)
 resolveAlias Nothing fromExpression expression = expression
 
 normalizeSqlType :: PostgresType -> PostgresType

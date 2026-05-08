@@ -711,6 +711,46 @@ tests = do
                     , nullsDistinct = True
                     }
 
+        it "should parse a pg_dump CREATE INDEX with VARIADIC function arguments" do
+            let sql = cs [plain|
+CREATE INDEX agent_runs_ingest_gmail_message_latest_idx ON public.agent_runs USING btree (organization_id, jsonb_extract_path_text(input, VARIADIC ARRAY['gmailMessageId'::text]), COALESCE(completed_at, last_event_at, started_at, created_at) DESC, id DESC) WHERE ((type = 'ingest'::public.agent_run_type) AND (jsonb_extract_path_text(input, VARIADIC ARRAY['source'::text]) = 'gmail_email_ingest'::text));
+            |]
+            parseSql sql `shouldBe` CreateIndex
+                    { indexName = "agent_runs_ingest_gmail_message_latest_idx"
+                    , unique = False
+                    , tableName = "agent_runs"
+                    , columns =
+                            [ indexCol (VarExpression "organization_id")
+                            , indexCol (CallExpression "jsonb_extract_path_text"
+                                [ VarExpression "input"
+                                , VariadicExpression (ArrayLiteralExpression [TypeCastExpression (TextExpression "gmailMessageId") PText])
+                                ])
+                            , IndexColumn
+                                { column = CallExpression "COALESCE"
+                                    [ VarExpression "completed_at"
+                                    , VarExpression "last_event_at"
+                                    , VarExpression "started_at"
+                                    , VarExpression "created_at"
+                                    ]
+                                , columnOrder = [Desc]
+                                }
+                            , IndexColumn { column = VarExpression "id", columnOrder = [Desc] }
+                            ]
+                    , whereClause = Just
+                        (AndExpression
+                            (EqExpression
+                                (VarExpression "type")
+                                (TypeCastExpression (TextExpression "ingest") (PCustomType "agent_run_type")))
+                            (EqExpression
+                                (CallExpression "jsonb_extract_path_text"
+                                    [ VarExpression "input"
+                                    , VariadicExpression (ArrayLiteralExpression [TypeCastExpression (TextExpression "source") PText])
+                                    ])
+                                (TypeCastExpression (TextExpression "gmail_email_ingest") PText)))
+                    , indexType = Just Btree
+                    , nullsDistinct = True
+                    }
+
         it "should parse a CREATE OR REPLACE FUNCTION ..() RETURNS TRIGGER .." do
             parseSql "CREATE OR REPLACE FUNCTION notify_did_insert_webrtc_connection() RETURNS TRIGGER AS $$ BEGIN PERFORM pg_notify('did_insert_webrtc_connection', json_build_object('id', NEW.id, 'floor_id', NEW.floor_id, 'source_user_id', NEW.source_user_id, 'target_user_id', NEW.target_user_id)::text); RETURN NEW; END; $$ language plpgsql;" `shouldBe` (function "notify_did_insert_webrtc_connection")
                     { functionBody = " BEGIN PERFORM pg_notify('did_insert_webrtc_connection', json_build_object('id', NEW.id, 'floor_id', NEW.floor_id, 'source_user_id', NEW.source_user_id, 'target_user_id', NEW.target_user_id)::text); RETURN NEW; END; "
