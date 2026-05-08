@@ -125,3 +125,25 @@ tests = do
                     merged = mergeTrie a b
                 isMatched (lookupTrie merged GET ["posts"]) `shouldBe` True
                 isMatched (lookupTrie merged POST ["posts"]) `shouldBe` True
+
+        describe "prefixTrie" do
+            it "mounts an existing trie below a static path prefix" do
+                let trie =
+                        insertRoute
+                            [LiteralSeg "posts", CaptureSeg CaptureSpec{captureName = "postId"}]
+                            GET
+                            (tagHandler "show")
+                            emptyTrie
+                    prefixed = prefixTrie "/api/v1" trie
+
+                case lookupTrie prefixed GET ["posts", "42"] of
+                    NotMatched -> pure ()
+                    _ -> expectationFailure "expected NotMatched"
+                isMatched (lookupTrie prefixed GET ["api", "v1", "posts", "42"]) `shouldBe` True
+                capturesOf (lookupTrie prefixed GET ["api", "v1", "posts", "42"]) `shouldBe` ["42"]
+
+            it "leaves empty and root prefixes unchanged" do
+                let trie = insertRoute [LiteralSeg "health"] GET (tagHandler "health") emptyTrie
+
+                isMatched (lookupTrie (prefixTrie "" trie) GET ["health"]) `shouldBe` True
+                isMatched (lookupTrie (prefixTrie "/" trie) GET ["health"]) `shouldBe` True

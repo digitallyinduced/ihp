@@ -178,12 +178,18 @@ data ControllerRoute application
         { routeTrie :: !Trie.RouteTrie
         , routeInspection :: !RouteInspection
         }
+    | ControllerRoutePrefix
+        { routePrefix :: !ByteString
+        , prefixedRoutes :: ![ControllerRoute application]
+        , routeParser :: !(Parser Application)
+        , routeInspection :: !RouteInspection
+        }
 
 pattern ControllerRouteTrie :: Trie.RouteTrie -> ControllerRoute application
 pattern ControllerRouteTrie trie <- ControllerRouteTrie' trie _
   where
     ControllerRouteTrie trie = ControllerRouteTrie' trie (RouteLeaf UndocumentedRoute)
-{-# COMPLETE ControllerRouteMap, ControllerRouteParser, ControllerRouteTrie #-}
+{-# COMPLETE ControllerRouteMap, ControllerRouteParser, ControllerRouteTrie, ControllerRoutePrefix #-}
 
 rawRoute :: Parser Application -> ControllerRoute application
 rawRoute parser = ControllerRouteParser{routeParser = parser, routeInspection = RouteLeaf UndocumentedRoute}
@@ -193,6 +199,7 @@ compileControllerRoute :: ControllerRoute application -> Parser Application
 compileControllerRoute ControllerRouteMap{routeParser} = routeParser
 compileControllerRoute ControllerRouteParser{routeParser} = routeParser
 compileControllerRoute (ControllerRouteTrie _) = empty
+compileControllerRoute ControllerRoutePrefix{routeParser} = routeParser
 {-# INLINE compileControllerRoute #-}
 
 class FrontController application where
@@ -240,7 +247,8 @@ defaultRouter additionalRoutes = do
 
 {- | Scan 'ControllerRouteMap' entries for a matching path.
 Returns as soon as a HashMap contains the path. Skips 'ControllerRouteParser'
-and 'ControllerRouteTrie' entries (those are handled elsewhere).
+and 'ControllerRouteTrie' entries (those are handled elsewhere), but descends
+through 'ControllerRoutePrefix' entries with the prefix stripped.
 -}
 findInRouteMaps :: ByteString -> [ControllerRoute application] -> Maybe (application -> Application)
 findInRouteMaps _ [] = Nothing
@@ -248,22 +256,32 @@ findInRouteMaps path (ControllerRouteMap{routeMap} : rest) =
     case HashMap.lookup path routeMap of
         Just handler -> Just handler
         Nothing -> findInRouteMaps path rest
+findInRouteMaps path (ControllerRoutePrefix{routePrefix, prefixedRoutes} : rest) =
+    case ByteString.stripPrefix routePrefix path of
+        Just unprefixedPath -> findInRouteMaps unprefixedPath prefixedRoutes <|> findInRouteMaps path rest
+        Nothing -> findInRouteMaps path rest
 findInRouteMaps path (_ : rest) = findInRouteMaps path rest
 
 -- | Extract fallback Attoparsec parsers from controller routes.
 -- 'ControllerRouteTrie' entries contribute no fallback parsers — they
--- are consumed by the trie stage of 'frontControllerToWAIApp'.
+-- are consumed by the trie stage of 'frontControllerToWAIApp'. Prefixed
+-- route groups contribute their prefixed fallback parser.
 getRouteParsers :: ControllerRoute application -> [Parser Application]
 getRouteParsers ControllerRouteMap{routeParser} = [routeParser]
 getRouteParsers ControllerRouteParser{routeParser} = [routeParser]
 getRouteParsers (ControllerRouteTrie _) = []
+getRouteParsers ControllerRoutePrefix{routeParser} = [routeParser]
 
 -- | Merge all 'ControllerRouteTrie' fragments in the route list into a
--- single app-wide 'RouteTrie'. Returns 'Trie.emptyTrie' if no fragments exist.
+-- single app-wide 'RouteTrie'. 'ControllerRoutePrefix' entries recursively
+-- mount their trie fragments below the prefix. Returns 'Trie.emptyTrie' if
+-- no fragments exist.
 collectTrie :: [ControllerRoute application] -> Trie.RouteTrie
 collectTrie = List.foldl' step Trie.emptyTrie
   where
     step acc (ControllerRouteTrie fragment) = Trie.mergeTrie acc fragment
+    step acc ControllerRoutePrefix{routePrefix, prefixedRoutes} =
+        Trie.mergeTrie acc (Trie.prefixTrie routePrefix (collectTrie prefixedRoutes))
     step acc _ = acc
 
 data DocumentedRenderExpectation = DocumentedRenderExpectation
@@ -1184,8 +1202,10 @@ startPage action = get (Text.encodeUtf8 (actionPrefixText @action)) action
 
 withPrefix :: ByteString -> [ControllerRoute application] -> ControllerRoute application
 withPrefix prefix routes =
-    ControllerRouteParser
-        { routeParser = string prefix >> choice (map (\route -> compileControllerRoute route <* endOfInput) routes)
+    ControllerRoutePrefix
+        { routePrefix = prefix
+        , prefixedRoutes = routes
+        , routeParser = string prefix >> choice (map (\route -> compileControllerRoute route <* endOfInput) routes)
         , routeInspection = RoutePrefix prefix (map routeInspection routes)
         }
 {-# INLINEABLE withPrefix #-}

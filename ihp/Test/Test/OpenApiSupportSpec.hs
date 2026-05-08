@@ -234,7 +234,10 @@ instance FrontController WebApplication where
     controllers = openApiTestRoutes
 
 instance FrontController RootApplication where
-    controllers = [mountFrontController WebApplication]
+    controllers =
+        [ mountFrontController WebApplication
+        , withPrefix "/api" openApiTestRoutes
+        ]
 
 defaultLayout :: Html -> Html
 defaultLayout inner = [hsx|{inner}|]
@@ -328,6 +331,15 @@ tests = aroundAll (withMockContextAndApp RootApplication config) do
             let expected = JSON.object ["ok" JSON..= True]
             runSession (testPostJson "test/CreateApiSession" (JSON.object ["token" JSON..= ("abc" :: Text)])) application >>= assertJsonBody expected
 
+        it "routes typed DSL actions mounted with withPrefix" $ withContextAndApp \application -> do
+            let expected =
+                    JSON.object
+                        [ "bandId" JSON..= (12 :: Int)
+                        , "page" JSON..= Just (2 :: Int)
+                        , "tags" JSON..= ([] :: [Text])
+                        ]
+            runSession (testJson "api/test/bands/12?page=2") application >>= assertJsonBody expected
+
         it "uses route success status for typed actions" $ withContextAndApp \application -> do
             response <- runSession (testPostJson "test/CreatePipeSession" (JSON.object ["token" JSON..= ("abc" :: Text)])) application
             response.simpleStatus `shouldBe` status201
@@ -392,6 +404,10 @@ tests = aroundAll (withMockContextAndApp RootApplication config) do
         it "omits private typed routes from the generated spec" $ withContextAndApp \_ -> do
             let spec = buildOpenApi WebApplication
             lookupPathOperation "/test/raw-json" "get" spec `shouldBe` Nothing
+
+        it "documents typed DSL routes mounted with withPrefix" $ withContextAndApp \_ -> do
+            let spec = buildOpenApi RootApplication
+            lookupPathOperation "/api/test/bands/{bandId}" "get" spec `shouldSatisfy` isJust
 
         it "keeps CreateApi and ShowApi action names unchanged in inferred typed route paths" $ withContextAndApp \_ -> do
             let spec = buildOpenApi WebApplication
