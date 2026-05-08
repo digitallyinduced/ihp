@@ -153,6 +153,123 @@ spec = do
                     , nullsDistinct = True
                     }
 
+        it "should parse pgvector column types with dimensions" do
+            parseSql "ALTER TABLE knowledge_chunks ADD COLUMN embedding VECTOR(1536) DEFAULT NULL;" `shouldBe` AddColumn
+                    { tableName = "knowledge_chunks"
+                    , column = (col "embedding" (PCustomType "VECTOR(1536)")) { defaultValue = Just (VarExpression "NULL") }
+                    }
+
+        it "should preserve custom type modifier contents" do
+            parseSql "ALTER TABLE knowledge_chunks ADD COLUMN embedding VECTOR( 1536 ) DEFAULT NULL;" `shouldBe` AddColumn
+                    { tableName = "knowledge_chunks"
+                    , column = (col "embedding" (PCustomType "VECTOR( 1536 )")) { defaultValue = Just (VarExpression "NULL") }
+                    }
+
+        it "should parse pgvector HNSW indexes with operator classes" do
+            parseSql "CREATE INDEX knowledge_chunks_embedding_hnsw_idx ON knowledge_chunks USING hnsw (embedding vector_cosine_ops) WHERE embedding IS NOT NULL;" `shouldBe` CreateIndex
+                    { indexName = "knowledge_chunks_embedding_hnsw_idx"
+                    , unique = False
+                    , tableName = "knowledge_chunks"
+                    , columns = [IndexColumn { column = VarExpression "embedding", columnOperatorClass = Just "vector_cosine_ops", columnOrder = [] }]
+                    , whereClause = Just (IsExpression (VarExpression "embedding") (NotExpression (VarExpression "NULL")))
+                    , indexType = Just Hnsw
+                    , nullsDistinct = True
+                    }
+
+        it "should parse pgvector IVFFLAT indexes with operator classes" do
+            parseSql "CREATE INDEX knowledge_chunks_embedding_ivfflat_idx ON knowledge_chunks USING ivfflat (embedding vector_l2_ops);" `shouldBe` CreateIndex
+                    { indexName = "knowledge_chunks_embedding_ivfflat_idx"
+                    , unique = False
+                    , tableName = "knowledge_chunks"
+                    , columns = [IndexColumn { column = VarExpression "embedding", columnOperatorClass = Just "vector_l2_ops", columnOrder = [] }]
+                    , whereClause = Nothing
+                    , indexType = Just Ivfflat
+                    , nullsDistinct = True
+                    }
+
+        it "should parse additional PostgreSQL index methods" do
+            let parseMethod method = case parseSql ("CREATE INDEX users_email_idx ON users USING " <> method <> " (email);") of
+                    CreateIndex { indexType } -> indexType
+                    _ -> error "Expected CreateIndex"
+            parseMethod "hash" `shouldBe` Just Hash
+            parseMethod "spgist" `shouldBe` Just Spgist
+            parseMethod "brin" `shouldBe` Just Brin
+
+        it "should parse CREATE FUNCTION with SET options before AS" do
+            let sql = "CREATE OR REPLACE FUNCTION sync_access()\nRETURNS TRIGGER\nLANGUAGE plpgsql\nSECURITY DEFINER\nSET search_path = public, private, pg_temp\nAS $$BEGIN\n    RETURN NEW;\nEND;$$;"
+            parseSql sql `shouldBe` CreateFunction
+                    { functionName = "sync_access"
+                    , functionArguments = []
+                    , functionBody = "BEGIN\n    RETURN NEW;\nEND;"
+                    , orReplace = True
+                    , returns = PTrigger
+                    , language = "plpgsql"
+                    , securityDefiner = True
+                    , functionSettings =
+                        [ FunctionSetting
+                            { settingName = "search_path"
+                            , settingValue = "public, private, pg_temp"
+                            }
+                        ]
+                    }
+
+        it "should not stop CREATE FUNCTION SET values at keyword prefixes" do
+            let sql = "CREATE OR REPLACE FUNCTION set_tz()\nRETURNS TRIGGER\nSET TimeZone = 'Asia/Tokyo'\nAS $$BEGIN\n    RETURN NEW;\nEND;$$ language plpgsql;"
+            parseSql sql `shouldBe` CreateFunction
+                    { functionName = "set_tz"
+                    , functionArguments = []
+                    , functionBody = "BEGIN\n    RETURN NEW;\nEND;"
+                    , orReplace = True
+                    , returns = PTrigger
+                    , language = "plpgsql"
+                    , securityDefiner = False
+                    , functionSettings =
+                        [ FunctionSetting
+                            { settingName = "TimeZone"
+                            , settingValue = "'Asia/Tokyo'"
+                            }
+                        ]
+                    }
+
+        it "should parse a pg_dump CREATE INDEX with VARIADIC function arguments" do
+            let sql = "CREATE INDEX agent_runs_ingest_gmail_message_latest_idx ON public.agent_runs USING btree (organization_id, jsonb_extract_path_text(input, VARIADIC ARRAY['gmailMessageId'::text]), COALESCE(completed_at, last_event_at, started_at, created_at) DESC, id DESC) WHERE ((type = 'ingest'::public.agent_run_type) AND (jsonb_extract_path_text(input, VARIADIC ARRAY['source'::text]) = 'gmail_email_ingest'::text));"
+            parseSql sql `shouldBe` CreateIndex
+                    { indexName = "agent_runs_ingest_gmail_message_latest_idx"
+                    , unique = False
+                    , tableName = "agent_runs"
+                    , columns =
+                            [ indexCol (VarExpression "organization_id")
+                            , indexCol (CallExpression "jsonb_extract_path_text"
+                                [ VarExpression "input"
+                                , VariadicExpression (ArrayLiteralExpression [TypeCastExpression (TextExpression "gmailMessageId") PText])
+                                ])
+                            , IndexColumn
+                                { column = CallExpression "COALESCE"
+                                    [ VarExpression "completed_at"
+                                    , VarExpression "last_event_at"
+                                    , VarExpression "started_at"
+                                    , VarExpression "created_at"
+                                    ]
+                                , columnOperatorClass = Nothing
+                                , columnOrder = [Desc]
+                                }
+                            , IndexColumn { column = VarExpression "id", columnOperatorClass = Nothing, columnOrder = [Desc] }
+                            ]
+                    , whereClause = Just
+                        (AndExpression
+                            (EqExpression
+                                (VarExpression "type")
+                                (TypeCastExpression (TextExpression "ingest") (PCustomType "agent_run_type")))
+                            (EqExpression
+                                (CallExpression "jsonb_extract_path_text"
+                                    [ VarExpression "input"
+                                    , VariadicExpression (ArrayLiteralExpression [TypeCastExpression (TextExpression "source") PText])
+                                    ])
+                                (TypeCastExpression (TextExpression "gmail_email_ingest") PText)))
+                    , indexType = Just Btree
+                    , nullsDistinct = True
+                    }
+
         it "should parse 'ENABLE ROW LEVEL SECURITY' statements" do
             parseSql "ALTER TABLE tasks ENABLE ROW LEVEL SECURITY;" `shouldBe` EnableRowLevelSecurity { tableName = "tasks" }
 

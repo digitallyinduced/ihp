@@ -19,7 +19,7 @@ import qualified Data.Text as Text
 import qualified Data.Text.IO as Text
 import Data.ByteString (ByteString)
 import Data.String.Conversions (cs)
-import Data.Maybe (isJust, catMaybes, isNothing)
+import Data.Maybe (isJust, catMaybes, isNothing, listToMaybe)
 import Data.Either (lefts, rights)
 import Data.Functor (($>))
 import Data.Char (isAlphaNum)
@@ -468,7 +468,15 @@ sqlType = choice $ map optionalArray
                         lexeme "public"
                         char '.'
                     theType <- try (takeWhile1P (Just "Custom type") (\c -> isAlphaNum c || c == '_'))
-                    pure (PCustomType theType)
+                    -- Custom typmods are flat here; nested parenthesized
+                    -- modifiers are not supported by this parser.
+                    typeModifier <- optional $ try do
+                        char '('
+                        value <- takeWhile1P (Just "Custom type modifier") (/= ')')
+                        char ')'
+                        space
+                        pure value
+                    pure (PCustomType (maybe theType (\value -> theType <> "(" <> value <> ")") typeModifier))
 
 
 intervalFields :: [Text]
@@ -477,7 +485,7 @@ intervalFields =  [ "YEAR TO MONTH", "DAY TO HOUR", "DAY TO MINUTE", "DAY TO SEC
                    , "YEAR",  "MONTH", "DAY", "HOUR", "MINUTE", "SECOND"]
 
 
-term = parens expression <|> try arrayExpr <|> try callExpr <|> try doubleExpr <|> try intExpr <|> selectExpr <|> varExpr <|> (textExpr <* optional space)
+term = parens expression <|> try variadicExpr <|> try arrayExpr <|> try callExpr <|> try doubleExpr <|> try intExpr <|> selectExpr <|> varExpr <|> (textExpr <* optional space)
     where
         parens f = between (char '(' >> space) (char ')' >> space) f
 
@@ -561,6 +569,16 @@ arrayExpr = do
     space
     pure (ArrayLiteralExpression values)
 
+-- | Parses a PostgreSQL VARIADIC function argument like @VARIADIC ARRAY['a']@.
+variadicExpr :: Parser Expression
+variadicExpr = do
+    lexeme do
+        string' "VARIADIC"
+        notFollowedBy (satisfy \c -> isAlphaNum c || c == '_')
+    -- Use expression rather than term so postfix type casts stay part of the
+    -- variadic argument, e.g. VARIADIC ARRAY['a']::text[].
+    VariadicExpression <$> expression
+
 textExpr :: Parser Expression
 textExpr = TextExpression <$> textExpr'
 
@@ -636,18 +654,45 @@ parseIndexColumns = parseIndexColumn `sepBy` (char ',' >> space)
 
 parseIndexColumn = do
     column <- expression
+    columnOperatorClass <- optional parseIndexColumnOperatorClass
     orderOption1 <- optional $ space *> lexeme "ASC" $> Asc <|> space *> lexeme "DESC" $> Desc
     orderOption2 <- optional $ space *> lexeme "NULLS FIRST" $> NullsFirst <|> space *> lexeme "NULLS LAST" $> NullsLast
-    pure IndexColumn { column, columnOrder = catMaybes [orderOption1, orderOption2] }
+    pure IndexColumn { column, columnOperatorClass, columnOrder = catMaybes [orderOption1, orderOption2] }
+
+parseIndexColumnOperatorClass = try do
+    operatorClass <- qualifiedIdentifier
+    -- These tokens belong to index column ordering, not operator classes.
+    -- Extend this list if the parser grows support for more index-column
+    -- clauses such as COLLATE.
+    when (Text.toUpper operatorClass `elem` ["ASC", "DESC", "NULLS"]) do
+        fail "Expected index operator class"
+    pure operatorClass
 
 parseIndexType = do
     lexeme "USING"
 
-    choice $ map (\(s, v) -> do symbol' s; pure v)
+    choice $ map (uncurry parseIndexTypeKeyword)
         [ ("btree", Btree)
-        , ("gin", Gin)
+        , ("hash", Hash)
+        , ("spgist", Spgist)
         , ("gist", Gist)
+        , ("gin", Gin)
+        , ("brin", Brin)
+        , ("hnsw", Hnsw)
+        , ("ivfflat", Ivfflat)
         ]
+
+parseIndexTypeKeyword :: Text -> IndexType -> Parser IndexType
+parseIndexTypeKeyword keyword indexType = try do
+    string' keyword
+    notFollowedBy (satisfy \c -> isAlphaNum c || c == '_')
+    space
+    pure indexType
+
+data FunctionOption
+    = FunctionLanguage Text
+    | FunctionSecurityDefiner
+    | FunctionSettingOption FunctionSetting
 
 createFunction = do
     lexeme "CREATE"
@@ -660,32 +705,72 @@ createFunction = do
     returns <- sqlType
     space
 
-    language <- optional do
-        lexeme "language" <|> lexeme "LANGUAGE"
-        symbol' "plpgsql" <|> symbol' "SQL"
-
-    securityDefiner <- isJust <$> optional do
-        lexeme "SECURITY"
-        lexeme "DEFINER"
+    functionOptions <- many parseFunctionOption
+    let languageBeforeBody = listToMaybe [language | FunctionLanguage language <- functionOptions]
+    let securityDefiner = any isSecurityDefiner functionOptions
+    let functionSettings = [functionSetting | FunctionSettingOption functionSetting <- functionOptions]
 
     lexeme "AS"
     space
     functionBody <- cs <$> between (char '$' >> char '$') (char '$' >> char '$') (many (anySingleBut '$'))
     space
 
-    language <- case language of
+    language <- case languageBeforeBody of
         Just language -> pure language
         Nothing -> do
-            lexeme "language" <|> lexeme "LANGUAGE"
+            symbol' "language"
             symbol' "plpgsql" <|> symbol' "SQL"
     char ';'
-    pure CreateFunction { functionName, functionArguments, functionBody, orReplace, returns, language, securityDefiner }
+    pure CreateFunction { functionName, functionArguments, functionBody, orReplace, returns, language, securityDefiner, functionSettings }
     where
         functionArgument = do
             argumentName <- qualifiedIdentifier
             space
             argumentType <- sqlType
             pure (argumentName, argumentType)
+        isSecurityDefiner FunctionSecurityDefiner = True
+        isSecurityDefiner _ = False
+
+parseFunctionOption :: Parser FunctionOption
+parseFunctionOption =
+    try parseFunctionLanguage
+    <|> try parseFunctionSecurityDefiner
+    <|> try parseFunctionSetting
+
+parseFunctionLanguage :: Parser FunctionOption
+parseFunctionLanguage = do
+    symbol' "language"
+    FunctionLanguage <$> (symbol' "plpgsql" <|> symbol' "SQL")
+
+parseFunctionSecurityDefiner :: Parser FunctionOption
+parseFunctionSecurityDefiner = do
+    symbol' "SECURITY"
+    symbol' "DEFINER"
+    pure FunctionSecurityDefiner
+
+parseFunctionSetting :: Parser FunctionOption
+parseFunctionSetting = do
+    symbol' "SET"
+    settingName <- qualifiedIdentifier
+    symbol "="
+    settingValue <- Text.strip . cs <$> someTill anySingle (lookAhead functionOptionBoundary)
+    space
+    pure (FunctionSettingOption FunctionSetting { settingName, settingValue })
+
+functionOptionBoundary :: Parser ()
+functionOptionBoundary =
+    choice
+        [ try (space1 >> functionOptionBoundaryKeyword "LANGUAGE")
+        , try (space1 >> functionOptionBoundaryKeyword "SECURITY")
+        , try (space1 >> functionOptionBoundaryKeyword "SET")
+        , try (space1 >> functionOptionBoundaryKeyword "AS")
+        ]
+
+functionOptionBoundaryKeyword :: Text -> Parser ()
+functionOptionBoundaryKeyword keyword = do
+    string' keyword
+    notFollowedBy (satisfy \c -> isAlphaNum c || c == '_')
+    space
 
 createTrigger = do
     lexeme "CREATE"
