@@ -491,7 +491,6 @@ renderError environment errorTitle view = [hsx|
             shouldShowHelpFooter = environment == Environment.Development
             helpFooter = [hsx|
                 <div class="ihp-error-other-solutions">
-                    <a href="https://stackoverflow.com/questions/tagged/ihp" target="_blank">Ask the IHP Community on StackOverflow</a>
                     <a href="https://github.com/digitallyinduced/ihp/wiki/Troubleshooting" target="_blank">Check the Troubleshooting</a>
                     <a href="https://github.com/digitallyinduced/ihp/issues/new" target="_blank">Open GitHub Issue</a>
                     <a href="https://ihp.digitallyinduced.com/Slack" target="_blank">Slack</a>
