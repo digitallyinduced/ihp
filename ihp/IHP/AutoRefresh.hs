@@ -92,7 +92,7 @@ autoRefresh runAction = do
                                 let ?context = controllerContext
                                 let ?request = originalRequest
                                 let ?respond = respond
-                                runControllerAction (action ?theAction)
+                                action ?theAction
                                 ) waiRequest waiRespond
 
                     -- We save the allowed session ids to the session cookie to only grant a client access

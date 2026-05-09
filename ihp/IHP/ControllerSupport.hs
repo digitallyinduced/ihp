@@ -1,9 +1,7 @@
-{-# LANGUAGE TypeSynonymInstances, FlexibleInstances, TypeFamilies, ConstrainedClassMethods, ScopedTypeVariables, FunctionalDependencies, AllowAmbiguousTypes, RankNTypes, DefaultSignatures, MultiParamTypeClasses, TypeApplications #-}
+{-# LANGUAGE TypeSynonymInstances, FlexibleInstances, TypeFamilies, ConstrainedClassMethods, ScopedTypeVariables, FunctionalDependencies, AllowAmbiguousTypes, RankNTypes, TypeApplications #-}
 
 module IHP.ControllerSupport
 ( Action'
-, ControllerAction'
-, RunControllerAction (..)
 , (|>)
 , getRequestBody
 , getRequestPath
@@ -39,7 +37,6 @@ import Prelude
 import Data.IORef (IORef, modifyIORef', readIORef)
 import Data.ByteString (ByteString)
 import qualified Data.ByteString.Lazy as LBS
-import Data.Kind (Type)
 import Data.Maybe (fromMaybe)
 import Control.Exception.Safe (SomeException, fromException, try, throwIO)
 import qualified Control.Exception as Exception
@@ -75,41 +72,12 @@ import System.IO.Unsafe (unsafePerformIO)
 
 type Action' = IO ResponseReceived
 
-type ControllerAction' controller =
-    ( ?context :: Context.ControllerContext
-    , ?modelContext :: ModelContext
-    , ?theAction :: controller
-    , ?respond :: Respond
-    , ?request :: Request
-    ) =>
-    IO ResponseReceived
-
--- | Runs a controller's 'ControllerAction' value.
---
--- This lets typed action representations plug into the normal controller
--- dispatch without requiring each controller instance to repeat the same
--- 'runControllerAction' implementation.
-class RunControllerAction controller action where
-    runControllerActionDefault :: (?context :: Context.ControllerContext, ?modelContext :: ModelContext, ?theAction :: controller, ?respond :: Respond, ?request :: Request) => action -> IO ResponseReceived
-
-instance RunControllerAction controller (IO ResponseReceived) where
-    runControllerActionDefault controllerAction = controllerAction
-    {-# INLINABLE runControllerActionDefault #-}
-
 class (Show controller, Eq controller) => Controller controller where
-    type ControllerAction controller :: Type
-    type ControllerAction controller = IO ResponseReceived
-
     beforeAction :: (?context :: Context.ControllerContext, ?modelContext :: ModelContext, ?theAction :: controller, ?respond :: Respond, ?request :: Request) => IO ()
     beforeAction = pure ()
     {-# INLINABLE beforeAction #-}
 
-    action :: (?context :: Context.ControllerContext, ?modelContext :: ModelContext, ?theAction :: controller, ?respond :: Respond, ?request :: Request) => controller -> ControllerAction controller
-
-    runControllerAction :: (?context :: Context.ControllerContext, ?modelContext :: ModelContext, ?theAction :: controller, ?respond :: Respond, ?request :: Request) => ControllerAction controller -> IO ResponseReceived
-    default runControllerAction :: (RunControllerAction controller (ControllerAction controller), ?context :: Context.ControllerContext, ?modelContext :: ModelContext, ?theAction :: controller, ?respond :: Respond, ?request :: Request) => ControllerAction controller -> IO ResponseReceived
-    runControllerAction = runControllerActionDefault @controller
-    {-# INLINABLE runControllerAction #-}
+    action :: (?context :: Context.ControllerContext, ?modelContext :: ModelContext, ?theAction :: controller, ?respond :: Respond, ?request :: Request) => controller -> IO ResponseReceived
 
 class InitControllerContext application where
     initContext :: (?modelContext :: ModelContext, ?request :: Request, ?respond :: Respond, ?context :: Context.ControllerContext) => IO ()
@@ -130,7 +98,7 @@ runAction controller = do
 
         let ?modelContext = authenticatedModelContext
         beforeAction
-        runControllerAction @controller (action controller)
+        action controller
 
 {-# INLINE newContextForAction #-}
 newContextForAction
@@ -289,7 +257,7 @@ jumpToAction :: forall action. (Controller action, ?context :: Context.Controlle
 jumpToAction theAction = do
     let ?theAction = theAction
     beforeAction @action
-    runControllerAction @action (action theAction)
+    action theAction
 
 getRequestBody :: (?request :: Request) => IO LBS.ByteString
 getRequestBody =

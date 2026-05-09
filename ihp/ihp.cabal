@@ -106,7 +106,6 @@ common shared-properties
             , wai-cors
             , random
             , openapi3
-            , hspec
             , cereal
             , cereal-text
             , neat-interpolation
