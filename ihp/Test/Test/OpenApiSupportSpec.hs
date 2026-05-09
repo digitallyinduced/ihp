@@ -70,6 +70,16 @@ instance JSON.ToJSON CreateSessionRequest
 instance JSON.FromJSON CreateSessionRequest
 instance ToSchema CreateSessionRequest
 
+data MismatchedPayload = MismatchedPayload
+    { mismatchId :: !Int
+    }
+    deriving (Eq, Show, Generic)
+
+instance JSON.ToJSON MismatchedPayload where
+    toJSON _ = JSON.String "not-an-object"
+
+instance ToSchema MismatchedPayload
+
 instance View BandView where
     html BandView{..} = [hsx||]
 
@@ -105,6 +115,15 @@ instance JsonView WrongBandView where
 
     json WrongBandView{..} =
         BandPayload{bandId = wrongBandId, page = Nothing, tags = []}
+
+data MismatchedPayloadView = MismatchedPayloadView
+    deriving (Eq, Show)
+
+instance JsonView MismatchedPayloadView where
+    type JsonResponse MismatchedPayloadView = MismatchedPayload
+
+    json MismatchedPayloadView =
+        MismatchedPayload{mismatchId = 1}
 
 data AckView = AckView
     { ackOk :: !Bool
@@ -143,6 +162,8 @@ data ApiAction body response where
         ApiAction 'NoBody (ViewOrJsonResponse BandView)
     RawJsonValueAction :: ApiAction 'NoBody (JsonViewResponse RawJsonValueView)
     WrongJsonShapeAction :: {wrongBandId :: !Int} -> ApiAction 'NoBody (JsonViewResponse WrongBandView)
+    SchemaMismatchAction :: ApiAction 'NoBody (JsonViewResponse MismatchedPayloadView)
+    RedirectBandAction :: ApiAction 'NoBody (Redirect (ApiAction 'NoBody (ViewOrJsonResponse BandView)))
     CreateApiSessionAction :: ApiAction ('Body CreateSessionRequest) (JsonViewResponse AckView)
     CreatePipeSessionAction :: ApiAction ('Body CreateSessionRequest) CreatePipeSessionResponse
     ShowApiSessionAction :: ApiAction 'NoBody (JsonViewResponse AckView)
@@ -162,6 +183,12 @@ instance TypedController ApiAction where
 
     action WrongJsonShapeAction{..} () =
         pure (JsonViewResponse WrongBandView{wrongBandId})
+
+    action SchemaMismatchAction () =
+        pure (JsonViewResponse MismatchedPayloadView)
+
+    action RedirectBandAction () =
+        pure (Redirect ShowBandAction{bandId = 12, page = Nothing, bandTags = []})
 
     action CreateApiSessionAction body = do
         let _token = bodyParam body #token
@@ -201,6 +228,10 @@ GET /test/raw-json                  RawJsonValueAction
   private
 GET /test/wrong-json/{wrongBandId}  WrongJsonShapeAction
   summary: Wrong shape route
+GET /test/schema-mismatch           SchemaMismatchAction
+  summary: Schema mismatch route
+GET /test/redirect-band             RedirectBandAction
+  summary: Redirect band route
 POST /test/CreateApiSession         CreateApiSessionAction
   summary: Create API session
   description: Creates a JSON API session.
@@ -273,6 +304,11 @@ instance InitControllerContext RootApplication
 config :: ConfigBuilder
 config = do
     option Development
+    option (AppPort 8000)
+
+productionConfig :: ConfigBuilder
+productionConfig = do
+    option Production
     option (AppPort 8000)
 
 testJson :: ByteString -> Session SResponse
@@ -359,6 +395,26 @@ tests = aroundAll (withMockContextAndApp RootApplication config) do
                         , "tags" JSON..= ([] :: [Text])
                         ]
             runSession (testJson "test/wrong-json/12") application >>= assertJsonBody expected
+
+        it "validates OpenAPI response schemas in development" $ withContextAndApp \application -> do
+            response <- runSession (testJson "test/schema-mismatch") application
+
+            response.simpleStatus `shouldBe` status500
+            Text.isInfixOf "OpenAPI docs schema does not match" (cs response.simpleBody) `shouldBe` True
+
+        it "skips OpenAPI response validation outside development" $ \_ -> do
+            let expected = JSON.String "not-an-object"
+
+            withMockContextAndApp RootApplication productionConfig \contextAndApp ->
+                withContextAndApp
+                    (\application -> runSession (testJson "test/schema-mismatch") application >>= assertJsonBody expected)
+                    contextAndApp
+
+        it "uses 302 as the default status for redirect responses" $ withContextAndApp \application -> do
+            response <- runSession (testGet "test/redirect-band") application
+
+            response.simpleStatus `shouldBe` status302
+            Prelude.lookup hLocation response.simpleHeaders `shouldBe` Just "/test/bands/12"
 
         it "runs typed actions with decoded request bodies" $ withContextAndApp \application -> do
             let expected = JSON.object ["ok" JSON..= True]
@@ -526,6 +582,11 @@ tests = aroundAll (withMockContextAndApp RootApplication config) do
                 >>= lookupValue "text/plain"
                 )
                 `shouldSatisfy` isJust
+
+            let Just redirectOperation = lookupPathOperation "/test/redirect-band" "get" spec
+            let Just redirectResponse = lookupValue "responses" redirectOperation >>= lookupValue "302"
+            (lookupValue "headers" redirectResponse >>= lookupValue "Location") `shouldSatisfy` isJust
+            (lookupValue "responses" redirectOperation >>= lookupValue "200") `shouldBe` Nothing
 
         it "emits typed top-level OpenAPI metadata" $ withContextAndApp \_ -> do
             let spec = buildOpenApiWithOptions webApplicationOpenApiOptions WebApplication

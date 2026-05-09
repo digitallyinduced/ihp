@@ -56,7 +56,7 @@ import Language.Haskell.TH (Q, Dec, Name)
 import qualified Language.Haskell.TH.Quote as TH
 import Text.Read (readMaybe)
 
-import IHP.Controller.TypedAction (BuildTypedRequestBodyDoc, DecodeRequest, DocumentTypedResponse, ParameterLocation (..), RenderTypedResponse, TypedController, TypedRouteResponseDocument (..), mkTypedRouteDocument)
+import IHP.Controller.TypedAction (BuildTypedRequestBodyDoc, DecodeRequest, DocumentTypedResponse, ParameterLocation (..), Redirect, RenderTypedResponse, TypedController, TypedRouteResponseDocument (..), mkTypedRouteDocument)
 import IHP.Router.Capture (UrlCapture (..))
 import IHP.Router.DSL.AST (RouteAnnotation (..))
 import IHP.Router.DSL.Runtime (buildRouteTrie)
@@ -664,7 +664,9 @@ typedRouteResponseHandlerExps ctrl route responseTy metadata =
 typedRouteResponseDocumentExps :: ControllerInfo -> ValidatedRoute -> TH.Type -> TypedRouteMetadata -> Q [TH.Exp]
 typedRouteResponseDocumentExps ctrl route responseTy metadata =
     case routeResponses metadata of
-        [] -> pure [typedRouteResponseDocumentExp "success" responseTy (routeSuccessStatusCode metadata) (routeSuccessResponseDescription metadata)]
+        [] ->
+            let (statusCode, description) = typedRouteSuccessResponseMetadata responseTy metadata
+             in pure [typedRouteResponseDocumentExp "success" responseTy statusCode description]
         _ -> do
             specs <- typedRouteResponseSpecs ctrl route responseTy metadata
             pure
@@ -863,7 +865,20 @@ commaSeparatedNames names =
 
 singleTypedRouteResponseHandlerExp :: TH.Type -> TypedRouteMetadata -> TH.Exp
 singleTypedRouteResponseHandlerExp responseTy metadata =
-    typedRouteResponseHandlerBase responseTy responseTy "success" (routeSuccessStatusCode metadata) (routeSuccessResponseDescription metadata) (not (routePrivate metadata)) (TH.ConE 'Just)
+    let (statusCode, description) = typedRouteSuccessResponseMetadata responseTy metadata
+     in typedRouteResponseHandlerBase responseTy responseTy "success" statusCode description (not (routePrivate metadata)) (TH.ConE 'Just)
+
+typedRouteSuccessResponseMetadata :: TH.Type -> TypedRouteMetadata -> (Int, Text)
+typedRouteSuccessResponseMetadata responseTy metadata
+    | routeSuccessSpecified metadata = (routeSuccessStatusCode metadata, routeSuccessResponseDescription metadata)
+    | isRedirectResponseType responseTy = (302, "Found")
+    | otherwise = (routeSuccessStatusCode metadata, routeSuccessResponseDescription metadata)
+
+isRedirectResponseType :: TH.Type -> Bool
+isRedirectResponseType responseTy =
+    case fst (unfoldTypeApps responseTy) of
+        TH.ConT name -> name == ''Redirect
+        _ -> False
 
 typedRouteResponseHandlerExp :: TH.Type -> TypedRouteMetadata -> RouteResponseSpec -> TH.Exp
 typedRouteResponseHandlerExp responseTy metadata RouteResponseSpec{responseSpecConstructorName, responseSpecConstructorText, responseSpecPayloadType, responseSpecStatusCode, responseSpecDescription} =
