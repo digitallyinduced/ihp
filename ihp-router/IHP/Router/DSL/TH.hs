@@ -951,7 +951,7 @@ routePathTemplate segments = Text.concat (map segmentTemplate segments)
     segmentTemplate = \case
         VSLiteral text -> "/" <> text
         VSCapture name _ -> "/{" <> name <> "}"
-        VSSplat name _ -> "/{" <> name <> "}"
+        VSSplat name _ -> "/{+" <> name <> "}"
 
 ---------------------------------------------------------------------------
 -- Code generation — trie value

@@ -736,43 +736,60 @@ insertTypedRouteOperation currentPrefix pathState routeDocument@TypedAction.Type
             }
 
 validateTypedRoutePathParameters :: Text -> Text -> [TypedAction.ParameterDoc] -> Either Text ()
-validateTypedRoutePathParameters routeName actionPath routeParameters =
+validateTypedRoutePathParameters routeName actionPath routeParameters = do
+    validateOpenApiPathTemplate routeName actionPath
     let routePathParams = pathParameterNames actionPath
         documentedPathParams = routePathParameterNames routeParameters
         undocumentedPathParams = filter (`notElem` documentedPathParams) routePathParams
         paramsMissingFromRoute = filter (`notElem` routePathParams) documentedPathParams
-     in case (undocumentedPathParams, paramsMissingFromRoute) of
-            ([], []) -> Right ()
-            (missingDocs, []) ->
-                Left
-                    ( "OpenAPI docs for "
-                        <> routeName
-                        <> " are missing route path-parameter docs for route path "
-                        <> actionPath
-                        <> ": "
-                        <> Text.intercalate ", " missingDocs
-                    )
-            ([], missingRouteParams) ->
-                Left
-                    ( "OpenAPI docs for "
-                        <> routeName
-                        <> " document path params not present in route path "
-                        <> actionPath
-                        <> ": "
-                        <> Text.intercalate ", " missingRouteParams
-                    )
-            (missingDocs, missingRouteParams) ->
-                Left
-                    ( "OpenAPI docs for "
-                        <> routeName
-                        <> " disagree with route path "
-                        <> actionPath
-                        <> "; missing route path-parameter docs for: "
-                        <> Text.intercalate ", " missingDocs
-                        <> "; documented params not present in route path: "
-                        <> Text.intercalate ", " missingRouteParams
-                    )
+    case (undocumentedPathParams, paramsMissingFromRoute) of
+        ([], []) -> Right ()
+        (missingDocs, []) ->
+            Left
+                ( "OpenAPI docs for "
+                    <> routeName
+                    <> " are missing route path-parameter docs for route path "
+                    <> actionPath
+                    <> ": "
+                    <> Text.intercalate ", " missingDocs
+                )
+        ([], missingRouteParams) ->
+            Left
+                ( "OpenAPI docs for "
+                    <> routeName
+                    <> " document path params not present in route path "
+                    <> actionPath
+                    <> ": "
+                    <> Text.intercalate ", " missingRouteParams
+                )
+        (missingDocs, missingRouteParams) ->
+            Left
+                ( "OpenAPI docs for "
+                    <> routeName
+                    <> " disagree with route path "
+                    <> actionPath
+                    <> "; missing route path-parameter docs for: "
+                    <> Text.intercalate ", " missingDocs
+                    <> "; documented params not present in route path: "
+                    <> Text.intercalate ", " missingRouteParams
+                )
 {-# INLINE validateTypedRoutePathParameters #-}
+
+validateOpenApiPathTemplate :: Text -> Text -> Either Text ()
+validateOpenApiPathTemplate routeName actionPath =
+    case splatPathParameterNames actionPath of
+        splatParameters@(_ : _) ->
+            Left
+                ( "OpenAPI docs for "
+                    <> routeName
+                    <> " cannot represent splat path parameters in route path "
+                    <> actionPath
+                    <> ": "
+                    <> Text.intercalate ", " splatParameters
+                    <> ". Mark the route private or expose explicit segment captures instead."
+                )
+        [] -> Right ()
+{-# INLINE validateOpenApiPathTemplate #-}
 
 routePathParameterNames :: [TypedAction.ParameterDoc] -> [Text]
 routePathParameterNames parameters =
@@ -785,7 +802,17 @@ routePathParameterNames parameters =
 {-# INLINE routePathParameterNames #-}
 
 pathParameterNames :: Text -> [Text]
-pathParameterNames path =
+pathParameterNames = map pathParameterName . rawPathParameterNames
+{-# INLINE pathParameterNames #-}
+
+splatPathParameterNames :: Text -> [Text]
+splatPathParameterNames path =
+    rawPathParameterNames path
+        |> mapMaybe (Text.stripPrefix "+")
+{-# INLINE splatPathParameterNames #-}
+
+rawPathParameterNames :: Text -> [Text]
+rawPathParameterNames path =
     case Text.breakOn "{" path of
         (_, "") -> []
         (_, rest) ->
@@ -793,8 +820,13 @@ pathParameterNames path =
                 (name, afterName) = Text.breakOn "}" afterOpen
              in if Text.null afterName
                     then []
-                    else name : pathParameterNames (Text.drop 1 afterName)
-{-# INLINE pathParameterNames #-}
+                    else name : rawPathParameterNames (Text.drop 1 afterName)
+{-# INLINE rawPathParameterNames #-}
+
+pathParameterName :: Text -> Text
+pathParameterName name =
+    fromMaybe name (Text.stripPrefix "+" name)
+{-# INLINE pathParameterName #-}
 
 typedRouteDocumentOperationValue :: TypedAction.TypedRouteDocument -> (JSON.Value, Definitions Schema)
 typedRouteDocumentOperationValue

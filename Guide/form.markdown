@@ -134,13 +134,15 @@ data PostsAction request response where
         :: { postId :: Id Post
            , returnTo :: Maybe Text
            }
-        -> PostsAction ('BodyWith PostInput '[ 'FormUrlEncoded]) ShowView
+        -> PostsAction ('BodyWith PostInput '[ 'FormUrlEncoded]) (ViewResponse ShowView)
 ```
 
 `'BodyWith PostInput '[ 'FormUrlEncoded]` accepts browser form submissions. Use
 `'Body PostInput` when the action should accept both forms and JSON requests;
 then add the matching `FromJSON`, `ToJSON` and `ToSchema` instances to reuse the
 same input type for request decoding and OpenAPI generation.
+Typed actions return response wrappers, so use `ViewResponse ShowView` for a
+plain HTML view or `ViewOrJsonResponse ShowView` for content negotiation.
 
 Render the form against a typed action:
 
@@ -226,7 +228,7 @@ For file uploads, declare the action body as multipart:
 data PostsAction request response where
     UploadPostImageAction
         :: { postId :: Id Post }
-        -> PostsAction ('BodyWith PostImageInput '[ 'Multipart]) ShowView
+        -> PostsAction ('BodyWith PostImageInput '[ 'Multipart]) (ViewResponse ShowView)
 ```
 
 Calling `formForAction UploadPostImageAction { .. } input [hsx|{fileField #image}|]`

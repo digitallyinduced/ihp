@@ -4,21 +4,29 @@ After updating your project, please consult the segments from your current relea
 
 # Upgrade to 1.6.0 (unreleased) from 1.5.0
 
-## `render` No Longer Handles JSON
+## `JsonView` Can Declare Typed JSON Payloads
 
-The `render` function now only renders HTML. Previously it used Accept header negotiation to serve both HTML and JSON, but the JSON path was unused in practice.
+No migration is needed for `render`: it was already HTML-only. Use
+`renderHtmlOrJson` for actions that should negotiate HTML vs JSON based on the
+request's `Accept` header.
 
-If you had a `JsonView` instance that returned an Aeson `Value`, keep the JSON renderer in the `JsonView` instance and use `renderHtmlOrJson` for actions that should still negotiate HTML vs JSON. `json` can return a typed payload by setting the view's `JsonResponse` associated type:
+`JsonView` can now return a typed payload by setting the view's `JsonResponse`
+associated type. Existing `JsonView` instances that return an Aeson `Value`
+continue to work through the default `JsonResponse` type. Setting a more
+specific type lets IHP tie the rendered JSON and OpenAPI response schema to the
+same payload type:
 
 ```haskell
 -- Before
 instance View ShowView where
     html ShowView { .. } = [hsx|...|]
+
+instance JsonView ShowView where
     json ShowView { .. } = toJSON post
 
 action ShowPostAction { postId } = do
     post <- fetch postId
-    render ShowView { post }
+    renderHtmlOrJson ShowView { post }
 
 -- After
 instance View ShowView where
@@ -33,8 +41,6 @@ action ShowPostAction { postId } = do
     post <- fetch postId
     renderHtmlOrJson ShowView { post }
 ```
-
-If your `View` instances only defined `html` (the common case), no changes are needed.
 
 The `renderJson` function is unchanged and can still be used directly in controllers.
 

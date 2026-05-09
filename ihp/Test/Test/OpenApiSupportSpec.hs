@@ -10,6 +10,7 @@
 module Test.OpenApiSupportSpec where
 
 import ClassyPrelude hiding (find)
+import Control.Exception qualified as Exception
 import Data.Aeson qualified as JSON
 import Data.Aeson.Key qualified as Key
 import Data.Aeson.KeyMap qualified as KeyMap
@@ -168,6 +169,7 @@ data ApiAction body response where
     CreatePipeSessionAction :: ApiAction ('Body CreateSessionRequest) CreatePipeSessionResponse
     ShowApiSessionAction :: ApiAction 'NoBody (JsonViewResponse AckView)
     DeleteApiSessionAction :: ApiAction 'NoBody NoContent
+    DownloadFileAction :: {filePath :: !Text} -> ApiAction 'NoBody PlainText
     PlainTextHealthAction :: ApiAction 'NoBody PlainText
 
 deriving instance Show (ApiAction body response)
@@ -215,8 +217,23 @@ instance TypedController ApiAction where
     action DeleteApiSessionAction () =
         pure NoContent
 
+    action DownloadFileAction{..} () =
+        pure (PlainText filePath)
+
     action PlainTextHealthAction () =
         pure (PlainText "ok")
+
+data PublicSplatApplication = PublicSplatApplication deriving (Eq, Show)
+
+data PublicSplatController body response where
+    ShowPublicSplatAction :: {publicSplatPath :: !Text} -> PublicSplatController 'NoBody PlainText
+
+deriving instance Show (PublicSplatController body response)
+deriving instance Eq (PublicSplatController body response)
+
+instance TypedController PublicSplatController where
+    action ShowPublicSplatAction{..} () =
+        pure (PlainText publicSplatPath)
 
 $(pure [])
 
@@ -247,10 +264,17 @@ GET|HEAD /test/ShowApiSession       ShowApiSessionAction
 DELETE /test/DeleteApiSession       DeleteApiSessionAction
   summary: Delete API session
   success: 204 No Content
+GET /test/files/{+filePath}         DownloadFileAction
+  summary: Download file by path
+  private
 GET /test/health.txt                PlainTextHealthAction
   summary: Plain text health check
 GET /docs                          SwaggerUiAction
 GET /docs/openapi.json             OpenApiJsonAction
+|]
+
+[routes|publicSplatRoutes
+GET /public/{+publicSplatPath}      ShowPublicSplatAction
 |]
 
 instance SwaggerUiControllerConfig WebApplication where
@@ -287,6 +311,9 @@ webApplicationOpenApiOptions =
 instance FrontController WebApplication where
     controllers = openApiTestRoutes
 
+instance FrontController PublicSplatApplication where
+    controllers = publicSplatRoutes
+
 instance FrontController RootApplication where
     controllers =
         [ mountFrontController WebApplication
@@ -298,6 +325,8 @@ defaultLayout inner = [hsx|{inner}|]
 
 instance InitControllerContext WebApplication where
     initContext = setLayout defaultLayout
+
+instance InitControllerContext PublicSplatApplication
 
 instance InitControllerContext RootApplication
 
@@ -431,6 +460,11 @@ tests = aroundAll (withMockContextAndApp RootApplication config) do
             response.simpleBody `shouldBe` "ok"
             Prelude.lookup hContentType response.simpleHeaders `shouldBe` Just "text/plain"
 
+        it "routes typed DSL splat actions across multiple path segments" $ withContextAndApp \application -> do
+            response <- runSession (testGet "test/files/images/logo.svg") application
+            response.simpleStatus `shouldBe` status200
+            response.simpleBody `shouldBe` "images/logo.svg"
+
         it "routes typed DSL actions mounted with withPrefix" $ withContextAndApp \application -> do
             let expected =
                     JSON.object
@@ -510,10 +544,19 @@ tests = aroundAll (withMockContextAndApp RootApplication config) do
         it "omits private typed routes from the generated spec" $ withContextAndApp \_ -> do
             let spec = buildOpenApi WebApplication
             lookupPathOperation "/test/raw-json" "get" spec `shouldBe` Nothing
+            lookupPathOperation "/test/files/{+filePath}" "get" spec `shouldBe` Nothing
+            lookupPathOperation "/test/files/{filePath}" "get" spec `shouldBe` Nothing
 
         it "documents typed DSL routes mounted with withPrefix" $ withContextAndApp \_ -> do
             let spec = buildOpenApi RootApplication
             lookupPathOperation "/api/test/bands/{bandId}" "get" spec `shouldSatisfy` isJust
+
+        it "rejects public typed DSL splat routes because OpenAPI cannot represent them" $ \_ -> do
+            Exception.evaluate (buildOpenApi PublicSplatApplication)
+                `shouldThrow` \(OpenApiGenerationException message) ->
+                    "cannot represent splat path parameters" `Text.isInfixOf` message
+                        && "/public/{+publicSplatPath}" `Text.isInfixOf` message
+                        && "private" `Text.isInfixOf` message
 
         it "keeps CreateApi and ShowApi action names unchanged in inferred typed route paths" $ withContextAndApp \_ -> do
             let spec = buildOpenApi WebApplication
