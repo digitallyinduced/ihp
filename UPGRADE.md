@@ -17,7 +17,7 @@ Action required if your project has jobs:
 
    import IHP.Prelude
    import IHP.FrameworkConfig (RootApplication (..))
-   import IHP.Job.Runner (Worker (..))
+   import IHP.Job.Types (Worker (..))
    import Web.Types (WebApplication (..))
    import Web.Worker ()
 

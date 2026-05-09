@@ -109,7 +109,7 @@ instance Worker #{applicationName}Application where
 
 import IHP.Prelude
 import IHP.FrameworkConfig (RootApplication (..))
-import IHP.Job.Runner (Worker (..))
+import IHP.Job.Types (Worker (..))
 import #{applicationName}.Types (#{applicationName}Application (..))
 import #{applicationName}.Worker ()
 
