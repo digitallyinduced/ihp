@@ -14,6 +14,8 @@ import Control.Concurrent.STM (atomically, newTBQueue)
 import qualified Control.Concurrent as Concurrent
 import qualified Control.Exception as Exception
 import System.Environment (lookupEnv)
+import qualified Data.UUID as UUID
+import qualified Data.UUID.V4 as UUID
 
 data TestContext = TestContext
     { logger :: Logger
@@ -48,6 +50,50 @@ tests = do
                 dropNotificationTriggers pool longTestTableName
                 didRecover <- waitUntil 6_000_000 (JobQueue.notificationTriggersHealthy pool longTestTableName)
                 didRecover `shouldBe` True
+
+    describe "IHP.Job.Queue.recoverStaleJobsForTable" do
+        it "resets a stuck running job and returns its previous worker uuid" do
+            withStaleRecoveryTable \pool -> do
+                workerUuid <- UUID.nextRandom
+                jobId <- UUID.nextRandom
+                insertRunningJob pool staleRecoveryTableName jobId workerUuid
+
+                (count, recoveredUuids) <- JobQueue.recoverStaleJobsForTable pool staleRecoveryTableName 0
+
+                count `shouldBe` 1
+                recoveredUuids `shouldBe` [workerUuid]
+
+                -- A second sweep should be a no-op since the row is no longer running
+                (count2, uuids2) <- JobQueue.recoverStaleJobsForTable pool staleRecoveryTableName 0
+                count2 `shouldBe` 0
+                uuids2 `shouldBe` []
+
+        it "returns previous worker uuids for multiple stale rows" do
+            withStaleRecoveryTable \pool -> do
+                workerA <- UUID.nextRandom
+                workerB <- UUID.nextRandom
+                jobA <- UUID.nextRandom
+                jobB <- UUID.nextRandom
+                insertRunningJob pool staleRecoveryTableName jobA workerA
+                insertRunningJob pool staleRecoveryTableName jobB workerB
+
+                (count, recoveredUuids) <- JobQueue.recoverStaleJobsForTable pool staleRecoveryTableName 0
+
+                count `shouldBe` 2
+                sort recoveredUuids `shouldBe` sort [workerA, workerB]
+
+        it "leaves rows alone when their locked_at is younger than the threshold" do
+            withStaleRecoveryTable \pool -> do
+                workerUuid <- UUID.nextRandom
+                jobId <- UUID.nextRandom
+                insertRunningJob pool staleRecoveryTableName jobId workerUuid
+
+                -- Threshold of 1 hour: the row we just inserted is much younger,
+                -- so nothing should be recovered.
+                (count, recoveredUuids) <- JobQueue.recoverStaleJobsForTable pool staleRecoveryTableName 3600
+
+                count `shouldBe` 0
+                recoveredUuids `shouldBe` []
 
 withJobWatcher :: Bool -> (HasqlPool.Pool -> IO ()) -> IO ()
 withJobWatcher enablePollerTriggerRepair =
@@ -87,6 +133,20 @@ withDB action = do
 testTableName :: Text
 testTableName = "job_queue_spec_jobs"
 
+staleRecoveryTableName :: Text
+staleRecoveryTableName = "stale_job_recovery_spec_jobs"
+
+withStaleRecoveryTable :: (HasqlPool.Pool -> IO ()) -> IO ()
+withStaleRecoveryTable action =
+    withDB \modelContext _ _ -> do
+        let pool = modelContext.hasqlPool
+        Exception.finally
+            (do
+                dropTestTable pool staleRecoveryTableName
+                createTestTable pool staleRecoveryTableName
+                action pool)
+            (dropTestTable pool staleRecoveryTableName)
+
 longTestTableName :: Text
 longTestTableName = "job_queue_spec_jobs_with_a_very_long_table_name_for_trigger_truncation_regression_1234567890"
 
@@ -106,9 +166,21 @@ createTestTable pool tableName = do
         <> " id UUID PRIMARY KEY,"
         <> " status TEXT DEFAULT 'job_status_not_started' NOT NULL,"
         <> " locked_by UUID DEFAULT NULL,"
+        <> " locked_at TIMESTAMP WITH TIME ZONE DEFAULT NULL,"
+        <> " last_error TEXT DEFAULT NULL,"
         <> " run_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,"
         <> " created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL"
         <> " );"
+
+insertRunningJob :: HasqlPool.Pool -> Text -> UUID -> UUID -> IO ()
+insertRunningJob pool tableName jobId workerUuid =
+    runScript pool $
+        "INSERT INTO \"" <> tableName <> "\""
+        <> " (id, status, locked_by, locked_at)"
+        <> " VALUES ('" <> UUID.toText jobId <> "',"
+        <> " 'job_status_running',"
+        <> " '" <> UUID.toText workerUuid <> "',"
+        <> " NOW());"
 
 dropTestTable :: HasqlPool.Pool -> Text -> IO ()
 dropTestTable pool tableName =
