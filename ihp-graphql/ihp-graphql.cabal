@@ -67,19 +67,11 @@ test-suite spec
     import: shared-properties
     type: exitcode-stdio-1.0
     other-modules:
-        Test.GraphQL.CompilerSpec
-        , Test.GraphQL.ParserSpec
-        , Test.GraphQL.SchemaCompilerSpec
-        -- Library modules that are recompiled into the test suite because it
-        -- shares hs-source-dirs: . with the library. Declared here to satisfy
-        -- -Werror=missing-home-modules.
-        , IHP.GraphQL.Compiler
-        , IHP.GraphQL.Parser
-        , IHP.GraphQL.SchemaCompiler
-        , IHP.GraphQL.ToText
-        , IHP.GraphQL.Types
-    hs-source-dirs: .
-    main-is: Test/Spec.hs
+        GraphQL.CompilerSpec
+        , GraphQL.ParserSpec
+        , GraphQL.SchemaCompilerSpec
+    hs-source-dirs: Test
+    main-is: Spec.hs
     build-depends:
         hspec
         , megaparsec

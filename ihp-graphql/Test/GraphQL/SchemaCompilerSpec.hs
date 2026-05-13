@@ -1,8 +1,8 @@
 {-|
-Module: Test.GraphQL.SchemaCompilerSpec
+Module: GraphQL.SchemaCompilerSpec
 Copyright: (c) digitally induced GmbH, 2022
 -}
-module Test.GraphQL.SchemaCompilerSpec where
+module GraphQL.SchemaCompilerSpec where
 
 import Test.Hspec
 import IHP.Prelude
