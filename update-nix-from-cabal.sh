@@ -29,20 +29,13 @@ mkdir -p NixSupport/hackage
 hackage_packages=(
   "wai-session-maybe 1.0.0"
   "wai-session-clientsession-deferred 1.0.0"
-  "postgresql-binary 0.15.0.1"
   "postgresql-connection-string 0.1.0.6"
-  "hasql 1.10.2.3"
-  "hasql-pool 1.4.2"
-  "hasql-dynamic-statements 0.5.1"
-  "hasql-transaction 1.2.2"
-  "hasql-notifications 0.2.5.0"
   "temporary-ospath 1.3"
-  "postgresql-simple-postgresql-types 0.1.1"
-  "postgresql-types 0.1.2"
-  "hasql-mapping 0.1"
-  "hasql-postgresql-types 0.2"
   "ihp-zip 0.1.0"
 )
+# Note: hasql/postgresql-binary/postgresql-types/hasql-mapping and friends
+# are pulled directly from nixpkgs via versioned attributes (hasql_1_10_3
+# etc.) since NixOS/nixpkgs#519795. See NixSupport/overlay.nix.
 
 for entry in "${hackage_packages[@]}"; do
   name="${entry%% *}"

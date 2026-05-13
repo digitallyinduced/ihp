@@ -416,11 +416,34 @@ that is defined in flake-module.nix
 
             guide =
                 let
-                    node-modules = pkgs.mkYarnModules {
+                    # node_modules derivation built from yarn.lock + package.json.
+                    # Replaces the removed `mkYarnModules` (yarn2nix) with the standard
+                    # `fetchYarnDeps` + `yarnConfigHook` pipeline from nixpkgs.
+                    node-modules = pkgs.stdenv.mkDerivation {
                         pname = "guide-node_modules";
-                        packageJSON = ./Guide/package.json;
-                        yarnLock = ./Guide/yarn.lock;
                         version = "1.0.0";
+
+                        src = pkgs.runCommand "guide-yarn-src" {} ''
+                            mkdir -p $out
+                            cp ${./Guide/package.json} $out/package.json
+                            cp ${./Guide/yarn.lock}    $out/yarn.lock
+                        '';
+
+                        yarnOfflineCache = pkgs.fetchYarnDeps {
+                            yarnLock = ./Guide/yarn.lock;
+                            hash = "sha256-Alr/Bh3T7Bqvs+HgB9a2l730SNnfKGUPPK23SVlUSt0=";
+                        };
+
+                        nativeBuildInputs = [ pkgs.nodejs pkgs.yarn pkgs.yarnConfigHook ];
+
+                        dontBuild = true;
+
+                        installPhase = ''
+                            runHook preInstall
+                            mkdir -p $out
+                            cp -r node_modules $out/
+                            runHook postInstall
+                        '';
                     };
                 in
                     pkgs.stdenv.mkDerivation {
@@ -520,15 +543,37 @@ that is defined in flake-module.nix
                     # allowedReferences = [];
             };
 
-            datasync-js = pkgs.mkYarnPackage {
-                name = "datasync-js";
+            # DataSync TypeScript SDK: build + tests + typecheck.
+            # Replaces the removed `mkYarnPackage` (yarn2nix) with the standard
+            # `fetchYarnDeps` + `yarnConfigHook` pipeline from nixpkgs.
+            datasync-js = pkgs.stdenv.mkDerivation {
+                pname = "datasync-js";
+                version = "0.1.0";
+
                 src = let filter = inputs.nix-filter.lib; in filter {
                     root = "${self}/ihp-datasync/data/DataSync";
                 };
-                postConfigure = ''
-                    yarn run build
-                    yarn run test
-                    yarn run typecheck
+
+                yarnOfflineCache = pkgs.fetchYarnDeps {
+                    yarnLock = ./ihp-datasync/data/DataSync/yarn.lock;
+                    hash = "sha256-vu7gXhPlgnm76GAQiD7DqROCC80uwAhMrh24mXqdfG0=";
+                };
+
+                nativeBuildInputs = [ pkgs.nodejs pkgs.yarn pkgs.yarnConfigHook ];
+
+                buildPhase = ''
+                    runHook preBuild
+                    yarn --offline run build
+                    yarn --offline run test
+                    yarn --offline run typecheck
+                    runHook postBuild
+                '';
+
+                installPhase = ''
+                    runHook preInstall
+                    mkdir -p $out
+                    cp -r . $out/
+                    runHook postInstall
                 '';
             };
 

@@ -101,18 +101,25 @@ let
                 };
             };
 
-            # Hasql 1.10 ecosystem upgrade for postgresql-types binary encoding support.
-            # Pre-generated nix files in NixSupport/hackage/ to avoid IFD.
-            # dontCheck on postgresql/hasql packages: their tests require a running PostgreSQL server.
-            postgresql-binary = final.haskell.lib.dontCheck (hackagePackage "postgresql-binary");
+            # Hasql 1.10 ecosystem.
+            # nixpkgs ships hasql 1.10 as version-suffixed attributes
+            # (hasql_1_10_3 etc.), so we consume them directly instead of
+            # maintaining pre-generated hackage/*.nix files. Once
+            # NixOS/nixpkgs#519795 lands (which adds dontCheck for these
+            # versioned attrs in configuration-nix.nix), the dontCheck
+            # wrappers below can be dropped — tests just need a running
+            # PostgreSQL server.
             postgresql-connection-string = hackagePackage "postgresql-connection-string";
 
-            hasql = final.haskell.lib.dontCheck (final.haskell.lib.doJailbreak (hackagePackage "hasql"));
-            hasql-pool = final.haskell.lib.dontCheck (hackagePackage "hasql-pool");
-            hasql-dynamic-statements = final.haskell.lib.dontCheck (hackagePackage "hasql-dynamic-statements");
-            # hasql-implicits 0.2.0.2 is the default on nixpkgs-unstable, no override needed
-            hasql-transaction = final.haskell.lib.dontCheck (hackagePackage "hasql-transaction");
-            hasql-notifications = final.haskell.lib.dontCheck (hackagePackage "hasql-notifications");
+            hasql                    = final.haskell.lib.dontCheck super.hasql_1_10_3;
+            hasql-pool               = final.haskell.lib.dontCheck super.hasql-pool_1_4_2;
+            hasql-dynamic-statements = final.haskell.lib.dontCheck super.hasql-dynamic-statements_0_5_1;
+            hasql-transaction        = final.haskell.lib.dontCheck super.hasql-transaction_1_2_2;
+            hasql-notifications      = final.haskell.lib.dontCheck super.hasql-notifications_0_2_5_0;
+            postgresql-binary        = final.haskell.lib.dontCheck super.postgresql-binary_0_15_0_1;
+            # text-builder 1.0.0.5 is needed by postgresql-simple-postgresql-types
+            text-builder             = super.text-builder_1_0_0_5;
+
             # hasql-interpolate: upstream 1.0.1.0 requires hasql <1.10; use fork with hasql 1.10 support
             # https://github.com/awkward-squad/hasql-interpolate/pull/27
             # Uses overrideCabal instead of callCabal2nix to avoid IFD and Hackage cabal revision fetch failures
@@ -128,21 +135,27 @@ let
             # Fork of temporary using OsPath instead of FilePath
             temporary-ospath = hackagePackage "temporary-ospath";
 
-            # ptr-poker 0.1.3 is the default on nixpkgs-unstable, no override needed
             # postgresql-simple-postgresql-types: bridge providing FromField/ToField instances
-            # for all postgresql-types types (Point, Polygon, Inet, Interval, etc.) in postgresql-simple
-            postgresql-simple-postgresql-types = final.haskell.lib.dontCheck (final.haskell.lib.doJailbreak (hackagePackage "postgresql-simple-postgresql-types"));
-            # ptr-peeker is marked broken in nixpkgs but is needed by postgresql-types
+            # for all postgresql-types types (Point, Polygon, Inet, Interval, etc.) in postgresql-simple.
+            # dontCheck because tests need a running PostgreSQL / docker.
+            postgresql-simple-postgresql-types = final.haskell.lib.dontCheck (final.haskell.lib.doJailbreak super.postgresql-simple-postgresql-types);
+            # ptr-peeker is still marked broken in nixpkgs-unstable but works fine
+            # for our purposes; needed transitively by postgresql-types.
             # https://github.com/nikita-volkov/ptr-peeker/issues/10
             ptr-peeker = final.haskell.lib.dontCheck (final.haskell.lib.markUnbroken super.ptr-peeker);
-            # postgresql-types-algebra 0.1 matches the nixpkgs default; only
-            # doJailbreak is needed to widen its `ptr-peeker ^>=0.1` bound so
-            # it accepts the markUnbroken ptr-peeker 0.2 above.
+            # postgresql-types-algebra: doJailbreak widens its `ptr-peeker ^>=0.1` bound.
+            # https://github.com/nikita-volkov/postgresql-types-algebra/issues/2
             postgresql-types-algebra = final.haskell.lib.doJailbreak super.postgresql-types-algebra;
-            # dontCheck: tests require a running PostgreSQL server
-            postgresql-types = final.haskell.lib.dontCheck (final.haskell.lib.doJailbreak (hackagePackage "postgresql-types"));
-            hasql-mapping = final.haskell.lib.doJailbreak (hackagePackage "hasql-mapping");
-            hasql-postgresql-types = final.haskell.lib.dontHaddock (final.haskell.lib.doJailbreak (hackagePackage "hasql-postgresql-types"));
+            # postgresql-types: doJailbreak for ptr-peeker bound; dontCheck because tests need PostgreSQL.
+            # https://github.com/nikita-volkov/postgresql-types/issues/67
+            postgresql-types = final.haskell.lib.dontCheck (final.haskell.lib.doJailbreak super.postgresql-types);
+            # hasql-mapping: still in nixpkgs broken.yaml (genuine failure against
+            # LTS-24 default hasql 1.9.3.1; unbroken only inside the IHP scope upstream).
+            # We pin hasql to 1.10 above so it builds fine here once unmarked.
+            hasql-mapping = final.haskell.lib.doJailbreak (final.haskell.lib.markUnbroken super.hasql-mapping);
+            # hasql-postgresql-types: doJailbreak for the ptr-peeker bound.
+            # https://github.com/nikita-volkov/hasql-postgresql-types/issues/4
+            hasql-postgresql-types = final.haskell.lib.dontHaddock (final.haskell.lib.doJailbreak super.hasql-postgresql-types);
         };
 in
 final: prev: {
