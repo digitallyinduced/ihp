@@ -89,6 +89,16 @@ let
             wai-session-maybe = hackagePackage "wai-session-maybe";
             wai-session-clientsession-deferred = hackagePackage "wai-session-clientsession-deferred";
 
+            # HsOpenSSL 0.11.7.10 fails to compile against openssl 3.6.1 on Linux
+            # because the C compiler escalates `-Wpointer-sign` to an error (the
+            # OpenSSL 3.6.1 headers tightened up `char*` vs `unsigned char*`).
+            # nixpkgs already passes `-Wno-error=incompatible-pointer-types`; we
+            # extend that with `-Wno-error=pointer-sign` until upstream HsOpenSSL
+            # / nixpkgs covers it.
+            HsOpenSSL = final.haskell.lib.appendConfigureFlags super.HsOpenSSL [
+                "--ghc-option=-optc=-Wno-error=pointer-sign"
+            ];
+
             # Can be removed after v0.3.2 is on hackage
             # https://github.com/tippenein/countable-inflections/pull/6
             countable-inflections = final.haskell.lib.overrideSrc super.countable-inflections {
