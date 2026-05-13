@@ -330,6 +330,15 @@ test-suite tests
         Test.FetchPipelinedSpec
         Test.JobQueueSpec
         Test.LoginSupport.AuthVaultSpec
+        Test.Router.AppBindingSpec
+        Test.Router.CaptureSpec
+        Test.Router.DSLParserSpec
+        Test.Router.DSLQuoterSpec
+        Test.Router.MiddlewareSpec
+        Test.Router.MixedModeSpec
+        Test.Router.MultiControllerSpec
+        Test.Router.TrieSpec
+        Test.Router.WebSocketSpec
         Test.ModelFixtures
         Test.Util
 
