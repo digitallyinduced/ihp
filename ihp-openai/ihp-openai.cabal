@@ -54,6 +54,7 @@ library
         -Wmissed-specialisations
         -fexpose-all-unfoldings
         -Werror=incomplete-patterns
+        -Werror=missing-home-modules
     hs-source-dirs: .
     exposed-modules:
         IHP.OpenAI

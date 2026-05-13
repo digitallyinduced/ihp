@@ -97,6 +97,7 @@ common shared-properties
             -Wno-ambiguous-fields
             -Werror=incomplete-patterns
             -Werror=unused-imports
+            -Werror=missing-home-modules
     else
         ghc-options:
             -fstatic-argument-transformation
@@ -111,6 +112,7 @@ common shared-properties
             -Wno-ambiguous-fields
             -Werror=incomplete-patterns
             -Werror=unused-imports
+            -Werror=missing-home-modules
 
 library
     import: shared-properties
