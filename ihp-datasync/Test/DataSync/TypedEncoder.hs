@@ -1,7 +1,7 @@
 {-|
 Copyright: (c) digitally induced GmbH, 2025
 -}
-module Test.DataSync.TypedEncoder where
+module DataSync.TypedEncoder where
 
 import Test.Hspec
 import IHP.Prelude

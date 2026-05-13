@@ -1,4 +1,4 @@
-module Test.DataSync.ChangeNotifications where
+module DataSync.ChangeNotifications where
 
 import Test.Hspec
 import IHP.Prelude
