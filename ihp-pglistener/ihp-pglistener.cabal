@@ -58,3 +58,7 @@ test-suite tests
         , hspec
     other-modules:
         Test.PGListenerSpec
+        -- Library module recompiled into the test suite because it shares
+        -- hs-source-dirs: . with the library. Declared here to satisfy
+        -- -Werror=missing-home-modules.
+        IHP.PGListener

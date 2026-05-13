@@ -70,6 +70,14 @@ test-suite spec
         Test.GraphQL.CompilerSpec
         , Test.GraphQL.ParserSpec
         , Test.GraphQL.SchemaCompilerSpec
+        -- Library modules that are recompiled into the test suite because it
+        -- shares hs-source-dirs: . with the library. Declared here to satisfy
+        -- -Werror=missing-home-modules.
+        , IHP.GraphQL.Compiler
+        , IHP.GraphQL.Parser
+        , IHP.GraphQL.SchemaCompiler
+        , IHP.GraphQL.ToText
+        , IHP.GraphQL.Types
     hs-source-dirs: .
     main-is: Test/Spec.hs
     build-depends:
