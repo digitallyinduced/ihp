@@ -149,7 +149,9 @@ test-suite ihp-datasync-hspec
                  , DataSync.ChangeNotifications
                  , DataSync.RLSIntegrationSpec
                  , DataSync.DataSyncIntegrationSpec
-    build-depends: hspec
+    build-depends:
+          ihp-datasync
+        , hspec
 
 source-repository head
     type:     git
