@@ -39,7 +39,7 @@ common shared-properties
         , LambdaCase
         , TemplateHaskell
         , OverloadedRecordDot
-    ghc-options: -Werror=incomplete-patterns -Werror=unused-imports -Werror=missing-fields
+    ghc-options: -Werror=incomplete-patterns -Werror=unused-imports -Werror=missing-fields -Werror=missing-home-modules
 
 library
     import: shared-properties
@@ -52,10 +52,12 @@ executable generate-datasync-types
     build-depends: ihp-datasync-typescript, ihp, ihp-postgres-parser, neat-interpolation, with-utf8, text
     hs-source-dirs: .
     main-is: exe/GenerateDataSyncTypes.hs
+    other-modules: IHP.DataSync.TypeScript.Compiler
 
 test-suite spec
     import: shared-properties
     type: exitcode-stdio-1.0
     hs-source-dirs: .
     main-is: Test/Spec.hs
+    other-modules: IHP.DataSync.TypeScript.Compiler
     build-depends: ihp-datasync-typescript, ihp, ihp-postgres-parser, megaparsec, neat-interpolation, hspec

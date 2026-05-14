@@ -40,7 +40,7 @@ common shared-properties
         , DuplicateRecordFields
         , BlockArguments
         , LambdaCase
-    ghc-options: -Werror=incomplete-patterns -Werror=unused-imports -Werror=missing-fields
+    ghc-options: -Werror=incomplete-patterns -Werror=unused-imports -Werror=missing-fields -Werror=missing-home-modules
 
 library
     import: shared-properties
@@ -58,3 +58,7 @@ test-suite tests
         , hspec
     other-modules:
         Test.PGListenerSpec
+        -- Library module recompiled into the test suite because it shares
+        -- hs-source-dirs: . with the library. Declared here to satisfy
+        -- -Werror=missing-home-modules.
+        IHP.PGListener
