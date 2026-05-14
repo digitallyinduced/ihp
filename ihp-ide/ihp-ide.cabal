@@ -331,6 +331,7 @@ test-suite tests
     type: exitcode-stdio-1.0
     main-is: Main.hs
     hs-source-dirs: Test
+    ghc-options: -Wno-missing-home-modules
     build-depends: ihp, ihp-ide, ihp-log, ihp-modal, ihp-schema-compiler, hspec, wai-request-params, wai-asset-path
     other-modules:
         IDE.SchemaDesigner.CompilerSpec
