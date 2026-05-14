@@ -1,4 +1,4 @@
-module Test.IDE.SchemaDesigner.SchemaOperationsSpec where
+module IDE.SchemaDesigner.SchemaOperationsSpec where
 
 import Test.Hspec
 import IHP.Prelude

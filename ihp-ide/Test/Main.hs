@@ -3,36 +3,36 @@ module Main where
 import Test.Hspec
 import IHP.Prelude
 
-import qualified Test.IDE.SchemaDesigner.CompilerSpec
-import qualified Test.IDE.SchemaDesigner.ParserSpec
-import qualified Test.IDE.SchemaDesigner.Controller.EnumValuesSpec
-import qualified Test.IDE.SchemaDesigner.Controller.HelperSpec
-import qualified Test.IDE.SchemaDesigner.Controller.ValidationSpec
-import qualified Test.IDE.SchemaDesigner.SchemaOperationsSpec
-import qualified Test.IDE.CodeGeneration.ControllerGenerator
-import qualified Test.IDE.CodeGeneration.ViewGenerator
-import qualified Test.IDE.CodeGeneration.MailGenerator
-import qualified Test.IDE.CodeGeneration.JobGenerator
-import qualified Test.IDE.CodeGeneration.MigrationGenerator
-import qualified Test.SchemaCompilerSpec
-import qualified Test.IDE.ToolServer.MiddlewareSpec
-import qualified Test.IDE.Logs.ControllerSpec
-import qualified Test.ServerSpec
+import qualified IDE.SchemaDesigner.CompilerSpec
+import qualified IDE.SchemaDesigner.ParserSpec
+import qualified IDE.SchemaDesigner.Controller.EnumValuesSpec
+import qualified IDE.SchemaDesigner.Controller.HelperSpec
+import qualified IDE.SchemaDesigner.Controller.ValidationSpec
+import qualified IDE.SchemaDesigner.SchemaOperationsSpec
+import qualified IDE.CodeGeneration.ControllerGenerator
+import qualified IDE.CodeGeneration.ViewGenerator
+import qualified IDE.CodeGeneration.MailGenerator
+import qualified IDE.CodeGeneration.JobGenerator
+import qualified IDE.CodeGeneration.MigrationGenerator
+import qualified SchemaCompilerSpec
+import qualified IDE.ToolServer.MiddlewareSpec
+import qualified IDE.Logs.ControllerSpec
+import qualified ServerSpec
 
 main :: IO ()
 main = hspec do
-    Test.IDE.SchemaDesigner.CompilerSpec.tests
-    Test.IDE.SchemaDesigner.ParserSpec.tests
-    Test.IDE.SchemaDesigner.Controller.EnumValuesSpec.tests
-    Test.IDE.SchemaDesigner.Controller.HelperSpec.tests
-    Test.IDE.SchemaDesigner.Controller.ValidationSpec.tests
-    Test.IDE.CodeGeneration.ControllerGenerator.tests
-    Test.IDE.CodeGeneration.ViewGenerator.tests
-    Test.IDE.CodeGeneration.MailGenerator.tests
-    Test.IDE.CodeGeneration.JobGenerator.tests
-    Test.IDE.SchemaDesigner.SchemaOperationsSpec.tests
-    Test.IDE.CodeGeneration.MigrationGenerator.tests
-    Test.SchemaCompilerSpec.tests
-    Test.IDE.ToolServer.MiddlewareSpec.tests
-    Test.IDE.Logs.ControllerSpec.tests
-    Test.ServerSpec.tests
+    IDE.SchemaDesigner.CompilerSpec.tests
+    IDE.SchemaDesigner.ParserSpec.tests
+    IDE.SchemaDesigner.Controller.EnumValuesSpec.tests
+    IDE.SchemaDesigner.Controller.HelperSpec.tests
+    IDE.SchemaDesigner.Controller.ValidationSpec.tests
+    IDE.CodeGeneration.ControllerGenerator.tests
+    IDE.CodeGeneration.ViewGenerator.tests
+    IDE.CodeGeneration.MailGenerator.tests
+    IDE.CodeGeneration.JobGenerator.tests
+    IDE.SchemaDesigner.SchemaOperationsSpec.tests
+    IDE.CodeGeneration.MigrationGenerator.tests
+    SchemaCompilerSpec.tests
+    IDE.ToolServer.MiddlewareSpec.tests
+    IDE.Logs.ControllerSpec.tests
+    ServerSpec.tests

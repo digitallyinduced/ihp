@@ -1,14 +1,14 @@
 {-|
-Module: Test.IDE.SchemaDesigner.CompilerSpec
+Module: IDE.SchemaDesigner.CompilerSpec
 Copyright: (c) digitally induced GmbH, 2020
 -}
-module Test.IDE.SchemaDesigner.CompilerSpec where
+module IDE.SchemaDesigner.CompilerSpec where
 
 import Test.Hspec
 import IHP.Prelude
 import IHP.Postgres.Compiler (compileSql)
 import IHP.Postgres.Types
-import Test.IDE.SchemaDesigner.ParserSpec (parseSql)
+import IDE.SchemaDesigner.ParserSpec (parseSql)
 
 tests = do
     describe "The Schema.sql Compiler" do

@@ -1,8 +1,8 @@
 {-|
-Module: Test.IDE.CodeGeneration.MailGenerator
+Module: IDE.CodeGeneration.MailGenerator
 Copyright: (c) digitally induced GmbH, 2020
 -}
-module Test.IDE.CodeGeneration.MailGenerator where
+module IDE.CodeGeneration.MailGenerator where
 
 import Test.Hspec
 import IHP.Prelude
