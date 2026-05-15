@@ -1,6 +1,9 @@
 --- a/src/Data/OpenApi/Internal/Schema.hs
 +++ b/src/Data/OpenApi/Internal/Schema.hs
-@@ -625 +625,14 @@ instance (Typeable (Fixed a), HasResolution a) => ToSchema (Fixed a) where decla
+@@ -623,8 +623,23 @@
+ instance (Typeable (Fixed a), HasResolution a) => ToSchema (Fixed a) where declareNamedSchema = plain . paramSchemaToSchema
+ 
+ instance ToSchema a => ToSchema (Maybe a) where
 -  declareNamedSchema _ = declareNamedSchema (Proxy :: Proxy a)
 +  declareNamedSchema _ = do
 +    namedSchema <- declareNamedSchema (Proxy :: Proxy a)
@@ -11,15 +14,24 @@
 +          _namedSchemaSchema namedSchema
 +            & nullable ?~ True
 +      }
+ 
 +type NestedMaybeError =
 +  Text "Nested " :<>: ShowType Maybe :<>: Text "s are not supported." :$$:
 +  Text "OpenAPI 3 only supports a single level of nullability, so it can't distinguish between Nothing and Just Nothing."
++
 +instance {-# OVERLAPPING #-} (TypeError NestedMaybeError, Typeable a) => ToSchema (Maybe (Maybe a)) where
 +  declareNamedSchema _ = undefined
-@@ -1020,2 +1033,9 @@ instance {-# OVERLAPPABLE #-} (Selector s, GToSchema f) => GToSchema (S1 s f) w
++
+ instance (ToSchema a, ToSchema b) => ToSchema (Either a b) where
+   -- To match Aeson instance
+   declareNamedSchema = genericDeclareNamedSchema defaultSchemaOptions { sumEncoding = ObjectWithSingleField }
+@@ -1017,8 +1032,16 @@
+   gdeclareNamedSchema opts _ = fmap unnamed . withFieldSchema opts (Proxy2 :: Proxy2 s f) True
+ 
  instance {-# OVERLAPPING #-} ToSchema c => GToSchema (K1 i (Maybe c)) where
 -  gdeclareNamedSchema _ _ _ = declareNamedSchema (Proxy :: Proxy c)
 +  gdeclareNamedSchema _ _ _ = unnamed . nullableSchemaRef <$> declareSchemaRef (Proxy :: Proxy c)
+ 
 +nullableSchemaRef :: Referenced Schema -> Schema
 +nullableSchemaRef (Inline schema) =
 +  schema & nullable ?~ True
@@ -27,3 +39,7 @@
 +  mempty
 +    & allOf ?~ [schemaRef]
 +    & nullable ?~ True
++
+ instance {-# OVERLAPPABLE #-} ToSchema c => GToSchema (K1 i c) where
+   gdeclareNamedSchema _ _ _ = declareNamedSchema (Proxy :: Proxy c)
+ 
