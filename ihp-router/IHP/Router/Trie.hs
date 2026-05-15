@@ -24,6 +24,7 @@ module IHP.Router.Trie
     , insertRouteMethods
     , lookupTrie
     , mergeTrie
+    , prefixTrie
     , splitPath
     ) where
 
@@ -175,6 +176,16 @@ mergeTrie a b = RouteTrie
         (Just (_, aH), Just (bName, bH)) -> Just (bName, Map.union bH aH)
     , handlers = Map.union (handlers b) (handlers a)
     }
+
+-- | Mount a trie below a static path prefix.
+--
+-- @prefixTrie "/api" routes@ makes every route in @routes@ match below
+-- @/api@. Empty prefixes and @"/"@ leave the trie unchanged.
+prefixTrie :: ByteString -> RouteTrie -> RouteTrie
+prefixTrie prefix trie = foldr wrap trie (splitPath prefix)
+  where
+    wrap segment child =
+        emptyTrie { static = HashMap.singleton segment child }
 
 -- | Look up a method+path pair in the trie.
 --

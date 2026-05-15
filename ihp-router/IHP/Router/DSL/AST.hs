@@ -9,23 +9,26 @@ textual layer) and the TH splice (compile-time code-generation layer).
 The grammar, informally (RFC 6570 URI-template syntax for path parameters):
 
 > [routes|ControllerName
-> GET    /posts                 PostsAction
-> POST   /posts                 CreatePostAction
+> /posts                         PostsAction
+> POST   /posts                  CreatePostAction
 > GET    /posts/{postId}        ShowPostAction
+>   summary: Show post
+>   tags: Posts
 > GET    /posts/{postId}/edit   EditPostAction
 > PATCH  /posts/{postId}        UpdatePostAction
 > DELETE /posts/{postId}        DeletePostAction
 > |]
 
-@{name}@ binds the segment to a record field of the same name on the
-action constructor. @{name:Type}@ is an explicit-type escape hatch.
-@{+name}@ (RFC 6570 reserved-string expansion) matches the rest of the path.
-@GET|POST@ allows multiple methods for one route. Anything after @--@ on a
-line is a comment.
+Every route line starts with one or more explicit HTTP methods. @{name}@ binds
+the segment to a record field of the same name on the action constructor.
+@{name:Type}@ is an explicit-type escape hatch. @{+name}@ (RFC 6570
+reserved-string expansion) matches the rest of the path. @GET|POST@ allows
+multiple methods for one route. Anything after @--@ on a line is a comment.
 -}
 module IHP.Router.DSL.AST
     ( Routes (..)
     , Route (..)
+    , RouteAnnotation (..)
     , RouteKind (..)
     , PathSeg (..)
     , ActionRef (..)
@@ -72,6 +75,22 @@ data Route = Route
         -- written with the @WS@ keyword in place of an HTTP method; the
         -- parser stores @routeMethods = [GET]@ for them so they register
         -- under the same trie method that carries the WS handshake.
+    , routeAnnotations :: ![RouteAnnotation]
+        -- ^ Generic metadata lines attached to this route. The parser keeps
+        -- these uninterpreted so the IHP wrapper can decide whether keys like
+        -- @summary@ or @private@ mean OpenAPI metadata, while plain
+        -- @ihp-router@ users can ignore them.
+    }
+    deriving (Eq, Show)
+
+-- | A generic indented metadata line attached to the previous route.
+--
+-- @annotationValue = Nothing@ represents flag-style lines such as @private@.
+-- @annotationValue = Just value@ represents @name: value@ lines.
+data RouteAnnotation = RouteAnnotation
+    { annotationName  :: !Text
+    , annotationValue :: !(Maybe Text)
+    , annotationLine  :: !Int
     }
     deriving (Eq, Show)
 

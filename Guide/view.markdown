@@ -462,7 +462,7 @@ document.addEventListener('ihp:unload', () => {
 
 ## JSON
 
-Views that are rendered by calling the [`render`](https://ihp.digitallyinduced.com/api-docs/IHP-Controller-Render.html#v:render) function can also respond with JSON.
+Views that are rendered by calling the [`renderHtmlOrJson`](https://ihp.digitallyinduced.com/api-docs/IHP-Controller-Render.html#v:renderHtmlOrJson) function can respond with either HTML or JSON based on the request `Accept` header.
 
 Let's say we have a normal HTML view that renders all posts for our blog app:
 
@@ -491,7 +491,7 @@ instance View IndexView where
     |]
 ```
 
-We can add a JSON output for all blog posts by adding a [`json`](https://ihp.digitallyinduced.com/api-docs/IHP-ViewSupport.html#v:json) function to this:
+We can add a JSON output for all blog posts by adding a [`json`](https://ihp.digitallyinduced.com/api-docs/IHP-ViewSupport.html#v:json) function to a `JsonView` instance:
 
 ```haskell
 import Data.Aeson -- <--- Add this import at the top of the file
@@ -501,12 +501,13 @@ instance View IndexView where
         ...
     |]
 
+instance JsonView IndexView where
     json IndexView { .. } = toJSON posts -- <---- The new json render function
 ```
 
-In the above code, our [`json`](https://ihp.digitallyinduced.com/api-docs/IHP-ViewSupport.html#v:json) function has access to all arguments passed to the view. Here we call `toJSON`, which is provided by the [aeson](https://hackage.haskell.org/package/aeson) Haskell library. This simply encodes all the `posts` given to this view as JSON.
+In the above code, our [`json`](https://ihp.digitallyinduced.com/api-docs/IHP-ViewSupport.html#v:json) function has access to all arguments passed to the view. Here we call [`toJSON`](https://ihp.digitallyinduced.com/api-docs/IHP-ViewPrelude.html#v:toJSON), which is provided by the [aeson](https://hackage.haskell.org/package/aeson) Haskell library. This simply encodes all the `posts` given to this view as JSON.
 
-Additionally we need to define a `ToJSON` instance which describes how the `Post` record is going to be transformed to JSON. We need to add this to our view:
+Additionally we need to define a [`ToJSON`](https://ihp.digitallyinduced.com/api-docs/IHP-ViewPrelude.html#t:ToJSON) instance which describes how the `Post` record is going to be transformed to JSON. We need to add this to our view:
 
 ```haskell
 instance ToJSON Post where
@@ -549,6 +550,7 @@ instance View IndexView where
         </div>
     |]
 
+instance JsonView IndexView where
     json IndexView { .. } = toJSON posts
 
 instance ToJSON Post where

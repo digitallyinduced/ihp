@@ -213,6 +213,248 @@ instance Controller PostsController where
                 renderJsonWithStatusCode status400 (object ["error" .= err])
 ```
 
+## Typed Request Bodies and OpenAPI
+
+For new API endpoints, you can opt into typed GADT actions. With this style the
+action constructor contains path and query parameters, while a type index
+declares the request body. IHP then uses the same body type for JSON decoding,
+form decoding, typed controller helpers, typed forms, and OpenAPI docs.
+
+```haskell
+data PostInput = PostInput
+    { title :: Text
+    , body :: Text
+    }
+    deriving (Generic)
+
+instance FromJSON PostInput
+instance ToJSON PostInput
+instance ToSchema PostInput
+
+data ApiError = ApiError
+    { code :: Text
+    , message :: Text
+    }
+    deriving (Generic)
+
+instance ToJSON ApiError
+instance ToSchema ApiError
+
+data ApiErrorView = ApiErrorView { apiError :: ApiError }
+
+instance JsonView ApiErrorView where
+    type JsonResponse ApiErrorView = ApiError
+    json ApiErrorView { apiError } = apiError
+
+data UpdatePostResponse
+    = PostUpdated (ViewOrJsonResponse ShowView)
+    | UpdateRejected (JsonViewResponse ApiErrorView)
+
+data PostsAction request response where
+    UpdatePostAction
+        :: { postId :: Id Post
+           , returnTo :: Maybe Text
+           }
+        -> PostsAction ('Body PostInput) UpdatePostResponse
+
+deriving instance Show (PostsAction request response)
+deriving instance Eq (PostsAction request response)
+
+[routes|webRoutes
+POST|PATCH /posts/{postId}?returnTo UpdatePostAction
+  summary: Update post
+  tags: Posts
+  response PostUpdated: 200 Successful response
+  response UpdateRejected: 422 Validation failed
+|]
+```
+
+The JSON decoder uses `FromJSON`. Form requests use the default generic
+`FromFormBody` instance. If an endpoint should only accept JSON, use
+`'BodyWith PostInput '[ 'JsonBody]`.
+
+`'Body PostInput` accepts both `application/json` and
+`application/x-www-form-urlencoded` by default. If an endpoint should accept only
+some encodings, use `BodyWith`:
+
+```haskell
+data PostsAction request response where
+    CreatePostAction
+        :: PostsAction ('BodyWith PostInput '[ 'JsonBody]) (JsonViewResponse ShowView)
+
+    UploadPostImageAction
+        :: { postId :: Id Post }
+        -> PostsAction ('BodyWith PostImageInput '[ 'Multipart]) (ViewResponse ShowView)
+```
+
+Use `'NoBody` when the route has no request body. Path and query parameters are
+still constructor fields, so `'NoBody` does not mean "no request data":
+
+```haskell
+data PostsAction request response where
+    EditPostAction
+        :: { postId :: Id Post
+           , returnTo :: Maybe Text
+           }
+        -> PostsAction 'NoBody (ViewResponse EditView)
+```
+
+Inside the action, the decoded request body is passed as the second argument.
+You can read fields directly, use `bodyParam`, or copy selected fields with
+`fillBody`. These helpers only compile for fields that exist on the body type.
+
+```haskell
+instance TypedController PostsAction where
+    action EditPostAction { postId, returnTo } () = do
+        post <- fetch postId
+        pure (ViewResponse EditView { .. })
+
+    action UpdatePostAction { postId, returnTo } input = do
+        post <- fetch postId
+
+        updatedPost <-
+            post
+                |> fillBody @'["title", "body"] input
+                |> updateRecord
+
+        pure (PostUpdated (ViewOrJsonResponse ShowView { post = updatedPost }))
+```
+
+The indented metadata block under the route documents operation metadata such
+as summary, tags, response statuses, and descriptions. The request body schema
+comes from the action's `BodySpec`. Response schemas and media types come from
+the explicit response wrapper returned by the action, such as `ViewResponse`,
+`ViewOrJsonResponse`, `JsonViewResponse`, `PlainText`, `NoContent`, `Redirect`,
+or `FileResponse`. Use `private` under a typed route to keep it routable while
+omitting it from OpenAPI.
+
+Use a response sum type when an endpoint can return multiple status codes. The
+controller returns a constructor such as `PostUpdated` or `UpdateRejected`; the
+route DSL owns the HTTP status for that constructor:
+
+```haskell
+data UpdatePostResponse
+    = PostUpdated (ViewOrJsonResponse ShowView)
+    | UpdateRejected (JsonViewResponse ApiErrorView)
+```
+
+Use comma-separated names for multiple OpenAPI operation tags:
+`tags: Tickets, Organizations`.
+
+```haskell
+postResponse :: Post -> PostResponse
+postResponse post =
+    PostResponse
+        { id = post.id
+        , title = post.title
+        , body = post.body
+        }
+
+instance View ShowView where
+    html ShowView { post } = [hsx|...|]
+
+instance JsonView ShowView where
+    type JsonResponse ShowView = PostResponse
+    json ShowView { post } = postResponse post
+```
+
+Because OpenAPI uses the same route parameter declarations, `BodySpec`, response
+constructor metadata, and explicit response wrappers as runtime routing/rendering,
+there is no separate body, status, media type, or response schema declaration to
+keep in sync with the handler. With typed GADT routes, the route type is also the
+source of truth for runtime parsing, `pathTo`, and OpenAPI path/query parameter
+docs, so typed routes do not repeat path parameters in a separate documentation
+block.
+
+To serve the generated document and Swagger UI, add the exported Swagger
+controller actions to your route DSL:
+
+```haskell
+import qualified Data.OpenApi as OpenApi
+
+import IHP.OpenApiSupport
+    ( OpenApiOptions (..)
+    , SwaggerUiController (..)
+    , SwaggerUiControllerConfig (..)
+    , defaultOpenApiOptions
+    , defaultSwaggerUiOptions
+    , overrideOpenApiTopLevel
+    )
+
+[routes|openApiRoutes
+GET /api-docs              SwaggerUiAction
+GET /api-docs/openapi.json OpenApiJsonAction
+|]
+```
+
+Then include the generated route binding in your front controller:
+
+```haskell
+instance FrontController WebApplication where
+    controllers =
+        webRoutes
+            <> openApiRoutes
+            <> [ startPage WelcomeAction ]
+```
+
+`SwaggerUiAction` uses `pathTo OpenApiJsonAction`, so the Swagger UI always
+fetches the OpenAPI JSON from the route you declared.
+
+To customize top-level OpenAPI metadata such as `servers`, `tags`,
+`externalDocs`, `security`, or reusable `components`, pass `OpenApiOptions`.
+The metadata fields use the types from the `openapi3` package:
+
+```haskell
+openApiOptions :: OpenApiOptions
+openApiOptions =
+    (defaultOpenApiOptions @WebApplication)
+        { openApiOptionsInfo =
+            OpenApi.Info
+                "Posts API"
+                (Just "JSON endpoints for posts")
+                (Just "https://example.com/terms")
+                Nothing
+                Nothing
+                "1.0.0"
+        , openApiOptionsServers =
+            [ OpenApi.Server "https://api.example.com" (Just "Production") mempty
+            ]
+        , openApiOptionsTags =
+            [ OpenApi.Tag "Posts" (Just "Post endpoints") Nothing
+            ]
+        , openApiOptionsExternalDocs =
+            Just (OpenApi.ExternalDocs (Just "Full API docs") (OpenApi.URL "https://docs.example.com"))
+        }
+```
+
+For OpenAPI fields not yet modeled by `OpenApiOptions`, use
+`overrideOpenApiTopLevel` with a JSON object. The override is shallow and wins
+over generated top-level fields:
+
+```haskell
+openApiOptionsWithLogo =
+    openApiOptions
+        |> overrideOpenApiTopLevel
+            (object
+                [ "x-logo" .= object
+                    [ "url" .= ("/logo.svg" :: Text)
+                    ]
+                ])
+```
+
+To customize the generated document metadata or Swagger UI assets when using the
+Swagger UI controller actions, add a `SwaggerUiControllerConfig` instance. The
+URL fields are ignored because `[routes|...|]` is the source of truth for URLs:
+
+```haskell
+instance SwaggerUiControllerConfig WebApplication where
+    swaggerUiControllerOptions =
+        (defaultSwaggerUiOptions @WebApplication)
+            { swaggerUiTitle = Just "My API"
+            }
+    swaggerUiControllerOpenApiOptions = openApiOptions
+```
+
 ## Building a REST API
 
 Here is a complete example of a CRUD API for a `posts` resource. We will assume a `posts` table with `id`, `title`, `body`, and `created_at` columns.

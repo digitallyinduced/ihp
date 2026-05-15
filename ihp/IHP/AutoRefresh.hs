@@ -66,7 +66,7 @@ autoRefresh runAction = do
 
             case autoRefreshState of
                 Just (AutoRefreshEnabled {}) -> do
-                    -- When this function calls the 'action ?theAction' in the other case
+                    -- When this function calls the current controller action in the other case
                     -- we will evaluate this branch
                     runAction
                 _ -> do

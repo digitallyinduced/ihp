@@ -105,6 +105,7 @@ common shared-properties
             , conduit-extra
             , wai-cors
             , random
+            , openapi3
             , cereal
             , cereal-text
             , neat-interpolation
@@ -166,6 +167,7 @@ library
         , IHP.AuthSupport.Authentication
         , IHP.AuthSupport.Lockable
         , IHP.Controller.Param
+        , IHP.Controller.TypedAction
         , IHP.Controller.FileUpload
         , IHP.Controller.Redirect
         , IHP.Controller.Render
@@ -188,11 +190,13 @@ library
         , IHP.View.Form.Fields
         , IHP.View.Form.FormFor
         , IHP.View.Form.Select
+        , IHP.View.Form.TypedAction
         , IHP.View.TimeAgo
         , IHP.RequestVault
         , IHP.RequestVault.Helper
         , IHP.RequestVault.ModelContext
         , IHP.ControllerPrelude
+        , IHP.TypedControllerPrelude
         , IHP.ControllerSupport
         , IHP.Environment
         , IHP.FetchRelated
@@ -222,9 +226,11 @@ library
         , IHP.ViewPrelude
         , IHP.ViewSupport
         , IHP.RouterSupport
+        , IHP.Router.TypedRoute
         , IHP.Router.Types
         , IHP.Router.IHP
         , IHP.Router.DSL
+        , IHP.OpenApiSupport
         , IHP.Prelude
         , IHP.ErrorController
         , IHP.ScriptSupport
@@ -310,14 +316,16 @@ test-suite tests
         Test.NameSupportSpec
         Test.HaskellSupportSpec
         Test.View.CSSFrameworkSpec
-        Test.View.FormSpec
+        Test.View.FormForSpec
         Test.Controller.ContextSpec
         Test.Controller.ParamSpec
+        Test.Controller.TypedActionSpec
         Test.Controller.AccessDeniedSpec
         Test.Controller.NotFoundSpec
         Test.ModelSupportSpec
         Test.QueryBuilderSpec
         Test.RouterSupportSpec
+        Test.OpenApiSupportSpec
         Test.ViewSupportSpec
         Test.FileStorage.ControllerFunctionsSpec
         Test.Controller.CookieSpec

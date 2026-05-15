@@ -4,23 +4,20 @@ After updating your project, please consult the segments from your current relea
 
 # Upgrade to 1.6.0 (unreleased) from 1.5.0
 
-## `render` No Longer Handles JSON
+## `JsonView` Can Declare Typed JSON Payloads
 
-The `render` function now only renders HTML. Previously it used Accept header negotiation to serve both HTML and JSON, but the JSON path was unused in practice.
+No migration is needed for `render`: it was already HTML-only. Use
+`renderHtmlOrJson` for actions that should negotiate HTML vs JSON based on the
+request's `Accept` header.
 
-If you had a `View` instance that defined `json`, move it to a separate `JsonView` instance and use `renderHtmlOrJson`:
+`JsonView` can now return a typed payload by setting the view's `JsonResponse`
+associated type. Existing `JsonView` instances that return an Aeson `Value`
+continue to work through the default `JsonResponse` type. Setting a more
+specific type lets IHP tie the rendered JSON and OpenAPI response schema to the
+same payload type:
 
 ```haskell
 -- Before
-instance View ShowView where
-    html ShowView { .. } = [hsx|...|]
-    json ShowView { .. } = toJSON post
-
-action ShowPostAction { postId } = do
-    post <- fetch postId
-    render ShowView { post }
-
--- After
 instance View ShowView where
     html ShowView { .. } = [hsx|...|]
 
@@ -30,11 +27,66 @@ instance JsonView ShowView where
 action ShowPostAction { postId } = do
     post <- fetch postId
     renderHtmlOrJson ShowView { post }
+
+-- After
+instance View ShowView where
+    html ShowView { .. } = [hsx|...|]
+
+instance JsonView ShowView where
+    type JsonResponse ShowView = Post
+
+    json ShowView { .. } = post
+
+action ShowPostAction { postId } = do
+    post <- fetch postId
+    renderHtmlOrJson ShowView { post }
 ```
 
-If your `View` instances only defined `html` (the common case), no changes are needed.
-
 The `renderJson` function is unchanged and can still be used directly in controllers.
+
+## Typed Routes Return Explicit Responses
+
+Typed GADT routes now return explicit response wrappers instead of views directly. This makes JSON-only endpoints, hybrid HTML/JSON endpoints, `204 No Content`, plain text, redirects, files, and raw WAI responses part of the typed route interface.
+
+```haskell
+-- Before
+data ApiAction body response where
+    ShowPostAction :: ApiAction 'NoBody ShowView
+
+instance TypedController ApiAction where
+    action ShowPostAction () =
+        pure ShowView { post }
+
+-- After
+data CreatePostView = CreatePostView { post :: Post }
+
+instance JsonView CreatePostView where
+    type JsonResponse CreatePostView = Post
+    json CreatePostView { post } = post
+
+data ApiAction body response where
+    ShowPostAction :: ApiAction 'NoBody (ViewOrJsonResponse ShowView)
+    CreatePostAction :: ApiAction ('Body PostInput) (JsonViewResponse CreatePostView)
+    DeletePostAction :: ApiAction 'NoBody NoContent
+
+instance TypedController ApiAction where
+    action ShowPostAction () =
+        pure (ViewOrJsonResponse ShowView { post })
+
+    action CreatePostAction body =
+        pure (JsonViewResponse CreatePostView { post })
+
+    action DeletePostAction () =
+        pure NoContent
+```
+
+For HTML-only typed routes, use `ViewResponse view`. For hybrid routes backed by an IHP `View` and `JsonView`, use `ViewOrJsonResponse view`. For JSON-only endpoints backed by an IHP `JsonView`, use `JsonViewResponse view`. For plain text use `PlainText`, for redirects use `Redirect action`, for files use `FileResponse "application/pdf"`, and for private escape hatches use `RawResponse`.
+
+If you use `BodyWith` with a JSON-only request body, the request-body encoding constructor is now `JsonBody`:
+
+```haskell
+type JsonOnlyBody = 'BodyWith Input '[ 'JsonBody]
+```
 
 ## Authentication moved to WAI middleware
 

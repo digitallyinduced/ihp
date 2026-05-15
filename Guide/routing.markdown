@@ -334,6 +334,169 @@ urlTo NewUserAction
 -- http://localhost:8000/NewUser
 ```
 
+## Typed GADT Routes
+
+Typed GADT actions are an opt-in alternative to classic controller action ADTs.
+They are useful when you want the route, request body, generated forms and
+OpenAPI docs to share one typed contract.
+
+Typed GADT actions use the same `[routes|...|]` DSL as classic controllers.
+For GADT action families, use a lowercase binding header such as `webRoutes`.
+The splice emits a `ControllerRoute` list for `FrontController.controllers`,
+plus typed `pathTo`, route parameter parsing, form method lookup, and OpenAPI
+route metadata.
+
+The modules defining typed actions usually need `GADTs`, `DataKinds`,
+`TypeApplications`, `TypeFamilies` and `StandaloneDeriving` enabled.
+Typed controller modules can import `IHP.TypedControllerPrelude` to get the
+typed `action` and `beforeAction` methods instead of the classic controller
+methods.
+
+Classic actions look like this:
+
+```haskell
+data PostsController
+    = EditPostAction { postId :: !(Id Post), returnTo :: !(Maybe Text) }
+    | UpdatePostAction { postId :: !(Id Post), returnTo :: !(Maybe Text) }
+```
+
+With typed actions, the constructor fields still represent path and query
+parameters, but the action also has type indices for the request body and the
+response type:
+
+```haskell
+data ApiErrorView = ApiErrorView { apiError :: ApiError }
+
+instance JsonView ApiErrorView where
+    type JsonResponse ApiErrorView = ApiError
+    json ApiErrorView { apiError } = apiError
+
+data UpdatePostResponse
+    = PostUpdated (ViewOrJsonResponse ShowView)
+    | UpdateRejected (JsonViewResponse ApiErrorView)
+
+data PostsAction request response where
+    EditPostAction
+        :: { postId :: Id Post
+           , returnTo :: Maybe Text
+           }
+        -> PostsAction 'NoBody (ViewResponse EditView)
+
+    UpdatePostAction
+        :: { postId :: Id Post
+           , returnTo :: Maybe Text
+           }
+        -> PostsAction ('Body PostInput) UpdatePostResponse
+
+deriving instance Show (PostsAction request response)
+deriving instance Eq (PostsAction request response)
+```
+
+`'NoBody` means that there is no request body. Path params and query params are
+not part of the body; they are constructor fields on the action value.
+
+Define the route shape once with `[routes|...|]`:
+
+```haskell
+[routes|webRoutes
+GET        /posts/{postId}/edit?returnTo EditPostAction
+POST|PATCH /posts/{postId}?returnTo      UpdatePostAction
+  summary: Update post
+  tags: Posts
+  response PostUpdated: 200 Successful response
+  response UpdateRejected: 422 Validation failed
+|]
+```
+
+The route declaration is used for runtime parsing, query parsing, `pathTo`, the
+OpenAPI path template and OpenAPI parameter docs. You do not repeat the same
+path shape in a parser and in a documentation string.
+
+```haskell
+instance FrontController WebApplication where
+    controllers = webRoutes
+```
+
+`pathTo` works from the typed action value:
+
+```haskell
+pathTo UpdatePostAction
+    { postId = "00000000-0000-0000-0000-000000000000"
+    , returnTo = Just "/dashboard"
+    }
+-- /posts/00000000-0000-0000-0000-000000000000?returnTo=%2Fdashboard
+```
+
+The route declaration checks that every path and query parameter is a field on
+the action value and uses that field type for parsing, URL rendering and
+OpenAPI schemas. `Maybe` query parameters are documented as optional;
+non-`Maybe` query parameters are required.
+
+Indented route metadata describes operation metadata such as `summary`, `tags`,
+response statuses and descriptions. Request body schemas come from the action
+body index. Response schemas and media types come from the explicit response
+wrapper returned by the action, such as `ViewResponse`, `ViewOrJsonResponse`,
+`JsonViewResponse`, `PlainText`, `NoContent`, `Redirect`, or `FileResponse`.
+Path/query parameter schemas come from the route type. Add `private` under a
+typed route to omit it from OpenAPI without changing runtime routing.
+
+For single-response endpoints you can still use:
+
+```haskell
+  success: 200 Successful response
+```
+
+For endpoints with multiple outcomes, define a response sum and map every
+constructor in the route:
+
+```haskell
+data UpdatePostResponse
+    = PostUpdated (ViewOrJsonResponse ShowView)
+    | UpdateRejected (JsonViewResponse ApiErrorView)
+
+[routes|webRoutes
+PATCH /posts/{postId} UpdatePostAction
+  response PostUpdated: 200 Successful response
+  response UpdateRejected: 422 Validation failed
+|]
+```
+
+The action returns the constructor, not the HTTP status. The generated route
+code type-checks that each named constructor exists and wraps exactly one
+response payload. Public routes also require `DocumentTypedResponse`, so OpenAPI
+cannot silently document an unsupported response shape.
+
+Use comma-separated names for multiple OpenAPI operation tags:
+`tags: Tickets, Organizations`.
+
+Implement the whole action family with one `TypedController` instance:
+
+```haskell
+postResponse :: Post -> PostResponse
+postResponse post = PostResponse { id = post.id, title = post.title, body = post.body }
+
+instance View ShowView where
+    html ShowView { post } = [hsx|...|]
+
+instance JsonView ShowView where
+    type JsonResponse ShowView = PostResponse
+    json ShowView { post } = postResponse post
+
+instance TypedController PostsAction where
+    action EditPostAction { postId, returnTo } () = do
+        post <- fetch postId
+        pure (ViewResponse EditView { .. })
+
+    action UpdatePostAction { postId, returnTo } input = do
+        post <- fetch postId
+        post <-
+            post
+                |> fillBody @'["title", "body"] input
+                |> updateRecord
+
+        pure (PostUpdated (ViewOrJsonResponse ShowView { .. }))
+```
+
 ## AutoRoute
 
 Let's say our `PostsController` is defined in `Web/Types.hs` like this:

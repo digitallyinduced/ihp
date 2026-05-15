@@ -15,7 +15,6 @@ where
 import IHP.Prelude
 import IHP.ControllerPrelude
 import IHP.AuthSupport.View.Sessions.New
-import IHP.ViewSupport (View)
 import Data.Data
 import qualified IHP.AuthSupport.Lockable as Lockable
 import IHP.Hasql.FromRow (FromRowHasql)

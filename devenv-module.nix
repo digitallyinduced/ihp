@@ -236,6 +236,7 @@ that is defined in flake-module.nix
                         wai-app-static
                         wai-util
                         aeson
+                        openapi3
                         uuid
                         wai-session-maybe
                         wai-session-clientsession-deferred
