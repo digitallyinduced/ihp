@@ -39,6 +39,15 @@ let
                 then localPackage name
                 else fastBuild super.${name};
 
+            # OpenAPI 3.0 represents Maybe fields as optional + nullable.
+            # Upstream openapi3 currently drops nullable for Maybe in generic
+            # record fields, which makes generated clients reject explicit null.
+            patchedOpenapi3 = fastBuild (final.haskell.lib.overrideCabal super.openapi3 (old: {
+                patches = (old.patches or []) ++ [
+                    "${flakeRoot}/patches/openapi3-maybe-nullable.patch"
+                ];
+            }));
+
             # For quick testing during development, you can use callCabal2nix directly
             # (slower eval due to IFD, but no generated files needed):
             #   localPackageIFD = name: fastBuild (super.callCabal2nix name (filteredSrc name) {});
@@ -88,6 +97,7 @@ let
             # https://hackage.haskell.org/package/wai-session-clientsession-deferred
             wai-session-maybe = hackagePackage "wai-session-maybe";
             wai-session-clientsession-deferred = hackagePackage "wai-session-clientsession-deferred";
+            openapi3 = patchedOpenapi3;
 
             # Can be removed after v0.3.2 is on hackage
             # https://github.com/tippenein/countable-inflections/pull/6

@@ -15,6 +15,7 @@ import Data.Aeson qualified as JSON
 import Data.Aeson.Key qualified as Key
 import Data.Aeson.KeyMap qualified as KeyMap
 import Data.OpenApi qualified as OpenApi
+import Data.Proxy (Proxy (..))
 import Data.Text qualified as Text
 import Data.Vector qualified as Vector
 import IHP.TypedControllerPrelude hiding (request)
@@ -61,6 +62,14 @@ data ApiError = ApiError
 
 instance JSON.ToJSON ApiError
 instance ToSchema ApiError
+
+data NullablePayload = NullablePayload
+    { nullableText :: !(Maybe Text)
+    , nullableError :: !(Maybe ApiError)
+    }
+    deriving (Eq, Show, Generic)
+
+instance ToSchema NullablePayload
 
 data CreateSessionRequest = CreateSessionRequest
     { token :: !Text
@@ -540,6 +549,18 @@ tests = aroundAll (withMockContextAndApp RootApplication config) do
             (lookupValue "properties" bandPayloadSchema >>= lookupValue "bandId") `shouldSatisfy` isJust
             lookupValue "required" bandPayloadSchema
                 `shouldBe` Just (JSON.Array (Vector.fromList [JSON.String "bandId", JSON.String "tags"]))
+
+        it "marks Maybe fields as nullable in generic OpenAPI schemas" $ \_ -> do
+            let schema = JSON.toJSON (OpenApi.toSchema (Proxy :: Proxy NullablePayload))
+            let Just properties = lookupValue "properties" schema
+
+            let Just nullableText = lookupValue "nullableText" properties
+            lookupValue "type" nullableText `shouldBe` Just (JSON.String "string")
+            lookupValue "nullable" nullableText `shouldBe` Just (JSON.Bool True)
+
+            let Just nullableError = lookupValue "nullableError" properties
+            lookupValue "nullable" nullableError `shouldBe` Just (JSON.Bool True)
+            lookupValue "allOf" nullableError `shouldSatisfy` isJust
 
         it "omits private typed routes from the generated spec" $ withContextAndApp \_ -> do
             let spec = buildOpenApi WebApplication
