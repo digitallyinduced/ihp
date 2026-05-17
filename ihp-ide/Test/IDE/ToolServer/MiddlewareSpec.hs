@@ -1,5 +1,5 @@
 {-|
-Module: Test.IDE.ToolServer.MiddlewareSpec
+Module: IDE.ToolServer.MiddlewareSpec
 Tests for ToolServer middleware stack.
 
 This test verifies that the ToolServer middleware stack correctly includes
@@ -8,7 +8,7 @@ requestBodyMiddleware, which is required for controllers to read form params.
 The test uses the actual 'buildToolServerApplication' function from ToolServer,
 so if any required middleware is accidentally removed, this test will fail.
 -}
-module Test.IDE.ToolServer.MiddlewareSpec where
+module IDE.ToolServer.MiddlewareSpec where
 
 import IHP.Prelude
 import Test.Hspec

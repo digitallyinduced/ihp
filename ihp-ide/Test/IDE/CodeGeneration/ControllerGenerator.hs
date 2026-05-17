@@ -1,8 +1,8 @@
 {-|
-Module: Test.IDE.CodeGeneration.ControllerGenerator
+Module: IDE.CodeGeneration.ControllerGenerator
 Copyright: (c) digitally induced GmbH, 2020
 -}
-module Test.IDE.CodeGeneration.ControllerGenerator where
+module IDE.CodeGeneration.ControllerGenerator where
 
 import Test.Hspec
 import IHP.Prelude

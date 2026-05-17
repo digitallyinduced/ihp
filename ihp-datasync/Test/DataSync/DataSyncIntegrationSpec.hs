@@ -1,5 +1,5 @@
 {-# LANGUAGE UndecidableInstances #-}
-module Test.DataSync.DataSyncIntegrationSpec where
+module DataSync.DataSyncIntegrationSpec where
 
 import Test.Hspec
 import IHP.Prelude

@@ -1,15 +1,15 @@
 {-|
-Module: Test.SchemaCompilerSpec
+Module: SchemaCompilerSpec
 Copyright: (c) digitally induced GmbH, 2020
 -}
-module Test.SchemaCompilerSpec where
+module SchemaCompilerSpec where
 
 import Test.Hspec
 import IHP.Prelude
 import IHP.SchemaCompiler
 import IHP.Postgres.Types
 import qualified Data.Text as Text
-import Test.IDE.SchemaDesigner.ParserSpec (parseSqlStatements)
+import IDE.SchemaDesigner.ParserSpec (parseSqlStatements)
 
 tests = do
     describe "SchemaCompiler" do

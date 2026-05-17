@@ -1,8 +1,8 @@
 {-|
-Module: Test.IDE.CodeGeneration.MigrationGenerator
+Module: IDE.CodeGeneration.MigrationGenerator
 Copyright: (c) digitally induced GmbH, 2021
 -}
-module Test.IDE.CodeGeneration.MigrationGenerator where
+module IDE.CodeGeneration.MigrationGenerator where
 
 import Test.Hspec
 import IHP.Prelude

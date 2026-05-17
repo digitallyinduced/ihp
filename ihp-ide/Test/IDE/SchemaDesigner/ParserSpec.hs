@@ -1,8 +1,8 @@
 {-|
-Module: Test.IDE.SchemaDesigner.ParserSpec
+Module: IDE.SchemaDesigner.ParserSpec
 Copyright: (c) digitally induced GmbH, 2020
 -}
-module Test.IDE.SchemaDesigner.ParserSpec where
+module IDE.SchemaDesigner.ParserSpec where
 
 import Test.Hspec
 import IHP.Prelude

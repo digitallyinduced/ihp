@@ -51,14 +51,10 @@ library
 test-suite tests
     import: shared-properties
     type: exitcode-stdio-1.0
-    main-is: Test/Main.hs
-    hs-source-dirs: .
+    main-is: Main.hs
+    hs-source-dirs: Test
     build-depends:
           ihp-pglistener
         , hspec
     other-modules:
-        Test.PGListenerSpec
-        -- Library module recompiled into the test suite because it shares
-        -- hs-source-dirs: . with the library. Declared here to satisfy
-        -- -Werror=missing-home-modules.
-        IHP.PGListener
+        PGListenerSpec

@@ -1,8 +1,8 @@
 {-|
-Module: Test.IDE.CodeGeneration.JobGenerator
+Module: IDE.CodeGeneration.JobGenerator
 Copyright: (c) digitally induced GmbH, 2020
 -}
-module Test.IDE.CodeGeneration.JobGenerator where
+module IDE.CodeGeneration.JobGenerator where
 
 import Test.Hspec
 import IHP.Prelude
