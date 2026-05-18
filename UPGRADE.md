@@ -22,10 +22,12 @@ Action required if your project has jobs:
    import Web.Worker ()
 
    instance Worker RootApplication where
-       workers _ = workers WebApplication
+       workers _ =
+           workers WebApplication
+           -- Generator Marker
    ```
 
-   For multi-application projects, extend `workers _` to combine each application's workers (`workers WebApplication ++ workers AdminApplication`, etc.).
+   Keep the `-- Generator Marker` line. When you later scaffold the first job of another application with `new-job`, it appends `++ workers <App>Application` (and the matching imports) after the marker automatically — the same mechanism the per-application `Worker.hs` uses. You can still extend `workers _` by hand for multi-application projects (`workers WebApplication ++ workers AdminApplication`, etc.); note that a hand-written `WorkerMain.hs` *without* the marker won't be auto-amended by `new-job`.
 
 2. **Delete the `instance Worker RootApplication` block from `Main.hs`** along with the `import Web.Worker` (and `IHP.Job.Runner` import if it's only used for `Worker`). `Main.hs` no longer needs to depend on the job module dep graph.
 

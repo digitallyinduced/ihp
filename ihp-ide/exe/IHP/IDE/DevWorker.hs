@@ -14,7 +14,6 @@ import qualified Data.ByteString.Builder as Builder
 import qualified Data.ByteString.Char8 as ByteString
 import qualified System.Directory as Directory
 import qualified System.IO as IO
-import qualified System.Process as Process
 import Main.Utf8 (withUtf8)
 
 import qualified Control.Concurrent.Async as Async
@@ -67,77 +66,101 @@ runWithJobs :: Concurrent.ThreadId -> IO () -> IO ()
 runWithJobs mainThreadId waitForReload = do
     wrapWithDirenv <- EnvVar.envOrDefault "IHP_DEV_WRAP_DIRENV" False
 
-    withGhci wrapWithDirenv mainThreadId \input output err processHandle -> do
-        -- Initial load and start of the worker app.
+    withGhci wrapWithDirenv mainThreadId \input output err _processHandle -> do
+        -- One iteration of the worker lifecycle. @loaded@ says whether the most
+        -- recent @:l@ / @:r@ succeeded. When the worker is running we drain
+        -- GHCi for its whole lifetime ('withRunningWorker'); when it isn't we
+        -- still drain GHCi so it can never block on a full pipe
+        -- ('drainUntilReload'). Both return only once a reload signal has
+        -- arrived, at which point we @:r@ and recurse. There is exactly one
+        -- reader-set on the GHCi handles at a time: the lifetime readers while
+        -- the worker runs, the bounded readers in 'ghciLoadOrReload' while it
+        -- is stopped — they never overlap. Mirrors 'IHP.IDE.DevServer'.
+        let loop loaded = do
+                if loaded
+                    then withRunningWorker input output err waitForReload
+                    else drainUntilReload output err waitForReload
+                putStrLn "[worker] Reload signal received."
+                result <- refreshGhci input output err
+                case result of
+                    Left out -> do
+                        putStrLn "[worker] GHCi reload failed:"
+                        ByteString.putStrLn (toStrict out)
+                        loop False
+                    Right _ -> loop True
+
         initialLoad <- loadRunJobs input output err
         case initialLoad of
             Left out -> do
                 putStrLn "[worker] GHCi failed to load RunJobs.hs:"
                 ByteString.putStrLn (toStrict out)
-                -- Wait for a reload before retrying so we don't busy-loop.
-                reloadLoop input output err processHandle waitForReload Nothing
-            Right _ -> do
-                appHandle <- startWorkerApp input output err
-                reloadLoop input output err processHandle waitForReload (Just appHandle)
+                loop False
+            Right _ -> loop True
 
-reloadLoop
-    :: Handle -> Handle -> Handle -> Process.ProcessHandle
-    -> IO () -- ^ waitForReload
-    -> Maybe AppHandle -- ^ Nothing if previous load failed
-    -> IO ()
-reloadLoop input output err processHandle waitForReload =
-    let go currentApp = do
-            waitForReload
-            putStrLn "[worker] Reload signal received."
-
-            -- Stop the running app, if any.
-            case currentApp of
-                Just (AppHandle stopVar) -> do
-                    sendGhciCommand input "ClassyPrelude.putMVar stopVar ()"
-                    sendGhciCommand input "ClassyPrelude.cancel app"
-                    -- Give GHCi a moment to drop refs to the old app.
-                    Concurrent.threadDelay 100000
-                    pure ()
-                Nothing -> pure ()
-
-            -- Reload modules.
-            result <- refreshGhci input output err
-            case result of
-                Left out -> do
-                    putStrLn "[worker] GHCi reload failed:"
-                    ByteString.putStrLn (toStrict out)
-                    go Nothing
-                Right _ -> do
-                    appHandle <- startWorkerApp input output err
-                    go (Just appHandle)
-    in go
-
--- | Per-app-instance GHCi state. The @stopVar@ is the GHCi-side MVar that the
--- worker thread races on; we fill it from the host side to ask the thread to exit.
-newtype AppHandle = AppHandle ByteString -- name of the stopVar binding (always "stopVar")
-
--- | Send GHCi the commands to start the worker (i.e. to call its 'main')
--- inside an async, and wait until it logs "Starting worker".
-startWorkerApp :: Handle -> Handle -> Handle -> IO AppHandle
-startWorkerApp input output err = do
-    sendGhciCommand input "stopVar :: ClassyPrelude.MVar () <- ClassyPrelude.newEmptyMVar"
-    sendGhciCommand input "app <- ClassyPrelude.async (ClassyPrelude.race_ (ClassyPrelude.takeMVar stopVar) (main `ClassyPrelude.catch` \\(e :: ClassyPrelude.SomeException) -> ClassyPrelude.putStrLn (ClassyPrelude.tshow e) ClassyPrelude.>> ClassyPrelude.putStrLn \"[[IHP_WORKER_CRASHED]]\"))"
-
-    waitForLine output err "Starting worker"
-    pure (AppHandle "stopVar")
-
--- | Wait for a specific line to appear on either GHCi stream.
-waitForLine :: Handle -> Handle -> ByteString -> IO ()
-waitForLine output err marker = do
-    seen <- newEmptyMVar
+-- | Start the worker app inside the loaded GHCi, drain its stdout/stderr for
+-- the entire time it runs, and return once a reload signal has arrived.
+--
+-- Mirrors 'IHP.IDE.DevServer.withRunningApp': the two 'readHandleLines' race
+-- @workerStopped@ (filled by @stopApp@ on bracket exit), so they keep draining
+-- GHCi the whole time the worker runs — including while we are blocked on
+-- @waitForReload@. @onMatch@ surfaces startup / crash without stopping them.
+-- Startup is bounded by a 60s timeout and a crash marker so a worker that
+-- throws before logging "Starting worker" can no longer hang the process — we
+-- log it and wait for the next reload signal to recover.
+withRunningWorker :: Handle -> Handle -> Handle -> IO () -> IO ()
+withRunningWorker input output err waitForReload = do
     outputVar <- newMVar mempty
-    let onMatch line = when (marker `isInfixOf` line) (void (tryPutMVar seen ()))
-    let pump h logSink = readHandleLines seen outputVar h logSink onMatch
+    started <- newEmptyMVar
+    crashed <- newEmptyMVar
+    workerStopped <- newEmptyMVar
+
+    let onMatch line
+            | "Starting worker" `isInfixOf` line = void (tryPutMVar started ())
+            | "[[IHP_WORKER_CRASHED]]" `isInfixOf` line = void (tryPutMVar crashed ())
+            | otherwise = pure ()
+
+    let startApp = do
+            sendGhciCommand input "stopVar :: ClassyPrelude.MVar () <- ClassyPrelude.newEmptyMVar"
+            sendGhciCommand input "app <- ClassyPrelude.async (ClassyPrelude.race_ (ClassyPrelude.takeMVar stopVar) (main `ClassyPrelude.catch` \\(e :: ClassyPrelude.SomeException) -> ClassyPrelude.putStrLn (ClassyPrelude.tshow e) ClassyPrelude.>> ClassyPrelude.putStrLn \"[[IHP_WORKER_CRASHED]]\"))"
+
+    let stopApp = do
+            sendGhciCommand input "ClassyPrelude.putMVar stopVar ()"
+            sendGhciCommand input "ClassyPrelude.cancel app"
+            -- Give GHCi a moment to drop refs to the old app.
+            Concurrent.threadDelay 100000
+            void (tryPutMVar workerStopped ())
+
+    let waitForWorkerStart = do
+            outcome <- timeout (60 * 1000000) (Async.race (takeMVar started) (takeMVar crashed))
+            case outcome of
+                Just (Left ()) -> putStrLn "[worker] worker started."
+                Just (Right ()) -> putStrLn "[worker] worker crashed during startup; waiting for a reload."
+                Nothing -> putStrLn "[worker] worker startup timed out after 60s; waiting for a reload."
+            -- Whether or not startup succeeded, block here until the next reload
+            -- signal. GHCi keeps being drained throughout (the readers below
+            -- race workerStopped, which stopApp only fills on bracket exit), so
+            -- a chatty worker can't wedge on a full pipe and a failed startup
+            -- recovers on the next file change instead of hanging.
+            waitForReload
 
     void $ runConcurrently $ (,,)
-        <$> Concurrently (takeMVar seen)
-        <*> Concurrently (pump output putForward)
-        <*> Concurrently (pump err putForward)
+        <$> Concurrently (bracket_ startApp stopApp waitForWorkerStart)
+        <*> Concurrently (readHandleLines workerStopped outputVar output putForward onMatch)
+        <*> Concurrently (readHandleLines workerStopped outputVar err putForward onMatch)
+  where
+    putForward line = ByteString.putStrLn ("[worker] " <> line)
+
+-- | No worker is running (a @:l@/@:r@ failed). Keep GHCi drained so it can
+-- never block on a full pipe, and return once a reload signal has arrived.
+drainUntilReload :: Handle -> Handle -> IO () -> IO ()
+drainUntilReload output err waitForReload = do
+    outputVar <- newMVar mempty
+    stop <- newEmptyMVar
+    let onMatch _ = pure ()
+    void $ runConcurrently $ (,,)
+        <$> Concurrently (waitForReload `finally` void (tryPutMVar stop ()))
+        <*> Concurrently (readHandleLines stop outputVar output putForward onMatch)
+        <*> Concurrently (readHandleLines stop outputVar err putForward onMatch)
   where
     putForward line = ByteString.putStrLn ("[worker] " <> line)
 

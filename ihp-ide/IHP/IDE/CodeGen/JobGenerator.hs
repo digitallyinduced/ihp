@@ -114,7 +114,9 @@ import #{applicationName}.Types (#{applicationName}Application (..))
 import #{applicationName}.Worker ()
 
 instance Worker RootApplication where
-    workers _ = workers #{applicationName}Application
+    workers _ =
+        workers #{applicationName}Application
+        -- Generator Marker
 |]
         in
             [ EnsureDirectory { directory = textToOsPath (config.applicationName <> "/Job") }
@@ -129,4 +131,13 @@ instance Worker RootApplication where
                         ])
             <> (if config.isFirstJobInProject
                     then [ CreateFile { filePath = textToOsPath "WorkerMain.hs", fileContent = workerMainHs } ]
-                    else [])
+                    else if config.isFirstJobInApplication
+                        -- A new application gained its first job in a project
+                        -- that already has WorkerMain.hs. Compose this
+                        -- application's workers into the root instance.
+                        then
+                            [ AddImport { filePath = textToOsPath "WorkerMain.hs", fileContent = "import " <> config.applicationName <> ".Types (" <> config.applicationName <> "Application (..))" }
+                            , AddImport { filePath = textToOsPath "WorkerMain.hs", fileContent = "import " <> config.applicationName <> ".Worker ()" }
+                            , AppendToMarker { marker = "-- Generator Marker", filePath = textToOsPath "WorkerMain.hs", fileContent = "        ++ workers " <> config.applicationName <> "Application" }
+                            ]
+                        else [])

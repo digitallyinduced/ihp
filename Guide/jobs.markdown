@@ -80,18 +80,25 @@ import Web.Types (WebApplication (..))
 import Web.Worker ()
 
 instance Worker RootApplication where
-    workers _ = workers WebApplication
+    workers _ =
+        workers WebApplication
+        -- Generator Marker
 ```
 
-If your project mounts more than one application (e.g. `Web` and `Admin`), update the body to combine them:
+Leave the `-- Generator Marker` comment in place. If your project mounts more than one application (e.g. `Web` and `Admin`), the first time you scaffold a job in another application `new-job` amends `WorkerMain.hs` automatically — adding the imports and appending `++ workers AdminApplication` after the marker, exactly like the per-application `Worker.hs`. The result looks like this:
 
 ```haskell
 import Admin.Types (AdminApplication (..))
 import Admin.Worker ()
 
 instance Worker RootApplication where
-    workers _ = workers WebApplication ++ workers AdminApplication
+    workers _ =
+        workers WebApplication
+        -- Generator Marker
+        ++ workers AdminApplication
 ```
+
+(If you removed the marker, or hand-wrote `WorkerMain.hs` without it, `new-job` can't auto-amend it — add `++ workers AdminApplication` and the imports yourself.)
 
 `Main.hs` does **not** carry this instance any more — that intentionally keeps job modules out of `Main.hs`'s dependency graph so editing a controller doesn't recompile your jobs.
 
