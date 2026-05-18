@@ -407,9 +407,19 @@ ihpFlake:
                     exec env IHP_STATIC=${ihpFlake.inputs.self.packages.${system}.ihp-static} ${ghcCompiler.ihp-ide}/bin/RunDevServer
                 '';
 
+                scripts.start-worker.exec = ''
+                    exec env IHP_STATIC=${ihpFlake.inputs.self.packages.${system}.ihp-static} ${ghcCompiler.ihp-ide}/bin/RunDevWorker
+                '';
+
                 process.manager.implementation = "process-compose";
 
-                processes.ihp.exec = "start";
+                # The web server (RunDevServer) and the job worker (RunDevWorker) run as
+                # separate process-compose processes. The web process owns the file watcher,
+                # status server, schema compiler, and tool server; it signals the worker
+                # over a Unix socket whenever a Haskell change should reload it. The worker
+                # process idles when no Job/ modules exist in the project.
+                processes.web.exec = "start";
+                processes.worker.exec = "start-worker";
 
                 # Disabled for now
                 # Can be re-enabled once postgres is provided by devenv instead of IHP

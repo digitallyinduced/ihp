@@ -18,8 +18,6 @@ import IHP.FrameworkConfig
 import IHP.ModelSupport (withModelContext)
 import IHP.RouterSupport (frontControllerToWAIApp, FrontController)
 import IHP.AutoRefresh (AutoRefreshWSApp)
-import qualified IHP.Job.Runner as Job
-import qualified IHP.Job.Types as Job
 import qualified Data.ByteString.Char8 as ByteString
 import qualified Network.Wai.Middleware.Cors as Cors
 import qualified Network.Wai.Middleware.Approot as Approot
@@ -51,7 +49,7 @@ import qualified System.Posix.IO as Posix
 import System.Posix.Types (Fd(..))
 import qualified IHP.ErrorController as ErrorController
 
-run :: (FrontController RootApplication, Job.Worker RootApplication) => ConfigBuilder -> IO ()
+run :: FrontController RootApplication => ConfigBuilder -> IO ()
 run configBuilder = do
     -- We cannot use 'Main.Utf8.withUtf8' here, as this for some reason breaks live reloading
     -- in the dev server. So we switch the file handles to utf8 manually
@@ -72,21 +70,12 @@ run configBuilder = do
                     let fullApp = middleware $ application staticApp requestLoggerMiddleware
                     let staticShortcut = staticRouteShortcut staticApp fullApp
 
-                    withBackgroundWorkers pgListener frameworkConfig
-                        . runServer frameworkConfig useSystemd
+                    runServer frameworkConfig useSystemd
                         . (if useSystemd then HealthCheckEndpoint.healthCheck else Function.id)
                         . ErrorController.errorHandlerMiddleware frameworkConfig
                         $ staticShortcut
 
 {-# INLINABLE run #-}
-
-withBackgroundWorkers :: (Job.Worker RootApplication, ?modelContext :: ModelContext) => PGListener.PGListener -> FrameworkConfig -> IO () -> IO ()
-withBackgroundWorkers pgListener frameworkConfig app = do
-    let jobWorkers = Job.workers RootApplication
-    let isDevelopment = frameworkConfig.environment == Env.Development
-    if isDevelopment && not (isEmpty jobWorkers)
-            then race_ (Job.devServerMainLoop frameworkConfig pgListener jobWorkers) app
-            else app
 
 -- | Returns a WAI app that servers files stored in the app's @static/@ directory and IHP's own @static/@  directory
 --

@@ -27,6 +27,8 @@ import Main.Utf8 (withUtf8)
 import qualified IHP.FrameworkConfig as FrameworkConfig
 import qualified Control.Concurrent.Chan.Unagi as Queue
 import IHP.IDE.FileWatcher
+import qualified IHP.IDE.SplitMode as SplitMode
+import qualified IHP.IDE.WorkerSignal as WorkerSignal
 import qualified System.Environment as Env
 import qualified System.Directory.OsPath as Directory
 import qualified Control.Exception.Safe as Exception
@@ -102,6 +104,13 @@ mainWithOptions wrapWithDirenv = withUtf8 do
             ghciIsLoadingVar <- newIORef False
             reloadGhciVar :: MVar () <- newEmptyMVar
 
+            -- One-shot: if the project already has jobs at boot, write
+            -- build/RunJobs.hs so the worker process can load it. The file
+            -- watcher below re-checks on every change, so this also kicks in
+            -- when the user scaffolds their first job after `devenv up`.
+            initialHasJobs <- SplitMode.hasJobs
+            when initialHasJobs SplitMode.generateRunJobsModule
+
             withStatusServer ghciIsLoadingVar \startStatusServer stopStatusServer statusServerStandardOutput statusServerErrorOutput statusServerClients -> do
                 -- Compile Schema before loading the app
                 tryCompileSchema reloadGhciVar startStatusServer
@@ -150,10 +159,29 @@ fileWatcherParams liveReloadClients databaseNeedsMigration reloadGhciVar startSt
             -- Use tryPutMVar to avoid blocking if a reload is already pending.
             -- This handles the case where multiple file changes happen in quick succession.
             void $ tryPutMVar reloadGhciVar ()
+            signalWorker
         , onSchemaChanged = do
             concurrently_ (tryCompileSchema reloadGhciVar startStatusServer) (updateDatabaseIsOutdated databaseNeedsMigration)
+            -- Schema regeneration touches build/Generated/Types.hs which the worker
+            -- depends on; tell it to reload too.
+            signalWorker
         , onAssetChanged = notifyAssetChange liveReloadClients
         }
+  where
+    -- Fire and forget — sendReload handles its own retry/backoff. We don't want
+    -- the file watcher to block on a slow worker.
+    --
+    -- We re-check 'hasJobs' on every signal (rather than caching at boot) so
+    -- that scaffolding the first job after `devenv up` correctly activates
+    -- the worker process. The check is a small recursive scan and runs off
+    -- the watcher thread.
+    signalWorker = void $ Concurrent.forkIO $ Exception.handleAny
+        (\_ -> pure ())
+        do
+            currentHasJobs <- SplitMode.hasJobs
+            when currentHasJobs do
+                SplitMode.generateRunJobsModule
+                WorkerSignal.sendReload SplitMode.workerSocketPath
 
 ghciArguments :: [String]
 ghciArguments =

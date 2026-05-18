@@ -67,18 +67,46 @@ The `runAt` field determines when the job should be executed. If not set, the jo
 
 This can be done in a controller action or in a script as will be shown below.
 
-The file `Main.hs` also has to have the workers registered. Add the following:
+The first time you scaffold a job with `new-job`, IHP creates `WorkerMain.hs` at the project root (parallel to `Main.hs`). This is the project-level Worker registration that composes each application's workers into the root:
 
 ```haskell
-import Web.Worker
+-- WorkerMain.hs
+module WorkerMain () where
+
+import IHP.Prelude
+import IHP.FrameworkConfig (RootApplication (..))
+import IHP.Job.Types (Worker (..))
+import Web.Types (WebApplication (..))
+import Web.Worker ()
 
 instance Worker RootApplication where
-    workers _ = workers WebApplication
+    workers _ =
+        workers WebApplication
+        -- Generator Marker
 ```
+
+Leave the `-- Generator Marker` comment in place. If your project mounts more than one application (e.g. `Web` and `Admin`), the first time you scaffold a job in another application `new-job` amends `WorkerMain.hs` automatically — adding the imports and appending `++ workers AdminApplication` after the marker, exactly like the per-application `Worker.hs`. The result looks like this:
+
+```haskell
+import Admin.Types (AdminApplication (..))
+import Admin.Worker ()
+
+instance Worker RootApplication where
+    workers _ =
+        workers WebApplication
+        -- Generator Marker
+        ++ workers AdminApplication
+```
+
+(If you removed the marker, or hand-wrote `WorkerMain.hs` without it, `new-job` can't auto-amend it — add `++ workers AdminApplication` and the imports yourself.)
+
+`Main.hs` does **not** carry this instance any more — that intentionally keeps job modules out of `Main.hs`'s dependency graph so editing a controller doesn't recompile your jobs.
 
 #### Development vs. Production
 
-In development mode, these watchers are started with the dev server. In production however, the `RunJobs` binary is automatically built when you run `nix build .#optimized-prod-server` or `nix build .#unoptimized-prod-server`. You can deploy this binary (found at `result/bin/RunJobs`) alongside your IHP app to watch for added jobs and run them.
+In development mode, `devenv up` spawns two processes — `web` and `worker` — that own one GHCi session each. The web process owns the file watcher and signals the worker over a Unix socket whenever a Haskell change occurs, so the worker reloads independently. Projects with no `**/Job/*.hs` files have the `worker` process idling.
+
+In production, the `RunJobs` binary is automatically built when you run `nix build .#optimized-prod-server` or `nix build .#unoptimized-prod-server`. Deploy it at `result/bin/RunJobs` alongside your IHP app to watch for added jobs and run them.
 
 ### Viewing job status
 
