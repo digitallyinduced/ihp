@@ -40,7 +40,7 @@ library
         , TemplateHaskell
         , OverloadedRecordDot
         , DeepSubsumption
-    ghc-options: -Werror=incomplete-patterns -Werror=unused-imports -Werror=missing-fields
+    ghc-options: -Werror=incomplete-patterns -Werror=unused-imports -Werror=missing-fields -Werror=missing-home-modules
     hs-source-dirs: .
     build-depends: ihp, ihp-log, aeson, megaparsec, bytestring, wai, websockets, ihp-hsx, base >= 4.17.0 && < 4.22, string-conversions, basic-prelude, text, blaze-html, attoparsec, wai-request-params
     exposed-modules:

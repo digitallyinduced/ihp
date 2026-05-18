@@ -1,7 +1,7 @@
 {-|
-Module: Test.IDE.WorkerSignalSpec
+Module: IDE.WorkerSignalSpec
 -}
-module Test.IDE.WorkerSignalSpec where
+module IDE.WorkerSignalSpec where
 
 import Test.Hspec
 import IHP.Prelude

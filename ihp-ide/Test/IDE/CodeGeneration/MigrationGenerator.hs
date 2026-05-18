@@ -1,8 +1,8 @@
 {-|
-Module: Test.IDE.CodeGeneration.MigrationGenerator
+Module: IDE.CodeGeneration.MigrationGenerator
 Copyright: (c) digitally induced GmbH, 2021
 -}
-module Test.IDE.CodeGeneration.MigrationGenerator where
+module IDE.CodeGeneration.MigrationGenerator where
 
 import Test.Hspec
 import IHP.Prelude
@@ -771,6 +771,16 @@ tests = do
 
                 diffSchemas targetSchema actualSchema `shouldBe` []
 
+            it "should not diff pgvector indexes with operator classes" do
+                let targetSchema = sql [i|
+                    CREATE INDEX knowledge_chunks_embedding_hnsw_idx ON knowledge_chunks USING HNSW (embedding vector_cosine_ops) WHERE embedding IS NOT NULL;
+                |]
+                let actualSchema = sql [i|
+                    CREATE INDEX knowledge_chunks_embedding_hnsw_idx ON public.knowledge_chunks USING hnsw (embedding vector_cosine_ops) WHERE embedding IS NOT NULL;
+                |]
+
+                diffSchemas targetSchema actualSchema `shouldBe` []
+
             it "should not detect a difference between two functions when the only difference is between 'CREATE' and 'CREATE OR REPLACE'" do
                 let targetSchema = sql [i|
                     CREATE OR REPLACE FUNCTION notify_did_insert_webrtc_connection() RETURNS TRIGGER AS $$
@@ -1117,6 +1127,12 @@ CREATE POLICY "Users can read and edit their own record" ON public.users USING (
                 |]
 
                 diffSchemas targetSchema actualSchema `shouldBe` migration 
+
+            it "should normalize variadic index expressions" do
+                let targetSchema = sql "CREATE INDEX agent_runs_source_idx ON agent_runs (jsonb_extract_path_text(input, VARIADIC ARRAY['source'::text]));"
+                let actualSchema = sql "CREATE INDEX agent_runs_source_idx ON agent_runs (JSONB_EXTRACT_PATH_TEXT(input, VARIADIC ARRAY['source'::TEXT]));"
+
+                diffSchemas targetSchema actualSchema `shouldBe` []
 
             it "should handle complex renames" do
                 -- See https://github.com/digitallyinduced/thin-backend/issues/66

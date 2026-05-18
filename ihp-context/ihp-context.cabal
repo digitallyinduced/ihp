@@ -32,7 +32,7 @@ common shared-properties
         , ImplicitParams
         , BlockArguments
         , LambdaCase
-    ghc-options: -Werror=incomplete-patterns -Werror=unused-imports -Werror=missing-fields
+    ghc-options: -Werror=incomplete-patterns -Werror=unused-imports -Werror=missing-fields -Werror=missing-home-modules
 
 library
     import: shared-properties

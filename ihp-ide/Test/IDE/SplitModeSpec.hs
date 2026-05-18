@@ -1,7 +1,7 @@
 {-|
-Module: Test.IDE.SplitModeSpec
+Module: IDE.SplitModeSpec
 -}
-module Test.IDE.SplitModeSpec where
+module IDE.SplitModeSpec where
 
 import Test.Hspec
 import IHP.Prelude

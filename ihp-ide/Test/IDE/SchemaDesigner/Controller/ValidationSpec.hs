@@ -1,4 +1,4 @@
-module Test.IDE.SchemaDesigner.Controller.ValidationSpec where
+module IDE.SchemaDesigner.Controller.ValidationSpec where
 
 import Test.Hspec
 import IHP.Prelude

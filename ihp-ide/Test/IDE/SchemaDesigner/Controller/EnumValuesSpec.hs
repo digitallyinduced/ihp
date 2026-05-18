@@ -1,4 +1,4 @@
-module Test.IDE.SchemaDesigner.Controller.EnumValuesSpec where
+module IDE.SchemaDesigner.Controller.EnumValuesSpec where
 
 import Test.Hspec
 import IHP.Prelude

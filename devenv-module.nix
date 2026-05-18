@@ -462,12 +462,45 @@ that is defined in flake-module.nix
 
 
             reference =
+                let
+                    # Subpackages whose Haddock should be merged into the reference docs.
+                    # Order matters: ihp-with-docs MUST be first so its index.html /
+                    # doc-index-*.html / linuwial.css / quick-jump.js win on conflicts.
+                    # Subpackages contribute their unique IHP-*.html module pages.
+                    docPackages = with pkgs.ghc; [
+                        ihp-with-docs
+                        ihp-mail
+                        ihp-log
+                        ihp-modal
+                        ihp-ssc
+                        # ihp-hsx ships with `doHaddock = false` in its default.nix
+                        # (multi-library cabal makes the default haddock build messy).
+                        # Re-enable it here so IHP-HSX-QQ.html etc. land in api-docs.
+                        (pkgs.haskell.lib.overrideCabal ihp-hsx (old: { doHaddock = true; }))
+                        ihp-pagehead
+                        ihp-job-dashboard
+                        ihp-imagemagick
+                        ihp-typed-sql
+                    ];
+                in
                 pkgs.stdenv.mkDerivation {
                     name = "ihp-reference";
                     src = self;
-                    nativeBuildInputs = with pkgs; [ pkgs.ghc.ihp-with-docs ];
+                    nativeBuildInputs = docPackages;
                     buildPhase = ''
-                        cp -r ${pkgs.ghc.ihp-with-docs.doc}/share/doc/ihp-*/html haddock-build
+                        mkdir -p haddock-build
+
+                        # Merge each package's Haddock html dir into haddock-build/.
+                        # cp -rn ("recursive, no clobber") = first-writer-wins, so the
+                        # core ihp-with-docs index/css/js stay authoritative.
+                        for src in ${lib.concatMapStringsSep " " (p: p.doc.outPath or "") (lib.filter (p: p ? doc) docPackages)}; do
+                            for html_dir in "$src"/share/doc/*/html; do
+                                if [ -d "$html_dir" ]; then
+                                    cp -rn "$html_dir"/. haddock-build/ 2>/dev/null || true
+                                fi
+                            done
+                        done
+
                         chmod -R u+w haddock-build
 
                         cd haddock-build

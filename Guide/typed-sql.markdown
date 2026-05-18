@@ -100,6 +100,25 @@ items <- sqlQueryTyped [typedSqlStar|
 |]
 ```
 
+## Inserting Rows
+
+### Why `INSERT … VALUES` without a column list is disallowed by default
+
+`INSERT INTO table VALUES (...)` and `INSERT INTO table SELECT ...` without an explicit column list are not allowed in `typedSql` by default. They rely on the positional order of columns matching the schema, but column order can drift between development and production (e.g., when migrations are applied in a different sequence). This causes values to be silently inserted into the wrong columns at runtime.
+
+Instead, list the target columns explicitly:
+
+```haskell
+sqlExecTyped [typedSql|
+    INSERT INTO items (id, name, views)
+    VALUES (${itemId}, ${name}, ${views})
+|]
+```
+
+`INSERT INTO table DEFAULT VALUES` is allowed since it has no positional binding.
+
+The same `[typedSqlStar| ... |]` escape hatch applies here if you understand the risk.
+
 ## Parameters
 
 Use `${expr}` to splice Haskell expressions into your SQL as parameters:

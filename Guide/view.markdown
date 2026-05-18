@@ -504,9 +504,9 @@ instance View IndexView where
     json IndexView { .. } = toJSON posts -- <---- The new json render function
 ```
 
-In the above code, our [`json`](https://ihp.digitallyinduced.com/api-docs/IHP-ViewSupport.html#v:json) function has access to all arguments passed to the view. Here we call [`toJSON`](https://ihp.digitallyinduced.com/api-docs/IHP-ViewPrelude.html#v:toJSON), which is provided by the [aeson](https://hackage.haskell.org/package/aeson) Haskell library. This simply encodes all the `posts` given to this view as JSON.
+In the above code, our [`json`](https://ihp.digitallyinduced.com/api-docs/IHP-ViewSupport.html#v:json) function has access to all arguments passed to the view. Here we call `toJSON`, which is provided by the [aeson](https://hackage.haskell.org/package/aeson) Haskell library. This simply encodes all the `posts` given to this view as JSON.
 
-Additionally we need to define a [`ToJSON`](https://ihp.digitallyinduced.com/api-docs/IHP-ViewPrelude.html#t:ToJSON) instance which describes how the `Post` record is going to be transformed to JSON. We need to add this to our view:
+Additionally we need to define a `ToJSON` instance which describes how the `Post` record is going to be transformed to JSON. We need to add this to our view:
 
 ```haskell
 instance ToJSON Post where
@@ -614,7 +614,7 @@ instance ToJSON Post where
 
 In this example, no content negotiation takes place as the [`renderJson`](https://ihp.digitallyinduced.com/api-docs/IHP-Controller-Render.html#v:renderJson) is used instead of the normal `render` function.
 
-The [`ToJSON`](https://ihp.digitallyinduced.com/api-docs/IHP-ViewPrelude.html#t:ToJSON) instances have to be defined somewhere, so it's usually placed inside the controller file. This often makes the file harder to read. We recommend not using [`renderJson`](https://ihp.digitallyinduced.com/api-docs/IHP-Controller-Render.html#v:renderJson) most times and instead stick with a separate view file as described in the section above. Using [`renderJson`](https://ihp.digitallyinduced.com/api-docs/IHP-Controller-Render.html#v:renderJson) makes sense only when the controller is very small or you already have a predefined [`ToJSON`](https://ihp.digitallyinduced.com/api-docs/IHP-ViewPrelude.html#t:ToJSON) instance which is not defined in your controller.
+The `ToJSON` instances have to be defined somewhere, so it's usually placed inside the controller file. This often makes the file harder to read. We recommend not using [`renderJson`](https://ihp.digitallyinduced.com/api-docs/IHP-Controller-Render.html#v:renderJson) most times and instead stick with a separate view file as described in the section above. Using [`renderJson`](https://ihp.digitallyinduced.com/api-docs/IHP-Controller-Render.html#v:renderJson) makes sense only when the controller is very small or you already have a predefined `ToJSON` instance which is not defined in your controller.
 
 ## Troubleshooting
 

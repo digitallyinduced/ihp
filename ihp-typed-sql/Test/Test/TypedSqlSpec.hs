@@ -11,7 +11,8 @@ import           IHP.ModelSupport                  (createModelContext,
 import           IHP.Prelude
 import           IHP.TypedSql.ParamHints           (parseSql, extractJoinNullableTables,
                                                     extractNonNullableComputedColumnsFromAst,
-                                                    detectStarSelects)
+                                                    detectStarSelects,
+                                                    detectInsertWithoutColumns)
 import           System.Directory                  (doesFileExist,
                                                     getCurrentDirectory)
 import           System.Environment                (getEnvironment, lookupEnv)
@@ -72,6 +73,11 @@ tests = do
             (mkTestModule "TypedQuery Text"
                 "[typedSql| SELECT typed_sql_test_items.* FROM typed_sql_test_items LIMIT 1 |]")
             ["is not allowed"]
+
+        compileFailTest "fails when INSERT VALUES has no explicit column list"
+            (mkTestModule "TypedQuery Text"
+                "[typedSql| INSERT INTO typed_sql_test_items VALUES ('00000000-0000-0000-0000-000000000099'::uuid, '00000000-0000-0000-0000-000000000001'::uuid, 'X', 1, 1.0, ARRAY['x']::text[]) RETURNING name |]")
+            ["explicit column list"]
 
         compileFailTest "fails when SQL references an unknown column"
             (mkTestModule "TypedQuery Text"
@@ -416,6 +422,26 @@ tests = do
         it "detectStarSelects detects star in parenthesized SELECT" do
             let Just ast = parseSql "(SELECT * FROM items)"
             detectStarSelects ast `shouldBe` ["*"]
+
+        it "detectInsertWithoutColumns detects INSERT VALUES without column list" do
+            let Just ast = parseSql "INSERT INTO items VALUES (1, 'name')"
+            detectInsertWithoutColumns ast `shouldBe` ["INSERT INTO items"]
+
+        it "detectInsertWithoutColumns detects INSERT SELECT without column list" do
+            let Just ast = parseSql "INSERT INTO items SELECT 1, 'name'"
+            detectInsertWithoutColumns ast `shouldBe` ["INSERT INTO items"]
+
+        it "detectInsertWithoutColumns does not flag INSERT with column list" do
+            let Just ast = parseSql "INSERT INTO items (id, name) VALUES (1, 'name')"
+            detectInsertWithoutColumns ast `shouldBe` []
+
+        it "detectInsertWithoutColumns does not flag INSERT DEFAULT VALUES" do
+            let Just ast = parseSql "INSERT INTO items DEFAULT VALUES"
+            detectInsertWithoutColumns ast `shouldBe` []
+
+        it "detectInsertWithoutColumns does not flag SELECT" do
+            let Just ast = parseSql "SELECT * FROM items"
+            detectInsertWithoutColumns ast `shouldBe` []
 
 -- Test helpers ---------------------------------------------------------------
 

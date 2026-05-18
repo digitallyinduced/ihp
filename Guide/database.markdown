@@ -210,7 +210,7 @@ action ShowTask { taskId } = do
             Nothing -> pure Nothing
 ```
 
-This contains a lot of boilerplate for wrapping and unwrapping the [`Maybe`](https://ihp.digitallyinduced.com/api-docs/IHP-Prelude.html#t:Maybe) value. Therefore you can just call [`fetchOneOrNothing`](https://ihp.digitallyinduced.com/api-docs/IHP-Fetch.html#v:fetchOneOrNothing) directly on the `Maybe (Id User)` value:
+This contains a lot of boilerplate for wrapping and unwrapping the `Maybe` value. Therefore you can just call [`fetchOneOrNothing`](https://ihp.digitallyinduced.com/api-docs/IHP-Fetch.html#v:fetchOneOrNothing) directly on the `Maybe (Id User)` value:
 
 ```haskell
 action ShowTask { taskId } = do

@@ -1,4 +1,4 @@
-module Test.IDE.SchemaDesigner.Controller.HelperSpec where
+module IDE.SchemaDesigner.Controller.HelperSpec where
 
 import Test.Hspec
 import IHP.Prelude
