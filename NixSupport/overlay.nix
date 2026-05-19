@@ -153,10 +153,12 @@ let
 
             # postgresql-simple-postgresql-types: bridge providing FromField/ToField instances
             # for all postgresql-types types (Point, Polygon, Inet, Interval, etc.) in postgresql-simple.
-            # Not cache-shared with upstream's ihpHasqlScope build (its closure pulls IHP's custom
-            # postgresql-types below, so it is rebuilt from source either way) — keep IHP's proven
-            # doJailbreak. dontCheck because tests need a running PostgreSQL / docker.
-            postgresql-simple-postgresql-types = final.haskell.lib.dontCheck (final.haskell.lib.doJailbreak super.postgresql-simple-postgresql-types);
+            # markUnbroken: on the #519795 nixpkgs rev this is marked broken at the top level
+            # (upstream only `unmarkBroken`s it inside ihpHasqlScope, not in the default set).
+            # Its closure pulls IHP's custom postgresql-types below, so it is rebuilt from source
+            # regardless of upstream — hence we also keep IHP's proven doJailbreak; dontCheck
+            # because the tests need a running PostgreSQL / docker.
+            postgresql-simple-postgresql-types = final.haskell.lib.dontCheck (final.haskell.lib.doJailbreak (final.haskell.lib.markUnbroken super.postgresql-simple-postgresql-types));
             # ptr-peeker is still marked broken in nixpkgs-unstable but works fine
             # for our purposes; needed transitively by postgresql-types.
             # https://github.com/nikita-volkov/ptr-peeker/issues/10
