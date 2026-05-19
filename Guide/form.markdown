@@ -756,7 +756,21 @@ renderForm post = formFor post [hsx|
 |]
 ```
 
-To override the auto-generated `action` attribute use the [`formFor'`](https://ihp.digitallyinduced.com/api-docs/IHP-View-Form.html#v:formFor-39-) function:
+`formFor` works out of the box for both routing styles:
+
+- **AutoRoute**: the form action defaults to `/CreatePost` or `/UpdatePost?postId=…`.
+- **Routes DSL** (`[routes|…|]`): when a controller's actions follow the standard scaffold shape — a nullary `Create<X>Action` and an `Update<X>Action { <x>Id :: Id <X> }` — the splice automatically emits a per-model `ModelFormAction` instance that resolves the form action via `pathTo`. Forms point at the lowercase DSL paths (`/posts`, `/posts/{postId}`) without any code change in the view.
+
+If your action constructors don't fit that shape (e.g. `CreatePostAction { teamId :: Id Team }` taking extra parameters), provide a manual `ModelFormAction` instance once per model:
+
+```haskell
+instance {-# OVERLAPPING #-} ModelFormAction Post where
+    modelFormAction post
+      | isNew post = pathTo (CreatePostAction { teamId = currentTeamId })
+      | otherwise  = pathTo (UpdatePostAction { postId = post.id })
+```
+
+To override the auto-generated `action` attribute at a single call site, use the [`formFor'`](https://ihp.digitallyinduced.com/api-docs/IHP-View-Form.html#v:formFor-39-) function:
 
 ```haskell
 renderForm :: Post -> Html

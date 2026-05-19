@@ -325,7 +325,7 @@ submitButton =
 class ModelFormAction record where
     modelFormAction :: (?context :: ControllerContext, ?request :: Request) => record -> Text
 
-instance
+instance {-# OVERLAPPABLE #-}
     ( HasField "id" record (Id' (GetTableName record))
     , HasField "meta" record MetaBag
     , KnownSymbol (GetModelName record)
@@ -333,15 +333,18 @@ instance
     ) => ModelFormAction record where
     -- | Returns the form's action attribute for a given record.
     --
-    -- Expects that AutoRoute is used. Otherwise you need to use @formFor'@ or specify
-    -- a manual ModelFormAction instance.
+    -- This default fallback expects AutoRoute. It guesses the form submit
+    -- target by mangling the current URL: a @New..Action@ becomes a
+    -- @Create..Action@ and an @Edit..Action@ becomes an @Update..Action@.
     --
-    -- We guess the form submit action based on the current url
-    -- It's a @New..Action@ or @Edit..Action@. We guess the corresponding
-    -- @Create..Action@ name or @Update..Action@ name based on the AutoRoute rules
+    -- The IHP @[routes|…|]@ DSL automatically emits an OVERLAPPING instance
+    -- for any controller whose actions follow the standard
+    -- @Create<X>Action@ / @Update<X>Action { <x>Id }@ shape, so DSL-routed
+    -- apps don't need to do anything extra.
     --
-    -- In case the routing is not based on AutoRoute, a manual ModelFormAction instance needs
-    -- to be defined
+    -- For irregular routing (custom action shapes, non-conventional names),
+    -- either define your own @instance {-# OVERLAPPING #-} ModelFormAction X@
+    -- or call @formFor'@ with @pathTo@ at the call site.
     modelFormAction record =
         let
             path = theRequest.pathInfo
