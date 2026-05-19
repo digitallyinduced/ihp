@@ -99,17 +99,11 @@ let
                 "--ghc-option=-optc=-Wno-error=pointer-sign"
             ];
 
-            # Can be removed after v0.3.2 is on hackage
-            # https://github.com/tippenein/countable-inflections/pull/6
-            countable-inflections = final.haskell.lib.overrideSrc super.countable-inflections {
-                version = "0.3.2";
-                src = final.fetchFromGitHub {
-                    owner = "tippenein";
-                    repo = "countable-inflections";
-                    rev = "9cae03513ad76783c226509f5c00dfe7989893e8";
-                    hash = "sha256-Pd9wQgEtc3e39c0iJR347kdawbyShDEtQqEzrIEu0eQ=";
-                };
-            };
+            # countable-inflections: nixpkgs at the pinned rev already ships
+            # 0.3.2 (in the cached haskellPackages.ihp closure), so we drop the
+            # previous git-src override and consume `super.countable-inflections`
+            # verbatim for a cache hit. Restore the override only if a reverted
+            # nixpkgs pin no longer carries 0.3.2.
 
             # Hasql 1.10 ecosystem.
             #
@@ -151,33 +145,29 @@ let
             # Fork of temporary using OsPath instead of FilePath
             temporary-ospath = hackagePackage "temporary-ospath";
 
-            # postgresql-simple-postgresql-types: bridge providing FromField/ToField instances
-            # for all postgresql-types types (Point, Polygon, Inet, Interval, etc.) in postgresql-simple.
-            # markUnbroken: on the #519795 nixpkgs rev this is marked broken at the top level
-            # (upstream only `unmarkBroken`s it inside ihpHasqlScope, not in the default set).
-            # Its closure pulls IHP's custom postgresql-types below, so it is rebuilt from source
-            # regardless of upstream — hence we also keep IHP's proven doJailbreak; dontCheck
-            # because the tests need a running PostgreSQL / docker.
-            postgresql-simple-postgresql-types = final.haskell.lib.dontCheck (final.haskell.lib.doJailbreak (final.haskell.lib.markUnbroken super.postgresql-simple-postgresql-types));
-            # ptr-peeker is still marked broken in nixpkgs-unstable but works fine
-            # for our purposes; needed transitively by postgresql-types.
-            # https://github.com/nikita-volkov/ptr-peeker/issues/10
-            ptr-peeker = final.haskell.lib.dontCheck (final.haskell.lib.markUnbroken super.ptr-peeker);
-            # postgresql-types-algebra: doJailbreak widens its `ptr-peeker ^>=0.1` bound.
-            # https://github.com/nikita-volkov/postgresql-types-algebra/issues/2
-            postgresql-types-algebra = final.haskell.lib.doJailbreak super.postgresql-types-algebra;
-            # postgresql-types: doJailbreak for ptr-peeker bound; dontCheck because tests need PostgreSQL.
-            # https://github.com/nikita-volkov/postgresql-types/issues/67
-            postgresql-types = final.haskell.lib.dontCheck (final.haskell.lib.doJailbreak super.postgresql-types);
-            # hasql-mapping: marked broken at the nixpkgs top level (genuine failure
-            # against the default hasql 1.9.3.1; unbroken only inside the IHP scope
-            # upstream). With the hasql 1.10 stack wired in above it builds fine —
-            # same as upstream ihpHasqlScope, which only `unmarkBroken`s it (no
-            # jailbreak). Kept identical to upstream so it resolves from cache.nixos.org.
+            # postgresql-types / ptr-peeker bridge stack.
+            #
+            # At the pinned #519795 nixpkgs rev, Hydra builds IHP's entire
+            # third-party closure green (haskellPackages.ihp) and uploads it to
+            # cache.nixos.org — including ptr-peeker 0.2.0.1, postgresql-types
+            # 0.1.3.2, postgresql-types-algebra and hasql-postgresql-types.
+            # ptr-peeker is no longer in broken.yaml and the `ptr-peeker ^>=0.1`
+            # bound problems that needed doJailbreak are gone at these versions,
+            # so ptr-peeker, postgresql-types, postgresql-types-algebra and
+            # hasql-postgresql-types are consumed verbatim from `super` (no
+            # entry here at all). Any transform would change the derivation hash
+            # and force a from-source rebuild of that package *and its whole
+            # reverse-dependency cone*, defeating the cache. Keep in sync with
+            # the upstream IHP scope; revert with the flake.nix pin.
+            #
+            # postgresql-simple-postgresql-types and hasql-mapping are the only
+            # exceptions: both are genuinely in broken.yaml, so they need
+            # markUnbroken — mirroring upstream ihpHasqlScope's `unmarkBroken`
+            # exactly (configuration-nix.nix already applies the dontCheck for
+            # postgresql-simple-postgresql-types). No doJailbreak / dontHaddock:
+            # those would diverge from the cached upstream derivations.
+            postgresql-simple-postgresql-types = final.haskell.lib.markUnbroken super.postgresql-simple-postgresql-types;
             hasql-mapping = final.haskell.lib.markUnbroken super.hasql-mapping;
-            # hasql-postgresql-types: doJailbreak for the ptr-peeker bound.
-            # https://github.com/nikita-volkov/hasql-postgresql-types/issues/4
-            hasql-postgresql-types = final.haskell.lib.dontHaddock (final.haskell.lib.doJailbreak super.hasql-postgresql-types);
         };
 in
 final: prev: {
