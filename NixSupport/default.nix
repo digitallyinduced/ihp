@@ -221,6 +221,7 @@ CABAL_EOF
                 -not -name 'Setup.hs' \
                 -not -path './build/*' \
                 -not -path './Config/*' \
+                -not -path './lib/*' \
                 -not -path './Test/*' \
                 | sed 's|^\./||' \
                 | sed 's|\.hs$||' \
@@ -316,7 +317,7 @@ CABAL_EOF
             mkdir -p $out
 
             # Copy all source files preserving directory structure (excluding entry points and tests)
-            find . -name '*.hs' -not -name 'Main.hs' -not -name 'Setup.hs' -not -path './build/*' -not -path './Test/*' | while read f; do
+            find . -name '*.hs' -not -name 'Main.hs' -not -name 'Setup.hs' -not -path './build/*' -not -path './lib/*' -not -path './Test/*' | while read f; do
                 mkdir -p "$out/$(dirname "$f")"
                 cp "$f" "$out/$f"
             done
@@ -406,7 +407,7 @@ CABAL_EOF
 
                 # Delete all .hs files except Main.hs so GHC uses the library package
                 # instead of recompiling from source
-                find . -name '*.hs' -not -name 'Main.hs' -not -path './build/*' -delete
+                find . -name '*.hs' -not -name 'Main.hs' -not -path './build/*' -not -path './lib/*' -delete
 
                 # Build RunProdServer from Main.hs
                 ghc -j"''${NIX_BUILD_CORES:-1}" +RTS -N -RTS \

@@ -95,6 +95,44 @@ Stop the development server by hitting CTRL + C. Your terminal should now automa
 
 Run `devenv up` again to start the development server, and `mmark` should now be used as expected.
 
+## Using a Local Haskell Library
+
+For code that should live outside your IHP application, create a normal Cabal package in `lib/`. This is useful for API clients, shared domain code, or code that you want to test and version as its own Haskell package while keeping it in the same repository.
+
+For example:
+
+```text
+lib/
+`-- my-client/
+    |-- default.nix
+    |-- my-client.cabal
+    `-- src/
+        `-- MyClient.hs
+```
+
+Generate the package's `default.nix` once with `cabal2nix` and commit the generated file:
+
+```bash
+cd lib/my-client
+nix run nixpkgs#cabal2nix -- . > default.nix
+```
+
+Then add the local package to `haskellPackages` in your application's `flake.nix`:
+
+```nix
+haskellPackages = p: with p; [
+    p.ihp
+    base
+    wai
+    text
+    (p.callPackage ./lib/my-client {})
+];
+```
+
+Commit the generated `default.nix` instead of using `callCabal2nix` in `flake.nix`. This keeps normal Nix evaluation pure and lets Nix reuse binary caches for all unchanged dependencies.
+
+IHP ignores the top-level `lib/` directory when scanning application modules, so files inside local libraries are compiled through their Cabal package instead of being treated as IHP app modules.
+
 ## Dev-Only Haskell Packages
 
 Some Haskell packages are only needed during development (e.g. `cabal-install`, `hlint`, `stylish-haskell`) and should not be included in production builds. IHP provides a `devHaskellPackages` option for this purpose.
