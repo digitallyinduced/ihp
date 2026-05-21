@@ -56,7 +56,6 @@ let
             ihp-context = localPackage "ihp-context";
             ihp-router = localPackage "ihp-router";
             ihp-pagehead = localPackage "ihp-pagehead";
-            ihp-log = localPackage "ihp-log";
             ihp-pglistener = localPackage "ihp-pglistener";
             ihp-modal = localPackage "ihp-modal";
             ihp-ide = localPackage "ihp-ide";

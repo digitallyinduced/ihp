@@ -83,7 +83,7 @@ shouldRenderTo renderFunction expectedHtml = renderMarkupText renderFunction `sh
 
 createControllerContext :: IO ControllerContext
 createControllerContext = do
-    frameworkConfig <- FrameworkConfig.buildFrameworkConfig (pure ())
+    frameworkConfig <- FrameworkConfig.buildFrameworkConfig noopLogger (pure ())
     let requestBody = FormBody { params = [], files = [], rawPayload = "" }
     let request = Wai.defaultRequest { Wai.vault = Vault.insert IHP.RequestVault.frameworkConfigVaultKey frameworkConfig
                                                  $ Vault.insert IHP.RequestVault.requestBodyVaultKey requestBody Vault.empty }

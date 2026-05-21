@@ -84,7 +84,7 @@ test-suite tests
     build-depends:
             base >= 4.17.0 && < 4.22
             , ihp
-            , ihp-log
+            , fast-logger
             , ihp-typed-sql
             , containers
             , directory

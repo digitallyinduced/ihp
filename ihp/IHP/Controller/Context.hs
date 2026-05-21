@@ -21,12 +21,13 @@ module IHP.Controller.Context
 import Prelude
 import Data.IORef (newIORef, readIORef)
 import GHC.Records (HasField(..))
+import Data.Maybe (fromMaybe)
 import qualified Data.TMap as TypeMap
 import IHP.FrameworkConfig.Types (FrameworkConfig(..))
-import IHP.Log.Types
+import System.Log.FastLogger (FastLogger)
 import System.IO.Unsafe (unsafePerformIO)
 import Network.Wai (Request)
-import IHP.RequestVault (requestFrameworkConfig, requestLogger)
+import IHP.RequestVault (requestFrameworkConfig)
 import IHP.ActionType (ActionType(..))
 
 -- Re-export from ihp-context, but we shadow newControllerContext
@@ -65,7 +66,7 @@ instance HasField "frameworkConfig" ControllerContext FrameworkConfig where
     getField controllerContext = requestFrameworkConfig controllerContext.request
     {-# INLINABLE getField #-}
 
--- | Access logger from the request vault
-instance HasField "logger" ControllerContext Logger where
-    getField context = requestLogger context.request
-    {-# INLINABLE getField #-}
+-- | Allows overriding the logger per-controller via 'putContext'
+instance HasField "logger" ControllerContext FastLogger where
+    getField context@(FrozenControllerContext { customFields }) = fromMaybe context.frameworkConfig.logger (TypeMap.lookup @FastLogger customFields)
+    getField context = (unsafePerformIO (freeze context)).logger

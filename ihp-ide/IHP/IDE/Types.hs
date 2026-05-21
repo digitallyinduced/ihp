@@ -8,8 +8,7 @@ import qualified Data.ByteString.Char8 as ByteString
 import IHP.IDE.PortConfig
 import Data.String.Conversions (cs)
 import Data.UUID
-import qualified IHP.Log.Types as Log
-import qualified IHP.Log as Log
+import System.Log.FastLogger (FastLogger, toLogStr)
 import qualified Control.Concurrent.Chan.Unagi as Queue
 import qualified Network.Socket as Socket
 import System.OsPath (OsPath, decodeUtf)
@@ -23,7 +22,7 @@ procDirenvAware command args = do
 
 sendGhciCommand :: (?context :: Context) => Handle -> ByteString -> IO ()
 sendGhciCommand inputHandle command = do
-    when (isDebugMode ?context) (Log.debug ("GHCI: " <> cs command :: Text))
+    when (isDebugMode ?context) (?context.logger (toLogStr ("GHCI: " <> cs command :: Text)))
     ByteString.hPutStrLn inputHandle command
     Handle.hFlush inputHandle
 
@@ -36,7 +35,7 @@ data OutputLine = StandardOutput !ByteString | ErrorOutput !ByteString deriving 
 data Context = Context
     { portConfig :: !PortConfig
     , isDebugMode :: !Bool
-    , logger :: !Log.Logger
+    , logger :: !FastLogger
     , ghciInChan :: !(Queue.InChan OutputLine) -- ^ Output of the app ghci is written here
     , ghciOutChan :: !(Queue.OutChan OutputLine) -- ^ Output of the app ghci is consumed here
     , liveReloadClients :: !(IORef (Map UUID Websocket.Connection))

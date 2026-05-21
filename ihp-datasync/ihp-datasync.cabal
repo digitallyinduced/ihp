@@ -52,7 +52,7 @@ common shared-properties
             , unliftio
             , async
             , ihp
-            , ihp-log
+            , fast-logger
             , ihp-hsx
             , deepseq
             , safe-exceptions

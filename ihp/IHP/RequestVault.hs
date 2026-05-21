@@ -7,10 +7,6 @@ module IHP.RequestVault
 , frameworkConfigVaultKey
 , frameworkConfigMiddleware
 , requestFrameworkConfig
-  -- * Logger
-, loggerVaultKey
-, loggerMiddleware
-, requestLogger
   -- * PGListener
 , pgListenerVaultKey
 , pgListenerMiddleware
@@ -22,7 +18,6 @@ import Network.Wai
 import System.IO.Unsafe (unsafePerformIO)
 import qualified Data.Vault.Lazy as Vault
 import IHP.FrameworkConfig
-import IHP.Log.Types (Logger)
 import IHP.PGListener
 import IHP.RequestVault.Helper
 import IHP.RequestVault.ModelContext
@@ -53,19 +48,6 @@ pgListenerMiddleware = insertVaultMiddleware pgListenerVaultKey
 requestPGListener :: Request -> PGListener
 requestPGListener = lookupRequestVault pgListenerVaultKey
 
--- request.logger
-loggerVaultKey :: Vault.Key Logger
-loggerVaultKey = unsafePerformIO Vault.newKey
-{-# NOINLINE loggerVaultKey #-}
-
-{-# INLINE loggerMiddleware #-}
-loggerMiddleware :: Logger -> Middleware
-loggerMiddleware = insertVaultMiddleware loggerVaultKey
-
-{-# INLINE requestLogger #-}
-requestLogger :: Request -> Logger
-requestLogger = lookupRequestVault loggerVaultKey
-
 -- Field access helpers
 instance HasField "frameworkConfig" Request FrameworkConfig where
     {-# INLINE getField #-}
@@ -73,6 +55,3 @@ instance HasField "frameworkConfig" Request FrameworkConfig where
 instance HasField "pgListener" Request PGListener where
     {-# INLINE getField #-}
     getField request = requestPGListener request
-instance HasField "logger" Request Logger where
-    {-# INLINE getField #-}
-    getField request = requestLogger request

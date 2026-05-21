@@ -113,7 +113,6 @@ common shared-properties
             , ihp-hsx
             , ihp-context
             , ihp-pagehead
-            , ihp-log
             , ihp-modal
             , ihp-router
             , mime-types

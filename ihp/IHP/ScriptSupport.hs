@@ -40,4 +40,4 @@ runScript configBuilder taskMain = withUtf8 do
 -- > runDevScript do { users <- query @User |> fetch; forEach users \user -> putStrLn user.name }
 --
 runDevScript :: Script -> IO ()
-runDevScript = runScript ihpDefaultConfig
+runDevScript = runScript (pure ())

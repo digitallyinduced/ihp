@@ -30,7 +30,7 @@ common shared-properties
         , containers
         , unordered-containers
         , hashable
-        , ihp-log
+        , fast-logger
     default-extensions:
         OverloadedStrings
         , ImplicitParams

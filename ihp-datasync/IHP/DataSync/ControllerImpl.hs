@@ -3,7 +3,7 @@ module IHP.DataSync.ControllerImpl where
 
 import IHP.ControllerPrelude hiding (OrderByClause, sqlQuery, sqlExec, sqlQueryScalar)
 import qualified Control.Exception.Safe as Exception
-import qualified IHP.Log as Log
+import System.Log.FastLogger (toLogStr)
 import qualified Data.Aeson as Aeson
 import qualified Data.Aeson.Key as Aeson
 
@@ -76,7 +76,7 @@ runDataSyncController hasqlPool ensureRLSEnabled installTableChangeTriggers rece
                                 Left (e :: Exception.SomeException) -> do
                                     let requestId    = decodedMessage.requestId
                                     let errorMessage = cs (displayException e)
-                                    Log.error (tshow e)
+                                    ?modelContext.logger (toLogStr (tshow e))
                                     sendJSON DataSyncError { requestId, errorMessage }
                                 Right _ -> pure ()
                         )

@@ -1,5 +1,5 @@
 { mkDerivation, aeson, attoparsec, base, basic-prelude, blaze-html
-, bytestring, ihp, ihp-hsx, ihp-log, lib, megaparsec
+, bytestring, ihp, ihp-hsx, lib, megaparsec
 , string-conversions, text, wai, wai-request-params, websockets
 }:
 mkDerivation {
@@ -8,7 +8,7 @@ mkDerivation {
   src = ./.;
   libraryHaskellDepends = [
     aeson attoparsec base basic-prelude blaze-html bytestring ihp
-    ihp-hsx ihp-log megaparsec string-conversions text wai
+    ihp-hsx megaparsec string-conversions text wai
     wai-request-params websockets
   ];
   homepage = "https://ihp.digitallyinduced.com/";

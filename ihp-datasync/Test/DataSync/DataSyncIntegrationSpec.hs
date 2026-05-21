@@ -14,10 +14,11 @@ import IHP.DataSync.DynamicQuery (Field(..))
 import IHP.DataSync.DynamicQueryCompiler (camelCaseRenamer)
 import IHP.DataSync.RowLevelSecurity (makeCachedEnsureRLSEnabled)
 import qualified IHP.DataSync.ChangeNotifications as ChangeNotifications
-import IHP.RequestVault (pgListenerVaultKey, frameworkConfigVaultKey, loggerVaultKey)
+import IHP.RequestVault (pgListenerVaultKey, frameworkConfigVaultKey)
 import IHP.Controller.Context (newControllerContext, freeze)
 import IHP.LoginSupport.Types (HasNewSessionUrl(..), CurrentUserRecord, currentUserVaultKey)
 import qualified IHP.ModelSupport as ModelSupport
+import IHP.ModelSupport (noopLogger)
 import IHP.ModelSupport.Types (Id'(..), PrimaryKey)
 import qualified IHP.PGListener as PGListener
 import IHP.FrameworkConfig (buildFrameworkConfig)
@@ -34,7 +35,6 @@ import Data.Aeson (Value(..), object, (.=))
 import qualified Data.Aeson as Aeson
 import Control.Concurrent.STM
 import Control.Concurrent (threadDelay)
-import qualified IHP.Log as Log
 
 -- | Define CurrentUserRecord for this test module
 data TestUser = TestUser { id :: Id' "test_users" }
@@ -143,17 +143,16 @@ withDataSyncController connStr testUserId action = do
         let actualConnStr = if "dbname=" `Text.isPrefixOf` connStr
                 then cs connStr
                 else cs ("dbname=" <> connStr)
-        logger <- Log.newLogger def { Log.level = Log.Error }
+        let logger = noopLogger
         ModelSupport.withModelContext actualConnStr logger \modelContext -> do
             PGListener.withPGListener actualConnStr logger \pgListener -> do
-                frameworkConfig <- buildFrameworkConfig (pure ())
+                frameworkConfig <- buildFrameworkConfig logger (pure ())
                 let frameworkConfig' = frameworkConfig { databaseUrl = actualConnStr }
 
                 let testUser = Just (TestUser { id = Id testUserId }) :: Maybe TestUser
                 let v = Vault.empty
                         |> Vault.insert pgListenerVaultKey pgListener
                         |> Vault.insert frameworkConfigVaultKey frameworkConfig'
-                        |> Vault.insert loggerVaultKey logger
                         |> Vault.insert currentUserVaultKey testUser
                 let request = defaultRequest { vault = v }
 

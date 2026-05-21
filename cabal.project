@@ -3,7 +3,6 @@ packages:
     ihp-context/
     ihp-hsx/
     ihp-router/
-    ihp-log/
     ihp-modal/
     ihp-pagehead/
     ihp-pglistener/
