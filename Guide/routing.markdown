@@ -165,7 +165,7 @@ For enum types generated from `Application/Schema.sql`, reuse the generated `tex
 
 ```haskell
 instance UrlCapture Color where
-    parseCapture = textToEnumColor . cs
+    parseCapture bytes = textToEnumColor (cs bytes)
     renderCapture = inputValue
 ```
 
