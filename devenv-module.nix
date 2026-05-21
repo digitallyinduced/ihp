@@ -486,12 +486,19 @@ that is defined in flake-module.nix
 
             reference =
                 let
+                    hackageHtmlLocationFlag = "--html-location='https://hackage.haskell.org/package/$pkgid/docs'";
+                    withHackageLinks = package: pkgs.haskell.lib.overrideCabal package (old: {
+                        haddockFlags = (old.haddockFlags or []) ++ [ hackageHtmlLocationFlag ];
+                    });
+
                     # Subpackages whose Haddock should be merged into the reference docs.
                     # Order matters: ihp-with-docs MUST be first so its index.html /
                     # doc-index-*.html / linuwial.css / quick-jump.js win on conflicts.
                     # Subpackages contribute their unique IHP-*.html module pages.
-                    docPackages = with pkgs.ghc; [
+                    docPackages = with pkgs.ghc; map withHackageLinks [
                         ihp-with-docs
+                        ihp-pglistener
+                        ihp-router
                         ihp-mail
                         ihp-modal
                         ihp-ssc
@@ -508,7 +515,7 @@ that is defined in flake-module.nix
                 pkgs.stdenv.mkDerivation {
                     name = "ihp-reference";
                     src = self;
-                    nativeBuildInputs = docPackages;
+                    nativeBuildInputs = docPackages ++ [ pkgs.perl ];
                     buildPhase = ''
                         mkdir -p haddock-build
 
@@ -533,6 +540,18 @@ that is defined in flake-module.nix
                         # Add ihp-haddock.css
                         cp ../ihp-haddock.css ihp-haddock.css
                         find . -type f \( -iname "*.html" \) -exec sed -i 's#<\/head>#<link href="ihp-haddock.css" rel="stylesheet"/><\/head>#g' '{}' +
+
+                        # Haddock's --html-location keeps prerequisite package links
+                        # stable. After merging IHP subpackage docs into one directory,
+                        # link sibling package references to the local merged pages.
+                        #
+                        find . -type f \( -iname "*.html" \) -exec perl -0pi -e '
+                            s{href="https://hackage\.haskell\.org/package/[^"/]+/docs/([^"#?]+(?:#[^"]*)?)"}{
+                                my ($target) = ($1);
+                                my ($page) = split /#/, $target, 2;
+                                (-e $page) ? qq{href="$target"} : $&
+                            }ge;
+                        ' '{}' +
 
                         # Link title to index
                         find . -type f \( -iname "*.html" \) -exec sed -i 's#<span class=\"caption\">IHP Api Reference</span>#<a href=\"index.html\" class=\"caption\"><img src=\"https://ihp.digitallyinduced.com/Guide/images/ihp-logo-readme.svg\"/>IHP Api Reference</a>#g' '{}' +
