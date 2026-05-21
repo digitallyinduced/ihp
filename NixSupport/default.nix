@@ -309,7 +309,7 @@ CABAL_HEADER
         -Wno-missing-home-modules
         -Wno-partial-type-signatures
         -Werror=missing-fields
-        -fwarn-incomplete-patterns
+        -Werror=incomplete-patterns
 CABAL_EOF
         '';
         installPhase = ''

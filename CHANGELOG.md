@@ -10,6 +10,7 @@
 
 ### Breaking Changes
 
+- IHP apps now treat incomplete pattern matches as compile errors in the default GHCi, generated Makefile, and generated Cabal configuration. This makes local development and agent-assisted coding fail fast when a pattern match misses a constructor.
 - Controller `action` now returns `IO ResponseReceived` instead of `IO ()` — response functions like `render`, `redirectTo`, `renderJson` return the WAI `ResponseReceived` directly instead of throwing exceptions. Use `earlyReturn` for conditional early exits (e.g. `when condition (earlyReturn $ redirectTo ...)`) ([#2205](https://github.com/digitallyinduced/ihp/pull/2205))
 - `ResponseException` removed — code that catches `ResponseException` will get a compiler error; use `earlyReturn`/`respondAndExit` instead
 - `respondAndExit` now requires `?request` and `?respond` implicit parameters (previously only needed `?context`)
