@@ -4,6 +4,25 @@ After updating your project, please consult the segments from your current relea
 
 # Upgrade to 1.6.0 (unreleased) from 1.5.0
 
+## `ihp-log` Has Been Removed
+
+The `ihp-log` package and the `IHP.Log.*` modules have been removed. IHP now uses `fast-logger` directly.
+
+If your application imports `IHP.Log` or `IHP.Log.Types`, replace those imports with `System.Log.FastLogger` and log through the logger already available in the IHP context:
+
+```haskell
+import System.Log.FastLogger (toLogStr)
+
+action PostsAction = do
+    ?context.logger (toLogStr ("Loading posts" :: Text))
+    posts <- query @Post |> fetch
+    render IndexView { .. }
+```
+
+In model code, use `?modelContext.logger`. In setup code, use `FrameworkConfig.logger`.
+
+The old `LogLevel` filtering API is no longer available. Control verbosity at the call site or in your deployment/log aggregation setup. Query timing logs are still controlled by the `DEBUG` environment variable.
+
 ## Incomplete Pattern Matches Are Now App Compile Errors
 
 IHP now promotes incomplete pattern match warnings to compile errors in app-facing defaults:
