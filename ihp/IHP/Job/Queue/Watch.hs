@@ -66,7 +66,6 @@ watchForJobWithPollerTriggerRepair enablePollerTriggerRepair pool pgListener tab
 
     poller <- pollForJob enablePollerTriggerRepair pool tableName pollInterval onNewJob
     subscription <- liftIO $ pgListener |> PGListener.subscribe (channelName tableNameBS) (const (do
-            ?context.logger (toLogStr ("Received pg_notify for " <> tableName))
             didWrite <- atomically $ tryWriteTBQueue onNewJob JobAvailable
             unless didWrite (?context.logger (toLogStr ("Job queue full for " <> tableName)))
             ))

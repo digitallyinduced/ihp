@@ -54,5 +54,4 @@ instance (Component component controller, FromJSON controller, Typeable componen
                 Left parseError -> do
                     let errorText = cs parseError
                     log ("SSC: Failed parsing action for " <> componentName <> ": " <> errorText)
-                    log ("SSC: Invalid payload: " <> tshow actionPayload)
                     SSC.sendError (SSCParseError { errorMessage = errorText })
