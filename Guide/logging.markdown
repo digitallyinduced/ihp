@@ -42,7 +42,7 @@ You convert text to `LogStr` using `toLogStr` and append a newline with `<> "\n"
 
 ### Query timing
 
-In development mode (when the `DEBUG` environment variable is set), IHP automatically logs query timing information. This is controlled by the `debugMode` field on `ModelContext`, which is set based on the `DEBUG` environment variable.
+In development mode (when the `DEBUG` environment variable is set), IHP automatically logs query timing information. This is controlled by the `queryLoggingEnabled` field on `ModelContext`, which is set based on the `DEBUG` environment variable.
 
 ### Suppressing query logging
 

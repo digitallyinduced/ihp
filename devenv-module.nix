@@ -493,7 +493,6 @@ that is defined in flake-module.nix
                     docPackages = with pkgs.ghc; [
                         ihp-with-docs
                         ihp-mail
-                        ihp-log
                         ihp-modal
                         ihp-ssc
                         # ihp-hsx ships with `doHaddock = false` in its default.nix

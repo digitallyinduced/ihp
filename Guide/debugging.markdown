@@ -411,7 +411,7 @@ action PostsAction = do
     render IndexView { .. }
 ```
 
-Or change the log level in `Config/Config.hs` to suppress debug messages entirely. See the [Logging Guide](logging.html) for details.
+Unset the `DEBUG` environment variable to suppress query timing logs globally. See the [Logging Guide](logging.html) for details.
 
 ## Browser Developer Tools
 

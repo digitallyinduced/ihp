@@ -14,7 +14,7 @@ import IHP.DataSync.DynamicQuery (Field(..))
 import IHP.DataSync.DynamicQueryCompiler (camelCaseRenamer)
 import IHP.DataSync.RowLevelSecurity (makeCachedEnsureRLSEnabled)
 import qualified IHP.DataSync.ChangeNotifications as ChangeNotifications
-import IHP.RequestVault (pgListenerVaultKey, frameworkConfigVaultKey, loggerVaultKey)
+import IHP.RequestVault (pgListenerVaultKey, frameworkConfigVaultKey)
 import IHP.Controller.Context (newControllerContext, freeze)
 import IHP.LoginSupport.Types (HasNewSessionUrl(..), CurrentUserRecord, currentUserVaultKey)
 import qualified IHP.ModelSupport as ModelSupport
@@ -153,7 +153,6 @@ withDataSyncController connStr testUserId action = do
                 let v = Vault.empty
                         |> Vault.insert pgListenerVaultKey pgListener
                         |> Vault.insert frameworkConfigVaultKey frameworkConfig'
-                        |> Vault.insert loggerVaultKey logger
                         |> Vault.insert currentUserVaultKey testUser
                 let request = defaultRequest { vault = v }
 
