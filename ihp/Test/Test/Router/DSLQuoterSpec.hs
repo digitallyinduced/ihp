@@ -8,11 +8,18 @@ module Test.Router.DSLQuoterSpec where
 
 import Test.Hspec
 import IHP.Prelude
+import IHP.Environment
+import IHP.FrameworkConfig
 import IHP.RouterSupport
 import IHP.Router.DSL (routes)
-import IHP.Router.Capture (renderCapture, parseCapture)
+import IHP.Router.Capture (UrlCapture, renderCapture, parseCapture)
 import IHP.ControllerPrelude
+import IHP.Test.Mocking
 import Network.HTTP.Types.Method (StdMethod (..))
+import Network.Wai.Test
+import qualified Data.HashMap.Strict as HashMap
+import qualified Data.Text.Encoding as Text
+import Test.Util (testGet)
 
 -- Minimal controller type used to exercise the DSL splice.
 data QuoterController
@@ -36,6 +43,37 @@ instance Controller QuoterController where
     action LegacyShowAction { itemId } = renderPlain (cs (tshow itemId))
     action RenamedQueryAction { bigProductId } = renderPlain (cs (tshow bigProductId))
 
+data Color
+    = ColorRed
+    | ColorGreen
+    deriving (Eq, Show)
+
+textToEnumColor :: Text -> Maybe Color
+textToEnumColor text = HashMap.lookup text textToEnumColorMap
+
+textToEnumColorMap :: HashMap.HashMap Text Color
+textToEnumColorMap = HashMap.fromList [("red", ColorRed), ("green", ColorGreen)]
+
+instance UrlCapture Color where
+    parseCapture bytes = case Text.decodeUtf8' bytes of
+        Right text -> textToEnumColor text
+        Left _ -> Nothing
+
+    renderCapture ColorRed = "red"
+    renderCapture ColorGreen = "green"
+
+data EnumQueryController
+    = FilterByColorAction { color :: Color }
+    deriving (Eq, Show)
+
+instance Controller EnumQueryController where
+    action FilterByColorAction { color } = renderPlain (cs (renderCapture color))
+
+data EnumQueryApplication = EnumQueryApplication deriving (Eq, Show, Data)
+
+instance InitControllerContext EnumQueryApplication where
+    initContext = pure ()
+
 -- Force a TH declaration-group boundary so the QuoterController type is
 -- visible to the [routes|…|] splice via 'reify'.
 $(pure [])
@@ -55,6 +93,20 @@ GET    /LegacyShow?itemId     LegacyShowAction
 -- to the other. pathTo must emit ?pid=…, not ?bigProductId=…
 GET    /Product?pid           RenamedQueryAction { bigProductId = #pid }
 |]
+
+[routes|enumQueryRoutes
+GET    /products?color        FilterByColorAction
+|]
+
+instance FrontController EnumQueryApplication where
+    controllers = enumQueryRoutes
+
+instance FrontController RootApplication where
+    controllers = [ mountFrontController EnumQueryApplication ]
+
+config = do
+    option Development
+    option (AppPort 8000)
 
 tests = do
     describe "IHP.Router.DSL (routes quoter — end-to-end)" do
@@ -108,3 +160,14 @@ tests = do
                 -- detail into the URL and break any caller linking by ?pid=.
                 pathTo (RenamedQueryAction { bigProductId = 99 })
                     `shouldBe` "/Product?pid=99"
+
+    aroundAll (withMockContextAndApp EnumQueryApplication config) do
+        describe "query-string decoding" do
+            it "treats an invalid custom UrlCapture query value as a route miss" $ withContextAndApp \application -> do
+                runSession (testGet "products?color=yellow" >>= assertStatus 404) application
+
+            it "dispatches when a custom UrlCapture query value parses successfully" $ withContextAndApp \application -> do
+                runSession (testGet "products?color=red" >>= \response -> do
+                    assertStatus 200 response
+                    assertBody "red" response
+                    ) application
