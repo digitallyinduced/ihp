@@ -535,6 +535,28 @@ that is defined in flake-module.nix
                         cp ../ihp-haddock.css ihp-haddock.css
                         find . -type f \( -iname "*.html" \) -exec sed -i 's#<\/head>#<link href="ihp-haddock.css" rel="stylesheet"/><\/head>#g' '{}' +
 
+                        # Rewrite Haddock links that point into the local nix store.
+                        #
+                        # If the referenced module page exists in our merged output, keep
+                        # the link local (e.g. IHP-PGListener.html). Otherwise send users
+                        # to the stable Hackage docs for that package instead of a
+                        # machine-local file:///nix/store/... path.
+                        find . -type f \( -iname "*.html" \) -exec perl -0pi -e '
+                            s{href="file:///nix/store/[^"]*/share/doc/([^"/]+)/html/([^"#?]+(?:#[^"]*)?)"}{
+                                my ($doc, $target) = ($1, $2);
+                                my ($page) = split /#/, $target, 2;
+                                my $href = (-e $page)
+                                    ? $target
+                                    : "https://hackage.haskell.org/package/$doc/docs/$target";
+                                qq{href="$href"}
+                            }ge;
+
+                            s{href="\$\{pkgroot\}/[^"]*/libraries/([^"/]+)/([^"]+)"}{
+                                my ($doc, $target) = ($1, $2);
+                                qq{href="https://hackage.haskell.org/package/$doc/docs/$target"}
+                            }ge;
+                        ' '{}' +
+
                         # Link title to index
                         find . -type f \( -iname "*.html" \) -exec sed -i 's#<span class=\"caption\">IHP Api Reference</span>#<a href=\"index.html\" class=\"caption\"><img src=\"https://ihp.digitallyinduced.com/Guide/images/ihp-logo-readme.svg\"/>IHP Api Reference</a>#g' '{}' +
 
