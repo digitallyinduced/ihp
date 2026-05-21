@@ -70,6 +70,7 @@ common common-flags
         -fexpose-all-unfoldings
         -optc-O3
         -Werror=incomplete-patterns
+        -Werror=missing-home-modules
 
 common common-depends
     build-depends:
@@ -154,6 +155,7 @@ test-suite ihp-hsx-tests
     other-modules:
         IHP.HSX.ParserSpec
         IHP.HSX.QQSpec
+        IHP.HSX.MarkupSpec
         IHP.HSX.CustomHsxCases
     default-language:    GHC2021
     build-depends:

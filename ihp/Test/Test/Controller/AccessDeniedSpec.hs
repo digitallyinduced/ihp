@@ -15,7 +15,7 @@ import IHP.FrameworkConfig
 import IHP.ViewPrelude
 import IHP.ControllerPrelude hiding (get, request)
 import Network.Wai.Test
-import Network.HTTP.Types
+import Test.Util (testGet)
 
 data WebApplication = WebApplication deriving (Eq, Show, Data)
 
@@ -48,23 +48,14 @@ instance InitControllerContext WebApplication where
 instance FrontController RootApplication where
     controllers = [ mountFrontController WebApplication ]
 
-testGet :: ByteString -> Session SResponse
-testGet url = request $ setPath defaultRequest { requestMethod = methodGet } url
-
-
 config = do
     option Development
     option (AppPort 8000)
-
-assertAccessDenied :: SResponse -> IO ()
-assertAccessDenied response = do
-    response.simpleStatus `shouldBe` status403
-    response.simpleBody `shouldNotBe` "Test"
 
 tests :: Spec
 tests = aroundAll (withMockContextAndApp WebApplication config) do
     describe "Access denied" $ do
         it "should return show 403 page when acessDeniedWhen is True" $ withContextAndApp \application -> do
-            runSession (testGet "test/TestActionAccessDeniedWhen") application >>= assertAccessDenied
+            runSession (testGet "test/TestActionAccessDeniedWhen" >>= assertStatus 403) application
         it "should return show 403 page when acessDeniedUnless is False" $ withContextAndApp \application -> do
-            runSession (testGet "test/TestActionAccessDeniedUnless") application >>= assertAccessDenied
+            runSession (testGet "test/TestActionAccessDeniedUnless" >>= assertStatus 403) application

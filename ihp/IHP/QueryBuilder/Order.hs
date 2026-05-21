@@ -70,7 +70,7 @@ orderBy !name = orderByAsc name
 -- >     |> limit 10
 -- >     |> fetch
 -- > -- SELECT * FROM posts LIMIT 10
-limit :: Int -> QueryBuilder model -> QueryBuilder model
+limit :: Int64 -> QueryBuilder model -> QueryBuilder model
 limit !queryLimit (QueryBuilder sq) =
     QueryBuilder sq { limitClause = Just queryLimit }
 {-# INLINE limit #-}
@@ -85,7 +85,7 @@ limit !queryLimit (QueryBuilder sq) =
 -- >     |> offset 10
 -- >     |> fetch
 -- > -- SELECT * FROM posts LIMIT 10 OFFSET 10
-offset :: Int -> QueryBuilder model -> QueryBuilder model
+offset :: Int64 -> QueryBuilder model -> QueryBuilder model
 offset !queryOffset (QueryBuilder sq) =
     QueryBuilder sq { offsetClause = Just queryOffset }
 {-# INLINE offset #-}

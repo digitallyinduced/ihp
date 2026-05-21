@@ -1,8 +1,8 @@
 {-|
-Module: Test.IDE.SchemaDesigner.ParserSpec
+Module: IDE.SchemaDesigner.ParserSpec
 Copyright: (c) digitally induced GmbH, 2020
 -}
-module Test.IDE.SchemaDesigner.ParserSpec where
+module IDE.SchemaDesigner.ParserSpec where
 
 import Test.Hspec
 import IHP.Prelude
@@ -219,6 +219,49 @@ tests = do
                             LessThanExpression
                                 (CallExpression ("length") [VarExpression "title"])
                                 (IntExpression 20)
+                        }
+                    , deferrable = Nothing
+                    , deferrableType = Nothing
+                    }
+
+        -- Regression for https://github.com/digitallyinduced/ihp/issues/2613:
+        -- pg_dump normalizes `kind IN ('a', 'b', 'c')` to `kind = ANY (ARRAY['a'::text, ...])`,
+        -- so the parser must accept the normalized form or it breaks on every schema reload.
+        it "should parse ALTER TABLE .. ADD CONSTRAINT .. CHECK with ANY(ARRAY[...]) as emitted by pg_dump" do
+            parseSql "ALTER TABLE foo ADD CONSTRAINT foo_kind_valid CHECK ((kind = ANY (ARRAY['a'::text, 'b'::text, 'c'::text])));" `shouldBe` AddConstraint
+                    { tableName = "foo"
+                    , constraint = CheckConstraint
+                        { name = "foo_kind_valid"
+                        , checkExpression =
+                            EqExpression
+                                (VarExpression "kind")
+                                (CallExpression "ANY"
+                                    [ ArrayLiteralExpression
+                                        [ TypeCastExpression (TextExpression "a") PText
+                                        , TypeCastExpression (TextExpression "b") PText
+                                        , TypeCastExpression (TextExpression "c") PText
+                                        ]
+                                    ])
+                        }
+                    , deferrable = Nothing
+                    , deferrableType = Nothing
+                    }
+
+        it "should parse ALTER TABLE .. ADD CONSTRAINT .. CHECK with ANY(ARRAY[...]) of integers" do
+            parseSql "ALTER TABLE foo ADD CONSTRAINT foo_n_valid CHECK ((n = ANY (ARRAY[1, 2, 3])));" `shouldBe` AddConstraint
+                    { tableName = "foo"
+                    , constraint = CheckConstraint
+                        { name = "foo_n_valid"
+                        , checkExpression =
+                            EqExpression
+                                (VarExpression "n")
+                                (CallExpression "ANY"
+                                    [ ArrayLiteralExpression
+                                        [ IntExpression 1
+                                        , IntExpression 2
+                                        , IntExpression 3
+                                        ]
+                                    ])
                         }
                     , deferrable = Nothing
                     , deferrableType = Nothing
@@ -561,6 +604,7 @@ tests = do
                     , columns = [indexCol (VarExpression "user_name")]
                     , whereClause = Nothing
                     , indexType = Nothing
+                    , nullsDistinct = True
                     }
 
         it "should parse a 'CREATE INDEX .. ON .. USING GIN' statement" do
@@ -571,6 +615,7 @@ tests = do
                     , columns = [indexCol (VarExpression "user_name")]
                     , whereClause = Nothing
                     , indexType = Just Gin
+                    , nullsDistinct = True
                     }
 
         it "should parse a 'CREATE INDEX .. ON .. USING btree' statement" do
@@ -581,6 +626,7 @@ tests = do
                     , columns = [indexCol (VarExpression "user_name")]
                     , whereClause = Nothing
                     , indexType = Just Btree
+                    , nullsDistinct = True
                     }
 
         it "should parse a 'CREATE INDEX .. ON .. USING GIST' statement" do
@@ -591,6 +637,7 @@ tests = do
                     , columns = [indexCol (VarExpression "user_name")]
                     , whereClause = Nothing
                     , indexType = Just Gist
+                    , nullsDistinct = True
                     }
 
         it "should parse a CREATE INDEX statement with multiple columns" do
@@ -604,6 +651,7 @@ tests = do
                         ]
                     , whereClause = Nothing
                     , indexType = Nothing
+                    , nullsDistinct = True
                     }
         it "should parse a CREATE INDEX statement with a LOWER call" do
             parseSql "CREATE INDEX users_email_index ON users (LOWER(email));\n" `shouldBe` CreateIndex
@@ -613,6 +661,7 @@ tests = do
                     , columns = [indexCol (CallExpression "LOWER" [VarExpression "email"])]
                     , whereClause = Nothing
                     , indexType = Nothing
+                    , nullsDistinct = True
                     }
         it "should parse a CREATE UNIQUE INDEX statement" do
             parseSql "CREATE UNIQUE INDEX users_index ON users (user_name);\n" `shouldBe` CreateIndex
@@ -622,6 +671,7 @@ tests = do
                     , columns = [indexCol (VarExpression "user_name")]
                     , whereClause = Nothing
                     , indexType = Nothing
+                    , nullsDistinct = True
                     }
 
         it "should parse a CREATE INDEX with column order ASC NULLS FIRST statement" do
@@ -629,9 +679,10 @@ tests = do
                     { indexName = "users_index"
                     , unique = True
                     , tableName = "users"
-                    , columns = [IndexColumn { column = VarExpression "user_name", columnOrder = [Asc, NullsFirst] }]
+                    , columns = [IndexColumn { column = VarExpression "user_name", columnOperatorClass = Nothing, columnOrder = [Asc, NullsFirst] }]
                     , whereClause = Nothing
                     , indexType = Nothing
+                    , nullsDistinct = True
                     }
 
         it "should parse a CREATE INDEX with column order DESC NULLS LAST statement" do
@@ -639,9 +690,38 @@ tests = do
                     { indexName = "users_index"
                     , unique = True
                     , tableName = "users"
-                    , columns = [IndexColumn { column = VarExpression "user_name", columnOrder = [Desc, NullsLast] }]
+                    , columns = [IndexColumn { column = VarExpression "user_name", columnOperatorClass = Nothing, columnOrder = [Desc, NullsLast] }]
                     , whereClause = Nothing
                     , indexType = Nothing
+                    , nullsDistinct = True
+                    }
+
+        it "should parse pgvector column types with dimensions" do
+            parseSql "ALTER TABLE knowledge_chunks ADD COLUMN embedding VECTOR(1536) DEFAULT NULL;" `shouldBe` AddColumn
+                    { tableName = "knowledge_chunks"
+                    , column = (col "embedding" (PCustomType "VECTOR(1536)")) { defaultValue = Just (VarExpression "NULL") }
+                    }
+
+        it "should parse pgvector HNSW indexes with operator classes" do
+            parseSql "CREATE INDEX knowledge_chunks_embedding_hnsw_idx ON knowledge_chunks USING hnsw (embedding vector_cosine_ops) WHERE embedding IS NOT NULL;" `shouldBe` CreateIndex
+                    { indexName = "knowledge_chunks_embedding_hnsw_idx"
+                    , unique = False
+                    , tableName = "knowledge_chunks"
+                    , columns = [IndexColumn { column = VarExpression "embedding", columnOperatorClass = Just "vector_cosine_ops", columnOrder = [] }]
+                    , whereClause = Just (IsExpression (VarExpression "embedding") (NotExpression (VarExpression "NULL")))
+                    , indexType = Just Hnsw
+                    , nullsDistinct = True
+                    }
+
+        it "should parse pgvector IVFFLAT indexes with operator classes" do
+            parseSql "CREATE INDEX knowledge_chunks_embedding_ivfflat_idx ON knowledge_chunks USING ivfflat (embedding vector_l2_ops);" `shouldBe` CreateIndex
+                    { indexName = "knowledge_chunks_embedding_ivfflat_idx"
+                    , unique = False
+                    , tableName = "knowledge_chunks"
+                    , columns = [IndexColumn { column = VarExpression "embedding", columnOperatorClass = Just "vector_l2_ops", columnOrder = [] }]
+                    , whereClause = Nothing
+                    , indexType = Just Ivfflat
+                    , nullsDistinct = True
                     }
 
         it "should parse a CREATE INDEX with a coalesce expression" do
@@ -656,6 +736,48 @@ tests = do
                             ]
                     , whereClause = Nothing
                     , indexType = Nothing
+                    , nullsDistinct = True
+                    }
+
+        it "should parse a pg_dump CREATE INDEX with VARIADIC function arguments" do
+            let sql = cs [plain|
+CREATE INDEX agent_runs_ingest_gmail_message_latest_idx ON public.agent_runs USING btree (organization_id, jsonb_extract_path_text(input, VARIADIC ARRAY['gmailMessageId'::text]), COALESCE(completed_at, last_event_at, started_at, created_at) DESC, id DESC) WHERE ((type = 'ingest'::public.agent_run_type) AND (jsonb_extract_path_text(input, VARIADIC ARRAY['source'::text]) = 'gmail_email_ingest'::text));
+            |]
+            parseSql sql `shouldBe` CreateIndex
+                    { indexName = "agent_runs_ingest_gmail_message_latest_idx"
+                    , unique = False
+                    , tableName = "agent_runs"
+                    , columns =
+                            [ indexCol (VarExpression "organization_id")
+                            , indexCol (CallExpression "jsonb_extract_path_text"
+                                [ VarExpression "input"
+                                , VariadicExpression (ArrayLiteralExpression [TypeCastExpression (TextExpression "gmailMessageId") PText])
+                                ])
+                            , IndexColumn
+                                { column = CallExpression "COALESCE"
+                                    [ VarExpression "completed_at"
+                                    , VarExpression "last_event_at"
+                                    , VarExpression "started_at"
+                                    , VarExpression "created_at"
+                                    ]
+                                , columnOperatorClass = Nothing
+                                , columnOrder = [Desc]
+                                }
+                            , IndexColumn { column = VarExpression "id", columnOperatorClass = Nothing, columnOrder = [Desc] }
+                            ]
+                    , whereClause = Just
+                        (AndExpression
+                            (EqExpression
+                                (VarExpression "type")
+                                (TypeCastExpression (TextExpression "ingest") (PCustomType "agent_run_type")))
+                            (EqExpression
+                                (CallExpression "jsonb_extract_path_text"
+                                    [ VarExpression "input"
+                                    , VariadicExpression (ArrayLiteralExpression [TypeCastExpression (TextExpression "source") PText])
+                                    ])
+                                (TypeCastExpression (TextExpression "gmail_email_ingest") PText)))
+                    , indexType = Just Btree
+                    , nullsDistinct = True
                     }
 
         it "should parse a CREATE OR REPLACE FUNCTION ..() RETURNS TRIGGER .." do
@@ -733,6 +855,7 @@ $$;
                             (IsExpression (VarExpression "source") (NotExpression (VarExpression "NULL")))
                             (IsExpression (VarExpression "source_id") (NotExpression (VarExpression "NULL"))))
                     , indexType = Nothing
+                    , nullsDistinct = True
                     }
 
         it "should parse 'ENABLE ROW LEVEL SECURITY' statements" do

@@ -36,7 +36,7 @@ common ihp-std
         ImplicitParams
         DataKinds
         UndecidableInstances
-    ghc-options: -Werror=incomplete-patterns -Werror=unused-imports -Werror=missing-fields
+    ghc-options: -Werror=incomplete-patterns -Werror=unused-imports -Werror=missing-fields -Werror=missing-home-modules
 
 library
     import: ihp-std

@@ -5,6 +5,7 @@ import qualified System.Process as Process
 import IHP.HaskellSupport
 import qualified Data.ByteString.Char8 as ByteString
 import Control.Concurrent (threadDelay)
+import qualified Control.Concurrent as Concurrent
 import IHP.IDE.Types
 import IHP.IDE.Postgres
 import IHP.IDE.StatusServer
@@ -24,13 +25,17 @@ import Main.Utf8 (withUtf8)
 import qualified IHP.FrameworkConfig as FrameworkConfig
 import qualified Control.Concurrent.Chan.Unagi as Queue
 import IHP.IDE.FileWatcher
+import qualified IHP.IDE.SplitMode as SplitMode
+import qualified IHP.IDE.WorkerSignal as WorkerSignal
 import qualified System.Environment as Env
 import qualified System.Directory.OsPath as Directory
 import qualified Control.Exception.Safe as Exception
 import qualified Data.ByteString.Builder as ByteString
 import qualified Network.Socket as Socket
 import qualified System.IO as IO
+import qualified System.Exit as Exit
 import System.OsPath (OsPath, encodeUtf, decodeUtf)
+import qualified System.Posix.Signals as Signals
 
 
 mainInParentDirectory :: IO ()
@@ -65,56 +70,87 @@ main = mainWithOptions False
 
 mainWithOptions :: Bool -> IO ()
 mainWithOptions wrapWithDirenv = withUtf8 do
-    -- https://github.com/digitallyinduced/ihp/issues/2134
-    -- devenv will redirect the standard handles to a pipe, causing block buffering by default
-    -- We need to override this so that `putStrLn` etc. works as expected
-    IO.hSetBuffering IO.stdout IO.LineBuffering
-    IO.hSetBuffering IO.stderr IO.LineBuffering
+    mainThreadId <- Concurrent.myThreadId
+    withSigTermHandler (Concurrent.throwTo mainThreadId Exit.ExitSuccess) do
+        -- https://github.com/digitallyinduced/ihp/issues/2134
+        -- devenv will redirect the standard handles to a pipe, causing block buffering by default
+        -- We need to override this so that `putStrLn` etc. works as expected
+        IO.hSetBuffering IO.stdout IO.LineBuffering
+        IO.hSetBuffering IO.stderr IO.LineBuffering
 
-    databaseNeedsMigration <- newIORef False
-    portConfig <- findAvailablePortConfig
+        databaseNeedsMigration <- newIORef False
+        portConfig <- findAvailablePortConfig
 
-    -- Start the dev server in Debug mode by setting the env var DEBUG=1
-    -- Like: $ DEBUG=1 devenv up
-    isDebugMode <- EnvVar.envOrDefault "DEBUG" False
+        -- Start the dev server in Debug mode by setting the env var DEBUG=1
+        -- Like: $ DEBUG=1 devenv up
+        isDebugMode <- EnvVar.envOrDefault "DEBUG" False
 
-    -- Create a persistent listening socket for the app port
-    -- This socket is shared between the status server and the app,
-    -- ensuring seamless transitions during app restarts (no connection refused errors)
-    appSocket <- createListeningSocket portConfig.appPort
+        -- Create a persistent listening socket for the app port
+        -- This socket is shared between the status server and the app,
+        -- ensuring seamless transitions during app restarts (no connection refused errors)
+        appSocket <- createListeningSocket portConfig.appPort
 
-    withFastLogger (LogStdout defaultBufSize) \rawLogger -> do
-        let logger msg = rawLogger (msg <> "\n")
-        (ghciInChan, ghciOutChan) <- Queue.newChan
-        liveReloadClients <- newIORef mempty
-        lastSchemaCompilerError <- newIORef Nothing
-        let ?context = Context { portConfig, isDebugMode, logger, ghciInChan, ghciOutChan, wrapWithDirenv, liveReloadClients, lastSchemaCompilerError, appSocket }
+        withFastLogger (LogStdout defaultBufSize) \rawLogger -> do
+            let logger msg = rawLogger (msg <> "\n")
+            (ghciInChan, ghciOutChan) <- Queue.newChan
+            liveReloadClients <- newIORef mempty
+            lastSchemaCompilerError <- newIORef Nothing
+            let ?context = Context { portConfig, isDebugMode, logger, ghciInChan, ghciOutChan, wrapWithDirenv, liveReloadClients, lastSchemaCompilerError, appSocket }
 
-        -- Print IHP Version when in debug mode
-        when isDebugMode (logger (toLogStr ("IHP Version: " <> Version.ihpVersion)))
+            -- Print IHP Version when in debug mode
+            when isDebugMode (logger (toLogStr ("IHP Version: " <> Version.ihpVersion)))
 
-        ghciIsLoadingVar <- newIORef False
-        reloadGhciVar :: MVar () <- newEmptyMVar
+            ghciIsLoadingVar <- newIORef False
+            reloadGhciVar :: MVar () <- newEmptyMVar
 
-        withStatusServer ghciIsLoadingVar \startStatusServer stopStatusServer statusServerStandardOutput statusServerErrorOutput statusServerClients -> do
-            -- Compile Schema before loading the app
-            tryCompileSchema reloadGhciVar startStatusServer
+            -- One-shot: if the project already has jobs at boot, write
+            -- build/RunJobs.hs so the worker process can load it. The file
+            -- watcher below re-checks on every change, so this also kicks in
+            -- when the user scaffolds their first job after `devenv up`.
+            initialHasJobs <- SplitMode.hasJobs
+            when initialHasJobs SplitMode.generateRunJobsModule
 
-            let toolServerApplication = ToolServerApplication
-                    { appStandardOutput = statusServerStandardOutput
-                    , appErrorOutput = statusServerErrorOutput
-                    , appPort = portConfig.appPort
-                    , databaseNeedsMigration
-                    }
+            withStatusServer ghciIsLoadingVar \startStatusServer stopStatusServer statusServerStandardOutput statusServerErrorOutput statusServerClients -> do
+                -- Compile Schema before loading the app
+                tryCompileSchema reloadGhciVar startStatusServer
+
+                let toolServerApplication = ToolServerApplication
+                        { appStandardOutput = statusServerStandardOutput
+                        , appErrorOutput = statusServerErrorOutput
+                        , appPort = portConfig.appPort
+                        , databaseNeedsMigration
+                        }
 
 
-            void $ runConcurrently $ (,,,,,)
-                    <$> Concurrently (updateDatabaseIsOutdated databaseNeedsMigration)
-                    <*> Concurrently (runToolServer toolServerApplication liveReloadClients)
-                    <*> Concurrently (consumeGhciOutput statusServerStandardOutput statusServerErrorOutput statusServerClients)
-                    <*> Concurrently Telemetry.reportTelemetry
-                    <*> Concurrently (runFileWatcherWithDebounce (fileWatcherParams liveReloadClients databaseNeedsMigration reloadGhciVar startStatusServer))
-                    <*> Concurrently (runAppGhci ghciIsLoadingVar startStatusServer stopStatusServer statusServerStandardOutput statusServerErrorOutput statusServerClients reloadGhciVar)
+                void $ runConcurrently $ (,,,,,)
+                        <$> Concurrently (updateDatabaseIsOutdated databaseNeedsMigration)
+                        <*> Concurrently (runToolServer toolServerApplication liveReloadClients)
+                        <*> Concurrently (consumeGhciOutput statusServerStandardOutput statusServerErrorOutput statusServerClients)
+                        <*> Concurrently Telemetry.reportTelemetry
+                        <*> Concurrently (runFileWatcherWithDebounce (fileWatcherParams liveReloadClients databaseNeedsMigration reloadGhciVar startStatusServer))
+                        <*> Concurrently (runAppGhci mainThreadId ghciIsLoadingVar startStatusServer stopStatusServer statusServerStandardOutput statusServerErrorOutput statusServerClients reloadGhciVar)
+
+withSigTermHandler :: IO () -> IO a -> IO a
+withSigTermHandler sigTermHandler callback = Exception.bracket
+    (Signals.installHandler Signals.sigTERM (Signals.Catch sigTermHandler) Nothing)
+    (\previousSigTermHandler -> void (Signals.installHandler Signals.sigTERM previousSigTermHandler Nothing))
+    (\_ -> callback)
+
+stopProcessHandle :: Process.ProcessHandle -> IO ()
+stopProcessHandle processHandle = do
+    maybePid <- Process.getPid processHandle `Exception.catchAny` \_ -> pure Nothing
+    let signalGhciGroup signal = case maybePid of
+            Just pid -> do
+                -- GHCi runs in its own process group, so shutdown needs to target the
+                -- whole group rather than only the leader process.
+                Signals.signalProcessGroup signal pid `Exception.catchAny` \_ -> Signals.signalProcess signal pid `Exception.catchAny` \_ -> pure ()
+            Nothing -> Process.terminateProcess processHandle `Exception.catchAny` \_ -> pure ()
+
+    signalGhciGroup Signals.sigTERM
+    exitedOnSigTerm <- isJust <$> timeout (1 * 1000000) (Process.waitForProcess processHandle `Exception.catchAny` \_ -> pure Exit.ExitSuccess)
+    unless exitedOnSigTerm do
+        signalGhciGroup Signals.sigKILL
+        void (timeout (1 * 1000000) (Process.waitForProcess processHandle `Exception.catchAny` \_ -> pure Exit.ExitSuccess))
 
 fileWatcherParams liveReloadClients databaseNeedsMigration reloadGhciVar startStatusServer =
     FileWatcherParams
@@ -122,10 +158,29 @@ fileWatcherParams liveReloadClients databaseNeedsMigration reloadGhciVar startSt
             -- Use tryPutMVar to avoid blocking if a reload is already pending.
             -- This handles the case where multiple file changes happen in quick succession.
             void $ tryPutMVar reloadGhciVar ()
+            signalWorker
         , onSchemaChanged = do
             concurrently_ (tryCompileSchema reloadGhciVar startStatusServer) (updateDatabaseIsOutdated databaseNeedsMigration)
+            -- Schema regeneration touches build/Generated/Types.hs which the worker
+            -- depends on; tell it to reload too.
+            signalWorker
         , onAssetChanged = notifyAssetChange liveReloadClients
         }
+  where
+    -- Fire and forget — sendReload handles its own retry/backoff. We don't want
+    -- the file watcher to block on a slow worker.
+    --
+    -- We re-check 'hasJobs' on every signal (rather than caching at boot) so
+    -- that scaffolding the first job after `devenv up` correctly activates
+    -- the worker process. The check is a small recursive scan and runs off
+    -- the watcher thread.
+    signalWorker = void $ Concurrent.forkIO $ Exception.handleAny
+        (\_ -> pure ())
+        do
+            currentHasJobs <- SplitMode.hasJobs
+            when currentHasJobs do
+                SplitMode.generateRunJobsModule
+                WorkerSignal.sendReload SplitMode.workerSocketPath
 
 ghciArguments :: [String]
 ghciArguments =
@@ -139,16 +194,21 @@ ghciArguments =
     , "+RTS", "-A64m", "-n4m", "-H256m", "--nonmoving-gc", "-Iw60", "-N4"
     ]
 
-withGHCI :: (?context :: Context) => (Handle -> Handle -> Handle -> Process.ProcessHandle -> IO a) -> IO a
-withGHCI callback = do
+withGHCI :: (?context :: Context) => Concurrent.ThreadId -> (Handle -> Handle -> Handle -> Process.ProcessHandle -> IO a) -> IO a
+withGHCI mainThreadId callback = do
     baseParams <- procDirenvAware "ghci" ghciArguments
     let params = baseParams
             { Process.std_in = Process.CreatePipe
             , Process.std_out = Process.CreatePipe
             , Process.std_err = Process.CreatePipe
+            , Process.create_group = True
             }
 
-    Process.withCreateProcess params \(Just input) (Just output) (Just error) processHandle -> callback input output error processHandle
+    Process.withCreateProcess params \(Just input) (Just output) (Just error) processHandle -> do
+        let sigTermHandler = do
+                stopProcessHandle processHandle
+                Concurrent.throwTo mainThreadId Exit.ExitSuccess
+        withSigTermHandler sigTermHandler (callback input output error processHandle)
 
 initGHCICommands = 
     [ -- The app is loaded by loading .ghci, which then loads applicationGhciConfig, which triggers a ':l Main.hs'
@@ -156,8 +216,8 @@ initGHCICommands =
     , "import qualified ClassyPrelude"
     ]
 
-runAppGhci :: (?context :: Context) => IORef Bool -> MVar () -> MVar (MVar ()) -> IORef [ByteString] -> IORef [ByteString] -> Clients -> MVar () -> IO ()
-runAppGhci ghciIsLoadingVar startStatusServer stopStatusServer statusServerStandardOutput statusServerErrorOutput statusServerClients reloadGhciVar = do
+runAppGhci :: (?context :: Context) => Concurrent.ThreadId -> IORef Bool -> MVar () -> MVar (MVar ()) -> IORef [ByteString] -> IORef [ByteString] -> Clients -> MVar () -> IO ()
+runAppGhci mainThreadId ghciIsLoadingVar startStatusServer stopStatusServer statusServerStandardOutput statusServerErrorOutput statusServerClients reloadGhciVar = do
     -- The app is using the `PORT` env variable for its web server
     let appPort :: Int = fromIntegral ?context.portConfig.appPort
     Env.setEnv "PORT" (show appPort)
@@ -215,7 +275,7 @@ runAppGhci ghciIsLoadingVar startStatusServer stopStatusServer statusServerStand
 
             processResult inputHandle outputHandle errorHandle processHandle result
 
-    withGHCI \inputHandle outputHandle errorHandle processHandle -> do
+    withGHCI mainThreadId \inputHandle outputHandle errorHandle processHandle -> do
         writeIORef ghciIsLoadingVar True
         withLoadedApp inputHandle outputHandle errorHandle receiveAppOutput \result -> do
             processResult inputHandle outputHandle errorHandle processHandle result

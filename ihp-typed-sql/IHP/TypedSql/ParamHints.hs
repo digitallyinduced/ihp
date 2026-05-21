@@ -7,6 +7,8 @@ module IHP.TypedSql.ParamHints
     , extractJoinNullableTablesFromAst
     , extractNonNullableComputedColumnsFromAst
     , resolveParamHintTypes
+    , detectStarSelects
+    , detectInsertWithoutColumns
     ) where
 
 import           Data.Foldable                (foldMap, toList)
@@ -661,3 +663,77 @@ stripMaybeType :: TH.Type -> TH.Type
 stripMaybeType (TH.AppT (TH.ConT maybeName) inner)
     | maybeName == ''Maybe = inner
 stripMaybeType other = other
+
+----------------------------------------------------------------------
+-- Star select detection
+----------------------------------------------------------------------
+
+-- | Detect SELECT * and SELECT table.* in the target list of a query.
+-- Returns a list of descriptive strings (e.g. ["*", "items.*"]) for use in error messages.
+-- Does NOT flag COUNT(*) (function argument) or (expr).* (composite expansion).
+detectStarSelects :: Ast.PreparableStmt -> [String]
+detectStarSelects = \case
+    Ast.SelectPreparableStmt selectStmt -> starFromSelectStmt selectStmt
+    _ -> []
+
+starFromSelectStmt :: Ast.SelectStmt -> [String]
+starFromSelectStmt (Left (Ast.SelectNoParens _with selectClause _sort _limit _lock)) =
+    starFromSelectClause selectClause
+starFromSelectStmt (Right parens) = starFromSelectWithParens parens
+
+starFromSelectWithParens :: Ast.SelectWithParens -> [String]
+starFromSelectWithParens (Ast.NoParensSelectWithParens (Ast.SelectNoParens _with selectClause _sort _limit _lock)) =
+    starFromSelectClause selectClause
+starFromSelectWithParens (Ast.WithParensSelectWithParens inner) =
+    starFromSelectWithParens inner
+
+starFromSelectClause :: Ast.SelectClause -> [String]
+starFromSelectClause (Left simpleSelect) = starFromSimpleSelect simpleSelect
+starFromSelectClause (Right parens) = starFromSelectWithParens parens
+
+starFromSimpleSelect :: Ast.SimpleSelect -> [String]
+starFromSimpleSelect = \case
+    Ast.NormalSimpleSelect maybeTargeting _into _from _where _group _having _window ->
+        case maybeTargeting of
+            Just (Ast.NormalTargeting targets) -> concatMap starFromTargetEl (toList targets)
+            Just (Ast.DistinctTargeting _ targets) -> concatMap starFromTargetEl (toList targets)
+            _ -> []
+    Ast.BinSimpleSelect _op left _distinct right ->
+        starFromSelectClause left <> starFromSelectClause right
+    _ -> []
+
+starFromTargetEl :: Ast.TargetEl -> [String]
+starFromTargetEl = \case
+    Ast.AsteriskTargetEl -> ["*"]
+    Ast.ExprTargetEl expr -> starFromExpr expr
+    Ast.ImplicitlyAliasedExprTargetEl expr _ -> starFromExpr expr
+    Ast.AliasedExprTargetEl expr _ -> starFromExpr expr
+
+-- | Detect table.* pattern: a simple column reference (identifier) followed by AllIndirectionEl.
+-- Does NOT flag (expr).* like (ROW(...))::type.* which is composite expansion.
+starFromExpr :: Ast.AExpr -> [String]
+starFromExpr = \case
+    Ast.CExprAExpr (Ast.ColumnrefCExpr (Ast.Columnref ident (Just indirection)))
+        | any isAllIndirection (toList indirection) ->
+            [Text.unpack (identToText ident) <> ".*"]
+    _ -> []
+  where
+    isAllIndirection Ast.AllIndirectionEl = True
+    isAllIndirection _ = False
+
+----------------------------------------------------------------------
+-- INSERT without explicit column list detection
+----------------------------------------------------------------------
+
+-- | Detect INSERT statements without an explicit column list.
+-- Returns descriptive strings (e.g. ["INSERT INTO foo"]) for use in error messages.
+-- Allows `INSERT INTO foo DEFAULT VALUES` since it has no positional column binding.
+detectInsertWithoutColumns :: Ast.PreparableStmt -> [String]
+detectInsertWithoutColumns = \case
+    Ast.InsertPreparableStmt (Ast.InsertStmt _with target rest _onConflict _ret) ->
+        case rest of
+            Ast.SelectInsertRest Nothing _override _selectStmt ->
+                let Ast.InsertTarget qname _alias = target
+                in ["INSERT INTO " <> Text.unpack (qualifiedNameToText qname)]
+            _ -> []
+    _ -> []

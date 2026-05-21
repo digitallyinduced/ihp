@@ -2,7 +2,7 @@
 Module: Test.PGListenerSpec
 Copyright: (c) digitally induced GmbH, 2025
 -}
-module Test.PGListenerSpec where
+module PGListenerSpec where
 
 import Prelude
 import Test.Hspec

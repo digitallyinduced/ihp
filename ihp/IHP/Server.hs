@@ -18,8 +18,6 @@ import IHP.FrameworkConfig
 import IHP.ModelSupport (withModelContext)
 import IHP.RouterSupport (frontControllerToWAIApp, FrontController)
 import IHP.AutoRefresh (AutoRefreshWSApp)
-import qualified IHP.Job.Runner as Job
-import qualified IHP.Job.Types as Job
 import qualified Data.ByteString.Char8 as ByteString
 import qualified Network.Wai.Middleware.Cors as Cors
 import qualified Network.Wai.Middleware.Approot as Approot
@@ -31,7 +29,7 @@ import qualified System.IO as IO
 import qualified Network.Wai.Application.Static as Static
 import qualified WaiAppStatic.Types as Static
 import qualified IHP.EnvVar as EnvVar
-import qualified Network.Wreq as Wreq
+import qualified Network.HTTP.Client as HTTP
 import qualified Data.Function as Function
 import IHP.RequestVault hiding (requestBodyMiddleware)
 import IHP.Controller.Response (responseHeadersVaultKey)
@@ -51,7 +49,7 @@ import qualified System.Posix.IO as Posix
 import System.Posix.Types (Fd(..))
 import qualified IHP.ErrorController as ErrorController
 
-run :: (FrontController RootApplication, Job.Worker RootApplication) => ConfigBuilder -> IO ()
+run :: FrontController RootApplication => ConfigBuilder -> IO ()
 run configBuilder = do
     -- We cannot use 'Main.Utf8.withUtf8' here, as this for some reason breaks live reloading
     -- in the dev server. So we switch the file handles to utf8 manually
@@ -72,21 +70,12 @@ run configBuilder = do
                     let fullApp = middleware $ application staticApp requestLoggerMiddleware
                     let staticShortcut = staticRouteShortcut staticApp fullApp
 
-                    withBackgroundWorkers pgListener frameworkConfig
-                        . runServer frameworkConfig useSystemd
+                    runServer frameworkConfig useSystemd
                         . (if useSystemd then HealthCheckEndpoint.healthCheck else Function.id)
                         . ErrorController.errorHandlerMiddleware frameworkConfig
                         $ staticShortcut
 
 {-# INLINABLE run #-}
-
-withBackgroundWorkers :: (Job.Worker RootApplication, ?modelContext :: ModelContext) => PGListener.PGListener -> FrameworkConfig -> IO () -> IO ()
-withBackgroundWorkers pgListener frameworkConfig app = do
-    let jobWorkers = Job.workers RootApplication
-    let isDevelopment = frameworkConfig.environment == Env.Development
-    if isDevelopment && not (isEmpty jobWorkers)
-            then race_ (Job.devServerMainLoop frameworkConfig pgListener jobWorkers) app
-            else app
 
 -- | Returns a WAI app that servers files stored in the app's @static/@ directory and IHP's own @static/@  directory
 --
@@ -155,6 +144,7 @@ initMiddlewareStack frameworkConfig modelContext maybePgListener = do
 
     let corsMiddleware = initCorsMiddleware frameworkConfig
     let CustomMiddleware customMiddleware = frameworkConfig.customMiddleware
+    let AuthMiddleware authMw = frameworkConfig.authenticationMiddleware
     let pgListenerMw = maybe id pgListenerMiddleware maybePgListener
 
     let responseHeadersMiddleware = insertNewIORefVaultMiddleware responseHeadersVaultKey []
@@ -174,6 +164,7 @@ initMiddlewareStack frameworkConfig modelContext maybePgListener = do
         . pageHeadMiddleware
         . modalMiddleware
         . modelContextMiddleware modelContext
+        . authMw
         . frameworkConfigMiddleware frameworkConfig
         . requestBodyMiddleware frameworkConfig.parseRequestBodyOptions
         . pgListenerMw
@@ -215,7 +206,11 @@ runServer FrameworkConfig { environment = Env.Production, appPort, exceptionTrac
             |> Warp.setFdCacheDuration (5 * 60)
             |> Warp.setFileInfoCacheDuration (5 * 60)
         heartbeatCheck = do
-                response <- Wreq.get ("http://127.0.0.1:" <> cs (show appPort) <> "/_healthz")
+                manager <- HTTP.newManager HTTP.defaultManagerSettings
+                baseRequest <- HTTP.parseRequest ("http://127.0.0.1:" <> cs (show appPort) <> "/_healthz")
+                -- Throw on non-2xx so warp-systemd marks the app unhealthy (matching Wreq.get semantics)
+                let request = baseRequest { HTTP.checkResponse = HTTP.throwErrorStatusCodes }
+                _ <- HTTP.httpNoBody request manager
                 pure ()
         systemdSettings = Systemd.defaultSystemdSettings
             |> Systemd.setRequireSocketActivation True

@@ -4,9 +4,11 @@ import Prelude
 import IHP.SchemaMigration
 import Main.Utf8 (withUtf8)
 import System.Environment (lookupEnv)
-import System.Exit (die)
+import System.Exit (die, exitFailure)
 import Text.Read (readMaybe)
 import Data.String.Conversions (cs)
+import qualified Data.Text.IO as Text
+import System.IO (stderr)
 import Control.Exception (bracket)
 import qualified Hasql.Connection as Connection
 import qualified Hasql.Connection.Settings as ConnectionSettings
@@ -16,7 +18,12 @@ main = withUtf8 do
     databaseUrl <- lookupEnv "DATABASE_URL" >>= maybe (die "DATABASE_URL not set") pure
     bracket (acquireConnection databaseUrl) Connection.release \connection -> do
         minimumRevision <- fmap (>>= readMaybe) (lookupEnv "MINIMUM_REVISION")
-        migrate connection MigrateOptions { minimumRevision }
+        result <- migrate connection MigrateOptions { minimumRevision }
+        case result of
+            Left err -> do
+                Text.hPutStrLn stderr err
+                exitFailure
+            Right () -> pure ()
 
 acquireConnection :: String -> IO Connection.Connection
 acquireConnection databaseUrl = do

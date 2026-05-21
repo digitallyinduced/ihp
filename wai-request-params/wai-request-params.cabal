@@ -15,7 +15,7 @@ build-type:          Simple
 
 library
     default-language: GHC2021
-    ghc-options: -Werror=incomplete-patterns -Werror=unused-imports -Werror=missing-fields
+    ghc-options: -Werror=incomplete-patterns -Werror=unused-imports -Werror=missing-fields -Werror=missing-home-modules
     hs-source-dirs: .
     exposed-modules:
           Wai.Request.Params
@@ -43,6 +43,7 @@ library
 
 test-suite spec
     default-language: GHC2021
+    ghc-options: -Werror=missing-home-modules
     type: exitcode-stdio-1.0
     hs-source-dirs: Test
     main-is: Spec.hs

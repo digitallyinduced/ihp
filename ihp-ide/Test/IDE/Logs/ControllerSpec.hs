@@ -1,4 +1,4 @@
-module Test.IDE.Logs.ControllerSpec where
+module IDE.Logs.ControllerSpec where
 
 import Test.Hspec
 import IHP.Prelude

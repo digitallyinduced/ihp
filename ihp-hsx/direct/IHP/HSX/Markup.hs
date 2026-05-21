@@ -21,6 +21,7 @@ module IHP.HSX.Markup
 , ApplyAttribute (..)
 , AttributeValue (..)
 , spreadAttributes
+, isEmpty
 -- * Blaze compatibility
 , preEscapedToHtml
 , preEscapedTextValue
@@ -39,7 +40,7 @@ import Data.ByteString.Builder (Builder)
 import qualified Data.ByteString.Builder as Builder
 import qualified Data.ByteString.Builder.Extra as Extra
 import qualified Data.ByteString.Builder.Prim as BP
-import Data.String.Conversions (ConvertibleStrings, cs)
+import Data.String.Conversions (ConvertibleStrings (convertString), cs)
 import Data.String (IsString(..))
 import Data.Word (Word8)
 import Unsafe.Coerce (unsafeCoerce)
@@ -265,6 +266,15 @@ spreadAttributes :: ApplyAttribute value => [(Text, value)] -> Markup
 spreadAttributes = foldMap (\(name, value) -> applyAttribute name (" " <> name <> "=\"") value)
 {-# INLINE spreadAttributes #-}
 
+-- | Check whether a markup value is empty (produces no output).
+--
+-- Since 'Builder' is opaque, this renders the markup and checks
+-- whether the result is a zero-length 'ByteString'.  For empty markup
+-- the builder produces nothing, so this is effectively free.
+isEmpty :: MarkupM a -> Bool
+isEmpty (Markup b) = LBS.null (Builder.toLazyByteString b)
+{-# INLINE isEmpty #-}
+
 -- | Blaze compatibility: emit pre-escaped HTML (no escaping applied).
 -- Use for trusted HTML content only. Accepts Text, String, ByteString, etc.
 preEscapedToHtml :: ConvertibleStrings s Text => s -> Markup
@@ -281,3 +291,13 @@ preEscapedTextValue = Markup . TE.encodeUtf8Builder
 stringValue :: String -> Markup
 stringValue = escapeHtml . Text.pack
 {-# INLINE stringValue #-}
+
+-- | Convert 'Text' into HTML-escaped 'Markup' via @cs@.
+instance ConvertibleStrings Text Markup where
+    {-# INLINE convertString #-}
+    convertString = escapeHtml
+
+-- | Convert 'String' into HTML-escaped 'Markup' via @cs@.
+instance ConvertibleStrings String Markup where
+    {-# INLINE convertString #-}
+    convertString = escapeHtml . Text.pack

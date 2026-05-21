@@ -5,15 +5,20 @@
 
 module IHP.TypedSql.Quoter
     ( typedSql
+    , typedSqlStar
     ) where
 
+import qualified Control.Exception              as Exception
 import           Data.Coerce                    (coerce)
+import qualified Data.List                      as List
 import qualified Data.Map.Strict                as Map
 import qualified Data.Set                       as Set
 import qualified Data.String.Conversions        as CS
 import qualified Hasql.DynamicStatements.Snippet as Snippet
 import qualified Language.Haskell.TH            as TH
 import qualified Language.Haskell.TH.Quote      as TH
+import           Text.Read                      (readMaybe)
+import qualified Prelude
 import           IHP.Prelude
 import           IHP.Hasql.Encoders              ()
 
@@ -22,7 +27,8 @@ import           IHP.TypedSql.Metadata          (DescribeColumn (..), DescribeRe
                                                  describeStatement)
 import           IHP.TypedSql.ParamHints        (extractParamHintsFromAst, extractJoinNullableTablesFromAst,
                                                  extractNonNullableComputedColumnsFromAst,
-                                                 parseSql, resolveParamHintTypes)
+                                                 parseSql, resolveParamHintTypes, detectStarSelects,
+                                                 detectInsertWithoutColumns)
 import           IHP.TypedSql.Placeholders      (PlaceholderPlan (..), parseExpr,
                                                  planPlaceholders)
 import           IHP.TypedSql.RowType           (SqlRow (..), sanitizeColumnName, deduplicateNames, sqlRowType)
@@ -30,24 +36,41 @@ import           IHP.TypedSql.TypeMapping       (hsTypeForColumns, hsTypesForCol
 import           IHP.TypedSql.Types             (TypedQuery (..))
 
 -- | QuasiQuoter entry point for typed SQL.
--- High-level: produces a TH expression that builds a TypedQuery at compile time.
+-- Disallows SELECT * and SELECT table.* by default to prevent production errors
+-- when the schema changes. Use 'typedSqlStar' to opt in to star selects.
 typedSql :: TH.QuasiQuoter
 typedSql =
     TH.QuasiQuoter
-        { TH.quoteExp = typedSqlExp
+        { TH.quoteExp = typedSqlExp False
         , TH.quotePat = \_ -> fail "typedSql: not supported in patterns"
         , TH.quoteType = \_ -> fail "typedSql: not supported in types"
         , TH.quoteDec = \_ -> fail "typedSql: not supported at top-level"
         }
 
+-- | Like 'typedSql' but allows SELECT * and SELECT table.* patterns.
+-- Use this when you understand that star selects can break at runtime if the
+-- schema changes between compilation and deployment.
+typedSqlStar :: TH.QuasiQuoter
+typedSqlStar =
+    TH.QuasiQuoter
+        { TH.quoteExp = typedSqlExp True
+        , TH.quotePat = \_ -> fail "typedSqlStar: not supported in patterns"
+        , TH.quoteType = \_ -> fail "typedSqlStar: not supported in types"
+        , TH.quoteDec = \_ -> fail "typedSqlStar: not supported at top-level"
+        }
+
 -- | Build the TH expression for a typed SQL quasiquote.
 -- This is the heart of typedSql: parse placeholders, describe SQL, and assemble a TypedQuery.
-typedSqlExp :: String -> TH.ExpQ
-typedSqlExp rawSql = do
+typedSqlExp :: Bool -> String -> TH.ExpQ
+typedSqlExp allowStar rawSql = do
     let PlaceholderPlan { ppDescribeSql, ppRuntimeSql, ppExprs } = planPlaceholders rawSql
     parsedExprs <- mapM parseExpr ppExprs
 
-    describeResult <- TH.runIO $ describeStatement (CS.cs ppDescribeSql)
+    describeResultE <- TH.runIO $ Exception.try (describeStatement (CS.cs ppDescribeSql))
+    describeResult <- case describeResultE of
+        Right ok -> pure ok
+        Left (e :: Exception.IOException) ->
+            fail (rephraseDescribeError ppExprs (ioeGetErrorString e))
 
     let DescribeResult { drParams, drColumns, drTables, drTypes } = describeResult
     when (length drParams /= length parsedExprs) $
@@ -58,6 +81,27 @@ typedSqlExp rawSql = do
     let parsedAst = parseSql ppDescribeSql
     when (isNothing parsedAst) do
         TH.reportWarning "typedSql: could not parse SQL for type refinement; parameter hints and LEFT/RIGHT JOIN nullability detection are disabled for this query."
+
+    unless allowStar do
+        case parsedAst of
+            Just ast -> do
+                let stars = detectStarSelects ast
+                unless (null stars) do
+                    let columnNames = map (CS.cs . dcName) drColumns
+                    let suggestion = List.intercalate ", " columnNames
+                    fail ("typedSql: SELECT " <> List.intercalate ", " stars
+                        <> " is not allowed because it can break at runtime when the schema changes. "
+                        <> "List columns explicitly:\n  SELECT " <> suggestion <> " FROM ...\n"
+                        <> "Or use [typedSqlStar| ... |] if you understand the risk.")
+                let inserts = detectInsertWithoutColumns ast
+                unless (null inserts) do
+                    fail ("typedSql: " <> List.intercalate ", " inserts
+                        <> " without an explicit column list is not allowed because "
+                        <> "column order can drift between dev and production. "
+                        <> "List columns explicitly:\n  INSERT INTO table (col1, col2, ...) VALUES (...)\n"
+                        <> "Or use [typedSqlStar| ... |] if you understand the risk.")
+            Nothing -> pure ()
+
     let paramHints = maybe Map.empty extractParamHintsFromAst parsedAst
     paramHintTypes <- resolveParamHintTypes drTables drTypes paramHints
 
@@ -122,6 +166,37 @@ typedSqlExp rawSql = do
                 resultDecoder
 
     pure (TH.SigE typedQueryExpr (TH.AppT (TH.ConT ''TypedQuery) resultType))
+
+-- | Rephrase a describe-step error to point at the offending ${...} placeholder.
+-- Postgres reports type-inference failures as "could not determine data type of parameter $N".
+-- Map $N back to the corresponding ${expr} on the Haskell side and suggest the fix
+-- (an explicit ::type cast). Other errors are passed through unchanged.
+rephraseDescribeError :: [String] -> String -> String
+rephraseDescribeError exprs originalMsg =
+    case extractUnknownParamIndex originalMsg of
+        Just paramIdx
+            | paramIdx >= 1 && paramIdx <= length exprs ->
+                let expr = exprs !! (paramIdx - 1)
+                in "typedSql: could not determine the type of `${" <> expr <> "}` "
+                    <> "(parameter $" <> Prelude.show paramIdx <> "). "
+                    <> "Postgres cannot infer the type because the placeholder appears in a polymorphic-argument context "
+                    <> "(e.g. CONCAT, COALESCE, GREATEST, LEAST). "
+                    <> "Add an explicit cast, e.g. `${" <> expr <> "}::text`.\n"
+                    <> "Original error: " <> originalMsg
+        _ -> originalMsg
+
+-- | Parse the parameter index out of a Postgres "could not determine data type of parameter $N" error.
+extractUnknownParamIndex :: String -> Maybe Int
+extractUnknownParamIndex = go
+  where
+    needle = "could not determine data type of parameter $"
+    go [] = Nothing
+    go str
+        | needle `List.isPrefixOf` str =
+            let rest = drop (length needle) str
+                digits = takeWhile (\c -> c >= '0' && c <= '9') rest
+            in if null digits then Nothing else readMaybe digits
+        | otherwise = go (drop 1 str)
 
 buildSnippetExpression :: String -> [TH.Exp] -> TH.ExpQ
 buildSnippetExpression sql params = do

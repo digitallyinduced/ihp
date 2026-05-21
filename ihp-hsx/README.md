@@ -25,7 +25,7 @@ rendered = renderHtml view
 
 ## Introduction
 
-HSX can be written pretty much like normal HTML. You can write an HSX expression inside your Haskell code by wrapping it with [`[hsx|YOUR HSX CODE|]`](https://ihp.digitallyinduced.com/api-docs/IHP-ViewPrelude.html#v:hsx). HSX expressions are just a syntax for [BlazeHtml](https://jaspervdj.be/blaze/) and thus are automatically escaped as described in the blaze documentation.
+HSX can be written pretty much like normal HTML. You can write an HSX expression inside your Haskell code by wrapping it with [`[hsx|YOUR HSX CODE|]`](https://ihp.digitallyinduced.com/api-docs/IHP-HSX-QQ.html#v:hsx). HSX expressions are just a syntax for [BlazeHtml](https://jaspervdj.be/blaze/) and thus are automatically escaped as described in the blaze documentation.
 
 Because the HSX is parsed, you will get a syntax error when you type in invalid HTML.
 
@@ -42,7 +42,7 @@ in
 
 **If the variable is another HSX expression, a blaze HTML element, a text or string**: it is just included as you would expect.
 
-**If the variable is any other custom Haskell data structure**: it will first be converted to a string representation by calling [`show`](https://ihp.digitallyinduced.com/api-docs/IHP-Prelude.html#v:show) on it. You can add a custom [`ToHtml`](https://ihp.digitallyinduced.com/api-docs/IHP-HSX-ToHtml.html#t:ToHtml) (import it from `IHP.HSX.ToHtml`) instance, to customize rendering a data structure.
+**If the variable is any other custom Haskell data structure**: it will first be converted to a string representation by calling `show` on it. You can add a custom [`ToHtml`](https://ihp.digitallyinduced.com/api-docs/IHP-HSX-ToHtml.html#t:ToHtml) (import it from `IHP.HSX.ToHtml`) instance, to customize rendering a data structure.
 
 You can also write more complex code like:
 
@@ -375,7 +375,7 @@ This approach is particularly useful for:
 
 ### Dealing with Maybe Values
 
-When dealing with [`Maybe`](https://ihp.digitallyinduced.com/api-docs/IHP-Prelude.html#t:Maybe) values you sometimes want to conditionally render something. E.g. in react to render a tag with JSX you would do it like this:
+When dealing with `Maybe` values you sometimes want to conditionally render something. E.g. in react to render a tag with JSX you would do it like this:
 
 ```html
 <p>Hi {user.name}</p>
@@ -435,7 +435,7 @@ Let's say we have variable `myVariable = "<script>alert(1)</script>"`. This is h
 
 Sometimes you want to insert some actual HTML code to your HSX using a variable. E.g. when your app is rendering markdown, the generated HTML by the markdown library should not be escaped, the markdown library typically already takes care of that.
 
-In these cases you can use [`preEscapedToHtml`](https://ihp.digitallyinduced.com/api-docs/IHP-ViewPrelude.html#v:preEscapedToHtml) to mark a text as already escaped:
+In these cases you can use `preEscapedToHtml` to mark a text as already escaped:
 
 ```html
 <div>{markdownHtml |> preEscapedToHtml}</div>
@@ -446,10 +446,10 @@ In these cases you can use [`preEscapedToHtml`](https://ihp.digitallyinduced.com
 <div><p>hello</p></div>
 ```
 
-Be careful when using [`preEscapedToHtml`](https://ihp.digitallyinduced.com/api-docs/IHP-ViewPrelude.html#v:preEscapedToHtml) as it can easily introduce security issues.
+Be careful when using `preEscapedToHtml` as it can easily introduce security issues.
 
-The [`preEscapedToHtml`](https://ihp.digitallyinduced.com/api-docs/IHP-ViewPrelude.html#v:preEscapedToHtml) function can also be used to output HTML code that is not supported by HSX:
-The [`preEscapedToHtml`](https://ihp.digitallyinduced.com/api-docs/IHP-ViewPrelude.html#v:preEscapedToHtml) function can also be used to output HTML code that is not supported by HSX:
+The `preEscapedToHtml` function can also be used to output HTML code that is not supported by HSX:
+The `preEscapedToHtml` function can also be used to output HTML code that is not supported by HSX:
 
 ```html
 {"<!--[if IE]> Internet Explorer Conditional Comments <![endif]-->" |> preEscapedToHtml}

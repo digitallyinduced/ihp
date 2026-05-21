@@ -148,8 +148,8 @@ data SQLQuery = SQLQuery
     , distinctOnClause :: !(Maybe Text)
     , whereCondition :: !(Maybe Condition)
     , orderByClause :: ![OrderByClause]
-    , limitClause :: !(Maybe Int)
-    , offsetClause :: !(Maybe Int)
+    , limitClause :: !(Maybe Int64)
+    , offsetClause :: !(Maybe Int64)
     , columns :: ![Text]
     , columnsSql :: !Text
     -- ^ Pre-computed qualified column selector, e.g. @"users.id, users.name"@.
@@ -163,8 +163,8 @@ instance SetField "distinctClause" SQLQuery Bool where setField value sqlQuery =
 instance SetField "distinctOnClause" SQLQuery (Maybe Text) where setField value sqlQuery = sqlQuery { distinctOnClause = value }
 instance SetField "whereCondition" SQLQuery (Maybe Condition) where setField value sqlQuery = sqlQuery { whereCondition = value }
 instance SetField "orderByClause" SQLQuery [OrderByClause] where setField value sqlQuery = sqlQuery { orderByClause = value }
-instance SetField "limitClause" SQLQuery (Maybe Int) where setField value sqlQuery = sqlQuery { limitClause = value }
-instance SetField "offsetClause" SQLQuery (Maybe Int) where setField value sqlQuery = sqlQuery { offsetClause = value }
+instance SetField "limitClause" SQLQuery (Maybe Int64) where setField value sqlQuery = sqlQuery { limitClause = value }
+instance SetField "offsetClause" SQLQuery (Maybe Int64) where setField value sqlQuery = sqlQuery { offsetClause = value }
 
 -- | Type class for default scoping of queries
 class DefaultScope table where

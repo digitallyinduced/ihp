@@ -505,6 +505,7 @@ encodePatchToSetSql ren columnTypes patch =
 
 sqlQueryWithRLSAndTransactionId ::
     ( ?context :: ControllerContext
+    , ?request :: Request
     , Show (PrimaryKey (GetTableName CurrentUserRecord))
     , HasNewSessionUrl CurrentUserRecord
     , Typeable CurrentUserRecord
@@ -524,6 +525,7 @@ sqlQueryWithRLSAndTransactionId pool Nothing statement = runSession pool (sqlQue
 -- to return results (e.g. wrapped with 'wrapDynamicQuery').
 sqlQueryWriteWithRLSAndTransactionId ::
     ( ?context :: ControllerContext
+    , ?request :: Request
     , Show (PrimaryKey (GetTableName CurrentUserRecord))
     , HasNewSessionUrl CurrentUserRecord
     , Typeable CurrentUserRecord
@@ -539,6 +541,7 @@ sqlQueryWriteWithRLSAndTransactionId pool Nothing statement = runSession pool (s
 
 sqlExecWithRLSAndTransactionId ::
     ( ?context :: ControllerContext
+    , ?request :: Request
     , Show (PrimaryKey (GetTableName CurrentUserRecord))
     , HasNewSessionUrl CurrentUserRecord
     , Typeable CurrentUserRecord

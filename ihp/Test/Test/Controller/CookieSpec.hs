@@ -2,46 +2,56 @@
 Module: Test.Controller.CookieSpec
 Copyright: (c) digitally induced GmbH, 2022
 -}
+{-# LANGUAGE AllowAmbiguousTypes #-}
+
 module Test.Controller.CookieSpec where
 
 import IHP.Prelude
 import Test.Hspec
-
-import Wai.Request.Params.Middleware (RequestBody (..), requestBodyVaultKey)
-import qualified Data.Vault.Lazy as Vault
-import IHP.Controller.Response (addResponseHeadersFromContext, responseHeadersVaultKey)
-import IHP.Controller.Cookie
-import IHP.Controller.Context
-import qualified Network.Wai as Wai
+import IHP.Test.Mocking
+import IHP.Environment
+import IHP.FrameworkConfig
+import IHP.ControllerPrelude hiding (get, request)
 import Web.Cookie
-import Network.HTTP.Types.Status
+import Network.Wai.Test
+import Test.Util (testGet)
 
-tests = do
+data WebApplication = WebApplication deriving (Eq, Show, Data)
+
+data CookieTestController
+    = SetCookieAction
+  deriving (Eq, Show, Data)
+
+instance Controller CookieTestController where
+    action SetCookieAction = do
+        setCookie defaultSetCookie
+            { setCookieName = "exampleCookie"
+            , setCookieValue = "exampleValue"
+            }
+        renderPlain "ok"
+
+instance AutoRoute CookieTestController
+
+instance FrontController WebApplication where
+    controllers = [parseRoute @CookieTestController]
+
+instance InitControllerContext WebApplication where
+    initContext = pure ()
+
+instance FrontController RootApplication where
+    controllers = [mountFrontController WebApplication]
+
+config = do
+    option Development
+    option (AppPort 8000)
+
+tests :: Spec
+tests = aroundAll (withMockContextAndApp WebApplication config) do
     describe "IHP.Controller.Cookie" do
         describe "setCookie" do
-            it "set a 'Set-Cookie' header" do
-                (context, request) <- createControllerContext
-                let ?context = context
-                let ?request = request
-
-                setCookie defaultSetCookie
-                        { setCookieName = "exampleCookie"
-                        , setCookieValue = "exampleValue"
-                        }
-
-                let response = Wai.responseLBS status200 [] "Hello World"
-                responseWithHeaders <- addResponseHeadersFromContext response
-
-                Wai.responseHeaders responseWithHeaders `shouldBe` [("Set-Cookie", "exampleCookie=exampleValue")]
-
-
-createControllerContext = do
-    headersRef <- newIORef []
-    let
-        requestBody = FormBody { params = [], files = [], rawPayload = "" }
-        request = Wai.defaultRequest { Wai.vault = Vault.insert requestBodyVaultKey requestBody
-                                                  . Vault.insert responseHeadersVaultKey headersRef
-                                                  $ Vault.empty }
-    let ?request = request
-    context <- newControllerContext
-    pure (context, request)
+            it "set a 'Set-Cookie' header" $ withContextAndApp \application -> do
+                runSession (do
+                    response <- testGet "test/SetCookie"
+                    assertStatus 200 response
+                    assertHeader "Set-Cookie" "exampleCookie=exampleValue" response
+                    ) application

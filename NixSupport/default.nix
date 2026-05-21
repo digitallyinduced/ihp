@@ -309,7 +309,7 @@ CABAL_HEADER
         -Wno-missing-home-modules
         -Wno-partial-type-signatures
         -Werror=missing-fields
-        -fwarn-incomplete-patterns
+        -Werror=incomplete-patterns
 CABAL_EOF
         '';
         installPhase = ''
@@ -424,7 +424,7 @@ CABAL_EOF
                 import IHP.ScriptSupport
                 import IHP.Job.Runner
                 import qualified Config
-                import Main ()
+                import WorkerMain ()
                 main :: IO ()
                 main = runScript Config.config (runJobWorkers (workers RootApplication))
                 EOF

@@ -102,8 +102,8 @@ paginateWithOptions options query = do
             }
 
     let results = query
-            |> limit pageSize
-            |> offset (offset' pageSize page)
+            |> limit (fromIntegral pageSize)
+            |> offset (fromIntegral (offset' pageSize page))
 
     pure
         ( results

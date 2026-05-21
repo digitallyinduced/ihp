@@ -57,9 +57,9 @@ In the view we can just access the comments like this:
 
 The `post.comments` returns a list of the comments belonging to the post.
 
-The type of `post` is [`Include "comments" Post`](https://ihp.digitallyinduced.com/api-docs/IHP-MailPrelude.html#t:Include) instead of the usual `Post`. This way the state of a fetched nested resource is tracked at the type level.
+The type of `post` is [`Include "comments" Post`](https://ihp.digitallyinduced.com/api-docs/IHP-ModelSupport-Types.html#t:Include) instead of the usual `Post`. This way the state of a fetched nested resource is tracked at the type level.
 
-It is possible to have multiple nested resources. For example, if Post had a list of comments and tags related to it, it can be defined as [`Include "comments" (Include "tags" Post)`](https://ihp.digitallyinduced.com/api-docs/IHP-MailPrelude.html#t:Include) or with the more convenient way as [`Include' ["comments", "tags"] Post`](https://ihp.digitallyinduced.com/api-docs/IHP-MailPrelude.html#t:Include-39-).
+It is possible to have multiple nested resources. For example, if Post had a list of comments and tags related to it, it can be defined as [`Include "comments" (Include "tags" Post)`](https://ihp.digitallyinduced.com/api-docs/IHP-ModelSupport-Types.html#t:Include) or with the more convenient way as [`Include' ["comments", "tags"] Post`](https://ihp.digitallyinduced.com/api-docs/IHP-ModelSupport-Types.html#t:Include-39-).
 
 Note that for the above example, it is expected that the query will change as-well:
 
@@ -111,7 +111,7 @@ posts <- query @Post
     >>= collectionFetchRelated #comments
 ```
 
-This will query all posts with all their comments. The type of `posts` is [`[Include "comments" Post]`](https://ihp.digitallyinduced.com/api-docs/IHP-MailPrelude.html#t:Include).
+This will query all posts with all their comments. The type of `posts` is [`[Include "comments" Post]`](https://ihp.digitallyinduced.com/api-docs/IHP-ModelSupport-Types.html#t:Include).
 
 The above Haskell code will trigger the following two SQL queries to be executed:
 
@@ -152,7 +152,7 @@ comments <- query @Comment
     >>= collectionFetchRelated #postId
 ```
 
-This will query all comments and their respective posts. The type of `comments` is [`[Include "postId" Comment]`](https://ihp.digitallyinduced.com/api-docs/IHP-MailPrelude.html#t:Include).
+This will query all comments and their respective posts. The type of `comments` is [`[Include "postId" Comment]`](https://ihp.digitallyinduced.com/api-docs/IHP-ModelSupport-Types.html#t:Include).
 
 The Haskell code will trigger the following two SQL queries:
 

@@ -8,15 +8,15 @@
 , ihp-schema-compiler, inflections, interpolate, lib, megaparsec
 , mono-traversable, neat-interpolation, network, network-uri
 , process, safe-exceptions, split, string-conversions, text, time
-, transformers, unagi-chan, unix, unliftio, uri-encode, uuid, vault
-, wai, wai-app-static, wai-asset-path, wai-extra
+, temporary, transformers, unagi-chan, unix, unliftio, uri-encode
+, uuid, vault, wai, wai-app-static, wai-asset-path, wai-extra
 , wai-request-params, wai-session-clientsession-deferred
 , wai-session-maybe, wai-util, wai-websockets, warp, websockets
 , with-utf8, wreq
 }:
 mkDerivation {
   pname = "ihp-ide";
-  version = "1.5.0";
+  version = "1.5.1";
   src = ./.;
   isLibrary = true;
   isExecutable = true;
@@ -59,7 +59,7 @@ mkDerivation {
     http-types ihp ihp-hsx fast-logger ihp-migrate ihp-modal
     ihp-postgres-parser ihp-schema-compiler inflections interpolate
     megaparsec mono-traversable neat-interpolation network network-uri
-    process safe-exceptions split string-conversions text time
+    process safe-exceptions split string-conversions temporary text time
     transformers unagi-chan unix unliftio uri-encode uuid vault wai
     wai-app-static wai-asset-path wai-extra wai-request-params
     wai-session-clientsession-deferred wai-session-maybe wai-util

@@ -12,6 +12,7 @@ module IHP.NameSupport
 , lcfirst
 , fieldNameToColumnName
 , escapeHaskellKeyword
+, unescapeHaskellKeyword
 , tableNameToControllerName
 , tableNameToViewName
 , enumValueToControllerName
@@ -139,8 +140,12 @@ unwrapEither input (Left value) = error ("IHP.NameSupport: " <> show value <> " 
 --
 -- >>> fieldNameToColumnName "projectId"
 -- "project_id"
+--
+-- >>> fieldNameToColumnName "role_"
+-- "role"
 fieldNameToColumnName :: Text -> Text
-fieldNameToColumnName columnName = unwrapEither columnName $ Inflector.toUnderscore columnName
+fieldNameToColumnName columnName = unwrapEither strippedName $ Inflector.toUnderscore strippedName
+    where strippedName = unescapeHaskellKeyword columnName
 {-# INLINABLE fieldNameToColumnName #-}
 
 -- | Returns a more friendly version for an identifier
@@ -185,6 +190,20 @@ ucfirst = applyFirst Text.toUpper
 -- "type_"
 escapeHaskellKeyword :: Text -> Text
 escapeHaskellKeyword name = if Text.toLower name `Prelude.elem` haskellKeywords then name <> "_" else name
+
+-- | Remove trailing '_' that was added by 'escapeHaskellKeyword'
+--
+-- >>> unescapeHaskellKeyword "role_"
+-- "role"
+--
+-- >>> unescapeHaskellKeyword "hello"
+-- "hello"
+unescapeHaskellKeyword :: Text -> Text
+unescapeHaskellKeyword name
+    | "_" `Text.isSuffixOf` name
+    , Text.toLower (Text.dropEnd 1 name) `Prelude.elem` haskellKeywords
+    = Text.dropEnd 1 name
+    | otherwise = name
 
 haskellKeywords :: [Text]
 haskellKeywords = [ "_"

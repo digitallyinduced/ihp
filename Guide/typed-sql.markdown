@@ -60,12 +60,28 @@ forEach rows \(itemId, name, views) -> do
 
 Primary key columns are automatically typed as `Id' "table_name"` rather than raw `UUID`.
 
-## Selecting All Columns (`table.*`)
+## Selecting All Columns
 
-Use `table.*` to select all columns from a table, which returns the model type directly:
+### Why `SELECT *` is disallowed by default
+
+`SELECT *` and `SELECT table.*` are not allowed in `typedSql` by default. At compile time, `*` is expanded to whatever columns exist in the development database and a decoder is built for those exact columns. If the production database has a different schema (e.g., a migration added or removed a column), the query will return different columns than the decoder expects, causing a runtime error.
+
+Instead, list columns explicitly:
 
 ```haskell
 items <- sqlQueryTyped [typedSql|
+    SELECT id, name, views FROM items ORDER BY name
+|]
+```
+
+The compile error message will suggest the exact column names to use.
+
+### Opting in with `typedSqlStar`
+
+If you understand the risk and want to use `table.*` anyway (e.g., during rapid prototyping), use the `typedSqlStar` quasiquoter:
+
+```haskell
+items <- sqlQueryTyped [typedSqlStar|
     SELECT items.* FROM items ORDER BY name
 |]
 
@@ -77,12 +93,31 @@ This requires a `FromRowHasql` instance on the model type. IHP's generated types
 Table aliases work too:
 
 ```haskell
-items <- sqlQueryTyped [typedSql|
+items <- sqlQueryTyped [typedSqlStar|
     SELECT i.* FROM items i
     JOIN authors a ON a.id = i.author_id
     ORDER BY i.name
 |]
 ```
+
+## Inserting Rows
+
+### Why `INSERT … VALUES` without a column list is disallowed by default
+
+`INSERT INTO table VALUES (...)` and `INSERT INTO table SELECT ...` without an explicit column list are not allowed in `typedSql` by default. They rely on the positional order of columns matching the schema, but column order can drift between development and production (e.g., when migrations are applied in a different sequence). This causes values to be silently inserted into the wrong columns at runtime.
+
+Instead, list the target columns explicitly:
+
+```haskell
+sqlExecTyped [typedSql|
+    INSERT INTO items (id, name, views)
+    VALUES (${itemId}, ${name}, ${views})
+|]
+```
+
+`INSERT INTO table DEFAULT VALUES` is allowed since it has no positional binding.
+
+The same `[typedSqlStar| ... |]` escape hatch applies here if you understand the risk.
 
 ## Parameters
 
@@ -171,7 +206,7 @@ Computed expressions (aggregates, CASE, arithmetic, literals, etc.) are always w
 
 ```haskell
 counts <- sqlQueryTyped [typedSql| SELECT COUNT(*) FROM items |]
--- counts :: [Maybe Integer]
+-- counts :: [Maybe Int64]
 
 results <- sqlQueryTyped [typedSql|
     SELECT CASE WHEN views > 5 THEN name ELSE 'low' END FROM items
@@ -287,7 +322,7 @@ rows <- sqlQueryTyped [typedSql|
     SELECT name, row_number() OVER (ORDER BY views DESC)
     FROM items
 |]
--- rows :: [(Text, Maybe Integer)]
+-- rows :: [(Text, Maybe Int64)]
 ```
 
 ### GROUP BY with Aggregates
@@ -299,7 +334,7 @@ rows <- sqlQueryTyped [typedSql|
     GROUP BY name
     ORDER BY name
 |]
--- rows :: [(Text, Maybe Integer)]
+-- rows :: [(Text, Maybe Int64)]
 ```
 
 ## Type Mapping Reference
@@ -309,7 +344,7 @@ The following table shows how PostgreSQL types map to Haskell types:
 | PostgreSQL Type | Haskell Type |
 |---|---|
 | `int2`, `int4` | `Int` |
-| `int8` | `Integer` |
+| `int8` | `Int64` |
 | `text`, `varchar`, `bpchar`, `citext` | `Text` |
 | `bool` | `Bool` |
 | `uuid` | `UUID` (or `Id' "table"` for primary/foreign keys) |

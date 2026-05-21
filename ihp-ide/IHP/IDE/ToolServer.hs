@@ -134,6 +134,7 @@ withToolServerApplication toolServerApplication port liveReloadClients action = 
                                            . Vault.insert appUrlVaultKey appUrl
                                            . Vault.insert databaseNeedsMigrationVaultKey databaseNeedsMigration
                                            . Vault.insert hoogleUrlVaultKey hoogleUrl
+                                           . Vault.insert toolServerApplicationVaultKey toolServerApplication
                                            $ req.vault }
                     app req' respond
 

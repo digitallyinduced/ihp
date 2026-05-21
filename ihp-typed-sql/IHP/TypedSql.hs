@@ -1,5 +1,6 @@
 module IHP.TypedSql
     ( typedSql
+    , typedSqlStar
     , TypedQuery (..)
     , sqlQueryTyped
     , sqlExecTyped
@@ -10,7 +11,7 @@ import qualified Hasql.DynamicStatements.Snippet as Snippet
 import           IHP.ModelSupport                (sqlQueryHasql)
 import           IHP.Prelude
 
-import           IHP.TypedSql.Quoter                 (typedSql)
+import           IHP.TypedSql.Quoter                 (typedSql, typedSqlStar)
 import           IHP.TypedSql.Types                  (TypedQuery (..))
 
 -- | Run a typed SELECT query and return all result rows.

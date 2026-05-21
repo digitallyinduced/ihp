@@ -196,7 +196,6 @@ renderErrorView standardOutput errorOutput' isCompiling lastSchemaCompilerError 
 
                     <div class="ihp-error-other-solutions">
                         <a href="https://ihp.digitallyinduced.com/Slack" target="_blank">Ask on Slack</a>
-                        <a href="https://stackoverflow.com/questions/tagged/ihp" target="_blank">Ask on Stack Overflow</a>
                         <a href="https://github.com/digitallyinduced/ihp/wiki/Troubleshooting" target="_blank">Check the Troubleshooting</a>
                         <a href={("https://github.com/digitallyinduced/ihp/issues/new?body=" :: Text) <> cs (URI.escapeURIString URI.isUnescapedInURI (cs $ ByteString.unlines errorOutput))} target="_blank">Open a GitHub Issue</a>
                     </div>

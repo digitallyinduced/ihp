@@ -39,7 +39,10 @@ import System.Log.FastLogger (FastLogger, LogType'(..), withFastLogger, defaultB
 import qualified Network.Wai.Handler.Warp as Warp
 import qualified Network.Wai.Middleware.Cors as Cors
 import qualified Network.Wai.Parse as WaiParse
+import Network.Wai (Request)
 import IHP.EnvVar
+import IHP.LoginSupport.Types (currentUserIdVaultKey, lookupAuthVault)
+import qualified Data.UUID as UUID
 
 import qualified Prelude
 import qualified GHC.Stack as Stack
@@ -96,7 +99,13 @@ ihpDefaultConfig logger = do
                                     reqLogger <- RequestLogger.mkRequestLogger def { RequestLogger.destination = RequestLogger.Callback logger }
                                     pure (RequestLoggerMiddleware reqLogger)
                 Production  ->  do
-                                    reqLogger <- RequestLogger.mkRequestLogger def { RequestLogger.outputFormat = RequestLogger.Apache requestLoggerIpAddrSource, RequestLogger.destination = RequestLogger.Callback logger }
+                                    let apacheSettings = RequestLogger.defaultApacheSettings
+                                            |> RequestLogger.setApacheIPAddrSource requestLoggerIpAddrSource
+                                            |> RequestLogger.setApacheUserGetter defaultApacheUserGetter
+                                    reqLogger <- RequestLogger.mkRequestLogger def
+                                            { RequestLogger.outputFormat = RequestLogger.ApacheWithSettings apacheSettings
+                                            , RequestLogger.destination = RequestLogger.Callback logger
+                                            }
                                     pure (RequestLoggerMiddleware reqLogger)
 
 
@@ -137,6 +146,7 @@ ihpDefaultConfig logger = do
     option $ DataSyncMaxTransactionsPerConnection dataSyncMaxTransactionsPerConnection
 
     option $ CustomMiddleware id
+    option $ AuthMiddleware id
 
 {-# INLINABLE ihpDefaultConfig #-}
 
@@ -180,6 +190,7 @@ buildFrameworkConfig rawLogger appConfig = do
             (IdeBaseUrl ideBaseUrl) <- findOption @IdeBaseUrl
             (RLSAuthenticatedRole rlsAuthenticatedRole) <- findOption @RLSAuthenticatedRole
             customMiddleware <- findOption @CustomMiddleware
+            authenticationMiddleware <- findOption @AuthMiddleware
             initializers <- fromMaybe [] <$> findOptionOrNothing @[Initializer]
 
             appConfig <- State.get
@@ -281,3 +292,12 @@ configIO :: (MonadIO monad, HasCallStack) => IO result -> monad result
 configIO action = liftIO (action `catch` wrapWithCallStack)
     where
         wrapWithCallStack exception = throwIO (ExceptionWithCallStack Stack.callStack exception)
+
+-- | Default 'setApacheUserGetter' for the production request logger.
+--
+-- Emits the logged-in user's UUID as the Apache @%u@ field, so request logs
+-- attribute traffic to a user id. Returns 'Nothing' for anonymous requests,
+-- which wai-extra renders as @-@.
+defaultApacheUserGetter :: Request -> Maybe ByteString
+defaultApacheUserGetter request =
+    UUID.toASCIIBytes <$> lookupAuthVault currentUserIdVaultKey request

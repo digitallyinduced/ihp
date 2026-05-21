@@ -2,17 +2,28 @@
   "name": "ihp-datasync",
   "type": "module",
   "version": "0.1.0",
-  "description": "IHP DataSync JS SDK",
+  "description": "IHP DataSync TypeScript SDK",
   "main": "index.js",
+  "types": "index.d.ts",
   "scripts": {
+    "build": "tsc",
     "test": "NODE_OPTIONS=--experimental-vm-modules ./node_modules/.bin/jest",
     "test:watch": "NODE_OPTIONS=--experimental-vm-modules ./node_modules/.bin/jest --watch",
-    "typecheck": "./node_modules/.bin/tsc --checkJs --noEmit -t es6 --moduleResolution node index.js"
+    "typecheck": "tsc --noEmit"
   },
   "author": "digitally induced GmbH",
   "license": "MIT",
+  "peerDependencies": {
+    "react": ">=18.0.0"
+  },
+  "peerDependenciesMeta": {
+    "react": {
+      "optional": true
+    }
+  },
   "devDependencies": {
+    "@types/react": "*",
     "jest": "^30.2.0",
-    "typescript": "*"
+    "typescript": "^5.0.0"
   }
 }

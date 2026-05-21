@@ -50,7 +50,7 @@ common shared-properties
         , LambdaCase
         , TemplateHaskell
         , OverloadedRecordDot
-    ghc-options: -Werror=incomplete-patterns -Werror=unused-imports -Werror=missing-fields
+    ghc-options: -Werror=incomplete-patterns -Werror=unused-imports -Werror=missing-fields -Werror=missing-home-modules
 
 library
     import: shared-properties
@@ -67,11 +67,11 @@ test-suite spec
     import: shared-properties
     type: exitcode-stdio-1.0
     other-modules:
-        Test.GraphQL.CompilerSpec
-        , Test.GraphQL.ParserSpec
-        , Test.GraphQL.SchemaCompilerSpec
-    hs-source-dirs: .
-    main-is: Test/Spec.hs
+        GraphQL.CompilerSpec
+        , GraphQL.ParserSpec
+        , GraphQL.SchemaCompilerSpec
+    hs-source-dirs: Test
+    main-is: Spec.hs
     build-depends:
         hspec
         , megaparsec

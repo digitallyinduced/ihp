@@ -208,8 +208,8 @@ Practical resources to get you up to speed with tools IHP uses.
 
 ### Haskell
 
--   [What I Wish I Knew When Learning Haskell](http://dev.stephendiehl.com/hask/)
--   [Implicit Parameters](https://downloads.haskell.org/~ghc/latest/docs/html/users_guide/glasgow_exts.html#implicit-parameters)
+-   [What I Wish I Knew When Learning Haskell](https://sdiehl.github.io/wiwinwlh/)
+-   [Implicit Parameters](https://downloads.haskell.org/ghc/latest/docs/users_guide/exts/implicit_parameters.html)
 
 ### Nix
 

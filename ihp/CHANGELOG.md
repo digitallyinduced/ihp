@@ -1,6 +1,7 @@
 # unreleased
 - [Removed option: 'WORKING_DIRECTORY' no longer required on deployment static assets wrapped automatically](https://github.com/digitallyinduced/ihp/commit/9c54588d983d74bdc28b063d1132952deb57dc16)
 - Experimental GHC 9.12 support via `pkgs.ghc912` overlay attribute ([#2264](https://github.com/digitallyinduced/ihp/pull/2264))
+- **Breaking:** `limit` and `offset` from `IHP.QueryBuilder` now take `Int64` instead of `Int`, matching PostgreSQL's `LIMIT` / `OFFSET` wire type and composing directly with `typedSql` placeholders (e.g. `[typedSql| … LIMIT ${n} |]`) without `fromIntegral`. Polymorphic numeric literals (`|> limit 10`) continue to work. Callers passing an `Int` variable need `fromIntegral` once, or change the binding to `Int64`.
 
 # v1.4.0 (unreleased)
 ## Highlights

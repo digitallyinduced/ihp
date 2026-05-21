@@ -61,6 +61,7 @@ import qualified Data.Text as Text
 import qualified Data.Map as Map
 import qualified Data.ByteString.Char8 as ByteString
 import qualified Data.Aeson.Key as Aeson
+import qualified IHP.HSX.Markup as Markup
 
 import IHP.Record ((|>), get, set, setJust, setMaybe, modify, modifyJust, SetField(..), UpdateField(..), incrementField, decrementField, CopyFields(..))
 
@@ -93,7 +94,11 @@ instance IsEmpty UUID.UUID where
     {-# INLINE isEmpty #-}
 
 instance IsEmpty (Map a b) where
-    isEmpty = Map.null    
+    isEmpty = Map.null
+    {-# INLINE isEmpty #-}
+
+instance IsEmpty (Markup.MarkupM a) where
+    isEmpty = Markup.isEmpty
     {-# INLINE isEmpty #-}
 
 ifOrEmpty :: (Monoid a) => Bool -> a -> a

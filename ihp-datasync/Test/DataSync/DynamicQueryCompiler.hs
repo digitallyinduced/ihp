@@ -1,7 +1,7 @@
 {-|
 Copyright: (c) digitally induced GmbH, 2021
 -}
-module Test.DataSync.DynamicQueryCompiler where
+module DataSync.DynamicQueryCompiler where
 
 import Test.Hspec
 import IHP.Prelude

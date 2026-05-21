@@ -40,7 +40,7 @@ common shared-properties
         , DuplicateRecordFields
         , BlockArguments
         , LambdaCase
-    ghc-options: -Werror=incomplete-patterns -Werror=unused-imports -Werror=missing-fields
+    ghc-options: -Werror=incomplete-patterns -Werror=unused-imports -Werror=missing-fields -Werror=missing-home-modules
 
 library
     import: shared-properties
@@ -51,10 +51,10 @@ library
 test-suite tests
     import: shared-properties
     type: exitcode-stdio-1.0
-    main-is: Test/Main.hs
-    hs-source-dirs: .
+    main-is: Main.hs
+    hs-source-dirs: Test
     build-depends:
           ihp-pglistener
         , hspec
     other-modules:
-        Test.PGListenerSpec
+        PGListenerSpec
