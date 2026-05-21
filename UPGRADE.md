@@ -4,6 +4,24 @@ After updating your project, please consult the segments from your current relea
 
 # Upgrade to 1.6.0 (unreleased) from 1.5.0
 
+## Incomplete Pattern Matches Are Now App Compile Errors
+
+IHP now promotes incomplete pattern match warnings to compile errors in app-facing defaults:
+
+- `applicationGhciConfig`, used by the default app `.ghci`
+- the generated `Makefile`
+- the generated Cabal configuration used by `NixSupport`
+
+This makes missing pattern matches fail fast during local development and agent-assisted coding.
+
+If you want to temporarily keep warning-only behavior while exploring incomplete code, add an override after loading IHP's GHCi config in your app `.ghci`:
+
+```haskell
+:set -Wwarn=incomplete-patterns
+```
+
+For app package builds, add `-Wwarn=incomplete-patterns` after IHP's generated `ghc-options` or replace `-Werror=incomplete-patterns` with `-fwarn-incomplete-patterns` in your local generated configuration.
+
 ## Dev mode now runs the web server and the job worker as separate processes
 
 `devenv up` previously launched a single `ihp` process that ran both the web server and the in-process job worker. It now launches two processes: `web` (the existing `RunDevServer`) and `worker` (a new `RunDevWorker`). They each own one GHCi session and reload independently. This mirrors the production split between `RunProdServer` and `RunJobs`.
