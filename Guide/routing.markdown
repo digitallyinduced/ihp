@@ -167,6 +167,20 @@ instance UrlCapture MarketStatus where
 
 The instance can live in `Web/Routes.hs`, in `Web/Types.hs` next to the data declaration, or in any module reachable from the splice site.
 
+For enum types generated from `Application/Schema.sql`, reuse the generated `textToEnum...` parser and `inputValue` renderer. Add `import qualified Data.Text.Encoding` in the module that defines the instance:
+
+```haskell
+instance UrlCapture Color where
+    parseCapture bytes =
+        case Data.Text.Encoding.decodeUtf8' bytes of
+            Right text -> textToEnumColor text
+            Left _ -> Nothing
+
+    renderCapture = inputValue
+```
+
+Use a direct UTF-8 conversion for `parseCapture`, as shown above. This keeps invalid UTF-8 as a route miss and avoids relying on a polymorphic string conversion helper.
+
 ### Rename a field
 
 To map a URL-side name to a differently named record field, use `{ field = #captureName }` after the action. Works for path captures and query params alike:
