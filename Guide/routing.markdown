@@ -139,47 +139,35 @@ The DSL ships with `UrlCapture` instances for the common scalar types: `Text`, `
 For your own types — typically SQL enums — declare a `UrlCapture` instance alongside the type:
 
 ```haskell
-data MarketStatus
-    = MarketStatusDraft
-    | MarketStatusOpen
-    | MarketStatusClosed
-    | MarketStatusResolved
-    | MarketStatusRefunded
+data Color
+    = ColorRed
+    | ColorGreen
+    | ColorBlue
     deriving (Eq, Show)
 
-instance UrlCapture MarketStatus where
+instance UrlCapture Color where
     parseCapture = \case
-        "draft"    -> Just MarketStatusDraft
-        "open"     -> Just MarketStatusOpen
-        "closed"   -> Just MarketStatusClosed
-        "resolved" -> Just MarketStatusResolved
-        "refunded" -> Just MarketStatusRefunded
-        _          -> Nothing
+        "red"   -> Just ColorRed
+        "green" -> Just ColorGreen
+        "blue"  -> Just ColorBlue
+        _       -> Nothing
     renderCapture = \case
-        MarketStatusDraft    -> "draft"
-        MarketStatusOpen     -> "open"
-        MarketStatusClosed   -> "closed"
-        MarketStatusResolved -> "resolved"
-        MarketStatusRefunded -> "refunded"
+        ColorRed   -> "red"
+        ColorGreen -> "green"
+        ColorBlue  -> "blue"
 ```
 
 `parseCapture :: ByteString -> Maybe a` decodes a single (already URL-decoded) path segment or query-param value; returning `Nothing` makes the route miss. `renderCapture :: a -> Text` is the reverse direction used by [`pathTo`](https://ihp.digitallyinduced.com/api-docs/IHP-RouterSupport.html#v:pathTo).
 
 The instance can live in `Web/Routes.hs`, in `Web/Types.hs` next to the data declaration, or in any module reachable from the splice site.
 
-For enum types generated from `Application/Schema.sql`, reuse the generated `textToEnum...` parser and `inputValue` renderer. Add `import qualified Data.Text.Encoding` in the module that defines the instance:
+For enum types generated from `Application/Schema.sql`, reuse the generated `textToEnum...` parser and `inputValue` renderer:
 
 ```haskell
 instance UrlCapture Color where
-    parseCapture bytes =
-        case Data.Text.Encoding.decodeUtf8' bytes of
-            Right text -> textToEnumColor text
-            Left _ -> Nothing
-
+    parseCapture bytes = textToEnumColor (cs bytes)
     renderCapture = inputValue
 ```
-
-Use a direct UTF-8 conversion for `parseCapture`, as shown above. This keeps invalid UTF-8 as a route miss and avoids relying on a polymorphic string conversion helper.
 
 ### Rename a field
 
