@@ -140,21 +140,21 @@ For your own types — typically SQL enums — declare a `UrlCapture` instance a
 
 ```haskell
 data Color
-    = Red
-    | Green
-    | Blue
+    = ColorRed
+    | ColorGreen
+    | ColorBlue
     deriving (Eq, Show)
 
 instance UrlCapture Color where
     parseCapture = \case
-        "red"   -> Just Red
-        "green" -> Just Green
-        "blue"  -> Just Blue
+        "red"   -> Just ColorRed
+        "green" -> Just ColorGreen
+        "blue"  -> Just ColorBlue
         _       -> Nothing
     renderCapture = \case
-        Red   -> "red"
-        Green -> "green"
-        Blue  -> "blue"
+        ColorRed   -> "red"
+        ColorGreen -> "green"
+        ColorBlue  -> "blue"
 ```
 
 `parseCapture :: ByteString -> Maybe a` decodes a single (already URL-decoded) path segment or query-param value; returning `Nothing` makes the route miss. `renderCapture :: a -> Text` is the reverse direction used by [`pathTo`](https://ihp.digitallyinduced.com/api-docs/IHP-RouterSupport.html#v:pathTo).
