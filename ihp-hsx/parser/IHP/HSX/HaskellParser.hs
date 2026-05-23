@@ -1,4 +1,3 @@
-{-# LANGUAGE CPP #-}
 module IHP.HSX.HaskellParser (parseHaskellExpression, HaskellExprParser, mkHaskellExprParser) where
 
 import Prelude
@@ -20,9 +19,7 @@ import GHC.Types.Error
 import GHC.Utils.Outputable hiding ((<>))
 import GHC.Utils.Error
 import qualified GHC.Types.SrcLoc as SrcLoc
-#if __GLASGOW_HASKELL__ >= 908
 import GHC.Unit.Module.Warnings
-#endif
 
 -- | Cached GHC parser options, constructed once per HSX quasi-quote splice.
 newtype HaskellExprParser = HaskellExprParser Lexer.ParserOpts
@@ -41,16 +38,8 @@ parseHaskellExpression (HaskellExprParser parserOpts) sourcePos input =
                 let
                     error = renderWithContext defaultSDocContext
                         $ vcat
-#if __GLASGOW_HASKELL__ >= 908
                         $ map formatBulleted
-#else
-                        $ map (formatBulleted defaultSDocContext)
-#endif
-#if __GLASGOW_HASKELL__ >= 906
                         $ map (diagnosticMessage NoDiagnosticOpts)
-#else
-                        $ map diagnosticMessage
-#endif
                         $ map errMsgDiagnostic
                         $ sortMsgBag Nothing
                         $ getMessages parserState.errors
@@ -88,8 +77,6 @@ diagOpts =
     , diag_reverse_errors = False
     , diag_max_errors = Nothing
     , diag_ppr_ctx = defaultSDocContext
-#if __GLASGOW_HASKELL__ >= 908
     , diag_custom_warning_categories = emptyWarningCategorySet
     , diag_fatal_custom_warning_categories = emptyWarningCategorySet
-#endif
     }
