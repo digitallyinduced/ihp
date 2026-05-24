@@ -169,6 +169,11 @@ that is defined in flake-module.nix
                 ghc912-ihp-pglistener = withTestPostgres pkgs.ghc912.ihp-pglistener;
             }
 
+            # GHC 9.14: ihp-hsx compatibility check (other packages not yet ready)
+            // (lib.optionalAttrs (pkgs.haskell.packages ? ghc914) {
+                ghc914-ihp-hsx = pkgs.ghc914.ihp-hsx;
+            })
+
             # GHC 9.14 compatibility checks — disabled: nixpkgs-unstable's ghc914 package
             # set has many transitive upper-bound breaks (blaze-markup, ghc-tcplugins-extra,
             # …) because boot libraries bumped for GHC 9.14.1. pkgs.ghc914 is still defined
