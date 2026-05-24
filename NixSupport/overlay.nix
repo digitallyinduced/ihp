@@ -106,18 +106,11 @@ let
 
             # Hasql 1.10 ecosystem.
             #
-            # nixpkgs is pinned (see flake.nix) to a staging-next commit
-            # containing NixOS/nixpkgs#519795, which (a) adds `dontCheck` for
-            # the versioned hasql attrs in configuration-nix.nix and (b) unmarks
-            # hasql-mapping / postgresql-simple-postgresql-types inside its
-            # upstream IHP scope. We therefore consume these attrs verbatim
-            # (no local dontCheck) so the derivations are bit-identical to
-            # nixpkgs' Hydra-built `haskellPackages.ihp` closure and resolve
-            # straight from cache.nixos.org instead of rebuilding hasql + GHC
-            # + the Haskell dep tree from source. The mirrored attrs below
-            # match the upstream `ihpHasqlScope` exactly — keep them in sync
-            # with configuration-common.nix. Revert together with the flake.nix
-            # pin once #519795 reaches the nixpkgs-unstable channel.
+            # These attrs mirror the upstream `ihpHasqlScope` from
+            # NixOS/nixpkgs#519795 (configuration-common.nix) so that
+            # derivations are bit-identical to nixpkgs' Hydra-built
+            # `haskellPackages.ihp` closure and resolve straight from
+            # cache.nixos.org. Keep in sync with configuration-common.nix.
             postgresql-connection-string = hackagePackage "postgresql-connection-string";
 
             hasql                    = super.hasql_1_10_3;
@@ -144,27 +137,10 @@ let
             # Fork of temporary using OsPath instead of FilePath
             temporary-ospath = hackagePackage "temporary-ospath";
 
-            # postgresql-types / ptr-peeker bridge stack.
-            #
-            # At the pinned #519795 nixpkgs rev, Hydra builds IHP's entire
-            # third-party closure green (haskellPackages.ihp) and uploads it to
-            # cache.nixos.org — including ptr-peeker 0.2.0.1, postgresql-types
-            # 0.1.3.2, postgresql-types-algebra and hasql-postgresql-types.
-            # ptr-peeker is no longer in broken.yaml and the `ptr-peeker ^>=0.1`
-            # bound problems that needed doJailbreak are gone at these versions,
-            # so ptr-peeker, postgresql-types, postgresql-types-algebra and
-            # hasql-postgresql-types are consumed verbatim from `super` (no
-            # entry here at all). Any transform would change the derivation hash
-            # and force a from-source rebuild of that package *and its whole
-            # reverse-dependency cone*, defeating the cache. Keep in sync with
-            # the upstream IHP scope; revert with the flake.nix pin.
-            #
-            # postgresql-simple-postgresql-types and hasql-mapping are the only
-            # exceptions: both are genuinely in broken.yaml, so they need
-            # markUnbroken — mirroring upstream ihpHasqlScope's `unmarkBroken`
-            # exactly (configuration-nix.nix already applies the dontCheck for
-            # postgresql-simple-postgresql-types). No doJailbreak / dontHaddock:
-            # those would diverge from the cached upstream derivations.
+            # postgresql-simple-postgresql-types and hasql-mapping are marked
+            # broken in nixpkgs; unmark them to mirror upstream ihpHasqlScope's
+            # `unmarkBroken` (configuration-nix.nix applies dontCheck for
+            # postgresql-simple-postgresql-types).
             postgresql-simple-postgresql-types = final.haskell.lib.markUnbroken super.postgresql-simple-postgresql-types;
             hasql-mapping = final.haskell.lib.markUnbroken super.hasql-mapping;
         };
