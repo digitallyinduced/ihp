@@ -204,6 +204,12 @@ final: prev: {
                     say = final.haskell.lib.dontCheck super.say;
                     text-icu = final.haskell.lib.dontCheck super.text-icu;
                     cryptonite = final.haskell.lib.dontCheck super.cryptonite;
+
+                    # Jailbreak packages with tight base/containers bounds for GHC 9.14
+                    lucid2 = final.haskell.lib.doJailbreak super.lucid2;
+                    rebase = final.haskell.lib.doJailbreak super.rebase;
+                    rerebase = final.haskell.lib.doJailbreak super.rerebase;
+                    string-interpolate = final.haskell.lib.doJailbreak super.string-interpolate;
                 })
             ];
         }
