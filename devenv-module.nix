@@ -142,35 +142,6 @@ that is defined in flake-module.nix
                 };
             }
 
-            # GHC 9.14 compatibility checks — disabled: nixpkgs-unstable's ghc914 package
-            # set has many transitive upper-bound breaks (blaze-markup, ghc-tcplugins-extra,
-            # …) because boot libraries bumped for GHC 9.14.1. pkgs.ghc914 is still defined
-            # in the overlay for manual experimentation; re-enable once the ecosystem catches up.
-            // (lib.optionalAttrs (false && pkgs.haskell.packages ? ghc914) (let
-                ghc914 = pkgs.ghc914;
-                ihpPackageNames = [
-                    "ihp-ide" "ihp-hsx" "ihp-schema-compiler"
-                    "ihp-postgres-parser" "ihp-context" "ihp-pagehead"
-                    "ihp-modal" "ihp-mail"
-                    "ihp-migrate" "ihp-openai" "ihp-ssc" "ihp-graphql"
-                    "ihp-datasync-typescript" "ihp-sitemap"
-                    "ihp-job-dashboard" "ihp-imagemagick"
-                    "ihp-hspec" "ihp-welcome" "ihp-zip"
-                    "wai-asset-path" "wai-flash-messages" "wai-request-params"
-                    "wai-session-maybe" "wai-session-clientsession-deferred"
-                ];
-            in lib.listToAttrs (map (name: {
-                name = "ghc914-${name}";
-                value = ghc914.${name};
-            }) ihpPackageNames)
-
-            # GHC 9.14 packages that need a running PostgreSQL for their tests
-            // {
-                ghc914-ihp = withTestPostgres pkgs.ghc914.ihp;
-                ghc914-ihp-datasync = withTestPostgres pkgs.ghc914.ihp-datasync;
-                ghc914-ihp-typed-sql = withTestPostgres pkgs.ghc914.ihp-typed-sql;
-                ghc914-ihp-pglistener = withTestPostgres pkgs.ghc914.ihp-pglistener;
-            }))
         ;
 
         devenv.shells.default = {
@@ -277,7 +248,8 @@ that is defined in flake-module.nix
             '';
 
             languages.haskell.stack.enable = false; # Stack is not used in IHP
-            languages.haskell.lsp.package = pkgs.ghc.haskell-language-server;
+            # HLS does not yet support GHC 9.14
+            languages.haskell.lsp.enable = false;
         };
 
         packages = {

@@ -170,8 +170,8 @@ let
         };
 in
 final: prev: {
-    # Default: GHC 9.12
-    ghc = final.haskell.packages.ghc912.override {
+    # Default: GHC 9.14
+    ghc = final.haskell.packages.ghc914.override {
         overrides = final.lib.composeManyExtensions [
             (ihpOverrides final)
             (self: super: {
@@ -183,13 +183,57 @@ final: prev: {
 
                 # cryptonite tests have a flaky failure (1 of 1548)
                 cryptonite = final.haskell.lib.dontCheck super.cryptonite;
+
+                # lucid2 has base <4.22 bound
+                lucid2 = final.haskell.lib.doJailbreak super.lucid2;
+
+                # relude doctests fail due to changed GHC error messages in 9.14
+                relude = final.haskell.lib.dontCheck super.relude;
+
+                # tasty-hspec has base <4.22 bound
+                tasty-hspec = final.haskell.lib.doJailbreak super.tasty-hspec;
+
+                # Packages with tight upper bounds on boot libraries (base, containers, template-haskell)
+                # GHC 9.14 ships base-4.22, containers-0.8, template-haskell-2.24
+                config-ini = final.haskell.lib.doJailbreak super.config-ini;
+                fsnotify = final.haskell.lib.doJailbreak super.fsnotify;
+                string-interpolate = final.haskell.lib.doJailbreak super.string-interpolate;
+                rebase = final.haskell.lib.doJailbreak super.rebase;
+                rerebase = final.haskell.lib.doJailbreak super.rerebase;
+                with-utf8 = final.haskell.lib.doJailbreak super.with-utf8;
+                minio-hs = final.haskell.lib.doJailbreak super.minio-hs;
+                sandwich = final.haskell.lib.doJailbreak super.sandwich;
+                brick = final.haskell.lib.doJailbreak super.brick;
+                postgresql-simple = final.haskell.lib.doJailbreak super.postgresql-simple;
+                hasql-dynamic-statements = final.haskell.lib.doJailbreak super.hasql-dynamic-statements;
+                hasql-implicits = final.haskell.lib.doJailbreak super.hasql-implicits;
+                warp-systemd = final.haskell.lib.doJailbreak super.warp-systemd;
+
+                # Upgrade ghc-tcplugin-api to 0.19 (supports GHC 9.14)
+                ghc-tcplugin-api = self.callCabal2nix "ghc-tcplugin-api"
+                    (final.fetchzip {
+                        url = "https://hackage.haskell.org/package/ghc-tcplugin-api-0.19.0.0/ghc-tcplugin-api-0.19.0.0.tar.gz";
+                        sha256 = "sha256-2jm1Q2lmaG6vtRnxcvxf4U2gvQdVkDL0h8PWaTpDWJA=";
+                    }) {};
+
+                # Upgrade ghc-typelits-natnormalise to 0.9.6 (uses ghc-tcplugin-api, supports GHC 9.14)
+                ghc-typelits-natnormalise = final.haskell.lib.dontCheck (self.callCabal2nix "ghc-typelits-natnormalise"
+                    (final.fetchzip {
+                        url = "https://hackage.haskell.org/package/ghc-typelits-natnormalise-0.9.6/ghc-typelits-natnormalise-0.9.6.tar.gz";
+                        sha256 = "sha256-a1afS4iJrB9hVp3FK+fozbWVxIt75H/gO6Q+PeoV53k=";
+                    }) {});
+
+                # Upgrade ghc-typelits-knownnat to 0.8.4 (uses ghc-tcplugin-api, supports GHC 9.14)
+                ghc-typelits-knownnat = final.haskell.lib.dontCheck (self.callCabal2nix "ghc-typelits-knownnat"
+                    (final.fetchzip {
+                        url = "https://hackage.haskell.org/package/ghc-typelits-knownnat-0.8.4/ghc-typelits-knownnat-0.8.4.tar.gz";
+                        sha256 = "sha256-PyYMUvJ8/miqusNl7+xay8OJqtK1/uHNQEiLr1utieg=";
+                    }) {});
             })
         ];
     };
 
-    # Experimental: GHC 9.14 (bleeding edge, expected to fail)
-    # Only defined when nixpkgs includes the ghc914 package set.
-    # Attribute always exists but throws if ghc914 is unavailable in nixpkgs.
+    # Experimental: GHC 9.14 (same as default, kept for compatibility)
     ghc914 =
         if prev.haskell.packages ? ghc914
         then final.haskell.packages.ghc914.override {
@@ -199,6 +243,27 @@ final: prev: {
                     say = final.haskell.lib.dontCheck super.say;
                     text-icu = final.haskell.lib.dontCheck super.text-icu;
                     cryptonite = final.haskell.lib.dontCheck super.cryptonite;
+
+                    # Upgrade ghc-tcplugin-api to 0.19 (supports GHC 9.14)
+                    ghc-tcplugin-api = self.callCabal2nix "ghc-tcplugin-api"
+                        (final.fetchurl {
+                            url = "https://hackage.haskell.org/package/ghc-tcplugin-api-0.19.0.0/ghc-tcplugin-api-0.19.0.0.tar.gz";
+                            sha256 = "sha256-Cg6nFSjhgMfqNOF3L1GNQZS7eJqKU3ycsmtDRjTK0cQ=";
+                        }) {};
+
+                    # Upgrade ghc-typelits-natnormalise to 0.9.6 (uses ghc-tcplugin-api, supports GHC 9.14)
+                    ghc-typelits-natnormalise = final.haskell.lib.dontCheck (self.callCabal2nix "ghc-typelits-natnormalise"
+                        (final.fetchurl {
+                            url = "https://hackage.haskell.org/package/ghc-typelits-natnormalise-0.9.6/ghc-typelits-natnormalise-0.9.6.tar.gz";
+                            sha256 = "sha256-E94FNrcA8SFlvSF3BFJOHqEjEA4MhXH+4BpLKkiIlwg=";
+                        }) {});
+
+                    # Upgrade ghc-typelits-knownnat to 0.8.4 (uses ghc-tcplugin-api, supports GHC 9.14)
+                    ghc-typelits-knownnat = final.haskell.lib.dontCheck (self.callCabal2nix "ghc-typelits-knownnat"
+                        (final.fetchurl {
+                            url = "https://hackage.haskell.org/package/ghc-typelits-knownnat-0.8.4/ghc-typelits-knownnat-0.8.4.tar.gz";
+                            sha256 = "sha256-PkLB8gvz4b2yEuLFqDisz9slG7K5U22V1q5G8FgtDCk=";
+                        }) {});
                 })
             ];
         }

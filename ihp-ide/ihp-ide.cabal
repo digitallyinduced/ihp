@@ -12,7 +12,7 @@ bug-reports:         https://github.com/digitallyinduced/ihp/issues
 copyright:           (c) digitally induced GmbH
 category:            Web, IHP
 stability:           Stable
-tested-with:         GHC == 9.12.3
+tested-with:         GHC == 9.14.1
 build-type:          Simple
 extra-source-files:  changelog.md
 data-dir: data
@@ -36,7 +36,7 @@ Flag FastBuild
 common shared-properties
     default-language: GHC2021
     build-depends:
-            base >= 4.17.0 && < 4.22
+            base >= 4.17.0 && < 4.23
             , classy-prelude
             , mono-traversable
             , transformers
@@ -346,7 +346,7 @@ executable hash-password
 executable new-session-secret
     default-language: Haskell2010
     default-extensions: BlockArguments
-    build-depends: base >= 4.17.0 && < 4.22, clientsession, bytestring, with-utf8, base64-bytestring
+    build-depends: base >= 4.17.0 && < 4.23, clientsession, bytestring, with-utf8, base64-bytestring
     hs-source-dirs: exe
     main-is: IHP/CLI/NewSessionSecret.hs
     ghc-options: -fsplit-sections

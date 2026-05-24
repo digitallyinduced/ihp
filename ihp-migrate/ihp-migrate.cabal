@@ -36,13 +36,13 @@ common ihp-std
 
 library
     import: ihp-std
-    build-depends: base >= 4.17.0 && < 4.22, with-utf8, text, directory >= 1.3.8.0, filepath >= 1.5, string-conversions, hasql, hasql-transaction
+    build-depends: base >= 4.17.0 && < 4.23, with-utf8, text, directory >= 1.3.8.0, filepath >= 1.5, string-conversions, hasql, hasql-transaction
     hs-source-dirs: .
     exposed-modules: IHP.SchemaMigration
 
 executable migrate
     import: ihp-std
-    build-depends: base >= 4.17.0 && < 4.22, with-utf8, text, directory >= 1.3.8.0, filepath >= 1.5, ihp-migrate, string-conversions, hasql, hasql-transaction
+    build-depends: base >= 4.17.0 && < 4.23, with-utf8, text, directory >= 1.3.8.0, filepath >= 1.5, ihp-migrate, string-conversions, hasql, hasql-transaction
     hs-source-dirs: exe
     main-is: Migrate.hs
     ghc-options: -threaded
@@ -51,5 +51,5 @@ test-suite tests
     import: ihp-std
     type: exitcode-stdio-1.0
     main-is: SchemaMigrationSpec.hs
-    build-depends: base >= 4.17.0 && < 4.22, hspec, with-utf8, directory >= 1.3.8.0, ihp-migrate, filepath >= 1.5, temporary-ospath
+    build-depends: base >= 4.17.0 && < 4.23, hspec, with-utf8, directory >= 1.3.8.0, ihp-migrate, filepath >= 1.5, temporary-ospath
     hs-source-dirs: Test

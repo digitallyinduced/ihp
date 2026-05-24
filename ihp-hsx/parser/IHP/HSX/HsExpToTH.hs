@@ -41,8 +41,6 @@ toLit (HsIntPrim _ i) = TH.IntPrimL i
 toLit (HsWordPrim _ i) = TH.WordPrimL i
 toLit (HsInt64Prim _ i) = TH.IntegerL i
 toLit (HsWord64Prim _ i) = TH.WordPrimL i
-toLit (HsInteger _ i _) = TH.IntegerL i
-toLit (HsRat _ f _) = TH.FloatPrimL (fl_value f)
 toLit (HsFloatPrim _ f) = TH.FloatPrimL (fl_value f)
 toLit (HsDoublePrim _ f) = TH.DoublePrimL (fl_value f)
 toLit (HsMultilineString _ s) = TH.StringL (unpackFS s)
@@ -95,7 +93,7 @@ toExp (Expr.HsVar _ n) =
         then TH.ConE (toName n')
         else TH.VarE (toName n')
 
-toExp (Expr.HsUnboundVar _ n)              = TH.UnboundVarE (TH.mkName . occNameString $ occName n)
+toExp (Expr.HsHole _)                      = TH.UnboundVarE (TH.mkName "_")
 
 toExp Expr.HsIPVar {}
   = noTH "toExp" "HsIPVar"
@@ -119,7 +117,7 @@ toExp (Expr.NegApp _ e _)
   = TH.AppE (TH.VarE 'negate) (toExp . unLoc $ e)
 
 -- NOTE: for lambda, there is only one match
-toExp (Expr.HsLam _ LamSingle (Expr.MG _ (unLoc -> (map unLoc -> [Expr.Match _ _ (map unLoc . unLoc -> ps) (Expr.GRHSs _ [unLoc -> Expr.GRHS _ _ (unLoc -> e)] _)]))))
+toExp (Expr.HsLam _ LamSingle (Expr.MG _ (unLoc -> (map unLoc -> [Expr.Match _ _ (map unLoc . unLoc -> ps) (Expr.GRHSs _ ((unLoc -> Expr.GRHS _ _ (unLoc -> e)) NonEmpty.:| []) _)]))))
   = TH.LamE (fmap toPat ps) (toExp e)
 
 -- toExp (Expr.Let _ bs e)                       = TH.LetE (toDecs bs) (toExp e)

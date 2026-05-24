@@ -51,7 +51,7 @@ library
         , IHP.Mail.Types
         , IHP.MailPrelude
     build-depends:
-        base >= 4.17.0 && < 4.22
+        base >= 4.17.0 && < 4.23
         , ihp
         , mime-mail
         , mime-mail-ses
