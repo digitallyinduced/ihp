@@ -53,7 +53,7 @@ library
         IHP.TypedSql.Decoders
         IHP.TypedSql.RowType
     build-depends:
-            base >= 4.17.0 && < 4.22
+            base >= 4.17.0 && < 4.23
             , ihp
             , aeson
             , bytestring
@@ -82,7 +82,7 @@ test-suite tests
     hs-source-dirs: Test
     ghc-options: -threaded
     build-depends:
-            base >= 4.17.0 && < 4.22
+            base >= 4.17.0 && < 4.23
             , ihp
             , fast-logger
             , ihp-typed-sql

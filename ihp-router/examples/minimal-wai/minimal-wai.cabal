@@ -19,7 +19,7 @@ executable minimal-wai
     default-language: GHC2021
     ghc-options: -Werror=incomplete-patterns -Werror=unused-imports
     build-depends:
-        base >= 4.17.0 && < 4.22
+        base >= 4.17.0 && < 4.23
       , bytestring
       , http-types
       , text

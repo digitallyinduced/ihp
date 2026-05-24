@@ -37,7 +37,7 @@ library
     import: shared-properties
     hs-source-dirs: .
     build-depends:
-        base >= 4.17.0 && < 4.22
+        base >= 4.17.0 && < 4.23
         , ihp-hsx
         , text
         , blaze-html

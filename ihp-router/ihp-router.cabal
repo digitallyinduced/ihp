@@ -58,7 +58,7 @@ library
         , IHP.Router.DSL.TH
         , IHP.Router.WAI
     build-depends:
-        base >= 4.17.0 && < 4.22
+        base >= 4.17.0 && < 4.23
         , bytestring
         , text
         , containers

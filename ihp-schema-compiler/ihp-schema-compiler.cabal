@@ -25,7 +25,7 @@ Flag FastBuild
 common shared-properties
     default-language: GHC2021
     build-depends:
-            base >= 4.17.0 && < 4.22
+            base >= 4.17.0 && < 4.23
           , classy-prelude
           , text
           , bytestring

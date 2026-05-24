@@ -79,6 +79,7 @@ let
             ihp-imagemagick = localPackage "ihp-imagemagick";
             ihp-hspec = localPackage "ihp-hspec";
             ihp-welcome = localPackage "ihp-welcome";
+            ihp-log = localPackage "ihp-log";
 
             # Forks of wai-session / wai-session-clientsession with deferred
             # session decryption and optional Set-Cookie (Maybe ByteString).
@@ -167,9 +168,8 @@ final: prev: {
         ];
     };
 
-    # Experimental: GHC 9.14 (bleeding edge, expected to fail)
-    # Only defined when nixpkgs includes the ghc914 package set.
-    # Attribute always exists but throws if ghc914 is unavailable in nixpkgs.
+    # GHC 9.14 — opt-in for apps using the digitallyinduced binary cache.
+    # To use: set `ihp.ghcCompiler = pkgs.ghc914;` in your flake-module config.
     ghc914 =
         if prev.haskell.packages ? ghc914
         then final.haskell.packages.ghc914.override {
@@ -180,12 +180,49 @@ final: prev: {
                     text-icu = final.haskell.lib.dontCheck super.text-icu;
                     cryptonite = final.haskell.lib.dontCheck super.cryptonite;
 
-                    # Jailbreak packages with tight base/containers bounds for GHC 9.14
-                    lucid2 = final.haskell.lib.doJailbreak super.lucid2;
-                    rebase = final.haskell.lib.doJailbreak super.rebase;
-                    rerebase = final.haskell.lib.doJailbreak super.rerebase;
-                    string-interpolate = final.haskell.lib.doJailbreak super.string-interpolate;
+                    # relude doctests fail due to changed GHC error messages in 9.14
+                    relude = final.haskell.lib.dontCheck super.relude;
+
+                    # Upgrade ghc-tcplugin-api to 0.19 (supports GHC 9.14)
+                    ghc-tcplugin-api = self.callCabal2nix "ghc-tcplugin-api"
+                        (final.fetchzip {
+                            url = "https://hackage.haskell.org/package/ghc-tcplugin-api-0.19.0.0/ghc-tcplugin-api-0.19.0.0.tar.gz";
+                            sha256 = "sha256-2jm1Q2lmaG6vtRnxcvxf4U2gvQdVkDL0h8PWaTpDWJA=";
+                        }) {};
+
+                    # Upgrade ghc-typelits-natnormalise to 0.9.6 (supports GHC 9.14)
+                    ghc-typelits-natnormalise = final.haskell.lib.dontCheck (self.callCabal2nix "ghc-typelits-natnormalise"
+                        (final.fetchzip {
+                            url = "https://hackage.haskell.org/package/ghc-typelits-natnormalise-0.9.6/ghc-typelits-natnormalise-0.9.6.tar.gz";
+                            sha256 = "sha256-a1afS4iJrB9hVp3FK+fozbWVxIt75H/gO6Q+PeoV53k=";
+                        }) {});
+
+                    # Upgrade ghc-typelits-knownnat to 0.8.4 (supports GHC 9.14)
+                    ghc-typelits-knownnat = final.haskell.lib.dontCheck (self.callCabal2nix "ghc-typelits-knownnat"
+                        (final.fetchzip {
+                            url = "https://hackage.haskell.org/package/ghc-typelits-knownnat-0.8.4/ghc-typelits-knownnat-0.8.4.tar.gz";
+                            sha256 = "sha256-PyYMUvJ8/miqusNl7+xay8OJqtK1/uHNQEiLr1utieg=";
+                        }) {});
                 })
+                # GHC 9.14 ships base-4.22, containers-0.8, template-haskell-2.24.
+                # Many nixpkgs packages have tight upper bounds on these boot libraries.
+                (let
+                    jailbreak = names: self: super:
+                        builtins.listToAttrs (map (name: {
+                            inherit name;
+                            value = final.haskell.lib.doJailbreak super.${name};
+                        }) (builtins.filter (name: super ? ${name}) names));
+                in jailbreak [
+                    "lucid" "lucid2" "clay" "tasty-hspec" "config-ini" "fsnotify"
+                    "string-interpolate" "rebase" "rerebase" "with-utf8" "minio-hs"
+                    "sandwich" "brick" "postgresql-simple" "hasql-dynamic-statements"
+                    "hasql-implicits" "warp-systemd" "ghc-trace-events"
+                    "algebraic-graphs" "hie-bios" "stan" "modern-uri"
+                    "ghc-lib-parser" "ghc-lib-parser-ex" "ghc-syntax-highlighter"
+                    "colourista" "extensions" "trial" "trial-optparse-applicative"
+                    "trial-tomland" "tomland" "validation-selective" "slist"
+                    "ihp-zip" "warp-systemd"
+                ])
             ];
         }
         else throw "ghc914 is not available in this nixpkgs";
