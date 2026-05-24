@@ -594,8 +594,8 @@ defaultLayout inner = [hsx|
 </html>
 |]
 
-canonicalTag :: (?context :: ControllerContext) => Html
-canonicalTag = case maybeFromFrozenContext @CanonicalUrl of
+canonicalTag :: (?request :: Request) => Html
+canonicalTag = case currentCanonical of
     Just (CanonicalUrl url) -> [hsx|<link rel="canonical" href={url}>|]
     Nothing -> mempty
 ```
@@ -636,7 +636,7 @@ instance View ShowView where
         </script>
     |]
 
-renderJsonLd :: (?context :: ControllerContext) => Post -> Text
+renderJsonLd :: Post -> Text
 renderJsonLd post = cs $ encode $ object
     [ "@context" .= ("https://schema.org" :: Text)
     , "@type" .= ("Article" :: Text)

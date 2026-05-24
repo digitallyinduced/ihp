@@ -15,7 +15,7 @@ module IHP.ControllerSupport
 , ControllerContext
 , InitControllerContext (..)
 , runActionWithNewContext
-, newContextForAction
+, initActionContext
 , respondWith
 , respondAndExit
 , earlyReturn
@@ -28,7 +28,7 @@ module IHP.ControllerSupport
 , Respond
 , Request
 , rlsContextVaultKey
-, setupActionContext
+, initRequestContext
 , ResponseReceived
 ) where
 
@@ -105,8 +105,10 @@ runAction controller = do
     beforeAction
     action controller
 
-{-# INLINE newContextForAction #-}
-newContextForAction
+-- | Bind implicit parameters and run 'initContext' for a controller action.
+-- Used by 'runActionWithNewContext' and WebSocket handlers.
+{-# INLINE initActionContext #-}
+initActionContext
     :: forall application controller
      . ( Controller controller
        , ?request :: Request
@@ -117,20 +119,20 @@ newContextForAction
        , Typeable controller
        )
     => controller -> IO ControllerContext
-newContextForAction controller = do
+initActionContext controller = do
     let ?modelContext = ?request.modelContext
     let ?context = ?request
     wrapInitContextException (initContext @application)
     pure ?context
 
--- | Shared request context setup, specialized once per application type.
--- Takes a pre-computed TypeRep to avoid per-controller-type code duplication.
+-- | Bind implicit parameters from a raw WAI request, insert the action type
+-- into the vault, and run 'initContext'. Specialized once per application type.
 -- NOINLINE ensures GHC compiles one copy shared across all controllers.
 --
 -- Exceptions from 'initContext' (including 'EarlyReturnException') propagate
 -- to the caller, which is expected to catch them.
-{-# NOINLINE setupActionContext #-}
-setupActionContext
+{-# NOINLINE initRequestContext #-}
+initRequestContext
     :: forall application
      . ( InitControllerContext application
        , ?application :: application
@@ -138,7 +140,7 @@ setupActionContext
        )
     => Typeable.TypeRep -> Request -> Respond
     -> IO ControllerContext
-setupActionContext controllerTypeRep waiRequest waiRespond = do
+initRequestContext controllerTypeRep waiRequest waiRespond = do
     let !request' = waiRequest { vault = Vault.insert actionTypeVaultKey (ActionType controllerTypeRep) waiRequest.vault }
     let ?request = request'
     let ?respond = waiRespond
@@ -162,7 +164,7 @@ runActionWithNewContext controller =
     earlyReturnMiddleware (\request respond -> do
         let ?request = setActionType controller request
         let ?respond = respond
-        context <- newContextForAction controller
+        context <- initActionContext controller
         let ?modelContext = requestModelContext ?request
         let ?context = context
         runAction controller
