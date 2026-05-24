@@ -698,7 +698,7 @@ createFunction = do
     lexeme "CREATE"
     orReplace <- isJust <$> optional (lexeme "OR" >> lexeme "REPLACE")
     lexeme "FUNCTION"
-    functionName <- qualifiedIdentifier
+    functionName <- functionIdentifier
     functionArguments <- between (char '(') (char ')') (functionArgument `sepBy` (char ',' >> space))
     space
     lexeme "RETURNS"
@@ -752,7 +752,7 @@ parseFunctionSetting :: Parser FunctionOption
 parseFunctionSetting = do
     symbol' "SET"
     settingName <- qualifiedIdentifier
-    symbol "="
+    symbol "=" <|> symbol' "TO"
     settingValue <- Text.strip . cs <$> someTill anySingle (lookAhead functionOptionBoundary)
     space
     pure (FunctionSettingOption FunctionSetting { settingName, settingValue })
@@ -982,6 +982,10 @@ qualifiedIdentifier = do
         lexeme "public"
         char '.'
     identifier
+
+functionIdentifier = do
+    schemaOrName <- identifier
+    maybe schemaOrName (\name -> schemaOrName <> "." <> name) <$> optional (char '.' >> identifier)
 
 addColumn tableName = do
     lexeme "COLUMN"
