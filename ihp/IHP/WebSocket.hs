@@ -24,8 +24,8 @@ import qualified Data.Maybe as Maybe
 import qualified Control.Exception.Safe as Exception
 import qualified Data.Aeson as Aeson
 import Network.Wai (Request)
-import IHP.RequestVault () -- HasField "logger"/"frameworkConfig" on Request
-
+import IHP.RequestVault () -- HasField "frameworkConfig" on Request
+import IHP.FrameworkConfig.Types (FrameworkConfig(..))
 import System.Log.FastLogger (toLogStr)
 
 import qualified Network.WebSockets.Connection as WebSocket
@@ -72,7 +72,7 @@ startWSApp initialState connection = do
                 (Just Websocket.ConnectionClosed) -> pure ()
                 (Just (Websocket.CloseRequest {})) -> pure ()
                 (Just other) -> error ("Unhandled Websocket exception: " <> show other)
-                Nothing -> ?context.logger (toLogStr (tshow e))
+                Nothing -> ?context.frameworkConfig.logger (toLogStr (tshow e))
         Right _ -> pure ()
 
 setState :: (?state :: IORef state) => state -> IO ()
