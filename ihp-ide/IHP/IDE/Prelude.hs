@@ -34,5 +34,8 @@ import IHP.ValidationSupport
 --
 -- > setModal MyModalView { .. }
 --
-setModal :: (?context :: ControllerContext, ?request :: Request, View view) => view -> IO ()
-setModal view = let ?view = view in Modal.setModal (ViewSupport.html view)
+setModal :: (?request :: Request, View view) => view -> IO ()
+setModal view =
+    let ?context = ?request
+        ?view = view
+    in Modal.setModal (ViewSupport.html view)

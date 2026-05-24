@@ -887,7 +887,7 @@ config = do
 
 ### How Login and Logout Work
 
-When a user logs in, IHP stores the user's ID in the session under the key `login.User` (or `login.Admin` for admin authentication). The key is constructed from the model name, not the table name. The `initAuthentication @User` call in your `FrontController.hs` reads this session value on each request and fetches the corresponding user record from the database.
+When a user logs in, IHP stores the user's ID in the session under the key `login.User` (or `login.Admin` for admin authentication). The key is constructed from the model name, not the table name. The `authMiddleware @User` middleware (configured in `Config.hs`) reads this session value on each request and fetches the corresponding user record from the database.
 
 When a user logs out, IHP sets the session value for `login.User` to an empty string. The session cookie itself remains, but the user ID is cleared.
 
@@ -980,17 +980,19 @@ Here is a summary of every change needed to add authentication. Use this as a re
     - Implement the login form view
 
 6. In `Web/FrontController.hs`:
-    - Add `import IHP.LoginSupport.Middleware`
     - Add `import Web.Controller.Sessions`
     - Mount the controller: `parseRoute @SessionsController`
-    - Add `initAuthentication @User` to `initContext`
 
-7. Add `ensureIsUser` to `beforeAction` in any controller that requires login.
+7. In `Config/Config.hs`:
+    - Add `import IHP.LoginSupport.Middleware`
+    - Add `option $ AuthMiddleware (authMiddleware @User)`
 
-8. Add a logout link in your layout: `<a class="js-delete js-delete-no-confirm" href={DeleteSessionAction}>Logout</a>`
+8. Add `ensureIsUser` to `beforeAction` in any controller that requires login.
 
-9. (Optional) Create a registration controller and view for user sign-up.
+9. Add a logout link in your layout: `<a class="js-delete js-delete-no-confirm" href={DeleteSessionAction}>Logout</a>`
 
-10. (Optional) Set up password reset flow with token generation and email.
+10. (Optional) Create a registration controller and view for user sign-up.
+
+11. (Optional) Set up password reset flow with token generation and email.
 
 [Next: Authorization](https://ihp.digitallyinduced.com/Guide/authorization.html)

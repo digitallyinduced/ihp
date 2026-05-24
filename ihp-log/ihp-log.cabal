@@ -1,9 +1,9 @@
 cabal-version:       2.2
-name:                ihp-modal
+name:                ihp-log
 version:             1.0.0
-synopsis:            Modal dialog support for IHP applications
-description:         Provides modal dialog functionality with Bootstrap-compatible markup.
-                     Can be used with the full IHP framework or standalone with ihp-hsx.
+synopsis:            Lightweight logging for IHP applications
+description:         Provides structured logging with configurable levels, formatters, and destinations.
+                     Can be used standalone or with the full IHP framework.
 license:             MIT
 license-file:        LICENSE
 author:              digitally induced GmbH
@@ -11,30 +11,32 @@ maintainer:          hello@digitallyinduced.com
 homepage:            https://ihp.digitallyinduced.com/
 bug-reports:         https://github.com/digitallyinduced/ihp/issues
 copyright:           (c) digitally induced GmbH
-category:            Web, IHP
+category:            Web, Logging, IHP
 
 common shared-properties
     default-language: GHC2021
     build-depends:
           base >= 4.17.0 && < 4.22
-        , ihp-hsx
+        , filepath >= 1.5
         , text
-        , blaze-html
-        , vault
+        , bytestring
+        , data-default
+        , fast-logger
         , wai
+        , wai-extra
     default-extensions:
         OverloadedStrings
         , ImplicitParams
         , DataKinds
         , RecordWildCards
-        , QuasiQuotes
         , OverloadedRecordDot
-    ghc-options: -Werror=incomplete-patterns -Werror=unused-imports -Werror=missing-fields -Werror=missing-home-modules
+        , DuplicateRecordFields
+        , LambdaCase
+    ghc-options: -Werror=incomplete-patterns -Werror=unused-imports -Werror=missing-fields
 
 library
     import: shared-properties
     hs-source-dirs: .
     exposed-modules:
-        IHP.Modal.Types
-        , IHP.Modal.ControllerFunctions
-        , IHP.Modal.ViewFunctions
+        IHP.Log
+        , IHP.Log.Types

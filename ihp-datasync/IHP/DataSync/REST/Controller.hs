@@ -201,7 +201,7 @@ encodeKeyMapToSetSql columnTypes hashMap =
         setSnippets = map encodeSetClause pairsList
     in mconcat $ List.intersperse (Snippet.sql ", ") setSnippets
 
-renderErrorJson :: (?context :: ControllerContext, ?request :: Request, ?respond :: Respond) => ToJSON json => json -> IO ResponseReceived
+renderErrorJson :: (?request :: Request, ?respond :: Respond) => ToJSON json => json -> IO ResponseReceived
 renderErrorJson json = renderJsonWithStatusCode status400 json
 {-# INLINABLE renderErrorJson #-}
 

@@ -1,8 +1,7 @@
 {-# LANGUAGE AllowAmbiguousTypes #-}
 
 module IHP.LoginSupport.Middleware
-    ( initAuthentication
-    , authMiddleware
+    ( authMiddleware
     , adminAuthMiddleware
     , userIdMiddleware
     , adminIdMiddleware
@@ -22,8 +21,6 @@ import IHP.Prelude
 import IHP.LoginSupport.Types
 import IHP.LoginSupport.Helper.Controller (sessionKey)
 import IHP.Controller.Session
-import IHP.Controller.Context
-import IHP.ControllerSupport
 import IHP.QueryBuilder
 import IHP.Fetch
 import IHP.ModelSupport
@@ -31,6 +28,7 @@ import IHP.Hasql.FromRow (FromRowHasql)
 import qualified Network.Wai as Wai
 import qualified Data.Vault.Lazy as Vault
 import qualified Data.UUID as UUID
+import qualified Data.ByteString as BS
 
 -- | Middleware that reads a userId from the session and stores it in
 -- 'currentUserIdVaultKey'. No database query is performed.
@@ -71,11 +69,22 @@ userIdMiddlewareFor sessionKeyName idKey app req respond = do
     app req' respond
 {-# INLINE userIdMiddlewareFor #-}
 
--- | Parse UUID from session bytes. Expects the raw 36-byte UUID ASCII format
--- written by 'IHP.LoginSupport.Helper.Controller.login'
--- (e.g. \"550e8400-e29b-41d4-a716-446655440000\").
+-- | Parse UUID from session bytes. Handles both:
+--
+--   - New format: raw 36-byte UUID ASCII (e.g. \"550e8400-e29b-41d4-a716-446655440000\")
+--   - Old format: 8-byte cereal length prefix + 36-byte UUID ASCII (44 bytes total)
+--
+-- The old format comes from sessions written with @Serialize (Id' table)@ which
+-- prepends an 8-byte big-endian length prefix via cereal. We support both formats
+-- so existing sessions continue to work without logging users out on upgrade.
+--
+-- TODO: Remove old format support after 2026-05-01. At that point all
+-- session cookies using the cereal encoding will have expired.
 parseSessionUUID :: ByteString -> Maybe UUID
-parseSessionUUID = UUID.fromASCIIBytes
+parseSessionUUID bs
+    | Just uuid <- UUID.fromASCIIBytes bs = Just uuid
+    | BS.length bs == 44 = UUID.fromASCIIBytes (BS.drop 8 bs)
+    | otherwise = Nothing
 {-# INLINE parseSessionUUID #-}
 
 -- | Middleware that reads the userId from 'currentUserIdVaultKey', fetches
@@ -201,33 +210,3 @@ authMiddlewareWith key fetchUser app req respond = do
     let req' = req { Wai.vault = Vault.insert key user (Wai.vault req) }
     app req' respond
 {-# INLINE authMiddlewareWith #-}
-
--- | Legacy function for backward compatibility.
---
--- Fetches the user from the session and stores it in the controller context.
--- New code should use 'authMiddleware' in Config.hs instead.
-{-# INLINE initAuthentication #-}
-initAuthentication :: forall user normalizedModel.
-        ( ?context :: ControllerContext
-        , ?request :: Request
-        , ?modelContext :: ModelContext
-        , normalizedModel ~ NormalizeModel user
-        , Typeable normalizedModel
-        , Table normalizedModel
-        , FromRowHasql normalizedModel
-        , PrimaryKey (GetTableName normalizedModel) ~ UUID
-        , GetTableName normalizedModel ~ GetTableName user
-        , FilterPrimaryKey (GetTableName normalizedModel)
-        , KnownSymbol (GetModelName user)
-    ) => IO ()
-initAuthentication = do
-    maybeUuid <- case lookupSessionVault ?request of
-        Just (lookupFn, _) -> do
-            rawValue <- lookupFn (sessionKey @user)
-            pure $ case rawValue of
-                Nothing -> Nothing
-                Just "" -> Nothing
-                Just bs -> parseSessionUUID bs
-        Nothing -> pure Nothing
-    user <- fetchOneOrNothing (fmap Id maybeUuid :: Maybe (Id user))
-    putContext user

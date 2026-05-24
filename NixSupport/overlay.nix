@@ -53,7 +53,6 @@ let
         in {
             ihp = localPackage "ihp";
             ihp-with-docs = localPackageWithHaddock "ihp";
-            ihp-context = localPackage "ihp-context";
             ihp-router = localPackage "ihp-router";
             ihp-pagehead = localPackage "ihp-pagehead";
             ihp-pglistener = localPackage "ihp-pglistener";

@@ -41,15 +41,15 @@ type HandleCustomMessageFn = (DataSyncResponse -> IO ()) -> DataSyncMessage -> I
 
 runDataSyncController ::
     ( HasField "id" CurrentUserRecord (Id' (GetTableName CurrentUserRecord))
-    , ?context :: ControllerContext
-    , ?modelContext :: ModelContext
     , ?request :: Request
+    , ?modelContext :: ModelContext
     , ?state :: IORef DataSyncController
     , Typeable CurrentUserRecord
     , HasNewSessionUrl CurrentUserRecord
     , Show (PrimaryKey (GetTableName CurrentUserRecord))
     ) => Hasql.Pool.Pool -> EnsureRLSEnabledFn -> InstallTableChangeTriggerFn -> IO ByteString -> SendJSONFn -> HandleCustomMessageFn -> (Text -> Renamer) -> IO ()
 runDataSyncController hasqlPool ensureRLSEnabled installTableChangeTriggers receiveData sendJSON handleCustomMessage renamer = do
+    let ?context = ?request
     setState DataSyncReady { subscriptions = HashMap.empty, transactions = HashMap.empty }
 
     columnTypeLookup <- makeCachedColumnTypeLookup hasqlPool
@@ -106,9 +106,9 @@ runDataSyncController hasqlPool ensureRLSEnabled installTableChangeTriggers rece
 
 buildMessageHandler ::
     ( HasField "id" CurrentUserRecord (Id' (GetTableName CurrentUserRecord))
-    , ?context :: ControllerContext
-    , ?modelContext :: ModelContext
+    , ?context :: Request
     , ?request :: Request
+    , ?modelContext :: ModelContext
     , ?state :: IORef DataSyncController
     , Typeable CurrentUserRecord
     , HasNewSessionUrl CurrentUserRecord
@@ -465,28 +465,30 @@ findTransactionById transactionId = do
 -- concurrent transactions. Then all database connections are removed from the connection pool and further database
 -- queries for other users will fail.
 --
-ensureBelowTransactionLimit :: (?state :: IORef DataSyncController, ?context :: ControllerContext) => IO ()
+ensureBelowTransactionLimit :: (?state :: IORef DataSyncController, ?request :: Request) => IO ()
 ensureBelowTransactionLimit = do
     transactions <- (.transactions) <$> readIORef ?state
     let transactionCount = HashMap.size transactions
     when (transactionCount >= maxTransactionsPerConnection) do
         Exception.throwIO (userError ("You've reached the transaction limit of " <> cs (tshow maxTransactionsPerConnection) <> " transactions"))
 
-ensureBelowSubscriptionsLimit :: (?state :: IORef DataSyncController, ?context :: ControllerContext) => IO ()
+ensureBelowSubscriptionsLimit :: (?state :: IORef DataSyncController, ?request :: Request) => IO ()
 ensureBelowSubscriptionsLimit = do
     subscriptions <- (.subscriptions) <$> readIORef ?state
     let subscriptionsCount = HashMap.size subscriptions
     when (subscriptionsCount >= maxSubscriptionsPerConnection) do
         Exception.throwIO (userError ("You've reached the subscriptions limit of " <> cs (tshow maxSubscriptionsPerConnection) <> " subscriptions"))
 
-maxTransactionsPerConnection :: (?context :: ControllerContext) => Int
+maxTransactionsPerConnection :: (?request :: Request) => Int
 maxTransactionsPerConnection =
-    case getAppConfig @DataSyncMaxTransactionsPerConnection of
+    let ?context = ?request
+    in case getAppConfig @DataSyncMaxTransactionsPerConnection of
         DataSyncMaxTransactionsPerConnection value -> value
 
-maxSubscriptionsPerConnection :: (?context :: ControllerContext) => Int
+maxSubscriptionsPerConnection :: (?request :: Request) => Int
 maxSubscriptionsPerConnection =
-    case getAppConfig @DataSyncMaxSubscriptionsPerConnection of
+    let ?context = ?request
+    in case getAppConfig @DataSyncMaxSubscriptionsPerConnection of
         DataSyncMaxSubscriptionsPerConnection value -> value
 
 -- | Encode a JSON patch (field name -> value) into a SQL SET clause 'Snippet' like @"col1" = $1, "col2" = $2@.
@@ -504,7 +506,7 @@ encodePatchToSetSql ren columnTypes patch =
     in mconcat $ List.intersperse (Snippet.sql ", ") setSnippets
 
 sqlQueryWithRLSAndTransactionId ::
-    ( ?context :: ControllerContext
+    ( ?context :: Request
     , ?request :: Request
     , Show (PrimaryKey (GetTableName CurrentUserRecord))
     , HasNewSessionUrl CurrentUserRecord
@@ -524,7 +526,7 @@ sqlQueryWithRLSAndTransactionId pool Nothing statement = runSession pool (sqlQue
 -- Use this for INSERT, UPDATE, or DELETE statements with RETURNING that need
 -- to return results (e.g. wrapped with 'wrapDynamicQuery').
 sqlQueryWriteWithRLSAndTransactionId ::
-    ( ?context :: ControllerContext
+    ( ?context :: Request
     , ?request :: Request
     , Show (PrimaryKey (GetTableName CurrentUserRecord))
     , HasNewSessionUrl CurrentUserRecord
@@ -540,7 +542,7 @@ sqlQueryWriteWithRLSAndTransactionId _pool (Just transactionId) statement = do
 sqlQueryWriteWithRLSAndTransactionId pool Nothing statement = runSession pool (sqlQueryWriteWithRLSSession statement)
 
 sqlExecWithRLSAndTransactionId ::
-    ( ?context :: ControllerContext
+    ( ?context :: Request
     , ?request :: Request
     , Show (PrimaryKey (GetTableName CurrentUserRecord))
     , HasNewSessionUrl CurrentUserRecord

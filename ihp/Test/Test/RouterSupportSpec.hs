@@ -14,7 +14,7 @@ import IHP.Environment
 import IHP.FrameworkConfig
 import IHP.RouterSupport hiding (get)
 import Data.Attoparsec.ByteString.Char8 (string, endOfInput)
-import IHP.ViewPrelude
+import IHP.ViewPrelude hiding (request)
 import IHP.ControllerPrelude hiding (get, request)
 import Network.Wai.Test
 import Network.HTTP.Types

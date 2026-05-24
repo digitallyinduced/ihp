@@ -22,7 +22,6 @@ module IHP.FileStorage.ControllerFunctions
 
 import IHP.Prelude
 import IHP.FileStorage.Types
-import IHP.Controller.Context
 import IHP.Controller.FileUpload
 import IHP.FrameworkConfig
 import qualified IHP.ModelSupport as ModelSupport
@@ -340,8 +339,7 @@ contentDispositionAttachmentAndFileName fileInfo =
 -- >                 redirectTo EditCompanyAction { .. }
 --
 uploadToStorageWithOptions :: forall (fieldName :: Symbol) record (tableName :: Symbol). (
-        ?context :: ControllerContext
-        , ?request :: Request
+        ?request :: Request
         , SetField fieldName record (Maybe Text)
         , KnownSymbol fieldName
         , HasField "id" record (ModelSupport.Id (ModelSupport.NormalizeModel record))
@@ -352,6 +350,7 @@ uploadToStorageWithOptions :: forall (fieldName :: Symbol) record (tableName :: 
         , SetField "meta" record MetaBag
     ) => StoreFileOptions -> Proxy fieldName -> record -> IO record
 uploadToStorageWithOptions options field record = do
+    let ?context = ?request
     let fieldName :: ByteString = cs (symbolVal (Proxy @fieldName))
     let tableName :: Text = cs (symbolVal (Proxy @tableName))
     let directory = tableName <> "/" <> cs fieldName
@@ -390,7 +389,7 @@ uploadToStorageWithOptions options field record = do
 -- >                 redirectTo EditCompanyAction { .. }
 --
 uploadToStorage :: forall (fieldName :: Symbol) record (tableName :: Symbol). (
-        ?context :: ControllerContext
+        ?request :: Request
         , ?request :: Request
         , SetField fieldName record (Maybe Text)
         , KnownSymbol fieldName
@@ -434,7 +433,9 @@ storage = ?context.frameworkConfig.appConfig
         |> fromMaybe (error "Could not find FileStorage in config. Did you call initS3Storage from your Config.hs?")
 
 -- | Returns the prefix for the storage. This is either @static/@ or an empty string depending on the storage.
-storagePrefix :: (?context :: ControllerContext) => Text
-storagePrefix = case storage of
-    StaticDirStorage { directory } -> directory
-    S3Storage { baseUrl} -> baseUrl
+storagePrefix :: (?request :: Request) => Text
+storagePrefix =
+    let ?context = ?request
+    in case storage of
+        StaticDirStorage { directory } -> directory
+        S3Storage { baseUrl} -> baseUrl

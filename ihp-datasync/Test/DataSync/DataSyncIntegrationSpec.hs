@@ -14,8 +14,7 @@ import IHP.DataSync.DynamicQuery (Field(..))
 import IHP.DataSync.DynamicQueryCompiler (camelCaseRenamer)
 import IHP.DataSync.RowLevelSecurity (makeCachedEnsureRLSEnabled)
 import qualified IHP.DataSync.ChangeNotifications as ChangeNotifications
-import IHP.RequestVault (pgListenerVaultKey, frameworkConfigVaultKey)
-import IHP.Controller.Context (newControllerContext, freeze)
+import IHP.RequestVault (pgListenerVaultKey, frameworkConfigVaultKey, loggerVaultKey)
 import IHP.LoginSupport.Types (HasNewSessionUrl(..), CurrentUserRecord, currentUserVaultKey)
 import qualified IHP.ModelSupport as ModelSupport
 import IHP.ModelSupport (noopLogger)
@@ -156,14 +155,9 @@ withDataSyncController connStr testUserId action = do
                         |> Vault.insert currentUserVaultKey testUser
                 let request = defaultRequest { vault = v }
 
-                -- Set up ControllerContext with the request and current user
+                -- Set up the request and current user
                 let ?request = request
-                context <- newControllerContext
-                let ?context = context
-
-                -- Freeze the context so it can be accessed from pure code
-                frozenContext <- freeze ?context
-                let ?context = frozenContext
+                let ?context = ?request
 
                 -- Create the DataSync state IORef
                 stateRef <- newIORef DataSyncController

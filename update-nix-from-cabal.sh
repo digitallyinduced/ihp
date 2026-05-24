@@ -31,7 +31,13 @@ hackage_packages=(
   "wai-session-clientsession-deferred 1.0.0"
   "postgresql-connection-string 0.1.0.6"
   "temporary-ospath 1.3"
-  "ihp-zip 0.1.0"
+  "ptr-poker 0.1.3"
+  "postgresql-simple-postgresql-types 0.1.1"
+  "postgresql-types-algebra 0.1"
+  "postgresql-types 0.1.2"
+  "hasql-mapping 0.1"
+  "hasql-postgresql-types 0.2"
+  "ihp-zip 0.1.1"
 )
 # Note: hasql/postgresql-binary/postgresql-types/hasql-mapping and friends
 # are pulled directly from nixpkgs via versioned attributes (hasql_1_10_3

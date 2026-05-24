@@ -233,9 +233,7 @@ The `DeleteSessionAction` expects a `HTTP DELETE` request, which is set by JavaS
 
 ## Making a dynamic Login/Logout button
 
-Depending on the `Maybe User` type in the [ControllerContext](https://ihp.digitallyinduced.com/api-docs/IHP-Controller-Context.html), by using [`fromFrozenContext`](https://ihp.digitallyinduced.com/api-docs/IHP-Controller-Context.html#v:fromFrozenContext) we can tell if no user is logged in when the `Maybe User` is `Nothing`, and confirm someone is logged in if the `Maybe User` is a `Just user`. Here is an example of a navbar, which has a dynamic Login/Logout button. You can define this in your View/Layout to reuse this in your Views.
-
-> The `@` syntax from [`fromFrozenContext @(Maybe User)`](https://ihp.digitallyinduced.com/api-docs/IHP-Controller-Context.html#v:fromFrozenContext) is just syntax sugar for `let maybeUser :: Maybe User = fromFrozenContext`
+Use [`currentUserOrNothing`](https://ihp.digitallyinduced.com/api-docs/IHP-LoginSupport-Helper-View.html#v:currentUserOrNothing) to check whether someone is logged in. It returns `Just user` when a user is authenticated and `Nothing` otherwise. Here is an example of a navbar with a dynamic Login/Logout button that you can place in your View/Layout to reuse across your views.
 
 ```haskell
 navbar :: Html
@@ -259,7 +257,7 @@ navbar = [hsx|
     where
         loginLogoutButton :: Html
         loginLogoutButton =
-            case fromFrozenContext @(Maybe User) of
+            case currentUserOrNothing of
                 Just user -> [hsx|<a class="js-delete js-delete-no-confirm text-secondary" href={DeleteSessionAction}>Logout</a>|]
                 Nothing -> [hsx|<a class="text-secondary" href={NewSessionAction}>Login</a>|]
 ```

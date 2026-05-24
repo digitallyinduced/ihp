@@ -57,7 +57,7 @@ ensureRLSEnabledSession table = do
 -- This is a Session-level action for use in user-managed transactions
 -- (e.g. after a manual @BEGIN@).
 setRLSConfigSession ::
-    ( ?context :: ControllerContext
+    ( ?context :: Request
     , ?request :: Request
     , Show (PrimaryKey (GetTableName CurrentUserRecord))
     , HasNewSessionUrl CurrentUserRecord
@@ -71,7 +71,7 @@ setRLSConfigSession = Session.statement (Role.authenticatedRole, encodedUserId) 
             Nothing -> ""
 
 sqlQueryWithRLSSession ::
-    ( ?context :: ControllerContext
+    ( ?context :: Request
     , ?request :: Request
     , Show (PrimaryKey (GetTableName CurrentUserRecord))
     , HasNewSessionUrl CurrentUserRecord
@@ -93,7 +93,7 @@ sqlQueryWithRLSSession statement =
 -- Use this for INSERT, UPDATE, or DELETE statements with RETURNING that need
 -- to return results (e.g. wrapped with 'wrapDynamicQuery').
 sqlQueryWriteWithRLSSession ::
-    ( ?context :: ControllerContext
+    ( ?context :: Request
     , ?request :: Request
     , Show (PrimaryKey (GetTableName CurrentUserRecord))
     , HasNewSessionUrl CurrentUserRecord
@@ -111,7 +111,7 @@ sqlQueryWriteWithRLSSession statement =
 {-# INLINE sqlQueryWriteWithRLSSession #-}
 
 sqlExecWithRLSSession ::
-    ( ?context :: ControllerContext
+    ( ?context :: Request
     , ?request :: Request
     , Show (PrimaryKey (GetTableName CurrentUserRecord))
     , HasNewSessionUrl CurrentUserRecord
@@ -129,7 +129,7 @@ sqlExecWithRLSSession statement =
 {-# INLINE sqlExecWithRLSSession #-}
 
 sqlQueryScalarWithRLSSession ::
-    ( ?context :: ControllerContext
+    ( ?context :: Request
     , ?request :: Request
     , Show (PrimaryKey (GetTableName CurrentUserRecord))
     , HasNewSessionUrl CurrentUserRecord
@@ -149,7 +149,7 @@ sqlQueryScalarWithRLSSession statement =
 -- IO API (thin wrappers)
 
 sqlQueryWithRLS ::
-    ( ?context :: ControllerContext
+    ( ?context :: Request
     , ?request :: Request
     , Show (PrimaryKey (GetTableName CurrentUserRecord))
     , HasNewSessionUrl CurrentUserRecord
@@ -164,7 +164,7 @@ sqlQueryWithRLS pool statement = runSession pool (sqlQueryWithRLSSession stateme
 -- Use this for INSERT, UPDATE, or DELETE statements with RETURNING that need
 -- to return results (e.g. wrapped with 'wrapDynamicQuery').
 sqlQueryWriteWithRLS ::
-    ( ?context :: ControllerContext
+    ( ?context :: Request
     , ?request :: Request
     , Show (PrimaryKey (GetTableName CurrentUserRecord))
     , HasNewSessionUrl CurrentUserRecord
@@ -175,7 +175,7 @@ sqlQueryWriteWithRLS pool statement = runSession pool (sqlQueryWriteWithRLSSessi
 {-# INLINE sqlQueryWriteWithRLS #-}
 
 sqlExecWithRLS ::
-    ( ?context :: ControllerContext
+    ( ?context :: Request
     , ?request :: Request
     , Show (PrimaryKey (GetTableName CurrentUserRecord))
     , HasNewSessionUrl CurrentUserRecord
@@ -186,7 +186,7 @@ sqlExecWithRLS pool statement = runSession pool (sqlExecWithRLSSession statement
 {-# INLINE sqlExecWithRLS #-}
 
 sqlQueryScalarWithRLS ::
-    ( ?context :: ControllerContext
+    ( ?context :: Request
     , ?request :: Request
     , Show (PrimaryKey (GetTableName CurrentUserRecord))
     , HasNewSessionUrl CurrentUserRecord
