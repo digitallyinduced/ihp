@@ -21,7 +21,10 @@ jobs:
     - uses: DeterminateSystems/nix-installer-action@main
       with:
         determinate: true
-        extra-conf: "lazy-trees = true"
+        extra-conf: |
+          lazy-trees = true
+          extra-substituters = https://cache.digitallyinduced.com/public
+          extra-trusted-public-keys = public:kR6JCoqAIMaO4s+EdDGh+jsHEHnoLq4ZLJPMCo0hcIQ=
       if: matrix.os != 'ARM64'
     - uses: DeterminateSystems/magic-nix-cache-action@main
       if: matrix.os != 'ARM64'
