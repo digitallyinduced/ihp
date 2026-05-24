@@ -694,6 +694,19 @@ To switch back to GHC 9.10, remove the overlay and run `direnv reload`.
 
 ### Binary Cache
 
-When installing IHP, the `ihp-new` tool will add the `digitallyinduced.cachix.org` binary cache to your nix system. This binary cache provides binaries for all IHP packages and commonly used dependencies for all nixpkgs versions used by IHP.
+IHP projects come with the digitally induced binary cache pre-configured in `flake.nix` (`nixConfig`). It provides prebuilt binaries for all IHP packages and commonly used dependencies for `x86_64-linux` and `aarch64-darwin`, so you don't have to compile them from source.
 
-When you are using packages that are not in the binary cache and thus are compiled from source code very often, we highly recommend setting up your own [cachix binary cache](https://cachix.org/) and use it next to the default `digitallyinduced.cachix.org` cache.
+To add it to an existing project, add the substituter and its public key to your `flake.nix`:
+
+```nix
+nixConfig = {
+    extra-substituters = [
+        "https://cache.digitallyinduced.com/public"
+    ];
+    extra-trusted-public-keys = [
+        "public:kR6JCoqAIMaO4s+EdDGh+jsHEHnoLq4ZLJPMCo0hcIQ="
+    ];
+};
+```
+
+When you are using packages that are not in the binary cache and thus are compiled from source code very often, we highly recommend setting up your own [cachix binary cache](https://cachix.org/) and using it next to the digitally induced cache.
