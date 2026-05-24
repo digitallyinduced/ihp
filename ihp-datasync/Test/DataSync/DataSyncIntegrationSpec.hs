@@ -14,7 +14,7 @@ import IHP.DataSync.DynamicQuery (Field(..))
 import IHP.DataSync.DynamicQueryCompiler (camelCaseRenamer)
 import IHP.DataSync.RowLevelSecurity (makeCachedEnsureRLSEnabled)
 import qualified IHP.DataSync.ChangeNotifications as ChangeNotifications
-import IHP.RequestVault (pgListenerVaultKey, frameworkConfigVaultKey, loggerVaultKey)
+import IHP.RequestVault (pgListenerVaultKey, frameworkConfigVaultKey)
 import IHP.LoginSupport.Types (HasNewSessionUrl(..), CurrentUserRecord, currentUserVaultKey)
 import qualified IHP.ModelSupport as ModelSupport
 import IHP.ModelSupport (noopLogger)

@@ -42,7 +42,7 @@ setState state = do
     case diffHtml oldHtml newHtml of
         Left parseError -> do
             let errorText = tshow parseError
-            ?context.logger (toLogStr ("SSC HTML diff failed: " <> errorText))
+            ?context.frameworkConfig.logger (toLogStr ("SSC HTML diff failed: " <> errorText))
             sendError (SSCDiffError { errorMessage = errorText })
         Right patches -> sendTextData (Aeson.encode patches)
 

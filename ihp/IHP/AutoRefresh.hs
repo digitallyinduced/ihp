@@ -131,7 +131,7 @@ instance WSApp AutoRefreshWSApp where
             AutoRefreshSession { renderView, event } <- getSessionById autoRefreshServer sessionId
 
             let handleOtherException :: SomeException -> IO ()
-                handleOtherException ex = ?context.logger (toLogStr ("AutoRefresh: Failed to re-render view: " <> tshow ex))
+                handleOtherException ex = ?context.frameworkConfig.logger (toLogStr ("AutoRefresh: Failed to re-render view: " <> tshow ex))
 
             async $ forever do
                 MVar.takeMVar event
