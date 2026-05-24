@@ -8,6 +8,7 @@ module IHP.TypedSql.ParamHints
     , extractNonNullableComputedColumnsFromAst
     , resolveParamHintTypes
     , detectStarSelects
+    , detectInsertWithoutColumns
     ) where
 
 import           Data.Foldable                (foldMap, toList)
@@ -719,3 +720,20 @@ starFromExpr = \case
   where
     isAllIndirection Ast.AllIndirectionEl = True
     isAllIndirection _ = False
+
+----------------------------------------------------------------------
+-- INSERT without explicit column list detection
+----------------------------------------------------------------------
+
+-- | Detect INSERT statements without an explicit column list.
+-- Returns descriptive strings (e.g. ["INSERT INTO foo"]) for use in error messages.
+-- Allows `INSERT INTO foo DEFAULT VALUES` since it has no positional column binding.
+detectInsertWithoutColumns :: Ast.PreparableStmt -> [String]
+detectInsertWithoutColumns = \case
+    Ast.InsertPreparableStmt (Ast.InsertStmt _with target rest _onConflict _ret) ->
+        case rest of
+            Ast.SelectInsertRest Nothing _override _selectStmt ->
+                let Ast.InsertTarget qname _alias = target
+                in ["INSERT INTO " <> Text.unpack (qualifiedNameToText qname)]
+            _ -> []
+    _ -> []

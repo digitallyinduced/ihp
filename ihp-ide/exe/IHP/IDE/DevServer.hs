@@ -19,14 +19,14 @@ import Data.String.Conversions (cs)
 import qualified IHP.Telemetry as Telemetry
 import qualified IHP.Version as Version
 
-import qualified IHP.Log.Types as Log
-import qualified IHP.Log as Log
-import Data.Default (def, Default (..))
+import System.Log.FastLogger (FastLogger, toLogStr, LogType'(..), withFastLogger, defaultBufSize)
 import qualified IHP.IDE.CodeGen.MigrationGenerator as MigrationGenerator
 import Main.Utf8 (withUtf8)
 import qualified IHP.FrameworkConfig as FrameworkConfig
 import qualified Control.Concurrent.Chan.Unagi as Queue
 import IHP.IDE.FileWatcher
+import qualified IHP.IDE.SplitMode as SplitMode
+import qualified IHP.IDE.WorkerSignal as WorkerSignal
 import qualified System.Environment as Env
 import qualified System.Directory.OsPath as Directory
 import qualified Control.Exception.Safe as Exception
@@ -90,17 +90,25 @@ mainWithOptions wrapWithDirenv = withUtf8 do
         -- ensuring seamless transitions during app restarts (no connection refused errors)
         appSocket <- createListeningSocket portConfig.appPort
 
-        bracket (Log.newLogger def) (\logger -> logger.cleanup) \logger -> do
+        withFastLogger (LogStdout defaultBufSize) \rawLogger -> do
+            let logger msg = rawLogger (msg <> "\n")
             (ghciInChan, ghciOutChan) <- Queue.newChan
             liveReloadClients <- newIORef mempty
             lastSchemaCompilerError <- newIORef Nothing
             let ?context = Context { portConfig, isDebugMode, logger, ghciInChan, ghciOutChan, wrapWithDirenv, liveReloadClients, lastSchemaCompilerError, appSocket }
 
             -- Print IHP Version when in debug mode
-            when isDebugMode (Log.debug ("IHP Version: " <> Version.ihpVersion))
+            when isDebugMode (logger (toLogStr ("IHP Version: " <> Version.ihpVersion)))
 
             ghciIsLoadingVar <- newIORef False
             reloadGhciVar :: MVar () <- newEmptyMVar
+
+            -- One-shot: if the project already has jobs at boot, write
+            -- build/RunJobs.hs so the worker process can load it. The file
+            -- watcher below re-checks on every change, so this also kicks in
+            -- when the user scaffolds their first job after `devenv up`.
+            initialHasJobs <- SplitMode.hasJobs
+            when initialHasJobs SplitMode.generateRunJobsModule
 
             withStatusServer ghciIsLoadingVar \startStatusServer stopStatusServer statusServerStandardOutput statusServerErrorOutput statusServerClients -> do
                 -- Compile Schema before loading the app
@@ -150,10 +158,29 @@ fileWatcherParams liveReloadClients databaseNeedsMigration reloadGhciVar startSt
             -- Use tryPutMVar to avoid blocking if a reload is already pending.
             -- This handles the case where multiple file changes happen in quick succession.
             void $ tryPutMVar reloadGhciVar ()
+            signalWorker
         , onSchemaChanged = do
             concurrently_ (tryCompileSchema reloadGhciVar startStatusServer) (updateDatabaseIsOutdated databaseNeedsMigration)
+            -- Schema regeneration touches build/Generated/Types.hs which the worker
+            -- depends on; tell it to reload too.
+            signalWorker
         , onAssetChanged = notifyAssetChange liveReloadClients
         }
+  where
+    -- Fire and forget — sendReload handles its own retry/backoff. We don't want
+    -- the file watcher to block on a slow worker.
+    --
+    -- We re-check 'hasJobs' on every signal (rather than caching at boot) so
+    -- that scaffolding the first job after `devenv up` correctly activates
+    -- the worker process. The check is a small recursive scan and runs off
+    -- the watcher thread.
+    signalWorker = void $ Concurrent.forkIO $ Exception.handleAny
+        (\_ -> pure ())
+        do
+            currentHasJobs <- SplitMode.hasJobs
+            when currentHasJobs do
+                SplitMode.generateRunJobsModule
+                WorkerSignal.sendReload SplitMode.workerSocketPath
 
 ghciArguments :: [String]
 ghciArguments =
@@ -396,7 +423,7 @@ updateDatabaseIsOutdated databaseNeedsMigrationRef = do
             writeIORef databaseNeedsMigrationRef databaseNeedsMigration
 
     case result of
-        Left exception -> Log.error (tshow exception)
+        Left exception -> ?context.logger (toLogStr (tshow exception))
         Right _ -> pure ()
 
 tryCompileSchema :: (?context :: Context) => MVar () -> MVar () -> IO ()
@@ -405,7 +432,7 @@ tryCompileSchema reloadGhciVar startStatusServer = do
 
     case result of
         Left exception -> do
-            Log.error (tshow exception)
+            ?context.logger (toLogStr (tshow exception))
             receiveAppOutput (ErrorOutput (cs $ displayException exception))
 
             writeIORef ?context.lastSchemaCompilerError (Just exception)

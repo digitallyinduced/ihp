@@ -13,7 +13,6 @@ module IHP.FrameworkConfig
 , RootApplication (..)
 , defaultPort
 , defaultDatabaseUrl
-, defaultLoggerForEnv
 , isEnvironment
 , isDevelopment
 , isProduction
@@ -36,13 +35,14 @@ import qualified Data.TMap as TMap
 import qualified Data.Typeable as Typeable
 import IHP.View.Types
 import IHP.View.CSSFramework.Bootstrap (bootstrap)
-import IHP.Log.Types
-import IHP.Log (makeRequestLogger, defaultRequestLogger)
+import System.Log.FastLogger (FastLogger, LogType'(..), withFastLogger, defaultBufSize)
 import qualified Network.Wai.Handler.Warp as Warp
 import qualified Network.Wai.Middleware.Cors as Cors
 import qualified Network.Wai.Parse as WaiParse
-import qualified Control.Exception as Exception
+import Network.Wai (Request)
 import IHP.EnvVar
+import IHP.LoginSupport.Types (currentUserIdVaultKey, lookupAuthVault)
+import qualified Data.UUID as UUID
 
 import qualified Prelude
 import qualified GHC.Stack as Stack
@@ -77,8 +77,8 @@ addInitializer onStartup = do
             |> TMap.insert newInitializers
         )
 
-ihpDefaultConfig :: ConfigBuilder
-ihpDefaultConfig = do
+ihpDefaultConfig :: FastLogger -> ConfigBuilder
+ihpDefaultConfig logger = do
     ihpEnv <- envOrDefault "IHP_ENV" Development
     option ihpEnv
 
@@ -91,19 +91,21 @@ ihpDefaultConfig = do
 
     environment <- findOption @Environment
 
-    defaultLogger <- configIO (defaultLoggerForEnv environment)
-    option defaultLogger
-    logger <- findOption @Logger
-
     requestLoggerIpAddrSource <- envOrDefault "IHP_REQUEST_LOGGER_IP_ADDR_SOURCE" RequestLogger.FromSocket
 
     reqLoggerMiddleware <- configIO $
             case environment of
                 Development -> do
-                                    reqLogger <- (logger |> defaultRequestLogger)
+                                    reqLogger <- RequestLogger.mkRequestLogger def { RequestLogger.destination = RequestLogger.Callback logger }
                                     pure (RequestLoggerMiddleware reqLogger)
                 Production  ->  do
-                                    reqLogger <- (logger |> makeRequestLogger def { RequestLogger.outputFormat = RequestLogger.Apache requestLoggerIpAddrSource })
+                                    let apacheSettings = RequestLogger.defaultApacheSettings
+                                            |> RequestLogger.setApacheIPAddrSource requestLoggerIpAddrSource
+                                            |> RequestLogger.setApacheUserGetter defaultApacheUserGetter
+                                    reqLogger <- RequestLogger.mkRequestLogger def
+                                            { RequestLogger.outputFormat = RequestLogger.ApacheWithSettings apacheSettings
+                                            , RequestLogger.destination = RequestLogger.Callback logger
+                                            }
                                     pure (RequestLoggerMiddleware reqLogger)
 
 
@@ -170,8 +172,9 @@ findOptionOrNothing = do
         |> pure
 {-# INLINABLE findOptionOrNothing #-}
 
-buildFrameworkConfig :: ConfigBuilder -> IO FrameworkConfig
-buildFrameworkConfig appConfig = do
+buildFrameworkConfig :: FastLogger -> ConfigBuilder -> IO FrameworkConfig
+buildFrameworkConfig rawLogger appConfig = do
+    let logger msg = rawLogger (msg <> "\n")
     let resolve = do
             (AppHostname appHostname) <- findOption @AppHostname
             environment <- findOption @Environment
@@ -181,14 +184,13 @@ buildFrameworkConfig appConfig = do
             (SessionCookie sessionCookie) <- findOption @SessionCookie
             (DatabaseUrl databaseUrl) <- findOption @DatabaseUrl
             cssFramework <- findOption @CSSFramework
-            logger <- findOption @Logger
             exceptionTracker <- findOption @ExceptionTracker
             corsResourcePolicy <- findOptionOrNothing @Cors.CorsResourcePolicy
             parseRequestBodyOptions <- findOption @WaiParse.ParseRequestBodyOptions
             (IdeBaseUrl ideBaseUrl) <- findOption @IdeBaseUrl
             (RLSAuthenticatedRole rlsAuthenticatedRole) <- findOption @RLSAuthenticatedRole
             customMiddleware <- findOption @CustomMiddleware
-            authMiddleware <- findOption @AuthMiddleware
+            authenticationMiddleware <- findOption @AuthMiddleware
             initializers <- fromMaybe [] <$> findOptionOrNothing @[Initializer]
 
             appConfig <- State.get
@@ -196,7 +198,7 @@ buildFrameworkConfig appConfig = do
 
             pure FrameworkConfig { .. }
 
-    (frameworkConfig, _) <- State.runStateT (appConfig >> ihpDefaultConfig >> resolve) TMap.empty
+    (frameworkConfig, _) <- State.runStateT (appConfig >> ihpDefaultConfig rawLogger >> resolve) TMap.empty
 
     pure frameworkConfig
 {-# INLINABLE buildFrameworkConfig #-}
@@ -222,12 +224,6 @@ defaultDatabaseUrl = do
     currentDirectory <- decodeUtf currentDirectoryOsPath
     let defaultDatabaseUrl = "postgresql:///app?host=" <> cs currentDirectory <> "/build/db"
     envOrDefault "DATABASE_URL" defaultDatabaseUrl
-
-defaultLoggerForEnv :: HasCallStack => Environment -> IO Logger
-defaultLoggerForEnv = \case
-    Development -> defaultLogger
-    Production -> newLogger def { level = Info }
-
 
 -- Returns 'True' when the application is running in a given environment
 isEnvironment :: (?context :: context, ConfigProvider context) => Environment -> Bool
@@ -268,7 +264,10 @@ defaultCorsResourcePolicy = Nothing
 -- >     -- Do something with the FrameworkConfig here
 --
 withFrameworkConfig :: ConfigBuilder -> (FrameworkConfig -> IO result) -> IO result
-withFrameworkConfig configBuilder = Exception.bracket (buildFrameworkConfig configBuilder) (\frameworkConfig -> frameworkConfig.logger.cleanup)
+withFrameworkConfig configBuilder callback =
+    withFastLogger (LogStdout defaultBufSize) \rawLogger -> do
+        frameworkConfig <- buildFrameworkConfig rawLogger configBuilder
+        callback frameworkConfig
 
 -- | Wraps an Exception thrown during the config process, but adds a CallStack
 --
@@ -293,3 +292,12 @@ configIO :: (MonadIO monad, HasCallStack) => IO result -> monad result
 configIO action = liftIO (action `catch` wrapWithCallStack)
     where
         wrapWithCallStack exception = throwIO (ExceptionWithCallStack Stack.callStack exception)
+
+-- | Default 'setApacheUserGetter' for the production request logger.
+--
+-- Emits the logged-in user's UUID as the Apache @%u@ field, so request logs
+-- attribute traffic to a user id. Returns 'Nothing' for anonymous requests,
+-- which wai-extra renders as @-@.
+defaultApacheUserGetter :: Request -> Maybe ByteString
+defaultApacheUserGetter request =
+    UUID.toASCIIBytes <$> lookupAuthVault currentUserIdVaultKey request

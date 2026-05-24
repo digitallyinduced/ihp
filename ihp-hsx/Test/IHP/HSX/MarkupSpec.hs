@@ -6,6 +6,8 @@ module IHP.HSX.MarkupSpec where
 
 import Test.Hspec
 import Prelude
+import Data.Text (Text)
+import Data.String.Conversions (cs)
 import IHP.HSX.Markup
 
 tests :: SpecWith ()
@@ -29,3 +31,17 @@ tests = do
 
             it "should return False for concatenation with non-empty value" do
                 isEmpty (mempty <> escapeHtml "x") `shouldBe` False
+
+        describe "ConvertibleStrings" do
+            it "converts Text to Html via cs" do
+                renderMarkupText (cs ("hello" :: Text) :: Html) `shouldBe` "hello"
+
+            it "HTML-escapes Text when converted via cs" do
+                renderMarkupText (cs ("<script>alert(1)</script>" :: Text) :: Html)
+                    `shouldBe` "&lt;script&gt;alert(1)&lt;/script&gt;"
+
+            it "converts String to Html via cs" do
+                renderMarkupText (cs ("hello" :: String) :: Html) `shouldBe` "hello"
+
+            it "HTML-escapes String when converted via cs" do
+                renderMarkupText (cs ("a & b" :: String) :: Html) `shouldBe` "a &amp; b"

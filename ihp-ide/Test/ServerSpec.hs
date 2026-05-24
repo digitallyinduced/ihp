@@ -1,4 +1,4 @@
-module Test.ServerSpec where
+module ServerSpec where
 
 import IHP.Prelude
 import Test.Hspec

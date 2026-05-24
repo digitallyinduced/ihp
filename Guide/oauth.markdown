@@ -394,7 +394,7 @@ import IHP.ViewPrelude
 import IHP.OAuth.Github.Types  -- <---- ADD THIS
 ```
 
-This ensures that we can write [`pathTo NewSessionWithGithubAction`](https://ihp.digitallyinduced.com/api-docs/IHP-ViewPrelude.html#v:pathTo) and similar calls without always manually needing to add import statements.
+This ensures that we can write [`pathTo NewSessionWithGithubAction`](https://ihp.digitallyinduced.com/api-docs/IHP-RouterSupport.html#v:pathTo) and similar calls without always manually needing to add import statements.
 
 
 ### Config

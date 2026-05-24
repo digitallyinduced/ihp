@@ -53,8 +53,8 @@ let
         in {
             ihp = localPackage "ihp";
             ihp-with-docs = localPackageWithHaddock "ihp";
+            ihp-router = localPackage "ihp-router";
             ihp-pagehead = localPackage "ihp-pagehead";
-            ihp-log = localPackage "ihp-log";
             ihp-pglistener = localPackage "ihp-pglistener";
             ihp-modal = localPackage "ihp-modal";
             ihp-ide = localPackage "ihp-ide";
@@ -87,30 +87,40 @@ let
             wai-session-maybe = hackagePackage "wai-session-maybe";
             wai-session-clientsession-deferred = hackagePackage "wai-session-clientsession-deferred";
 
-            # Can be removed after v0.3.2 is on hackage
-            # https://github.com/tippenein/countable-inflections/pull/6
-            countable-inflections = final.haskell.lib.overrideSrc super.countable-inflections {
-                version = "0.3.2";
-                src = final.fetchFromGitHub {
-                    owner = "tippenein";
-                    repo = "countable-inflections";
-                    rev = "9cae03513ad76783c226509f5c00dfe7989893e8";
-                    hash = "sha256-Pd9wQgEtc3e39c0iJR347kdawbyShDEtQqEzrIEu0eQ=";
-                };
-            };
+            # HsOpenSSL 0.11.7.10 fails to compile against openssl 3.6.1 on Linux
+            # because the C compiler escalates `-Wpointer-sign` to an error (the
+            # OpenSSL 3.6.1 headers tightened up `char*` vs `unsigned char*`).
+            # nixpkgs already passes `-Wno-error=incompatible-pointer-types`; we
+            # extend that with `-Wno-error=pointer-sign` until upstream HsOpenSSL
+            # / nixpkgs covers it.
+            HsOpenSSL = final.haskell.lib.appendConfigureFlags super.HsOpenSSL [
+                "--ghc-option=-optc=-Wno-error=pointer-sign"
+            ];
 
-            # Hasql 1.10 ecosystem upgrade for postgresql-types binary encoding support.
-            # Pre-generated nix files in NixSupport/hackage/ to avoid IFD.
-            # dontCheck on postgresql/hasql packages: their tests require a running PostgreSQL server.
-            postgresql-binary = final.haskell.lib.dontCheck (hackagePackage "postgresql-binary");
+            # countable-inflections: nixpkgs at the pinned rev already ships
+            # 0.3.2 (in the cached haskellPackages.ihp closure), so we drop the
+            # previous git-src override and consume `super.countable-inflections`
+            # verbatim for a cache hit. Restore the override only if a reverted
+            # nixpkgs pin no longer carries 0.3.2.
+
+            # Hasql 1.10 ecosystem.
+            #
+            # These attrs mirror the upstream `ihpHasqlScope` from
+            # NixOS/nixpkgs#519795 (configuration-common.nix) so that
+            # derivations are bit-identical to nixpkgs' Hydra-built
+            # `haskellPackages.ihp` closure and resolve straight from
+            # cache.nixos.org. Keep in sync with configuration-common.nix.
             postgresql-connection-string = hackagePackage "postgresql-connection-string";
 
-            hasql = final.haskell.lib.dontCheck (final.haskell.lib.doJailbreak (hackagePackage "hasql"));
-            hasql-pool = final.haskell.lib.dontCheck (hackagePackage "hasql-pool");
-            hasql-dynamic-statements = final.haskell.lib.dontCheck (hackagePackage "hasql-dynamic-statements");
-            hasql-implicits = hackagePackage "hasql-implicits";
-            hasql-transaction = final.haskell.lib.dontCheck (hackagePackage "hasql-transaction");
-            hasql-notifications = final.haskell.lib.dontCheck (hackagePackage "hasql-notifications");
+            hasql                    = super.hasql_1_10_3;
+            hasql-pool               = super.hasql-pool_1_4_2;
+            hasql-dynamic-statements = super.hasql-dynamic-statements_0_5_1;
+            hasql-transaction        = super.hasql-transaction_1_2_2;
+            hasql-notifications      = super.hasql-notifications_0_2_5_0;
+            postgresql-binary        = super.postgresql-binary_0_15_0_1;
+            # text-builder 1.0.0.5 is needed by postgresql-simple-postgresql-types
+            text-builder             = super.text-builder_1_0_0_5;
+
             # hasql-interpolate: upstream 1.0.1.0 requires hasql <1.10; use fork with hasql 1.10 support
             # https://github.com/awkward-squad/hasql-interpolate/pull/27
             # Uses overrideCabal instead of callCabal2nix to avoid IFD and Hackage cabal revision fetch failures
@@ -126,19 +136,12 @@ let
             # Fork of temporary using OsPath instead of FilePath
             temporary-ospath = hackagePackage "temporary-ospath";
 
-            # postgresql-types for proper binary encoders of Point, Polygon, Inet, Interval
-            ptr-poker = hackagePackage "ptr-poker";
-            # postgresql-simple-postgresql-types: bridge providing FromField/ToField instances
-            # for all postgresql-types types (Point, Polygon, Inet, Interval, etc.) in postgresql-simple
-            postgresql-simple-postgresql-types = final.haskell.lib.dontCheck (final.haskell.lib.doJailbreak (hackagePackage "postgresql-simple-postgresql-types"));
-            # ptr-peeker is marked broken in nixpkgs but is needed by postgresql-types
-            # https://github.com/nikita-volkov/ptr-peeker/issues/10
-            ptr-peeker = final.haskell.lib.dontCheck (final.haskell.lib.markUnbroken super.ptr-peeker);
-            postgresql-types-algebra = final.haskell.lib.doJailbreak (hackagePackage "postgresql-types-algebra");
-            # dontCheck: tests require a running PostgreSQL server
-            postgresql-types = final.haskell.lib.dontCheck (final.haskell.lib.doJailbreak (hackagePackage "postgresql-types"));
-            hasql-mapping = final.haskell.lib.doJailbreak (hackagePackage "hasql-mapping");
-            hasql-postgresql-types = final.haskell.lib.dontHaddock (final.haskell.lib.doJailbreak (hackagePackage "hasql-postgresql-types"));
+            # postgresql-simple-postgresql-types and hasql-mapping are marked
+            # broken in nixpkgs; unmark them to mirror upstream ihpHasqlScope's
+            # `unmarkBroken` (configuration-nix.nix applies dontCheck for
+            # postgresql-simple-postgresql-types).
+            postgresql-simple-postgresql-types = final.haskell.lib.markUnbroken super.postgresql-simple-postgresql-types;
+            hasql-mapping = final.haskell.lib.markUnbroken super.hasql-mapping;
         };
 in
 final: prev: {
@@ -176,6 +179,12 @@ final: prev: {
                     say = final.haskell.lib.dontCheck super.say;
                     text-icu = final.haskell.lib.dontCheck super.text-icu;
                     cryptonite = final.haskell.lib.dontCheck super.cryptonite;
+
+                    # Jailbreak packages with tight base/containers bounds for GHC 9.14
+                    lucid2 = final.haskell.lib.doJailbreak super.lucid2;
+                    rebase = final.haskell.lib.doJailbreak super.rebase;
+                    rerebase = final.haskell.lib.doJailbreak super.rerebase;
+                    string-interpolate = final.haskell.lib.doJailbreak super.string-interpolate;
                 })
             ];
         }

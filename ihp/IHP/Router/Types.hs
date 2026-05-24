@@ -12,16 +12,23 @@ import Network.HTTP.Types.Method
 import qualified Data.HashMap.Strict as HashMap
 import Data.Attoparsec.ByteString.Char8 (Parser)
 import Network.Wai (Application)
+import IHP.Router.Trie (RouteTrie)
 
--- | A controller route entry — either a pre-built HashMap for O(1) dispatch,
--- or a custom Attoparsec parser for dynamic URL patterns.
+-- | A controller route entry. Three flavours:
 --
--- 'ControllerRouteMap' carries both an auto-route HashMap and a fallback parser
--- for custom routes. 'ControllerRouteParser' wraps standalone parsers like 'get', 'post',
--- 'webSocketApp', 'startPage', etc.
+-- * 'ControllerRouteMap' — the legacy 'AutoRoute' path: a pre-built HashMap
+--   of full paths to handlers, plus a custom-routes fallback 'Parser'.
+-- * 'ControllerRouteParser' — standalone custom 'Parser' (for helpers like
+--   'IHP.RouterSupport.get', 'IHP.RouterSupport.post', 'IHP.RouterSupport.webSocketApp',
+--   'IHP.RouterSupport.startPage', etc.).
+-- * 'ControllerRouteTrie' — the new explicit-routes path: a pre-built trie
+--   fragment carrying method-aware, capture-aware route entries. Used by
+--   the @routes@ quasi-quoter.
 --
--- 'frontControllerToWAIApp' scans all 'ControllerRouteMap' HashMaps directly (no Attoparsec)
--- for O(1) dispatch, and only falls back to Attoparsec for custom/dynamic route parsers.
+-- 'IHP.RouterSupport.frontControllerToWAIApp' first merges all 'ControllerRouteTrie'
+-- fragments into a single 'RouteTrie' and tries a fast, method-aware lookup against
+-- it. On no match it falls back to the legacy 'ControllerRouteMap' HashMap scan
+-- and, finally, to Attoparsec for the remaining custom parsers.
 data ControllerRoute application
     = ControllerRouteMap
         !(HashMap.HashMap ByteString (application -> Application))
@@ -29,6 +36,9 @@ data ControllerRoute application
         -- ^ Auto-route HashMap + custom routes fallback parser (lazy — only evaluated on HashMap miss)
     | ControllerRouteParser !(Parser Application)
         -- ^ Custom route parser (for get, post, webSocketApp, startPage, etc.)
+    | ControllerRouteTrie !RouteTrie
+        -- ^ Pre-built trie fragment from the @routes@ DSL. Method-aware; merged
+        -- into the app-wide trie at startup.
 
 data TypedAutoRouteError
     = BadType
@@ -58,4 +68,13 @@ data UnexpectedMethodException
     { allowedMethods :: [StdMethod]
     , method :: StdMethod
     }
+    deriving (Show, Exception)
+
+-- | Thrown when the request uses an HTTP method that isn't part of the
+-- standard set (GET, POST, PUT, DELETE, HEAD, OPTIONS, PATCH, CONNECT, TRACE).
+--
+-- For example, a @PROPFIND@ request from a WebDAV scanner. The error handler
+-- middleware translates this into a @400 Bad Request@ response.
+newtype BadHttpMethodException
+    = BadHttpMethodException { method :: ByteString }
     deriving (Show, Exception)

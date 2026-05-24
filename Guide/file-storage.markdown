@@ -226,7 +226,7 @@ buildCompany company = company
 
 The call to [`uploadToStorage #logoUrl`](https://ihp.digitallyinduced.com/api-docs/IHP-FileStorage-ControllerFunctions.html#v:uploadToStorage) will upload the file provided by the user. It will be saved as `companies/<some uuid>` on the configured storage. The the file url will be written to the `logoUrl` attribute.
 
-After calling [`uploadToStorage`](https://ihp.digitallyinduced.com/api-docs/IHP-FileStorage-ControllerFunctions.html#v:uploadToStorage) inside a action, you typically need to use [`>>=`](https://ihp.digitallyinduced.com/api-docs/IHP-Prelude.html#v:-62--62--61-) instead of [`|>`](https://ihp.digitallyinduced.com/api-docs/IHP-HaskellSupport.html#v:-124--62-):
+After calling [`uploadToStorage`](https://ihp.digitallyinduced.com/api-docs/IHP-FileStorage-ControllerFunctions.html#v:uploadToStorage) inside a action, you typically need to use `>>=` instead of [`|>`](https://ihp.digitallyinduced.com/api-docs/IHP-HaskellSupport.html#v:-124--62-):
 
 ```haskell
 -- Bad, will cause a type error:

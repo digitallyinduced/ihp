@@ -4,10 +4,8 @@ import IHP.Prelude
 import Test.Hspec
 import IHP.Pagination.ControllerFunctions
 import IHP.Pagination.Types (Options(..), Pagination(..))
-import IHP.ModelSupport (createModelContext, releaseModelContext, HasqlError(..))
+import IHP.ModelSupport (createModelContext, releaseModelContext, HasqlError(..), noopLogger)
 import qualified Hasql.Pool as HasqlPool
-import qualified IHP.Log as Log
-import IHP.Log.Types (LogLevel(..), LoggerSettings(..))
 import Wai.Request.Params.Middleware (RequestBody (..), requestBodyVaultKey)
 import qualified Data.Vault.Lazy as Vault
 import qualified Network.Wai as Wai
@@ -147,7 +145,7 @@ withDB :: (ModelContext -> IO ()) -> IO ()
 withDB action = do
     envUrl <- lookupEnv "DATABASE_URL"
     let databaseUrl = maybe "postgresql:///postgres" cs envUrl
-    logger <- Log.newLogger def { level = Warn }
+    let logger = noopLogger
     modelContext <- createModelContext databaseUrl logger
     result <- Exception.try (action modelContext `Exception.finally` releaseModelContext modelContext)
     case result of

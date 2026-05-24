@@ -44,7 +44,7 @@ import qualified Network.Wai.Parse as WaiParse
 import Network.Wai (Middleware, Request)
 import IHP.Environment (Environment)
 import IHP.View.Types (CSSFramework)
-import IHP.Log.Types (Logger)
+import System.Log.FastLogger (FastLogger)
 import IHP.ModelSupport.Types (ModelContext)
 
 newtype AppHostname = AppHostname Text
@@ -104,7 +104,7 @@ newtype CustomMiddleware = CustomMiddleware Middleware
 -- >
 -- > config :: ConfigBuilder
 -- > config = do
--- >     option $ AuthMiddleware authMiddleware
+-- >     option $ AuthMiddleware (authMiddleware @User)
 --
 newtype AuthMiddleware = AuthMiddleware Middleware
 
@@ -149,7 +149,7 @@ data FrameworkConfig = FrameworkConfig
     --
     -- Override this if you use a CSS framework that is not bootstrap
     , cssFramework :: !CSSFramework
-    , logger :: !Logger
+    , logger :: !FastLogger
     , exceptionTracker :: !ExceptionTracker
 
     -- | Custom 'option's from @Config.hs@ are stored here
@@ -172,7 +172,7 @@ data FrameworkConfig = FrameworkConfig
 
     -- | Authentication middleware that populates the request vault with the
     -- current user/admin. Runs after session and model context middlewares.
-    , authMiddleware :: !AuthMiddleware
+    , authenticationMiddleware :: !AuthMiddleware
     , initializers :: ![Initializer]
     }
 

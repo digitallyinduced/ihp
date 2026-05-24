@@ -15,9 +15,12 @@ import Network.Wai
 import Network.HTTP.Types
 import IHP.AutoRefresh (globalAutoRefreshServerVar, sessionResponseHasChanged, updateSession)
 import IHP.AutoRefresh.Types
+import IHP.AutoRefresh.View (autoRefreshMeta)
 import qualified Control.Concurrent.MVar as MVar
+import qualified Data.ByteString as BS
+import qualified Data.ByteString.Lazy as LBS
 import qualified IHP.PGListener as PGListener
-import IHP.Log.Types (Logger(..), LogLevel(..))
+import System.Log.FastLogger (FastLogger)
 import IHP.Server (initMiddlewareStack)
 import Network.Wai.Test (runSession, request, SResponse(..), simpleBody)
 import IHP.Test.Mocking
@@ -28,12 +31,17 @@ data WebApplication = WebApplication deriving (Eq, Show, Data)
 
 data TestController
     = ShowItemAction
+    | ShowItemHtmlAction
   deriving (Eq, Show, Data)
 
 instance Controller TestController where
     action ShowItemAction = autoRefresh do
         let marketId = param @Text "marketId"
         renderPlain (cs marketId)
+    action ShowItemHtmlAction = autoRefresh do
+        let marketId = param @Text "marketId"
+        let meta = autoRefreshMeta
+        respondHtml [hsx|<html><head>{meta}</head><body>{marketId}</body></html>|]
 
 instance AutoRoute TestController
 
@@ -80,18 +88,23 @@ callActionWithQueryParams pgListener controller queryParams = do
     middlewareStack <- initMiddlewareStack frameworkConfig modelContext (Just pgListener)
     runSession (request baseRequest) (middlewareStack controllerApp)
 
-testLogger :: Logger
-testLogger = Logger
-    { write = \_ -> pure ()
-    , level = Debug
-    , formatter = \_ _ msg -> msg
-    , timeCache = pure ""
-    , cleanup = pure ()
-    }
+testLogger :: FastLogger
+testLogger = noopLogger
 
 tests :: Spec
 tests = beforeAll (mockContextNoDatabase WebApplication config) do
     describe "AutoRefresh" do
+        describe "autoRefreshMeta" do
+            it "renders the ihp-auto-refresh-id meta tag on the initial response" $ withContext do
+                MVar.modifyMVar_ globalAutoRefreshServerVar (\_ -> pure Nothing)
+
+                PGListener.withPGListener "" testLogger \pgListener -> do
+                    response <- callActionWithQueryParams pgListener ShowItemHtmlAction [("marketId", "abc-123")]
+                    let bodyBs = LBS.toStrict (simpleBody response)
+                    BS.isInfixOf "ihp-auto-refresh-id" bodyBs `shouldBe` True
+
+                    MVar.modifyMVar_ globalAutoRefreshServerVar (\_ -> pure Nothing)
+
         describe "renderView" do
             it "should preserve query parameters when re-rendering with a websocket request" $ withContext do
                 -- Clean up any leftover global state from previous tests

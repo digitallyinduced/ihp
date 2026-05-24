@@ -4,14 +4,15 @@ import qualified Control.Exception                 as Exception
 import qualified Data.Set                          as Set
 import qualified Data.Text                         as Text
 import qualified Data.Text.IO                      as Text
-import           IHP.Log.Types
 import           IHP.ModelSupport                  (createModelContext,
                                                     releaseModelContext,
-                                                    sqlExecDiscardResult)
+                                                    noopLogger,
+                                                    unsafeSqlExecDiscardResult)
 import           IHP.Prelude
 import           IHP.TypedSql.ParamHints           (parseSql, extractJoinNullableTables,
                                                     extractNonNullableComputedColumnsFromAst,
-                                                    detectStarSelects)
+                                                    detectStarSelects,
+                                                    detectInsertWithoutColumns)
 import           System.Directory                  (doesFileExist,
                                                     getCurrentDirectory)
 import           System.Environment                (getEnvironment, lookupEnv)
@@ -73,6 +74,11 @@ tests = do
                 "[typedSql| SELECT typed_sql_test_items.* FROM typed_sql_test_items LIMIT 1 |]")
             ["is not allowed"]
 
+        compileFailTest "fails when INSERT VALUES has no explicit column list"
+            (mkTestModule "TypedQuery Text"
+                "[typedSql| INSERT INTO typed_sql_test_items VALUES ('00000000-0000-0000-0000-000000000099'::uuid, '00000000-0000-0000-0000-000000000001'::uuid, 'X', 1, 1.0, ARRAY['x']::text[]) RETURNING name |]")
+            ["explicit column list"]
+
         compileFailTest "fails when SQL references an unknown column"
             (mkTestModule "TypedQuery Text"
                 "[typedSql| SELECT no_such_column FROM typed_sql_test_items LIMIT 1 |]")
@@ -108,8 +114,8 @@ tests = do
                 "[typedSql| SELECT author_id IS NULL FROM typed_sql_test_items LIMIT 1 |]")
             []
 
-        compileFailTest "fails when COUNT(*) result is annotated as Maybe Integer"
-            (mkTestModule "TypedQuery (Maybe Integer)"
+        compileFailTest "fails when COUNT(*) result is annotated as Maybe Int64"
+            (mkTestModule "TypedQuery (Maybe Int64)"
                 "[typedSql| SELECT COUNT(*) FROM typed_sql_test_items |]")
             []
 
@@ -158,13 +164,13 @@ tests = do
                 "[typedSql| SELECT name FROM typed_sql_test_items WHERE views > 6 UNION ALL SELECT name FROM typed_sql_test_items WHERE views < 6 |]")
             []
 
-        compileFailTest "fails when window function result is annotated as Maybe Integer"
-            (mkTestModule "TypedQuery (Maybe Integer)"
+        compileFailTest "fails when window function result is annotated as Maybe Int64"
+            (mkTestModule "TypedQuery (Maybe Int64)"
                 "[typedSql| SELECT row_number() OVER (ORDER BY name) FROM typed_sql_test_items LIMIT 1 |]")
             []
 
         compileFailTest "fails when grouped COUNT(*) result is annotated as a tuple"
-            (mkTestModule "TypedQuery (Text, Maybe Integer)"
+            (mkTestModule "TypedQuery (Text, Maybe Int64)"
                 "[typedSql| SELECT name, COUNT(*) FROM typed_sql_test_items GROUP BY name ORDER BY name LIMIT 1 |]")
             []
 
@@ -177,6 +183,11 @@ tests = do
             (mkTestModule "TypedQuery Text"
                 "[typedSql| SELECT NULLIF(name, 'First') FROM typed_sql_test_items LIMIT 1 |]")
             []
+
+        compileFailTest "explains polymorphic-argument inference failure with placeholder context"
+            (mkTestModule "TypedQuery Text"
+                "let chunk = (\"x\" :: Text) in [typedSql| SELECT CONCAT(name, ${chunk}) FROM typed_sql_test_items LIMIT 1 |]")
+            ["could not determine the type of `${chunk}`", "polymorphic-argument context", "::text"]
 
     describe "TypedSql macro compile-time success" do
         compilePassTest "primary key inferred as Id'"
@@ -203,8 +214,8 @@ tests = do
             (mkTestModule "TypedQuery (Maybe Bool)"
                 "[typedSql| SELECT author_id IS NULL FROM typed_sql_test_items LIMIT 1 |]")
 
-        compilePassTest "COUNT(*) inferred as Integer"
-            (mkTestModule "TypedQuery Integer"
+        compilePassTest "COUNT(*) inferred as Int64"
+            (mkTestModule "TypedQuery Int64"
                 "[typedSql| SELECT COUNT(*) FROM typed_sql_test_items |]")
 
         compilePassTest "COALESCE with non-null fallback inferred as non-Maybe"
@@ -243,12 +254,12 @@ tests = do
             (mkTestModule "TypedQuery (Maybe Text)"
                 "[typedSql| SELECT name FROM typed_sql_test_items WHERE views > 6 UNION ALL SELECT name FROM typed_sql_test_items WHERE views < 6 |]")
 
-        compilePassTest "window function inferred as Integer"
-            (mkTestModule "TypedQuery Integer"
+        compilePassTest "window function inferred as Int64"
+            (mkTestModule "TypedQuery Int64"
                 "[typedSql| SELECT row_number() OVER (ORDER BY name) FROM typed_sql_test_items LIMIT 1 |]")
 
         compilePassTest "grouped COUNT(*) returns SqlRow"
-            (mkTestModule "TypedQuery (SqlRow '[ '(\"name\", Text), '(\"count\", Integer) ])"
+            (mkTestModule "TypedQuery (SqlRow '[ '(\"name\", Text), '(\"count\", Int64) ])"
                 "[typedSql| SELECT name, COUNT(*) FROM typed_sql_test_items GROUP BY name ORDER BY name LIMIT 1 |]")
 
         compilePassTest "array literal inferred as Maybe [Text]"
@@ -271,16 +282,16 @@ tests = do
             (mkTestModule "TypedQuery (SqlRow '[ '(\"name\", Text), '(\"name_1\", Text) ])"
                 "[typedSql| SELECT i.name, a.name FROM typed_sql_test_items i INNER JOIN typed_sql_test_authors a ON a.id = i.author_id LIMIT 1 |]")
 
-        compilePassTest "COUNT through subquery alias inferred as Integer"
-            (mkTestModule "TypedQuery Integer"
+        compilePassTest "COUNT through subquery alias inferred as Int64"
+            (mkTestModule "TypedQuery Int64"
                 "[typedSql| SELECT p.c FROM (SELECT count(*) AS c FROM typed_sql_test_items) AS p |]")
 
         compilePassTest "SUM through subquery alias remains Maybe"
-            (mkTestModule "TypedQuery (Maybe Integer)"
+            (mkTestModule "TypedQuery (Maybe Int64)"
                 "[typedSql| SELECT p.s FROM (SELECT sum(views) AS s FROM typed_sql_test_items) AS p |]")
 
-        compilePassTest "COUNT through CTE inferred as Integer"
-            (mkTestModule "TypedQuery Integer"
+        compilePassTest "COUNT through CTE inferred as Int64"
+            (mkTestModule "TypedQuery Int64"
                 "[typedSql| WITH item_counts AS (SELECT count(*) AS c FROM typed_sql_test_items) SELECT c FROM item_counts |]")
 
     describe "TypedSql macro runtime execution" do
@@ -412,6 +423,26 @@ tests = do
             let Just ast = parseSql "(SELECT * FROM items)"
             detectStarSelects ast `shouldBe` ["*"]
 
+        it "detectInsertWithoutColumns detects INSERT VALUES without column list" do
+            let Just ast = parseSql "INSERT INTO items VALUES (1, 'name')"
+            detectInsertWithoutColumns ast `shouldBe` ["INSERT INTO items"]
+
+        it "detectInsertWithoutColumns detects INSERT SELECT without column list" do
+            let Just ast = parseSql "INSERT INTO items SELECT 1, 'name'"
+            detectInsertWithoutColumns ast `shouldBe` ["INSERT INTO items"]
+
+        it "detectInsertWithoutColumns does not flag INSERT with column list" do
+            let Just ast = parseSql "INSERT INTO items (id, name) VALUES (1, 'name')"
+            detectInsertWithoutColumns ast `shouldBe` []
+
+        it "detectInsertWithoutColumns does not flag INSERT DEFAULT VALUES" do
+            let Just ast = parseSql "INSERT INTO items DEFAULT VALUES"
+            detectInsertWithoutColumns ast `shouldBe` []
+
+        it "detectInsertWithoutColumns does not flag SELECT" do
+            let Just ast = parseSql "SELECT * FROM items"
+            detectInsertWithoutColumns ast `shouldBe` []
+
 -- Test helpers ---------------------------------------------------------------
 
 requirePostgresTestHook :: IO ()
@@ -422,7 +453,7 @@ requirePostgresTestHook = do
 
 withTestModelContext :: ((?modelContext :: ModelContext) => IO a) -> IO a
 withTestModelContext action = do
-    logger <- newLogger def { level = Warn }
+    let logger = noopLogger
     databaseUrl <- cs . fromMaybe "" <$> lookupEnv "DATABASE_URL"
     modelContext <- createModelContext databaseUrl logger
     let ?modelContext = modelContext
@@ -430,43 +461,43 @@ withTestModelContext action = do
 
 setupSchema :: (?modelContext :: ModelContext) => IO ()
 setupSchema = do
-    -- Use sqlExecDiscardResult for DDL (DROP/CREATE) since they have no rows-affected count
-    sqlExecDiscardResult "DROP TABLE IF EXISTS typed_sql_test_extras" ()
-    sqlExecDiscardResult "DROP TABLE IF EXISTS typed_sql_test_items" ()
-    sqlExecDiscardResult "DROP TABLE IF EXISTS typed_sql_test_authors" ()
-    sqlExecDiscardResult "DROP TYPE IF EXISTS typed_sql_test_pair" ()
+    -- Use unsafeSqlExecDiscardResult for DDL (DROP/CREATE) since they have no rows-affected count
+    unsafeSqlExecDiscardResult "DROP TABLE IF EXISTS typed_sql_test_extras" ()
+    unsafeSqlExecDiscardResult "DROP TABLE IF EXISTS typed_sql_test_items" ()
+    unsafeSqlExecDiscardResult "DROP TABLE IF EXISTS typed_sql_test_authors" ()
+    unsafeSqlExecDiscardResult "DROP TYPE IF EXISTS typed_sql_test_pair" ()
 
-    sqlExecDiscardResult "CREATE TYPE typed_sql_test_pair AS (name TEXT, views INT)" ()
+    unsafeSqlExecDiscardResult "CREATE TYPE typed_sql_test_pair AS (name TEXT, views INT)" ()
 
-    sqlExecDiscardResult
+    unsafeSqlExecDiscardResult
         "CREATE TABLE typed_sql_test_authors (id UUID PRIMARY KEY, name TEXT NOT NULL)"
         ()
 
-    sqlExecDiscardResult
+    unsafeSqlExecDiscardResult
         "CREATE TABLE typed_sql_test_items (id UUID PRIMARY KEY, author_id UUID REFERENCES typed_sql_test_authors(id), name TEXT NOT NULL, views INT NOT NULL, score DOUBLE PRECISION, tags TEXT[] NOT NULL DEFAULT '{}')"
         ()
 
-    sqlExecDiscardResult
+    unsafeSqlExecDiscardResult
         "INSERT INTO typed_sql_test_authors (id, name) VALUES ('00000000-0000-0000-0000-000000000001'::uuid, 'Alice')"
         ()
 
-    sqlExecDiscardResult
+    unsafeSqlExecDiscardResult
         "INSERT INTO typed_sql_test_authors (id, name) VALUES ('00000000-0000-0000-0000-000000000002'::uuid, 'Bob')"
         ()
 
-    sqlExecDiscardResult
+    unsafeSqlExecDiscardResult
         "INSERT INTO typed_sql_test_items (id, author_id, name, views, score, tags) VALUES ('10000000-0000-0000-0000-000000000001'::uuid, '00000000-0000-0000-0000-000000000001'::uuid, 'First', 5, 1.5, ARRAY['red', 'blue'])"
         ()
 
-    sqlExecDiscardResult
+    unsafeSqlExecDiscardResult
         "INSERT INTO typed_sql_test_items (id, author_id, name, views, score, tags) VALUES ('10000000-0000-0000-0000-000000000002'::uuid, '00000000-0000-0000-0000-000000000001'::uuid, 'Second', 8, NULL, ARRAY['green'])"
         ()
 
-    sqlExecDiscardResult
+    unsafeSqlExecDiscardResult
         "CREATE TABLE typed_sql_test_extras (id UUID PRIMARY KEY, small_count SMALLINT NOT NULL DEFAULT 0, big_count BIGINT NOT NULL DEFAULT 0, amount NUMERIC, payload BYTEA, metadata JSONB, created_at TIMESTAMPTZ NOT NULL DEFAULT '2025-06-15 12:00:00+00', due_date DATE, active BOOLEAN NOT NULL DEFAULT TRUE)"
         ()
 
-    sqlExecDiscardResult
+    unsafeSqlExecDiscardResult
         "INSERT INTO typed_sql_test_extras (id, small_count, big_count, amount, payload, metadata, created_at, due_date, active) VALUES ('20000000-0000-0000-0000-000000000001'::uuid, 7, 1000000000, 99.95, '\\xDEADBEEF', '{\"key\": \"value\"}', '2025-06-15 12:00:00+00', '2025-06-15', true)"
         ()
 
@@ -802,7 +833,7 @@ compilePassModule = Text.unlines
     , "qBoolExpr :: TypedQuery (Maybe Bool)"
     , "qBoolExpr = [typedSql| SELECT author_id IS NULL FROM typed_sql_test_items LIMIT 1 |]"
     , ""
-    , "qCountExpr :: TypedQuery Integer"
+    , "qCountExpr :: TypedQuery Int64"
     , "qCountExpr = [typedSql| SELECT COUNT(*) FROM typed_sql_test_items |]"
     , ""
     , "qLiteralInt :: TypedQuery Int"
@@ -829,10 +860,10 @@ compilePassModule = Text.unlines
     , "qUnion :: TypedQuery (Maybe Text)"
     , "qUnion = [typedSql| SELECT name FROM typed_sql_test_items WHERE views > 6 UNION ALL SELECT name FROM typed_sql_test_items WHERE views < 6 |]"
     , ""
-    , "qWindow :: TypedQuery Integer"
+    , "qWindow :: TypedQuery Int64"
     , "qWindow = [typedSql| SELECT row_number() OVER (ORDER BY name) FROM typed_sql_test_items LIMIT 1 |]"
     , ""
-    , "qGroupedCount :: TypedQuery (SqlRow '[ '(\"name\", Text), '(\"count\", Integer) ])"
+    , "qGroupedCount :: TypedQuery (SqlRow '[ '(\"name\", Text), '(\"count\", Int64) ])"
     , "qGroupedCount = [typedSql| SELECT name, COUNT(*) FROM typed_sql_test_items GROUP BY name ORDER BY name LIMIT 1 |]"
     , ""
     , "qArrayLiteral :: TypedQuery (Maybe [Text])"
@@ -874,8 +905,7 @@ runtimeModule = Text.unlines
     , ""
     , "import qualified Control.Exception as Exception"
     , "import IHP.Prelude"
-    , "import IHP.Log.Types"
-    , "import IHP.ModelSupport (Id'(..), ModelContext, PrimaryKey, createModelContext, releaseModelContext)"
+    , "import IHP.ModelSupport (Id'(..), ModelContext, PrimaryKey, createModelContext, releaseModelContext, noopLogger)"
     , "import IHP.Hasql.FromRow (FromRowHasql (..))"
     , "import IHP.TypedSql (sqlExecTyped, sqlQueryTyped, typedSql, typedSqlStar)"
     , "import qualified Hasql.Decoders as HasqlDecoders"
@@ -905,7 +935,7 @@ runtimeModule = Text.unlines
     , ""
     , "main :: IO ()"
     , "main = do"
-    , "    logger <- newLogger def { level = Warn }"
+    , "    let logger = noopLogger"
     , "    databaseUrl <- cs . fromMaybe \"\" <$> lookupEnv \"DATABASE_URL\""
     , "    modelContext <- createModelContext databaseUrl logger"
     , "    let ?modelContext = modelContext"
@@ -968,7 +998,7 @@ runtimeModule = Text.unlines
     , ""
     , "        countRows <- sqlQueryTyped [typedSql| SELECT COUNT(*) FROM typed_sql_test_items |]"
     , ""
-    , "        when ((countRows :: [Integer]) /= [2]) do"
+    , "        when ((countRows :: [Int64]) /= [2]) do"
     , "            error (\"unexpected rows from count query: \" <> show countRows)"
     , ""
     , "        literalRows <- sqlQueryTyped [typedSql| SELECT 1 |]"
@@ -1035,7 +1065,7 @@ runtimeModule = Text.unlines
     , "            ORDER BY name"
     , "        |]"
     , ""
-    , "        when ((windowRows :: [Integer]) /= [1, 2]) do"
+    , "        when ((windowRows :: [Int64]) /= [1, 2]) do"
     , "            error (\"unexpected rows from window function: \" <> show windowRows)"
     , ""
     , "        groupedCountRows <- sqlQueryTyped [typedSql|"
@@ -1046,7 +1076,7 @@ runtimeModule = Text.unlines
     , "        |]"
     , ""
     , "        let groupedCountValues = map (\\r -> (r.name, r.count)) groupedCountRows"
-    , "        when (groupedCountValues /= [(\"First\", 1 :: Integer), (\"Second\", 1)]) do"
+    , "        when (groupedCountValues /= [(\"First\", 1 :: Int64), (\"Second\", 1)]) do"
     , "            error (\"unexpected rows from grouped count: \" <> show groupedCountRows)"
     , ""
     , "        arrayLiteralRows <- sqlQueryTyped [typedSql| SELECT ARRAY['x','y']::text[] |]"
@@ -1125,8 +1155,7 @@ runtimeUpdateDeleteModule = Text.unlines
     , ""
     , "import qualified Control.Exception as Exception"
     , "import IHP.Prelude"
-    , "import IHP.Log.Types"
-    , "import IHP.ModelSupport (Id'(..), ModelContext, PrimaryKey, createModelContext, releaseModelContext)"
+    , "import IHP.ModelSupport (Id'(..), ModelContext, PrimaryKey, createModelContext, releaseModelContext, noopLogger)"
     , "import IHP.TypedSql (sqlExecTyped, sqlQueryTyped, typedSql)"
     , "import System.Environment (lookupEnv)"
     , ""
@@ -1139,7 +1168,7 @@ runtimeUpdateDeleteModule = Text.unlines
     , ""
     , "main :: IO ()"
     , "main = do"
-    , "    logger <- newLogger def { level = Warn }"
+    , "    let logger = noopLogger"
     , "    databaseUrl <- cs . fromMaybe \"\" <$> lookupEnv \"DATABASE_URL\""
     , "    modelContext <- createModelContext databaseUrl logger"
     , "    let ?modelContext = modelContext"
@@ -1216,8 +1245,7 @@ runtimeEdgeCasesModule = Text.unlines
     , ""
     , "import qualified Control.Exception as Exception"
     , "import IHP.Prelude"
-    , "import IHP.Log.Types"
-    , "import IHP.ModelSupport (Id'(..), ModelContext, PrimaryKey, createModelContext, releaseModelContext)"
+    , "import IHP.ModelSupport (Id'(..), ModelContext, PrimaryKey, createModelContext, releaseModelContext, noopLogger)"
     , "import IHP.TypedSql (sqlExecTyped, sqlQueryTyped, typedSql)"
     , "import System.Environment (lookupEnv)"
     , ""
@@ -1230,7 +1258,7 @@ runtimeEdgeCasesModule = Text.unlines
     , ""
     , "main :: IO ()"
     , "main = do"
-    , "    logger <- newLogger def { level = Warn }"
+    , "    let logger = noopLogger"
     , "    databaseUrl <- cs . fromMaybe \"\" <$> lookupEnv \"DATABASE_URL\""
     , "    modelContext <- createModelContext databaseUrl logger"
     , "    let ?modelContext = modelContext"
@@ -1247,7 +1275,7 @@ runtimeEdgeCasesModule = Text.unlines
     , ""
     , "        -- COUNT on empty table"
     , "        countEmpty <- sqlQueryTyped [typedSql| SELECT COUNT(*) FROM typed_sql_test_items |]"
-    , "        assertTest \"COUNT on empty table\" ((countEmpty :: [Integer]) == [0])"
+    , "        assertTest \"COUNT on empty table\" ((countEmpty :: [Int64]) == [0])"
     , ""
     , "        -- Re-insert rows for further tests"
     , "        _ <- sqlExecTyped [typedSql|"
@@ -1301,8 +1329,7 @@ runtimeExtraTypesModule = Text.unlines
     , ""
     , "import qualified Control.Exception as Exception"
     , "import IHP.Prelude"
-    , "import IHP.Log.Types"
-    , "import IHP.ModelSupport (ModelContext, PrimaryKey, createModelContext, releaseModelContext)"
+    , "import IHP.ModelSupport (ModelContext, PrimaryKey, createModelContext, releaseModelContext, noopLogger)"
     , "import IHP.TypedSql (sqlQueryTyped, typedSql)"
     , "import Data.Time (UTCTime, Day, parseTimeM, defaultTimeLocale)"
     , "import Data.Scientific (Scientific)"
@@ -1318,7 +1345,7 @@ runtimeExtraTypesModule = Text.unlines
     , ""
     , "main :: IO ()"
     , "main = do"
-    , "    logger <- newLogger def { level = Warn }"
+    , "    let logger = noopLogger"
     , "    databaseUrl <- cs . fromMaybe \"\" <$> lookupEnv \"DATABASE_URL\""
     , "    modelContext <- createModelContext databaseUrl logger"
     , "    let ?modelContext = modelContext"
@@ -1328,9 +1355,9 @@ runtimeExtraTypesModule = Text.unlines
     , "        smallRows <- sqlQueryTyped [typedSql| SELECT small_count FROM typed_sql_test_extras LIMIT 1 |]"
     , "        assertTest \"smallint -> Int\" ((smallRows :: [Int]) == [7])"
     , ""
-    , "        -- bigint -> Integer"
+    , "        -- bigint -> Int64"
     , "        bigRows <- sqlQueryTyped [typedSql| SELECT big_count FROM typed_sql_test_extras LIMIT 1 |]"
-    , "        assertTest \"bigint -> Integer\" ((bigRows :: [Integer]) == [1000000000])"
+    , "        assertTest \"bigint -> Int64\" ((bigRows :: [Int64]) == [1000000000])"
     , ""
     , "        -- numeric -> Scientific"
     , "        numericRows <- sqlQueryTyped [typedSql| SELECT amount FROM typed_sql_test_extras LIMIT 1 |]"
@@ -1365,7 +1392,7 @@ runtimeExtraTypesModule = Text.unlines
     , "            FROM typed_sql_test_extras LIMIT 1"
     , "        |]"
     , "        let multiTypeValues = map (\\r -> (r.small_count, r.big_count, r.active)) multiTypeRows"
-    , "        assertTest \"multi-type record\" (multiTypeValues == [(7 :: Int, 1000000000 :: Integer, True)])"
+    , "        assertTest \"multi-type record\" (multiTypeValues == [(7 :: Int, 1000000000 :: Int64, True)])"
     , ""
     , "        putStrLn \"RUNTIME_OK\""
     ]

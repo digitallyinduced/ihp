@@ -1,8 +1,8 @@
 {-|
-Module: Test.IDE.CodeGeneration.ViewGenerator
+Module: IDE.CodeGeneration.ViewGenerator
 Copyright: (c) digitally induced GmbH, 2020
 -}
-module Test.IDE.CodeGeneration.ViewGenerator where
+module IDE.CodeGeneration.ViewGenerator where
 
 import Test.Hspec
 import IHP.Prelude

@@ -112,8 +112,8 @@ common shared-properties
             , with-utf8
             , ihp-hsx
             , ihp-pagehead
-            , ihp-log
             , ihp-modal
+            , ihp-router
             , mime-types
             , safe-exceptions
             , resourcet
@@ -154,7 +154,7 @@ common shared-properties
         , TemplateHaskell
         , OverloadedRecordDot
         , DeepSubsumption
-    ghc-options: -Werror=incomplete-patterns -Werror=unused-imports -Werror=missing-fields
+    ghc-options: -Werror=incomplete-patterns -Werror=unused-imports -Werror=missing-fields -Werror=missing-home-modules
 
 library
     import: shared-properties
@@ -220,7 +220,8 @@ library
         , IHP.ViewSupport
         , IHP.RouterSupport
         , IHP.Router.Types
-        , IHP.Router.UrlGenerator
+        , IHP.Router.IHP
+        , IHP.Router.DSL
         , IHP.Prelude
         , IHP.ErrorController
         , IHP.ScriptSupport
@@ -268,7 +269,22 @@ library
         , IHP.Hasql.Pool
         , IHP.PGSimpleCompat
         , IHP.PGVersion
-    reexported-modules: IHP.PGListener
+    reexported-modules:
+          IHP.PGListener
+        -- Re-export the ihp-router modules under the same paths so
+        -- existing user imports (`import IHP.Router.Trie`, etc.) keep
+        -- working without users adding `ihp-router` to their own cabal
+        -- build-depends. The IHP-flavoured `routes` quoter from
+        -- IHP.Router.IHP shadows the generic one in IHP.Router.DSL.TH;
+        -- the latter is still importable directly for plain WAI use.
+        , IHP.Router.UrlGenerator
+        , IHP.Router.Capture
+        , IHP.Router.Trie
+        , IHP.Router.Middleware
+        , IHP.Router.DSL.AST
+        , IHP.Router.DSL.Parser
+        , IHP.Router.DSL.Runtime
+        , IHP.Router.DSL.TH
     autogen-modules: Paths_ihp
     other-modules:
         Paths_ihp
@@ -310,6 +326,15 @@ test-suite tests
         Test.FetchPipelinedSpec
         Test.JobQueueSpec
         Test.LoginSupport.AuthVaultSpec
+        Test.Router.AppBindingSpec
+        Test.Router.CaptureSpec
+        Test.Router.DSLParserSpec
+        Test.Router.DSLQuoterSpec
+        Test.Router.MiddlewareSpec
+        Test.Router.MixedModeSpec
+        Test.Router.MultiControllerSpec
+        Test.Router.TrieSpec
+        Test.Router.WebSocketSpec
         Test.ModelFixtures
         Test.Util
 

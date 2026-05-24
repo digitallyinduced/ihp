@@ -1,6 +1,6 @@
 cabal-version:       2.2
 name:                ihp-ide
-version:             1.5.0
+version:             1.5.1
 synopsis:            Dev tools for IHP
 description:         The Integrated Haskell Platform is a full stack framework focused on rapid application development while striving for robust code quality.
 license:             MIT
@@ -127,6 +127,7 @@ common shared-properties
             -Wall-missed-specialisations
             -Wno-ambiguous-fields
             -Werror=incomplete-patterns
+            -Werror=missing-home-modules
     else
         ghc-options:
             -fstatic-argument-transformation
@@ -143,11 +144,12 @@ common shared-properties
             -fspecialise-aggressively
             -Wno-ambiguous-fields
             -Werror=incomplete-patterns
+            -Werror=missing-home-modules
 
 library
     import: shared-properties
     hs-source-dirs: .
-    build-depends: ihp, ihp-log, ihp-modal, wai-request-params, ihp-schema-compiler
+    build-depends: ihp, fast-logger, ihp-modal, wai-request-params, ihp-schema-compiler
     exposed-modules:
           IHP.IDE.Prelude
         , IHP.IDE.SchemaDesigner.Controller.Columns
@@ -226,9 +228,12 @@ library
         , IHP.IDE.CodeGen.MigrationGenerator
         , IHP.IDE.LiveReloadNotificationServer
         , IHP.IDE.FileWatcher
+        , IHP.IDE.GhciSupport
         , IHP.IDE.PortConfig
         , IHP.IDE.Postgres
+        , IHP.IDE.SplitMode
         , IHP.IDE.StatusServer
+        , IHP.IDE.WorkerSignal
         , IHP.IDE.SchemaDesigner.Compiler
         , IHP.IDE.SchemaDesigner.Types
         , IHP.Telemetry
@@ -238,7 +243,7 @@ library
 
 executable RunDevServer
     import: shared-properties
-    build-depends: ihp, ihp-log, ihp-ide, ihp-schema-compiler
+    build-depends: ihp, fast-logger, ihp-ide, ihp-schema-compiler
     hs-source-dirs: exe
     main-is: IHP/IDE/DevServer.hs
     ghc-options: -rtsopts=all
@@ -275,6 +280,32 @@ executable RunDevServer
             -Werror=incomplete-patterns
     autogen-modules: Paths_ihp_ide
     other-modules: Paths_ihp_ide
+
+executable RunDevWorker
+    import: shared-properties
+    build-depends: ihp, ihp-ide
+    hs-source-dirs: exe
+    main-is: IHP/IDE/DevWorker.hs
+    ghc-options: -rtsopts=all
+    if flag(FastBuild)
+        ghc-options:
+            -threaded
+            -with-rtsopts=-A64m
+            -with-rtsopts=-N
+            -with-rtsopts=-n4m
+            -with-rtsopts=--nonmoving-gc
+            -Wno-ambiguous-fields
+            -Werror=incomplete-patterns
+    else
+        ghc-options:
+            -funbox-strict-fields
+            -threaded
+            -with-rtsopts=-A64m
+            -with-rtsopts=-N
+            -with-rtsopts=-n4m
+            -with-rtsopts=--nonmoving-gc
+            -Wno-ambiguous-fields
+            -Werror=incomplete-patterns
 
 executable new-application
     import: shared-properties
@@ -327,20 +358,25 @@ source-repository head
 test-suite tests
     import: shared-properties
     type: exitcode-stdio-1.0
-    main-is: Test/Main.hs
-    hs-source-dirs: .
-    build-depends: ihp, ihp-log, ihp-modal, ihp-schema-compiler, hspec, wai-request-params, wai-asset-path
+    main-is: Main.hs
+    hs-source-dirs: Test
+    ghc-options: -Wno-missing-home-modules
+    build-depends: ihp, ihp-ide, fast-logger, ihp-modal, ihp-schema-compiler, hspec, wai-request-params, wai-asset-path, temporary
     other-modules:
-        Test.IDE.SchemaDesigner.CompilerSpec
-        Test.IDE.SchemaDesigner.ParserSpec
-        Test.IDE.SchemaDesigner.Controller.EnumValuesSpec
-        Test.IDE.SchemaDesigner.Controller.HelperSpec
-        Test.IDE.SchemaDesigner.Controller.ValidationSpec
-        Test.IDE.CodeGeneration.ControllerGenerator
-        Test.IDE.CodeGeneration.ViewGenerator
-        Test.IDE.CodeGeneration.MailGenerator
-        Test.IDE.CodeGeneration.JobGenerator
-        Test.IDE.SchemaDesigner.SchemaOperationsSpec
-        Test.IDE.CodeGeneration.MigrationGenerator
-        Test.SchemaCompilerSpec
-        Test.ServerSpec
+        IDE.SchemaDesigner.CompilerSpec
+        IDE.SchemaDesigner.ParserSpec
+        IDE.SchemaDesigner.Controller.EnumValuesSpec
+        IDE.SchemaDesigner.Controller.HelperSpec
+        IDE.SchemaDesigner.Controller.ValidationSpec
+        IDE.CodeGeneration.ControllerGenerator
+        IDE.CodeGeneration.ViewGenerator
+        IDE.CodeGeneration.MailGenerator
+        IDE.CodeGeneration.JobGenerator
+        IDE.SchemaDesigner.SchemaOperationsSpec
+        IDE.CodeGeneration.MigrationGenerator
+        IDE.SplitModeSpec
+        IDE.WorkerSignalSpec
+        SchemaCompilerSpec
+        IDE.ToolServer.MiddlewareSpec
+        IDE.Logs.ControllerSpec
+        ServerSpec

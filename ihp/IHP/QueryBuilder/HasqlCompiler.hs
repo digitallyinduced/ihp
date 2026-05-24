@@ -92,7 +92,7 @@ compileQuery cc0 SQLQuery { selectFrom, distinctClause, distinctOnClause, whereC
         (withLimit, cc2) = case limitClause of
             Nothing -> (withOrderBy, cc1)
             Just n ->
-                let enc = contramap (const (fromIntegral n :: Int32)) (Encoders.param (Encoders.nonNullable Encoders.int4))
+                let enc = contramap (const n) (Encoders.param (Encoders.nonNullable Encoders.int8))
                     (placeholder, cc') = nextParam enc cc1
                 in (withOrderBy <> " LIMIT " <> placeholder, cc')
 
@@ -100,7 +100,7 @@ compileQuery cc0 SQLQuery { selectFrom, distinctClause, distinctOnClause, whereC
         (result, cc3) = case offsetClause of
             Nothing -> (withLimit, cc2)
             Just n ->
-                let enc = contramap (const (fromIntegral n :: Int32)) (Encoders.param (Encoders.nonNullable Encoders.int4))
+                let enc = contramap (const n) (Encoders.param (Encoders.nonNullable Encoders.int8))
                     (placeholder, cc') = nextParam enc cc2
                 in (withLimit <> " OFFSET " <> placeholder, cc')
 

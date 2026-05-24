@@ -52,7 +52,7 @@ common shared-properties
             , unliftio
             , async
             , ihp
-            , ihp-log
+            , fast-logger
             , ihp-hsx
             , deepseq
             , safe-exceptions
@@ -97,6 +97,7 @@ common shared-properties
             -Wno-ambiguous-fields
             -Werror=incomplete-patterns
             -Werror=unused-imports
+            -Werror=missing-home-modules
     else
         ghc-options:
             -fstatic-argument-transformation
@@ -111,6 +112,7 @@ common shared-properties
             -Wno-ambiguous-fields
             -Werror=incomplete-patterns
             -Werror=unused-imports
+            -Werror=missing-home-modules
 
 library
     import: shared-properties
@@ -139,15 +141,17 @@ library
 test-suite ihp-datasync-hspec
     import: shared-properties
     type:                exitcode-stdio-1.0
-    hs-source-dirs:      .
-    main-is:             Test/Main.hs
+    hs-source-dirs:      Test
+    main-is:             Main.hs
     ghc-options:         -threaded
-    other-modules: Test.DataSync.DynamicQueryCompiler
-                 , Test.DataSync.TypedEncoder
-                 , Test.DataSync.ChangeNotifications
-                 , Test.DataSync.RLSIntegrationSpec
-                 , Test.DataSync.DataSyncIntegrationSpec
-    build-depends: hspec
+    other-modules: DataSync.DynamicQueryCompiler
+                 , DataSync.TypedEncoder
+                 , DataSync.ChangeNotifications
+                 , DataSync.RLSIntegrationSpec
+                 , DataSync.DataSyncIntegrationSpec
+    build-depends:
+          ihp-datasync
+        , hspec
 
 source-repository head
     type:     git

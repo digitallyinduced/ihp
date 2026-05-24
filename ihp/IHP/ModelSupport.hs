@@ -57,8 +57,7 @@ import PostgresqlTypes.Polygon
 import PostgresqlTypes.Inet
 import PostgresqlTypes.Interval
 import PostgresqlTypes.Tsvector
-import IHP.Log.Types
-import qualified IHP.Log as Log
+import System.Log.FastLogger (FastLogger, toLogStr)
 import Data.Dynamic
 import IHP.EnvVar
 import Data.Scientific
@@ -75,16 +74,17 @@ import IHP.Hasql.Pool (usePoolWithRetry)
 import IHP.PGSimpleCompat ()
 
 -- | Provides a mock ModelContext to be used when a database connection is not available
-notConnectedModelContext :: Logger -> ModelContext
+notConnectedModelContext :: FastLogger -> ModelContext
 notConnectedModelContext logger = ModelContext
     { hasqlPool = error "Not connected"
     , transactionRunner = Nothing
     , logger = logger
+    , queryLoggingEnabled = False
     , trackTableReadCallback = Nothing
     , rowLevelSecurity = Nothing
     }
 
-createModelContext :: ByteString -> Logger -> IO ModelContext
+createModelContext :: ByteString -> FastLogger -> IO ModelContext
 createModelContext databaseUrl logger = do
     -- Create hasql pool for prepared statement-based queries
     -- HASQL_POOL_SIZE: pool size (default: 20). Set to 1 for consistent prepared statement caching.
@@ -93,6 +93,7 @@ createModelContext databaseUrl logger = do
     hasqlIdleTime :: Maybe Int <- envOrNothing "HASQL_IDLE_TIME"
     let hasqlPoolSettings =
             [ HasqlPoolConfig.staticConnectionSettings (HasqlSettings.connectionString (cs databaseUrl))
+            , HasqlPoolConfig.initSession (Hasql.script "SET SESSION timezone TO 'UTC'")
             ]
             <> maybe [HasqlPoolConfig.size 20] (\size -> [HasqlPoolConfig.size size]) hasqlPoolSize
             <> maybe [] (\idle -> [HasqlPoolConfig.idlenessTimeout (fromIntegral idle)]) hasqlIdleTime
@@ -102,6 +103,7 @@ createModelContext databaseUrl logger = do
     let trackTableReadCallback = Nothing
     let transactionRunner = Nothing
     let rowLevelSecurity = Nothing
+    queryLoggingEnabled <- envOrDefault "DEBUG" False
     pure ModelContext { .. }
 
 releaseModelContext :: ModelContext -> IO ()
@@ -110,7 +112,7 @@ releaseModelContext modelContext = do
 
 -- | Bracket-style wrapper around 'createModelContext' that ensures the database
 -- pool is released when the callback completes (or throws an exception).
-withModelContext :: ByteString -> Logger -> (ModelContext -> IO a) -> IO a
+withModelContext :: ByteString -> FastLogger -> (ModelContext -> IO a) -> IO a
 withModelContext databaseUrl logger =
     bracket (createModelContext databaseUrl logger) releaseModelContext
 
@@ -242,69 +244,98 @@ textToId text = case parsePrimaryKey (cs text) of
 {-# INLINE textToId #-}
 
 
--- | Runs a raw sql query
+-- | Runs a raw sql query. Untyped escape hatch — prefer the typed
+-- @[typedSql| ... |]@ quasi quoter (from "IHP.TypedSql") when the query is
+-- known at compile time.
 --
 -- __Example:__
 --
--- > users <- sqlQuery "SELECT id, firstname, lastname FROM users" ()
+-- > users <- unsafeSqlQuery "SELECT id, firstname, lastname FROM users" ()
 --
 -- Take a look at "IHP.QueryBuilder" for a typesafe approach on building simple queries.
 --
--- *AutoRefresh:* When using 'sqlQuery' with AutoRefresh, you need to use 'trackTableRead' to let AutoRefresh know that you have accessed a certain table. Otherwise AutoRefresh will not watch table of your custom sql query.
+-- *AutoRefresh:* When using 'unsafeSqlQuery' with AutoRefresh, you need to use 'trackTableRead' to let AutoRefresh know that you have accessed a certain table. Otherwise AutoRefresh will not watch table of your custom sql query.
 --
--- Use 'sqlQuerySingleRow' if you expect only a single row to be returned.
+-- Use 'unsafeSqlQuerySingleRow' if you expect only a single row to be returned.
 --
-sqlQuery :: (?modelContext :: ModelContext, ToSnippetParams q, FromRowHasql r) => Query -> q -> IO [r]
-sqlQuery theQuery theParameters = do
+unsafeSqlQuery :: (?modelContext :: ModelContext, ToSnippetParams q, FromRowHasql r) => Query -> q -> IO [r]
+unsafeSqlQuery theQuery theParameters = do
     let pool = ?modelContext.hasqlPool
     let snippet = sqlToSnippet (fromQuery theQuery) (toSnippetParams theParameters)
     sqlQueryHasql pool snippet (Decoders.rowList hasqlRowDecoder)
+{-# INLINABLE unsafeSqlQuery #-}
+
+-- | Deprecated alias of 'unsafeSqlQuery'. Prefer @[typedSql| ... |]@ via 'IHP.TypedSql.sqlQueryTyped'.
+{-# DEPRECATED sqlQuery "Use the typed quasi quoter '[typedSql| ... |]' with 'sqlQueryTyped' (from IHP.TypedSql) for compile-time type checking. If you really need untyped raw SQL (e.g. dynamic table names), use 'unsafeSqlQuery' instead." #-}
+sqlQuery :: (?modelContext :: ModelContext, ToSnippetParams q, FromRowHasql r) => Query -> q -> IO [r]
+sqlQuery = unsafeSqlQuery
 {-# INLINABLE sqlQuery #-}
 
 
--- | Runs a raw sql query, that is expected to return a single result row
+-- | Runs a raw sql query, that is expected to return a single result row.
+-- Untyped escape hatch — prefer the typed @[typedSql| ... |]@ quasi quoter.
 --
--- Like 'sqlQuery', but useful when you expect only a single row as the result
+-- Like 'unsafeSqlQuery', but useful when you expect only a single row as the result.
 --
 -- __Example:__
 --
--- > user <- sqlQuerySingleRow "SELECT id, firstname, lastname FROM users WHERE id = ?" (Only user.id)
+-- > user <- unsafeSqlQuerySingleRow "SELECT id, firstname, lastname FROM users WHERE id = ?" (Only user.id)
 --
 -- Take a look at "IHP.QueryBuilder" for a typesafe approach on building simple queries.
 --
--- *AutoRefresh:* When using 'sqlQuerySingleRow' with AutoRefresh, you need to use 'trackTableRead' to let AutoRefresh know that you have accessed a certain table. Otherwise AutoRefresh will not watch table of your custom sql query.
+-- *AutoRefresh:* When using 'unsafeSqlQuerySingleRow' with AutoRefresh, you need to use 'trackTableRead' to let AutoRefresh know that you have accessed a certain table. Otherwise AutoRefresh will not watch table of your custom sql query.
 --
-sqlQuerySingleRow :: (?modelContext :: ModelContext, ToSnippetParams query, FromRowHasql record) => Query -> query -> IO record
-sqlQuerySingleRow theQuery theParameters = do
-    result <- sqlQuery theQuery theParameters
+unsafeSqlQuerySingleRow :: (?modelContext :: ModelContext, ToSnippetParams query, FromRowHasql record) => Query -> query -> IO record
+unsafeSqlQuerySingleRow theQuery theParameters = do
+    result <- unsafeSqlQuery theQuery theParameters
     case result of
-        [] -> error ("sqlQuerySingleRow: Expected a single row to be returned. Query: " <> show theQuery)
+        [] -> error ("unsafeSqlQuerySingleRow: Expected a single row to be returned. Query: " <> show theQuery)
         [record] -> pure record
-        otherwise -> error ("sqlQuerySingleRow: Expected a single row to be returned. But got " <> show (length otherwise) <> " rows")
+        otherwise -> error ("unsafeSqlQuerySingleRow: Expected a single row to be returned. But got " <> show (length otherwise) <> " rows")
+{-# INLINABLE unsafeSqlQuerySingleRow #-}
+
+-- | Deprecated alias of 'unsafeSqlQuerySingleRow'.
+{-# DEPRECATED sqlQuerySingleRow "Use the typed quasi quoter '[typedSql| ... |]' with 'sqlQueryTyped' (from IHP.TypedSql) for compile-time type checking. If you really need untyped raw SQL, use 'unsafeSqlQuerySingleRow' instead." #-}
+sqlQuerySingleRow :: (?modelContext :: ModelContext, ToSnippetParams query, FromRowHasql record) => Query -> query -> IO record
+sqlQuerySingleRow = unsafeSqlQuerySingleRow
 {-# INLINABLE sqlQuerySingleRow #-}
 
--- | Runs a sql statement (like a CREATE statement)
+-- | Runs a sql statement (like a CREATE statement). Untyped escape hatch —
+-- prefer the typed @[typedSql| ... |]@ quasi quoter via 'IHP.TypedSql.sqlExecTyped'.
 --
 -- __Example:__
 --
--- > sqlExec "CREATE TABLE users ()" ()
-sqlExec :: (?modelContext :: ModelContext, ToSnippetParams q) => Query -> q -> IO Int64
-sqlExec theQuery theParameters = do
+-- > unsafeSqlExec "CREATE TABLE users ()" ()
+unsafeSqlExec :: (?modelContext :: ModelContext, ToSnippetParams q) => Query -> q -> IO Int64
+unsafeSqlExec theQuery theParameters = do
     let pool = ?modelContext.hasqlPool
     let snippet = sqlToSnippet (fromQuery theQuery) (toSnippetParams theParameters)
     sqlExecHasqlCount pool snippet
+{-# INLINABLE unsafeSqlExec #-}
+
+-- | Deprecated alias of 'unsafeSqlExec'.
+{-# DEPRECATED sqlExec "Use the typed quasi quoter '[typedSql| ... |]' with 'sqlExecTyped' (from IHP.TypedSql) for compile-time type checking. If you really need untyped raw SQL (e.g. DDL statements), use 'unsafeSqlExec' instead." #-}
+sqlExec :: (?modelContext :: ModelContext, ToSnippetParams q) => Query -> q -> IO Int64
+sqlExec = unsafeSqlExec
 {-# INLINABLE sqlExec #-}
 
--- | Runs a sql statement (like a CREATE statement), but doesn't return any result
+-- | Runs a sql statement (like a CREATE statement), but doesn't return any result.
+-- Untyped escape hatch — prefer the typed @[typedSql| ... |]@ quasi quoter via 'IHP.TypedSql.sqlExecTyped'.
 --
 -- __Example:__
 --
--- > sqlExecDiscardResult "CREATE TABLE users ()" ()
-sqlExecDiscardResult :: (?modelContext :: ModelContext, ToSnippetParams q) => Query -> q -> IO ()
-sqlExecDiscardResult theQuery theParameters = do
+-- > unsafeSqlExecDiscardResult "CREATE TABLE users ()" ()
+unsafeSqlExecDiscardResult :: (?modelContext :: ModelContext, ToSnippetParams q) => Query -> q -> IO ()
+unsafeSqlExecDiscardResult theQuery theParameters = do
     let pool = ?modelContext.hasqlPool
     let snippet = sqlToSnippet (fromQuery theQuery) (toSnippetParams theParameters)
     sqlExecHasql pool snippet
+{-# INLINABLE unsafeSqlExecDiscardResult #-}
+
+-- | Deprecated alias of 'unsafeSqlExecDiscardResult'.
+{-# DEPRECATED sqlExecDiscardResult "Use the typed quasi quoter '[typedSql| ... |]' with 'sqlExecTyped' (from IHP.TypedSql) for compile-time type checking. If you really need untyped raw SQL (e.g. DDL statements), use 'unsafeSqlExecDiscardResult' instead." #-}
+sqlExecDiscardResult :: (?modelContext :: ModelContext, ToSnippetParams q) => Query -> q -> IO ()
+sqlExecDiscardResult = unsafeSqlExecDiscardResult
 {-# INLINABLE sqlExecDiscardResult #-}
 
 
@@ -336,7 +367,6 @@ setRLSConfigStatement = Hasql.preparable
 sqlStatementHasql :: (?modelContext :: ModelContext) => HasqlPool.Pool -> a -> Hasql.Statement a b -> IO b
 sqlStatementHasql pool input statement = do
     let ?context = ?modelContext
-    let currentLogLevel = ?modelContext.logger.level
     let session = case (?modelContext.transactionRunner, ?modelContext.rowLevelSecurity) of
             (Nothing, Just RowLevelSecurityContext { rlsAuthenticatedRole, rlsUserId }) ->
                 Tx.transaction Tx.ReadCommitted Tx.Read $ do
@@ -347,7 +377,7 @@ sqlStatementHasql pool input statement = do
     let runQuery = case ?modelContext.transactionRunner of
             Just (TransactionRunner runner) -> runner session
             Nothing -> usePoolWithRetry pool session
-    logQueryTiming currentLogLevel ("🔍 " <> truncateQuery (cs (Hasql.toSql statement))) runQuery
+    logQueryTiming ("🔍 " <> truncateQuery (cs (Hasql.toSql statement))) runQuery
 {-# INLINABLE sqlStatementHasql #-}
 
 -- | Runs a query built from a dynamic 'Snippet'.
@@ -376,7 +406,6 @@ sqlQueryHasql pool snippet decoder =
 sqlExecStatement :: (?modelContext :: ModelContext) => HasqlPool.Pool -> a -> Hasql.Statement a () -> IO ()
 sqlExecStatement pool input statement = do
     let ?context = ?modelContext
-    let currentLogLevel = ?modelContext.logger.level
     let session = case (?modelContext.transactionRunner, ?modelContext.rowLevelSecurity) of
             (Just _, _) ->
                 Hasql.statement input statement
@@ -389,7 +418,7 @@ sqlExecStatement pool input statement = do
     let runQuery = case ?modelContext.transactionRunner of
             Just (TransactionRunner runner) -> runner session
             Nothing -> usePoolWithRetry pool session
-    logQueryTiming currentLogLevel ("💾 " <> truncateQuery (cs (Hasql.toSql statement))) runQuery
+    logQueryTiming ("💾 " <> truncateQuery (cs (Hasql.toSql statement))) runQuery
 {-# INLINABLE sqlExecStatement #-}
 
 -- | Like 'sqlQueryHasql' but for statements that don't return results (DELETE, etc.)
@@ -407,7 +436,6 @@ sqlExecHasql pool snippet = sqlExecStatement pool () (Snippet.toPreparableStatem
 sqlExecHasqlCount :: (?modelContext :: ModelContext) => HasqlPool.Pool -> Snippet.Snippet -> IO Int64
 sqlExecHasqlCount pool snippet = do
     let ?context = ?modelContext
-    let currentLogLevel = ?modelContext.logger.level
     let statement = Snippet.toPreparableStatement snippet Decoders.rowsAffected
     let session = case (?modelContext.transactionRunner, ?modelContext.rowLevelSecurity) of
             (Nothing, Just RowLevelSecurityContext { rlsAuthenticatedRole, rlsUserId }) ->
@@ -419,7 +447,7 @@ sqlExecHasqlCount pool snippet = do
     let runQuery = case ?modelContext.transactionRunner of
             Just (TransactionRunner runner) -> runner session
             Nothing -> usePoolWithRetry pool session
-    logQueryTiming currentLogLevel ("💾 " <> cs (Hasql.toSql statement)) runQuery
+    logQueryTiming ("💾 " <> cs (Hasql.toSql statement)) runQuery
 {-# INLINABLE sqlExecHasqlCount #-}
 
 -- | Like 'sqlExecHasql' but for raw 'Hasql.Session' values (e.g. multi-statement DDL via 'Hasql.sql')
@@ -434,26 +462,25 @@ sqlExecHasqlCount pool snippet = do
 runSessionHasql :: (?modelContext :: ModelContext) => HasqlPool.Pool -> Hasql.Session () -> IO ()
 runSessionHasql pool session = do
     let ?context = ?modelContext
-    let currentLogLevel = ?modelContext.logger.level
     let runQuery = case ?modelContext.transactionRunner of
             Just (TransactionRunner runner) -> runner session
             Nothing -> usePoolWithRetry pool session
-    logQueryTiming currentLogLevel "💾 runSessionHasql" runQuery
+    logQueryTiming "💾 runSessionHasql" runQuery
 {-# INLINABLE runSessionHasql #-}
 
 
--- | Run an IO action, logging its duration when the log level is 'Debug'.
+-- | Run an IO action, logging its duration when debug mode is enabled.
 -- The label is prepended to the timing message, e.g. @"🔍 SELECT ..."@.
 {-# INLINE logQueryTiming #-}
-logQueryTiming :: (?context :: ModelContext) => LogLevel -> Text -> IO a -> IO a
-logQueryTiming currentLogLevel label runQuery =
-    if currentLogLevel == Debug
+logQueryTiming :: (?context :: ModelContext) => Text -> IO a -> IO a
+logQueryTiming label runQuery =
+    if ?context.queryLoggingEnabled
         then do
             start <- getCurrentTime
             runQuery `finally` do
                 end <- getCurrentTime
                 let queryTimeInMs = round (realToFrac (end `diffUTCTime` start) * 1000 :: Double) :: Int
-                Log.debug (label <> " (" <> Text.pack (show queryTimeInMs) <> "ms)")
+                ?context.logger (toLogStr (label <> " (" <> Text.pack (show queryTimeInMs) <> "ms)"))
         else runQuery
 
 -- | Existential wrapper for sub-session requests in a transaction
@@ -472,35 +499,49 @@ processRequests requestMVar = do
             processRequests requestMVar
         Nothing -> pure ()
 
--- | Runs a raw sql query which results in a single scalar value such as an integer or string
+-- | Runs a raw sql query which results in a single scalar value such as an integer or string.
+-- Untyped escape hatch — prefer the typed @[typedSql| ... |]@ quasi quoter.
 --
 -- __Example:__
 --
--- > usersCount <- sqlQueryScalar "SELECT COUNT(*) FROM users"
+-- > usersCount <- unsafeSqlQueryScalar "SELECT COUNT(*) FROM users" ()
 --
 -- Take a look at "IHP.QueryBuilder" for a typesafe approach on building simple queries.
-sqlQueryScalar :: (?modelContext :: ModelContext, ToSnippetParams q, HasqlDecodeColumn value) => Query -> q -> IO value
-sqlQueryScalar theQuery theParameters = do
-    result <- sqlQuery theQuery theParameters
+unsafeSqlQueryScalar :: (?modelContext :: ModelContext, ToSnippetParams q, HasqlDecodeColumn value) => Query -> q -> IO value
+unsafeSqlQueryScalar theQuery theParameters = do
+    result <- unsafeSqlQuery theQuery theParameters
     pure case result of
         [PG.Only result] -> result
-        _ -> error "sqlQueryScalar: Expected a scalar result value"
+        _ -> error "unsafeSqlQueryScalar: Expected a scalar result value"
+{-# INLINABLE unsafeSqlQueryScalar #-}
+
+-- | Deprecated alias of 'unsafeSqlQueryScalar'.
+{-# DEPRECATED sqlQueryScalar "Use the typed quasi quoter '[typedSql| ... |]' with 'sqlQueryTyped' (from IHP.TypedSql) for compile-time type checking. If you really need untyped raw SQL, use 'unsafeSqlQueryScalar' instead." #-}
+sqlQueryScalar :: (?modelContext :: ModelContext, ToSnippetParams q, HasqlDecodeColumn value) => Query -> q -> IO value
+sqlQueryScalar = unsafeSqlQueryScalar
 {-# INLINABLE sqlQueryScalar #-}
 
--- | Runs a raw sql query which results in a single scalar value such as an integer or string, or nothing
+-- | Runs a raw sql query which results in a single scalar value such as an integer or string, or nothing.
+-- Untyped escape hatch — prefer the typed @[typedSql| ... |]@ quasi quoter.
 --
 -- __Example:__
 --
--- > usersCount <- sqlQueryScalarOrNothing "SELECT COUNT(*) FROM users"
+-- > usersCount <- unsafeSqlQueryScalarOrNothing "SELECT COUNT(*) FROM users" ()
 --
 -- Take a look at "IHP.QueryBuilder" for a typesafe approach on building simple queries.
-sqlQueryScalarOrNothing :: (?modelContext :: ModelContext, ToSnippetParams q, HasqlDecodeColumn value) => Query -> q -> IO (Maybe value)
-sqlQueryScalarOrNothing theQuery theParameters = do
-    result <- sqlQuery theQuery theParameters
+unsafeSqlQueryScalarOrNothing :: (?modelContext :: ModelContext, ToSnippetParams q, HasqlDecodeColumn value) => Query -> q -> IO (Maybe value)
+unsafeSqlQueryScalarOrNothing theQuery theParameters = do
+    result <- unsafeSqlQuery theQuery theParameters
     pure case result of
         [] -> Nothing
         [PG.Only result] -> Just result
-        _ -> error "sqlQueryScalarOrNothing: Expected a scalar result value or an empty result set"
+        _ -> error "unsafeSqlQueryScalarOrNothing: Expected a scalar result value or an empty result set"
+{-# INLINABLE unsafeSqlQueryScalarOrNothing #-}
+
+-- | Deprecated alias of 'unsafeSqlQueryScalarOrNothing'.
+{-# DEPRECATED sqlQueryScalarOrNothing "Use the typed quasi quoter '[typedSql| ... |]' with 'sqlQueryTyped' (from IHP.TypedSql) for compile-time type checking. If you really need untyped raw SQL, use 'unsafeSqlQueryScalarOrNothing' instead." #-}
+sqlQueryScalarOrNothing :: (?modelContext :: ModelContext, ToSnippetParams q, HasqlDecodeColumn value) => Query -> q -> IO (Maybe value)
+sqlQueryScalarOrNothing = unsafeSqlQueryScalarOrNothing
 {-# INLINABLE sqlQueryScalarOrNothing #-}
 
 -- | Executes the given block with a database transaction
@@ -560,7 +601,7 @@ withTransaction block
             case blockResult of
                 Left exc -> do
                     catchError (Hasql.script "ROLLBACK") (\rollbackErr -> liftIO $
-                        Log.warn ("withTransaction: ROLLBACK failed: " <> Text.pack (show rollbackErr)))
+                        ?context.logger (toLogStr ("withTransaction: ROLLBACK failed: " <> Text.pack (show rollbackErr))))
                     liftIO (throwIO exc)
                 Right a -> do
                     Hasql.script "COMMIT"
@@ -1010,8 +1051,8 @@ withoutQueryLogging :: (?modelContext :: ModelContext) => ((?modelContext :: Mod
 withoutQueryLogging callback =
     let
         modelContext = ?modelContext
-        nullLogger = modelContext.logger { write = \_ -> pure ()}
     in
-        let ?modelContext = modelContext { logger = nullLogger }
+        let ?modelContext = modelContext { logger = noopLogger }
         in
             callback
+

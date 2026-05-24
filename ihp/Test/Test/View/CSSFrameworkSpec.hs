@@ -718,7 +718,7 @@ shouldRenderTo renderFunction expectedHtml = renderMarkupText renderFunction `sh
 -}
 createControllerContextWithCSSFramework :: Typeable option => option -> IO Wai.Request
 createControllerContextWithCSSFramework cssFramework = do
-    frameworkConfig <- FrameworkConfig.buildFrameworkConfig do
+    frameworkConfig <- FrameworkConfig.buildFrameworkConfig noopLogger do
                 option cssFramework
     let requestBody = FormBody { params = [], files = [], rawPayload = "" }
     let request = Wai.defaultRequest { Wai.vault = Vault.insert IHP.RequestVault.frameworkConfigVaultKey frameworkConfig

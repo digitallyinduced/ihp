@@ -37,7 +37,7 @@ common shared-properties
         , TemplateHaskell
         , OverloadedRecordDot
         , DeepSubsumption
-    ghc-options: -Werror=incomplete-patterns -Werror=unused-imports
+    ghc-options: -Werror=incomplete-patterns -Werror=unused-imports -Werror=missing-home-modules
 
 library
     import: shared-properties
@@ -84,7 +84,7 @@ test-suite tests
     build-depends:
             base >= 4.17.0 && < 4.22
             , ihp
-            , ihp-log
+            , fast-logger
             , ihp-typed-sql
             , containers
             , directory

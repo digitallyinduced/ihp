@@ -30,8 +30,11 @@ generateGenericApplication applicationName =
                 <> "import IHP.RouterPrelude\n"
                 <> "import Generated.Types\n"
                 <> "import " <> applicationName <> ".Types\n\n"
-                <> "-- Generator Marker\n"
-                <> "instance AutoRoute StaticController"
+                <> "-- The welcome page at '/' is served by the static controller below.\n"
+                <> "-- Additional [routes|...|] blocks get appended by `new-controller`.\n"
+                <> "[routes|StaticController\n"
+                <> "GET /    WelcomeAction\n"
+                <> "|]\n"
             frontControllerHs =
                 "module " <> applicationName <> ".FrontController where\n\n"
                 <> "import IHP.RouterPrelude\n"

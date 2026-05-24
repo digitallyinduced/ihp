@@ -22,9 +22,20 @@ buildPlan' :: [Statement] -> ControllerConfig -> [GeneratorAction]
 buildPlan' schema config =
     let
         viewPlans = generateViews schema config
+        singularName = config.modelName |> lcfirst |> singularize |> ucfirst
+        modelVariableSingular = lcfirst singularName
+        -- Whether the model's table exists in the schema decides whether
+        -- Show/Edit/Update/Delete action constructors carry an id field.
+        -- When False, those actions are emitted as nullary constructors,
+        -- so the routes block must NOT declare an ?idField query param
+        -- (the TH splice would fail the coverage check).
+        tableFound = [ modelNameToTableName modelVariableSingular, modelVariableSingular ]
+                |> mapMaybe (columnsForTable schema)
+                |> headMay
+                |> isJust
     in
         [ CreateFile { filePath = textToOsPath (config.applicationName <> "/Controller/" <> config.controllerName <> ".hs"), fileContent = (generateController schema config) }
-        , AppendToFile { filePath = textToOsPath (config.applicationName <> "/Routes.hs"), fileContent = "\n" <> (controllerInstance config) }
+        , AppendToFile { filePath = textToOsPath (config.applicationName <> "/Routes.hs"), fileContent = "\n" <> controllerInstance config tableFound }
         , AppendToFile { filePath = textToOsPath (config.applicationName <> "/Types.hs"), fileContent = (generateControllerData schema config) }
         , AppendToMarker { marker = "-- Controller Imports", filePath = textToOsPath (config.applicationName <> "/FrontController.hs"), fileContent = ("import " <> config.applicationName <> ".Controller." <> config.controllerName) }
         , AppendToMarker { marker = "-- Generator Marker", filePath = textToOsPath (config.applicationName <> "/FrontController.hs"), fileContent = ("        , parseRoute @" <> config.controllerName <> "Controller") }
@@ -60,9 +71,51 @@ defaultControllerConfig = ControllerConfig
     , deleteActionEnabled = True
     }
 
-controllerInstance :: ControllerConfig -> Text
-controllerInstance ControllerConfig { controllerName, modelName, applicationName } =
-    "instance AutoRoute " <> controllerName <> "Controller\n\n"
+-- | Emit the per-controller @[routes|…|]@ block appended to
+-- @<Application>/Routes.hs@ by the controller generator.
+--
+-- The URL shapes mirror AutoRoute's defaults so freshly-generated apps
+-- keep the /Posts, /NewPost, /ShowPost?postId=<uuid> style that existing
+-- docs, tutorials, and deep links depend on. HTTP methods follow
+-- AutoRoute's name-prefix heuristic (GET for index/new/show/edit, POST
+-- for create/update, DELETE for delete).
+--
+-- Only the actions enabled in the 'ControllerConfig' are emitted — the
+-- scaffolder lets the user switch any subset off.
+--
+-- When @tableFound@ is 'False', the matching model table isn't in the
+-- schema, so 'generateControllerData' emits nullary Show/Edit/Update/
+-- Delete constructors (no @{idField :: Id …}@). In that case the routes
+-- block must NOT carry @?idField@ either, or the TH splice's coverage
+-- check would fail ("query parameter has no matching field").
+controllerInstance :: ControllerConfig -> Bool -> Text
+controllerInstance config@ControllerConfig { controllerName, modelName } tableFound =
+    let singularName = modelName |> lcfirst |> singularize |> ucfirst
+        pluralName   = controllerName |> lcfirst |> pluralize |> ucfirst
+        idFieldName  = lcfirst singularName <> "Id"
+
+        -- Append ?idField only if the schema gave the action an id field.
+        withId path
+            | tableFound = path <> "?" <> idFieldName
+            | otherwise  = path
+
+        line enabled method path actionName
+            | enabled   = Just (method <> " " <> path <> " " <> actionName)
+            | otherwise = Nothing
+
+        lines = catMaybes
+            [ line config.indexActionEnabled "GET"    ("/" <> pluralName)                          (pluralName <> "Action")
+            , line config.newActionEnabled   "GET"    ("/New" <> singularName)                     ("New" <> singularName <> "Action")
+            , line config.createActionEnabled "POST"  ("/Create" <> singularName)                  ("Create" <> singularName <> "Action")
+            , line config.showActionEnabled  "GET"    (withId ("/Show" <> singularName))           ("Show" <> singularName <> "Action")
+            , line config.editActionEnabled  "GET"    (withId ("/Edit" <> singularName))           ("Edit" <> singularName <> "Action")
+            , line config.updateActionEnabled "POST"  (withId ("/Update" <> singularName))         ("Update" <> singularName <> "Action")
+            , line config.deleteActionEnabled "DELETE" (withId ("/Delete" <> singularName))        ("Delete" <> singularName <> "Action")
+            ]
+    in
+        "[routes|" <> controllerName <> "Controller\n"
+        <> Text.intercalate "\n" lines <> "\n"
+        <> "|]\n\n"
 
 data HaskellModule = HaskellModule { moduleName :: Text, body :: Text }
 

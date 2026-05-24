@@ -18,7 +18,7 @@ extra-source-files:  changelog.md
 
 library
     default-language: GHC2021
-    ghc-options: -Werror=incomplete-patterns -Werror=unused-imports -Werror=missing-fields
+    ghc-options: -Werror=incomplete-patterns -Werror=unused-imports -Werror=missing-fields -Werror=missing-home-modules
     build-depends:
             base >= 4.17.0 && < 4.22
             , wai

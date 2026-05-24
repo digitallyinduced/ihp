@@ -120,7 +120,7 @@ hsTypeForPg typeInfo nullable PgTypeInfo { ptiName, ptiElem, ptiType } = do
             elemTy <- hsTypeForPg typeInfo False elemInfo
             pure (TH.AppT TH.ListT elemTy)
         _ | ptiName `elem` ["int2", "int4"] -> pure (TH.ConT ''Int)
-        _ | ptiName == "int8" -> pure (TH.ConT ''Integer)
+        _ | ptiName == "int8" -> pure (TH.ConT ''Int64)
         _ | ptiName `elem` ["text", "varchar", "bpchar", "citext"] -> pure (TH.ConT ''Text)
         _ | ptiName == "bool" -> pure (TH.ConT ''Bool)
         _ | ptiName == "uuid" -> pure (TH.ConT ''UUID)

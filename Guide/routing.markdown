@@ -8,13 +8,42 @@
 
 In your project, routes are defined in the `Web/Routes.hs`. In addition to defining that route, it also has to be added in `Web/FrontController.hs` to be picked up by the routing system.
 
-The simplest way to define a route is by using [`AutoRoute`](https://ihp.digitallyinduced.com/api-docs/IHP-RouterSupport.html#t:AutoRoute), which automatically maps each controller action to an URL. For a `PostsController`, the definition in `Web/Routes.hs` will look like this:
+IHP offers two ways to wire URLs to actions. New projects should pick the **explicit routes DSL** — it makes the URL ↔ action mapping visible at the route site. The legacy **AutoRoute** approach derives URLs automatically from constructor names and is still fully supported for existing apps.
+
+### Option 1 — The `[routes|…|]` DSL (recommended for new apps)
+
+Declare each route explicitly in `Web/Routes.hs`:
+
+```haskell
+[routes|webRoutes
+GET    /Posts                    PostsAction
+GET    /NewPost                  NewPostAction
+POST   /CreatePost               CreatePostAction
+GET    /ShowPost?postId          ShowPostAction
+GET    /EditPost?postId          EditPostAction
+POST   /UpdatePost?postId        UpdatePostAction
+DELETE /DeletePost?postId        DeletePostAction
+|]
+```
+
+Then splat the generated `webRoutes` binding into your `FrontController`:
+
+```haskell
+instance FrontController WebApplication where
+    controllers = webRoutes
+```
+
+See [Explicit Routes DSL](#explicit-routes-dsl) below for the full syntax.
+
+### Option 2 — `AutoRoute` (legacy)
+
+`AutoRoute` derives URLs from your action ADT without any explicit spec:
 
 ```haskell
 instance AutoRoute PostsController
 ```
 
-Afterwards enable the routes for `PostsController` in `Web/FrontController.hs` like this:
+Enable the routes for `PostsController` in `Web/FrontController.hs`:
 
 ```haskell
 instance FrontController WebApplication where
@@ -25,6 +54,246 @@ instance FrontController WebApplication where
 ```
 
 Now you can open e.g. `/Posts` to access the `PostsAction`.
+
+## Explicit Routes DSL
+
+The `[routes|…|]` quasi-quoter declares each URL explicitly. The quoter reifies the action ADT at compile time, so field types for path captures and query parameters come from the record definition — no runtime reflection, no `deriving Data`.
+
+### A first example
+
+```haskell
+-- Web/Types.hs
+data PostsController
+    = PostsAction
+    | NewPostAction
+    | ShowPostAction { postId :: !(Id Post) }
+    | CreatePostAction
+    deriving (Eq, Show)
+```
+
+```haskell
+-- Web/Routes.hs
+[routes|PostsController
+GET    /Posts             PostsAction
+GET    /NewPost           NewPostAction
+GET    /ShowPost?postId   ShowPostAction
+POST   /CreatePost        CreatePostAction
+|]
+```
+
+Each line is `METHOD path actionName`. Path captures use `{name}` (RFC 6570). Query params use `?name1&name2` after the path. The record field types decide how captures and query params are parsed — a `postId :: Id Post` field parses as a UUID, a `page :: Maybe Int` is an optional integer, and so on.
+
+### Path captures
+
+Bind a URL segment to a record field with `{name}`:
+
+```haskell
+data PostsController = ShowPostAction { postId :: !(Id Post) }
+
+[routes|PostsController
+GET /posts/{postId}    ShowPostAction
+|]
+```
+
+`pathTo (ShowPostAction "123e4567-e89b-12d3-a456-426614174000")` renders `/posts/123e4567-e89b-12d3-a456-426614174000`.
+
+Splat captures (the rest of the path) use `{+name}`, also following RFC 6570:
+
+```haskell
+data FilesController = DownloadAction { path :: Text }
+
+[routes|FilesController
+GET /files/{+path}     DownloadAction
+|]
+```
+
+The `path` field is decoded as `Text` and captures everything after `/files/`, including `/` characters.
+
+### Query parameters
+
+After the path, declare query params with a `?name&name` suffix:
+
+```haskell
+data PostsController
+    = SearchAction { q :: Text, page :: Maybe Int, tags :: [Text] }
+    | ShowPostAction { postId :: !(Id Post) }
+
+[routes|PostsController
+GET /search?q&page&tags       SearchAction
+GET /ShowPost?postId          ShowPostAction
+|]
+```
+
+Field type drives the URL shape:
+
+- **Required** (`a`): missing or unparseable values respond `404`.
+- **Optional** (`Maybe a`): absent or unparseable values decode to `Nothing`; `pathTo` omits the param when the value is `Nothing`.
+- **List** (`[a]`): collected from every matching `?k=v` repetition; `pathTo` emits one `k=v` pair per element; an empty list omits the field.
+
+Every record field of the action constructor must be covered by either a path capture or a query-param entry. Leftover fields fail at splice time with a pointer to the exact fields not yet bound.
+
+### Custom capture types
+
+The DSL ships with `UrlCapture` instances for the common scalar types: `Text`, `Int`, `Integer`, `UUID`, `Bool`, `Day`, and `Segment` (a non-empty `Text`). IHP additionally provides a polymorphic instance for `Id' table` so any model id captures out of the box, regardless of the table's `PrimaryKey` type.
+
+For your own types — typically SQL enums — declare a `UrlCapture` instance alongside the type:
+
+```haskell
+data Color
+    = ColorRed
+    | ColorGreen
+    | ColorBlue
+    deriving (Eq, Show)
+
+instance UrlCapture Color where
+    parseCapture = \case
+        "red"   -> Just ColorRed
+        "green" -> Just ColorGreen
+        "blue"  -> Just ColorBlue
+        _       -> Nothing
+    renderCapture = \case
+        ColorRed   -> "red"
+        ColorGreen -> "green"
+        ColorBlue  -> "blue"
+```
+
+`parseCapture :: ByteString -> Maybe a` decodes a single (already URL-decoded) path segment or query-param value; returning `Nothing` makes the route miss. `renderCapture :: a -> Text` is the reverse direction used by [`pathTo`](https://ihp.digitallyinduced.com/api-docs/IHP-RouterSupport.html#v:pathTo).
+
+The instance can live in `Web/Routes.hs`, in `Web/Types.hs` next to the data declaration, or in any module reachable from the splice site.
+
+For enum types generated from `Application/Schema.sql`, reuse the generated `textToEnum...` parser and `inputValue` renderer:
+
+```haskell
+instance UrlCapture Color where
+    parseCapture bytes = textToEnumColor (cs bytes)
+    renderCapture = inputValue
+```
+
+### Rename a field
+
+To map a URL-side name to a differently named record field, use `{ field = #captureName }` after the action. Works for path captures and query params alike:
+
+```haskell
+-- capture name in the URL is `id`, record field is `postId`
+GET /ShowPost?id            ShowPostAction { postId = #id }
+
+-- path-capture rename
+GET /orgs/{org}/users/{user}   ShowMemberAction { organizationId = #org, userId = #user }
+```
+
+### Methods and `ANY`
+
+Each route starts with one or more HTTP methods separated by `|`:
+
+```haskell
+GET|POST /api/widgets    WidgetsEndpointAction
+```
+
+`ANY` expands to all methods:
+
+```haskell
+ANY /api/echo            EchoAction
+```
+
+`GET` automatically accepts `HEAD` as well — `HEAD /foo` won't return `405` when the route declares `GET /foo`.
+
+### Header forms
+
+The line above the first route is the header. It takes three shapes:
+
+1. **Uppercase identifier** — a single controller type. The splice reifies that type and emits `HasPath` + `CanRoute` instances for it.
+
+   ```haskell
+   [routes|PostsController
+   GET /posts          PostsAction
+   |]
+   ```
+
+2. **Lowercase identifier** — a binding name for a multi-controller block. The splice still emits `HasPath` + `CanRoute` per referenced type, plus a top-level `webRoutes :: [ControllerRoute app]` binding that you can splat into `FrontController.controllers`.
+
+   ```haskell
+   [routes|webRoutes
+   GET /posts          PostsAction
+   GET /users          UsersAction
+   |]
+
+   instance FrontController WebApplication where
+       controllers = webRoutes
+   ```
+
+   **When migrating an existing app from AutoRoute,** make sure `Web/FrontController.hs` imports `Web.Routes` *with* the `webRoutes` identifier in scope:
+
+   ```haskell
+   -- before (AutoRoute) — only typeclass instances were needed:
+   import Web.Routes ()
+
+   -- after (DSL with lowercase header) — the binding must be in scope:
+   import Web.Routes (webRoutes)
+   ```
+
+   The empty-parens import form (`Web.Routes ()`) brings only the `CanRoute` / `HasPath` instances in. The lowercase-header form additionally emits `webRoutes` as a top-level value, which won't resolve until the import is widened.
+
+3. **Omitted** — header-less. Splice emits instances only; no binding.
+
+### WebSocket routes
+
+Use the `WS` keyword to register a WebSocket app at a static path:
+
+```haskell
+[routes|webRoutes
+GET /posts                 PostsAction
+WS  /chat                  ChatApp
+WS  /datasync              DataSyncController
+|]
+
+instance FrontController WebApplication where
+    controllers = webRoutes
+```
+
+The right-hand identifier on a `WS` line is the **type name** of a `WSApp` instance — not a controller action constructor. The splice emits a `webSocketRoute @TypeName "/path"` entry into the named binding; behaviour is identical to [`webSocketAppWithCustomPath @TypeName "/path"`](https://ihp.digitallyinduced.com/api-docs/IHP-RouterSupport.html#v:webSocketAppWithCustomPath) except the route is registered in the explicit-routes trie instead of the legacy Attoparsec fallback.
+
+The handshake is `HTTP GET` + `Upgrade: websocket`, so `WS` routes register under the `GET` method. A non-WebSocket `GET` to the same path returns `400 Bad Request`.
+
+**v1 limitations** (subject to change):
+
+- WS routes only support **static paths** — no `{capture}` or `{+splat}` segments. The parser rejects them with a pointed error.
+- WS routes don't read query parameters (`?name`).
+- `WS` cannot be combined with HTTP methods on the same line (e.g. `WS|GET` is rejected).
+- WS routes must live in a **named-binding** block (lowercase header). The single-controller and header-less forms can't currently emit the binding the WS route needs to register itself.
+- No HTTP-fallback variant — for the [`webSocketAppWithHTTPFallback`](https://ihp.digitallyinduced.com/api-docs/IHP-RouterSupport.html#v:webSocketAppWithHTTPFallback) shape, register the WS app the legacy way alongside the DSL block.
+- The splice does not emit `HasPath` for the WS type. To call `pathTo @ChatApp` from JS-client setup code, declare the instance manually:
+
+  ```haskell
+  instance HasPath ChatApp where
+      pathTo _ = "/chat"
+  ```
+
+If you need any of the above today, keep using [`webSocketApp`](https://ihp.digitallyinduced.com/api-docs/IHP-RouterSupport.html#v:webSocketApp) / [`webSocketAppWithCustomPath`](https://ihp.digitallyinduced.com/api-docs/IHP-RouterSupport.html#v:webSocketAppWithCustomPath) for those routes; both forms can coexist in the same `controllers` list.
+
+### Compile-time validation
+
+The splice runs several checks on every `[routes|…|]` block and fails at compile time — pointing at the DSL line number — if any of the following go wrong:
+
+- A path capture references an unknown field
+- A `?name` query parameter references an unknown field
+- A field appears in both the path and the query list
+- An action constructor has a record field not covered by the route
+- A query parameter is declared twice
+- A `WS` route uses a path capture, splat, or query list, or `WS` is mixed with HTTP methods on the same line
+- A `WS` route appears in a non-named-binding block
+- The DSL syntax itself is malformed (unknown method, missing path, etc.)
+
+The error messages include the DSL line number and the list of known fields, so fixing them is usually a one-line change.
+
+### Mixing with AutoRoute
+
+The DSL and AutoRoute can coexist in the same application. One controller using `instance AutoRoute` and another using `[routes|…|]` is a supported configuration — both compile into the same underlying route trie at startup.
+
+### Using the DSL outside IHP
+
+The trie-based router and the `[routes|…|]` DSL are also published as a standalone `ihp-router` package with zero IHP dependencies. Plain WAI applications can `cabal install ihp-router` and use the DSL the same way IHP does — minus the `CanRoute` instance and `webRoutes` binding, which are IHP-flavoured. The package emits a generic `<ctrlLower>Trie :: (Ctrl -> Application) -> RouteTrie` binding per controller that you wire into `routeTrieMiddleware` with your own dispatch function.
+
+See [`ihp-router/README.md`](https://github.com/digitallyinduced/ihp/blob/master/ihp-router/README.md) and the [`minimal-wai` example](https://github.com/digitallyinduced/ihp/tree/master/ihp-router/examples/minimal-wai) for a full walkthrough.
 
 ## Changing the Start Page / Home Page
 
@@ -38,20 +307,29 @@ instance FrontController WebApplication where
         ]
 ```
 
+When using the `[routes|webRoutes …|]` DSL, the `webRoutes` binding is just a `[ControllerRoute app]`, so prepend `startPage` with list cons:
+
+```haskell
+instance FrontController WebApplication where
+    controllers = startPage ProjectsAction : webRoutes
+```
+
+This keeps every URL declared in the DSL block intact and additionally maps `/` to `ProjectsAction`. `pathTo ProjectsAction` still returns the path declared in the DSL.
+
 In a new IHP project, you usually have a [`startPage WelcomeAction`](https://ihp.digitallyinduced.com/api-docs/IHP-RouterSupport.html#v:startPage) defined. Make sure to remove this line. Otherwise, you will still see the default IHP welcome page.
 
 **Note:** The `WelcomeAction` controller is provided by the separate `ihp-welcome` package, which is typically only used in new projects for the initial boilerplate.
 
 ## URL Generation
 
-Use [`pathTo`](https://ihp.digitallyinduced.com/api-docs/IHP-ViewPrelude.html#v:pathTo) to generate a path to a given action:
+Use [`pathTo`](https://ihp.digitallyinduced.com/api-docs/IHP-RouterSupport.html#v:pathTo) to generate a path to a given action:
 
 ```haskell
 pathTo ShowPostAction { postId = "adddfb12-da34-44ef-a743-797e54ce3786" }
 -- /ShowPost?postId=adddfb12-da34-44ef-a743-797e54ce3786
 ```
 
-To generate a full URL, use [`urlTo`](https://ihp.digitallyinduced.com/api-docs/IHP-ViewPrelude.html#v:urlTo):
+To generate a full URL, use [`urlTo`](https://ihp.digitallyinduced.com/api-docs/IHP-RouterSupport.html#v:urlTo):
 
 ```haskell
 urlTo NewUserAction

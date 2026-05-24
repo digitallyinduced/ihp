@@ -169,8 +169,16 @@ that is defined in flake-module.nix
                 ghc912-ihp-pglistener = withTestPostgres pkgs.ghc912.ihp-pglistener;
             }
 
-            # GHC 9.14 compatibility checks (only when nixpkgs includes ghc914)
-            // (lib.optionalAttrs (pkgs.haskell.packages ? ghc914) (let
+            # GHC 9.14: ihp-hsx compatibility check (other packages not yet ready)
+            // (lib.optionalAttrs (pkgs.haskell.packages ? ghc914) {
+                ghc914-ihp-hsx = pkgs.ghc914.ihp-hsx;
+            })
+
+            # GHC 9.14 compatibility checks — disabled: nixpkgs-unstable's ghc914 package
+            # set has many transitive upper-bound breaks (blaze-markup, ghc-tcplugins-extra,
+            # …) because boot libraries bumped for GHC 9.14.1. pkgs.ghc914 is still defined
+            # in the overlay for manual experimentation; re-enable once the ecosystem catches up.
+            // (lib.optionalAttrs (false && pkgs.haskell.packages ? ghc914) (let
                 ghc914 = pkgs.ghc914;
                 ihpPackageNames = [
                     "ihp-ide" "ihp-hsx" "ihp-schema-compiler"
@@ -413,11 +421,34 @@ that is defined in flake-module.nix
 
             guide =
                 let
-                    node-modules = pkgs.mkYarnModules {
+                    # node_modules derivation built from yarn.lock + package.json.
+                    # Replaces the removed `mkYarnModules` (yarn2nix) with the standard
+                    # `fetchYarnDeps` + `yarnConfigHook` pipeline from nixpkgs.
+                    node-modules = pkgs.stdenv.mkDerivation {
                         pname = "guide-node_modules";
-                        packageJSON = ./Guide/package.json;
-                        yarnLock = ./Guide/yarn.lock;
                         version = "1.0.0";
+
+                        src = pkgs.runCommand "guide-yarn-src" {} ''
+                            mkdir -p $out
+                            cp ${./Guide/package.json} $out/package.json
+                            cp ${./Guide/yarn.lock}    $out/yarn.lock
+                        '';
+
+                        yarnOfflineCache = pkgs.fetchYarnDeps {
+                            yarnLock = ./Guide/yarn.lock;
+                            hash = "sha256-Alr/Bh3T7Bqvs+HgB9a2l730SNnfKGUPPK23SVlUSt0=";
+                        };
+
+                        nativeBuildInputs = [ pkgs.nodejs pkgs.yarn pkgs.yarnConfigHook ];
+
+                        dontBuild = true;
+
+                        installPhase = ''
+                            runHook preInstall
+                            mkdir -p $out
+                            cp -r node_modules $out/
+                            runHook postInstall
+                        '';
                     };
                 in
                     pkgs.stdenv.mkDerivation {
@@ -459,12 +490,51 @@ that is defined in flake-module.nix
 
 
             reference =
+                let
+                    hackageHtmlLocationFlag = "--html-location='https://hackage.haskell.org/package/$pkgid/docs'";
+                    withHackageLinks = package: pkgs.haskell.lib.overrideCabal package (old: {
+                        haddockFlags = (old.haddockFlags or []) ++ [ hackageHtmlLocationFlag ];
+                    });
+
+                    # Subpackages whose Haddock should be merged into the reference docs.
+                    # Order matters: ihp-with-docs MUST be first so its index.html /
+                    # doc-index-*.html / linuwial.css / quick-jump.js win on conflicts.
+                    # Subpackages contribute their unique IHP-*.html module pages.
+                    docPackages = with pkgs.ghc; map withHackageLinks [
+                        ihp-with-docs
+                        ihp-pglistener
+                        ihp-router
+                        ihp-mail
+                        ihp-modal
+                        ihp-ssc
+                        # ihp-hsx ships with `doHaddock = false` in its default.nix
+                        # (multi-library cabal makes the default haddock build messy).
+                        # Re-enable it here so IHP-HSX-QQ.html etc. land in api-docs.
+                        (pkgs.haskell.lib.overrideCabal ihp-hsx (old: { doHaddock = true; }))
+                        ihp-pagehead
+                        ihp-job-dashboard
+                        ihp-imagemagick
+                        ihp-typed-sql
+                    ];
+                in
                 pkgs.stdenv.mkDerivation {
                     name = "ihp-reference";
                     src = self;
-                    nativeBuildInputs = with pkgs; [ pkgs.ghc.ihp-with-docs ];
+                    nativeBuildInputs = docPackages ++ [ pkgs.perl ];
                     buildPhase = ''
-                        cp -r ${pkgs.ghc.ihp-with-docs.doc}/share/doc/ihp-*/html haddock-build
+                        mkdir -p haddock-build
+
+                        # Merge each package's Haddock html dir into haddock-build/.
+                        # cp -rn ("recursive, no clobber") = first-writer-wins, so the
+                        # core ihp-with-docs index/css/js stay authoritative.
+                        for src in ${lib.concatMapStringsSep " " (p: p.doc.outPath or "") (lib.filter (p: p ? doc) docPackages)}; do
+                            for html_dir in "$src"/share/doc/*/html; do
+                                if [ -d "$html_dir" ]; then
+                                    cp -rn "$html_dir"/. haddock-build/ 2>/dev/null || true
+                                fi
+                            done
+                        done
+
                         chmod -R u+w haddock-build
 
                         cd haddock-build
@@ -476,6 +546,18 @@ that is defined in flake-module.nix
                         cp ../ihp-haddock.css ihp-haddock.css
                         find . -type f \( -iname "*.html" \) -exec sed -i 's#<\/head>#<link href="ihp-haddock.css" rel="stylesheet"/><\/head>#g' '{}' +
 
+                        # Haddock's --html-location keeps prerequisite package links
+                        # stable. After merging IHP subpackage docs into one directory,
+                        # link sibling package references to the local merged pages.
+                        #
+                        find . -type f \( -iname "*.html" \) -exec perl -0pi -e '
+                            s{href="https://hackage\.haskell\.org/package/[^"/]+/docs/([^"#?]+(?:#[^"]*)?)"}{
+                                my ($target) = ($1);
+                                my ($page) = split /#/, $target, 2;
+                                (-e $page) ? qq{href="$target"} : $&
+                            }ge;
+                        ' '{}' +
+
                         # Link title to index
                         find . -type f \( -iname "*.html" \) -exec sed -i 's#<span class=\"caption\">IHP Api Reference</span>#<a href=\"index.html\" class=\"caption\"><img src=\"https://ihp.digitallyinduced.com/Guide/images/ihp-logo-readme.svg\"/>IHP Api Reference</a>#g' '{}' +
 
@@ -484,15 +566,37 @@ that is defined in flake-module.nix
                     # allowedReferences = [];
             };
 
-            datasync-js = pkgs.mkYarnPackage {
-                name = "datasync-js";
+            # DataSync TypeScript SDK: build + tests + typecheck.
+            # Replaces the removed `mkYarnPackage` (yarn2nix) with the standard
+            # `fetchYarnDeps` + `yarnConfigHook` pipeline from nixpkgs.
+            datasync-js = pkgs.stdenv.mkDerivation {
+                pname = "datasync-js";
+                version = "0.1.0";
+
                 src = let filter = inputs.nix-filter.lib; in filter {
                     root = "${self}/ihp-datasync/data/DataSync";
                 };
-                postConfigure = ''
-                    yarn run build
-                    yarn run test
-                    yarn run typecheck
+
+                yarnOfflineCache = pkgs.fetchYarnDeps {
+                    yarnLock = ./ihp-datasync/data/DataSync/yarn.lock;
+                    hash = "sha256-vu7gXhPlgnm76GAQiD7DqROCC80uwAhMrh24mXqdfG0=";
+                };
+
+                nativeBuildInputs = [ pkgs.nodejs pkgs.yarn pkgs.yarnConfigHook ];
+
+                buildPhase = ''
+                    runHook preBuild
+                    yarn --offline run build
+                    yarn --offline run test
+                    yarn --offline run typecheck
+                    runHook postBuild
+                '';
+
+                installPhase = ''
+                    runHook preInstall
+                    mkdir -p $out
+                    cp -r . $out/
+                    runHook postInstall
                 '';
             };
 

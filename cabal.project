@@ -1,7 +1,7 @@
 packages:
     ihp/
     ihp-hsx/
-    ihp-log/
+    ihp-router/
     ihp-modal/
     ihp-pagehead/
     ihp-pglistener/

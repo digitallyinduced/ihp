@@ -15,6 +15,15 @@ import qualified Test.Controller.NotFoundSpec
 import qualified Test.ModelSupportSpec
 import qualified Test.QueryBuilderSpec
 import qualified Test.RouterSupportSpec
+import qualified Test.Router.CaptureSpec
+import qualified Test.Router.TrieSpec
+import qualified Test.Router.MiddlewareSpec
+import qualified Test.Router.DSLParserSpec
+import qualified Test.Router.DSLQuoterSpec
+import qualified Test.Router.MixedModeSpec
+import qualified Test.Router.MultiControllerSpec
+import qualified Test.Router.AppBindingSpec
+import qualified Test.Router.WebSocketSpec
 import qualified Test.ViewSupportSpec
 import qualified Test.FileStorage.ControllerFunctionsSpec
 import qualified Test.PGListenerSpec
@@ -40,6 +49,15 @@ main = hspec do
     Test.ModelSupportSpec.tests
     Test.QueryBuilderSpec.tests
     Test.RouterSupportSpec.tests
+    Test.Router.CaptureSpec.tests
+    Test.Router.TrieSpec.tests
+    Test.Router.MiddlewareSpec.tests
+    Test.Router.DSLParserSpec.tests
+    Test.Router.DSLQuoterSpec.tests
+    Test.Router.MixedModeSpec.tests
+    Test.Router.MultiControllerSpec.tests
+    Test.Router.AppBindingSpec.tests
+    Test.Router.WebSocketSpec.tests
     Test.ViewSupportSpec.tests
     Test.FileStorage.ControllerFunctionsSpec.tests
     Test.Controller.CookieSpec.tests
