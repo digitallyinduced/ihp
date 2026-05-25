@@ -14,12 +14,12 @@ If your application imports `IHP.Log` or `IHP.Log.Types`, replace those imports 
 import System.Log.FastLogger (toLogStr)
 
 action PostsAction = do
-    ?context.logger (toLogStr ("Loading posts" :: Text))
+    ?context.frameworkConfig.logger (toLogStr ("Loading posts" :: Text))
     posts <- query @Post |> fetch
     render IndexView { .. }
 ```
 
-In model code, use `?modelContext.logger`. In setup code, use `FrameworkConfig.logger`.
+In controllers and views the logger lives on the framework config (`?context.frameworkConfig.logger`) — there is no `logger` field on the `Request` itself. In model code, use `?modelContext.logger`. In setup code, use `FrameworkConfig.logger`.
 
 The old `LogLevel` filtering API is no longer available. Control verbosity at the call site or in your deployment/log aggregation setup. Query timing logs are still controlled by the `DEBUG` environment variable.
 
@@ -187,7 +187,7 @@ The recommended fix is to drop `ControllerContext` and use the WAI `Request` dir
 
 `?context` and `?request` carry the same value (the alias is literally `Request`), and the framework is migrating signatures from `?context` to `?request`. IHP's own helpers made this switch — e.g. `renderPagination :: (?request :: Request) => Pagination -> Html`.
 
-If your helper calls `urlTo`/`pathTo` or logs via `?context.logger`, keep a `?context` constraint instead — `Request` satisfies the `ConfigProvider`/`LoggingProvider` (`HasField "frameworkConfig"`/`"logger"`) constraints those functions need, so just spell it `?context :: Request`:
+If your helper calls `urlTo`/`pathTo` (or config helpers like `isDevelopment`), keep a `?context` constraint instead — those need `ConfigProvider` (`HasField "frameworkConfig"`), which `Request` satisfies, so just spell it `?context :: Request`:
 
 ```diff
 -renderLink :: (?context :: ControllerContext) => Html
@@ -195,6 +195,8 @@ If your helper calls `urlTo`/`pathTo` or logs via `?context.logger`, keep a `?co
 ```
 
 Inside a `View` instance's `html` method you don't need to declare anything: the `View` class already keeps `?context :: Request` in scope, so `urlTo`/`pathTo` keep working there unchanged.
+
+Logging needs no `?context` at all — there is no `logger` field on `Request`. Reach the logger through the framework config: `?request.frameworkConfig.logger (toLogStr ("..." :: Text))`.
 
 To make a minimal change without touching every signature, import the alias explicitly instead:
 
