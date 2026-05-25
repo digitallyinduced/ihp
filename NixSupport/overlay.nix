@@ -213,6 +213,16 @@ final: prev: {
                             value = final.haskell.lib.doJailbreak super.${name};
                         }) (builtins.filter (name: super ? ${name}) names));
                 in jailbreak [
+                    # cabal-install 3.16.1.0 / cabal-install-solver want Cabal &
+                    # Cabal-syntax >=3.16.1.0, but GHC 9.14 ships the 3.16.0.0 boot
+                    # libs (a patch-release skew) — drop the bound.
+                    "cabal-install" "cabal-install-solver" "cabal-install-parsers"
+                    "cabal-add"
+                    # hlint -> extensions pins Cabal-syntax <3.15, so nixpkgs builds
+                    # the Cabal-syntax_3_14_2_0 attr — which caps containers <0.8 /
+                    # time <1.15 and fails on GHC 9.14's containers-0.8 / time-1.15.
+                    # Jailbreaking lets that pinned version build on the new boot libs.
+                    "Cabal-syntax_3_14_2_0"
                     "lucid" "lucid2" "clay" "tasty-hspec" "config-ini" "fsnotify"
                     "string-interpolate" "rebase" "rerebase" "with-utf8" "minio-hs"
                     "sandwich" "brick" "postgresql-simple" "hasql-dynamic-statements"
