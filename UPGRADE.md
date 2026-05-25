@@ -168,6 +168,40 @@ If you need mutable per-request state, store an `IORef` in the vault (use `inser
 
 **`FrameworkConfig` field rename:** the `authMiddleware` record field on `FrameworkConfig` has been renamed to `authenticationMiddleware` to avoid an ambiguity with the `authMiddleware` function from `IHP.LoginSupport.Middleware`. Typical apps only set this via `option $ AuthMiddleware (authMiddleware @User)` in `Config.hs` and need no changes. Only code that reads the field directly (e.g. `frameworkConfig.authMiddleware`) needs to update to `frameworkConfig.authenticationMiddleware`.
 
+## `ControllerContext` no longer exported from `IHP.ViewPrelude`
+
+The `IHP.Controller.Context` module has been deleted. `ControllerContext` is now a plain type alias `type ControllerContext = Request`, defined in and exported from `IHP.ControllerSupport`. It is no longer re-exported from `IHP.ViewPrelude`.
+
+Controller code is unaffected — `IHP.ControllerPrelude` still re-exports `IHP.ControllerSupport`. But **view** modules (and view helpers, e.g. a custom `Application/Helper/*.hs`) that mention `ControllerContext` in a type signature now fail to compile:
+
+```
+Not in scope: type constructor or class 'ControllerContext'
+```
+
+The recommended fix is to drop `ControllerContext` and use the WAI `Request` directly. `IHP.ViewPrelude` already exports `Request` (via `Network.Wai`), so no new import is needed:
+
+```diff
+-renderMyWidget :: (?context :: ControllerContext) => Html
++renderMyWidget :: (?request :: Request) => Html
+```
+
+`?context` and `?request` carry the same value (the alias is literally `Request`), and the framework is migrating signatures from `?context` to `?request`. IHP's own helpers made this switch — e.g. `renderPagination :: (?request :: Request) => Pagination -> Html`.
+
+If your helper calls `urlTo`/`pathTo` or logs via `?context.logger`, keep a `?context` constraint instead — `Request` satisfies the `ConfigProvider`/`LoggingProvider` (`HasField "frameworkConfig"`/`"logger"`) constraints those functions need, so just spell it `?context :: Request`:
+
+```diff
+-renderLink :: (?context :: ControllerContext) => Html
++renderLink :: (?context :: Request) => Html
+```
+
+Inside a `View` instance's `html` method you don't need to declare anything: the `View` class already keeps `?context :: Request` in scope, so `urlTo`/`pathTo` keep working there unchanged.
+
+To make a minimal change without touching every signature, import the alias explicitly instead:
+
+```haskell
+import IHP.ControllerSupport (ControllerContext)
+```
+
 ## Join Support Removed from QueryBuilder
 
 The query builder's join functions (`innerJoin`, `innerJoinThirdTable`, `labelResults`) and all `*JoinedTable` filter/order functions have been removed. Use `typedSql` instead, which provides full SQL expressiveness with compile-time type safety.
