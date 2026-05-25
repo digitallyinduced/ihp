@@ -14,12 +14,12 @@ If your application imports `IHP.Log` or `IHP.Log.Types`, replace those imports 
 import System.Log.FastLogger (toLogStr)
 
 action PostsAction = do
-    ?context.logger (toLogStr ("Loading posts" :: Text))
+    ?context.frameworkConfig.logger (toLogStr ("Loading posts" :: Text))
     posts <- query @Post |> fetch
     render IndexView { .. }
 ```
 
-In model code, use `?modelContext.logger`. In setup code, use `FrameworkConfig.logger`.
+In controllers and views the logger lives on the framework config (`?context.frameworkConfig.logger`) — there is no `logger` field on the `Request` itself. In model code, use `?modelContext.logger`. In setup code, use `FrameworkConfig.logger`.
 
 The old `LogLevel` filtering API is no longer available. Control verbosity at the call site or in your deployment/log aggregation setup. Query timing logs are still controlled by the `DEBUG` environment variable.
 
@@ -167,6 +167,42 @@ let value = lookupRequestVault myValueVaultKey ?request
 If you need mutable per-request state, store an `IORef` in the vault (use `insertNewIORefVaultMiddleware`). See how `IHP.LoginSupport.Types.currentUserVaultKey`, `IHP.RequestVault.loggerVaultKey`, and `IHP.PageHead.Types.pageHeadVaultKey` are defined for working examples.
 
 **`FrameworkConfig` field rename:** the `authMiddleware` record field on `FrameworkConfig` has been renamed to `authenticationMiddleware` to avoid an ambiguity with the `authMiddleware` function from `IHP.LoginSupport.Middleware`. Typical apps only set this via `option $ AuthMiddleware (authMiddleware @User)` in `Config.hs` and need no changes. Only code that reads the field directly (e.g. `frameworkConfig.authMiddleware`) needs to update to `frameworkConfig.authenticationMiddleware`.
+
+## `ControllerContext` no longer exported from `IHP.ViewPrelude`
+
+The `IHP.Controller.Context` module has been deleted. `ControllerContext` is now a plain type alias `type ControllerContext = Request`, defined in and exported from `IHP.ControllerSupport`. It is no longer re-exported from `IHP.ViewPrelude`.
+
+Controller code is unaffected — `IHP.ControllerPrelude` still re-exports `IHP.ControllerSupport`. But **view** modules (and view helpers, e.g. a custom `Application/Helper/*.hs`) that mention `ControllerContext` in a type signature now fail to compile:
+
+```
+Not in scope: type constructor or class 'ControllerContext'
+```
+
+The recommended fix is to drop `ControllerContext` and use the WAI `Request` directly. `IHP.ViewPrelude` already exports `Request` (via `Network.Wai`), so no new import is needed:
+
+```diff
+-renderMyWidget :: (?context :: ControllerContext) => Html
++renderMyWidget :: (?request :: Request) => Html
+```
+
+`?context` and `?request` carry the same value (the alias is literally `Request`), and the framework is migrating signatures from `?context` to `?request`. IHP's own helpers made this switch — e.g. `renderPagination :: (?request :: Request) => Pagination -> Html`.
+
+If your helper calls `urlTo`/`pathTo` (or config helpers like `isDevelopment`), keep a `?context` constraint instead — those need `ConfigProvider` (`HasField "frameworkConfig"`), which `Request` satisfies, so just spell it `?context :: Request`:
+
+```diff
+-renderLink :: (?context :: ControllerContext) => Html
++renderLink :: (?context :: Request) => Html
+```
+
+Inside a `View` instance's `html` method you don't need to declare anything: the `View` class already keeps `?context :: Request` in scope, so `urlTo`/`pathTo` keep working there unchanged.
+
+Logging needs no `?context` at all — there is no `logger` field on `Request`. Reach the logger through the framework config: `?request.frameworkConfig.logger (toLogStr ("..." :: Text))`.
+
+To make a minimal change without touching every signature, import the alias explicitly instead:
+
+```haskell
+import IHP.ControllerSupport (ControllerContext)
+```
 
 ## Join Support Removed from QueryBuilder
 
