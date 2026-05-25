@@ -179,9 +179,11 @@ that is defined in flake-module.nix
                     "ihp-migrate" "ihp-openai" "ihp-ssc" "ihp-graphql"
                     "ihp-datasync-typescript" "ihp-sitemap"
                     "ihp-job-dashboard" "ihp-imagemagick"
-                    "ihp-hspec" "ihp-welcome" "ihp-zip"
+                    "ihp-hspec" "ihp-welcome"
                     "wai-asset-path" "wai-flash-messages" "wai-request-params"
                     "wai-session-maybe" "wai-session-clientsession-deferred"
+                    # ihp-zip excluded: Hackage 0.1.1 fails to configure under GHC 9.14
+                    # (zip-archive dependency resolution issue)
                 ];
             in lib.listToAttrs (map (name: {
                 name = "ghc914-${name}";
