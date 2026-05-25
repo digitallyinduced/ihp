@@ -19,7 +19,7 @@ source-repository head
 library
     default-language: GHC2021
     build-depends:
-          base >= 4.17.0 && < 4.22
+          base >= 4.17.0 && < 4.23
         , text
         , http-streams
         , retry
@@ -63,7 +63,7 @@ test-suite tests
     type: exitcode-stdio-1.0
     main-is: IHP/OpenAISpec.hs
     build-depends:
-        base >= 4.17.0 && < 4.22
+        base >= 4.17.0 && < 4.23
         , hspec
         , neat-interpolation
         , ihp-openai

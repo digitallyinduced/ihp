@@ -21,7 +21,7 @@ library
           Wai.Request.Params
         , Wai.Request.Params.Middleware
     build-depends:
-            base >= 4.17.0 && < 4.22
+            base >= 4.17.0 && < 4.23
           , wai
           , wai-extra
           , aeson
@@ -51,7 +51,7 @@ test-suite spec
           Wai.Request.ParamsSpec
         , Wai.Request.Params.MiddlewareSpec
     build-depends:
-            base >= 4.17.0 && < 4.22
+            base >= 4.17.0 && < 4.23
           , wai-request-params
           , hspec
           , wai
