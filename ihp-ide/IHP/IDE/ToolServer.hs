@@ -1,7 +1,7 @@
 module IHP.IDE.ToolServer (runToolServer, withToolServerApplication, ToolServerApplicationWithConfig(..)) where
 
 import IHP.Prelude
-import System.Log.FastLogger (LogType'(..), withFastLogger, defaultBufSize)
+import System.Log.FastLogger (LogType'(..), withFastLogger, defaultBufSize, toLogStr)
 import qualified Network.Wai as Wai
 import qualified Network.Wai.Handler.Warp as Warp
 import IHP.IDE.Types
@@ -32,7 +32,6 @@ import IHP.IDE.ToolServer.Types
 import IHP.IDE.ToolServer.Helper.Controller as Helper
 import IHP.IDE.ToolServer.Routes ()
 import qualified System.Process as Process
-import System.Info
 import qualified IHP.EnvVar as EnvVar
 import qualified IHP.AutoRefresh as AutoRefresh
 import qualified IHP.IDE.ToolServer.Layout as Layout
@@ -171,16 +170,16 @@ initStaticApp = do
             }
     pure (Static.staticApp toolServerStaticSettings)
 
-openUrl :: Text -> IO ()
+openUrl :: (?context :: Context) => Text -> IO ()
 openUrl url = do
     selectedBrowser <- EnvVar.envOrNothing "IHP_BROWSER"
-    let defaultOSBrowser = case os of
-            "linux" -> "xdg-open"
-            "darwin" -> "open"
-            _ -> "xdg-open"
-    let browser = selectedBrowser |> fromMaybe defaultOSBrowser
-    async $ Process.callCommand (browser <> " " <> cs url)
-    pure ()
+    case selectedBrowser of
+        Just browser | shouldOpenBrowser browser -> do
+            async $ Process.callCommand (browser <> " " <> cs url)
+            pure ()
+        _ -> ?context.logger (toLogStr ("IHP development tooling is available at " <> url))
+    where
+        shouldOpenBrowser browser = browser /= "" && browser /= "none" && browser /= "false"
 
 instance FrontController ToolServerApplication where
     controllers =

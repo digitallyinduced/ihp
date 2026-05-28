@@ -255,18 +255,22 @@ When something goes wrong you can also run `haskell-language-server` inside the 
 
 ## IHP Dev Server
 
-### Customizing the Web Browser used by IHP
+### Opening the IHP Dev Server in a Browser
 
-When running `devenv up` the application will automatically be opened in your default browser. You can manually specify a browser by setting the env var `IHP_BROWSER` in `.envrc`:
+When running `devenv up`, IHP prints the development tooling URL to the terminal. To open it automatically in a browser, set the env var `IHP_BROWSER` in `.envrc`:
 
 ```bash
 export IHP_BROWSER=firefox
 ```
 
-You can disable the auto-start of the browser completely using `echo` as your browser:
+You can also use the system browser opener for your platform:
 
 ```bash
-export IHP_BROWSER=echo
+# macOS
+export IHP_BROWSER=open
+
+# Linux
+export IHP_BROWSER=xdg-open
 ```
 
 ### Running the IHP Dev Server On a Host Different From `localhost`
