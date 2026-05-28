@@ -13,7 +13,7 @@ import qualified Control.Concurrent as Concurrent
 import qualified Control.Concurrent.Async as Async
 import qualified System.Timeout as Timeout
 import Control.Monad.Trans.Resource
-import qualified IHP.Log as Log
+import System.Log.FastLogger (toLogStr)
 import IHP.Hasql.FromRow (FromRowHasql)
 import Control.Concurrent.STM (atomically, newTBQueue, readTBQueue, writeTBQueue, newTVarIO, readTVar, readTVarIO, writeTVar, modifyTVar', check)
 import IHP.Job.Queue (tryWriteTBQueue)
@@ -57,61 +57,71 @@ jobWorkerFetchAndRunLoop JobWorkerArgs { .. } = do
 
     activeCount <- liftIO $ newTVarIO (0 :: Int)
     activeWorkers <- liftIO $ newTVarIO ([] :: [Async ()])
+    isStopping <- liftIO $ newTVarIO False
 
     let runJobLoop = do
-            fetchResult <- Exception.tryAny (Queue.fetchNextJob @job pool workerId)
-            case fetchResult of
-                Left exception -> do
-                    Log.error ("Job worker: Failed to fetch next job: " <> tshow exception)
-                    Concurrent.threadDelay 1000000  -- 1s backoff to avoid tight error loops
-                    runJobLoop -- retry after transient error
-                Right (Just job) -> do
-                    Log.info ("Starting job: " <> tshow job)
+            stopping <- readTVarIO isStopping
+            unless stopping do
+                fetchResult <- Exception.tryAny (Queue.fetchNextJob @job pool workerId)
+                case fetchResult of
+                    Left exception -> do
+                        ?context.logger (toLogStr ("Job worker: Failed to fetch next job: " <> tshow exception))
+                        Concurrent.threadDelay 1000000  -- 1s backoff to avoid tight error loops
+                        runJobLoop -- retry after transient error
+                    Right (Just job) -> do
+                        ?context.logger (toLogStr ("Starting job: " <> tshow job))
 
-                    let ?job = job
-                    let timeout :: Int = fromMaybe (-1) (timeoutInMicroseconds @job)
-                    resultOrException <- Exception.tryAsync (Timeout.timeout timeout (perform job))
-                    case resultOrException of
-                        Left exception -> do
-                            Queue.jobDidFail pool job exception
-                            when (Exception.isAsyncException exception) (Exception.throwIO exception)
-                        Right Nothing -> Queue.jobDidTimeout pool job
-                        Right (Just _) -> Queue.jobDidSucceed pool job
+                        let ?job = job
+                        let timeout :: Int = fromMaybe (-1) (timeoutInMicroseconds @job)
+                        resultOrException <- Exception.tryAsync (Timeout.timeout timeout (perform job))
+                        case resultOrException of
+                            Left exception -> do
+                                Queue.jobDidFail pool job exception
+                                when (Exception.isAsyncException exception) (Exception.throwIO exception)
+                            Right Nothing -> Queue.jobDidTimeout pool job
+                            Right (Just _) -> Queue.jobDidSucceed pool job
 
-                    runJobLoop -- try next job immediately
-                Right Nothing -> pure ()
+                        runJobLoop -- try next job immediately
+                    Right Nothing -> pure ()
+
+    let waitForActiveWorkers = atomically do
+            count <- readTVar activeCount
+            check (count == 0)
 
     let dispatcherLoop = do
-            msg <- atomically $ readTBQueue action
-            case msg of
-                Stop -> do
-                    -- Wait for all active workers to finish
-                    atomically $ do
-                        count <- readTVar activeCount
-                        check (count == 0)
-                JobAvailable -> do
-                    acquired <- atomically $ do
-                        count <- readTVar activeCount
-                        if count < maxConcurrency @job
-                            then do
-                                writeTVar activeCount (count + 1)
-                                pure True
-                            else pure False
-                    when acquired do
-                        selfVar <- Concurrent.newEmptyMVar
-                        workerAsync <- async $
-                            (do self <- Concurrent.readMVar selfVar
-                                runJobLoop)
-                            `Exception.finally`
-                                (do maybeSelf <- Concurrent.tryReadMVar selfVar
-                                    atomically do
-                                        modifyTVar' activeCount (subtract 1)
-                                        case maybeSelf of
-                                            Just self -> modifyTVar' activeWorkers (filter (/= self))
-                                            Nothing -> pure ())
-                        Concurrent.putMVar selfVar workerAsync
-                        atomically $ modifyTVar' activeWorkers (workerAsync :)
-                    dispatcherLoop
+            stopping <- readTVarIO isStopping
+            if stopping
+                then waitForActiveWorkers
+                else do
+                    msg <- atomically $ readTBQueue action
+                    case msg of
+                        Stop -> do
+                            atomically $ writeTVar isStopping True
+                            waitForActiveWorkers
+                        JobAvailable -> do
+                            acquired <- atomically do
+                                stopping <- readTVar isStopping
+                                count <- readTVar activeCount
+                                if not stopping && count < maxConcurrency @job
+                                    then do
+                                        writeTVar activeCount (count + 1)
+                                        pure True
+                                    else pure False
+                            when acquired do
+                                selfVar <- Concurrent.newEmptyMVar
+                                workerAsync <- async $
+                                    (do self <- Concurrent.readMVar selfVar
+                                        runJobLoop)
+                                    `Exception.finally`
+                                        (do maybeSelf <- Concurrent.tryReadMVar selfVar
+                                            atomically do
+                                                modifyTVar' activeCount (subtract 1)
+                                                case maybeSelf of
+                                                    Just self -> modifyTVar' activeWorkers (filter (/= self))
+                                                    Nothing -> pure ())
+                                Concurrent.putMVar selfVar workerAsync
+                                atomically $ modifyTVar' activeWorkers (workerAsync :)
+                            dispatcherLoop
 
     let cancelAllWorkers = do
             workers <- readTVarIO activeWorkers
@@ -136,4 +146,4 @@ jobWorkerFetchAndRunLoop JobWorkerArgs { .. } = do
             pure (Just key)
         Nothing -> pure Nothing
 
-    pure JobWorkerProcess { dispatcher, subscription, pollerReleaseKey, action, staleRecoveryReleaseKey, activeCount }
+    pure JobWorkerProcess { dispatcher, subscription, pollerReleaseKey, action, staleRecoveryReleaseKey, activeCount, isStopping }

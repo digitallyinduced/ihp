@@ -340,9 +340,10 @@ instance FrontController WebApplication where
         ]
 
 instance InitControllerContext WebApplication where
-    initContext = do
-        initAuthentication @User
+    initContext = pure ()
 ```
+
+In `Config/Config.hs` add `option $ AuthMiddleware (authMiddleware @User)` so the current user is loaded into the request vault on every request.
 
 ### Sessions Controller
 

@@ -25,7 +25,7 @@ import IHP.ControllerSupport (InitControllerContext)
 import IHP.FrameworkConfig (ConfigBuilder (..), FrameworkConfig (..))
 import qualified IHP.FrameworkConfig as FrameworkConfig
 import qualified IHP.ModelSupport as ModelSupport
-import IHP.Log.Types
+import IHP.ModelSupport (noopLogger)
 
 import qualified System.Process as Process
 import IHP.Test.Mocking (MockContext(..), runTestMiddlewares, responseBody)
@@ -51,7 +51,7 @@ runSessionOnConnection conn session = do
 withIHPApp :: (InitControllerContext application) => application -> ConfigBuilder -> (MockContext application -> IO ()) -> IO ()
 withIHPApp application configBuilder hspecAction = do
     FrameworkConfig.withFrameworkConfig configBuilder \frameworkConfig -> do
-        logger <- newLogger def { level = Warn } -- don't log queries
+        let logger = noopLogger -- don't log queries
 
         withTestDatabase frameworkConfig.databaseUrl \testDatabaseUrl -> do
             ModelSupport.withModelContext testDatabaseUrl logger \modelContext -> do

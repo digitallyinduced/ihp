@@ -16,7 +16,7 @@ category:            Web, Logging, IHP
 common shared-properties
     default-language: GHC2021
     build-depends:
-          base >= 4.17.0 && < 4.22
+          base >= 4.17.0 && < 4.23
         , filepath >= 1.5
         , text
         , bytestring
@@ -32,7 +32,7 @@ common shared-properties
         , OverloadedRecordDot
         , DuplicateRecordFields
         , LambdaCase
-    ghc-options: -Werror=incomplete-patterns -Werror=unused-imports -Werror=missing-fields -Werror=missing-home-modules
+    ghc-options: -Werror=incomplete-patterns -Werror=unused-imports -Werror=missing-fields
 
 library
     import: shared-properties

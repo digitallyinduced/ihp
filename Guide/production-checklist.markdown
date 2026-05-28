@@ -72,29 +72,11 @@ IHP uses the `IHP_ENV` environment variable (or the `option` in `Config/Config.h
 
 IHP's default production logger uses `Info` level with Apache-style request logging. You can customize this in `Config/Config.hs`.
 
-- **Set an appropriate log level**: For production, `Info` or `Warn` is recommended. Avoid `Debug` in production as it generates excessive output and may include sensitive data.
+- **Review logging output**: IHP logs to stdout via fast-logger. All log messages are always emitted — control verbosity at the deployment level (e.g., redirect stdout, use log aggregation).
 
-    ```haskell
-    -- Config/Config.hs
-    import IHP.Log.Types
+- **Set up log aggregation**: If you are deploying on AWS, consider forwarding logs to CloudWatch using Vector. The deployment guide includes a complete [CloudWatch configuration](https://ihp.digitallyinduced.com/Guide/deployment.html).
 
-    config :: ConfigBuilder
-    config = do
-        logger <- liftIO $ newLogger def { level = Info }
-        option logger
-    ```
-
-- **Set up log aggregation**: If you are deploying on AWS, consider forwarding logs to CloudWatch using Vector. The deployment guide includes a complete [CloudWatch configuration](https://ihp.digitallyinduced.com/Guide/deployment.html). On other platforms, you can log to a file with rotation:
-
-    ```haskell
-    logger <- liftIO $ newLogger def {
-        level = Info,
-        destination = File "Log/production.log" (SizeRotate (Bytes (4 * 1024 * 1024)) 7) defaultBufSize
-    }
-    option logger
-    ```
-
-- **Verify logs do not contain sensitive data**: Check that log messages do not include passwords, session tokens, API keys, or other secrets. Be cautious with `Log.debug` calls that may dump request bodies.
+- **Verify logs do not contain sensitive data**: Check that log messages do not include passwords, session tokens, API keys, or other secrets.
 
 - **Monitor application logs after deployment**: Check `journalctl --unit=app.service -n 100 --no-pager` on your server to verify the app started cleanly and is handling requests without unexpected errors.
 

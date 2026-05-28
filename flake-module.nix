@@ -25,8 +25,11 @@ ihpFlake:
                 ghcCompiler = lib.mkOption {
                     description = ''
                         The GHC compiler to use for IHP.
+
+                        Defaults to `pkgs.ghc` (GHC 9.10, binary-cached). Set to
+                        `pkgs.ghc914` to opt into GHC 9.14 (built from source).
                     '';
-                    default = pkgs.haskellPackages;
+                    default = pkgs.ghc;
                 };
 
                 packages = lib.mkOption {
@@ -176,7 +179,7 @@ ihpFlake:
         perSystem = { self', lib, pkgs, system, config, ... }: let
             cfg = config.ihp;
             ihp = ihpFlake.inputs.self;
-            ghcCompiler = pkgs.ghc;
+            ghcCompiler = cfg.ghcCompiler;
             ihpLib = ihpFlake.inputs.self.packages.${system}.ihp-env-var-backwards-compat;
             # Auto-detect whether a build-time PostgreSQL is needed (e.g. ihp-typed-sql)
             buildWithPostgres = builtins.any (p: (p.pname or "") == "ihp-typed-sql") (cfg.haskellPackages ghcCompiler);

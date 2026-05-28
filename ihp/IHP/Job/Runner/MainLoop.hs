@@ -15,8 +15,9 @@ import qualified System.Posix.Signals as Signals
 import qualified System.Exit as Exit
 import qualified IHP.PGListener as PGListener
 import Control.Monad.Trans.Resource
-import qualified IHP.Log as Log
-import Control.Concurrent.STM (atomically, writeTBQueue)
+import System.Log.FastLogger (toLogStr)
+import Control.Concurrent.STM (atomically, writeTVar)
+import IHP.Job.Queue (tryWriteTBQueue)
 
 -- | Used by the RunJobs binary
 runJobWorkers :: [JobWorker] -> Script
@@ -29,9 +30,8 @@ dedicatedProcessMainLoop jobWorkers = do
     threadId <- Concurrent.myThreadId
     exitSignalsCount <- newIORef 0
     workerId <- UUID.nextRandom
-    let logger = ?context.logger
 
-    Log.info ("Starting worker " <> tshow workerId)
+    ?context.logger (toLogStr ("Starting worker " <> tshow workerId))
 
     -- The job workers use their own dedicated PG listener as e.g. AutoRefresh or DataSync
     -- could overload the main PGListener connection. In that case we still want jobs to be
@@ -49,18 +49,24 @@ dedicatedProcessMainLoop jobWorkers = do
 
             liftIO waitForExitSignal
 
-            liftIO $ Log.info ("Waiting for jobs to complete. CTRL+C again to force exit" :: Text)
+            liftIO $ ?context.logger (toLogStr ("Waiting for jobs to complete. CTRL+C again to force exit" :: Text))
+
+            -- Mark all workers as stopping before releasing producers, so running workers
+            -- finish their current job but don't fetch another one during shutdown.
+            liftIO $ forEach processes \JobWorkerProcess { action, isStopping } -> do
+                atomically do
+                    writeTVar isStopping True
+                    _ <- tryWriteTBQueue action Stop
+                    pure ()
 
             -- Stop subscriptions and poller already
             -- This will stop all producers for the queue
-            liftIO $ forEach processes \JobWorkerProcess { pollerReleaseKey, subscription, action, staleRecoveryReleaseKey } -> do
+            liftIO $ forEach processes \JobWorkerProcess { pollerReleaseKey, subscription, staleRecoveryReleaseKey } -> do
                 PGListener.unsubscribe subscription pgListener
                 release pollerReleaseKey
                 case staleRecoveryReleaseKey of
                     Just key -> release key
                     Nothing -> pure ()
-                -- Single Stop for the dispatcher (it waits for active workers internally)
-                atomically $ writeTBQueue action Stop
 
             liftIO $ PGListener.stop pgListener
 
@@ -69,7 +75,7 @@ dedicatedProcessMainLoop jobWorkers = do
             liftIO $ async do
                 waitForExitSignal
 
-                Log.info ("Canceling all running jobs. CTRL+C again to force exit" :: Text)
+                ?context.logger (toLogStr ("Canceling all running jobs. CTRL+C again to force exit" :: Text))
 
                 forEach processes \JobWorkerProcess { dispatcher = (dispatcherKey, _) } -> do
                     release dispatcherKey  -- cancels dispatcher, whose finally cancels all workers

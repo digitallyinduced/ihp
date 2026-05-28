@@ -165,7 +165,6 @@ initMiddlewareStack frameworkConfig modelContext maybePgListener = do
         . modalMiddleware
         . modelContextMiddleware modelContext
         . authMw
-        . loggerMiddleware frameworkConfig.logger
         . frameworkConfigMiddleware frameworkConfig
         . requestBodyMiddleware frameworkConfig.parseRequestBodyOptions
         . pgListenerMw

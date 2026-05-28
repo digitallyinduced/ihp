@@ -41,7 +41,7 @@ common ihp-std
 library
     import: ihp-std
     build-depends:
-          base >= 4.17.0 && < 4.22
+          base >= 4.17.0 && < 4.23
         , text
         , ihp
         , blaze-html

@@ -4,9 +4,9 @@ import qualified Control.Exception                 as Exception
 import qualified Data.Set                          as Set
 import qualified Data.Text                         as Text
 import qualified Data.Text.IO                      as Text
-import           IHP.Log.Types
 import           IHP.ModelSupport                  (createModelContext,
                                                     releaseModelContext,
+                                                    noopLogger,
                                                     unsafeSqlExecDiscardResult)
 import           IHP.Prelude
 import           IHP.TypedSql.ParamHints           (parseSql, extractJoinNullableTables,
@@ -453,7 +453,7 @@ requirePostgresTestHook = do
 
 withTestModelContext :: ((?modelContext :: ModelContext) => IO a) -> IO a
 withTestModelContext action = do
-    logger <- newLogger def { level = Warn }
+    let logger = noopLogger
     databaseUrl <- cs . fromMaybe "" <$> lookupEnv "DATABASE_URL"
     modelContext <- createModelContext databaseUrl logger
     let ?modelContext = modelContext
@@ -905,8 +905,7 @@ runtimeModule = Text.unlines
     , ""
     , "import qualified Control.Exception as Exception"
     , "import IHP.Prelude"
-    , "import IHP.Log.Types"
-    , "import IHP.ModelSupport (Id'(..), ModelContext, PrimaryKey, createModelContext, releaseModelContext)"
+    , "import IHP.ModelSupport (Id'(..), ModelContext, PrimaryKey, createModelContext, releaseModelContext, noopLogger)"
     , "import IHP.Hasql.FromRow (FromRowHasql (..))"
     , "import IHP.TypedSql (sqlExecTyped, sqlQueryTyped, typedSql, typedSqlStar)"
     , "import qualified Hasql.Decoders as HasqlDecoders"
@@ -936,7 +935,7 @@ runtimeModule = Text.unlines
     , ""
     , "main :: IO ()"
     , "main = do"
-    , "    logger <- newLogger def { level = Warn }"
+    , "    let logger = noopLogger"
     , "    databaseUrl <- cs . fromMaybe \"\" <$> lookupEnv \"DATABASE_URL\""
     , "    modelContext <- createModelContext databaseUrl logger"
     , "    let ?modelContext = modelContext"
@@ -1156,8 +1155,7 @@ runtimeUpdateDeleteModule = Text.unlines
     , ""
     , "import qualified Control.Exception as Exception"
     , "import IHP.Prelude"
-    , "import IHP.Log.Types"
-    , "import IHP.ModelSupport (Id'(..), ModelContext, PrimaryKey, createModelContext, releaseModelContext)"
+    , "import IHP.ModelSupport (Id'(..), ModelContext, PrimaryKey, createModelContext, releaseModelContext, noopLogger)"
     , "import IHP.TypedSql (sqlExecTyped, sqlQueryTyped, typedSql)"
     , "import System.Environment (lookupEnv)"
     , ""
@@ -1170,7 +1168,7 @@ runtimeUpdateDeleteModule = Text.unlines
     , ""
     , "main :: IO ()"
     , "main = do"
-    , "    logger <- newLogger def { level = Warn }"
+    , "    let logger = noopLogger"
     , "    databaseUrl <- cs . fromMaybe \"\" <$> lookupEnv \"DATABASE_URL\""
     , "    modelContext <- createModelContext databaseUrl logger"
     , "    let ?modelContext = modelContext"
@@ -1247,8 +1245,7 @@ runtimeEdgeCasesModule = Text.unlines
     , ""
     , "import qualified Control.Exception as Exception"
     , "import IHP.Prelude"
-    , "import IHP.Log.Types"
-    , "import IHP.ModelSupport (Id'(..), ModelContext, PrimaryKey, createModelContext, releaseModelContext)"
+    , "import IHP.ModelSupport (Id'(..), ModelContext, PrimaryKey, createModelContext, releaseModelContext, noopLogger)"
     , "import IHP.TypedSql (sqlExecTyped, sqlQueryTyped, typedSql)"
     , "import System.Environment (lookupEnv)"
     , ""
@@ -1261,7 +1258,7 @@ runtimeEdgeCasesModule = Text.unlines
     , ""
     , "main :: IO ()"
     , "main = do"
-    , "    logger <- newLogger def { level = Warn }"
+    , "    let logger = noopLogger"
     , "    databaseUrl <- cs . fromMaybe \"\" <$> lookupEnv \"DATABASE_URL\""
     , "    modelContext <- createModelContext databaseUrl logger"
     , "    let ?modelContext = modelContext"
@@ -1332,8 +1329,7 @@ runtimeExtraTypesModule = Text.unlines
     , ""
     , "import qualified Control.Exception as Exception"
     , "import IHP.Prelude"
-    , "import IHP.Log.Types"
-    , "import IHP.ModelSupport (ModelContext, PrimaryKey, createModelContext, releaseModelContext)"
+    , "import IHP.ModelSupport (ModelContext, PrimaryKey, createModelContext, releaseModelContext, noopLogger)"
     , "import IHP.TypedSql (sqlQueryTyped, typedSql)"
     , "import Data.Time (UTCTime, Day, parseTimeM, defaultTimeLocale)"
     , "import Data.Scientific (Scientific)"
@@ -1349,7 +1345,7 @@ runtimeExtraTypesModule = Text.unlines
     , ""
     , "main :: IO ()"
     , "main = do"
-    , "    logger <- newLogger def { level = Warn }"
+    , "    let logger = noopLogger"
     , "    databaseUrl <- cs . fromMaybe \"\" <$> lookupEnv \"DATABASE_URL\""
     , "    modelContext <- createModelContext databaseUrl logger"
     , "    let ?modelContext = modelContext"

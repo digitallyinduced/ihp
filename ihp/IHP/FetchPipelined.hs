@@ -41,7 +41,6 @@ import qualified Hasql.Encoders as Encoders
 import qualified Hasql.Pipeline as Pipeline
 import qualified Hasql.Session as HasqlSession
 import qualified Hasql.Statement as HasqlStatement
-import qualified IHP.Log as Log
 import IHP.Hasql.Pool (usePoolWithRetry)
 import Data.Functor.Contravariant (contramap)
 import Data.Functor.Contravariant.Divisible (conquer)
@@ -157,11 +156,10 @@ pipeline thePipeline = do
             _ -> thePipeline
     let session = HasqlSession.pipeline effectivePipeline
     let ?context = ?modelContext
-    let currentLogLevel = ?modelContext.logger.level
     let runQuery = case ?modelContext.transactionRunner of
             Just (TransactionRunner runner) -> runner session
             Nothing -> usePoolWithRetry pool session
-    logQueryTiming currentLogLevel "🔍 Pipeline" runQuery
+    logQueryTiming "🔍 Pipeline" runQuery
 {-# INLINABLE pipeline #-}
 
 -- | Session-scoped RLS config for pipeline mode.

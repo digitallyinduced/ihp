@@ -5,6 +5,7 @@ module Test.ControllerSupportSpec where
 
 import IHP.Prelude
 import Test.Hspec
+import IHP.ModelSupport (noopLogger)
 import IHP.ControllerSupport (requestBodyJSON, InitControllerContext (..), startWebSocketAppAndFailOnHTTP)
 import IHP.Environment (Environment (..))
 import qualified IHP.FrameworkConfig as FrameworkConfig
@@ -108,7 +109,7 @@ tests = do
             -- We use status200 (not status101) because Warp's hasBody
             -- returns False for 1xx, which skips the raw handler (#2628).
             it "rewrites WebSocket fallback status to non-500 for middleware" do
-                frameworkConfig <- FrameworkConfig.buildFrameworkConfig (FrameworkConfig.option Development)
+                frameworkConfig <- FrameworkConfig.buildFrameworkConfig noopLogger (FrameworkConfig.option Development)
                 let modelContext = notConnectedModelContext frameworkConfig.logger
                 let baseRequest = Wai.defaultRequest
                         { Wai.requestHeaders =
@@ -135,7 +136,7 @@ tests = do
             -- connections through Warp. A previous fix used status101 which
             -- caused Warp to skip the raw handler entirely.
             it "allows a real WebSocket connection through Warp" do
-                frameworkConfig <- FrameworkConfig.buildFrameworkConfig (FrameworkConfig.option Development)
+                frameworkConfig <- FrameworkConfig.buildFrameworkConfig noopLogger (FrameworkConfig.option Development)
                 let modelContext = notConnectedModelContext frameworkConfig.logger
                 let app r respond = do
                         let ?request = r { Wai.vault =
@@ -155,7 +156,7 @@ tests = do
 -- | Build the middleware stack for a given environment.
 withMiddleware :: Environment -> (Wai.Middleware -> IO a) -> IO a
 withMiddleware environment action = do
-    frameworkConfig <- FrameworkConfig.buildFrameworkConfig (FrameworkConfig.option environment)
+    frameworkConfig <- FrameworkConfig.buildFrameworkConfig noopLogger (FrameworkConfig.option environment)
     let modelContext = notConnectedModelContext frameworkConfig.logger
     middleware <- initMiddlewareStack frameworkConfig modelContext Nothing
     action middleware

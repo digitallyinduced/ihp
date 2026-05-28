@@ -2,21 +2,7 @@
     description = "IHP is a modern batteries-included haskell web framework, built on top of Haskell and Nix.";
 
     inputs = {
-        # TEMPORARY PIN — not the nixpkgs-unstable channel branch.
-        #
-        # Pinned to a staging-next commit that contains NixOS/nixpkgs#519795
-        # ("haskellPackages.ihp: pin to hasql 1.10"), which adds the upstream
-        # IHP hasql-1.10 scope + dontCheck for the versioned hasql attrs.
-        # Hydra has already built haskellPackages.ihp green at this rev, so the
-        # entire hasql 1.10 closure (+ GHC + the Haskell dep tree) is prebuilt
-        # in cache.nixos.org for aarch64-darwin / x86_64-linux / aarch64-linux.
-        # That lets NixSupport/overlay.nix drop its local dontCheck workarounds
-        # and get binary-cache hits instead of rebuilding the stack from source.
-        #
-        # Revert to "github:NixOS/nixpkgs/nixpkgs-unstable" once #519795 has
-        # propagated through staging-next -> master -> the nixpkgs-unstable
-        # channel (tracked by NixOS/nixpkgs#517946).
-        nixpkgs.url = "github:NixOS/nixpkgs/23efd5e6fcd2ebf02486146f141d5348449694ab";      # for Haskell packages
+        nixpkgs.url = "github:NixOS/nixpkgs/nixpkgs-unstable";             # for Haskell packages
         nixpkgs-nixos.url = "github:NixOS/nixpkgs/nixos-25.11";     # for NixOS deployments (pin independently)
 
         # pre-defined set of default target systems

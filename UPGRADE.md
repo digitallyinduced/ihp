@@ -28,6 +28,25 @@ Script outputs are unoptimized by default for faster builds. To build all `scrip
 ihp.scripts.optimized = true;
 ```
 
+## `ihp-log` Has Been Removed
+
+The `ihp-log` package and the `IHP.Log.*` modules have been removed. IHP now uses `fast-logger` directly.
+
+If your application imports `IHP.Log` or `IHP.Log.Types`, replace those imports with `System.Log.FastLogger` and log through the logger already available in the IHP context:
+
+```haskell
+import System.Log.FastLogger (toLogStr)
+
+action PostsAction = do
+    ?context.frameworkConfig.logger (toLogStr ("Loading posts" :: Text))
+    posts <- query @Post |> fetch
+    render IndexView { .. }
+```
+
+In controllers and views the logger lives on the framework config (`?context.frameworkConfig.logger`) — there is no `logger` field on the `Request` itself. In model code, use `?modelContext.logger`. In setup code, use `FrameworkConfig.logger`.
+
+The old `LogLevel` filtering API is no longer available. Control verbosity at the call site or in your deployment/log aggregation setup. Query timing logs are still controlled by the `DEBUG` environment variable.
+
 ## Incomplete Pattern Matches Are Now App Compile Errors
 
 IHP now promotes incomplete pattern match warnings to compile errors in app-facing defaults:
@@ -115,7 +134,7 @@ The `renderJson` function is unchanged and can still be used directly in control
 
 ## Authentication moved to WAI middleware
 
-The `initAuthentication` function has been deprecated in favor of a WAI middleware approach. Authentication now runs as middleware before your controllers, storing the current user in the WAI request vault.
+The `initAuthentication` function has been removed in favor of a WAI middleware approach. Authentication now runs as middleware before your controllers, storing the current user in the WAI request vault.
 
 **Migration steps:**
 
@@ -145,9 +164,69 @@ The `initAuthentication` function has been deprecated in favor of a WAI middlewa
     option $ AuthMiddleware (authMiddleware @User . adminAuthMiddleware @Admin)
     ```
 
-**Deprecated functions:** `initAuthentication` still works but is deprecated. `currentRoleOrNothing`, `currentRole`, `currentRoleId`, `ensureIsRole` have been removed. Use the type-specific variants instead: `currentUserOrNothing`/`currentAdminOrNothing`, `currentUser`/`currentAdmin`, `currentUserId`/`currentAdminId`, `ensureIsUser`/`ensureIsAdmin`.
+**Removed functions:** `initAuthentication`, `currentRoleOrNothing`, `currentRole`, `currentRoleId`, `ensureIsRole`. Use the type-specific variants instead: `currentUserOrNothing`/`currentAdminOrNothing`, `currentUser`/`currentAdmin`, `currentUserId`/`currentAdminId`, `ensureIsUser`/`ensureIsAdmin`.
+
+## ControllerContext TMap API removed
+
+The typed-map storage on `ControllerContext` has been removed. The functions `putContext`, `fromContext`, `maybeFromContext`, `fromFrozenContext`, `maybeFromFrozenContext`, `freeze`, and `unfreeze` no longer exist, and the `FrozenControllerContext` constructor is gone. The `ihp-context` package has also been deleted — drop it from your `cabal.project`/`build-depends` if you referenced it directly.
+
+`ControllerContext` is now a thin wrapper around the WAI `Request`. All per-request state (auth user, framework config, logger, page head, modal state, ...) lives in the request vault. To store your own per-request value, define a `Vault.Key` and a small middleware:
+
+```haskell
+import qualified Data.Vault.Lazy as Vault
+import IHP.RequestVault.Helper (insertVaultMiddleware, lookupRequestVault)
+import System.IO.Unsafe (unsafePerformIO)
+
+myValueVaultKey :: Vault.Key MyValue
+myValueVaultKey = unsafePerformIO Vault.newKey
+{-# NOINLINE myValueVaultKey #-}
+
+-- In Config.hs:
+option $ CustomMiddleware (insertVaultMiddleware myValueVaultKey someValue)
+
+-- In a controller or view:
+let value = lookupRequestVault myValueVaultKey ?request
+```
+
+If you need mutable per-request state, store an `IORef` in the vault (use `insertNewIORefVaultMiddleware`). See how `IHP.LoginSupport.Types.currentUserVaultKey`, `IHP.RequestVault.loggerVaultKey`, and `IHP.PageHead.Types.pageHeadVaultKey` are defined for working examples.
 
 **`FrameworkConfig` field rename:** the `authMiddleware` record field on `FrameworkConfig` has been renamed to `authenticationMiddleware` to avoid an ambiguity with the `authMiddleware` function from `IHP.LoginSupport.Middleware`. Typical apps only set this via `option $ AuthMiddleware (authMiddleware @User)` in `Config.hs` and need no changes. Only code that reads the field directly (e.g. `frameworkConfig.authMiddleware`) needs to update to `frameworkConfig.authenticationMiddleware`.
+
+## `ControllerContext` no longer exported from `IHP.ViewPrelude`
+
+The `IHP.Controller.Context` module has been deleted. `ControllerContext` is now a plain type alias `type ControllerContext = Request`, defined in and exported from `IHP.ControllerSupport`. It is no longer re-exported from `IHP.ViewPrelude`.
+
+Controller code is unaffected — `IHP.ControllerPrelude` still re-exports `IHP.ControllerSupport`. But **view** modules (and view helpers, e.g. a custom `Application/Helper/*.hs`) that mention `ControllerContext` in a type signature now fail to compile:
+
+```
+Not in scope: type constructor or class 'ControllerContext'
+```
+
+The recommended fix is to drop `ControllerContext` and use the WAI `Request` directly. `IHP.ViewPrelude` already exports `Request` (via `Network.Wai`), so no new import is needed:
+
+```diff
+-renderMyWidget :: (?context :: ControllerContext) => Html
++renderMyWidget :: (?request :: Request) => Html
+```
+
+`?context` and `?request` carry the same value (the alias is literally `Request`), and the framework is migrating signatures from `?context` to `?request`. IHP's own helpers made this switch — e.g. `renderPagination :: (?request :: Request) => Pagination -> Html`.
+
+If your helper calls `urlTo`/`pathTo` (or config helpers like `isDevelopment`), keep a `?context` constraint instead — those need `ConfigProvider` (`HasField "frameworkConfig"`), which `Request` satisfies, so just spell it `?context :: Request`:
+
+```diff
+-renderLink :: (?context :: ControllerContext) => Html
++renderLink :: (?context :: Request) => Html
+```
+
+Inside a `View` instance's `html` method you don't need to declare anything: the `View` class already keeps `?context :: Request` in scope, so `urlTo`/`pathTo` keep working there unchanged.
+
+Logging needs no `?context` at all — there is no `logger` field on `Request`. Reach the logger through the framework config: `?request.frameworkConfig.logger (toLogStr ("..." :: Text))`.
+
+To make a minimal change without touching every signature, import the alias explicitly instead:
+
+```haskell
+import IHP.ControllerSupport (ControllerContext)
+```
 
 ## Join Support Removed from QueryBuilder
 

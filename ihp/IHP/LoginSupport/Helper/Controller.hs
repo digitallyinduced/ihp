@@ -44,17 +44,17 @@ currentUserOrNothing = lookupAuthVault currentUserVaultKey ?request
 {-# INLINE currentUserOrNothing #-}
 
 -- | Returns the current user. Redirects to login if not logged in.
-currentUser :: forall user. (?context :: ControllerContext, ?request :: Request, ?respond :: Respond, HasNewSessionUrl user, Typeable user, user ~ CurrentUserRecord) => user
+currentUser :: forall user. (?request :: Request, ?respond :: Respond, HasNewSessionUrl user, Typeable user, user ~ CurrentUserRecord) => user
 currentUser = fromMaybe (redirectToLogin (newSessionUrl (Proxy @user))) currentUserOrNothing
 {-# INLINABLE currentUser #-}
 
 -- | Returns the ID of the current user. Redirects to login if not logged in.
-currentUserId :: forall user userId. (?context :: ControllerContext, ?request :: Request, ?respond :: Respond, HasNewSessionUrl user, HasField "id" user userId, Typeable user, user ~ CurrentUserRecord) => userId
+currentUserId :: forall user userId. (?request :: Request, ?respond :: Respond, HasNewSessionUrl user, HasField "id" user userId, Typeable user, user ~ CurrentUserRecord) => userId
 currentUserId = (currentUser @user).id
 {-# INLINABLE currentUserId #-}
 
 -- | Ensures that a user is logged in. Redirects to login page if not.
-ensureIsUser :: forall user. (?context :: ControllerContext, ?request :: Request, ?respond :: Respond, HasNewSessionUrl user, Typeable user, user ~ CurrentUserRecord) => IO ()
+ensureIsUser :: forall user. (?request :: Request, ?respond :: Respond, HasNewSessionUrl user, Typeable user, user ~ CurrentUserRecord) => IO ()
 ensureIsUser =
     case currentUserOrNothing @user of
         Just _ -> pure ()
@@ -80,12 +80,12 @@ currentAdminOrNothing = lookupAuthVault currentAdminVaultKey ?request
 {-# INLINE currentAdminOrNothing #-}
 
 -- | Returns the current admin. Redirects to login if not logged in.
-currentAdmin :: forall admin. (?context :: ControllerContext, ?request :: Request, ?respond :: Respond, HasNewSessionUrl admin, Typeable admin, admin ~ CurrentAdminRecord) => admin
+currentAdmin :: forall admin. (?request :: Request, ?respond :: Respond, HasNewSessionUrl admin, Typeable admin, admin ~ CurrentAdminRecord) => admin
 currentAdmin = fromMaybe (redirectToLogin (newSessionUrl (Proxy @admin))) currentAdminOrNothing
 {-# INLINABLE currentAdmin #-}
 
 -- | Returns the ID of the current admin. Redirects to login if not logged in.
-currentAdminId :: forall admin adminId. (?context :: ControllerContext, ?request :: Request, ?respond :: Respond, HasNewSessionUrl admin, HasField "id" admin adminId, Typeable admin, admin ~ CurrentAdminRecord) => adminId
+currentAdminId :: forall admin adminId. (?request :: Request, ?respond :: Respond, HasNewSessionUrl admin, HasField "id" admin adminId, Typeable admin, admin ~ CurrentAdminRecord) => adminId
 currentAdminId = (currentAdmin @admin).id
 {-# INLINABLE currentAdminId #-}
 
@@ -97,7 +97,7 @@ currentAdminIdOrNothing = ModelSupport.Id <$> lookupAuthVault currentAdminIdVaul
 {-# INLINE currentAdminIdOrNothing #-}
 
 -- | Ensures that an admin is logged in. Redirects to login page if not.
-ensureIsAdmin :: forall (admin :: Type). (?context :: ControllerContext, ?request :: Request, ?respond :: Respond, HasNewSessionUrl admin, Typeable admin, admin ~ CurrentAdminRecord) => IO ()
+ensureIsAdmin :: forall (admin :: Type). (?request :: Request, ?respond :: Respond, HasNewSessionUrl admin, Typeable admin, admin ~ CurrentAdminRecord) => IO ()
 ensureIsAdmin =
     case currentAdminOrNothing @admin of
         Just _ -> pure ()
@@ -175,14 +175,13 @@ redirectToLogin newSessionPath = unsafePerformIO $ do
 -- >     projects <- query @Project |> fetch
 --
 enableRowLevelSecurityIfLoggedIn ::
-    ( ?context :: ControllerContext
-    , ?request :: Request
+    ( ?request :: Request
     , ModelSupport.PrimaryKey (ModelSupport.GetTableName CurrentUserRecord) ~ UUID
     ) => IO ()
 enableRowLevelSecurityIfLoggedIn = do
     case currentUserIdOrNothing of
         Just userId -> do
-            let rlsAuthenticatedRole = ?context.frameworkConfig.rlsAuthenticatedRole
+            let rlsAuthenticatedRole = ?request.frameworkConfig.rlsAuthenticatedRole
             let rlsUserId = tshow userId
             let rlsContext = ModelSupport.RowLevelSecurityContext { rlsAuthenticatedRole, rlsUserId}
             writeIORef (lookupRequestVault rlsContextVaultKey ?request) (Just rlsContext)

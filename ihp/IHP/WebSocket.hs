@@ -22,24 +22,24 @@ import Network.WebSockets.Connection.PingPong (withPingPong, defaultPingPongOpti
 import qualified Data.UUID as UUID
 import qualified Data.Maybe as Maybe
 import qualified Control.Exception.Safe as Exception
-import IHP.Controller.Context
 import qualified Data.Aeson as Aeson
 import Network.Wai (Request)
-
-import qualified IHP.Log as Log
+import IHP.RequestVault () -- HasField "frameworkConfig" on Request
+import IHP.FrameworkConfig.Types (FrameworkConfig(..))
+import System.Log.FastLogger (toLogStr)
 
 import qualified Network.WebSockets.Connection as WebSocket
 
 class WSApp state where
     initialState :: state
 
-    run :: (?state :: IORef state, ?context :: ControllerContext, ?modelContext :: ModelContext, ?connection :: Websocket.Connection, ?request :: Request) => IO ()
+    run :: (?state :: IORef state, ?request :: Request, ?modelContext :: ModelContext, ?connection :: Websocket.Connection, ?request :: Request) => IO ()
     run = pure ()
 
-    onPing :: (?state :: IORef state, ?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => IO ()
+    onPing :: (?state :: IORef state, ?request :: Request, ?modelContext :: ModelContext, ?request :: Request) => IO ()
     onPing = pure ()
 
-    onClose :: (?state :: IORef state, ?context :: ControllerContext, ?modelContext :: ModelContext, ?connection :: Websocket.Connection, ?request :: Request) => IO ()
+    onClose :: (?state :: IORef state, ?request :: Request, ?modelContext :: ModelContext, ?connection :: Websocket.Connection, ?request :: Request) => IO ()
     onClose = pure ()
 
     -- | Provide WebSocket Connection Options
@@ -59,11 +59,11 @@ class WSApp state where
     connectionOptions :: WebSocket.ConnectionOptions
     connectionOptions = WebSocket.defaultConnectionOptions
 
-startWSApp :: forall state. (WSApp state, ?context :: ControllerContext, ?modelContext :: ModelContext) => state -> Websocket.Connection -> IO ()
+startWSApp :: forall state. (WSApp state, ?request :: Request, ?modelContext :: ModelContext) => state -> Websocket.Connection -> IO ()
 startWSApp initialState connection = do
     state <- newIORef initialState
     let ?state = state
-    let ?request = ?context.request
+    let ?context = ?request
 
     result <- Exception.try ((withPingPong (defaultPingPongOptions { Websocket.pingAction = onPing @state }) connection (\connection -> let ?connection = connection in run @state)) `Exception.finally` (let ?connection = connection in onClose @state))
     case result of
@@ -72,7 +72,7 @@ startWSApp initialState connection = do
                 (Just Websocket.ConnectionClosed) -> pure ()
                 (Just (Websocket.CloseRequest {})) -> pure ()
                 (Just other) -> error ("Unhandled Websocket exception: " <> show other)
-                Nothing -> Log.error (tshow e)
+                Nothing -> ?context.frameworkConfig.logger (toLogStr (tshow e))
         Right _ -> pure ()
 
 setState :: (?state :: IORef state) => state -> IO ()

@@ -34,7 +34,7 @@ extra-source-files: CHANGELOG.md
 common shared-properties
     default-language: GHC2021
     build-depends:
-            base >= 4.17.0 && < 4.22
+            base >= 4.17.0 && < 4.23
             , classy-prelude
             , mono-traversable
             , transformers
@@ -111,9 +111,7 @@ common shared-properties
             , unagi-chan
             , with-utf8
             , ihp-hsx
-            , ihp-context
             , ihp-pagehead
-            , ihp-log
             , ihp-modal
             , ihp-router
             , mime-types
@@ -170,7 +168,6 @@ library
         , IHP.Controller.Redirect
         , IHP.Controller.Render
         , IHP.Controller.Session
-        , IHP.Controller.Context
         , IHP.Controller.Layout
         , IHP.Controller.BasicAuth
         , IHP.Controller.Cookie
@@ -311,7 +308,6 @@ test-suite tests
         Test.HaskellSupportSpec
         Test.View.CSSFrameworkSpec
         Test.View.FormSpec
-        Test.Controller.ContextSpec
         Test.Controller.ParamSpec
         Test.Controller.AccessDeniedSpec
         Test.Controller.NotFoundSpec

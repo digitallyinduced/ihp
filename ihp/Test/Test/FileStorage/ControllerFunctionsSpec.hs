@@ -3,7 +3,6 @@ module Test.FileStorage.ControllerFunctionsSpec where
 import Test.Hspec
 import IHP.Prelude
 import IHP.FileStorage.ControllerFunctions
-import IHP.Controller.Context
 import IHP.FrameworkConfig
 import Network.Wai as Wai (defaultRequest)
 import qualified Network.Wai as Wai
@@ -97,5 +96,4 @@ createControllerContext frameworkConfig = do
         requestBody = FormBody { params = [], files = [], rawPayload = "" }
         request = Wai.defaultRequest { Wai.vault = Vault.insert IHP.RequestVault.frameworkConfigVaultKey frameworkConfig
                                                  $ Vault.insert IHP.RequestVault.requestBodyVaultKey requestBody Vault.empty }
-    let ?request = request
-    newControllerContext
+    pure request

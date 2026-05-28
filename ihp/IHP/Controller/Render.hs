@@ -11,7 +11,6 @@ import qualified Network.HTTP.Media as Accept
 
 
 import IHP.HSX.Markup (Markup, MarkupM(..))
-import qualified IHP.Controller.Context as Context
 import IHP.Controller.Layout
 import IHP.FlashMessages (consumeFlashMessagesMiddleware)
 
@@ -31,17 +30,13 @@ respondSvg (Markup builder) =
         respondWith $ responseBuilder status200 [(hContentType, "image/svg+xml"), (hConnection, "keep-alive")] builder
 {-# INLINABLE respondSvg #-}
 
-renderHtml :: forall view. (ViewSupport.View view, ?context :: ControllerContext, ?request :: Request) => view -> IO Markup
+renderHtml :: forall view. (ViewSupport.View view, ?request :: Request) => view -> IO Markup
 renderHtml !view = do
+    let ?context = ?request
     let ?view = view
     ViewSupport.beforeRender view
-    frozenContext <- Context.freeze ?context
-
-    let ?context = frozenContext
     (ViewLayout layout) <- getLayout
-
-    let boundHtml = let ?context = frozenContext; in layout (ViewSupport.html ?view)
-    pure boundHtml
+    pure (layout (ViewSupport.html ?view))
 {-# INLINE renderHtml #-}
 
 renderFile :: (?request :: Request, ?respond :: Respond) => String -> ByteString -> IO ResponseReceived
@@ -66,7 +61,7 @@ renderJson' additionalHeaders json = respondWith $ responseLBS status200 ([(hCon
 {-# INLINE renderJson' #-}
 
 {-# INLINE render #-}
-render :: forall view. (ViewSupport.View view, ?context :: ControllerContext, ?request :: Request, ?respond :: Respond) => view -> IO ResponseReceived
+render :: forall view. (ViewSupport.View view, ?request :: Request, ?respond :: Respond) => view -> IO ResponseReceived
 render !view = do
     let !currentRequest = ?request
     renderHtmlView currentRequest view
@@ -74,7 +69,7 @@ render !view = do
 -- | Renders HTML or JSON based on the request's Accept header.
 -- Requires both 'View' and 'JsonView' instances for the view type.
 {-# INLINE renderHtmlOrJson #-}
-renderHtmlOrJson :: forall view. (ViewSupport.View view, ViewSupport.JsonView view, ?context :: ControllerContext, ?request :: Request, ?respond :: Respond) => view -> IO ResponseReceived
+renderHtmlOrJson :: forall view. (ViewSupport.View view, ViewSupport.JsonView view, ?request :: Request, ?respond :: Respond) => view -> IO ResponseReceived
 renderHtmlOrJson !view = do
     let !currentRequest = ?request
     let acceptHeader = lookup hAccept (?request.requestHeaders)
@@ -90,7 +85,7 @@ renderHtmlOrJson !view = do
                     ]
             fromMaybe send406Error (Accept.mapAcceptMedia formats accept)
 
-renderHtmlView :: (ViewSupport.View view, ?context :: ControllerContext, ?respond :: Respond) => Request -> view -> IO ResponseReceived
+renderHtmlView :: (ViewSupport.View view, ?respond :: Respond) => Request -> view -> IO ResponseReceived
 renderHtmlView currentRequest view = do
     let next request respond = do
             let ?request = request

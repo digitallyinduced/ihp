@@ -147,7 +147,7 @@ that is defined in flake-module.nix
                 ghc912 = pkgs.ghc912;
                 ihpPackageNames = [
                     "ihp-ide" "ihp-hsx" "ihp-schema-compiler"
-                    "ihp-postgres-parser" "ihp-context" "ihp-pagehead"
+                    "ihp-postgres-parser" "ihp-pagehead"
                     "ihp-log" "ihp-modal" "ihp-mail"
                     "ihp-migrate" "ihp-openai" "ihp-ssc" "ihp-graphql"
                     "ihp-datasync-typescript" "ihp-sitemap"
@@ -169,22 +169,21 @@ that is defined in flake-module.nix
                 ghc912-ihp-pglistener = withTestPostgres pkgs.ghc912.ihp-pglistener;
             }
 
-            # GHC 9.14 compatibility checks — disabled: nixpkgs-unstable's ghc914 package
-            # set has many transitive upper-bound breaks (blaze-markup, ghc-tcplugins-extra,
-            # …) because boot libraries bumped for GHC 9.14.1. pkgs.ghc914 is still defined
-            # in the overlay for manual experimentation; re-enable once the ecosystem catches up.
-            // (lib.optionalAttrs (false && pkgs.haskell.packages ? ghc914) (let
+            # GHC 9.14 compatibility checks (build and test all IHP packages)
+            // (lib.optionalAttrs (pkgs.haskell.packages ? ghc914) (let
                 ghc914 = pkgs.ghc914;
                 ihpPackageNames = [
                     "ihp-ide" "ihp-hsx" "ihp-schema-compiler"
-                    "ihp-postgres-parser" "ihp-context" "ihp-pagehead"
+                    "ihp-postgres-parser" "ihp-pagehead"
                     "ihp-log" "ihp-modal" "ihp-mail"
                     "ihp-migrate" "ihp-openai" "ihp-ssc" "ihp-graphql"
                     "ihp-datasync-typescript" "ihp-sitemap"
                     "ihp-job-dashboard" "ihp-imagemagick"
-                    "ihp-hspec" "ihp-welcome" "ihp-zip"
+                    "ihp-hspec" "ihp-welcome"
                     "wai-asset-path" "wai-flash-messages" "wai-request-params"
                     "wai-session-maybe" "wai-session-clientsession-deferred"
+                    # ihp-zip excluded: Hackage 0.1.1 fails to configure under GHC 9.14
+                    # (zip-archive dependency resolution issue)
                 ];
             in lib.listToAttrs (map (name: {
                 name = "ghc914-${name}";
@@ -486,14 +485,20 @@ that is defined in flake-module.nix
 
             reference =
                 let
+                    hackageHtmlLocationFlag = "--html-location='https://hackage.haskell.org/package/$pkgid/docs'";
+                    withHackageLinks = package: pkgs.haskell.lib.overrideCabal package (old: {
+                        haddockFlags = (old.haddockFlags or []) ++ [ hackageHtmlLocationFlag ];
+                    });
+
                     # Subpackages whose Haddock should be merged into the reference docs.
                     # Order matters: ihp-with-docs MUST be first so its index.html /
                     # doc-index-*.html / linuwial.css / quick-jump.js win on conflicts.
                     # Subpackages contribute their unique IHP-*.html module pages.
-                    docPackages = with pkgs.ghc; [
+                    docPackages = with pkgs.ghc; map withHackageLinks [
                         ihp-with-docs
+                        ihp-pglistener
+                        ihp-router
                         ihp-mail
-                        ihp-log
                         ihp-modal
                         ihp-ssc
                         # ihp-hsx ships with `doHaddock = false` in its default.nix
@@ -509,7 +514,7 @@ that is defined in flake-module.nix
                 pkgs.stdenv.mkDerivation {
                     name = "ihp-reference";
                     src = self;
-                    nativeBuildInputs = docPackages;
+                    nativeBuildInputs = docPackages ++ [ pkgs.perl ];
                     buildPhase = ''
                         mkdir -p haddock-build
 
@@ -534,6 +539,18 @@ that is defined in flake-module.nix
                         # Add ihp-haddock.css
                         cp ../ihp-haddock.css ihp-haddock.css
                         find . -type f \( -iname "*.html" \) -exec sed -i 's#<\/head>#<link href="ihp-haddock.css" rel="stylesheet"/><\/head>#g' '{}' +
+
+                        # Haddock's --html-location keeps prerequisite package links
+                        # stable. After merging IHP subpackage docs into one directory,
+                        # link sibling package references to the local merged pages.
+                        #
+                        find . -type f \( -iname "*.html" \) -exec perl -0pi -e '
+                            s{href="https://hackage\.haskell\.org/package/[^"/]+/docs/([^"#?]+(?:#[^"]*)?)"}{
+                                my ($target) = ($1);
+                                my ($page) = split /#/, $target, 2;
+                                (-e $page) ? qq{href="$target"} : $&
+                            }ge;
+                        ' '{}' +
 
                         # Link title to index
                         find . -type f \( -iname "*.html" \) -exec sed -i 's#<span class=\"caption\">IHP Api Reference</span>#<a href=\"index.html\" class=\"caption\"><img src=\"https://ihp.digitallyinduced.com/Guide/images/ihp-logo-readme.svg\"/>IHP Api Reference</a>#g' '{}' +

@@ -1111,4 +1111,3 @@ handlerExpr dispatchFnName vr = do
 -- (provided by @IHP.RouterPrelude@ via @IHP.Router.Capture@).
 parseCaptureFn :: Name
 parseCaptureFn = TH.mkName "parseCapture"
-

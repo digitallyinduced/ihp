@@ -18,7 +18,7 @@ import qualified Data.Aeson.TH as Aeson
 import IHP.ServerSideComponent.HtmlParser
 import IHP.ServerSideComponent.HtmlDiff
 
-import qualified IHP.Log as Log
+import System.Log.FastLogger (toLogStr)
 
 $(Aeson.deriveJSON Aeson.defaultOptions { sumEncoding = defaultTaggedObject { tagFieldName = "type" }} ''Attribute)
 $(Aeson.deriveJSON Aeson.defaultOptions { sumEncoding = defaultTaggedObject { tagFieldName = "type" }} ''AttributeOperation)
@@ -26,8 +26,9 @@ $(Aeson.deriveJSON Aeson.defaultOptions { sumEncoding = defaultTaggedObject { ta
 $(Aeson.deriveJSON Aeson.defaultOptions { sumEncoding = defaultTaggedObject { tagFieldName = "type" }} ''NodeOperation)
 $(Aeson.deriveJSON Aeson.defaultOptions { sumEncoding = defaultTaggedObject { tagFieldName = "type" }} ''SSCError)
 
-setState :: (?instanceRef :: IORef (ComponentInstance state), ?connection :: WebSocket.Connection, Component state action, ?context :: ControllerContext, ?request :: Request) => state -> IO ()
+setState :: (?instanceRef :: IORef (ComponentInstance state), ?connection :: WebSocket.Connection, Component state action, ?request :: Request) => state -> IO ()
 setState state = do
+    let ?context = ?request
     oldState <- (.state) <$> readIORef ?instanceRef
     let oldHtml = oldState
             |> SSC.render
@@ -41,7 +42,7 @@ setState state = do
     case diffHtml oldHtml newHtml of
         Left parseError -> do
             let errorText = tshow parseError
-            Log.error ("SSC HTML diff failed: " <> errorText)
+            ?context.frameworkConfig.logger (toLogStr ("SSC HTML diff failed: " <> errorText))
             sendError (SSCDiffError { errorMessage = errorText })
         Right patches -> sendTextData (Aeson.encode patches)
 

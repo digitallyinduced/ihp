@@ -39,7 +39,7 @@ common ihp-std
 library
     import: ihp-std
     build-depends:
-          base >= 4.17.0 && < 4.22
+          base >= 4.17.0 && < 4.23
         , text
         , ihp
         , blaze-html
@@ -56,7 +56,7 @@ test-suite tests
     type: exitcode-stdio-1.0
     main-is: SEO/Sitemap.hs
     build-depends:
-        base >= 4.17.0 && < 4.22
+        base >= 4.17.0 && < 4.23
         , hspec
         , ihp
         , ihp-sitemap
@@ -64,5 +64,4 @@ test-suite tests
         , wai-extra
         , http-types
         , ihp-hsx
-        , ihp-log
     hs-source-dirs: Test

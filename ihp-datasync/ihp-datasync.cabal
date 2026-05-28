@@ -23,7 +23,7 @@ Flag FastBuild
 common shared-properties
     default-language: GHC2021
     build-depends:
-            base >= 4.17.0 && < 4.22
+            base >= 4.17.0 && < 4.23
             , classy-prelude
             , mono-traversable
             , transformers
@@ -52,7 +52,7 @@ common shared-properties
             , unliftio
             , async
             , ihp
-            , ihp-log
+            , fast-logger
             , ihp-hsx
             , deepseq
             , safe-exceptions

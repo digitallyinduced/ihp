@@ -18,7 +18,8 @@ instance (
     initialState = DataSyncController
 
     run = do
+        let ?context = ?request
         let hasqlPool = ?modelContext.hasqlPool
         ensureRLSEnabled <- makeCachedEnsureRLSEnabled hasqlPool
-        installTableChangeTriggers <- ChangeNotifications.makeInstallTableChangeTriggers ?context.frameworkConfig.environment hasqlPool
+        installTableChangeTriggers <- ChangeNotifications.makeInstallTableChangeTriggers ?request.frameworkConfig.environment hasqlPool
         runDataSyncController hasqlPool ensureRLSEnabled installTableChangeTriggers (receiveData @ByteString) sendJSON (\_ _ -> pure ()) (\_ -> camelCaseRenamer)

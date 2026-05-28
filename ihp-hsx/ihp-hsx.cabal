@@ -1,6 +1,6 @@
 cabal-version:       2.2
 name:                ihp-hsx
-version:             1.5.0
+version:             1.6.0
 synopsis:            JSX-like but for Haskell
 description:         JSX-like templating syntax for Haskell
 license:             MIT
@@ -74,9 +74,9 @@ common common-flags
 
 common common-depends
     build-depends:
-          base >= 4.17.0 && < 4.22
+          base >= 4.17.0 && < 4.23
         , bytestring
-        , template-haskell >= 2.19.0 && < 2.24
+        , template-haskell >= 2.19.0 && < 2.25
         , text
         , containers
         , megaparsec
@@ -87,7 +87,7 @@ library ihp-hsx-parser
     import: common-extensions, common-flags, common-depends
     default-language: GHC2021
     build-depends:
-        ghc >= 9.4.4 && < 9.13
+        ghc >= 9.4.4 && < 9.15
     hs-source-dirs: parser
     exposed-modules:
         IHP.HSX.Parser
