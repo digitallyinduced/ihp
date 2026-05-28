@@ -178,16 +178,16 @@ This is also useful if you need the messages to be in another language.
 
 Use [`validateIsUnique`](https://ihp.digitallyinduced.com/api-docs/IHP-ValidationSupport-ValidateIsUnique.html#v:validateIsUnique).
 
-## Don't auto-open the app in the browser
+## Auto-open the app in the browser
 
-To prevent the IHP development server from automatically opening the development tooling in your web browser when running `devenv up`, set the `IHP_BROWSER` environment variable to `echo`:
+By default, the IHP development server prints the development tooling URL when running `devenv up`. To automatically open it in a browser, set the `IHP_BROWSER` environment variable:
 
 ```bash
-export IHP_BROWSER=echo
+export IHP_BROWSER=firefox
 devenv up
 ```
 
-This will then just print out the URL which would be opened on start.
+You can also set `IHP_BROWSER=open` on macOS or `IHP_BROWSER=xdg-open` on Linux to use the default system browser.
 
 ## Getting an `Id Something` from a `UUID`
 

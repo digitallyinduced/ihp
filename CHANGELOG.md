@@ -12,6 +12,7 @@
 
 ### Breaking Changes
 
+- `devenv up` no longer opens the IHP development tooling in a browser by default. The ToolServer URL is printed to the terminal instead, which is friendlier for coding agents, remote workspaces, and shared development environments. Set `IHP_BROWSER=firefox`, `IHP_BROWSER=open` (macOS), or `IHP_BROWSER=xdg-open` (Linux) to restore automatic browser opening.
 - The `ihp-log` package and `IHP.Log.*` modules have been removed. Use `fast-logger` directly via `?context.logger`, `?modelContext.logger`, or `FrameworkConfig.logger`. See the [Logging Guide](Guide/logging.markdown) for examples. ([#2600](https://github.com/digitallyinduced/ihp/pull/2600))
 - IHP apps now treat incomplete pattern matches as compile errors in the default GHCi, generated Makefile, and generated Cabal configuration. This makes local development and agent-assisted coding fail fast when a pattern match misses a constructor.
 - Controller `action` now returns `IO ResponseReceived` instead of `IO ()` — response functions like `render`, `redirectTo`, `renderJson` return the WAI `ResponseReceived` directly instead of throwing exceptions. Use `earlyReturn` for conditional early exits (e.g. `when condition (earlyReturn $ redirectTo ...)`) ([#2205](https://github.com/digitallyinduced/ihp/pull/2205))
