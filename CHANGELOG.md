@@ -8,6 +8,10 @@
 - **`ihp-router` standalone package** — the trie-based router and `[routes|…|]` DSL are now also available as a sibling `ihp-router` package with **zero IHP dependencies**, so plain WAI applications can `cabal install ihp-router` and use them standalone. IHP itself depends on `ihp-router` and provides a thin `IHP.Router.IHP` shim that re-introduces the IHP-flavoured `CanRoute` instance, the `webRoutes` binding, and the `UrlCapture (Id' table)` orphan. Existing IHP apps see zero user-visible change — same module paths, same `routes` quoter, same imports. See [`ihp-router/README.md`](ihp-router/README.md) for the standalone-WAI usage. ([#2657](https://github.com/digitallyinduced/ihp/pull/2657), [#2658](https://github.com/digitallyinduced/ihp/pull/2658), [#2659](https://github.com/digitallyinduced/ihp/pull/2659))
 - **Dev mode now runs web and worker as separate processes** — `devenv up` shows two processes, `web` and `worker`, each owning its own GHCi. They reload independently on file changes, so a worker crash won't kill the web server (and vice versa) and editing a job module doesn't take down request serving. The web process owns the file watcher and signals the worker over `build/.dev-worker.sock`. Mirrors the existing production split between `RunProdServer` and `RunJobs`. The `instance Worker RootApplication` moves out of `Main.hs` into a new `WorkerMain.hs` at the project root (parallel to `Main.hs`); `new-job` creates that file automatically the first time it runs in a project. See [UPGRADE.md](UPGRADE.md) for the (mechanical) migration on existing apps.
 
+### Performance
+
+- Production Nix builds now compile each app executable (`RunProdServer`, `RunJobs`, and scripts) in its own derivation and join the outputs afterward, allowing Nix to link executables in parallel and cache them independently. ([#2715](https://github.com/digitallyinduced/ihp/pull/2715))
+
 ### Breaking Changes
 
 - IHP apps now treat incomplete pattern matches as compile errors in the default GHCi, generated Makefile, and generated Cabal configuration. This makes local development and agent-assisted coding fail fast when a pattern match misses a constructor.
