@@ -131,6 +131,15 @@ ihpFlake:
                     default = "1";
                 };
 
+                scripts.optimized = lib.mkOption {
+                    description = ''
+                        Whether packages.script-<Name> flake outputs are compiled with optimizations.
+                        Defaults to false for fast script builds.
+                    '';
+                    type = lib.types.bool;
+                    default = false;
+                };
+
                 relationSupport = lib.mkOption {
                     description = ''
                         Enable relation support (Include/fetchRelated type machinery).
@@ -174,55 +183,61 @@ ihpFlake:
             ihpLib = ihpFlake.inputs.self.packages.${system}.ihp-env-var-backwards-compat;
             # Auto-detect whether a build-time PostgreSQL is needed (e.g. ihp-typed-sql)
             buildWithPostgres = builtins.any (p: (p.pname or "") == "ihp-typed-sql") (cfg.haskellPackages ghcCompiler);
+            mkProdServer = { optimized, optimizationLevel }: import "${ihp}/NixSupport/default.nix" {
+                ihp = ihp;
+                haskellDeps = cfg.haskellPackages;
+                otherDeps = p: cfg.packages;
+                projectPath = cfg.projectPath;
+                inherit optimized;
+                ghc = ghcCompiler;
+                pkgs = pkgs;
+                rtsFlags = cfg.rtsFlags;
+                inherit optimizationLevel;
+                relationSupport = cfg.relationSupport;
+                appName = cfg.appName;
+                filter = ihpFlake.inputs.nix-filter.lib;
+                ihp-env-var-backwards-compat = ihpLib;
+                ihp-static = ihpFlake.inputs.self.packages.${system}.ihp-static;
+                static = self'.packages.static;
+                inherit buildWithPostgres;
+                appSchemaSql = "${self'.packages.schema}/Schema.sql";
+                ihpSchemaSql = "${self'.packages.ihp-schema}/IHPSchema.sql";
+            };
+            optimizedProdServer = mkProdServer {
+                optimized = true;
+                optimizationLevel = cfg.optimizationLevel;
+            };
+            unoptimizedProdServer = mkProdServer {
+                optimized = false;
+                optimizationLevel = "0";
+            };
+            scriptBinaries =
+                if cfg.scripts.optimized
+                then optimizedProdServer.passthru.scriptBinaries
+                else unoptimizedProdServer.passthru.scriptBinaries;
+            scriptPackages =
+                lib.mapAttrs' (scriptName: scriptBinary:
+                    lib.nameValuePair "script-${scriptName}" scriptBinary
+                ) scriptBinaries;
+            scriptApps =
+                lib.mapAttrs' (scriptName: scriptBinary:
+                    lib.nameValuePair "script-${scriptName}" {
+                        type = "app";
+                        program = "${scriptBinary}/bin/${scriptName}";
+                    }
+                ) scriptBinaries;
         in lib.mkIf cfg.enable {
             _module.args.pkgs = lib.mkDefault (import inputs.nixpkgs { inherit system; overlays = config.devenv.shells.default.overlays; config = { }; });
 
+            apps = scriptApps;
+
             # release build package
             packages = {
-                default = self'.packages.unoptimized-prod-server;
+                default = unoptimizedProdServer;
 
-                optimized-prod-server = import "${ihp}/NixSupport/default.nix" {
-                    ihp = ihp;
-                    haskellDeps = cfg.haskellPackages;
-                    otherDeps = p: cfg.packages;
-                    projectPath = cfg.projectPath;
-                    # Set optimized = true to get more optimized binaries, but slower build times
-                    optimized = true;
-                    ghc = ghcCompiler;
-                    pkgs = pkgs;
-                    rtsFlags = cfg.rtsFlags;
-                    optimizationLevel = cfg.optimizationLevel;
-                    relationSupport = cfg.relationSupport;
-                    appName = cfg.appName;
-                    filter = ihpFlake.inputs.nix-filter.lib;
-                    ihp-env-var-backwards-compat = ihpLib;
-                    ihp-static = ihpFlake.inputs.self.packages.${system}.ihp-static;
-                    static = self'.packages.static;
-                    inherit buildWithPostgres;
-                    appSchemaSql = "${self'.packages.schema}/Schema.sql";
-                    ihpSchemaSql = "${self'.packages.ihp-schema}/IHPSchema.sql";
-                };
+                optimized-prod-server = optimizedProdServer;
 
-                unoptimized-prod-server = import "${ihp}/NixSupport/default.nix" {
-                    ihp = ihp;
-                    haskellDeps = cfg.haskellPackages;
-                    otherDeps = p: cfg.packages;
-                    projectPath = cfg.projectPath;
-                    optimized = false;
-                    ghc = ghcCompiler;
-                    pkgs = pkgs;
-                    rtsFlags = cfg.rtsFlags;
-                    optimizationLevel = "0";
-                    relationSupport = cfg.relationSupport;
-                    appName = cfg.appName;
-                    filter = ihpFlake.inputs.nix-filter.lib;
-                    ihp-env-var-backwards-compat = ihpLib;
-                    ihp-static = ihpFlake.inputs.self.packages.${system}.ihp-static;
-                    static = self'.packages.static;
-                    inherit buildWithPostgres;
-                    appSchemaSql = "${self'.packages.schema}/Schema.sql";
-                    ihpSchemaSql = "${self'.packages.ihp-schema}/IHPSchema.sql";
-                };
+                unoptimized-prod-server = unoptimizedProdServer;
 
                 static =
                     let
@@ -283,7 +298,8 @@ ihpFlake:
                         cp Application/Schema.sql $out/
                     '';
                 };
-            } // (if cfg.static.makeBundling then {
+            } // scriptPackages
+            // (if cfg.static.makeBundling then {
                 staticFilesCompiledByMake = pkgs.stdenv.mkDerivation {
                     name = "${config.ihp.appName}-staticFilesCompiledByMake";
                     buildPhase = ''

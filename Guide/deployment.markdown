@@ -1404,7 +1404,7 @@ Define a oneshot service for the script and a timer to trigger it:
 systemd.services.cleanup-expired = {
     serviceConfig = {
         Type = "oneshot";
-        ExecStart = "${config.services.ihp.package}/bin/CleanupExpired";
+        ExecStart = "${self.packages.${pkgs.system}.script-CleanupExpired}/bin/CleanupExpired";
     };
     environment = {
         DATABASE_URL = config.services.ihp.databaseUrl;
@@ -1422,7 +1422,7 @@ systemd.timers.cleanup-expired = {
 };
 ```
 
-The script binary is available at `${config.services.ihp.package}/bin/ScriptName` after building with `nix build`. Check the timer status with `systemctl list-timers`.
+The script binary is available as a separate flake output named `script-ScriptName`. If you deploy from a separate infrastructure flake, reference the app input instead, e.g. `${self.inputs.myapp.packages.${pkgs.system}.script-CleanupExpired}/bin/CleanupExpired`. Check the timer status with `systemctl list-timers`.
 
 ## Building with Nix
 
@@ -1440,9 +1440,15 @@ This will build a nix package in the `result` directory that contains the follow
 
 -   `result/bin/RunProdServer`, the binary to start web server
 -   `result/bin/RunJobs`, if you're using the IHP job queue, this binary will be the entrypoint for the workers
--   a binary for each script in `Application/Script`, e.g. `result/bin/Welcome` for `Application/Script/Welcome.hs`
 
 The build contains an automatic hash for the `IHP_ASSET_VERSION` env variable, so cache busting should work out of the box.
+
+Scripts in `Application/Script` are exposed as separate flake outputs. For example, build or run `Application/Script/Welcome.hs` with:
+
+```bash
+nix build .#script-Welcome
+nix run .#script-Welcome
+```
 
 ### Starting the app
 
@@ -1659,4 +1665,3 @@ systemd.services.worker.serviceConfig = {
 Setting these on `services.worker` is especially valuable: job handlers that process unbounded event histories, call external APIs that return large responses, or build up large in-memory data structures are the most common source of memory growth in a long-lived Haskell process. Because the worker runs in its own systemd unit (and therefore its own cgroup), capping its memory there prevents a leaking background job from taking down the web tier.
 
 Choose values based on your instance size and what else runs on the host. Leave headroom for the kernel, for PostgreSQL if it is colocated, and for any other services. On a 2 GB instance running only `app` and `worker`, `MemoryHigh = "1500M"` / `MemoryMax = "2G"` is a reasonable starting point — tune after observing real usage with `systemd-cgtop` and `systemctl status app.service`.
-

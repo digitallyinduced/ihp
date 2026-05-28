@@ -202,7 +202,7 @@ run = do
   pure ()
 ```
 
-Build this script into a binary by running `nix build .#optimized-prod-server` or `nix build .#unoptimized-prod-server`. The script binary will be available at `result/bin/RunEmailCustomersJob`. See the [scripts documentation](/Guide/scripts.html) for more details.
+Build this script into a binary by running `nix build .#script-RunEmailCustomersJob`. The script binary will be available at `result/bin/RunEmailCustomersJob`. See the [scripts documentation](/Guide/scripts.html) for more details.
 
 We can then create a cron entry such as:
 
