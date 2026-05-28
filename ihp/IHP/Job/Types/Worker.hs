@@ -32,6 +32,9 @@ data JobWorkerProcess
     , action :: TBQueue JobWorkerProcessMessage
     , staleRecoveryReleaseKey :: Maybe ReleaseKey
     , activeCount :: TVar Int
+    , isStopping :: TVar Bool
+    -- ^ Set when the worker process is shutting down. Dispatchers stop
+    -- accepting queued work and active workers stop fetching another job.
     }
 
 data JobWorkerProcessMessage
