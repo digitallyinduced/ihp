@@ -1,7 +1,6 @@
 module IHP.IDE.ToolServer (runToolServer, withToolServerApplication, ToolServerApplicationWithConfig(..)) where
 
 import IHP.Prelude
-import System.Log.FastLogger (LogType'(..), withFastLogger, defaultBufSize)
 import qualified Network.Wai as Wai
 import qualified Network.Wai.Handler.Warp as Warp
 import IHP.IDE.Types
@@ -93,7 +92,7 @@ data ToolServerApplicationWithConfig = ToolServerApplicationWithConfig
 -- - websocket support (for live reload)
 withToolServerApplication :: ToolServerApplication -> Int -> _ -> (ToolServerApplicationWithConfig -> IO result) -> IO result
 withToolServerApplication toolServerApplication port liveReloadClients action = do
-    withFastLogger (LogStdout defaultBufSize) \logger -> do
+    Config.withLogger \logger -> do
         frameworkConfig <- Config.buildFrameworkConfig logger do
             Config.option $ Config.AppHostname "localhost"
             Config.option $ Config.AppPort port

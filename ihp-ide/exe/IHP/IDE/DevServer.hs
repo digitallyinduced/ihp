@@ -19,7 +19,7 @@ import Data.String.Conversions (cs)
 import qualified IHP.Telemetry as Telemetry
 import qualified IHP.Version as Version
 
-import System.Log.FastLogger (FastLogger, toLogStr, LogType'(..), withFastLogger, defaultBufSize)
+import System.Log.FastLogger (FastLogger, toLogStr)
 import qualified IHP.IDE.CodeGen.MigrationGenerator as MigrationGenerator
 import Main.Utf8 (withUtf8)
 import qualified IHP.FrameworkConfig as FrameworkConfig
@@ -90,7 +90,7 @@ mainWithOptions wrapWithDirenv = withUtf8 do
         -- ensuring seamless transitions during app restarts (no connection refused errors)
         appSocket <- createListeningSocket portConfig.appPort
 
-        withFastLogger (LogStdout defaultBufSize) \rawLogger -> do
+        FrameworkConfig.withLogger \rawLogger -> do
             let logger msg = rawLogger (msg <> "\n")
             (ghciInChan, ghciOutChan) <- Queue.newChan
             liveReloadClients <- newIORef mempty

@@ -17,6 +17,7 @@ module IHP.FrameworkConfig
 , isDevelopment
 , isProduction
 , defaultCorsResourcePolicy
+, withLogger
 , withFrameworkConfig
 , configIO
 , ExceptionWithCallStack (..)
@@ -251,6 +252,15 @@ isProduction = isEnvironment Production
 defaultCorsResourcePolicy :: Maybe Cors.CorsResourcePolicy
 defaultCorsResourcePolicy = Nothing
 
+-- | Creates the default raw 'FastLogger' backend used by IHP.
+--
+-- The callback receives the logger exactly as provided by fast-logger. Pass it
+-- to 'buildFrameworkConfig' to obtain the newline-appending logger stored in
+-- 'FrameworkConfig'.
+withLogger :: (FastLogger -> IO result) -> IO result
+withLogger =
+    withFastLogger (LogStdout defaultBufSize)
+
 -- | Builds a config and calls the provided callback.
 --
 -- Once the callback has returned the resources allocated by the config are closed. Specifcally
@@ -265,7 +275,7 @@ defaultCorsResourcePolicy = Nothing
 --
 withFrameworkConfig :: ConfigBuilder -> (FrameworkConfig -> IO result) -> IO result
 withFrameworkConfig configBuilder callback =
-    withFastLogger (LogStdout defaultBufSize) \rawLogger -> do
+    withLogger \rawLogger -> do
         frameworkConfig <- buildFrameworkConfig rawLogger configBuilder
         callback frameworkConfig
 
