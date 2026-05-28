@@ -28,8 +28,8 @@ import           System.Exit             (ExitCode (ExitFailure, ExitSuccess))
 import           System.FilePath         (takeDirectory)
 import           System.IO               (appendFile)
 import           System.IO.Temp          (createTempDirectory)
-import           System.Process          (createProcess, proc,
-                                          readProcessWithExitCode)
+import           System.Process          (proc, readProcessWithExitCode,
+                                          withCreateProcess)
 import qualified System.IO.Unsafe        as Unsafe
 import qualified Prelude
 
@@ -253,5 +253,5 @@ startCleanupMonitor root pgData = do
             , "  rm -rf \"$root\""
             , ") >/dev/null 2>&1 &"
             ]
-    _ <- createProcess (proc "sh" ["-c", script, "ihp-typed-sql-monitor", root, pgData])
-    pure ()
+    withCreateProcess (proc "sh" ["-c", script, "ihp-typed-sql-monitor", root, pgData]) \_ _ _ _ ->
+        pure ()
