@@ -24,7 +24,7 @@ import IHP.TypedSql (typedSql, sqlQueryTyped, sqlExecTyped)
 
 The `QuasiQuotes` extension is required but already enabled by default in IHP projects.
 
-**Important**: Your development database must be running during compilation, because `typedSql` uses `DATABASE_URL` to connect and describe queries at compile time. For `nix build`, this is handled automatically — see [Production Builds](#production-builds) below.
+**Important**: `typedSql` describes queries against PostgreSQL during compilation. It first uses `DATABASE_URL`, so an already-running `devenv up` database is preferred. In the IHP dev shell, `typedSql` can also start a temporary private PostgreSQL automatically for non-interactive typechecking, e.g. in coding-agent workspaces where `devenv up` is not running. For `nix build`, this is handled automatically — see [Production Builds](#production-builds) below.
 
 ## Basic Queries
 

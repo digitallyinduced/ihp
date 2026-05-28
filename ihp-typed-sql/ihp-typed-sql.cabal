@@ -52,12 +52,16 @@ library
         IHP.TypedSql.TypeMapping
         IHP.TypedSql.Decoders
         IHP.TypedSql.RowType
+    other-modules:
+        IHP.TypedSql.CompileTimeDatabase
     build-depends:
             base >= 4.17.0 && < 4.23
             , ihp
             , aeson
             , bytestring
             , containers
+            , directory
+            , filepath
             , hasql
             , hasql-dynamic-statements
             , hasql-mapping
@@ -66,9 +70,11 @@ library
             , postgresql-syntax >= 0.4 && < 0.5
             , postgresql-types
             , postgresql-libpq
+            , process
             , scientific
             , string-conversions
             , template-haskell
+            , temporary
             , text
 
 source-repository head

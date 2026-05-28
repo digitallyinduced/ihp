@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+- `typedSql` can now start a temporary private PostgreSQL instance for
+  compile-time query description when `DATABASE_URL` is unreachable and
+  `IHP_TYPED_SQL_AUTO_DB=1` is set. IHP app dev shells enable this by default,
+  which makes non-interactive agent/workspace typechecking work without a
+  separate `devenv up`.
+
 - Better error message when a `${...}` placeholder appears in a polymorphic-argument
   position (e.g. `CONCAT`, `COALESCE`, `GREATEST`, `LEAST`). Instead of surfacing
   the raw Postgres `could not determine data type of parameter $N` text,
