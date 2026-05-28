@@ -367,6 +367,86 @@ CABAL_EOF
 
     allHaskellPackagesWithAppLib = ghc.ghcWithPackages (p: [ appLibPackage ]);
 
+    compileExecutable = { executableName, mainPath, mainIs ? null, prepareMain }:
+        pkgs.stdenv.mkDerivation {
+            name = "${appName}-${executableName}-binary";
+            src = appSrc;
+
+            buildInputs = [ allHaskellPackagesWithAppLib ];
+            nativeBuildInputs = commonNativeBuildInputs;
+
+            buildPhase = ''
+                mkdir -p build/bin build/obj
+                ${ihpEnvSetup}
+
+                ${prepareMain}
+
+                ghc -j1 +RTS -N1 -RTS \
+                    -O${if optimized then optimizationLevel else "0"} ${splitSections} \
+                    ${pkgs.lib.optionalString (mainIs != null) "-main-is '${mainIs}'"} \
+                    $(make print-ghc-options) \
+                    ${if optimized then prodGhcOptions else ""} \
+                    ${mainPath} -o build/bin/${executableName} \
+                    -odir build/obj -hidir build/obj
+            '';
+
+            installPhase = ''
+                mkdir -p $out/bin
+                cp build/bin/${executableName} $out/bin/
+            '';
+
+            disallowedReferences = [ ihp ];
+        };
+
+    runProdServerBinary = compileExecutable {
+        executableName = "RunProdServer";
+        mainPath = "Main.hs";
+        prepareMain = ''
+            # Delete all .hs files except Main.hs so GHC uses the library package
+            # instead of recompiling from source.
+            find . -name '*.hs' -not -name 'Main.hs' -not -path './build/*' -not -path './lib/*' -delete
+        '';
+    };
+
+    runJobsBinary = compileExecutable {
+        executableName = "RunJobs";
+        mainPath = "build/RunJobs.hs";
+        mainIs = "RunJobs.main";
+        prepareMain = ''
+            # Delete project .hs files so GHC uses the library package instead of
+            # recompiling from source, then generate the job runner entry point.
+            find . -name '*.hs' -not -path './build/*' -not -path './lib/*' -delete
+            cat > build/RunJobs.hs <<'EOF'
+            module RunJobs (main) where
+            import Application.Script.Prelude
+            import IHP.ScriptSupport
+            import IHP.Job.Runner
+            import qualified Config
+            import WorkerMain ()
+            main :: IO ()
+            main = runScript Config.config (runJobWorkers (workers RootApplication))
+            EOF
+        '';
+    };
+
+    scriptBinary = scriptName: compileExecutable {
+        executableName = scriptName;
+        mainPath = "build/Script/Main/${scriptName}.hs";
+        prepareMain = ''
+            # Delete project .hs files so GHC uses the library package instead of
+            # recompiling from source, then generate this script's entry point.
+            find . -name '*.hs' -not -path './build/*' -not -path './lib/*' -delete
+            mkdir -p build/Script/Main
+            cat > build/Script/Main/${scriptName}.hs <<'EOF'
+            module Main (main) where
+            import IHP.ScriptSupport
+            import qualified Config
+            import Application.Script.${scriptName} (run)
+            main = runScript Config.config run
+            EOF
+        '';
+    };
+
     hasJobs =
         let
             isHsFile = entries: name:
@@ -394,77 +474,12 @@ CABAL_EOF
             anyJobHsIn projectPath;
 
     binaries =
-        pkgs.stdenv.mkDerivation {
+        pkgs.symlinkJoin {
             name = "${appName}-binaries";
-            src = appSrc;
-
-            buildInputs = [ allHaskellPackagesWithAppLib ];
-            nativeBuildInputs = commonNativeBuildInputs;
-
-            buildPhase = ''
-                mkdir -p build/bin build/obj
-                ${ihpEnvSetup}
-
-                # Delete all .hs files except Main.hs so GHC uses the library package
-                # instead of recompiling from source
-                find . -name '*.hs' -not -name 'Main.hs' -not -path './build/*' -not -path './lib/*' -delete
-
-                # Build RunProdServer from Main.hs
-                ghc -j"''${NIX_BUILD_CORES:-1}" +RTS -N -RTS \
-                    -O${if optimized then optimizationLevel else "0"} ${splitSections} \
-                    $(make print-ghc-options) \
-                    ${if optimized then prodGhcOptions else ""} \
-                    Main.hs -o build/bin/RunProdServer \
-                    -odir build/obj -hidir build/obj
-
-            '' + pkgs.lib.optionalString hasJobs ''
-                # Generate and build RunJobs
-                cat > build/RunJobs.hs <<'EOF'
-                module RunJobs (main) where
-                import Application.Script.Prelude
-                import IHP.ScriptSupport
-                import IHP.Job.Runner
-                import qualified Config
-                import WorkerMain ()
-                main :: IO ()
-                main = runScript Config.config (runJobWorkers (workers RootApplication))
-                EOF
-
-                ghc -j"''${NIX_BUILD_CORES:-1}" +RTS -N -RTS \
-                    -O${if optimized then optimizationLevel else "0"} ${splitSections} \
-                    -main-is 'RunJobs.main' \
-                    $(make print-ghc-options) \
-                    ${if optimized then prodGhcOptions else ""} \
-                    build/RunJobs.hs -o build/bin/RunJobs \
-                    -odir build/obj -hidir build/obj
-
-            '' + builtins.concatStringsSep "" (map (scriptName: ''
-                # Build script: ${scriptName}
-                mkdir -p build/Script/Main
-                cat > build/Script/Main/${scriptName}.hs <<'EOF'
-                module Main (main) where
-                import IHP.ScriptSupport
-                import qualified Config
-                import Application.Script.${scriptName} (run)
-                main = runScript Config.config run
-                EOF
-
-                ghc -j"''${NIX_BUILD_CORES:-1}" +RTS -N -RTS \
-                    -O${if optimized then optimizationLevel else "0"} ${splitSections} \
-                    $(make print-ghc-options) \
-                    ${if optimized then prodGhcOptions else ""} \
-                    build/Script/Main/${scriptName}.hs -o build/bin/${scriptName} \
-                    -odir build/obj -hidir build/obj
-
-            '') scriptNames);
-
-            installPhase = ''
-                mkdir -p $out/bin
-                cp build/bin/* $out/bin/
-            '';
-
-            enableParallelBuilding = true;
-            disallowedReferences = [ ihp ];
+            paths =
+                [ runProdServerBinary ]
+                ++ pkgs.lib.optional hasJobs runJobsBinary
+                ++ map scriptBinary scriptNames;
         };
 in
     pkgs.runCommand appName { inherit static binaries; nativeBuildInputs = [ pkgs.makeWrapper ]; } ''
@@ -486,7 +501,7 @@ in
             fi;
 
             # Copy other binaries, excluding RunProdServer and RunJobs
-            find ${binaries}/bin/ -maxdepth 1 -type f -not -name 'RunProdServer' -not -name 'RunJobs' -print0 |
+            find ${binaries}/bin/ -maxdepth 1 \( -type f -o -type l \) -not -name 'RunProdServer' -not -name 'RunJobs' -print0 |
                 while read -d $'\0' binary; do
                     binary_basename=$(basename "$binary")
                     cp "$binary" "$out/bin/$binary_basename";
