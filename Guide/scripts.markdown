@@ -114,17 +114,23 @@ appConfig = do
 In production, you might want to build a script to a binary for performance reasons. Use nix build like this:
 
 ```bash
-# Build all scripts along with the application
-nix build .#optimized-prod-server
+# Build a script binary from Application/Script/HelloWorldToAllUsers.hs
+nix build .#script-HelloWorldToAllUsers
 
-# Or for faster, unoptimized builds
-nix build .#unoptimized-prod-server
+# Or run it directly
+nix run .#script-HelloWorldToAllUsers
 ```
 
-This will produce binaries in the `result/bin/` directory. For example, a script at `Application/Script/HelloWorldToAllUsers.hs` will produce a binary at `result/bin/HelloWorldToAllUsers`.
+This will produce a binary in the `result/bin/` directory. For example, a script at `Application/Script/HelloWorldToAllUsers.hs` will produce a binary at `result/bin/HelloWorldToAllUsers`.
 
 You can then run the script with:
 
 ```bash
 result/bin/HelloWorldToAllUsers
+```
+
+Script outputs are unoptimized by default for faster builds. To build scripts with the same optimization settings as `optimized-prod-server`, set this in your app flake:
+
+```nix
+ihp.scripts.optimized = true;
 ```

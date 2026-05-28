@@ -4,6 +4,30 @@ After updating your project, please consult the segments from your current relea
 
 # Upgrade to 1.6.0 (unreleased) from 1.5.0
 
+## Production Script Binaries Are Separate Flake Outputs
+
+`nix build .#optimized-prod-server`, `nix build .#unoptimized-prod-server`, and `nix build` now build only the web server and job runner binaries. Scripts in `Application/Script/*.hs` are no longer copied into the production app package.
+
+Build or run scripts through their dedicated flake outputs instead:
+
+```bash
+nix build .#script-MyScript
+nix run .#script-MyScript
+```
+
+If you deploy scheduled scripts through systemd timers or cron, update paths that referenced the app package:
+
+```diff
+- ExecStart = "${config.services.ihp.package}/bin/MyScript";
++ ExecStart = "${self.packages.${pkgs.system}.script-MyScript}/bin/MyScript";
+```
+
+Script outputs are unoptimized by default for faster builds. To build all `script-*` outputs with the same optimization settings as `optimized-prod-server`, set:
+
+```nix
+ihp.scripts.optimized = true;
+```
+
 ## Incomplete Pattern Matches Are Now App Compile Errors
 
 IHP now promotes incomplete pattern match warnings to compile errors in app-facing defaults:

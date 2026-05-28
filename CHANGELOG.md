@@ -10,10 +10,11 @@
 
 ### Performance
 
-- Production Nix builds now compile each app executable (`RunProdServer`, `RunJobs`, and scripts) in its own derivation and join the outputs afterward, allowing Nix to link executables in parallel and cache them independently. ([#2715](https://github.com/digitallyinduced/ihp/pull/2715))
+- Production Nix builds now compile app executables and scripts in separate derivations, allowing Nix to link executables in parallel and cache script outputs independently. Scripts are exposed as `script-Name` package and app outputs instead of being bundled into the production app package. ([#2715](https://github.com/digitallyinduced/ihp/pull/2715))
 
 ### Breaking Changes
 
+- Production app packages no longer include binaries for `Application/Script/*.hs`; use the new `script-Name` flake outputs for scheduled scripts and one-off production scripts.
 - IHP apps now treat incomplete pattern matches as compile errors in the default GHCi, generated Makefile, and generated Cabal configuration. This makes local development and agent-assisted coding fail fast when a pattern match misses a constructor.
 - Controller `action` now returns `IO ResponseReceived` instead of `IO ()` — response functions like `render`, `redirectTo`, `renderJson` return the WAI `ResponseReceived` directly instead of throwing exceptions. Use `earlyReturn` for conditional early exits (e.g. `when condition (earlyReturn $ redirectTo ...)`) ([#2205](https://github.com/digitallyinduced/ihp/pull/2205))
 - `ResponseException` removed — code that catches `ResponseException` will get a compiler error; use `earlyReturn`/`respondAndExit` instead

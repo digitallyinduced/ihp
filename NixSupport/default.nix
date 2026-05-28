@@ -172,8 +172,6 @@ CABAL_EOF
 
     prodGhcOptions = "-funbox-strict-fields -fconstraint-solver-iterations=100 -fdicts-strict -with-rtsopts=\"${rtsFlags}\"";
 
-    appSrc = filter { root = pkgs.nix-gitignore.gitignoreSource [] projectPath; include = [filter.isDirectory "Makefile" (filter.matchExt "hs")]; exclude = ["static" "Frontend"]; name = "${appName}-source"; };
-
     scriptDir = projectPath + "/Application/Script";
 
     scriptNames =
@@ -194,6 +192,25 @@ CABAL_EOF
                 map (n: pkgs.lib.removeSuffix ".hs" n) hsFiles
         else
             [];
+
+    appSrcRoot = pkgs.nix-gitignore.gitignoreSource [] projectPath;
+
+    appSrcInclude = [ filter.isDirectory "Makefile" (filter.matchExt "hs") ];
+
+    scriptPath = scriptName: "Application/Script/${scriptName}.hs";
+
+    appSrc = filter {
+        root = appSrcRoot;
+        include = appSrcInclude;
+        exclude = ["static" "Frontend"] ++ map scriptPath scriptNames;
+        name = "${appName}-source";
+    };
+
+    scriptSrc = scriptName: filter {
+        root = appSrcRoot;
+        include = ["Makefile" (scriptPath scriptName)];
+        name = "${appName}-${scriptName}-source";
+    };
 
     # Generate .cabal file for the app library package.
     # build-depends is populated at derivation build time by querying ghc-pkg
@@ -327,26 +344,34 @@ CABAL_EOF
         disallowedReferences = [ ihp ];
     };
 
+    # Shared setup for compile-time DB access (e.g. typedSql).
+    buildTimePostgresSetup = ''
+        export PGDATA="$TMPDIR/pgdata"
+        export PGHOST="$TMPDIR/pghost"
+        mkdir -p "$PGHOST"
+        initdb -D "$PGDATA" --no-locale --encoding=UTF8
+        echo "unix_socket_directories = '$PGHOST'" >> "$PGDATA/postgresql.conf"
+        echo "listen_addresses = '''" >> "$PGDATA/postgresql.conf"
+        pg_ctl -D "$PGDATA" -l "$TMPDIR/pg.log" start
+
+        createdb -h "$PGHOST" app
+        psql -h "$PGHOST" app < ${ihpSchemaSql}
+        psql -h "$PGHOST" app < ${appSchemaSql}
+        export DATABASE_URL="postgresql:///app?host=$PGHOST"
+    '';
+
+    buildTimePostgresTeardown = ''
+        pg_ctl -D "$PGDATA" stop || true
+    '';
+
     # Override that starts a temporary PostgreSQL during build for compile-time DB access (e.g. typedSql)
     withBuildTimePostgres = pkg: pkgs.haskell.lib.overrideCabal pkg (old: {
         libraryToolDepends = (old.libraryToolDepends or []) ++ [ pkgs.postgresql ];
         preBuild = (old.preBuild or "") + ''
-            # Start temporary PostgreSQL for compile-time type inference
-            export PGDATA="$TMPDIR/pgdata"
-            export PGHOST="$TMPDIR/pghost"
-            mkdir -p "$PGHOST"
-            initdb -D "$PGDATA" --no-locale --encoding=UTF8
-            echo "unix_socket_directories = '$PGHOST'" >> "$PGDATA/postgresql.conf"
-            echo "listen_addresses = '''" >> "$PGDATA/postgresql.conf"
-            pg_ctl -D "$PGDATA" -l "$TMPDIR/pg.log" start
-
-            createdb -h "$PGHOST" app
-            psql -h "$PGHOST" app < ${ihpSchemaSql}
-            psql -h "$PGHOST" app < ${appSchemaSql}
-            export DATABASE_URL="postgresql:///app?host=$PGHOST"
+            ${buildTimePostgresSetup}
         '';
         postBuild = (old.postBuild or "") + ''
-            pg_ctl -D "$PGDATA" stop || true
+            ${buildTimePostgresTeardown}
         '';
     });
 
@@ -367,19 +392,27 @@ CABAL_EOF
 
     allHaskellPackagesWithAppLib = ghc.ghcWithPackages (p: [ appLibPackage ]);
 
-    compileExecutable = { executableName, mainPath, mainIs ? null, prepareMain }:
+    compileExecutable = { executableName, mainPath, mainIs ? null, prepareMain, src ? appSrc, needsBuildTimePostgres ? false }:
         pkgs.stdenv.mkDerivation {
             name = "${appName}-${executableName}-binary";
-            src = appSrc;
+            inherit src;
 
             buildInputs = [ allHaskellPackagesWithAppLib ];
-            nativeBuildInputs = commonNativeBuildInputs;
+            nativeBuildInputs = commonNativeBuildInputs ++ pkgs.lib.optional needsBuildTimePostgres pkgs.postgresql;
 
             buildPhase = ''
                 mkdir -p build/bin build/obj
                 ${ihpEnvSetup}
 
                 ${prepareMain}
+
+                ${pkgs.lib.optionalString needsBuildTimePostgres ''
+                    ${buildTimePostgresSetup}
+                    cleanupBuildPostgres() {
+                        ${buildTimePostgresTeardown}
+                    }
+                    trap cleanupBuildPostgres EXIT
+                ''}
 
                 ghc -j1 +RTS -N1 -RTS \
                     -O${if optimized then optimizationLevel else "0"} ${splitSections} \
@@ -388,6 +421,11 @@ CABAL_EOF
                     ${if optimized then prodGhcOptions else ""} \
                     ${mainPath} -o build/bin/${executableName} \
                     -odir build/obj -hidir build/obj
+
+                ${pkgs.lib.optionalString needsBuildTimePostgres ''
+                    cleanupBuildPostgres
+                    trap - EXIT
+                ''}
             '';
 
             installPhase = ''
@@ -432,10 +470,17 @@ CABAL_EOF
     scriptBinary = scriptName: compileExecutable {
         executableName = scriptName;
         mainPath = "build/Script/Main/${scriptName}.hs";
+        src = scriptSrc scriptName;
+        needsBuildTimePostgres = buildWithPostgres;
         prepareMain = ''
             # Delete project .hs files so GHC uses the library package instead of
-            # recompiling from source, then generate this script's entry point.
-            find . -name '*.hs' -not -path './build/*' -not -path './lib/*' -delete
+            # recompiling from source. Keep the target script module so only this
+            # script is compiled on top of the application library.
+            find . -name '*.hs' \
+                -not -path './${scriptPath scriptName}' \
+                -not -path './build/*' \
+                -not -path './lib/*' \
+                -delete
             mkdir -p build/Script/Main
             cat > build/Script/Main/${scriptName}.hs <<'EOF'
             module Main (main) where
@@ -473,16 +518,25 @@ CABAL_EOF
         in
             anyJobHsIn projectPath;
 
+    scriptBinaries =
+        builtins.listToAttrs (map (scriptName: {
+            name = scriptName;
+            value = scriptBinary scriptName;
+        }) scriptNames);
+
     binaries =
         pkgs.symlinkJoin {
             name = "${appName}-binaries";
             paths =
                 [ runProdServerBinary ]
-                ++ pkgs.lib.optional hasJobs runJobsBinary
-                ++ map scriptBinary scriptNames;
+                ++ pkgs.lib.optional hasJobs runJobsBinary;
         };
 in
-    pkgs.runCommand appName { inherit static binaries; nativeBuildInputs = [ pkgs.makeWrapper ]; } ''
+    pkgs.runCommand appName {
+        inherit static binaries;
+        nativeBuildInputs = [ pkgs.makeWrapper ];
+        passthru = { inherit scriptBinaries; };
+    } ''
             # Hash that changes only when `static` changes:
             INPUT_HASH="$(basename ${static} | cut -d- -f1)"
             makeWrapper ${binaries}/bin/RunProdServer $out/bin/RunProdServer \
@@ -499,11 +553,4 @@ in
                     --set-default IHP_STATIC ${ihp-static} \
                     --prefix PATH : ${pkgs.lib.makeBinPath (otherDeps pkgs)}
             fi;
-
-            # Copy other binaries, excluding RunProdServer and RunJobs
-            find ${binaries}/bin/ -maxdepth 1 \( -type f -o -type l \) -not -name 'RunProdServer' -not -name 'RunJobs' -print0 |
-                while read -d $'\0' binary; do
-                    binary_basename=$(basename "$binary")
-                    cp "$binary" "$out/bin/$binary_basename";
-                done
     ''
