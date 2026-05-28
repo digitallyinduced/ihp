@@ -16,7 +16,8 @@ import qualified System.Exit as Exit
 import qualified IHP.PGListener as PGListener
 import Control.Monad.Trans.Resource
 import System.Log.FastLogger (toLogStr)
-import Control.Concurrent.STM (atomically, writeTBQueue)
+import Control.Concurrent.STM (atomically, writeTVar)
+import IHP.Job.Queue (tryWriteTBQueue)
 
 -- | Used by the RunJobs binary
 runJobWorkers :: [JobWorker] -> Script
@@ -50,16 +51,22 @@ dedicatedProcessMainLoop jobWorkers = do
 
             liftIO $ ?context.logger (toLogStr ("Waiting for jobs to complete. CTRL+C again to force exit" :: Text))
 
+            -- Mark all workers as stopping before releasing producers, so running workers
+            -- finish their current job but don't fetch another one during shutdown.
+            liftIO $ forEach processes \JobWorkerProcess { action, isStopping } -> do
+                atomically do
+                    writeTVar isStopping True
+                    _ <- tryWriteTBQueue action Stop
+                    pure ()
+
             -- Stop subscriptions and poller already
             -- This will stop all producers for the queue
-            liftIO $ forEach processes \JobWorkerProcess { pollerReleaseKey, subscription, action, staleRecoveryReleaseKey } -> do
+            liftIO $ forEach processes \JobWorkerProcess { pollerReleaseKey, subscription, staleRecoveryReleaseKey } -> do
                 PGListener.unsubscribe subscription pgListener
                 release pollerReleaseKey
                 case staleRecoveryReleaseKey of
                     Just key -> release key
                     Nothing -> pure ()
-                -- Single Stop for the dispatcher (it waits for active workers internally)
-                atomically $ writeTBQueue action Stop
 
             liftIO $ PGListener.stop pgListener
 
