@@ -13,6 +13,7 @@ module IHP.TypedSql.Metadata
     ) where
 
 import           Control.Exception             (bracket)
+import qualified Control.Exception             as Exception
 import qualified Data.ByteString               as BS
 import qualified Data.List                     as List
 import qualified Data.Map.Strict               as Map
@@ -28,6 +29,9 @@ import qualified Hasql.Session                 as HasqlSession
 import qualified Hasql.Statement               as HasqlStatement
 import           IHP.FrameworkConfig           (defaultDatabaseUrl)
 import           IHP.Prelude
+import           IHP.TypedSql.CompileTimeDatabase
+                                                (adbUrl, autoDatabaseEnabled,
+                                                 ensureAutoDatabase)
 
 -- | Result of describing a statement.
 -- High-level: this is the central metadata bundle for typedSql inference.
@@ -89,7 +93,37 @@ fromOidInt32 oid = PQ.Oid (fromIntegral oid)
 describeStatement :: BS.ByteString -> IO DescribeResult
 describeStatement sql = do
     dbUrl <- defaultDatabaseUrl
-    describeStatementWith dbUrl sql
+    describeResult <- Exception.try (describeStatementWith dbUrl sql)
+    case describeResult of
+        Right result -> pure result
+        Left (originalError :: IOException)
+            | isConnectionFailure originalError -> do
+                autoEnabled <- autoDatabaseEnabled
+                if autoEnabled
+                    then do
+                        autoResult <- Exception.try do
+                            autoDatabase <- ensureAutoDatabase
+                            describeStatementWith (adbUrl autoDatabase) sql
+                        case autoResult of
+                            Right result -> pure result
+                            Left (autoError :: IOException) ->
+                                ioError (userError
+                                    ( "typedSql: could not connect to the configured "
+                                        <> "database, and the automatic compile-time "
+                                        <> "database also failed.\n\nConfigured database "
+                                        <> "error:\n" <> displayException originalError
+                                        <> "\nAutomatic database error:\n"
+                                        <> displayException autoError
+                                    ))
+                    else ioError originalError
+        Left originalError -> ioError originalError
+
+isConnectionFailure :: IOException -> Bool
+isConnectionFailure exception =
+    let message = displayException exception
+    in "could not connect" `List.isInfixOf` message
+        || "Connection refused" `List.isInfixOf` message
+        || "No such file or directory" `List.isInfixOf` message
 
 -- | Describe a statement using an explicit database URL.
 -- This is the core path for metadata lookup in typedSql.
@@ -102,6 +136,7 @@ describeStatementWith dbUrl sql = do
             fail ("typedSql: could not connect to the database: " <> CS.cs (fromMaybe "" err)
                 <> "\nThe typedSql quasiquoter connects to PostgreSQL at compile time to infer types."
                 <> "\nEnsure your development database is running (e.g. devenv up) and DATABASE_URL is set."
+                <> "\nFor non-interactive typechecking, set IHP_TYPED_SQL_AUTO_DB=1 inside an IHP nix/devenv shell."
                 <> "\nUsing: " <> CS.cs dbUrl)
 
         let statementName = "ihp_typed_sql_stmt"
@@ -172,7 +207,8 @@ runHasqlMetadataSession dbUrl session = do
             Left connectionError ->
                 fail (CS.cs ("typedSql: could not connect to database at "
                     <> CS.cs dbUrl <> ": " <> tshow connectionError
-                    <> "\nHint: ensure your development database is running (e.g. devenv up)."))
+                    <> "\nHint: ensure your development database is running (e.g. devenv up), "
+                    <> "or set IHP_TYPED_SQL_AUTO_DB=1 inside an IHP nix/devenv shell."))
             Right connection ->
                 pure connection
         )

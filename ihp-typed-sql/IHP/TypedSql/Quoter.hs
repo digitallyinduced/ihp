@@ -17,11 +17,13 @@ import qualified Data.String.Conversions        as CS
 import qualified Hasql.DynamicStatements.Snippet as Snippet
 import qualified Language.Haskell.TH            as TH
 import qualified Language.Haskell.TH.Quote      as TH
+import qualified Language.Haskell.TH.Syntax     as TH
 import           Text.Read                      (readMaybe)
 import qualified Prelude
 import           IHP.Prelude
 import           IHP.Hasql.Encoders              ()
 
+import           IHP.TypedSql.CompileTimeDatabase (dependentSchemaFiles)
 import           IHP.TypedSql.Decoders          (resultDecoderForColumns)
 import           IHP.TypedSql.Metadata          (DescribeColumn (..), DescribeResult (..), PgTypeInfo (..), TableMeta (..),
                                                  describeStatement)
@@ -63,6 +65,9 @@ typedSqlStar =
 -- This is the heart of typedSql: parse placeholders, describe SQL, and assemble a TypedQuery.
 typedSqlExp :: Bool -> String -> TH.ExpQ
 typedSqlExp allowStar rawSql = do
+    schemaFiles <- TH.runIO dependentSchemaFiles
+    mapM_ TH.addDependentFile schemaFiles
+
     let PlaceholderPlan { ppDescribeSql, ppRuntimeSql, ppExprs } = planPlaceholders rawSql
     parsedExprs <- mapM parseExpr ppExprs
 

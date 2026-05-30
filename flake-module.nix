@@ -445,6 +445,9 @@ ihpFlake:
                 env.IHP_DEVENV = "1";
                 env.DATABASE_URL = "postgres:///app?host=${config.devenv.shells.default.env.PGHOST}";
                 env.PGDATABASE = "app";
+                # Lets typedSql typecheck in non-interactive GHCi/build sessions
+                # even when `devenv up` is not currently running.
+                env.IHP_TYPED_SQL_AUTO_DB = "1";
 
                 services.postgres.enable = true;
                 services.postgres.settings = {

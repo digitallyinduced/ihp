@@ -13,7 +13,9 @@ import           IHP.TypedSql.ParamHints           (parseSql, extractJoinNullabl
                                                     extractNonNullableComputedColumnsFromAst,
                                                     detectStarSelects,
                                                     detectInsertWithoutColumns)
-import           System.Directory                  (doesFileExist,
+import           System.Directory                  (createDirectoryIfMissing,
+                                                    doesFileExist,
+                                                    findExecutable,
                                                     getCurrentDirectory)
 import           System.Environment                (getEnvironment, lookupEnv)
 import           System.FilePath                   (takeDirectory)
@@ -188,6 +190,31 @@ tests = do
             (mkTestModule "TypedQuery Text"
                 "let chunk = (\"x\" :: Text) in [typedSql| SELECT CONCAT(name, ${chunk}) FROM typed_sql_test_items LIMIT 1 |]")
             ["could not determine the type of `${chunk}`", "polymorphic-argument context", "::text"]
+
+        it "auto-starts a temporary database when DATABASE_URL is unreachable" do
+            maybeInitdb <- findExecutable "initdb"
+            when (isNothing maybeInitdb) do
+                pendingWith "requires PostgreSQL tools on PATH"
+
+            template <- encodeUtf "typed-sql-auto-db"
+            withSystemTempDirectory template \tempOsDir -> do
+                tempDir <- decodeUtf tempOsDir
+                let applicationDir = tempDir </> "Application"
+                let schemaPath = applicationDir </> "Schema.sql"
+                createDirectoryIfMissing True applicationDir
+                Text.writeFile schemaPath "CREATE TABLE typed_sql_auto_items (id UUID PRIMARY KEY, name TEXT NOT NULL);\n"
+
+                let missingSocket = tempDir </> "missing-socket"
+                let envOverrides =
+                        [ ("DATABASE_URL", "postgresql:///app?host=" <> missingSocket)
+                        , ("IHP_TYPED_SQL_AUTO_DB", "1")
+                        , ("IHP_TYPED_SQL_SCHEMA", schemaPath)
+                        ]
+                ghciOutput <- ghciLoadModuleWithEnv
+                    (mkTestModule "TypedQuery Text"
+                        "[typedSql| SELECT name FROM typed_sql_auto_items LIMIT 1 |]")
+                    envOverrides
+                assertGhciSuccess ghciOutput
 
     describe "TypedSql macro compile-time success" do
         compilePassTest "primary key inferred as Id'"
@@ -507,21 +534,29 @@ setupSchema = do
 
 ghciLoadModule :: Text -> IO Text
 ghciLoadModule source =
-    ghciRun source [":set -fno-code"] []
+    ghciLoadModuleWithEnv source []
+
+ghciLoadModuleWithEnv :: Text -> [(String, String)] -> IO Text
+ghciLoadModuleWithEnv source envOverrides =
+    ghciRunWithEnv source [":set -fno-code"] [] envOverrides
 
 ghciRunModule :: Text -> IO Text
 ghciRunModule source =
-    ghciRun source [] ["main"]
+    ghciRunWithEnv source [] ["main"] []
 
 ghciRun :: Text -> [Text] -> [Text] -> IO Text
-ghciRun source preLoadCommands postLoadCommands = do
+ghciRun source preLoadCommands postLoadCommands =
+    ghciRunWithEnv source preLoadCommands postLoadCommands []
+
+ghciRunWithEnv :: Text -> [Text] -> [Text] -> [(String, String)] -> IO Text
+ghciRunWithEnv source preLoadCommands postLoadCommands envOverrides = do
     template <- encodeUtf "typed-sql-ghci"
     withSystemTempDirectory template \tempOsDir -> do
         tempDir <- decodeUtf tempOsDir
         packageRoot <- findIhpPackageRoot
         let repoRoot = takeDirectory packageRoot
         useRepoGhci <- doesFileExist (repoRoot </> ".ghci")
-        env <- ghciEnvironment
+        env <- ghciEnvironment envOverrides
 
         let modulePath = tempDir </> "TypedSqlCase.hs"
         Text.writeFile modulePath source
@@ -587,8 +622,8 @@ findIhpPackageRoot = do
                 then pure (currentDirectory </> "ihp-typed-sql")
                 else fail "TypedSqlSpec: could not locate ihp-typed-sql package root"
 
-ghciEnvironment :: IO [(String, String)]
-ghciEnvironment = do
+ghciEnvironment :: [(String, String)] -> IO [(String, String)]
+ghciEnvironment envOverrides = do
     baseEnvironment <- getEnvironment
 
     -- Prefer an existing DATABASE_URL (e.g. set by withTestPostgres in nix)
@@ -610,10 +645,12 @@ ghciEnvironment = do
                             _ -> []
                 in Prelude.unwords parts
 
-    let overrides :: [(String, String)]
-        overrides =
+    let defaultOverrides :: [(String, String)]
+        defaultOverrides =
             [ ("DATABASE_URL", databaseUrl)
             ]
+    let overrideNames = map fst envOverrides
+    let overrides = envOverrides <> filter (\(name, _) -> name `notElem` overrideNames) defaultOverrides
 
     pure (applyEnvironmentOverrides overrides baseEnvironment)
 
