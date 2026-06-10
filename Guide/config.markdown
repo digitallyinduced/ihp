@@ -310,6 +310,22 @@ config = do
     option (AppPort 3000)
 ```
 
+> **Development server port**
+>
+> The `AppPort` option above configures the production server. The development
+> server started with `devenv up` selects its port at startup: it honors the
+> `PORT` environment variable when set, otherwise it picks the first free port
+> starting at `8000`.
+>
+> ```bash
+> # Start the dev server on port 9000 (the IHP IDE tool server then uses 9001)
+> PORT=9000 devenv up
+> ```
+>
+> This is useful behind a fixed reverse proxy, when running several apps at
+> once, or for tools that assign a port and pass it via `PORT` (such as the
+> Claude Code preview server).
+
 #### App Hostname
 
 The hostname used when constructing the base URL.

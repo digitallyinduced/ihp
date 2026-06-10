@@ -376,6 +376,7 @@ test-suite tests
         IDE.CodeGeneration.MigrationGenerator
         IDE.SplitModeSpec
         IDE.WorkerSignalSpec
+        IDE.PortConfigSpec
         SchemaCompilerSpec
         IDE.ToolServer.MiddlewareSpec
         IDE.Logs.ControllerSpec

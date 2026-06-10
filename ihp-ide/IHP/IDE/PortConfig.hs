@@ -2,6 +2,7 @@ module IHP.IDE.PortConfig
 ( PortConfig (..)
 , defaultAppPort
 , findAvailablePortConfig
+, portConfigFromEnvironment
 , isPortAvailable
 , createListeningSocket
 )
@@ -13,6 +14,7 @@ import qualified UnliftIO.Exception as Exception
 import Foreign.C.Error (Errno (..), eCONNREFUSED)
 import GHC.IO.Exception (ioe_errno)
 import IHP.FrameworkConfig (defaultPort)
+import qualified IHP.EnvVar as EnvVar
 import qualified System.Posix.IO as Posix
 import System.Posix.Types (Fd(..))
 
@@ -78,6 +80,30 @@ findAvailablePortConfig = do
                 then pure portConfig
                 else go rest
         go [] = error "findAvailablePortConfig: No port configuration found"
+
+-- | Builds a 'PortConfig', honoring the @PORT@ environment variable when it is set.
+--
+-- When @PORT@ is set, the dev server binds exactly that port for the app and
+-- @PORT + 1@ for the tool server, without scanning for a free port. This lets
+-- external tooling control the port deterministically — e.g. Claude Code's
+-- preview server (which picks a free port and passes it via @PORT@), a reverse
+-- proxy, or running multiple apps on fixed ports. If the requested port is
+-- already in use, binding fails loudly rather than silently moving elsewhere,
+-- so the caller that chose the port stays in sync with the dev server.
+--
+-- When @PORT@ is not set, this falls back to 'findAvailablePortConfig', keeping
+-- the default behavior of scanning upwards from 'defaultAppPort' (8000). This is
+-- the common case and is unchanged from before, so existing setups are unaffected.
+--
+-- Note: @PORT@ is the same variable IHP reads in production
+-- ('IHP.FrameworkConfig.defaultPort' fallback), so the dev and production port
+-- conventions now match.
+portConfigFromEnvironment :: IO PortConfig
+portConfigFromEnvironment = do
+    envAppPort :: Maybe Socket.PortNumber <- EnvVar.envOrNothing "PORT"
+    case envAppPort of
+        Just appPort -> pure PortConfig { appPort = appPort, toolServerPort = appPort + 1 }
+        Nothing -> findAvailablePortConfig
 
 -- | Creates a listening socket bound to the given port on localhost.
 -- The socket is set up with SO_REUSEADDR and a listen backlog of 1024.

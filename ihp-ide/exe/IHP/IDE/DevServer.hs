@@ -79,7 +79,9 @@ mainWithOptions wrapWithDirenv = withUtf8 do
         IO.hSetBuffering IO.stderr IO.LineBuffering
 
         databaseNeedsMigration <- newIORef False
-        portConfig <- findAvailablePortConfig
+        -- Honors the PORT env var when set (e.g. Claude Code preview, reverse
+        -- proxies, fixed-port multi-app setups); otherwise scans from port 8000.
+        portConfig <- portConfigFromEnvironment
 
         -- Start the dev server in Debug mode by setting the env var DEBUG=1
         -- Like: $ DEBUG=1 devenv up
