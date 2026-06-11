@@ -664,16 +664,18 @@ instance {-# OVERLAPPABLE #-} (AutoRoute controller, Controller controller) => C
         pure (toApp action)
       ) <|> (do
         (constr, allowedMethods) <- routeMatchParser @controller
-        pure $ \waiRequest waiRespond -> wrapRouterException do
-            case applyAction @controller constr (queryString waiRequest) of
-                Left e -> Exception.throw e
-                Right action -> do
-                    case parseMethod (requestMethod waiRequest) of
-                        Right method -> do
-                            unless (allowedMethods |> includes method)
-                                (throwIO UnexpectedMethodException { allowedMethods, method })
-                            toApp action waiRequest waiRespond
-                        Left err -> throwIO BadHttpMethodException { method = err }
+        pure $ \waiRequest waiRespond -> do
+            action <- wrapRouterException do
+                case applyAction @controller constr (queryString waiRequest) of
+                    Left e -> Exception.throw e
+                    Right action -> do
+                        case parseMethod (requestMethod waiRequest) of
+                            Right method -> do
+                                unless (allowedMethods |> includes method)
+                                    (throwIO UnexpectedMethodException { allowedMethods, method })
+                                pure action
+                            Left err -> throwIO BadHttpMethodException { method = err }
+            toApp action waiRequest waiRespond
       )
     {-# INLINABLE parseRouteWithAction #-}
 
@@ -803,12 +805,14 @@ get :: (Controller action
     ) => ByteString -> action -> ControllerRoute application
 get path action = ControllerRouteParser $ do
     string path
-    pure $ \waiRequest waiRespond -> wrapRouterException do
-        case parseMethod (requestMethod waiRequest) of
-            Right GET -> runAction' action waiRequest waiRespond
-            Right HEAD -> runAction' action waiRequest waiRespond
-            Right method -> throwIO UnexpectedMethodException { allowedMethods = [GET, HEAD], method }
-            Left err -> throwIO BadHttpMethodException { method = err }
+    pure $ \waiRequest waiRespond -> do
+        wrapRouterException do
+            case parseMethod (requestMethod waiRequest) of
+                Right GET -> pure ()
+                Right HEAD -> pure ()
+                Right method -> throwIO UnexpectedMethodException { allowedMethods = [GET, HEAD], method }
+                Left err -> throwIO BadHttpMethodException { method = err }
+        runAction' action waiRequest waiRespond
 {-# INLINABLE get #-}
 
 -- | Routes a given path to an action when requested via POST.
@@ -831,11 +835,13 @@ post :: (Controller action
     ) => ByteString -> action -> ControllerRoute application
 post path action = ControllerRouteParser $ do
     string path
-    pure $ \waiRequest waiRespond -> wrapRouterException do
-        case parseMethod (requestMethod waiRequest) of
-            Right POST -> runAction' action waiRequest waiRespond
-            Right method -> throwIO UnexpectedMethodException { allowedMethods = [POST], method }
-            Left err -> throwIO BadHttpMethodException { method = err }
+    pure $ \waiRequest waiRespond -> do
+        wrapRouterException do
+            case parseMethod (requestMethod waiRequest) of
+                Right POST -> pure ()
+                Right method -> throwIO UnexpectedMethodException { allowedMethods = [POST], method }
+                Left err -> throwIO BadHttpMethodException { method = err }
+        runAction' action waiRequest waiRespond
 {-# INLINABLE post #-}
 
 -- | Filter methods when writing a custom routing parser
@@ -1182,15 +1188,17 @@ buildAutoRouteMap = HashMap.fromList
           allowedMethods = allowedMethodsForAction @controller actionName
           handler app waiRequest waiRespond =
               let ?application = app
-              in wrapRouterException do
-                  case parseMethod (requestMethod waiRequest) of
-                      Left err -> throwIO BadHttpMethodException { method = err }
-                      Right method -> do
-                          unless (allowedMethods |> includes method)
-                              (throwIO UnexpectedMethodException { allowedMethods, method })
-                          case applyAction @controller constr (queryString waiRequest) of
-                              Left e -> Exception.throw e
-                              Right action -> runAction' @application action waiRequest waiRespond
+              in do
+                  action <- wrapRouterException do
+                      case parseMethod (requestMethod waiRequest) of
+                          Left err -> throwIO BadHttpMethodException { method = err }
+                          Right method -> do
+                              unless (allowedMethods |> includes method)
+                                  (throwIO UnexpectedMethodException { allowedMethods, method })
+                              case applyAction @controller constr (queryString waiRequest) of
+                                  Left e -> Exception.throw e
+                                  Right action -> pure action
+                  runAction' @application action waiRequest waiRespond
     ]
     where
         prefix :: ByteString

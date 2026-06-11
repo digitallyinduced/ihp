@@ -13,12 +13,14 @@ import IHP.Prelude
 import IHP.Environment
 import IHP.FrameworkConfig
 import IHP.RouterSupport hiding (get)
+import qualified IHP.RouterSupport as RouterSupport
 import Data.Attoparsec.ByteString.Char8 (string, endOfInput)
 import IHP.ViewPrelude hiding (request)
 import IHP.ControllerPrelude hiding (get, request)
 import Network.Wai.Test
 import Network.HTTP.Types
-import Test.Util (testGet)
+import Test.Util (assertBodyNotContains, testGet)
+import qualified Control.Exception.Safe as Exception
 
 data Band' = Band {id :: (Id' "bands"), meta :: MetaBag} deriving (Eq, Show)
 type Band = Band'
@@ -56,6 +58,7 @@ data TestController
   | TestIntegerId { integerId :: Id Band }
   | TestUUIDId { uuidId :: Id Performance }
   | TestUUIDList { uuidList :: [UUID] }
+  | TestThrowsAction
   deriving (Eq, Show, Data)
 
 instance Controller TestController where
@@ -96,6 +99,8 @@ instance Controller TestController where
         renderPlain (cs $ ClassyPrelude.show uuidId)
     action TestUUIDList { .. } = do
         renderPlain $ cs $ ClassyPrelude.show uuidList
+    action TestThrowsAction = do
+        Exception.throwIO (userError "action failure")
 
 instance AutoRoute TestController where
     autoRoute = autoRouteWithIdType (parseIntegerId @(Id Band))
@@ -126,7 +131,8 @@ instance AutoRoute CustomRouteController where
 
 instance FrontController WebApplication where
   controllers =
-    [ parseRoute @TestController
+    [ RouterSupport.get "/custom-throws" TestThrowsAction
+    , parseRoute @TestController
     , parseRoute @CustomRouteController
     ]
 
@@ -292,6 +298,22 @@ tests = aroundAll (withMockContextAndApp WebApplication config) do
                 assertStatus 400 response
                 assertContentType "application/json" response
                 assertBodyContains "\"PROPFIND\"" response
+                ) application
+        it "does not classify matched action exceptions as routing failures" $ withContextAndApp \application -> do
+            runSession (do
+                response <- testGet "test/TestThrows"
+                assertStatus 500 response
+                assertBodyContains "action failure" response
+                assertBodyNotContains "Routing failed" response
+                assertBodyNotContains "js-delete" response
+                ) application
+        it "does not classify explicit get route action exceptions as routing failures" $ withContextAndApp \application -> do
+            runSession (do
+                response <- testGet "custom-throws"
+                assertStatus 500 response
+                assertBodyContains "action failure" response
+                assertBodyNotContains "Routing failed" response
+                assertBodyNotContains "js-delete" response
                 ) application
     describe "customPathTo" $ do
         it "generates custom path for overridden action" $ withContextAndApp \application -> do
