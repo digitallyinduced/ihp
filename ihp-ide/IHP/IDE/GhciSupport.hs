@@ -32,6 +32,16 @@ import qualified System.Posix.Signals as Signals
 import qualified System.Process as Process
 
 -- | Default GHCi argv used by every IHP dev-mode GHCi child.
+--
+-- RTS notes: the dev-mode GHCi both /compiles/ the app (large transient heap
+-- spikes on every reload) and /runs/ it (serving requests). We use the copying
+-- collector with aggressive idle return (@-Fd1@) rather than @--nonmoving-gc@:
+-- the non-moving collector has lower GC pauses but never returns freed memory to
+-- the OS, so its heap only grows across reloads and reaches several GB over a
+-- session (most of which ends up swapped out while the server is idle — painful
+-- when running many dev servers at once). The copying collector compacts and
+-- hands accumulated heap back to the OS between reloads, keeping the footprint
+-- close to a fresh load.
 ghciArguments :: [String]
 ghciArguments =
     [ "-threaded"
@@ -41,7 +51,7 @@ ghciArguments =
     , "-package-env -" -- Don't load global package environments — they conflict with our pinned set
     , "-ignore-dot-ghci" -- Skip the global ~/.ghc/ghci.conf which sometimes sets `+c +s`
     , "-ghci-script", ".ghci" -- Manually point at the project's .ghci since we just disabled defaults
-    , "+RTS", "-A64m", "-n4m", "-H256m", "--nonmoving-gc", "-Iw60", "-N4"
+    , "+RTS", "-A32m", "-n4m", "-H64m", "-Iw60", "-N4", "-Fd1"
     ]
 
 -- | Build a 'Process.CreateProcess' that launches GHCi, optionally wrapped in

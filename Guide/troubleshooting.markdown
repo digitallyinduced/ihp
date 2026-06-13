@@ -215,7 +215,7 @@ export GHCRTS="-M8G"
 
 A reasonable default is **roughly half of system RAM**: `-M8G` on a 16 GB box, `-M4G` on an 8 GB box, `-M16G` on a 32 GB workstation. The cap should be generous, not tight — it exists to protect the desktop from a leak, not to shrink the dev-server footprint.
 
-**Setting the cap too low.** IHP runs the dev server with the non-moving garbage collector, which is great for latency but lets the heap grow freely between collection cycles. A tight cap will trip on legitimate workloads (large fixture loads, schema reload after a big migration, code generation passes). If `-M4G` keeps firing on a box with plenty of free RAM, raise the cap rather than fight the GC.
+**Setting the cap too low.** The dev server's GHCi can spike to a multi-GB transient heap on legitimate workloads (large fixture loads, schema reload after a big migration, code generation passes), even though it returns most of that memory to the OS afterwards. A tight cap will trip on those spikes. If `-M4G` keeps firing on a box with plenty of free RAM, raise the cap rather than fight the GC.
 
 **What happens when the cap is hit.** The dev server panics with:
 
