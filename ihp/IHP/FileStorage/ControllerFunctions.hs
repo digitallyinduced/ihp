@@ -297,9 +297,9 @@ refreshTemporaryDownloadUrlFromFile ::
     , HasField "signedUrl" record Text
     , HasField "signedUrlExpiredAt" record UTCTime
     , HasField "path" record Text
-    , SetField "signedUrl" record Text
-    , SetField "signedUrlExpiredAt" record UTCTime
-    , SetField "path" record Text
+    , UpdateField "signedUrl" record record Text Text
+    , UpdateField "signedUrlExpiredAt" record record UTCTime UTCTime
+    , UpdateField "path" record record Text Text
     ) => record  -> IO record
 refreshTemporaryDownloadUrlFromFile record = do
     now <- getCurrentTime
@@ -340,14 +340,14 @@ contentDispositionAttachmentAndFileName fileInfo =
 --
 uploadToStorageWithOptions :: forall (fieldName :: Symbol) record (tableName :: Symbol). (
         ?request :: Request
-        , SetField fieldName record (Maybe Text)
+        , UpdateField fieldName record record (Maybe Text) (Maybe Text)
         , KnownSymbol fieldName
         , HasField "id" record (ModelSupport.Id (ModelSupport.NormalizeModel record))
         , Show (ModelSupport.PrimaryKey (ModelSupport.GetTableName (ModelSupport.NormalizeModel record)))
         , tableName ~ ModelSupport.GetTableName record
         , KnownSymbol tableName
         , HasField "meta" record MetaBag
-        , SetField "meta" record MetaBag
+        , UpdateField "meta" record record MetaBag MetaBag
     ) => StoreFileOptions -> Proxy fieldName -> record -> IO record
 uploadToStorageWithOptions options field record = do
     let ?context = ?request
@@ -364,7 +364,7 @@ uploadToStorageWithOptions options field record = do
                             |> attachFailure field ("Failed uploading to storage: " <> show exception)
                             |> pure
                 Right storedFile -> record
-                            |> setField @fieldName (Just (storedFile.url))
+                            |> updateField @fieldName (Just (storedFile.url))
                             |> pure
 
         _ -> pure record
@@ -391,14 +391,14 @@ uploadToStorageWithOptions options field record = do
 uploadToStorage :: forall (fieldName :: Symbol) record (tableName :: Symbol). (
         ?request :: Request
         , ?request :: Request
-        , SetField fieldName record (Maybe Text)
+        , UpdateField fieldName record record (Maybe Text) (Maybe Text)
         , KnownSymbol fieldName
         , HasField "id" record (ModelSupport.Id (ModelSupport.NormalizeModel record))
         , Show (ModelSupport.PrimaryKey (ModelSupport.GetTableName (ModelSupport.NormalizeModel record)))
         , tableName ~ ModelSupport.GetTableName record
         , KnownSymbol tableName
         , HasField "meta" record MetaBag
-        , SetField "meta" record MetaBag
+        , UpdateField "meta" record record MetaBag MetaBag
     ) => Proxy fieldName -> record -> IO record
 uploadToStorage field record = uploadToStorageWithOptions def field record
 

@@ -126,14 +126,13 @@ tests = do
 
 
 data Project = Project { id :: Int, name :: Text, meta :: MetaBag }
-instance SetField "id" Project Int where
-    setField value project@(Project { id, name, meta }) = project { Test.ModelSupportSpec.id = value, meta = meta { touchedFields = touchedFields meta .|. 1 } }
-instance SetField "name" Project Text where
-    setField value project@(Project { id, name, meta }) = project { name = value, meta = meta { touchedFields = touchedFields meta .|. 2 } }
-instance SetField "meta" Project MetaBag where
-    setField value project = project { meta = value }
-instance FieldBit "id" Project where fieldBit = 1
-instance FieldBit "name" Project where fieldBit = 2
+instance UpdateField "id" Project Project Int Int where
+    updateField value project@(Project { id, name, meta }) = project { Test.ModelSupportSpec.id = value, meta = meta { touchedFields = touchedFields meta .|. 1 } }
+instance UpdateField "name" Project Project Text Text where
+    updateField value project@(Project { id, name, meta }) = project { name = value, meta = meta { touchedFields = touchedFields meta .|. 2 } }
+instance UpdateField "meta" Project Project MetaBag MetaBag where
+    updateField value project = project { meta = value }
+type instance ModelFields Project = '["id", "name"]
 
 type instance GetTableName Project = "projects"
 instance Table Project where

@@ -6,7 +6,7 @@ import qualified Data.Text as Text
 import Data.Proxy (Proxy)
 import GHC.TypeLits (KnownSymbol, symbolVal)
 import GHC.Records (HasField(..))
-import IHP.HaskellSupport (SetField(..), modify, (|>))
+import IHP.HaskellSupport (SetField(..), UpdateField(..), modify, (|>))
 import IHP.ModelSupport.Types (Violation(..), MetaBag(..))
 import IHP.ModelSupport () -- for SetField instances on MetaBag
 import IHP.HSX.Markup (Markup, renderMarkupText)
@@ -28,7 +28,7 @@ isFailure FailureHtml {} = True
 isFailure _  = False
 
 {-# INLINE attachValidatorResult #-}
-attachValidatorResult :: (KnownSymbol field, HasField "meta" model MetaBag, SetField "meta" model MetaBag) => Proxy field -> ValidatorResult -> model -> model
+attachValidatorResult :: (KnownSymbol field, HasField "meta" model MetaBag, UpdateField "meta" model model MetaBag MetaBag) => Proxy field -> ValidatorResult -> model -> model
 attachValidatorResult field Success record = record
 attachValidatorResult field (Failure message) record = modify #meta prependAnnotation record
     where
@@ -57,7 +57,7 @@ attachValidatorResult field (FailureHtml message) record = modify #meta prependA
 -- > --  Returns: Just "cannot be empty"
 --
 -- If your error message uses HTML code, use 'attachFailureHtml'.
-attachFailure :: (KnownSymbol field, HasField "meta" model MetaBag, SetField "meta" model MetaBag) => Proxy field -> Text -> model -> model
+attachFailure :: (KnownSymbol field, HasField "meta" model MetaBag, UpdateField "meta" model model MetaBag MetaBag) => Proxy field -> Text -> model -> model
 attachFailure field !message = attachValidatorResult field (Failure message)
 {-# INLINE attachFailure #-}
 
@@ -75,7 +75,7 @@ attachFailure field !message = attachValidatorResult field (Failure message)
 -- >     |> getValidationViolation #email
 -- >
 -- > --  Returns: Just (HtmlViolation "should be a valid email. <a href="https://example.com/docs#email">Check out the documentation</a>")
-attachFailureHtml :: (KnownSymbol field, HasField "meta" model MetaBag, SetField "meta" model MetaBag) => Proxy field -> Markup -> model -> model
+attachFailureHtml :: (KnownSymbol field, HasField "meta" model MetaBag, UpdateField "meta" model model MetaBag MetaBag) => Proxy field -> Markup -> model -> model
 attachFailureHtml field !message = attachValidatorResult field (FailureHtml renderedHtml)
     where
         renderedHtml = message

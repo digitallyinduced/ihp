@@ -144,7 +144,7 @@ data ImageUploadOptions = ImageUploadOptions {
 -- The uploaded image path is now stored in #pictureUrl.
 uploadImageWithOptions :: forall (fieldName :: Symbol) record (tableName :: Symbol). (
         ?request :: Request
-        , SetField fieldName record (Maybe Text)
+        , UpdateField fieldName record record (Maybe Text) (Maybe Text)
         , KnownSymbol fieldName
         , HasField "id" record (ModelSupport.Id (ModelSupport.NormalizeModel record))
         , Show (ModelSupport.PrimaryKey (ModelSupport.GetTableName (ModelSupport.NormalizeModel record)))
@@ -166,7 +166,7 @@ uploadImageWithOptions options _ user =
             fileContent file |> LBS.writeFile (cs (uploadDir <> uploadFilePath))
             Process.runCommand (cs ("convert " <> cs uploadDir <> uploadFilePath <> " " <> (getField @"imageMagickOptions" options) <> " " <> cs fullImagePath))
             user
-                |> setField @fieldName (Just (cs imagePath :: Text))
+                |> updateField @fieldName (Just (cs imagePath :: Text))
                 |> return
         _ -> pure user
 
@@ -194,7 +194,7 @@ uploadImageWithOptions options _ user =
 --
 uploadImageFile :: forall (fieldName :: Symbol) record (tableName :: Symbol). (
         ?request :: Request
-        , SetField fieldName record (Maybe Text)
+        , UpdateField fieldName record record (Maybe Text) (Maybe Text)
         , KnownSymbol fieldName
         , HasField "id" record (ModelSupport.Id (ModelSupport.NormalizeModel record))
         , Show (ModelSupport.PrimaryKey (ModelSupport.GetTableName (ModelSupport.NormalizeModel record)))
@@ -212,7 +212,7 @@ uploadImageFile ext _ user =
             _ <- Process.system ("mkdir -p `dirname " <> cs (uploadDir <> imagePath) <> "`")
             fileContent file |> LBS.writeFile (cs $ uploadDir <> imagePath)
             user
-                |> setField @fieldName (Just (cs imagePath :: Text))
+                |> updateField @fieldName (Just (cs imagePath :: Text))
                 |> pure
         _ -> pure user
 
@@ -220,7 +220,7 @@ uploadImageFile ext _ user =
 -- See 'uploadImageFile' for details.
 uploadPng ::
     ( ?request :: Request
-    , SetField fieldName record (Maybe Text)
+    , UpdateField fieldName record record (Maybe Text) (Maybe Text)
     , HasField "id" record (ModelSupport.Id' (GetTableName (ModelSupport.GetModelByTableName (GetTableName record))))
     , Show (ModelSupport.PrimaryKey (GetTableName (ModelSupport.GetModelByTableName (GetTableName record))))
     , KnownSymbol fieldName
@@ -232,7 +232,7 @@ uploadPng field record = uploadImageFile "png" field record
 -- See 'uploadImageFile' for details.
 uploadSVG ::
     ( ?request :: Request
-    , SetField fieldName record (Maybe Text)
+    , UpdateField fieldName record record (Maybe Text) (Maybe Text)
     , HasField "id" record (ModelSupport.Id' (GetTableName (ModelSupport.GetModelByTableName (GetTableName record))))
     , Show (ModelSupport.PrimaryKey (GetTableName (ModelSupport.GetModelByTableName (GetTableName record))))
     , KnownSymbol fieldName

@@ -807,11 +807,11 @@ instance Default MetaBag where
     def = MetaBag { annotations = [], touchedFields = 0, originalDatabaseRecord = Nothing }
     {-# INLINE def #-}
 
-instance SetField "annotations" MetaBag [(Text, Violation)] where
+instance {-# OVERLAPPING #-} SetField "annotations" MetaBag [(Text, Violation)] where
     setField value meta = meta { annotations = value }
     {-# INLINE setField #-}
 
-instance SetField "touchedFields" MetaBag Integer where
+instance {-# OVERLAPPING #-} SetField "touchedFields" MetaBag Integer where
     setField value meta = meta { touchedFields = value }
     {-# INLINE setField #-}
 
@@ -1028,7 +1028,7 @@ isValid record = isEmpty record.meta.annotations
 -- > project <- fetch projectId
 -- > duplicatedProject <- createRecord (copyRecord project)
 --
-copyRecord :: forall record id. (Table record, SetField "id" record id, Default id, SetField "meta" record MetaBag) => record -> record
+copyRecord :: forall record id. (Table record, UpdateField "id" record record id id, Default id, UpdateField "meta" record record MetaBag MetaBag) => record -> record
 copyRecord existingRecord =
     let
         columns = columnNames @record

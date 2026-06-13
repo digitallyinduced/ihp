@@ -158,13 +158,13 @@ data SQLQuery = SQLQuery
     } deriving (Show)
 
 
-instance SetField "selectFrom" SQLQuery Text where setField value sqlQuery = sqlQuery { selectFrom = value }
-instance SetField "distinctClause" SQLQuery Bool where setField value sqlQuery = sqlQuery { distinctClause = value }
-instance SetField "distinctOnClause" SQLQuery (Maybe Text) where setField value sqlQuery = sqlQuery { distinctOnClause = value }
-instance SetField "whereCondition" SQLQuery (Maybe Condition) where setField value sqlQuery = sqlQuery { whereCondition = value }
-instance SetField "orderByClause" SQLQuery [OrderByClause] where setField value sqlQuery = sqlQuery { orderByClause = value }
-instance SetField "limitClause" SQLQuery (Maybe Int64) where setField value sqlQuery = sqlQuery { limitClause = value }
-instance SetField "offsetClause" SQLQuery (Maybe Int64) where setField value sqlQuery = sqlQuery { offsetClause = value }
+instance {-# OVERLAPPING #-} SetField "selectFrom" SQLQuery Text where setField value sqlQuery = sqlQuery { selectFrom = value }
+instance {-# OVERLAPPING #-} SetField "distinctClause" SQLQuery Bool where setField value sqlQuery = sqlQuery { distinctClause = value }
+instance {-# OVERLAPPING #-} SetField "distinctOnClause" SQLQuery (Maybe Text) where setField value sqlQuery = sqlQuery { distinctOnClause = value }
+instance {-# OVERLAPPING #-} SetField "whereCondition" SQLQuery (Maybe Condition) where setField value sqlQuery = sqlQuery { whereCondition = value }
+instance {-# OVERLAPPING #-} SetField "orderByClause" SQLQuery [OrderByClause] where setField value sqlQuery = sqlQuery { orderByClause = value }
+instance {-# OVERLAPPING #-} SetField "limitClause" SQLQuery (Maybe Int64) where setField value sqlQuery = sqlQuery { limitClause = value }
+instance {-# OVERLAPPING #-} SetField "offsetClause" SQLQuery (Maybe Int64) where setField value sqlQuery = sqlQuery { offsetClause = value }
 
 -- | Type class for default scoping of queries
 class DefaultScope table where

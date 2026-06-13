@@ -64,7 +64,7 @@ validateField :: forall field fieldValue model. (
         KnownSymbol field
         , HasField field model fieldValue
         , HasField "meta" model MetaBag
-        , SetField "meta" model MetaBag
+        , UpdateField "meta" model model MetaBag MetaBag
     ) => Proxy field -> Validator fieldValue -> model -> model
 validateField field validator model = attachValidatorResult field (validator (getField @field model)) model
 {-# INLINE validateField #-}
@@ -91,7 +91,7 @@ validateFieldIO :: forall field model fieldValue. (
         , KnownSymbol field
         , HasField field model fieldValue
         , HasField "meta" model MetaBag
-        , SetField "meta" model MetaBag
+        , UpdateField "meta" model model MetaBag MetaBag
     ) => Proxy field -> ValidatorIO fieldValue -> model -> IO model
 validateFieldIO fieldProxy customValidation model = do
     let value :: fieldValue = getField @field model

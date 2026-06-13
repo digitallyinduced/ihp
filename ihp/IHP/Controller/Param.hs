@@ -359,7 +359,7 @@ class FillParams (params :: [Symbol]) record where
     fill :: (
         ?request :: Request
         , HasField "meta" record ModelSupport.MetaBag
-        , SetField "meta" record ModelSupport.MetaBag
+        , UpdateField "meta" record record ModelSupport.MetaBag ModelSupport.MetaBag
         ) => record -> record
 
 instance FillParams ('[]) record where
@@ -368,16 +368,16 @@ instance FillParams ('[]) record where
 
 instance (FillParams rest record
     , KnownSymbol fieldName
-    , SetField fieldName record fieldType
+    , UpdateField fieldName record record fieldType fieldType
     , ParamReader fieldType
     , HasField "meta" record ModelSupport.MetaBag
-    , SetField "meta" record ModelSupport.MetaBag
+    , UpdateField "meta" record record ModelSupport.MetaBag ModelSupport.MetaBag
     ) => FillParams (fieldName:rest) record where
     fill !record =
         let
             name :: ByteString = cs $! (symbolVal (Proxy @fieldName))
             record' = case paramOrError name of
-                Right !(value :: fieldType) -> setField @fieldName value record
+                Right !(value :: fieldType) -> updateField @fieldName value record
                 Left ParamCouldNotBeParsedException { parserError } -> attachFailure (Proxy @fieldName) (cs parserError) record
                 Left ParamNotFoundException {} -> record
         in

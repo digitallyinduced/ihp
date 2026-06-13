@@ -163,9 +163,9 @@ tableModuleBody options table = Text.unlines $ filter (not . Text.null)
             then compileHasFieldId table
             else ""
     , if options.compileGetAndSetFieldInstances
-            then compileSetFieldInstances table <> compileUpdateFieldInstances table
+            then compileUpdateFieldInstances table
             else ""
-    , compileFieldBitInstances table
+    , compileModelFieldsInstance table
     ]
 
 newtype Schema = Schema { statements :: [Statement] }
@@ -1100,22 +1100,6 @@ compileInclude table@(CreateTable { name }) = (belongsToIncludes <> hasManyInclu
         compileHasMany (refTableName, refColumnName) = includeType refColumnName ("[" <> tableNameToModelName refTableName <> "]")
 
 
-compileSetFieldInstances :: (?schema :: Schema, ?compilerOptions :: CompilerOptions) => CreateTable -> Text
-compileSetFieldInstances table@(CreateTable { name, columns }) = unlines (map compileSetField (dataFields table))
-    where
-        fieldBitMap = fieldBitPositions table
-        compileSetField (fieldName, fieldType) =
-            "instance SetField " <> tshow fieldName <> " (" <> compileTypePattern table <>  ") " <> fieldType <> " where\n" <>
-            "    {-# INLINE setField #-}\n" <>
-            "    setField newValue record = record" <> recordUpdate
-            where
-                recordUpdate = case lookup fieldName fieldBitMap of
-                    Just bitVal ->
-                        " { " <> fieldName <> " = newValue" <>
-                        ", meta = record.meta { touchedFields = record.meta.touchedFields .|. " <> tshow bitVal <> " }" <>
-                        " }"
-                    Nothing ->
-                        " { " <> fieldName <> " = newValue }"
 
 compileUpdateFieldInstances :: (?schema :: Schema, ?compilerOptions :: CompilerOptions) => CreateTable -> Text
 compileUpdateFieldInstances table@(CreateTable { name, columns }) = unlines (map compileField (dataFields table))
@@ -1158,12 +1142,14 @@ compileUpdateFieldInstances table@(CreateTable { name, columns }) = unlines (map
         compileTypePattern' :: Text -> Text
         compileTypePattern' name = tableNameToModelName table.name <> "'" <> spacePrefix (unwords (map (\f -> if f == name then name <> "'" else f) typeArgs))
 
-compileFieldBitInstances :: (?schema :: Schema, ?compilerOptions :: CompilerOptions) => CreateTable -> Text
-compileFieldBitInstances table@(CreateTable { name }) = unlines (map compileInstance (fieldBitPositions table))
-    where
-        typePattern = compileTypePattern table
-        compileInstance (fieldName, bitVal) =
-            "instance FieldBit " <> tshow fieldName <> " (" <> typePattern <> ") where fieldBit = " <> tshow bitVal
+-- | Emits the type-level field list backing the generic 'FieldBit' instance.
+--
+-- Replaces the previously generated per-field @instance FieldBit@ declarations
+-- with a single line per table. The list order matches 'fieldBitPositions', so
+-- the field at index @n@ owns bit @2^n@ — identical bit assignment to before.
+compileModelFieldsInstance :: (?schema :: Schema, ?compilerOptions :: CompilerOptions) => CreateTable -> Text
+compileModelFieldsInstance table =
+    "type instance ModelFields (" <> compileTypePattern table <> ") = '[" <> commaSep (map (tshow . fst) (fieldBitPositions table)) <> "]"
 
 compileHasFieldId :: (?schema :: Schema, ?compilerOptions :: CompilerOptions) => CreateTable -> Text
 compileHasFieldId table@CreateTable { name, primaryKeyConstraint } = cs [i|

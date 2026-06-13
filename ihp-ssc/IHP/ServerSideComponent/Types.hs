@@ -34,7 +34,7 @@ data ComponentsController components
 data ComponentInstance state
     = ComponentInstance { state :: state } -- ^ If you wondered why the current rendered HTML doesn't need to be stored here for later diffing it: As our render functions are pure we can just re-render the HTML based on the state when we want to do our diffing
 
-instance (SetField "state" (ComponentInstance state) state) where
+instance {-# OVERLAPPING #-} (SetField "state" (ComponentInstance state) state) where
     setField state componentInstance = componentInstance { state }
 
 -- | Error types for SSC operations sent to the client

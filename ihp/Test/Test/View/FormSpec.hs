@@ -124,8 +124,7 @@ instance UpdateField "title" (Project' ) (Project' ) Text Text where
 instance UpdateField "meta" (Project' ) (Project' ) MetaBag MetaBag where
     {-# INLINE updateField #-}
     updateField newValue (Project id title meta) = Project id title newValue
-instance FieldBit "id" (Project' ) where fieldBit = 1
-instance FieldBit "title" (Project' ) where fieldBit = 2
+type instance ModelFields (Project' ) = '["id", "title"]
 
 -- Event model for testing date fields
 data Event' = Event 
@@ -178,9 +177,7 @@ instance UpdateField "createdAt" (Event' ) (Event' ) (Maybe UTCTime) (Maybe UTCT
 instance UpdateField "meta" (Event' ) (Event' ) MetaBag MetaBag where
     {-# INLINE updateField #-}
     updateField newValue (Event id date createdAt meta) = Event id date createdAt newValue
-instance FieldBit "id" (Event' ) where fieldBit = 1
-instance FieldBit "date" (Event' ) where fieldBit = 2
-instance FieldBit "createdAt" (Event' ) where fieldBit = 4
+type instance ModelFields (Event' ) = '["id", "date", "createdAt"]
 
 
 

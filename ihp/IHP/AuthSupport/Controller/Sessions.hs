@@ -66,7 +66,7 @@ createSessionAction :: forall record action.
     , SessionsControllerConfig record
     , UpdateField "lockedAt" record record (Maybe UTCTime) (Maybe UTCTime)
     , HasField "failedLoginAttempts" record Int
-    , SetField "failedLoginAttempts" record Int
+    , UpdateField "failedLoginAttempts" record record Int Int
     , CanUpdate record
     , PrimaryKey (GetTableName record) ~ UUID
     , record ~ GetModelByTableName (GetTableName record)

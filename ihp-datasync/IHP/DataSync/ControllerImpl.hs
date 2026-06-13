@@ -558,10 +558,10 @@ sqlExecWithRLSAndTransactionId _pool (Just transactionId) statement = do
 sqlExecWithRLSAndTransactionId pool Nothing statement = runSession pool (sqlExecWithRLSSession statement)
 
 
-instance SetField "subscriptions" DataSyncController (HashMap UUID (MVar.MVar ())) where
+instance {-# OVERLAPPING #-} SetField "subscriptions" DataSyncController (HashMap UUID (MVar.MVar ())) where
     setField subscriptions record = record { subscriptions }
 
-instance SetField "transactions" DataSyncController (HashMap UUID DataSyncTransaction) where
+instance {-# OVERLAPPING #-} SetField "transactions" DataSyncController (HashMap UUID DataSyncTransaction) where
     setField transactions record = record { transactions }
 
 atomicModifyIORef'' ref updateFn = atomicModifyIORef' ref (\value -> (updateFn value, ()))

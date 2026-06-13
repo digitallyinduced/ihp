@@ -40,7 +40,7 @@ validateIsUnique :: forall field model savedModel fieldValue modelId savedModelI
         , DefaultParamEncoder fieldValue
         , EqOrIsOperator fieldValue
         , HasField "meta" model MetaBag
-        , SetField "meta" model MetaBag
+        , UpdateField "meta" model model MetaBag MetaBag
         , HasField "id" savedModel savedModelId
         , HasField "id" model modelId
         , savedModelId ~ modelId
@@ -81,7 +81,7 @@ validateIsUniqueCaseInsensitive :: forall field model savedModel fieldValue mode
         , DefaultParamEncoder fieldValue
         , EqOrIsOperator fieldValue
         , HasField "meta" model MetaBag
-        , SetField "meta" model MetaBag
+        , UpdateField "meta" model model MetaBag MetaBag
         , HasField "id" savedModel savedModelId
         , HasField "id" model modelId
         , savedModelId ~ modelId
@@ -104,7 +104,7 @@ validateIsUniqueCaseAware :: forall field model savedModel fieldValue modelId sa
         , DefaultParamEncoder fieldValue
         , EqOrIsOperator fieldValue
         , HasField "meta" model MetaBag
-        , SetField "meta" model MetaBag
+        , UpdateField "meta" model model MetaBag MetaBag
         , HasField "id" savedModel savedModelId
         , HasField "id" model modelId
         , savedModelId ~ modelId
@@ -149,7 +149,7 @@ withCustomErrorMessageIO :: forall field model savedModel fieldValue modelId sav
         , DefaultParamEncoder fieldValue
         , EqOrIsOperator fieldValue
         , HasField "meta" model MetaBag
-        , SetField "meta" model MetaBag
+        , UpdateField "meta" model model MetaBag MetaBag
         , HasField "id" savedModel savedModelId
         , HasField "id" model modelId
         , savedModelId ~ modelId

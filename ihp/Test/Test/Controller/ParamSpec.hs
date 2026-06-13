@@ -489,14 +489,13 @@ instance InputValue Color where inputValue = tshow
 data FillRecord = FillRecord { boolField :: Bool, colorField :: Color, meta :: MetaBag }
     deriving (Show, Eq)
 
-instance SetField "boolField" FillRecord Bool where
-    setField value record = record { boolField = value, meta = (record.meta) { touchedFields = touchedFields record.meta .|. 1 } }
+instance UpdateField "boolField" FillRecord FillRecord Bool Bool where
+    updateField value record = record { boolField = value, meta = (record.meta) { touchedFields = touchedFields record.meta .|. 1 } }
 
-instance SetField "colorField" FillRecord Color where
-    setField value record = record { colorField = value, meta = (record.meta) { touchedFields = touchedFields record.meta .|. 2 } }
+instance UpdateField "colorField" FillRecord FillRecord Color Color where
+    updateField value record = record { colorField = value, meta = (record.meta) { touchedFields = touchedFields record.meta .|. 2 } }
 
-instance SetField "meta" FillRecord MetaBag where
-    setField value record = record { meta = value }
+instance UpdateField "meta" FillRecord FillRecord MetaBag MetaBag where
+    updateField value record = record { meta = value }
 
-instance FieldBit "boolField" FillRecord where fieldBit = 1
-instance FieldBit "colorField" FillRecord where fieldBit = 2
+type instance ModelFields FillRecord = '["boolField", "colorField"]

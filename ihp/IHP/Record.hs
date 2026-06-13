@@ -80,6 +80,23 @@ class SetField (field :: GHC.TypeLits.Symbol) model value | field model -> value
 class Record.HasField field model value => UpdateField (field :: GHC.TypeLits.Symbol) model model' value value' | model model' value' -> value where
     updateField :: value' -> model -> model'
 
+-- | Generic 'SetField' for every record field, defined in terms of 'UpdateField'.
+--
+-- The schema compiler emits one 'UpdateField' instance per field (it carries the
+-- actual record update and the polymorphic belongs-to variants). 'SetField' is
+-- the non-type-changing special case, so rather than generating a second, nearly
+-- identical instance per field, we delegate to 'UpdateField' here once. The
+-- @HasField@ constraint (built in for every record field) satisfies the
+-- @field model -> value@ functional dependency. The delegation is @INLINE@, so
+-- after inlining this compiles to exactly the same code as a hand-written
+-- per-field instance — zero runtime cost.
+--
+-- Marked @OVERLAPPABLE@ so the framework's bespoke 'SetField' instances for
+-- non-model types (e.g. @SQLQuery@, @FormContext@, @MetaBag@) still win.
+instance {-# OVERLAPPABLE #-} (Record.HasField field model value, UpdateField field model model value value) => SetField field model value where
+    setField = updateField @field
+    {-# INLINE setField #-}
+
 class CopyFields (fields :: [Symbol]) destinationRecord sourceRecord where
     copyFields :: sourceRecord -> destinationRecord -> destinationRecord
 

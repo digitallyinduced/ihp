@@ -85,14 +85,14 @@ data FormContext model = FormContext
     , customFormAttributes :: ![(Text, Text)] -- ^ Attach custom HTML attributes here
     , fieldNamePrefix :: !Text -- ^ Used by nested forms to preprend the nested field name to the field name
     }
-instance SetField "model" (FormContext record) record where setField value record = record { model = value }
-instance SetField "formAction" (FormContext record) Text where setField value record = record { formAction = value }
-instance SetField "formMethod" (FormContext record) Text where setField value record = record { formMethod = value }
-instance SetField "cssFramework" (FormContext record) CSSFramework where setField value record = record { cssFramework = value }
-instance SetField "formClass" (FormContext record) Text where setField value record = record { formClass = value }
-instance SetField "formId" (FormContext record) Text where setField value record = record { formId = value }
-instance SetField "disableJavascriptSubmission" (FormContext record) Bool where setField value record = record { disableJavascriptSubmission = value }
-instance SetField "customFormAttributes" (FormContext record) [(Text, Text)] where setField value record = record { customFormAttributes = value }
+instance {-# OVERLAPPING #-} SetField "model" (FormContext record) record where setField value record = record { model = value }
+instance {-# OVERLAPPING #-} SetField "formAction" (FormContext record) Text where setField value record = record { formAction = value }
+instance {-# OVERLAPPING #-} SetField "formMethod" (FormContext record) Text where setField value record = record { formMethod = value }
+instance {-# OVERLAPPING #-} SetField "cssFramework" (FormContext record) CSSFramework where setField value record = record { cssFramework = value }
+instance {-# OVERLAPPING #-} SetField "formClass" (FormContext record) Text where setField value record = record { formClass = value }
+instance {-# OVERLAPPING #-} SetField "formId" (FormContext record) Text where setField value record = record { formId = value }
+instance {-# OVERLAPPING #-} SetField "disableJavascriptSubmission" (FormContext record) Bool where setField value record = record { disableJavascriptSubmission = value }
+instance {-# OVERLAPPING #-} SetField "customFormAttributes" (FormContext record) [(Text, Text)] where setField value record = record { customFormAttributes = value }
 
 data InputType
     = TextInput

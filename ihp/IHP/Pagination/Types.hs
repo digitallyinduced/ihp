@@ -21,10 +21,10 @@ data Options =
         ,   windowSize :: Int -- ^ The size of the window in the page selector. Default 5.
         }
 
-instance SetField "maxItems" Options Int where
+instance {-# OVERLAPPING #-} SetField "maxItems" Options Int where
     setField value options =
         options { maxItems = value }
-instance SetField "windowSize" Options Int where
+instance {-# OVERLAPPING #-} SetField "windowSize" Options Int where
     setField value options =
         options { windowSize = value }
 
