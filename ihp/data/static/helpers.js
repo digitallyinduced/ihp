@@ -280,7 +280,7 @@ window.submitForm = function (form, possibleClickedButton) {
 
             // When the action is empty/relative, `new URL` keeps the current page's query string.
             // Delete each submitted field's existing values once before appending, so resubmitting a
-            // GET form (e.g. renderFilter) overwrites instead of accumulating `?filter=a&filter=b` (#2156),
+            // GET form (e.g. renderFilter) overwrites instead of accumulating `?filter=a&filter=b`,
             // while unrelated params (e.g. maxItems) are preserved and multi-value fields like checkbox
             // groups keep all of their values (the reason .set was replaced by .append in the first place).
             var clearedParams = new Set();
