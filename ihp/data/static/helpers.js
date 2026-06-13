@@ -195,8 +195,16 @@ window.submitForm = function (form, possibleClickedButton) {
         // Otherwise the displayed URL in the browser address bar is not updated correctly.
         if (formMethod.toUpperCase() === 'GET') {
             var formData = new FormData(form);
+            // Mirror the request-URL builder below: delete each submitted field's existing
+            // values once before appending, so this matches what is actually sent (no
+            // accumulated duplicates, and multi-value fields like checkbox groups are kept).
+            var clearedParams = new Set();
             for (var pair of formData.entries()) {
-                url.searchParams.set(pair[0], pair[1]);
+                if (!clearedParams.has(pair[0])) {
+                    url.searchParams.delete(pair[0]);
+                    clearedParams.add(pair[0]);
+                }
+                url.searchParams.append(pair[0], pair[1]);
             }
         }
         urlPathnameWithQuery += url.search; // Append the query parameters submitted via the form
