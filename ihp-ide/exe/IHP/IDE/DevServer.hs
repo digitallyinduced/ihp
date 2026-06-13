@@ -25,6 +25,7 @@ import Main.Utf8 (withUtf8)
 import qualified IHP.FrameworkConfig as FrameworkConfig
 import qualified Control.Concurrent.Chan.Unagi as Queue
 import IHP.IDE.FileWatcher
+import IHP.IDE.GhciSupport (ghciArguments)
 import qualified IHP.IDE.SplitMode as SplitMode
 import qualified IHP.IDE.WorkerSignal as WorkerSignal
 import qualified System.Environment as Env
@@ -184,17 +185,7 @@ fileWatcherParams liveReloadClients databaseNeedsMigration reloadGhciVar startSt
                 SplitMode.generateRunJobsModule
                 WorkerSignal.sendReload SplitMode.workerSocketPath
 
-ghciArguments :: [String]
-ghciArguments =
-    [ "-threaded"
-    , "-fomit-interface-pragmas"
-    , "-j"
-    , "-O0"
-    , "-package-env -" -- Do not load `~/.ghc/arch-os-version/environments/name file`, global packages interfere with our packages
-    , "-ignore-dot-ghci" -- Ignore the global ~/.ghc/ghci.conf That file sometimes causes trouble (specifically `:set +c +s`)
-    , "-ghci-script", ".ghci" -- Because the previous line ignored default ghci config file locations, we have to manual load our .ghci
-    , "+RTS", "-A64m", "-n4m", "-H256m", "--nonmoving-gc", "-Iw60", "-N4"
-    ]
+-- 'ghciArguments' is shared with the dev worker — see 'IHP.IDE.GhciSupport'.
 
 withGHCI :: (?context :: Context) => Concurrent.ThreadId -> (Handle -> Handle -> Handle -> Process.ProcessHandle -> IO a) -> IO a
 withGHCI mainThreadId callback = do
