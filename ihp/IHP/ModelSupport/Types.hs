@@ -67,7 +67,6 @@ import qualified Hasql.Session as HasqlSession
 import qualified Hasql.Errors as HasqlErrors
 import GHC.TypeLits
 import GHC.Types
-import Data.Proxy (Proxy (..))
 import Data.Data
 import Data.Dynamic
 import System.Log.FastLogger (FastLogger)
