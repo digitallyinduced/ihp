@@ -20,6 +20,7 @@ import qualified IDE.PortConfigSpec
 import qualified SchemaCompilerSpec
 import qualified IDE.ToolServer.MiddlewareSpec
 import qualified IDE.Logs.ControllerSpec
+import qualified IDE.DevServerSpec
 import qualified ServerSpec
 
 main :: IO ()
@@ -41,4 +42,5 @@ main = hspec do
     SchemaCompilerSpec.tests
     IDE.ToolServer.MiddlewareSpec.tests
     IDE.Logs.ControllerSpec.tests
+    IDE.DevServerSpec.tests
     ServerSpec.tests

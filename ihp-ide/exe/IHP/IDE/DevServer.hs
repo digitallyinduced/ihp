@@ -318,15 +318,23 @@ withLoadedApp inputHandle outputHandle errorHandle logLine callback = do
 
     pure result
 
-withRunningApp :: (?context :: Context) => Socket.PortNumber -> Handle -> Handle -> Handle -> Process.ProcessHandle -> (OutputLine -> IO ()) -> (MVar () -> IO a) -> IO a
+withRunningApp :: (?context :: Context) => Socket.PortNumber -> Handle -> Handle -> Handle -> Process.ProcessHandle -> (OutputLine -> IO ()) -> (MVar [ByteString] -> IO a) -> IO a
 withRunningApp appPort inputHandle outputHandle errorHandle processHandle logLine callback = do
     outputVar :: MVar ByteString.Builder <- newMVar ""
     serverStarted :: MVar () <- newEmptyMVar
     serverStopped :: MVar () <- newEmptyMVar
-    appCrashed :: MVar () <- newEmptyMVar
+    -- Carries the captured crash message (the exception lines), so a startup
+    -- crash can be surfaced as the prominent error instead of being buried in
+    -- the build log.
+    appCrashed :: MVar [ByteString] <- newEmptyMVar
     let onMatch line = case line of
             line | "Server started" `isInfixOf` line -> putMVar serverStarted ()
-            line | "[[IHP_APP_CRASHED]]" `isInfixOf` line -> void $ tryPutMVar appCrashed ()
+            line | "[[IHP_APP_CRASHED]]" `isInfixOf` line -> do
+                -- The handler wrapped around the app's `main` (see startApp) prints
+                -- the exception between [[IHP_APP_CRASHED_BEGIN]] and [[IHP_APP_CRASHED]].
+                -- Pull those lines out of the accumulated output so we can show them.
+                accumulatedOutput <- readMVar outputVar
+                void $ tryPutMVar appCrashed (extractCrashMessage (cs (ByteString.toLazyByteString accumulatedOutput)))
             _ -> pure ()
 
     let startApp = do
@@ -337,7 +345,7 @@ withRunningApp appPort inputHandle outputHandle errorHandle processHandle logLin
             socketFd <- Socket.unsafeFdSocket ?context.appSocket
             sendGhciCommand inputHandle $ "System.Environment.setEnv \"IHP_SOCKET_FD\" \"" <> cs (show socketFd) <> "\""
             sendGhciCommand inputHandle "stopVar :: ClassyPrelude.MVar () <- ClassyPrelude.newEmptyMVar"
-            sendGhciCommand inputHandle "app <- ClassyPrelude.async (ClassyPrelude.race_ (ClassyPrelude.takeMVar stopVar) (main `ClassyPrelude.catch` \\(e :: SomeException) -> IHP.Prelude.putStrLn (tshow e) >> IHP.Prelude.putStrLn \"[[IHP_APP_CRASHED]]\"))"
+            sendGhciCommand inputHandle "app <- ClassyPrelude.async (ClassyPrelude.race_ (ClassyPrelude.takeMVar stopVar) (main `ClassyPrelude.catch` \\(e :: SomeException) -> IHP.Prelude.putStrLn \"[[IHP_APP_CRASHED_BEGIN]]\" >> IHP.Prelude.putStrLn (tshow e) >> IHP.Prelude.putStrLn \"[[IHP_APP_CRASHED]]\"))"
     let stopApp = do
             sendGhciCommand inputHandle "ClassyPrelude.putMVar stopVar ()"
             sendGhciCommand inputHandle "ClassyPrelude.cancel app"
@@ -348,11 +356,25 @@ withRunningApp appPort inputHandle outputHandle errorHandle processHandle logLin
             putMVar serverStopped ()
 
     let waitForServerStart = do
-            -- Wait up to 60 seconds for "Server started" message
-            -- If the app crashes during startup, "Server started" will never be printed
-            maybeStarted <- timeout (60 * 1000000) (takeMVar serverStarted)
-            case maybeStarted of
-                Just () -> callback appCrashed
+            -- Wait up to 60 seconds for the "Server started" message.
+            -- If the app crashes during startup (e.g. a missing env var), react to the
+            -- crash right away instead of waiting out the full timeout — and surface the
+            -- crash message as the prominent error rather than the misleading timeout.
+            --
+            -- Use readMVar (not takeMVar) so the losing branch of the race never drains
+            -- the signal: if "Server started" and a crash land near-simultaneously and the
+            -- race reports the start, appCrashed stays full so the callback below still
+            -- observes the crash instead of blocking forever on an emptied MVar.
+            outcome <- timeout (60 * 1000000) (race (readMVar serverStarted) (readMVar appCrashed))
+            case outcome of
+                Just (Left ()) -> callback appCrashed
+                Just (Right crashMessage) -> do
+                    let reportedMessage = if null crashMessage
+                            then ["App crashed during startup. Check the output below for details."]
+                            else crashMessage
+                    forM_ reportedMessage (logLine . ErrorOutput)
+                    -- Throw exception to trigger bracket cleanup and return to status server
+                    Exception.throwString "App crashed during startup"
                 Nothing -> do
                     logLine (ErrorOutput "App startup timed out after 60 seconds. Check for runtime errors above.")
                     -- Throw exception to trigger bracket cleanup and return to status server
@@ -397,10 +419,14 @@ refresh inputHandle outputHandle errorHandle logOutput = do
 
 receiveAppOutput :: (?context :: Context) => OutputLine -> IO ()
 receiveAppOutput line = do
-    case line of
-        StandardOutput output -> ByteString.putStrLn output
-        ErrorOutput output -> ByteString.putStrLn output
-    Queue.writeChan ?context.ghciInChan line
+    let output = case line of
+            StandardOutput output -> output
+            ErrorOutput output -> output
+    -- The crash markers are an internal detail used to detect and capture runtime
+    -- crashes — don't echo them to the console or the browser status page.
+    unless ("[[IHP_APP_CRASHED" `isInfixOf` output) do
+        ByteString.putStrLn output
+        Queue.writeChan ?context.ghciInChan line
 
 checkDatabaseIsOutdated :: IO Bool
 checkDatabaseIsOutdated = do

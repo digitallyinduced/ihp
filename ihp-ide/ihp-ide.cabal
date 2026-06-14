@@ -380,4 +380,5 @@ test-suite tests
         SchemaCompilerSpec
         IDE.ToolServer.MiddlewareSpec
         IDE.Logs.ControllerSpec
+        IDE.DevServerSpec
         ServerSpec
