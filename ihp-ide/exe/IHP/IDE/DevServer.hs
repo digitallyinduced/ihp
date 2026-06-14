@@ -360,7 +360,12 @@ withRunningApp appPort inputHandle outputHandle errorHandle processHandle logLin
             -- If the app crashes during startup (e.g. a missing env var), react to the
             -- crash right away instead of waiting out the full timeout — and surface the
             -- crash message as the prominent error rather than the misleading timeout.
-            outcome <- timeout (60 * 1000000) (race (takeMVar serverStarted) (takeMVar appCrashed))
+            --
+            -- Use readMVar (not takeMVar) so the losing branch of the race never drains
+            -- the signal: if "Server started" and a crash land near-simultaneously and the
+            -- race reports the start, appCrashed stays full so the callback below still
+            -- observes the crash instead of blocking forever on an emptied MVar.
+            outcome <- timeout (60 * 1000000) (race (readMVar serverStarted) (readMVar appCrashed))
             case outcome of
                 Just (Left ()) -> callback appCrashed
                 Just (Right crashMessage) -> do
