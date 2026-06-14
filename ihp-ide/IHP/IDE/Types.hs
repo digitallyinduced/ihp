@@ -31,6 +31,27 @@ sendGhciCommands handle commands = forM_ commands (sendGhciCommand handle)
 
 data OutputLine = StandardOutput !ByteString | ErrorOutput !ByteString deriving (Show, Eq)
 
+-- | Extract the runtime crash message from the accumulated app/GHCi output.
+--
+-- When running the app, the dev server wraps its @main@ in a handler that, on an
+-- uncaught exception, prints the exception text between two marker lines:
+--
+-- > [[IHP_APP_CRASHED_BEGIN]]
+-- > <exception text, possibly spanning multiple lines>
+-- > [[IHP_APP_CRASHED]]
+--
+-- This returns just the exception lines (without the markers), so a startup crash
+-- (e.g. a missing env var) can be surfaced as the prominent error on the status
+-- page instead of being buried at the bottom of the build log. Returns @[]@ when
+-- no crash message is present.
+extractCrashMessage :: ByteString -> [ByteString]
+extractCrashMessage accumulatedOutput =
+    let
+        allLines = ByteString.lines accumulatedOutput
+        afterBeginMarker = drop 1 (dropWhile (not . isInfixOf "[[IHP_APP_CRASHED_BEGIN]]") allLines)
+    in
+        takeWhile (not . isInfixOf "[[IHP_APP_CRASHED]]") afterBeginMarker
+
 
 data Context = Context
     { portConfig :: !PortConfig
