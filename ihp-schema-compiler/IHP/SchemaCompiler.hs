@@ -10,6 +10,9 @@ module IHP.SchemaCompiler
 , compileFetchByIdStatement
 , compileCreateManyStatement
 , compileRowDecoderModule
+, compileNewType
+, compileNewConstructor
+, requiredColumns
 , Schema(..)
 ) where
 
@@ -18,7 +21,7 @@ import Data.Bits (bit)
 import Data.Maybe (fromJust)
 import Data.String.Conversions (cs)
 import "interpolate" Data.String.Interpolate (i)
-import IHP.NameSupport (tableNameToModelName, columnNameToFieldName, enumValueToControllerName)
+import IHP.NameSupport (tableNameToModelName, columnNameToFieldName, enumValueToControllerName, lcfirst)
 import qualified Data.Text as Text
 import qualified System.Directory.OsPath as Directory
 import IHP.HaskellSupport
@@ -165,6 +168,11 @@ tableModuleBody options table = Text.unlines $ filter (not . Text.null)
     , if options.compileGetAndSetFieldInstances
             then compileSetFieldInstances table <> compileUpdateFieldInstances table
             else ""
+    -- The @new<Model>@ smart constructor uses 'set', so it is only emitted when the
+    -- SetField instances are (i.e. not in the schema-designer preview).
+    , if options.compileGetAndSetFieldInstances
+            then compileNewConstructor table
+            else ""
     , compileFieldBitInstances table
     ]
 
@@ -281,6 +289,7 @@ compileActualTypesForTable :: (?schema :: Schema, ?compilerOptions :: CompilerOp
 compileActualTypesForTable table = Text.unlines
     [ compileData table
     , compileTypeAlias table
+    , compileNewType table
     , compileHasTableNameInstance table
     , compileTableInstance table
     ]
@@ -975,6 +984,68 @@ compileBuild table@(CreateTable { name }) =
         "instance Record " <> constructor <> " where\n"
         <> "    {-# INLINE newRecord #-}\n"
         <> "    newRecord = " <> constructor <> " " <> unwords (map toDefaultValueExpr columns) <> " " <> qbDefaults <> " def\n"
+
+-- | The columns a user must provide to create a valid record: writable (no generator),
+-- @NOT NULL@, without a database default, and not the primary key.
+--
+-- These are exactly the columns 'newRecord' fills with a sentinel default — e.g. the null
+-- UUID @00000000-0000-0000-0000-000000000000@ for a @NOT NULL@ foreign key — which then
+-- fails the constraint at runtime. The generated @New<Model>@ record (see 'compileNewType')
+-- makes them mandatory at compile time instead.
+--
+-- A nullable column is omitted (it safely defaults to @Nothing@); a column with a @DEFAULT@
+-- or @SERIAL@ is omitted (the database fills it when the touched-fields bit stays unset).
+requiredColumns :: (?schema :: Schema) => CreateTable -> [Column]
+requiredColumns table = filter (isRequiredColumn table) (allColumnsIncludingInherited table)
+
+isRequiredColumn :: (?schema :: Schema) => CreateTable -> Column -> Bool
+isRequiredColumn table column@Column { name, notNull, generator } =
+       isNothing generator                                          -- writable, not a generated column
+    && notNull                                                      -- a NULL would not be accepted
+    && not (hasExplicitOrImplicitDefault column)                    -- no DEFAULT / SERIAL to fall back on
+    && [name] /= primaryKeyColumnNames table.primaryKeyConstraint   -- the primary key is filled by the DB
+
+-- | Generates the @New<Model>@ attributes record carrying only the required columns:
+--
+-- > data NewComment = NewComment { postId :: (Id' "posts"), body :: Text } deriving (Eq, Show)
+--
+-- Because it is built with record-construction syntax, a forgotten field is a
+-- @-Wmissing-fields@ warning — a hard compile error under @-Werror=missing-fields@. Unlike
+-- the full model it carries no @meta@, @id@, timestamps or defaultable columns, so there is
+-- no boilerplate and no leaking of the internal 'MetaBag'.
+compileNewType :: (?schema :: Schema, ?compilerOptions :: CompilerOptions) => CreateTable -> Text
+compileNewType table@(CreateTable { name }) =
+        "data " <> newModelName <> " = " <> newModelName <> " {"
+        <> commaSep (map field (requiredColumns table))
+        <> "} deriving (Eq, Show)\n"
+    where
+        newModelName = "New" <> tableNameToModelName name
+        field column = columnNameToFieldName column.name <> " :: " <> haskellType table column
+
+-- | Generates the smart constructor turning a @New<Model>@ into a fully-defaulted model:
+--
+-- > newComment :: NewComment -> Comment
+-- > newComment attributes = newRecord @Comment
+-- >     |> set #postId attributes.postId
+-- >     |> set #body attributes.body
+--
+-- The result is an ordinary model, so it composes unchanged with 'set' (for optional
+-- columns), validation, forms and 'createRecord'. Required columns are always written to
+-- the INSERT regardless of the touched-fields bitmask, so the provided values reach the
+-- database; using 'set' additionally marks them touched, keeping dirty-tracking consistent.
+compileNewConstructor :: (?schema :: Schema, ?compilerOptions :: CompilerOptions) => CreateTable -> Text
+compileNewConstructor table@(CreateTable { name }) =
+        funcName <> " :: " <> newModelName <> " -> " <> modelName <> "\n"
+        <> funcName <> " attributes = newRecord @" <> modelName
+        <> concatMap setField (requiredColumns table)
+        <> "\n"
+    where
+        modelName = tableNameToModelName name
+        newModelName = "New" <> modelName
+        funcName = lcfirst newModelName
+        setField column =
+            let fieldName = columnNameToFieldName column.name
+            in "\n    |> set #" <> fieldName <> " attributes." <> fieldName
 
 
 compileDefaultIdInstance :: CreateTable -> Text
