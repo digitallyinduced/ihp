@@ -7,9 +7,12 @@ module Main where
 import Test.Hspec
 import Prelude
 import IHP.SchemaMigration
+import Control.Monad (forM_)
+import Data.List (isInfixOf)
 import qualified System.Directory as Directory
 import System.FilePath ((</>))
 import System.IO.Temp.OsPath (withSystemTempDirectory)
+import System.IO.Error (ioeGetErrorString, isUserError)
 import System.OsPath (encodeUtf, decodeUtf)
 
 main :: IO ()
@@ -28,9 +31,25 @@ tests = do
                             , Migration { revision = 1605721940, migrationFile = "1605721940-create-users.sql" }
                             ]
 
+            it "should fail when multiple migrations use the same timestamp" do
+                withTempMigrationFiles ["1605721927.sql", "1605721927-create-users.sql"] do
+                    findAllMigrations `shouldThrow` \exception ->
+                        let message = ioeGetErrorString exception
+                        in isUserError exception
+                            && "Multiple migrations use the same timestamp" `isInfixOf` message
+                            && "1605721927.sql" `isInfixOf` message
+                            && "1605721927-create-users.sql" `isInfixOf` message
+
 
 withTempApp :: IO a -> IO a
-withTempApp action = do
+withTempApp =
+    withTempMigrationFiles
+        [ "1605721927.sql"
+        , "1605721940-create-users.sql"
+        ]
+
+withTempMigrationFiles :: [FilePath] -> IO a -> IO a
+withTempMigrationFiles migrationFiles action = do
     template <- encodeUtf "ihp-migrate-test"
     withSystemTempDirectory template \tmpOsPath -> do
         tmp <- decodeUtf tmpOsPath
@@ -40,9 +59,9 @@ withTempApp action = do
         -- Create the directory structure
         Directory.createDirectoryIfMissing True migrationDir
 
-        -- Create two migration files and one non-migration file
-        writeFile (migrationDir </> "1605721927.sql") ""
-        writeFile (migrationDir </> "1605721940-create-users.sql") ""
+        -- Create migration files and one non-migration file
+        forM_ migrationFiles \migrationFile -> do
+            writeFile (migrationDir </> migrationFile) ""
         writeFile (migrationDir </> "not_a_migration") ""
 
         -- Now run findAllMigrations as if this were an IHP app root

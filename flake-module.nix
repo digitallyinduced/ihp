@@ -277,6 +277,8 @@ ihpFlake:
 
                 migrate = ghcCompiler.ihp-migrate;
 
+                migration-check = unoptimizedProdServer.passthru.migrationCheck;
+
                 ihp-schema = pkgs.stdenv.mkDerivation {
                     name = "ihp-schema";
                     src = ihp;

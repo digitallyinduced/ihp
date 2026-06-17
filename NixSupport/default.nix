@@ -19,6 +19,7 @@
 , buildWithPostgres ? false  # Start a temporary PostgreSQL during build (e.g. for typedSql TH)
 , appSchemaSql ? null       # Path to Application/Schema.sql (required when buildWithPostgres = true)
 , ihpSchemaSql ? null       # Path to IHPSchema.sql (required when buildWithPostgres = true)
+, migrationCheck ? null     # Optional derivation that validates Application/Migration before building the app
 }:
 
 let
@@ -29,6 +30,42 @@ let
         export IHP_LIB=${ihp-env-var-backwards-compat}
         export IHP=${ihp-env-var-backwards-compat}
     '';
+
+    migrationDir = projectPath + "/Application/Migration";
+
+    defaultMigrationCheck = pkgs.runCommand "${appName}-migration-check" {} (''
+        set -euo pipefail
+    '' + pkgs.lib.optionalString (builtins.pathExists migrationDir) ''
+        cd ${migrationDir}
+
+        revisions="$(
+            for file in *.sql; do
+                [ -e "$file" ] || continue
+                printf '%s\n' "$file" | sed -n 's/^\([0-9][0-9]*\).*/\1/p'
+            done | sort
+        )"
+        duplicates="$(printf '%s\n' "$revisions" | uniq -d)"
+
+        if [ -n "$duplicates" ]; then
+            echo "error: multiple migrations use the same timestamp. Each migration filename needs a unique numeric prefix:" >&2
+            for revision in $duplicates; do
+                echo "  $revision:" >&2
+                for file in "$revision"*.sql; do
+                    [ -e "$file" ] || continue
+                    echo "    Application/Migration/$file" >&2
+                done
+            done
+            exit 1
+        fi
+    '' + ''
+        mkdir -p $out
+        touch $out/ok
+    '');
+
+    effectiveMigrationCheck =
+        if migrationCheck == null
+        then defaultMigrationCheck
+        else migrationCheck;
 
     # Generate the models package source from Schema.sql
     modelsPackageSrc = pkgs.stdenv.mkDerivation {
@@ -535,8 +572,10 @@ in
     pkgs.runCommand appName {
         inherit static binaries;
         nativeBuildInputs = [ pkgs.makeWrapper ];
-        passthru = { inherit scriptBinaries; };
+        passthru = { inherit scriptBinaries; migrationCheck = effectiveMigrationCheck; };
     } ''
+            test -e ${effectiveMigrationCheck}
+
             # Hash that changes only when `static` changes:
             INPUT_HASH="$(basename ${static} | cut -d- -f1)"
             makeWrapper ${binaries}/bin/RunProdServer $out/bin/RunProdServer \
