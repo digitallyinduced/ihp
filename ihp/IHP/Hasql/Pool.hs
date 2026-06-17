@@ -40,6 +40,10 @@ isCachedPlanError _ = False
 
 isCachedPlanSessionError :: HasqlErrors.SessionError -> Bool
 isCachedPlanSessionError (HasqlErrors.StatementSessionError _ _ _ _ _ (HasqlErrors.ServerStatementError (HasqlErrors.ServerError "0A000" _ _ _ _))) = True
+-- 26000 = invalid_sql_statement_name. This can happen when hasql's
+-- client-side prepared-statement cache outlives the corresponding
+-- server-side prepared statement.
+isCachedPlanSessionError (HasqlErrors.StatementSessionError _ _ _ _ True (HasqlErrors.ServerStatementError (HasqlErrors.ServerError "26000" _ _ _ _))) = True
 isCachedPlanSessionError (HasqlErrors.StatementSessionError _ _ _ _ _ (HasqlErrors.ServerStatementError (HasqlErrors.ServerError "XX000" _ _ _ _))) = True
 isCachedPlanSessionError (HasqlErrors.ScriptSessionError _ (HasqlErrors.ServerError "0A000" _ _ _ _)) = True
 isCachedPlanSessionError (HasqlErrors.ScriptSessionError _ (HasqlErrors.ServerError "XX000" _ _ _ _)) = True
