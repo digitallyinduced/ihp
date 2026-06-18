@@ -171,6 +171,14 @@ ihpFlake:
                     '';
                 };
 
+                staticBuilds.enable = lib.mkOption {
+                    type = lib.types.bool;
+                    default = false;
+                    description = ''
+                        Enable experimental statically linked Linux production package outputs.
+                    '';
+                };
+
             };
         }
     );
@@ -181,16 +189,27 @@ ihpFlake:
             ihp = ihpFlake.inputs.self;
             ghcCompiler = cfg.ghcCompiler;
             ihpLib = ihpFlake.inputs.self.packages.${system}.ihp-env-var-backwards-compat;
+            staticBuildsSupported = pkgs.stdenv.hostPlatform.isLinux;
+            staticPkgs =
+                if cfg.staticBuilds.enable
+                then
+                    if staticBuildsSupported
+                    then import "${ihp}/NixSupport/static-pkgs.nix" {
+                        inherit inputs system;
+                        ihp = ihpFlake.inputs.self;
+                    }
+                    else throw "ihp.staticBuilds.enable is only supported on Linux systems"
+                else null;
             # Auto-detect whether a build-time PostgreSQL is needed (e.g. ihp-typed-sql)
-            buildWithPostgres = builtins.any (p: (p.pname or "") == "ihp-typed-sql") (cfg.haskellPackages ghcCompiler);
-            mkProdServer = { optimized, optimizationLevel }: import "${ihp}/NixSupport/default.nix" {
+            buildWithPostgres = ghc: builtins.any (p: (p.pname or "") == "ihp-typed-sql") (cfg.haskellPackages ghc);
+            mkProdServer = { optimized, optimizationLevel, buildPkgs ? pkgs, buildGhc ? ghcCompiler, staticBuild ? false, staticNativeDeps ? [] }: import "${ihp}/NixSupport/default.nix" {
                 ihp = ihp;
                 haskellDeps = cfg.haskellPackages;
                 otherDeps = p: cfg.packages;
                 projectPath = cfg.projectPath;
                 inherit optimized;
-                ghc = ghcCompiler;
-                pkgs = pkgs;
+                ghc = buildGhc;
+                pkgs = buildPkgs;
                 rtsFlags = cfg.rtsFlags;
                 inherit optimizationLevel;
                 relationSupport = cfg.relationSupport;
@@ -199,9 +218,10 @@ ihpFlake:
                 ihp-env-var-backwards-compat = ihpLib;
                 ihp-static = ihpFlake.inputs.self.packages.${system}.ihp-static;
                 static = self'.packages.static;
-                inherit buildWithPostgres;
+                buildWithPostgres = buildWithPostgres buildGhc;
                 appSchemaSql = "${self'.packages.schema}/Schema.sql";
                 ihpSchemaSql = "${self'.packages.ihp-schema}/IHPSchema.sql";
+                inherit staticBuild staticNativeDeps;
             };
             optimizedProdServer = mkProdServer {
                 optimized = true;
@@ -226,10 +246,36 @@ ihpFlake:
                         program = "${scriptBinary}/bin/${scriptName}";
                     }
                 ) scriptBinaries;
+            staticProdServer =
+                if cfg.staticBuilds.enable
+                then mkProdServer {
+                    optimized = true;
+                    optimizationLevel = cfg.optimizationLevel;
+                    buildPkgs = staticPkgs;
+                    buildGhc = staticPkgs.ghc;
+                    staticBuild = true;
+                    staticNativeDeps = staticPkgs.ihpStaticNativeDeps;
+                }
+                else null;
+            staticScriptPackages =
+                if cfg.staticBuilds.enable
+                then lib.mapAttrs' (scriptName: scriptBinary:
+                    lib.nameValuePair "static-script-${scriptName}" scriptBinary
+                ) staticProdServer.passthru.scriptBinaries
+                else {};
+            staticScriptApps =
+                if cfg.staticBuilds.enable
+                then lib.mapAttrs' (scriptName: scriptBinary:
+                    lib.nameValuePair "static-script-${scriptName}" {
+                        type = "app";
+                        program = "${scriptBinary}/bin/${scriptName}";
+                    }
+                ) staticProdServer.passthru.scriptBinaries
+                else {};
         in lib.mkIf cfg.enable {
             _module.args.pkgs = lib.mkDefault (import inputs.nixpkgs { inherit system; overlays = config.devenv.shells.default.overlays; config = { }; });
 
-            apps = scriptApps;
+            apps = scriptApps // staticScriptApps;
 
             # release build package
             packages = {
@@ -298,7 +344,13 @@ ihpFlake:
                         cp Application/Schema.sql $out/
                     '';
                 };
-            } // scriptPackages
+            }
+            // lib.optionalAttrs cfg.staticBuilds.enable {
+                static-prod-server = staticProdServer;
+                static-build-deps = staticPkgs.ihpStaticDepsRoot;
+            }
+            // scriptPackages
+            // staticScriptPackages
             // (if cfg.static.makeBundling then {
                 staticFilesCompiledByMake = pkgs.stdenv.mkDerivation {
                     name = "${config.ihp.appName}-staticFilesCompiledByMake";
@@ -530,6 +582,7 @@ ihpFlake:
             checks = (lib.filterAttrs (n: v:
                    n != "unoptimized-docker-image" && n != "optimized-docker-image" && n != "unoptimized-docker-image-worker" && n != "optimized-docker-image-worker" # Docker image builds are very slow, so we ignore them
                 && n != "migrate"
+                && !(lib.hasPrefix "static-" n)
                 && lib.isDerivation v
                 ) self.packages.${system});
         };

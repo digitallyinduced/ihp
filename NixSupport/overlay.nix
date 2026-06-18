@@ -146,6 +146,10 @@ let
         };
 in
 final: prev: {
+    # Exposed so alternate Haskell package sets (e.g. musl/static builds)
+    # can reuse the exact same local package overrides.
+    ihpHaskellOverrides = ihpOverrides final;
+
     # Default: GHC 9.10 (binary-cached via nixpkgs haskellPackages)
     ghc = final.haskellPackages.override {
         overrides = ihpOverrides final;
