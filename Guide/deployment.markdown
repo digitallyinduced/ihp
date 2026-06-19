@@ -863,7 +863,7 @@ IHP has a first party CLI tool called `ihp-app-to-docker-image` to create Docker
 To create a Docker image, we first need to install [Podman](https://podman.io/), and then run the following command:
 
 ```bash
-nix build .#unoptimized-docker-image --option sandbox false --extra-experimental-features nix-command --extra-experimental-features flakes
+nix build .#unoptimized-docker-image
 
 cat result | podman load
 ```
@@ -871,7 +871,7 @@ cat result | podman load
 There's also `.#optimized-docker-image` which compiles your app with GHC's `-O2` optimization level. The optimized build produces faster binaries but takes significantly longer to compile. For getting started and testing your deployment, use the unoptimized image. For production, use the optimized image:
 
 ```bash
-nix build .#optimized-docker-image --option sandbox false --extra-experimental-features nix-command --extra-experimental-features flakes
+nix build .#optimized-docker-image
 ```
 
 Running `podman images` you can now see that the image is available:
@@ -890,7 +890,7 @@ The `CREATED` timestamp is showing over 50 years ago as the image is built using
 If your app uses [background jobs](jobs.html), you'll want to run the job worker in a separate container. IHP provides dedicated worker images for this:
 
 ```bash
-nix build .#unoptimized-docker-image-worker --option sandbox false --extra-experimental-features nix-command --extra-experimental-features flakes
+nix build .#unoptimized-docker-image-worker
 
 cat result | podman load
 ```
@@ -950,7 +950,7 @@ Pass `DATABASE_URL`, `IHP_BASEURL`, and other environment variables at runtime v
 Build and load this image with:
 
 ```bash
-nix build .#docker --option sandbox false --extra-experimental-features nix-command --extra-experimental-features flakes
+nix build .#docker
 cat result | podman load
 ```
 
