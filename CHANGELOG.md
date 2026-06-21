@@ -19,7 +19,7 @@
 - Dev mode now starts separate `web` and `worker` processes. Projects with jobs should move the root `Worker` instance from `Main.hs` into a new top-level `WorkerMain.hs`; `new-job` creates this file for new projects. The old `processes.ihp` devenv process name is now split into `processes.web` and `processes.worker`. ([#2672](https://github.com/digitallyinduced/ihp/pull/2672))
 - `devenv up` no longer opens the ToolServer in a browser by default. The URL is printed to the terminal; set `IHP_BROWSER` to opt back in. ([#2713](https://github.com/digitallyinduced/ihp/pull/2713))
 - Generated app development defaults now promote incomplete pattern matches to errors, and all IHP packages treat missing Cabal `other-modules` entries as errors. ([#2687](https://github.com/digitallyinduced/ihp/pull/2687), [#2692](https://github.com/digitallyinduced/ihp/pull/2692))
-- Legacy cereal-encoded session UUIDs are no longer accepted by `parseSessionUUID`; sessions now expect the current raw UUID byte format. ([#2640](https://github.com/digitallyinduced/ihp/pull/2640), [#2680](https://github.com/digitallyinduced/ihp/pull/2680))
+- Authentication sessions now store raw UUID bytes. `parseSessionUUID` accepts both the current raw UUID format and legacy 44-byte cereal-encoded UUID values for compatibility, but custom login/session code should write the raw format. ([#2640](https://github.com/digitallyinduced/ihp/pull/2640), [#2680](https://github.com/digitallyinduced/ihp/pull/2680))
 
 ### New Features
 
