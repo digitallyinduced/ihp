@@ -106,21 +106,17 @@ let
 
             # Hasql 1.10 ecosystem.
             #
-            # These attrs mirror the upstream `ihpHasqlScope` from
-            # NixOS/nixpkgs#519795 (configuration-common.nix) so that
-            # derivations are bit-identical to nixpkgs' Hydra-built
-            # `haskellPackages.ihp` closure and resolve straight from
-            # cache.nixos.org. Keep in sync with configuration-common.nix.
-            postgresql-connection-string = hackagePackage "postgresql-connection-string";
-
-            hasql                    = super.hasql_1_10_3;
-            hasql-pool               = super.hasql-pool_1_4_2;
-            hasql-dynamic-statements = super.hasql-dynamic-statements_0_5_1;
-            hasql-transaction        = super.hasql-transaction_1_2_2;
-            hasql-notifications      = super.hasql-notifications_0_2_5_0;
-            postgresql-binary        = super.postgresql-binary_0_15_0_1;
-            # text-builder 1.0.0.5 is needed by postgresql-simple-postgresql-types
-            text-builder             = super.text-builder_1_0_0_5;
+            # Previously these attrs pinned the versioned `*_1_10_3` etc.
+            # nixpkgs attrs to mirror the upstream `ihpHasqlScope`
+            # (configuration-common.nix). With nixpkgs pinned to the
+            # Stackage Nightly 2026-05-16 snapshot (NixOS/nixpkgs#521260,
+            # commit a9a7b4a "haskellPackages.ihp{,-*}: remove overrides"),
+            # hasql 1.10 is now the *default* in `haskellPackages`, the
+            # upstream `ihpHasqlScope` is deleted, and the versioned attrs
+            # (e.g. `hasql_1_10_3`) no longer exist. So `super.hasql`,
+            # `super.hasql-pool`, `super.postgresql-binary`, `super.text-builder`,
+            # and `super.postgresql-connection-string` already resolve to the
+            # correct versions and are consumed verbatim — no overrides needed.
 
             # hasql-interpolate: upstream 1.0.1.0 requires hasql <1.10; use fork with hasql 1.10 support
             # https://github.com/awkward-squad/hasql-interpolate/pull/27
@@ -137,12 +133,12 @@ let
             # Fork of temporary using OsPath instead of FilePath
             temporary-ospath = hackagePackage "temporary-ospath";
 
-            # postgresql-simple-postgresql-types and hasql-mapping are marked
-            # broken in nixpkgs; unmark them to mirror upstream ihpHasqlScope's
-            # `unmarkBroken` (configuration-nix.nix applies dontCheck for
-            # postgresql-simple-postgresql-types).
-            postgresql-simple-postgresql-types = final.haskell.lib.markUnbroken super.postgresql-simple-postgresql-types;
-            hasql-mapping = final.haskell.lib.markUnbroken super.hasql-mapping;
+            # postgresql-simple-postgresql-types and hasql-mapping used to be
+            # marked broken in nixpkgs, so we unmarked them to mirror upstream
+            # ihpHasqlScope's `unmarkBroken`. With nixpkgs pinned to the Stackage
+            # Nightly 2026-05-16 snapshot (NixOS/nixpkgs#521260) both are unbroken
+            # at top-level (meta.broken == false), so the markUnbroken overrides
+            # are gone and `super.<pkg>` is consumed verbatim.
         };
 in
 final: prev: {
