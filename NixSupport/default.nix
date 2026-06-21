@@ -25,12 +25,26 @@
 
 let
     splitSections = if !pkgs.stdenv.hostPlatform.isDarwin then "-split-sections" else "";
+    staticExtraLinkLibraries = [
+        "-optl=-Wl,--start-group"
+        "-optl=-lpq"
+        "-optl=-lpgcommon"
+        "-optl=-lpgport"
+        "-optl=-lssl"
+        "-optl=-lcrypto"
+        "-optl=-lz"
+        "-optl=-licui18n"
+        "-optl=-licuuc"
+        "-optl=-licudata"
+        "-optl=-lstdc++"
+        "-optl=-Wl,--end-group"
+    ];
     staticGhcOptions = pkgs.lib.optionalString staticBuild (pkgs.lib.concatStringsSep " " (
         [
             "-fPIC"
             "-optl=-static"
             "-optl=-Wl,--gc-sections,--build-id"
-        ] ++ map (dep: "-L${dep}/lib") staticNativeDeps
+        ] ++ map (dep: "-L${dep}/lib") staticNativeDeps ++ staticExtraLinkLibraries
     ));
 
     # Common IHP environment setup
