@@ -732,13 +732,16 @@ instance FrontController WebApplication where
 
 The splice reifies each action constructor to find its parent type and emits one `HasPath` + `CanRoute` instance per type plus the `webRoutes` binding.
 
-### When *not* to migrate
+### Edge cases
 
-A few corners of `AutoRoute` don't have a 1:1 DSL equivalent. Stay on `AutoRoute` (or use the lower-level `IHP.RouterSupport` API directly) if you:
+Almost everything `AutoRoute` does maps directly onto the DSL — including **non-`UUID` id types**. A capture typed as `Id MyModel` is parsed through the model's primary-key type, so tables with an `Integer`, `Int`, or `Text` primary key work out of the box with no extra configuration — the old `autoRouteWithIdType` override is not needed. If a primary-key type has no built-in parser, add a one-line `UrlCapture` instance for it rather than reaching for a hand-written parser.
 
-- Override `autoRoute` for non-`UUID` id types via `autoRouteWithIdType` — the DSL infers capture types from record fields automatically, but if you'd been customising parsing this way, the manual route parser is the simpler path.
-- Have heavy `allowedMethodsForAction` logic that branches on action data — the DSL's per-route method declaration covers the common case, but a few exotic setups are clearer as a hand-written `parseRoute'`.
-- Generate routes programmatically at compile time via something other than the splice — keep your existing setup; the DSL is additive.
+Two rare setups can still drop down to the lower-level `IHP.RouterSupport` API (`parseRoute'`) *alongside* your `[routes|…|]` blocks — the DSL is additive, so you don't have to choose one or the other:
+
+- `allowedMethodsForAction` logic that branches dynamically on action data. The DSL declares the allowed methods per route, which covers the common case.
+- Routes generated programmatically by something other than the splice.
+
+`AutoRoute` remains fully supported in 1.6, but it is now considered legacy and is planned for removal in a future IHP release. Prefer the `[routes|…|]` DSL for both new and existing controllers.
 
 ### Codegen behaviour
 
