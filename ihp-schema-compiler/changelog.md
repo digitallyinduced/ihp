@@ -2,13 +2,9 @@
 
 ## v1.6.0
 
-- Parse `ANY(ARRAY[...])` in `CHECK` constraints
-- Parse `NULLS [NOT] DISTINCT` on `CREATE INDEX`
-- Parse pgvector columns and index syntax
-- Parse VARIADIC function arguments in pg_dump expression indexes
-- Parse PostgreSQL function `SET` options
-- Parse chained postfix operators so qualified columns work with `IN`, casts,
-  and field access
+- Fix generated `createMany` statements for tables where writable columns have
+  database defaults, including `id` columns. Generated code now emits `DEFAULT`
+  per row when a field was not touched and respects mixed touched-field sets.
 
 ## v1.5.0
 
