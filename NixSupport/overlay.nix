@@ -104,45 +104,22 @@ let
             # verbatim for a cache hit. Restore the override only if a reverted
             # nixpkgs pin no longer carries 0.3.2.
 
-            # Hasql 1.10 ecosystem.
-            #
-            # Previously these attrs pinned the versioned `*_1_10_3` etc.
-            # nixpkgs attrs to mirror the upstream `ihpHasqlScope`
-            # (configuration-common.nix). With nixpkgs pinned to the
-            # Stackage Nightly 2026-05-16 snapshot (NixOS/nixpkgs#521260,
-            # commit a9a7b4a "haskellPackages.ihp{,-*}: remove overrides"),
-            # hasql 1.10 is now the *default* in `haskellPackages`, the
-            # upstream `ihpHasqlScope` is deleted, and the versioned attrs
-            # (e.g. `hasql_1_10_3`) no longer exist. So `super.hasql`,
-            # `super.hasql-pool`, `super.postgresql-binary`, `super.text-builder`,
-            # and `super.postgresql-connection-string` already resolve to the
-            # correct versions and are consumed verbatim — no overrides needed.
-
-            # hasql-interpolate: previously a ChrisPenner fork was needed because
-            # upstream 1.0.1.0 capped hasql <1.10. With nixpkgs pinned to the
-            # Stackage Nightly 2026-05-16 snapshot (NixOS/nixpkgs#521260) upstream
-            # ships 1.1.0.1 (unbroken, builds against hasql 1.10), so the fork
-            # override is dropped and `super.hasql-interpolate` is consumed verbatim.
+            # Hasql 1.10 ecosystem (incl. hasql-interpolate): the pinned nixpkgs
+            # ships hasql 1.10 as the `haskellPackages` default, so hasql,
+            # hasql-pool, postgresql-binary, text-builder,
+            # postgresql-connection-string and hasql-interpolate all resolve
+            # correctly with no overrides needed.
 
             # Fork of temporary using OsPath instead of FilePath
             temporary-ospath = hackagePackage "temporary-ospath";
 
-            # postgresql-simple-postgresql-types and hasql-mapping used to be
-            # marked broken in nixpkgs, so we unmarked them to mirror upstream
-            # ihpHasqlScope's `unmarkBroken`. With nixpkgs pinned to the Stackage
-            # Nightly 2026-05-16 snapshot (NixOS/nixpkgs#521260) both are unbroken
-            # at top-level (meta.broken == false), so the markUnbroken overrides
-            # are gone and `super.<pkg>` is consumed verbatim.
+            # postgresql-simple-postgresql-types and hasql-mapping are unbroken in
+            # the pinned nixpkgs, so no markUnbroken overrides are needed.
         };
 in
 final: prev: {
-    # Default: GHC 9.12 (via nixpkgs `haskellPackages`).
-    #
-    # With nixpkgs pinned to the Stackage Nightly 2026-05-16 snapshot
-    # (NixOS/nixpkgs#521260, "ghc: 9.10.3 -> 9.12.5-rc1"), the default
-    # `haskellPackages` compiler is GHC 9.12. The dontCheck overrides below
-    # (previously living in the standalone `ghc912` attr) therefore now belong
-    # in the default `ghc` overlay, since the default build is GHC 9.12.
+    # Default: GHC 9.12 — the pinned nixpkgs `haskellPackages` compiler.
+    # The dontCheck overrides below apply to that default build.
     ghc = final.haskellPackages.override {
         overrides = final.lib.composeManyExtensions [
             (ihpOverrides final)
@@ -159,13 +136,10 @@ final: prev: {
         ];
     };
 
-    # `ghc912` is now an alias of the default `ghc` set: under the
-    # NixOS/nixpkgs#521260 pin the default `haskellPackages` compiler *is*
-    # GHC 9.12, so the previously-separate GHC 9.12 package set would be an
-    # exact duplicate. Keeping the alias preserves the `pkgs.ghc912.*`
-    # references (and any external callers) without building a second,
-    # identical GHC 9.12 closure. Drop this alias once those references are
-    # migrated to `pkgs.ghc`.
+    # `ghc912` is an alias of the default `ghc` set: the pinned nixpkgs default
+    # compiler is already GHC 9.12, so a separate set would be an exact duplicate.
+    # The alias keeps `pkgs.ghc912.*` references working; drop it once they migrate
+    # to `pkgs.ghc`.
     ghc912 = final.ghc;
 
     # GHC 9.14 — opt-in for apps using the digitallyinduced binary cache.
