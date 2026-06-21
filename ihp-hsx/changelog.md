@@ -7,7 +7,6 @@
 - Support GHC 9.12 and 9.14
 - Add `isEmpty` helper
 - Add `renderMarkupText` and `renderMarkupLazyText`
-- Fix HSX action URLs so `href={MyAction}` renders `pathTo MyAction`
 - Restore `ConvertibleStrings` `Text`/`String` `Html` instances for
   compatibility
 

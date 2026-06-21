@@ -43,8 +43,6 @@
   request-vault migration.
 - Fix `filterWhere` / generated field names for keyword-escaped fields ending in
   an underscore.
-- Fix HSX action URLs so `href={MyAction}` renders the route path instead of
-  `show MyAction`.
 - Fix AJAX/fetch error handling to return JSON responses.
 - Fix router exception wrapping and duplicate query parameters in `renderFilter`.
 - Retry missing prepared statements after PostgreSQL invalidates a prepared

@@ -56,7 +56,7 @@
 - Fixed WebSocket upgrades being logged as 500 instead of 101, fixed AutoRefresh WebSocket fallback behavior, and restored the AutoRefresh meta tag after the request-vault migration. ([#2625](https://github.com/digitallyinduced/ihp/pull/2625), [#2631](https://github.com/digitallyinduced/ihp/pull/2631), [#2637](https://github.com/digitallyinduced/ihp/pull/2637))
 - Fixed `withUser` / `authMiddleware` tests preserving mocked sessions across `sessionMiddleware`. ([#2639](https://github.com/digitallyinduced/ihp/pull/2639))
 - AJAX/fetch requests now get JSON error responses from the error middleware. ([#2634](https://github.com/digitallyinduced/ihp/pull/2634))
-- Fixed HSX action attributes so `href={MyAction}` renders `pathTo MyAction` instead of `show MyAction`, and restored `ConvertibleStrings` `Text`/`String` `Html` instances for compatibility. ([#2597](https://github.com/digitallyinduced/ihp/pull/2597), [#2638](https://github.com/digitallyinduced/ihp/pull/2638))
+- Restored `ConvertibleStrings` `Text`/`String` `Html` instances for compatibility. ([#2638](https://github.com/digitallyinduced/ihp/pull/2638))
 - Fixed `renderFilter` accumulating duplicate query parameters. ([#2719](https://github.com/digitallyinduced/ihp/pull/2719))
 - Fixed router exception wrapping so router exceptions are handled by the framework error path. ([#2718](https://github.com/digitallyinduced/ihp/pull/2718))
 - Missing prepared statements are retried after PostgreSQL invalidates a prepared statement cache entry. ([#2724](https://github.com/digitallyinduced/ihp/pull/2724))
