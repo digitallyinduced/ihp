@@ -142,13 +142,14 @@ let
         };
 in
 final: prev: {
-    # Default: GHC 9.10 (binary-cached via nixpkgs haskellPackages)
+    # Default: GHC 9.12 (via nixpkgs `haskellPackages`).
+    #
+    # With nixpkgs pinned to the Stackage Nightly 2026-05-16 snapshot
+    # (NixOS/nixpkgs#521260, "ghc: 9.10.3 -> 9.12.5-rc1"), the default
+    # `haskellPackages` compiler is GHC 9.12. The dontCheck overrides below
+    # (previously living in the standalone `ghc912` attr) therefore now belong
+    # in the default `ghc` overlay, since the default build is GHC 9.12.
     ghc = final.haskellPackages.override {
-        overrides = ihpOverrides final;
-    };
-
-    # Experimental: GHC 9.12 (not yet binary-cached; builds from source)
-    ghc912 = final.haskell.packages.ghc912.override {
         overrides = final.lib.composeManyExtensions [
             (ihpOverrides final)
             (self: super: {
@@ -163,6 +164,15 @@ final: prev: {
             })
         ];
     };
+
+    # `ghc912` is now an alias of the default `ghc` set: under the
+    # NixOS/nixpkgs#521260 pin the default `haskellPackages` compiler *is*
+    # GHC 9.12, so the previously-separate GHC 9.12 package set would be an
+    # exact duplicate. Keeping the alias preserves the `pkgs.ghc912.*`
+    # references (and any external callers) without building a second,
+    # identical GHC 9.12 closure. Drop this alias once those references are
+    # migrated to `pkgs.ghc`.
+    ghc912 = final.ghc;
 
     # GHC 9.14 — opt-in for apps using the digitallyinduced binary cache.
     # To use: set `ihp.ghcCompiler = pkgs.ghc914;` in your flake-module config.

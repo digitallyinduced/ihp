@@ -142,32 +142,11 @@ that is defined in flake-module.nix
                 };
             }
 
-            # GHC 9.12 compatibility checks (build and test all IHP packages)
-            // (let
-                ghc912 = pkgs.ghc912;
-                ihpPackageNames = [
-                    "ihp-ide" "ihp-hsx" "ihp-schema-compiler"
-                    "ihp-postgres-parser" "ihp-pagehead"
-                    "ihp-log" "ihp-modal" "ihp-mail"
-                    "ihp-migrate" "ihp-openai" "ihp-ssc" "ihp-graphql"
-                    "ihp-datasync-typescript" "ihp-sitemap"
-                    "ihp-job-dashboard" "ihp-imagemagick"
-                    "ihp-hspec" "ihp-welcome" "ihp-zip"
-                    "wai-asset-path" "wai-flash-messages" "wai-request-params"
-                    "wai-session-maybe" "wai-session-clientsession-deferred"
-                ];
-            in lib.listToAttrs (map (name: {
-                name = "ghc912-${name}";
-                value = ghc912.${name};
-            }) ihpPackageNames))
-
-            # GHC 9.12 packages that need a running PostgreSQL for their tests
-            // {
-                ghc912-ihp = withTestPostgres pkgs.ghc912.ihp;
-                ghc912-ihp-datasync = withTestPostgres pkgs.ghc912.ihp-datasync;
-                ghc912-ihp-typed-sql = withTestPostgres pkgs.ghc912.ihp-typed-sql;
-                ghc912-ihp-pglistener = withTestPostgres pkgs.ghc912.ihp-pglistener;
-            }
+            # GHC 9.12 compatibility checks were removed: with nixpkgs pinned to
+            # NixOS/nixpkgs#521260 the *default* `haskellPackages` compiler is
+            # GHC 9.12, so `pkgs.ghc912` is now an alias of `pkgs.ghc` and the
+            # `ghc912-*` checks would exactly duplicate the default-GHC checks
+            # above (all `self.packages` outputs + the withTestPostgres ones).
 
             # GHC 9.14 compatibility checks (build and test all IHP packages)
             // (lib.optionalAttrs (pkgs.haskell.packages ? ghc914) (let
