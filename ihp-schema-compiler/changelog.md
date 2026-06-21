@@ -1,5 +1,11 @@
 # Changelog for `ihp-schema-compiler`
 
+## v1.6.0
+
+- Fix generated `createMany` statements for tables where writable columns have
+  database defaults, including `id` columns. Generated code now emits `DEFAULT`
+  per row when a field was not touched and respects mixed touched-field sets.
+
 ## v1.5.0
 
 - Add PostgreSQL table inheritance (`INHERITS`) support

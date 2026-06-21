@@ -4,7 +4,7 @@
 }:
 mkDerivation {
   pname = "ihp-job-dashboard";
-  version = "1.5.0";
+  version = "1.6.0";
   src = ./.;
   libraryHaskellDepends = [
     base blaze-html blaze-markup hasql hasql-dynamic-statements

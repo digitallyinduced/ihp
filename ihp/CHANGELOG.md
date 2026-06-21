@@ -1,9 +1,54 @@
-# unreleased
-- [Removed option: 'WORKING_DIRECTORY' no longer required on deployment static assets wrapped automatically](https://github.com/digitallyinduced/ihp/commit/9c54588d983d74bdc28b063d1132952deb57dc16)
-- Experimental GHC 9.12 support via `pkgs.ghc912` overlay attribute ([#2264](https://github.com/digitallyinduced/ihp/pull/2264))
-- **Breaking:** `limit` and `offset` from `IHP.QueryBuilder` now take `Int64` instead of `Int`, matching PostgreSQL's `LIMIT` / `OFFSET` wire type and composing directly with `typedSql` placeholders (e.g. `[typedSql| … LIMIT ${n} |]`) without `fromIntegral`. Polymorphic numeric literals (`|> limit 10`) continue to work. Callers passing an `Int` variable need `fromIntegral` once, or change the binding to `Int64`.
+# v1.6.0
 
-# v1.4.0 (unreleased)
+## Breaking Changes
+
+- Controller actions now return `IO ResponseReceived`; normal responses no longer
+  use `ResponseException`. Use `earlyReturn` / `respondAndExit` for conditional
+  exits.
+- `render` now renders HTML only. Use a separate `JsonView` instance and
+  `renderHtmlOrJson` for Accept-header HTML/JSON negotiation.
+- Authentication now runs as WAI middleware and stores current-user state in the
+  request vault. `initAuthentication` and the old role helper family were removed.
+- `ControllerContext` typed-map storage was removed. `putContext`, `fromContext`,
+  `freeze`, `unfreeze`, `FrozenControllerContext`, and `IHP.Controller.Context`
+  are gone; use WAI request vault keys for custom per-request state.
+- `IHP.Log.*` was removed. Use `fast-logger` via
+  `?context.frameworkConfig.logger`, `?modelContext.logger`, or
+  `FrameworkConfig.logger`.
+- QueryBuilder join helpers were removed. Use `typedSql` for joins.
+- `limit` and `offset` from `IHP.QueryBuilder` now take `Int64` instead of `Int`,
+  matching PostgreSQL's `LIMIT` / `OFFSET` wire type. Polymorphic numeric
+  literals still work, but `Int` variables need `fromIntegral` or an `Int64`
+  binding.
+
+## Features
+
+- Add the explicit `[routes|...|]` routing DSL, backed by trie dispatch and the
+  standalone `ihp-router` package.
+- Add `fetchVector` and `fetchVectorPipelined` for vector result sets.
+- Add `uncheckedHsx` and `customHsx` to controller/view preludes.
+- Add `IsScalar Integer` so `BIGSERIAL` / `BIGINT` primary keys compile.
+- Pin PostgreSQL pooled connection timezones to UTC.
+- Add support for `CREATE INDEX ... NULLS [NOT] DISTINCT`.
+- Deprecate `sqlQuery` / `sqlExec` family in favor of explicitly named unsafe
+  variants.
+
+## Fixes
+
+- Fix generated `createMany` statements for columns with defaults and mixed
+  touched-field sets.
+- Fix DataSync concurrent trigger installation advisory locking.
+- Fix WebSocket upgrade request logging so successful upgrades are logged as 101.
+- Fix AutoRefresh WebSocket fallback handling and the AutoRefresh meta tag after
+  request-vault migration.
+- Fix `filterWhere` / generated field names for keyword-escaped fields ending in
+  an underscore.
+- Fix AJAX/fetch error handling to return JSON responses.
+- Fix router exception wrapping and duplicate query parameters in `renderFilter`.
+- Retry missing prepared statements after PostgreSQL invalidates a prepared
+  statement cache entry.
+
+# v1.4.0
 ## Highlights
 - 🚀 Improved Dev Server: faster, more reliable reloads without race conditions.
 - 📦 Ecosystem split: IHP now modular (`ihp-ide`, `ihp-ssc`, `ihp-migrate`, `ihp-sitemap`).
@@ -89,4 +134,3 @@
 - [Removed outdated NixOS installation instructions](https://github.com/digitallyinduced/ihp/commit/de206e94807d3c00cb759ecb5ac0552c52ec9855).
 - [Cleaned up Emacs docs](https://github.com/digitallyinduced/ihp/commit/3821f80b3a6abe12cc5bb29893fb32538aa05626).
 - [Added troubleshooting notes for EC2 deployments](https://github.com/digitallyinduced/ihp/commit/5ae4b04d0c05e593347b2032a2243f7aefff5dca).
-
