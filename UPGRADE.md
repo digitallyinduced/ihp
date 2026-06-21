@@ -509,6 +509,26 @@ forEach rows \row -> putStrLn (show row.id <> ": " <> row.title)
 
 The following types have also been removed: `HasQueryBuilder`, `JoinQueryBuilderWrapper`, `NoJoinQueryBuilderWrapper`, `LabeledQueryBuilderWrapper`, `LabeledData`, `NoJoins`. If your code references these types, replace with `QueryBuilder table` directly. For `LabeledData`, use a tuple with `typedSql` instead (see `labelResults` example above).
 
+## Raw SQL helpers are deprecated
+
+`sqlQuery`, `sqlQuerySingleRow`, `sqlExec`, `sqlExecDiscardResult`, `sqlQueryScalar`, and `sqlQueryScalarOrNothing` now emit deprecation warnings. They still work unchanged in 1.6 — you'll just see a warning on each call site. Two ways to resolve them:
+
+1. **Preferred — switch to typed SQL** for compile-time checking:
+
+   ```diff
+   -posts <- sqlQuery "SELECT id, title FROM posts WHERE published = true" ()
+   +posts <- sqlQueryTyped [typedSql| SELECT id, title FROM posts WHERE published = true |]
+   ```
+
+2. **Keep untyped/dynamic SQL** (dynamic table names, DDL, etc.) by switching to the `unsafe*` variant — same behavior, no warning:
+
+   ```diff
+   -sqlExec "CREATE INDEX ..." ()
+   +unsafeSqlExec "CREATE INDEX ..." ()
+   ```
+
+If you build with `-Werror` or a strict CI, either migrate the call sites or add `-Wno-deprecations` during the transition.
+
 ## hspec response assertions moved to `IHP.Hspec`
 
 The response assertion helpers now live in the `ihp-hspec` package instead of `IHP.Test.Mocking`. If tests fail with missing helpers such as `responseStatusShouldBe`, `responseBodyShouldContain`, or `responseBodyShouldNotContain`, import them from `IHP.Hspec`:

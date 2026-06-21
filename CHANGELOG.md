@@ -19,6 +19,10 @@
 - Generated app development defaults now promote incomplete pattern matches to errors, and all IHP packages treat missing Cabal `other-modules` entries as errors. ([#2687](https://github.com/digitallyinduced/ihp/pull/2687), [#2692](https://github.com/digitallyinduced/ihp/pull/2692))
 - Authentication sessions now store raw UUID bytes. `parseSessionUUID` accepts both the current raw UUID format and legacy 44-byte cereal-encoded UUID values for compatibility, but custom login/session code should write the raw format. ([#2640](https://github.com/digitallyinduced/ihp/pull/2640), [#2680](https://github.com/digitallyinduced/ihp/pull/2680))
 
+### Deprecations
+
+- The untyped raw-SQL helpers `sqlQuery`, `sqlQuerySingleRow`, `sqlExec`, `sqlExecDiscardResult`, `sqlQueryScalar`, and `sqlQueryScalarOrNothing` are now deprecated. Prefer the compile-time-checked `[typedSql| … |]` quasi-quoter with `sqlQueryTyped` / `sqlExecTyped` (from `IHP.TypedSql`). When you genuinely need untyped/dynamic SQL (dynamic table names, DDL), switch to the new `unsafeSql*` variants — identical behavior, no warning. ([#2651](https://github.com/digitallyinduced/ihp/pull/2651))
+
 ### New Features
 
 - New explicit routes DSL via `[routes|...|]` for `Web/Routes.hs`, including RFC 6570 path captures, explicit query parameters, multi-controller route blocks, WebSocket routes, GET-to-HEAD handling, and 400/405 responses for invalid methods. New controllers are scaffolded with the DSL by default while AutoRoute remains supported. ([#2652](https://github.com/digitallyinduced/ihp/pull/2652), [#2663](https://github.com/digitallyinduced/ihp/pull/2663), [#2678](https://github.com/digitallyinduced/ihp/pull/2678), [#2679](https://github.com/digitallyinduced/ihp/pull/2679))
