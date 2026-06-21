@@ -2,7 +2,9 @@
 
 ## v1.6.0
 
-- No package-specific user-facing changes since 1.5.0
+- Add response assertion helpers: `responseBodyShouldContain`,
+  `responseBodyShouldNotContain`, and `responseStatusShouldBe`
+- Replace the `ihp-log` dependency with the framework `noopLogger`
 
 ## v1.5.0
 
