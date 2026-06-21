@@ -23,22 +23,31 @@ let
         enableNativeBignum = true;
     };
 
+    disableStaticPackageFeatures = self: super: {
+        mkDerivation = args: super.mkDerivation (args // {
+            doCheck = false;
+            doHaddock = false;
+            enableLibraryProfiling = false;
+            enableExecutableProfiling = false;
+        });
+    };
+
+    staticBuildHaskellPackages = pkgsMusl.haskellPackages.buildHaskellPackages.override (old: {
+        ghc = staticGhc;
+        buildHaskellPackages = staticHaskellPackages;
+        overrides = pkgsMusl.lib.composeExtensions
+            (old.overrides or (_self: _super: {}))
+            disableStaticPackageFeatures;
+    });
+
     staticHaskellPackages = pkgsMusl.haskellPackages.override {
         ghc = staticGhc;
-        buildHaskellPackages = pkgsMusl.haskellPackages.buildHaskellPackages.override (_old: {
-            ghc = staticGhc;
-            buildHaskellPackages = staticHaskellPackages;
-        });
-        overrides = pkgsMusl.lib.composeExtensions pkgsOrig.ihpHaskellOverrides (self: super: {
-            mkDerivation = args: super.mkDerivation (args // {
-                doCheck = false;
-                doHaddock = false;
-                enableLibraryProfiling = false;
-                enableExecutableProfiling = false;
-            });
-
-            ihp = super.ihp.override { systemdSupport = false; };
-        });
+        buildHaskellPackages = staticBuildHaskellPackages;
+        overrides = pkgsMusl.lib.composeExtensions
+            pkgsOrig.ihpHaskellOverrides
+            (pkgsMusl.lib.composeExtensions disableStaticPackageFeatures (self: super: {
+                ihp = super.ihp.override { systemdSupport = false; };
+            }));
     };
 
     staticDepsRoot = staticDeps // {
