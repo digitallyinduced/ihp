@@ -1,6 +1,6 @@
 # Changelog for `ihp-typed-sql`
 
-## Unreleased
+## v1.6.0
 
 - `typedSql` can now start a temporary private PostgreSQL instance for
   compile-time query description when `DATABASE_URL` is unreachable and

@@ -11,7 +11,7 @@
 }:
 mkDerivation {
   pname = "ihp-datasync";
-  version = "1.5.0";
+  version = "1.6.0";
   src = ./.;
   libraryHaskellDepends = [
     aeson async attoparsec base bytestring case-insensitive

@@ -1,6 +1,6 @@
 cabal-version:       2.2
 name:                ihp-welcome
-version:             1.5.0
+version:             1.6.0
 synopsis:            IHP Welcome Controller
 description:         Provides a default welcome page for new IHP applications
 license:             MIT

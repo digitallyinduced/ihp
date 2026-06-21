@@ -1,9 +1,9 @@
-# unreleased
+# v1.6.0
 - [Removed option: 'WORKING_DIRECTORY' no longer required on deployment static assets wrapped automatically](https://github.com/digitallyinduced/ihp/commit/9c54588d983d74bdc28b063d1132952deb57dc16)
 - Experimental GHC 9.12 support via `pkgs.ghc912` overlay attribute ([#2264](https://github.com/digitallyinduced/ihp/pull/2264))
 - **Breaking:** `limit` and `offset` from `IHP.QueryBuilder` now take `Int64` instead of `Int`, matching PostgreSQL's `LIMIT` / `OFFSET` wire type and composing directly with `typedSql` placeholders (e.g. `[typedSql| … LIMIT ${n} |]`) without `fromIntegral`. Polymorphic numeric literals (`|> limit 10`) continue to work. Callers passing an `Int` variable need `fromIntegral` once, or change the binding to `Int64`.
 
-# v1.4.0 (unreleased)
+# v1.4.0
 ## Highlights
 - 🚀 Improved Dev Server: faster, more reliable reloads without race conditions.
 - 📦 Ecosystem split: IHP now modular (`ihp-ide`, `ihp-ssc`, `ihp-migrate`, `ihp-sitemap`).
@@ -89,4 +89,3 @@
 - [Removed outdated NixOS installation instructions](https://github.com/digitallyinduced/ihp/commit/de206e94807d3c00cb759ecb5ac0552c52ec9855).
 - [Cleaned up Emacs docs](https://github.com/digitallyinduced/ihp/commit/3821f80b3a6abe12cc5bb29893fb32538aa05626).
 - [Added troubleshooting notes for EC2 deployments](https://github.com/digitallyinduced/ihp/commit/5ae4b04d0c05e593347b2032a2243f7aefff5dca).
-

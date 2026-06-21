@@ -1,6 +1,6 @@
 cabal-version:       2.2
 name:                ihp-ssc
-version:             1.5.0
+version:             1.6.0
 synopsis:            Server Side Components for IHP
 description:         IHP Server-Side Components provide a toolkit for building interactive client-side functionality without needing to write too much JavaScript.
 license:             MIT

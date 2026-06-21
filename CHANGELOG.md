@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+## v1.6.0 (2026-06-20)
+
+499 commits since v1.5.0. 366 files changed, 17,625 insertions, 13,791 deletions.
+
 ### Features
 
 - **ihp-hsx: GHC 9.12 and 9.14 support** — the HSX parser now compiles with GHC 9.12 and 9.14 in addition to the existing 9.6–9.10 support. Handles GHC API changes (`HsUnboundVar` → `HsHole`, `GRHSs` `NonEmpty`, removed `HsRat`/`HsInteger` literals, `mkParserOpts` signature change). ([#2699](https://github.com/digitallyinduced/ihp/pull/2699))

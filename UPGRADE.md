@@ -2,7 +2,20 @@
 This document describes breaking changes, as well as how to fix them, that have occured at given releases.
 After updating your project, please consult the segments from your current release until now.
 
-# Upgrade to 1.6.0 (unreleased) from 1.5.0
+# Upgrade to 1.6.0 from 1.5.0
+
+Update your IHP flake input from the `v1.5` release branch to the `v1.6` release branch:
+
+```diff
+-        ihp.url = "github:digitallyinduced/ihp/v1.5";
++        ihp.url = "github:digitallyinduced/ihp/v1.6";
+```
+
+Then update your lock file:
+
+```bash
+nix flake update
+```
 
 ## Production Script Binaries Are Separate Flake Outputs
 

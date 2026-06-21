@@ -1,5 +1,9 @@
 # Changelog for `ihp-schema-compiler`
 
+## v1.6.0
+
+- Parse pgvector indexes, PostgreSQL function settings, and pg_dump expression indexes
+
 ## v1.5.0
 
 - Add PostgreSQL table inheritance (`INHERITS`) support

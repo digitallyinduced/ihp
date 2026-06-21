@@ -1,5 +1,11 @@
 # Changelog for `ihp-ide`
 
+## v1.6.0
+
+- Split dev mode into separate web and worker processes
+- Print the ToolServer URL instead of opening a browser automatically
+- Scaffold new controllers with the explicit routes DSL by default
+
 ## v1.5.1
 
 - Restore missing test sources in sdist: `Test.IDE.ToolServer.MiddlewareSpec` and `Test.IDE.Logs.ControllerSpec` were imported by `Test/Main.hs` but not declared in the cabal `test-suite > other-modules`, so they were excluded from the Hackage tarball and broke downstream builds (e.g. nixpkgs). No source changes — manifest fix only.

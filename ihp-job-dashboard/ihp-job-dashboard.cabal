@@ -1,6 +1,6 @@
 cabal-version:       2.2
 name:                ihp-job-dashboard
-version:             1.5.0
+version:             1.6.0
 synopsis:            Dashboard for IHP job runners
 description:         Web-based dashboard for monitoring IHP background job runners
 license:             MIT

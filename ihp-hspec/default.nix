@@ -3,7 +3,7 @@
 }:
 mkDerivation {
   pname = "ihp-hspec";
-  version = "1.5.0";
+  version = "1.6.0";
   src = ./.;
   libraryHaskellDepends = [
     base fast-logger hasql hspec http-types ihp ihp-ide process text uuid
