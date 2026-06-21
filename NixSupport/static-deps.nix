@@ -13,7 +13,7 @@ in
     });
     ncurses = pkgs.ncurses.override { enableStatic = true; };
     zlib = pkgs.zlib.static;
-    postgresql = pkgs.postgresql;
+    libpq = pkgs.libpq;
     openssl = pkgs.openssl;
 } // lib.optionalAttrs (pkgs ? numactl) {
     numactl = pkgs.numactl.overrideAttrs (oldAttrs: {
