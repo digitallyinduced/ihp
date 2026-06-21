@@ -29,8 +29,7 @@ let
         [
             "-fPIC"
             "-optl=-static"
-            "-optl=-fuse-ld=lld"
-            "-optl=-Wl,--gc-sections,--build-id,--icf=all"
+            "-optl=-Wl,--gc-sections,--build-id"
         ] ++ map (dep: "-L${dep}/lib") staticNativeDeps
     ));
 
@@ -410,8 +409,7 @@ CABAL_EOF
             buildInputs = [ allHaskellPackagesWithAppLib ] ++ pkgs.lib.optionals staticBuild staticNativeDeps;
             nativeBuildInputs =
                 commonNativeBuildInputs
-                ++ pkgs.lib.optional needsBuildTimePostgres pkgs.postgresql
-                ++ pkgs.lib.optional staticBuild pkgs.buildPackages.lld;
+                ++ pkgs.lib.optional needsBuildTimePostgres pkgs.postgresql;
 
             buildPhase = ''
                 mkdir -p build/bin build/obj
