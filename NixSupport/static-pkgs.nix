@@ -12,7 +12,11 @@ let
 
     pkgsMusl = pkgsOrig.pkgsMusl;
 
-    staticDeps = import ./static-deps.nix { pkgs = pkgsMusl; };
+    staticDeps = (import ./static-deps.nix { pkgs = pkgsOrig.pkgsStatic; }) // {
+        ghc = pkgsMusl.haskellPackages.ghc;
+        cabal2nix-unwrapped = pkgsMusl.cabal2nix-unwrapped;
+        jailbreak-cabal = pkgsMusl.haskellPackages.buildHaskellPackages.jailbreak-cabal;
+    };
 
     staticGhc = pkgsMusl.haskellPackages.ghc.override {
         enableRelocatedStaticLibs = true;

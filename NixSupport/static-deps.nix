@@ -7,19 +7,20 @@ in
     ghc = pkgs.haskellPackages.ghc;
     cabal2nix-unwrapped = pkgs.cabal2nix-unwrapped;
     jailbreak-cabal = pkgs.haskellPackages.buildHaskellPackages.jailbreak-cabal;
-    gmp6 = pkgs.gmp6.override { withStatic = true; };
-    libffi = pkgs.libffi.overrideAttrs (_old: {
+    gmp6 = lib.getLib (pkgs.gmp6.override { withStatic = true; });
+    libffi = lib.getLib (pkgs.libffi.overrideAttrs (_old: {
         dontDisableStatic = true;
-    });
-    ncurses = pkgs.ncurses.override { enableStatic = true; };
-    zlib = pkgs.zlib.static;
-    libpq = pkgs.libpq;
-    openssl = pkgs.openssl;
+    }));
+    ncurses = lib.getLib (pkgs.ncurses.override { enableStatic = true; });
+    zlib = lib.getLib pkgs.zlib;
+    libpq = pkgs.libpq.dev;
+    openssl = lib.getLib pkgs.openssl;
+    icu = pkgs.icu.static;
 } // lib.optionalAttrs (pkgs ? numactl) {
-    numactl = pkgs.numactl.overrideAttrs (oldAttrs: {
+    numactl = lib.getLib (pkgs.numactl.overrideAttrs (oldAttrs: {
         configureFlags = (oldAttrs.configureFlags or []) ++ [
             "--enable-static"
             "--disable-shared"
         ];
-    });
+    }));
 }
