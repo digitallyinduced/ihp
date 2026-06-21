@@ -2,7 +2,8 @@
 
 ## v1.6.0
 
-- No package-specific user-facing changes since 1.5.0
+- Export `buildMail` from `IHP.Mail`
+- Render mail HTML through the new `ihp-hsx` markup backend
 
 ## v1.5.0
 

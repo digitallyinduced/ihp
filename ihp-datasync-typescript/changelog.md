@@ -2,7 +2,11 @@
 
 ## v1.6.0
 
-- No package-specific user-facing changes since 1.5.0
+- Convert the DataSync JavaScript client sources to TypeScript
+- Add generated table/new-record registries for type-safe schema augmentation
+- Type DataSync events with `DataSyncEventMap`
+- Tighten public API generics around table names, record IDs, optimistic deletes,
+  and pending record creation
 
 ## v1.5.0
 

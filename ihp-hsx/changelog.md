@@ -2,8 +2,14 @@
 
 ## Version 1.6.0
 
+- Replace the Blaze `MarkupM` tree with a direct `ByteString.Builder` markup
+  backend for faster rendering.
 - Support GHC 9.12 and 9.14
 - Add `isEmpty` helper
+- Add `renderMarkupText` and `renderMarkupLazyText`
+- Fix HSX action URLs so `href={MyAction}` renders `pathTo MyAction`
+- Restore `ConvertibleStrings` `Text`/`String` `Html` instances for
+  compatibility
 
 ## Version 1.5.0
 

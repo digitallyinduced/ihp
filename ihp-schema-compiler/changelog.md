@@ -2,7 +2,13 @@
 
 ## v1.6.0
 
-- Parse pgvector indexes, PostgreSQL function settings, and pg_dump expression indexes
+- Parse `ANY(ARRAY[...])` in `CHECK` constraints
+- Parse `NULLS [NOT] DISTINCT` on `CREATE INDEX`
+- Parse pgvector columns and index syntax
+- Parse VARIADIC function arguments in pg_dump expression indexes
+- Parse PostgreSQL function `SET` options
+- Parse chained postfix operators so qualified columns work with `IN`, casts,
+  and field access
 
 ## v1.5.0
 

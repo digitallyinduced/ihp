@@ -3,8 +3,17 @@
 ## v1.6.0
 
 - Split dev mode into separate web and worker processes
+- Add `WorkerMain.hs` scaffolding for job workers
 - Print the ToolServer URL instead of opening a browser automatically
+- Honor the `PORT` environment variable in the dev server
+- Surface app startup crashes on the dev-server error page
+- Switch dev-server GHCi to the copying GC so memory is returned to the OS more
+  aggressively
+- Fix job worker shutdown draining
+- Fix orphaned GHCi processes on Ctrl+C / SIGTERM
+- Show the actual error message when IDE migrations fail
 - Scaffold new controllers with the explicit routes DSL by default
+- Remove the IDE sidebar help button and StackOverflow links
 
 ## v1.5.1
 
