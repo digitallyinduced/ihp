@@ -401,8 +401,13 @@ CABAL_EOF
 
     allHaskellPackagesWithAppLib = ghc.ghcWithPackages (p: [ appLibPackage ]);
 
+    executableStdenv =
+        if staticBuild
+        then pkgs.buildPackages.stdenv
+        else pkgs.stdenv;
+
     compileExecutable = { executableName, mainPath, mainIs ? null, prepareMain, src ? appSrc, needsBuildTimePostgres ? false }:
-        pkgs.stdenv.mkDerivation {
+        executableStdenv.mkDerivation {
             name = "${appName}-${executableName}-binary";
             inherit src;
 
