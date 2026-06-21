@@ -118,17 +118,11 @@ let
             # and `super.postgresql-connection-string` already resolve to the
             # correct versions and are consumed verbatim — no overrides needed.
 
-            # hasql-interpolate: upstream 1.0.1.0 requires hasql <1.10; use fork with hasql 1.10 support
-            # https://github.com/awkward-squad/hasql-interpolate/pull/27
-            # Uses overrideCabal instead of callCabal2nix to avoid IFD and Hackage cabal revision fetch failures
-            hasql-interpolate = final.haskell.lib.dontCheck (final.haskell.lib.doJailbreak (final.haskell.lib.overrideCabal super.hasql-interpolate (old: {
-                src = builtins.fetchTarball {
-                    url = "https://github.com/ChrisPenner/hasql-interpolate/archive/bb4666fdb7e0fef9f67702cb198e45d0a1de0ab9.tar.gz";
-                    sha256 = "1v3i4n4szxpir28a4vlhd2a0sl04fxkiw9wlyxcvd3vbrd9s2b8c";
-                };
-                revision = null;
-                editedCabalFile = null;
-            })));
+            # hasql-interpolate: previously a ChrisPenner fork was needed because
+            # upstream 1.0.1.0 capped hasql <1.10. With nixpkgs pinned to the
+            # Stackage Nightly 2026-05-16 snapshot (NixOS/nixpkgs#521260) upstream
+            # ships 1.1.0.1 (unbroken, builds against hasql 1.10), so the fork
+            # override is dropped and `super.hasql-interpolate` is consumed verbatim.
 
             # Fork of temporary using OsPath instead of FilePath
             temporary-ospath = hackagePackage "temporary-ospath";
