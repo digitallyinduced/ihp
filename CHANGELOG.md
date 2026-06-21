@@ -4,8 +4,6 @@
 
 ## v1.6.0 (2026-06-20)
 
-499 commits since v1.5.0. 366 files changed, 17,625 insertions, 13,791 deletions.
-
 ### Breaking Changes
 
 - Controller `action` now returns `IO ResponseReceived` instead of `IO ()`. `render`, `redirectTo`, `renderJson`, and related response helpers return the WAI response token directly instead of throwing `ResponseException`; use `earlyReturn` / `respondAndExit` for conditional exits. `ResponseException`, `handleNoResponseReturned`, and `handleRouterException` were removed from the public error-handling path. ([#2205](https://github.com/digitallyinduced/ihp/pull/2205))
