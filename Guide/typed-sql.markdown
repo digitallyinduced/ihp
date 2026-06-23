@@ -182,6 +182,30 @@ rowsDeleted <- sqlExecTyped [typedSql|
 |]
 ```
 
+## Pagination
+
+Use `paginatedTypedSql` to paginate a typedSql query. It takes a `TypedQuery` and returns a list of records together with a `Pagination` state, mirroring IHP's other paginators:
+
+```haskell
+import IHP.TypedSql.Pagination (paginatedTypedSql, paginatedTypedSqlWithOptions)
+
+action ItemsAction = do
+    (items, pagination) <- paginatedTypedSql [typedSql|
+        SELECT id, name, views FROM items ORDER BY name
+    |]
+    render IndexView { items, pagination }
+```
+
+Pass the `pagination` value to your view and call `renderPagination` there, exactly as with `paginate`. Use `paginatedTypedSqlWithOptions` to override the defaults (e.g. items per page):
+
+```haskell
+(items, pagination) <- paginatedTypedSqlWithOptions
+    (defaultPaginationOptions |> set #maxItems 10)
+    [typedSql| SELECT id, name, views FROM items ORDER BY name |]
+```
+
+Because the query is wrapped in a subquery before `LIMIT`/`OFFSET` are applied, any `ORDER BY` must live **inside** the query you pass in. See the [Pagination guide](pagination.html#typed-sql-pagination) for the full details.
+
 ## Nullability
 
 Typed SQL automatically determines whether result columns should be wrapped in `Maybe`:
