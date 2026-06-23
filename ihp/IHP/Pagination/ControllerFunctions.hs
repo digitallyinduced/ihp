@@ -13,8 +13,9 @@ module IHP.Pagination.ControllerFunctions
 ) where
 
 import IHP.Prelude
-import IHP.Controller.Param ( paramOrDefault, paramOrNothing )
+import IHP.Controller.Param ( paramOrNothing )
 import IHP.Pagination.Types ( Options(..), Pagination(..) )
+import IHP.Pagination.Internal ( pageSize', page, offset' )
 import IHP.QueryBuilder ( QueryBuilder, filterWhereILike, limit, offset )
 import IHP.Fetch (fetchCount)
 import IHP.ModelSupport (GetModelByTableName, sqlQueryHasql, Table)
@@ -226,16 +227,3 @@ paginatedSqlQueryWithOptions options sql placeholders = do
     results :: [model] <- sqlQueryHasql pool resultsSnippet (Decoders.rowList hasqlRowDecoder)
 
     pure (results, pagination)
-
--- We limit the page size to a maximum of 200, to prevent users from
--- passing in query params with a value that could overload the
--- database (e.g. maxItems=100000)
-pageSize' :: (?request :: Request) => Options -> Int
-pageSize' options = min (max 1 $ paramOrDefault @Int (maxItems options) "maxItems") 200
-
--- Page and page size shouldn't be lower than 1.
-page :: (?request :: Request) => Int
-page = max 1 $ paramOrDefault @Int 1 "page"
-
-offset' :: Int -> Int -> Int
-offset' pageSize page = (page - 1) * pageSize
