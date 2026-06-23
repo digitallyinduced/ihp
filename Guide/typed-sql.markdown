@@ -64,6 +64,8 @@ maybeName <- sqlQueryTypedScalarOrNothing [typedSql|
 -- maybeName :: Maybe Text
 ```
 
+Both helpers require a single-column query. Passing a multi-column query (which `typedSql` infers as a `SqlRow`) is a compile-time error — use `sqlQueryTyped` for those.
+
 These are the typed counterparts of the deprecated `sqlQueryScalar` / `sqlQueryScalarOrNothing` from `IHP.ModelSupport`.
 
 ## Selecting Multiple Columns

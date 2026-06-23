@@ -10,9 +10,10 @@
   `ORDER BY` inside the query you pass in — the query is wrapped in a subquery
   before `LIMIT` / `OFFSET` are applied.
 
-- Added `sqlQueryTypedScalar` and `sqlQueryTypedScalarOrNothing` for single-value
+- Added `sqlQueryTypedScalar` and `sqlQueryTypedScalarOrNothing` for single-column
   queries such as `SELECT count(*)`. These are the typed counterparts of the now
   deprecated `sqlQueryScalar` / `sqlQueryScalarOrNothing` from `IHP.ModelSupport`.
+  Passing a multi-column query is rejected at compile time.
 
 ## v1.6.0
 

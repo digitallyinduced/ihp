@@ -191,6 +191,10 @@ tests = do
                 "let chunk = (\"x\" :: Text) in [typedSql| SELECT CONCAT(name, ${chunk}) FROM typed_sql_test_items LIMIT 1 |]")
             ["could not determine the type of `${chunk}`", "polymorphic-argument context", "::text"]
 
+        compileFailTest "rejects a multi-column query passed to sqlQueryTypedScalar"
+            scalarMultiColumnRejectionModule
+            ["single column"]
+
         it "auto-starts a temporary database when DATABASE_URL is unreachable" do
             maybeInitdb <- findExecutable "initdb"
             when (isNothing maybeInitdb) do
@@ -771,6 +775,31 @@ mkTestModuleWithPK pkTables typeSig body = Text.unlines $
     [ ""
     , "query :: " <> typeSig
     , "query = " <> body
+    ]
+
+-- | Module that calls 'sqlQueryTypedScalar' on a multi-column query, which must
+-- be rejected by the 'ScalarResult' compile-time guard.
+scalarMultiColumnRejectionModule :: Text
+scalarMultiColumnRejectionModule = Text.unlines
+    [ "{-# LANGUAGE DataKinds #-}"
+    , "{-# LANGUAGE ImplicitParams #-}"
+    , "{-# LANGUAGE NoImplicitPrelude #-}"
+    , "{-# LANGUAGE NoFieldSelectors #-}"
+    , "{-# LANGUAGE OverloadedStrings #-}"
+    , "{-# LANGUAGE QuasiQuotes #-}"
+    , "{-# LANGUAGE TypeFamilies #-}"
+    , "module TypedSqlCase where"
+    , ""
+    , "import IHP.Prelude"
+    , "import IHP.ModelSupport (ModelContext, PrimaryKey)"
+    , "import IHP.TypedSql (sqlQueryTypedScalar, typedSql)"
+    , "import IHP.TypedSql.RowType (SqlRow)"
+    , ""
+    , "type instance PrimaryKey \"typed_sql_test_items\" = UUID"
+    , "type instance PrimaryKey \"typed_sql_test_authors\" = UUID"
+    , ""
+    , "badScalar :: (?modelContext :: ModelContext) => IO (SqlRow '[ '(\"name\", Text), '(\"views\", Int) ])"
+    , "badScalar = sqlQueryTypedScalar [typedSql| SELECT name, views FROM typed_sql_test_items LIMIT 1 |]"
     ]
 
 -- Test modules ---------------------------------------------------------------
