@@ -3,6 +3,8 @@ module IHP.TypedSql
     , typedSqlStar
     , TypedQuery (..)
     , sqlQueryTyped
+    , sqlQueryTypedScalar
+    , sqlQueryTypedScalarOrNothing
     , sqlExecTyped
     ) where
 
@@ -24,6 +26,24 @@ import           IHP.TypedSql.Types                  (TypedQuery (..))
 sqlQueryTyped :: (?modelContext :: ModelContext) => TypedQuery result -> IO [result]
 sqlQueryTyped TypedQuery { tqSnippet, tqResultDecoder } =
     runTypedSqlSession tqSnippet (HasqlDecoders.rowList tqResultDecoder)
+
+-- | Run a typed query expected to return exactly one row of one value (e.g. @count(*)@).
+--
+-- Throws if the query returns zero rows or more than one row. Use
+-- 'sqlQueryTypedScalarOrNothing' when no row is a valid outcome, or
+-- 'sqlQueryTyped' when you expect many rows.
+--
+-- > total <- sqlQueryTypedScalar [typedSql| SELECT count(*) FROM users |]
+sqlQueryTypedScalar :: (?modelContext :: ModelContext) => TypedQuery result -> IO result
+sqlQueryTypedScalar TypedQuery { tqSnippet, tqResultDecoder } =
+    runTypedSqlSession tqSnippet (HasqlDecoders.singleRow tqResultDecoder)
+
+-- | Like 'sqlQueryTypedScalar' but returns 'Nothing' when there is no row.
+--
+-- > maybeName <- sqlQueryTypedScalarOrNothing [typedSql| SELECT name FROM users WHERE id = ${userId} |]
+sqlQueryTypedScalarOrNothing :: (?modelContext :: ModelContext) => TypedQuery result -> IO (Maybe result)
+sqlQueryTypedScalarOrNothing TypedQuery { tqSnippet, tqResultDecoder } =
+    runTypedSqlSession tqSnippet (HasqlDecoders.rowMaybe tqResultDecoder)
 
 -- | Run a typed statement (INSERT\/UPDATE\/DELETE) and return the affected row count.
 --

@@ -12,6 +12,10 @@
 
 ## v1.6.0
 
+- Added `sqlQueryTypedScalar` and `sqlQueryTypedScalarOrNothing` for single-value
+  queries such as `SELECT count(*)`. These are the typed counterparts of the now
+  deprecated `sqlQueryScalar` / `sqlQueryScalarOrNothing` from `IHP.ModelSupport`.
+
 - Multi-column queries now generate named `SqlRow` result types with record-dot
   field access.
 
