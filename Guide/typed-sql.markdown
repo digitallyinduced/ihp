@@ -19,7 +19,7 @@ The `typedSql` quasiquoter solves this: it connects to your development database
 Add `ihp-typed-sql` to your project's dependencies and import the module:
 
 ```haskell
-import IHP.TypedSql (typedSql, sqlQueryTyped, sqlExecTyped)
+import IHP.TypedSql (typedSql, sqlQueryTyped, sqlQueryTypedScalar, sqlQueryTypedScalarOrNothing, sqlExecTyped)
 ```
 
 The `QuasiQuotes` extension is required but already enabled by default in IHP projects.
@@ -43,6 +43,28 @@ action ItemsAction = do
 ```
 
 The `typedSql` quasiquoter produces a `TypedQuery result` value. Use `sqlQueryTyped` to execute it and get back a list of results.
+
+## Single-Value Queries
+
+`sqlQueryTyped` always returns a list. For queries that return exactly one row of one value — such as `SELECT count(*)` — use `sqlQueryTypedScalar`, which returns the value directly:
+
+```haskell
+total <- sqlQueryTypedScalar [typedSql| SELECT count(*) FROM users |]
+
+-- total :: Int64
+```
+
+`sqlQueryTypedScalar` throws if the query returns zero rows or more than one row. When no row is a valid outcome, use `sqlQueryTypedScalarOrNothing`, which returns `Maybe result`:
+
+```haskell
+maybeName <- sqlQueryTypedScalarOrNothing [typedSql|
+    SELECT name FROM users WHERE id = ${userId}
+|]
+
+-- maybeName :: Maybe Text
+```
+
+These are the typed counterparts of the deprecated `sqlQueryScalar` / `sqlQueryScalarOrNothing` from `IHP.ModelSupport`.
 
 ## Selecting Multiple Columns
 
