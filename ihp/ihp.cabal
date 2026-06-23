@@ -263,6 +263,7 @@ library
         , IHP.Pagination.ViewFunctions
         , IHP.Pagination.Types
         , IHP.Pagination.Helpers
+        , IHP.Pagination.Internal
         , IHP.EnvVar
         , IHP.Hasql.FromRow
         , IHP.Hasql.Encoders

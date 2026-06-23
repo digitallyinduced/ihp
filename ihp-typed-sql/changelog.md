@@ -1,5 +1,15 @@
 # Changelog for `ihp-typed-sql`
 
+## Unreleased
+
+- Added `paginatedTypedSql` and `paginatedTypedSqlWithOptions` (in the new
+  `IHP.TypedSql.Pagination` module). These are the `typedSql` analogue of IHP's
+  `paginatedSqlQuery` / `paginatedSqlQueryWithOptions`: pass a `TypedQuery` and
+  get back `([model], Pagination)`, with the same `page` / `maxItems` request
+  params, the same 200-item cap, and the same `Pagination` shape. Put any
+  `ORDER BY` inside the query you pass in — the query is wrapped in a subquery
+  before `LIMIT` / `OFFSET` are applied.
+
 ## v1.6.0
 
 - Multi-column queries now generate named `SqlRow` result types with record-dot

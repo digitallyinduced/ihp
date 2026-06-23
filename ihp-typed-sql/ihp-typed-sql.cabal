@@ -45,6 +45,7 @@ library
     exposed-modules:
         IHP.TypedSql
         IHP.TypedSql.Types
+        IHP.TypedSql.Pagination
         IHP.TypedSql.Quoter
         IHP.TypedSql.Placeholders
         IHP.TypedSql.ParamHints
@@ -76,6 +77,7 @@ library
             , template-haskell
             , temporary
             , text
+            , wai
 
 source-repository head
     type:     git
