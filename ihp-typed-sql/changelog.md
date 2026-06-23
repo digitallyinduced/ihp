@@ -1,6 +1,6 @@
 # Changelog for `ihp-typed-sql`
 
-## Unreleased
+## v1.7.0
 
 - Added `paginatedTypedSql` and `paginatedTypedSqlWithOptions` (in the new
   `IHP.TypedSql.Pagination` module). These are the `typedSql` analogue of IHP's
@@ -10,11 +10,11 @@
   `ORDER BY` inside the query you pass in — the query is wrapped in a subquery
   before `LIMIT` / `OFFSET` are applied.
 
-## v1.6.0
-
 - Added `sqlQueryTypedScalar` and `sqlQueryTypedScalarOrNothing` for single-value
   queries such as `SELECT count(*)`. These are the typed counterparts of the now
   deprecated `sqlQueryScalar` / `sqlQueryScalarOrNothing` from `IHP.ModelSupport`.
+
+## v1.6.0
 
 - Multi-column queries now generate named `SqlRow` result types with record-dot
   field access.
