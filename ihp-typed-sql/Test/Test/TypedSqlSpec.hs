@@ -191,6 +191,10 @@ tests = do
                 "let chunk = (\"x\" :: Text) in [typedSql| SELECT CONCAT(name, ${chunk}) FROM typed_sql_test_items LIMIT 1 |]")
             ["could not determine the type of `${chunk}`", "polymorphic-argument context", "::text"]
 
+        compileFailTest "rejects a multi-column query passed to sqlQueryTypedScalar"
+            scalarMultiColumnRejectionModule
+            ["single column"]
+
         it "auto-starts a temporary database when DATABASE_URL is unreachable" do
             maybeInitdb <- findExecutable "initdb"
             when (isNothing maybeInitdb) do
@@ -327,6 +331,7 @@ tests = do
         runtimeTest "empty results and edge cases" runtimeEdgeCasesModule
         runtimeTest "additional column types (smallint, bigint, numeric, bytea, bool, timestamptz, date, jsonb)" runtimeExtraTypesModule
         runtimeTest "paginatedTypedSql / paginatedTypedSqlWithOptions" runtimePaginationModule
+        runtimeTest "scalar helpers (sqlQueryTypedScalar / sqlQueryTypedScalarOrNothing)" runtimeScalarModule
 
     describe "TypedSql SQL parser (pure, no postgres)" do
         it "parseSql succeeds on simple SELECT" do
@@ -770,6 +775,31 @@ mkTestModuleWithPK pkTables typeSig body = Text.unlines $
     [ ""
     , "query :: " <> typeSig
     , "query = " <> body
+    ]
+
+-- | Module that calls 'sqlQueryTypedScalar' on a multi-column query, which must
+-- be rejected by the 'ScalarResult' compile-time guard.
+scalarMultiColumnRejectionModule :: Text
+scalarMultiColumnRejectionModule = Text.unlines
+    [ "{-# LANGUAGE DataKinds #-}"
+    , "{-# LANGUAGE ImplicitParams #-}"
+    , "{-# LANGUAGE NoImplicitPrelude #-}"
+    , "{-# LANGUAGE NoFieldSelectors #-}"
+    , "{-# LANGUAGE OverloadedStrings #-}"
+    , "{-# LANGUAGE QuasiQuotes #-}"
+    , "{-# LANGUAGE TypeFamilies #-}"
+    , "module TypedSqlCase where"
+    , ""
+    , "import IHP.Prelude"
+    , "import IHP.ModelSupport (ModelContext, PrimaryKey)"
+    , "import IHP.TypedSql (sqlQueryTypedScalar, typedSql)"
+    , "import IHP.TypedSql.RowType (SqlRow)"
+    , ""
+    , "type instance PrimaryKey \"typed_sql_test_items\" = UUID"
+    , "type instance PrimaryKey \"typed_sql_test_authors\" = UUID"
+    , ""
+    , "badScalar :: (?modelContext :: ModelContext) => IO (SqlRow '[ '(\"name\", Text), '(\"views\", Int) ])"
+    , "badScalar = sqlQueryTypedScalar [typedSql| SELECT name, views FROM typed_sql_test_items LIMIT 1 |]"
     ]
 
 -- Test modules ---------------------------------------------------------------
@@ -1536,6 +1566,78 @@ runtimePaginationModule = Text.unlines
     , "            assertTest \"custom maxItems=25 length\" (length results == 25)"
     , "            assertTest \"custom maxItems=25 pageSize\" (pagination.pageSize == 25)"
     , "            assertTest \"custom maxItems=25 window\" (pagination.window == 3)"
+    , ""
+    , "        putStrLn \"RUNTIME_OK\""
+    ]
+
+runtimeScalarModule :: Text
+runtimeScalarModule = Text.unlines
+    [ "{-# LANGUAGE DataKinds #-}"
+    , "{-# LANGUAGE ImplicitParams #-}"
+    , "{-# LANGUAGE NoImplicitPrelude #-}"
+    , "{-# LANGUAGE NoFieldSelectors #-}"
+    , "{-# LANGUAGE OverloadedRecordDot #-}"
+    , "{-# LANGUAGE OverloadedStrings #-}"
+    , "{-# LANGUAGE QuasiQuotes #-}"
+    , "{-# LANGUAGE TypeFamilies #-}"
+    , "module Main where"
+    , ""
+    , "import qualified Control.Exception as Exception"
+    , "import IHP.Prelude"
+    , "import IHP.ModelSupport (Id'(..), ModelContext, PrimaryKey, createModelContext, releaseModelContext, noopLogger)"
+    , "import IHP.TypedSql (sqlExecTyped, sqlQueryTypedScalar, sqlQueryTypedScalarOrNothing, typedSql)"
+    , "import System.Environment (lookupEnv)"
+    , ""
+    , "type instance PrimaryKey \"typed_sql_test_items\" = UUID"
+    , "type instance PrimaryKey \"typed_sql_test_authors\" = UUID"
+    , ""
+    , "assertTest :: Text -> Bool -> IO ()"
+    , "assertTest name True  = putStrLn (\"PASS: \" <> name)"
+    , "assertTest name False = error (\"FAIL: \" <> name)"
+    , ""
+    , "main :: IO ()"
+    , "main = do"
+    , "    let logger = noopLogger"
+    , "    databaseUrl <- cs . fromMaybe \"\" <$> lookupEnv \"DATABASE_URL\""
+    , "    modelContext <- createModelContext databaseUrl logger"
+    , "    let ?modelContext = modelContext"
+    , "    flip Exception.finally (releaseModelContext modelContext) do"
+    , "        let authorId = (\"00000000-0000-0000-0000-000000000001\" :: UUID)"
+    , "        let itemId1 = (\"10000000-0000-0000-0000-000000000001\" :: UUID)"
+    , "        let itemId2 = (\"10000000-0000-0000-0000-000000000002\" :: UUID)"
+    , ""
+    , "        -- Clean slate"
+    , "        _ <- sqlExecTyped [typedSql| DELETE FROM typed_sql_test_items |]"
+    , ""
+    , "        -- sqlQueryTypedScalar on an empty table still returns the single count row"
+    , "        countEmpty <- sqlQueryTypedScalar [typedSql| SELECT COUNT(*) FROM typed_sql_test_items |]"
+    , "        assertTest \"sqlQueryTypedScalar COUNT(*) on empty table\" ((countEmpty :: Int64) == 0)"
+    , ""
+    , "        -- sqlQueryTypedScalarOrNothing returns Nothing when there is no matching row"
+    , "        missingName <- sqlQueryTypedScalarOrNothing [typedSql| SELECT name FROM typed_sql_test_items WHERE id = ${itemId1} |]"
+    , "        assertTest \"sqlQueryTypedScalarOrNothing with no row\" ((missingName :: Maybe Text) == Nothing)"
+    , ""
+    , "        -- Insert two rows"
+    , "        _ <- sqlExecTyped [typedSql|"
+    , "            INSERT INTO typed_sql_test_items (id, author_id, name, views, score, tags)"
+    , "            VALUES (${itemId1}, ${authorId}, ${(\"First\" :: Text)}, ${5 :: Int}, ${(1.5 :: Double)}, ${([\"red\", \"blue\"] :: [Text])})"
+    , "        |]"
+    , "        _ <- sqlExecTyped [typedSql|"
+    , "            INSERT INTO typed_sql_test_items (id, author_id, name, views, score, tags)"
+    , "            VALUES (${itemId2}, ${authorId}, ${(\"Second\" :: Text)}, ${8 :: Int}, ${(2.0 :: Double)}, ${([\"green\"] :: [Text])})"
+    , "        |]"
+    , ""
+    , "        -- sqlQueryTypedScalar returns the single count value directly"
+    , "        total <- sqlQueryTypedScalar [typedSql| SELECT COUNT(*) FROM typed_sql_test_items |]"
+    , "        assertTest \"sqlQueryTypedScalar COUNT(*)\" ((total :: Int64) == 2)"
+    , ""
+    , "        -- sqlQueryTypedScalar on a non-aggregate single column returning exactly one row"
+    , "        name <- sqlQueryTypedScalar [typedSql| SELECT name FROM typed_sql_test_items WHERE id = ${itemId1} |]"
+    , "        assertTest \"sqlQueryTypedScalar single column\" ((name :: Text) == \"First\")"
+    , ""
+    , "        -- sqlQueryTypedScalarOrNothing returns Just for an existing row"
+    , "        existingName <- sqlQueryTypedScalarOrNothing [typedSql| SELECT name FROM typed_sql_test_items WHERE id = ${itemId1} |]"
+    , "        assertTest \"sqlQueryTypedScalarOrNothing with a row\" ((existingName :: Maybe Text) == Just \"First\")"
     , ""
     , "        putStrLn \"RUNTIME_OK\""
     ]
