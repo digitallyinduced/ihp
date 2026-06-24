@@ -3,7 +3,6 @@
 ## Unreleased
 
 - The schema compiler now also generates a `DefaultParamEncoder [Maybe <Enum>]` instance for each enum type, alongside the existing `<Enum>`, `Maybe <Enum>`, and `[<Enum>]` instances. This lets `${[Just enumVal]}` (a list of nullable enum values) be interpolated into `typedSql` queries, e.g. `WHERE status = ANY(${[Just Active, Just Pending]})`, removing the need to split enum-filtered joins into fetch-ids-then-`filterWhereIn` or to cast through text in SQL.
-- Added an `ihp-typed-sql` runtime test that round-trips an enum, a `Maybe` enum (including `Nothing` as SQL `NULL`), and a `[Maybe Enum]` list through `${...}` interpolation in a `WHERE` clause.
 
 ## v1.6.0 (2026-06-20)
 
