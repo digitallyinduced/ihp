@@ -19,7 +19,7 @@ The `typedSql` quasiquoter solves this: it connects to your development database
 Add `ihp-typed-sql` to your project's dependencies and import the module:
 
 ```haskell
-import IHP.TypedSql (typedSql, sqlQueryTyped, sqlExecTyped)
+import IHP.TypedSql (typedSql, sqlQueryTyped, sqlQueryTypedScalar, sqlQueryTypedScalarOrNothing, sqlExecTyped)
 ```
 
 The `QuasiQuotes` extension is required but already enabled by default in IHP projects.
@@ -43,6 +43,30 @@ action ItemsAction = do
 ```
 
 The `typedSql` quasiquoter produces a `TypedQuery result` value. Use `sqlQueryTyped` to execute it and get back a list of results.
+
+## Single-Value Queries
+
+`sqlQueryTyped` always returns a list. For queries that return exactly one row of one value — such as `SELECT count(*)` — use `sqlQueryTypedScalar`, which returns the value directly:
+
+```haskell
+total <- sqlQueryTypedScalar [typedSql| SELECT count(*) FROM users |]
+
+-- total :: Int64
+```
+
+`sqlQueryTypedScalar` throws if the query returns zero rows or more than one row. When no row is a valid outcome, use `sqlQueryTypedScalarOrNothing`, which returns `Maybe result`:
+
+```haskell
+maybeName <- sqlQueryTypedScalarOrNothing [typedSql|
+    SELECT name FROM users WHERE id = ${userId}
+|]
+
+-- maybeName :: Maybe Text
+```
+
+Both helpers require a single-column query. Passing a multi-column query (which `typedSql` infers as a `SqlRow`) is a compile-time error — use `sqlQueryTyped` for those.
+
+These are the typed counterparts of the deprecated `sqlQueryScalar` / `sqlQueryScalarOrNothing` from `IHP.ModelSupport`.
 
 ## Selecting Multiple Columns
 
@@ -181,6 +205,30 @@ rowsDeleted <- sqlExecTyped [typedSql|
     DELETE FROM items WHERE views < ${minViews}
 |]
 ```
+
+## Pagination
+
+Use `paginatedTypedSql` to paginate a typedSql query. It takes a `TypedQuery` and returns a list of records together with a `Pagination` state, mirroring IHP's other paginators:
+
+```haskell
+import IHP.TypedSql.Pagination (paginatedTypedSql, paginatedTypedSqlWithOptions)
+
+action ItemsAction = do
+    (items, pagination) <- paginatedTypedSql [typedSql|
+        SELECT id, name, views FROM items ORDER BY name
+    |]
+    render IndexView { items, pagination }
+```
+
+Pass the `pagination` value to your view and call `renderPagination` there, exactly as with `paginate`. Use `paginatedTypedSqlWithOptions` to override the defaults (e.g. items per page):
+
+```haskell
+(items, pagination) <- paginatedTypedSqlWithOptions
+    (defaultPaginationOptions |> set #maxItems 10)
+    [typedSql| SELECT id, name, views FROM items ORDER BY name |]
+```
+
+Because the query is wrapped in a subquery before `LIMIT`/`OFFSET` are applied, any `ORDER BY` must live **inside** the query you pass in. See the [Pagination guide](pagination.html#typed-sql-pagination) for the full details.
 
 ## Nullability
 

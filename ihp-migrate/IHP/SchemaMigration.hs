@@ -11,9 +11,9 @@ import qualified Data.Text as Text
 import qualified Data.Text.IO as Text
 import Data.String.Conversions (cs)
 import Data.Maybe (fromMaybe, mapMaybe, isJust, listToMaybe)
-import Data.List (sortBy)
+import Data.List (groupBy, sortBy)
 import Data.Ord (comparing)
-import Data.Function ((&))
+import Data.Function ((&), on)
 import Control.Monad (unless, forM, join)
 import Data.Int (Int64)
 import System.Environment (lookupEnv)
@@ -141,11 +141,42 @@ findAllMigrations = do
     directoryFiles <- Directory.listDirectory migrationDirOsPath
     fileNames <- mapM decodeUtf directoryFiles
     let textNames = map (cs :: FilePath -> Text) fileNames
-    textNames
-        & filter (\path -> ".sql" `Text.isSuffixOf` path)
-        & mapMaybe pathToMigration
+    let migrations = textNames
+            & filter (\path -> ".sql" `Text.isSuffixOf` path)
+            & mapMaybe pathToMigration
+    validateUniqueMigrationRevisions migrations
+    migrations
         & sortBy (comparing revision)
         & pure
+
+validateUniqueMigrationRevisions :: [Migration] -> IO ()
+validateUniqueMigrationRevisions migrations =
+    case duplicateMigrationRevisions migrations of
+        [] -> pure ()
+        duplicates -> ioError (userError (cs (formatDuplicateMigrationRevisions duplicates)))
+
+duplicateMigrationRevisions :: [Migration] -> [(Int, [Text])]
+duplicateMigrationRevisions migrations =
+    migrations
+        & sortBy (comparing revision)
+        & groupBy ((==) `on` revision)
+        & mapMaybe toDuplicate
+    where
+        toDuplicate [] = Nothing
+        toDuplicate group@(migration : _)
+            | length group > 1 = Just (migration.revision, map migrationFile group)
+            | otherwise = Nothing
+
+formatDuplicateMigrationRevisions :: [(Int, [Text])] -> Text
+formatDuplicateMigrationRevisions duplicates =
+    "Multiple migrations use the same timestamp. Each migration filename needs a unique numeric prefix:\n"
+    <> Text.unlines (map formatDuplicate duplicates)
+    where
+        formatDuplicate (duplicateRevision, migrationFiles) =
+            "  "
+            <> cs (show duplicateRevision)
+            <> ": "
+            <> Text.intercalate ", " migrationFiles
 
 -- | Given a path such as Application/Migrate/00-initial-migration.sql it returns a Migration
 --

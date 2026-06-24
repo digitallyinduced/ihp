@@ -1,6 +1,32 @@
 # Changelog for `ihp-typed-sql`
 
-## Unreleased
+## v1.7.0
+
+- Added `paginatedTypedSql` and `paginatedTypedSqlWithOptions` (in the new
+  `IHP.TypedSql.Pagination` module). These are the `typedSql` analogue of IHP's
+  `paginatedSqlQuery` / `paginatedSqlQueryWithOptions`: pass a `TypedQuery` and
+  get back `([model], Pagination)`, with the same `page` / `maxItems` request
+  params, the same 200-item cap, and the same `Pagination` shape. Put any
+  `ORDER BY` inside the query you pass in — the query is wrapped in a subquery
+  before `LIMIT` / `OFFSET` are applied.
+
+- Added `sqlQueryTypedScalar` and `sqlQueryTypedScalarOrNothing` for single-column
+  queries such as `SELECT count(*)`. These are the typed counterparts of the now
+  deprecated `sqlQueryScalar` / `sqlQueryScalarOrNothing` from `IHP.ModelSupport`.
+  Passing a multi-column query is rejected at compile time.
+
+## v1.6.0
+
+- Multi-column queries now generate named `SqlRow` result types with record-dot
+  field access.
+
+- More expressions are inferred as non-nullable when PostgreSQL guarantees a
+  value, including `COUNT`, `EXISTS`, `row_number`, `rank`, `dense_rank`,
+  non-null literals, and `COALESCE` / casts with non-null inputs.
+
+- `typedSql` rejects `SELECT *` and `INSERT` statements without explicit column
+  lists by default. This catches schema-drift bugs at compile time instead of in
+  production.
 
 - `typedSql` can now start a temporary private PostgreSQL instance for
   compile-time query description when `DATABASE_URL` is unreachable and

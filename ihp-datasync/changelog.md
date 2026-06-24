@@ -1,5 +1,10 @@
 # Changelog for `ihp-datasync`
 
+## v1.6.0
+
+- Fix concurrent DataSync trigger installation by locking on the PostgreSQL
+  function name
+
 ## v1.5.0
 
 - Migrate from postgresql-simple to hasql with prepared statements

@@ -323,6 +323,8 @@ ihpFlake:
 
                 migrate = ghcCompiler.ihp-migrate;
 
+                migration-check = unoptimizedProdServer.passthru.migrationCheck;
+
                 ihp-schema = pkgs.stdenv.mkDerivation {
                     name = "ihp-schema";
                     src = ihp;
@@ -391,8 +393,24 @@ ihpFlake:
                     tests = pkgs.stdenv.mkDerivation {
                             name = "${config.ihp.appName}-tests";
                             src = builtins.path { path = config.ihp.projectPath; name = "source"; };
-                            nativeBuildInputs = with pkgs; [ (ghcCompiler.ghcWithPackages (p: cfg.haskellPackages p ++ cfg.devHaskellPackages p ++ [p.ihp-ide p.ihp-schema-compiler])) ];
+                            nativeBuildInputs = with pkgs; [ (ghcCompiler.ghcWithPackages (p: cfg.haskellPackages p ++ cfg.devHaskellPackages p ++ [p.ihp-ide p.ihp-schema-compiler])) ]
+                                # typedSql's quasi-quoter boots an ephemeral PostgreSQL at
+                                # compile time to describe queries (see IHP_TYPED_SQL_AUTO_DB
+                                # below), so the postgres tools must be on PATH whenever the
+                                # app depends on ihp-typed-sql.
+                                ++ lib.optionals buildWithPostgres [ postgresql ];
                             buildPhase = ''
+                                export IHP_LIB=${ihpLib}
+
+                                # typedSql describes each [typedSql|…|] query against a live
+                                # database at COMPILE time. IHP_TYPED_SQL_AUTO_DB=1 makes the
+                                # quasi-quoter boot its own throwaway PostgreSQL and load
+                                # IHPSchema.sql (found via IHP_LIB) plus Application/Schema.sql
+                                # (found from the project root) before describing, so test
+                                # modules that use typedSql compile here without a running dev
+                                # server. The dev shell sets the same variable.
+                                export IHP_TYPED_SQL_AUTO_DB=1
+
                                 # shellcheck disable=SC2046
                                 make -f ${ihpLib}/lib/IHP/Makefile.dist build/Generated/Types.hs
 
@@ -427,6 +445,15 @@ ihpFlake:
 
                                 createdb -h "$PGHOST" app
                                 export DATABASE_URL="postgresql:///app?host=$PGHOST"
+
+                                # typedSql describes each [typedSql| … |] query against
+                                # DATABASE_URL at COMPILE time, so the schema must exist
+                                # before we compile. (The hspec harness creates its own
+                                # per-test databases at runtime; this load only serves the
+                                # compile-time describe.) Load IHP's schema first, then the
+                                # app's.
+                                psql -h "$PGHOST" -d app -v ON_ERROR_STOP=1 -f ${self'.packages.ihp-schema}/IHPSchema.sql
+                                psql -h "$PGHOST" -d app -v ON_ERROR_STOP=1 -f Application/Schema.sql
 
                                 # Generate types and run integration tests
                                 make -f $IHP_LIB/lib/IHP/Makefile.dist build/Generated/Types.hs
