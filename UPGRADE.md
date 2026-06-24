@@ -347,6 +347,43 @@ To make a minimal change without touching every signature, import the alias expl
 import IHP.ControllerSupport (ControllerContext)
 ```
 
+## `sqlQueryTyped` now returns scalars for singleton queries
+
+`typedSql` now tracks conservative query cardinality. `sqlQueryTyped` still
+returns a list for ordinary many-row queries, but returns a scalar directly when
+the query is proven to return exactly one row, and returns `Maybe result` when
+the query is proven to return at most one row.
+
+Common updates:
+
+```diff
+-[count] <- sqlQueryTyped [typedSql| SELECT COUNT(*) FROM posts |]
++count <- sqlQueryTyped [typedSql| SELECT COUNT(*) FROM posts |]
+ -- count :: Int64
+```
+
+```diff
+-names <- sqlQueryTyped [typedSql| SELECT name FROM posts ORDER BY created_at DESC LIMIT 1 |]
+-case names of
+-    [name] -> ...
+-    [] -> ...
++maybeName <- sqlQueryTyped [typedSql| SELECT name FROM posts ORDER BY created_at DESC LIMIT 1 |]
++case maybeName of
++    Just name -> ...
++    Nothing -> ...
+```
+
+Explicit `TypedQuery` signatures also need the cardinality argument:
+
+```diff
+-query :: TypedQuery Text
++query :: TypedQuery 'ManyRows Text
+ query = [typedSql| SELECT name FROM posts ORDER BY name |]
+```
+
+Use `'AtMostOneRow` for `LIMIT 1` / primary-key lookups and `'ExactlyOneRow`
+for singleton queries such as `COUNT(*)`.
+
 ## `typedSql` is stricter and uses `Int64` for `bigint`
 
 `typedSql` now rejects `SELECT *`, `SELECT table.*`, and `INSERT` statements without an explicit column list by default. This prevents compiled decoders from silently depending on development database column order.

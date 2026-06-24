@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+### Breaking Changes
+
+- `typedSql` now tracks conservative query cardinality in `TypedQuery`, and
+  `sqlQueryTyped` returns `[result]`, `Maybe result`, or `result` depending on
+  whether the query is inferred as many-row, at-most-one-row, or exactly-one-row.
+  For example, `SELECT COUNT(*) ...` now returns `Int64` directly, while
+  `LIMIT 1` queries return `Maybe result`.
+
 ## v1.6.0 (2026-06-20)
 
 ### Breaking Changes

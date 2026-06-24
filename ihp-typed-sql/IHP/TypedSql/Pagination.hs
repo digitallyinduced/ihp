@@ -21,7 +21,7 @@ import IHP.Pagination.ControllerFunctions (defaultPaginationOptions)
 import IHP.Pagination.Internal (pageSize', page, offset')
 import IHP.ModelSupport (sqlQueryHasql)
 import IHP.Hasql.Encoders () -- For the 'DefaultParamEncoder Int' instance used by 'Snippet.param'
-import IHP.TypedSql.Types (TypedQuery(..))
+import IHP.TypedSql.Types (QueryCardinality (ManyRows), TypedQuery(..))
 import Network.Wai (Request)
 import qualified Hasql.Decoders as Decoders
 import qualified Hasql.DynamicStatements.Snippet as Snippet
@@ -59,7 +59,7 @@ paginatedTypedSql
     :: ( ?request :: Request
        , ?modelContext :: ModelContext
        )
-    => TypedQuery model
+    => TypedQuery 'ManyRows model
     -> IO ([model], Pagination)
 paginatedTypedSql = paginatedTypedSqlWithOptions defaultPaginationOptions
 
@@ -83,7 +83,7 @@ paginatedTypedSqlWithOptions
        , ?modelContext :: ModelContext
        )
     => Options
-    -> TypedQuery model
+    -> TypedQuery 'ManyRows model
     -> IO ([model], Pagination)
 paginatedTypedSqlWithOptions options TypedQuery { tqSnippet, tqResultDecoder } = do
     let pool = ?modelContext.hasqlPool

@@ -23,6 +23,7 @@ import qualified Prelude
 import           IHP.Prelude
 import           IHP.Hasql.Encoders              ()
 
+import           IHP.TypedSql.Cardinality      (inferCardinality)
 import           IHP.TypedSql.CompileTimeDatabase (dependentSchemaFiles)
 import           IHP.TypedSql.Decoders          (resultDecoderForColumns)
 import           IHP.TypedSql.Metadata          (DescribeColumn (..), DescribeResult (..), PgTypeInfo (..), TableMeta (..),
@@ -35,7 +36,7 @@ import           IHP.TypedSql.Placeholders      (PlaceholderPlan (..), parseExpr
                                                  planPlaceholders)
 import           IHP.TypedSql.RowType           (SqlRow (..), sanitizeColumnName, deduplicateNames, sqlRowType)
 import           IHP.TypedSql.TypeMapping       (hsTypeForColumns, hsTypesForColumns, hsTypeForParam, detectFullTable)
-import           IHP.TypedSql.Types             (TypedQuery (..))
+import           IHP.TypedSql.Types             (QueryCardinality (..), TypedQuery (..))
 
 -- | QuasiQuoter entry point for typed SQL.
 -- Disallows SELECT * and SELECT table.* by default to prevent production errors
@@ -128,6 +129,7 @@ typedSqlExp allowStar rawSql = do
             |> Set.fromList
 
     let nonNullableColumns = maybe Set.empty extractNonNullableComputedColumnsFromAst parsedAst
+    let queryCardinality = maybe ManyRows (inferCardinality drTables) parsedAst
 
     let isCompositeColumn =
             case drColumns of
@@ -170,7 +172,13 @@ typedSqlExp allowStar rawSql = do
                 )
                 resultDecoder
 
-    pure (TH.SigE typedQueryExpr (TH.AppT (TH.ConT ''TypedQuery) resultType))
+    pure (TH.SigE typedQueryExpr (TH.AppT (TH.AppT (TH.ConT ''TypedQuery) (cardinalityType queryCardinality)) resultType))
+
+cardinalityType :: QueryCardinality -> TH.Type
+cardinalityType = \case
+    ManyRows -> TH.PromotedT 'ManyRows
+    AtMostOneRow -> TH.PromotedT 'AtMostOneRow
+    ExactlyOneRow -> TH.PromotedT 'ExactlyOneRow
 
 -- | Rephrase a describe-step error to point at the offending ${...} placeholder.
 -- Postgres reports type-inference failures as "could not determine data type of parameter $N".
