@@ -11,7 +11,6 @@ module IHP.TypedSql
     , sqlExecTyped
     ) where
 
-import           Data.Proxy                       (Proxy (..))
 import qualified Hasql.Decoders                  as HasqlDecoders
 import qualified Hasql.DynamicStatements.Snippet as Snippet
 import           IHP.ModelSupport                (sqlQueryHasql)
