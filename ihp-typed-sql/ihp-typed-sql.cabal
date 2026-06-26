@@ -66,6 +66,7 @@ library
             , filepath
             , hasql
             , hasql-dynamic-statements
+            , hasql-implicits
             , hasql-mapping
             , hasql-pool
             , haskell-src-meta
