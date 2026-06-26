@@ -9,7 +9,7 @@ module IHP.TypedSql.Quoter
     ) where
 
 import qualified Control.Exception              as Exception
-import           Data.Coerce                    (coerce)
+import           Data.Proxy                     (Proxy (..))
 import qualified Data.List                      as List
 import qualified Data.Map.Strict                as Map
 import qualified Data.Set                       as Set
@@ -31,6 +31,7 @@ import           IHP.TypedSql.ParamHints        (extractParamHintsFromAst, extra
                                                  extractNonNullableComputedColumnsFromAst,
                                                  parseSql, resolveParamHintTypes, detectStarSelects,
                                                  detectInsertWithoutColumns)
+import           IHP.TypedSql.ParamEncoder      (typedSqlParam)
 import           IHP.TypedSql.Placeholders      (PlaceholderPlan (..), parseExpr,
                                                  planPlaceholders)
 import           IHP.TypedSql.RowType           (SqlRow (..), sanitizeColumnName, deduplicateNames, sqlRowType)
@@ -110,11 +111,16 @@ typedSqlExp allowStar rawSql = do
     let paramHints = maybe Map.empty extractParamHintsFromAst parsedAst
     paramHintTypes <- resolveParamHintTypes drTables drTypes paramHints
 
-    let annotatedParams =
+    -- For each ${...} placeholder, emit @typedSqlParam (Proxy :: Proxy col) expr@,
+    -- where @col@ is the column's __scalar__ Haskell type. 'typedSqlParam' returns a
+    -- hasql 'Snippet' and accepts the value as the bare type, a 'Maybe', a list, or a
+    -- list of 'Maybe' (see "IHP.TypedSql.ParamEncoder").
+    let paramSnippets =
             zipWith3
                 (\index expr paramTy ->
-                    let expectedType = fromMaybe paramTy (Map.lookup index paramHintTypes)
-                    in TH.SigE (TH.AppE (TH.VarE 'coerce) expr) expectedType
+                    let colType = fromMaybe paramTy (Map.lookup index paramHintTypes)
+                        proxyExpr = TH.SigE (TH.ConE 'Proxy) (TH.AppT (TH.ConT ''Proxy) colType)
+                    in TH.AppE (TH.AppE (TH.VarE 'typedSqlParam) proxyExpr) expr
                 )
                 [1..]
                 parsedExprs
@@ -161,7 +167,7 @@ typedSqlExp allowStar rawSql = do
                 decoder <- resultDecoderForColumns drTypes drTables joinNullableOids nonNullableColumns drColumns
                 pure (rt, decoder)
 
-    snippetExpr <- buildSnippetExpression ppRuntimeSql annotatedParams
+    snippetExpr <- buildSnippetExpression ppRuntimeSql paramSnippets
     let typedQueryExpr =
             TH.AppE
                 (TH.AppE
@@ -203,14 +209,16 @@ extractUnknownParamIndex = go
             in if null digits then Nothing else readMaybe digits
         | otherwise = go (drop 1 str)
 
+-- | Assemble the runtime SQL and the parameter 'Snippet' expressions into a single
+-- snippet. Each entry of @params@ is already a 'Snippet' (produced by 'typedSqlParam'),
+-- so it is interleaved with the SQL chunks directly.
 buildSnippetExpression :: String -> [TH.Exp] -> TH.ExpQ
 buildSnippetExpression sql params = do
     let chunks = splitOnSentinel sql
     when (length chunks /= length params + 1) do
         fail "typedSql: internal error while building hasql snippet"
     let sqlSnippets = map (TH.AppE (TH.VarE 'Snippet.sql) . TH.LitE . TH.StringL) chunks
-    let paramSnippets = map (TH.AppE (TH.VarE 'Snippet.param)) params
-    let pieces = interleave sqlSnippets paramSnippets
+    let pieces = interleave sqlSnippets params
     case pieces of
         [] -> pure (TH.AppE (TH.VarE 'Snippet.sql) (TH.LitE (TH.StringL "")))
         firstPiece:restPieces ->

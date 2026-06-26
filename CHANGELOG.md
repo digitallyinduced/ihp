@@ -2,7 +2,8 @@
 
 ## Unreleased
 
-- The schema compiler now also generates a `DefaultParamEncoder [Maybe <Enum>]` instance for each enum type, alongside the existing `<Enum>`, `Maybe <Enum>`, and `[<Enum>]` instances. This lets `${[Just enumVal]}` (a list of nullable enum values) be interpolated into `typedSql` queries, e.g. `WHERE status = ANY(${[Just Active, Just Pending]})`, removing the need to split enum-filtered joins into fetch-ids-then-`filterWhereIn` or to cast through text in SQL.
+- `typedSql` `${...}` parameters now accept `Maybe` and `[Maybe]` values in addition to bare values and lists. A placeholder against a column of type `T` accepts `${x}` (`T`, or a newtype coercible to it such as `Id'`), `${Just x}` / `${Nothing}` (`Maybe T`, with `Nothing` binding SQL `NULL`), `${[x]}` (`[T]`), and `${[Just x]}` (`[Maybe T]`). This removes the need to split enum-filtered joins into fetch-ids-then-`filterWhereIn` or to cast through text in SQL — e.g. `WHERE status = ANY(${[Just Active, Just Pending]})` now works. Bare values keep working for every column (nullable or not), and wrong-typed parameters are still rejected at compile time. Internally, the quasiquoter now annotates each placeholder with the column's scalar type and dispatches through the new `IHP.TypedSql.ParamEncoder.TypedSqlParam` class instead of a fixed `coerce … :: T` annotation.
+- The schema compiler now also generates a `DefaultParamEncoder [Maybe <Enum>]` instance for each enum type, alongside the existing `<Enum>`, `Maybe <Enum>`, and `[<Enum>]` instances, so `[Maybe <Enum>]` arrays bind as parameters.
 
 ## v1.6.0 (2026-06-20)
 

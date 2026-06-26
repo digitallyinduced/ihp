@@ -49,6 +49,7 @@ library
         IHP.TypedSql.Quoter
         IHP.TypedSql.Placeholders
         IHP.TypedSql.ParamHints
+        IHP.TypedSql.ParamEncoder
         IHP.TypedSql.Metadata
         IHP.TypedSql.TypeMapping
         IHP.TypedSql.Decoders
