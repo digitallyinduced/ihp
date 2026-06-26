@@ -9,7 +9,6 @@ module IHP.TypedSql.Quoter
     ) where
 
 import qualified Control.Exception              as Exception
-import           Data.Proxy                     (Proxy (..))
 import qualified Data.List                      as List
 import qualified Data.Map.Strict                as Map
 import qualified Data.Set                       as Set
@@ -111,16 +110,16 @@ typedSqlExp allowStar rawSql = do
     let paramHints = maybe Map.empty extractParamHintsFromAst parsedAst
     paramHintTypes <- resolveParamHintTypes drTables drTypes paramHints
 
-    -- For each ${...} placeholder, emit @typedSqlParam (Proxy :: Proxy col) expr@,
-    -- where @col@ is the column's __scalar__ Haskell type. 'typedSqlParam' returns a
-    -- hasql 'Snippet' and accepts the value as the bare type, a 'Maybe', a list, or a
-    -- list of 'Maybe' (see "IHP.TypedSql.ParamEncoder").
+    -- For each ${...} placeholder, emit @typedSqlParam \@col expr@, where @col@ is the
+    -- column's __scalar__ Haskell type. 'typedSqlParam' returns a hasql 'Snippet' and
+    -- accepts the value as the bare type, a 'Maybe', a list, or a list of 'Maybe' (see
+    -- "IHP.TypedSql.ParamEncoder"). The type application is generated directly into the
+    -- splice, so the call site does not need the TypeApplications extension.
     let paramSnippets =
             zipWith3
                 (\index expr paramTy ->
                     let colType = fromMaybe paramTy (Map.lookup index paramHintTypes)
-                        proxyExpr = TH.SigE (TH.ConE 'Proxy) (TH.AppT (TH.ConT ''Proxy) colType)
-                    in TH.AppE (TH.AppE (TH.VarE 'typedSqlParam) proxyExpr) expr
+                    in TH.AppE (TH.AppTypeE (TH.VarE 'typedSqlParam) colType) expr
                 )
                 [1..]
                 parsedExprs
