@@ -19,7 +19,7 @@ The `typedSql` quasiquoter solves this: it connects to your development database
 Add `ihp-typed-sql` to your project's dependencies and import the module:
 
 ```haskell
-import IHP.TypedSql (typedSql, sqlQueryTyped, sqlQueryTypedScalar, sqlQueryTypedScalarOrNothing, sqlExecTyped)
+import IHP.TypedSql (typedSql, sqlQueryTyped, sqlExecTyped)
 ```
 
 The `QuasiQuotes` extension is required but already enabled by default in IHP projects.
@@ -42,31 +42,19 @@ action ItemsAction = do
     render IndexView { names }
 ```
 
-The `typedSql` quasiquoter produces a `TypedQuery result` value. Use `sqlQueryTyped` to execute it and get back a list of results.
+The `typedSql` quasiquoter produces a `TypedQuery cardinality result` value. Use `sqlQueryTyped` to execute it. The return shape follows the cardinality that can be proven from the SQL:
 
-## Single-Value Queries
-
-`sqlQueryTyped` always returns a list. For queries that return exactly one row of one value — such as `SELECT count(*)` — use `sqlQueryTypedScalar`, which returns the value directly:
+- many rows: `[result]`
+- at most one row, e.g. `LIMIT 1` or a primary-key lookup: `Maybe result`
+- exactly one row, e.g. `COUNT(*)`, `SELECT 1`, or `EXISTS(...)`: `result`
 
 ```haskell
-total <- sqlQueryTypedScalar [typedSql| SELECT count(*) FROM users |]
-
+total <- sqlQueryTyped [typedSql| SELECT COUNT(*) FROM items |]
 -- total :: Int64
-```
 
-`sqlQueryTypedScalar` throws if the query returns zero rows or more than one row. When no row is a valid outcome, use `sqlQueryTypedScalarOrNothing`, which returns `Maybe result`:
-
-```haskell
-maybeName <- sqlQueryTypedScalarOrNothing [typedSql|
-    SELECT name FROM users WHERE id = ${userId}
-|]
-
+maybeName <- sqlQueryTyped [typedSql| SELECT name FROM items ORDER BY name LIMIT 1 |]
 -- maybeName :: Maybe Text
 ```
-
-Both helpers require a single-column query. Passing a multi-column query (which `typedSql` infers as a `SqlRow`) is a compile-time error — use `sqlQueryTyped` for those.
-
-These are the typed counterparts of the deprecated `sqlQueryScalar` / `sqlQueryScalarOrNothing` from `IHP.ModelSupport`.
 
 ## Selecting Multiple Columns
 
@@ -250,19 +238,19 @@ names <- sqlQueryTyped [typedSql| SELECT name FROM items |]
 
 ### Computed Expressions
 
-Computed expressions (aggregates, CASE, arithmetic, literals, etc.) are always wrapped in `Maybe`, because PostgreSQL cannot guarantee they are non-null:
+Computed expressions (aggregates, CASE, arithmetic, literals, etc.) are wrapped in `Maybe` unless `typedSql` can prove they are non-null:
 
 ```haskell
-counts <- sqlQueryTyped [typedSql| SELECT COUNT(*) FROM items |]
--- counts :: [Maybe Int64]
+count <- sqlQueryTyped [typedSql| SELECT COUNT(*) FROM items |]
+-- count :: Int64
 
 results <- sqlQueryTyped [typedSql|
     SELECT CASE WHEN views > 5 THEN name ELSE 'low' END FROM items
 |]
 -- results :: [Maybe Text]
 
-literals <- sqlQueryTyped [typedSql| SELECT 1 |]
--- literals :: [Maybe Int]
+literal <- sqlQueryTyped [typedSql| SELECT 1 |]
+-- literal :: Int
 ```
 
 ### Primary and Foreign Keys

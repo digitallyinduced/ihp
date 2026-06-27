@@ -68,7 +68,9 @@ tests = around (withIHPApp WebApplication testConfig) do
             |]
             rowsAffected `shouldBe` 1
 
-            titles <- sqlQueryTyped [typedSql|
+            -- Cardinality is inferred: filtering on the primary key yields
+            -- at most one row, so the result is @Maybe Text@ rather than a list.
+            title <- sqlQueryTyped [typedSql|
                 SELECT title FROM posts WHERE id = ${thePostId}
             |]
-            titles `shouldBe` ["After"]
+            title `shouldBe` Just "After"
