@@ -9,6 +9,7 @@ module IHP.TypedSql.Quoter
     ) where
 
 import qualified Control.Exception              as Exception
+import           Data.Coerce                    (coerce)
 import qualified Data.List                      as List
 import qualified Data.Map.Strict                as Map
 import qualified Data.Set                       as Set
@@ -111,17 +112,23 @@ typedSqlExp allowStar rawSql = do
     let paramHints = maybe Map.empty extractParamHintsFromAst parsedAst
     paramHintTypes <- resolveParamHintTypes drTables drTypes paramHints
 
-    -- For each ${...} placeholder, emit @typedSqlParam \@col expr@, where @col@ is the
-    -- column's __scalar__ Haskell type. 'typedSqlParam' returns a hasql 'Snippet' and
-    -- accepts the value as the bare type, a 'Maybe', a list, or a list of 'Maybe' (see
-    -- "IHP.TypedSql.ParamEncoder"). The type application is generated directly into the
-    -- splice, so the call site does not need the TypeApplications extension.
+    -- For each ${...} placeholder with a column hint, emit @typedSqlParam \@col expr@,
+    -- where @col@ is the column's __scalar__ Haskell type. 'typedSqlParam' returns a
+    -- hasql 'Snippet' and accepts the value as the bare type, a 'Maybe', a list, or a
+    -- list of 'Maybe' (see "IHP.TypedSql.ParamEncoder"). When Postgres itself infers an
+    -- array parameter and we have no scalar column hint, keep the array as the scalar
+    -- parameter value instead of interpreting it as a list of scalar values.
     let paramSnippets =
             zipWith3
                 (\index expr paramTy ->
-                    let colType = fromMaybe paramTy (Map.lookup index paramHintTypes)
+                    let maybeHintType = Map.lookup index paramHintTypes
+                        colType = fromMaybe paramTy maybeHintType
                         paramExpr = disambiguateAmbiguousParam colType expr
-                    in TH.AppE (TH.AppTypeE (TH.VarE 'typedSqlParam) colType) paramExpr
+                    in case maybeHintType of
+                        Nothing | isListType paramTy ->
+                            TH.AppE (TH.VarE 'Snippet.param) (TH.SigE (TH.AppE (TH.VarE 'coerce) expr) paramTy)
+                        _ ->
+                            TH.AppE (TH.AppTypeE (TH.VarE 'typedSqlParam) colType) paramExpr
                 )
                 [1..]
                 parsedExprs
@@ -185,6 +192,11 @@ cardinalityType = \case
     ManyRows -> TH.PromotedT 'ManyRows
     AtMostOneRow -> TH.PromotedT 'AtMostOneRow
     ExactlyOneRow -> TH.PromotedT 'ExactlyOneRow
+
+isListType :: TH.Type -> Bool
+isListType = \case
+    TH.AppT TH.ListT _ -> True
+    _ -> False
 
 -- | Give inherently polymorphic literal placeholders the expected shape.
 --
