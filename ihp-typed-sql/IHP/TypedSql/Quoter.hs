@@ -196,7 +196,10 @@ disambiguateAmbiguousParam :: TH.Type -> TH.Exp -> TH.Exp
 disambiguateAmbiguousParam colType expr =
     case expr of
         TH.ConE name
-            | name == 'Nothing ->
+            | isNothingName name ->
+                TH.SigE expr (TH.AppT (TH.ConT ''Maybe) colType)
+        TH.VarE name
+            | isNothingName name ->
                 TH.SigE expr (TH.AppT (TH.ConT ''Maybe) colType)
         TH.ListE [] ->
             TH.SigE expr (TH.AppT TH.ListT colType)
@@ -206,8 +209,11 @@ disambiguateAmbiguousParam colType expr =
         _ ->
             expr
   where
+    isNothingName name = TH.nameBase name == "Nothing"
+
     isNothingExpression = \case
-        TH.ConE name -> name == 'Nothing
+        TH.ConE name -> isNothingName name
+        TH.VarE name -> isNothingName name
         _ -> False
 
 -- | Rephrase a describe-step error to point at the offending ${...} placeholder.
