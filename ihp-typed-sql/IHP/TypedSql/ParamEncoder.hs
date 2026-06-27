@@ -48,13 +48,13 @@ instance {-# OVERLAPPABLE #-} (DefaultParamEncoder col, Coercible a col) => Type
     typedSqlParam value = Snippet.param (coerce value :: col)
 
 -- | @Maybe@ value: binds @Just x@ as the value and @Nothing@ as SQL @NULL@.
-instance DefaultParamEncoder (Maybe col) => TypedSqlParam col (Maybe col) where
-    typedSqlParam = Snippet.param
+instance {-# OVERLAPPING #-} (DefaultParamEncoder (Maybe col), Coercible a col) => TypedSqlParam col (Maybe a) where
+    typedSqlParam value = Snippet.param (coerce value :: Maybe col)
 
 -- | List value: for @column IN (...)@ and @column = ANY(...)@.
-instance DefaultParamEncoder [col] => TypedSqlParam col [col] where
-    typedSqlParam = Snippet.param
+instance {-# OVERLAPPABLE #-} (DefaultParamEncoder [col], Coercible a col) => TypedSqlParam col [a] where
+    typedSqlParam value = Snippet.param (coerce value :: [col])
 
 -- | List of @Maybe@ value: a nullable-element array.
-instance DefaultParamEncoder [Maybe col] => TypedSqlParam col [Maybe col] where
-    typedSqlParam = Snippet.param
+instance {-# OVERLAPPING #-} (DefaultParamEncoder [Maybe col], Coercible a col) => TypedSqlParam col [Maybe a] where
+    typedSqlParam value = Snippet.param (coerce value :: [Maybe col])

@@ -2,18 +2,21 @@
 
 ## v1.7.0
 
+- **Breaking:** `TypedQuery` now carries a type-level cardinality marker and
+  `sqlQueryTyped` returns a shape derived from it. Many-row queries still return
+  `[result]`; queries proven to return at most one row return `Maybe result`;
+  queries proven to return exactly one row return `result` directly. The
+  quasiquoter currently detects conservative cases such as `LIMIT 1`, primary
+  key lookups, singleton `VALUES`, aggregate queries without `GROUP BY`,
+  no-`FROM` singleton selects, and simple singleton CTE/subquery projections.
+
 - Added `paginatedTypedSql` and `paginatedTypedSqlWithOptions` (in the new
   `IHP.TypedSql.Pagination` module). These are the `typedSql` analogue of IHP's
-  `paginatedSqlQuery` / `paginatedSqlQueryWithOptions`: pass a `TypedQuery` and
-  get back `([model], Pagination)`, with the same `page` / `maxItems` request
-  params, the same 200-item cap, and the same `Pagination` shape. Put any
-  `ORDER BY` inside the query you pass in — the query is wrapped in a subquery
-  before `LIMIT` / `OFFSET` are applied.
-
-- Added `sqlQueryTypedScalar` and `sqlQueryTypedScalarOrNothing` for single-column
-  queries such as `SELECT count(*)`. These are the typed counterparts of the now
-  deprecated `sqlQueryScalar` / `sqlQueryScalarOrNothing` from `IHP.ModelSupport`.
-  Passing a multi-column query is rejected at compile time.
+  `paginatedSqlQuery` / `paginatedSqlQueryWithOptions`: pass a many-row
+  `TypedQuery` and get back `([model], Pagination)`, with the same `page` /
+  `maxItems` request params, the same 200-item cap, and the same `Pagination`
+  shape. Put any `ORDER BY` inside the query you pass in — the query is wrapped
+  in a subquery before `LIMIT` / `OFFSET` are applied.
 
 ## v1.6.0
 

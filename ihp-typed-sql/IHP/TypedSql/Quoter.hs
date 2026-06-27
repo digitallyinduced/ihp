@@ -22,6 +22,7 @@ import qualified Prelude
 import           IHP.Prelude
 import           IHP.Hasql.Encoders              ()
 
+import           IHP.TypedSql.Cardinality      (inferCardinality)
 import           IHP.TypedSql.CompileTimeDatabase (dependentSchemaFiles)
 import           IHP.TypedSql.Decoders          (resultDecoderForColumns)
 import           IHP.TypedSql.Metadata          (DescribeColumn (..), DescribeResult (..), PgTypeInfo (..), TableMeta (..),
@@ -35,7 +36,7 @@ import           IHP.TypedSql.Placeholders      (PlaceholderPlan (..), parseExpr
                                                  planPlaceholders)
 import           IHP.TypedSql.RowType           (SqlRow (..), sanitizeColumnName, deduplicateNames, sqlRowType)
 import           IHP.TypedSql.TypeMapping       (hsTypeForColumns, hsTypesForColumns, hsTypeForParam, detectFullTable)
-import           IHP.TypedSql.Types             (TypedQuery (..))
+import           IHP.TypedSql.Types             (QueryCardinality (..), TypedQuery (..))
 
 -- | QuasiQuoter entry point for typed SQL.
 -- Disallows SELECT * and SELECT table.* by default to prevent production errors
@@ -119,7 +120,8 @@ typedSqlExp allowStar rawSql = do
             zipWith3
                 (\index expr paramTy ->
                     let colType = fromMaybe paramTy (Map.lookup index paramHintTypes)
-                    in TH.AppE (TH.AppTypeE (TH.VarE 'typedSqlParam) colType) expr
+                        paramExpr = disambiguateAmbiguousParam colType expr
+                    in TH.AppE (TH.AppTypeE (TH.VarE 'typedSqlParam) colType) paramExpr
                 )
                 [1..]
                 parsedExprs
@@ -133,6 +135,7 @@ typedSqlExp allowStar rawSql = do
             |> Set.fromList
 
     let nonNullableColumns = maybe Set.empty extractNonNullableComputedColumnsFromAst parsedAst
+    let queryCardinality = maybe ManyRows (inferCardinality drTables) parsedAst
 
     let isCompositeColumn =
             case drColumns of
@@ -175,7 +178,37 @@ typedSqlExp allowStar rawSql = do
                 )
                 resultDecoder
 
-    pure (TH.SigE typedQueryExpr (TH.AppT (TH.ConT ''TypedQuery) resultType))
+    pure (TH.SigE typedQueryExpr (TH.AppT (TH.AppT (TH.ConT ''TypedQuery) (cardinalityType queryCardinality)) resultType))
+
+cardinalityType :: QueryCardinality -> TH.Type
+cardinalityType = \case
+    ManyRows -> TH.PromotedT 'ManyRows
+    AtMostOneRow -> TH.PromotedT 'AtMostOneRow
+    ExactlyOneRow -> TH.PromotedT 'ExactlyOneRow
+
+-- | Give inherently polymorphic literal placeholders the expected shape.
+--
+-- Variables and constructors like @Just value@ usually carry enough type
+-- information from @value@. Bare @Nothing@ and empty/all-@Nothing@ list literals
+-- do not, so without this annotation the overlapping 'TypedSqlParam' instances
+-- cannot choose between scalar, Maybe, list, and list-of-Maybe shapes.
+disambiguateAmbiguousParam :: TH.Type -> TH.Exp -> TH.Exp
+disambiguateAmbiguousParam colType expr =
+    case expr of
+        TH.ConE name
+            | name == 'Nothing ->
+                TH.SigE expr (TH.AppT (TH.ConT ''Maybe) colType)
+        TH.ListE [] ->
+            TH.SigE expr (TH.AppT TH.ListT colType)
+        TH.ListE values
+            | all isNothingExpression values ->
+                TH.SigE expr (TH.AppT TH.ListT (TH.AppT (TH.ConT ''Maybe) colType))
+        _ ->
+            expr
+  where
+    isNothingExpression = \case
+        TH.ConE name -> name == 'Nothing
+        _ -> False
 
 -- | Rephrase a describe-step error to point at the offending ${...} placeholder.
 -- Postgres reports type-inference failures as "could not determine data type of parameter $N".

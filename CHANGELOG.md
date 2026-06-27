@@ -5,6 +5,14 @@
 - `typedSql` `${...}` parameters now accept `Maybe` and `[Maybe]` values, not just bare values and lists. Alongside `${x}` and `${[x]}` you can now write `${Just x}`, `${Nothing}` (binds SQL `NULL`), and `${[Just x]}` — so enum-filtered joins like `WHERE status = ANY(${[Just Active, Just Pending]})` work without fetch-ids-then-`filterWhereIn` or text casts. Bare values still work for every column, and wrong-typed parameters are still rejected at compile time.
 - The schema compiler now also generates a `DefaultParamEncoder [Maybe <Enum>]` instance for each enum type, alongside the existing `<Enum>`, `Maybe <Enum>`, and `[<Enum>]` instances, so `[Maybe <Enum>]` arrays bind as parameters.
 
+### Breaking Changes
+
+- `typedSql` now tracks conservative query cardinality in `TypedQuery`, and
+  `sqlQueryTyped` returns `[result]`, `Maybe result`, or `result` depending on
+  whether the query is inferred as many-row, at-most-one-row, or exactly-one-row.
+  For example, `SELECT COUNT(*) ...` now returns `Int64` directly, while
+  `LIMIT 1` queries return `Maybe result`.
+
 ## v1.6.0 (2026-06-20)
 
 ### Breaking Changes
