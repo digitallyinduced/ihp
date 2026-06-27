@@ -305,6 +305,30 @@ tests = do
             (mkTestModuleWithPK ["typed_sql_test_items", "typed_sql_test_authors"] "TypedQuery 'AtMostOneRow Text"
                 "let authorId = (\"00000000-0000-0000-0000-000000000001\" :: Id' \"typed_sql_test_authors\")\n      in [typedSql| SELECT name FROM typed_sql_test_items WHERE author_id = ${authorId} LIMIT 1 |]")
 
+        compilePassTest "foreign-key parameter accepts raw primary key list"
+            (mkTestModuleWithPK ["typed_sql_test_items", "typed_sql_test_authors"] "TypedQuery 'AtMostOneRow Text"
+                "let authorIds = [(\"00000000-0000-0000-0000-000000000001\" :: UUID)]\n      in [typedSql| SELECT name FROM typed_sql_test_items WHERE author_id IN (${authorIds}) LIMIT 1 |]")
+
+        compilePassTest "foreign-key parameter accepts Maybe raw primary key"
+            (mkTestModuleWithPK ["typed_sql_test_items", "typed_sql_test_authors"] "TypedQuery 'AtMostOneRow Text"
+                "let authorId = Just (\"00000000-0000-0000-0000-000000000001\" :: UUID)\n      in [typedSql| SELECT name FROM typed_sql_test_items WHERE author_id IS NOT DISTINCT FROM ${authorId} LIMIT 1 |]")
+
+        compilePassTest "foreign-key parameter accepts maybe raw primary key list"
+            (mkTestModuleWithPK ["typed_sql_test_items", "typed_sql_test_authors"] "TypedQuery 'AtMostOneRow Text"
+                "let authorIds = [Just (\"00000000-0000-0000-0000-000000000001\" :: UUID)]\n      in [typedSql| SELECT name FROM typed_sql_test_items WHERE author_id = ANY(${authorIds}) LIMIT 1 |]")
+
+        compilePassTest "Maybe parameter accepts unannotated Nothing"
+            (mkTestModule "TypedQuery 'AtMostOneRow Text"
+                "[typedSql| SELECT name FROM typed_sql_test_items WHERE score IS NOT DISTINCT FROM ${Nothing} LIMIT 1 |]")
+
+        compilePassTest "list parameter accepts unannotated empty list"
+            (mkTestModule "TypedQuery 'AtMostOneRow Text"
+                "[typedSql| SELECT name FROM typed_sql_test_items WHERE name IN (${[]}) LIMIT 1 |]")
+
+        compilePassTest "list-of-Maybe parameter accepts unannotated Nothing list"
+            (mkTestModule "TypedQuery 'AtMostOneRow Text"
+                "[typedSql| SELECT name FROM typed_sql_test_items WHERE score = ANY(${[Nothing]}) LIMIT 1 |]")
+
         compilePassTest "INNER JOIN columns are non-Maybe"
             (mkTestModule "TypedQuery 'AtMostOneRow (SqlRow '[ '(\"name\", Text), '(\"name_1\", Text) ])"
                 "[typedSql| SELECT i.name, a.name FROM typed_sql_test_items i INNER JOIN typed_sql_test_authors a ON a.id = i.author_id LIMIT 1 |]")
@@ -327,6 +351,7 @@ tests = do
         runtimeTest "empty results and edge cases" runtimeEdgeCasesModule
         runtimeTest "additional column types (smallint, bigint, numeric, bytea, bool, timestamptz, date, jsonb)" runtimeExtraTypesModule
         runtimeTest "paginatedTypedSql / paginatedTypedSqlWithOptions" runtimePaginationModule
+        runtimeTest "enum, Maybe enum, and [Maybe enum] parameters via ${...}" runtimeEnumModule
 
     describe "TypedSql SQL parser (pure, no postgres)" do
         it "parseSql succeeds on simple SELECT" do
@@ -490,10 +515,12 @@ withTestModelContext action = do
 setupSchema :: (?modelContext :: ModelContext) => IO ()
 setupSchema = do
     -- Use unsafeSqlExecDiscardResult for DDL (DROP/CREATE) since they have no rows-affected count
+    unsafeSqlExecDiscardResult "DROP TABLE IF EXISTS typed_sql_test_enum_items" ()
     unsafeSqlExecDiscardResult "DROP TABLE IF EXISTS typed_sql_test_extras" ()
     unsafeSqlExecDiscardResult "DROP TABLE IF EXISTS typed_sql_test_items" ()
     unsafeSqlExecDiscardResult "DROP TABLE IF EXISTS typed_sql_test_authors" ()
     unsafeSqlExecDiscardResult "DROP TYPE IF EXISTS typed_sql_test_pair" ()
+    unsafeSqlExecDiscardResult "DROP TYPE IF EXISTS typed_sql_test_mood" ()
 
     unsafeSqlExecDiscardResult "CREATE TYPE typed_sql_test_pair AS (name TEXT, views INT)" ()
 
@@ -527,6 +554,21 @@ setupSchema = do
 
     unsafeSqlExecDiscardResult
         "INSERT INTO typed_sql_test_extras (id, small_count, big_count, amount, payload, metadata, created_at, due_date, active) VALUES ('20000000-0000-0000-0000-000000000001'::uuid, 7, 1000000000, 99.95, '\\xDEADBEEF', '{\"key\": \"value\"}', '2025-06-15 12:00:00+00', '2025-06-15', true)"
+        ()
+
+    -- Enum type + table for exercising DefaultParamEncoder enum interpolation in typedSql
+    unsafeSqlExecDiscardResult "CREATE TYPE typed_sql_test_mood AS ENUM ('happy', 'sad', 'neutral')" ()
+
+    unsafeSqlExecDiscardResult
+        "CREATE TABLE typed_sql_test_enum_items (id UUID PRIMARY KEY, name TEXT NOT NULL, mood typed_sql_test_mood NOT NULL, opt_mood typed_sql_test_mood)"
+        ()
+
+    unsafeSqlExecDiscardResult
+        "INSERT INTO typed_sql_test_enum_items (id, name, mood, opt_mood) VALUES ('30000000-0000-0000-0000-000000000001'::uuid, 'HappyItem', 'happy', 'happy')"
+        ()
+
+    unsafeSqlExecDiscardResult
+        "INSERT INTO typed_sql_test_enum_items (id, name, mood, opt_mood) VALUES ('30000000-0000-0000-0000-000000000002'::uuid, 'SadItem', 'sad', NULL)"
         ()
 
     pure ()
@@ -1536,6 +1578,86 @@ runtimePaginationModule = Text.unlines
     , "            assertTest \"custom maxItems=25 length\" (length results == 25)"
     , "            assertTest \"custom maxItems=25 pageSize\" (pagination.pageSize == 25)"
     , "            assertTest \"custom maxItems=25 window\" (pagination.window == 3)"
+    , ""
+    , "        putStrLn \"RUNTIME_OK\""
+    ]
+-- | Round-trips a generated-style enum through @${...}@ interpolation in a WHERE
+-- clause. The local @TypedSqlTestMood@ type mirrors the @DefaultParamEncoder@ instances the
+-- schema compiler emits for enums (scalar, @Maybe@, @[enum]@, and @[Maybe enum]@),
+-- so binding @${enumVal}@, @${Just enumVal}@, @${Nothing}@, and @${[Just enumVal]}@
+-- exercises exactly the generated instances.
+runtimeEnumModule :: Text
+runtimeEnumModule = Text.unlines
+    [ "{-# LANGUAGE DataKinds #-}"
+    , "{-# LANGUAGE ImplicitParams #-}"
+    , "{-# LANGUAGE NoImplicitPrelude #-}"
+    , "{-# LANGUAGE NoFieldSelectors #-}"
+    , "{-# LANGUAGE OverloadedRecordDot #-}"
+    , "{-# LANGUAGE OverloadedStrings #-}"
+    , "{-# LANGUAGE QuasiQuotes #-}"
+    , "{-# LANGUAGE TypeFamilies #-}"
+    , "module Main where"
+    , ""
+    , "import qualified Control.Exception as Exception"
+    , "import IHP.Prelude"
+    , "import IHP.ModelSupport (ModelContext, PrimaryKey, createModelContext, releaseModelContext, noopLogger)"
+    , "import IHP.TypedSql (sqlQueryTyped, typedSql)"
+    , "import qualified Hasql.Encoders"
+    , "import qualified Hasql.Implicits.Encoders"
+    , "import System.Environment (lookupEnv)"
+    , ""
+    , "type instance PrimaryKey \"typed_sql_test_enum_items\" = UUID"
+    , ""
+    , "-- Mirrors the data type + DefaultParamEncoder instances generated by the"
+    , "-- schema compiler for `CREATE TYPE typed_sql_test_mood AS ENUM (...)`."
+    , "-- The type name must match what the typedSql macro derives from the Postgres"
+    , "-- enum type `typed_sql_test_mood` (tableNameToModelName), i.e. TypedSqlTestMood."
+    , "data TypedSqlTestMood = Happy | Sad | Neutral deriving (Eq, Show)"
+    , ""
+    , "moodToText :: TypedSqlTestMood -> Text"
+    , "moodToText Happy = \"happy\""
+    , "moodToText Sad = \"sad\""
+    , "moodToText Neutral = \"neutral\""
+    , ""
+    , "instance Hasql.Implicits.Encoders.DefaultParamEncoder TypedSqlTestMood where"
+    , "    defaultParam = Hasql.Encoders.nonNullable (Hasql.Encoders.enum (Just \"public\") \"typed_sql_test_mood\" moodToText)"
+    , "instance Hasql.Implicits.Encoders.DefaultParamEncoder (Maybe TypedSqlTestMood) where"
+    , "    defaultParam = Hasql.Encoders.nullable (Hasql.Encoders.enum (Just \"public\") \"typed_sql_test_mood\" moodToText)"
+    , "instance Hasql.Implicits.Encoders.DefaultParamEncoder [TypedSqlTestMood] where"
+    , "    defaultParam = Hasql.Encoders.nonNullable $ Hasql.Encoders.foldableArray $ Hasql.Encoders.nonNullable (Hasql.Encoders.enum (Just \"public\") \"typed_sql_test_mood\" moodToText)"
+    , "instance Hasql.Implicits.Encoders.DefaultParamEncoder [Maybe TypedSqlTestMood] where"
+    , "    defaultParam = Hasql.Encoders.nonNullable $ Hasql.Encoders.foldableArray $ Hasql.Encoders.nullable (Hasql.Encoders.enum (Just \"public\") \"typed_sql_test_mood\" moodToText)"
+    , ""
+    , "assertTest :: Text -> Bool -> IO ()"
+    , "assertTest name True  = putStrLn (\"PASS: \" <> name)"
+    , "assertTest name False = error (\"FAIL: \" <> name)"
+    , ""
+    , "main :: IO ()"
+    , "main = do"
+    , "    let logger = noopLogger"
+    , "    databaseUrl <- cs . fromMaybe \"\" <$> lookupEnv \"DATABASE_URL\""
+    , "    modelContext <- createModelContext databaseUrl logger"
+    , "    let ?modelContext = modelContext"
+    , "    flip Exception.finally (releaseModelContext modelContext) do"
+    , "        -- ${enumVal}: a plain enum value binds against the non-null enum column"
+    , "        scalarNames <- sqlQueryTyped [typedSql| SELECT name FROM typed_sql_test_enum_items WHERE mood = ${Happy} ORDER BY name |]"
+    , "        assertTest \"dollar-enumVal\" ((scalarNames :: [Text]) == [\"HappyItem\"])"
+    , ""
+    , "        -- ${Just enumVal}: a Maybe enum value binds against the nullable enum column"
+    , "        justNames <- sqlQueryTyped [typedSql| SELECT name FROM typed_sql_test_enum_items WHERE opt_mood = ${Just Happy} ORDER BY name |]"
+    , "        assertTest \"dollar-Just-enumVal\" ((justNames :: [Text]) == [\"HappyItem\"])"
+    , ""
+    , "        -- ${Nothing}: a Maybe enum Nothing binds as SQL NULL"
+    , "        nothingNames <- sqlQueryTyped [typedSql| SELECT name FROM typed_sql_test_enum_items WHERE opt_mood IS NOT DISTINCT FROM ${Nothing} ORDER BY name |]"
+    , "        assertTest \"dollar-Nothing-binds-as-NULL\" ((nothingNames :: [Text]) == [\"SadItem\"])"
+    , ""
+    , "        -- ${[enumVal]}: a list of enum values binds as an enum array for = ANY(...)"
+    , "        listNames <- sqlQueryTyped [typedSql| SELECT name FROM typed_sql_test_enum_items WHERE mood = ANY(${[Happy]}) ORDER BY name |]"
+    , "        assertTest \"dollar-list-enumVal\" ((listNames :: [Text]) == [\"HappyItem\"])"
+    , ""
+    , "        -- ${[Just enumVal]}: a list of Maybe enum values binds as a nullable-element enum array"
+    , "        anyNames <- sqlQueryTyped [typedSql| SELECT name FROM typed_sql_test_enum_items WHERE mood = ANY(${[Just Happy, Just Sad]}) ORDER BY name |]"
+    , "        assertTest \"dollar-list-Just-enumVal\" ((anyNames :: [Text]) == [\"HappyItem\", \"SadItem\"])"
     , ""
     , "        putStrLn \"RUNTIME_OK\""
     ]

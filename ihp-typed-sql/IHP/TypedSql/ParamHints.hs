@@ -635,7 +635,7 @@ resolveParamHintTypes tables typeInfo hints = do
     resolved <- mapM (resolveHint tablesByName) (Map.toList hints)
     pure (Map.fromList (catMaybes resolved))
   where
-    resolveHint tablesByName (index, ParamHint { phTable, phColumn, phArray }) = do
+    resolveHint tablesByName (index, ParamHint { phTable, phColumn }) = do
         case Map.lookup phTable tablesByName of
             Nothing -> pure Nothing
             Just (tableOid, table@TableMeta { tmColumns }) ->
@@ -648,9 +648,13 @@ resolveParamHintTypes tables typeInfo hints = do
                             , dcTable = tableOid
                             , dcAttnum = Just attnum
                             }
-                        let stripped = stripMaybeType baseType
-                        let hintedType = if phArray then TH.AppT TH.ListT stripped else stripped
-                        pure (Just (index, hintedType))
+                        -- The quasiquoter annotates each ${...} with the column's *scalar*
+                        -- Haskell type and lets 'IHP.TypedSql.ParamEncoder.typedSqlParam'
+                        -- accept the value as a scalar, Maybe, list, or list-of-Maybe. So we
+                        -- strip the column's Maybe wrapper and ignore phArray here — the
+                        -- value's own shape (e.g. a list for IN/ANY) selects the encoding.
+                        let scalarType = stripMaybeType baseType
+                        pure (Just (index, scalarType))
 
     findColumn columns columnName =
         columns

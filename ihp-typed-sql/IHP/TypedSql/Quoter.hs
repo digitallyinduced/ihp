@@ -32,6 +32,7 @@ import           IHP.TypedSql.ParamHints        (extractParamHintsFromAst, extra
                                                  extractNonNullableComputedColumnsFromAst,
                                                  parseSql, resolveParamHintTypes, detectStarSelects,
                                                  detectInsertWithoutColumns)
+import           IHP.TypedSql.ParamEncoder      (typedSqlParam)
 import           IHP.TypedSql.Placeholders      (PlaceholderPlan (..), parseExpr,
                                                  planPlaceholders)
 import           IHP.TypedSql.RowType           (SqlRow (..), sanitizeColumnName, deduplicateNames, sqlRowType)
@@ -111,11 +112,23 @@ typedSqlExp allowStar rawSql = do
     let paramHints = maybe Map.empty extractParamHintsFromAst parsedAst
     paramHintTypes <- resolveParamHintTypes drTables drTypes paramHints
 
-    let annotatedParams =
+    -- For each ${...} placeholder with a column hint, emit @typedSqlParam \@col expr@,
+    -- where @col@ is the column's __scalar__ Haskell type. 'typedSqlParam' returns a
+    -- hasql 'Snippet' and accepts the value as the bare type, a 'Maybe', a list, or a
+    -- list of 'Maybe' (see "IHP.TypedSql.ParamEncoder"). When Postgres itself infers an
+    -- array parameter and we have no scalar column hint, keep the array as the scalar
+    -- parameter value instead of interpreting it as a list of scalar values.
+    let paramSnippets =
             zipWith3
                 (\index expr paramTy ->
-                    let expectedType = fromMaybe paramTy (Map.lookup index paramHintTypes)
-                    in TH.SigE (TH.AppE (TH.VarE 'coerce) expr) expectedType
+                    let maybeHintType = Map.lookup index paramHintTypes
+                        colType = fromMaybe paramTy maybeHintType
+                        paramExpr = disambiguateAmbiguousParam colType expr
+                    in case maybeHintType of
+                        Nothing | isListType paramTy ->
+                            TH.AppE (TH.VarE 'Snippet.param) (TH.SigE (TH.AppE (TH.VarE 'coerce) expr) paramTy)
+                        _ ->
+                            TH.AppE (TH.AppTypeE (TH.VarE 'typedSqlParam) colType) paramExpr
                 )
                 [1..]
                 parsedExprs
@@ -163,7 +176,7 @@ typedSqlExp allowStar rawSql = do
                 decoder <- resultDecoderForColumns drTypes drTables joinNullableOids nonNullableColumns drColumns
                 pure (rt, decoder)
 
-    snippetExpr <- buildSnippetExpression ppRuntimeSql annotatedParams
+    snippetExpr <- buildSnippetExpression ppRuntimeSql paramSnippets
     let typedQueryExpr =
             TH.AppE
                 (TH.AppE
@@ -179,6 +192,41 @@ cardinalityType = \case
     ManyRows -> TH.PromotedT 'ManyRows
     AtMostOneRow -> TH.PromotedT 'AtMostOneRow
     ExactlyOneRow -> TH.PromotedT 'ExactlyOneRow
+
+isListType :: TH.Type -> Bool
+isListType = \case
+    TH.AppT TH.ListT _ -> True
+    _ -> False
+
+-- | Give inherently polymorphic literal placeholders the expected shape.
+--
+-- Variables and constructors like @Just value@ usually carry enough type
+-- information from @value@. Bare @Nothing@ and empty/all-@Nothing@ list literals
+-- do not, so without this annotation the overlapping 'TypedSqlParam' instances
+-- cannot choose between scalar, Maybe, list, and list-of-Maybe shapes.
+disambiguateAmbiguousParam :: TH.Type -> TH.Exp -> TH.Exp
+disambiguateAmbiguousParam colType expr =
+    case expr of
+        TH.ConE name
+            | isNothingName name ->
+                TH.SigE expr (TH.AppT (TH.ConT ''Maybe) colType)
+        TH.VarE name
+            | isNothingName name ->
+                TH.SigE expr (TH.AppT (TH.ConT ''Maybe) colType)
+        TH.ListE [] ->
+            TH.SigE expr (TH.AppT TH.ListT colType)
+        TH.ListE values
+            | all isNothingExpression values ->
+                TH.SigE expr (TH.AppT TH.ListT (TH.AppT (TH.ConT ''Maybe) colType))
+        _ ->
+            expr
+  where
+    isNothingName name = TH.nameBase name == "Nothing"
+
+    isNothingExpression = \case
+        TH.ConE name -> isNothingName name
+        TH.VarE name -> isNothingName name
+        _ -> False
 
 -- | Rephrase a describe-step error to point at the offending ${...} placeholder.
 -- Postgres reports type-inference failures as "could not determine data type of parameter $N".
@@ -211,14 +259,16 @@ extractUnknownParamIndex = go
             in if null digits then Nothing else readMaybe digits
         | otherwise = go (drop 1 str)
 
+-- | Assemble the runtime SQL and the parameter 'Snippet' expressions into a single
+-- snippet. Each entry of @params@ is already a 'Snippet' (produced by 'typedSqlParam'),
+-- so it is interleaved with the SQL chunks directly.
 buildSnippetExpression :: String -> [TH.Exp] -> TH.ExpQ
 buildSnippetExpression sql params = do
     let chunks = splitOnSentinel sql
     when (length chunks /= length params + 1) do
         fail "typedSql: internal error while building hasql snippet"
     let sqlSnippets = map (TH.AppE (TH.VarE 'Snippet.sql) . TH.LitE . TH.StringL) chunks
-    let paramSnippets = map (TH.AppE (TH.VarE 'Snippet.param)) params
-    let pieces = interleave sqlSnippets paramSnippets
+    let pieces = interleave sqlSnippets params
     case pieces of
         [] -> pure (TH.AppE (TH.VarE 'Snippet.sql) (TH.LitE (TH.StringL "")))
         firstPiece:restPieces ->
