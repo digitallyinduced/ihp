@@ -1,5 +1,21 @@
 # Changelog for `ihp-typed-sql`
 
+## Unreleased
+
+- Added `sqlQueryTypedPipelined` for running typed SQL queries through
+  `IHP.FetchPipelined.pipeline`.
+
+- Added explicit cardinality helpers: `sqlQueryTypedRows`,
+  `sqlQueryTypedOneOrNothing`, and `sqlQueryTypedSingle`.
+
+- Added `sqlQueryTypedMaybeColumn` and `sqlQueryTypedMaybeColumnPipelined` for
+  nullable single-column `LIMIT 1` queries where callers want both "no row" and
+  "SQL NULL" represented as `Nothing`.
+
+- `typedSql` now infers `json_build_object`, `jsonb_build_object`,
+  `json_build_array`, and `jsonb_build_array` as non-null computed JSON
+  expressions.
+
 ## v1.7.0
 
 - **Breaking:** `TypedQuery` now carries a type-level cardinality marker and
