@@ -31,6 +31,11 @@ data-files:
     , static/vendor/src-min/snippets/*.js
 extra-source-files: CHANGELOG.md
 
+flag systemd
+    description: Enable systemd socket activation support
+    default: True
+    manual: True
+
 common shared-properties
     default-language: GHC2021
     build-depends:
@@ -42,7 +47,6 @@ common shared-properties
             , filepath >= 1.5
             , string-conversions
             , warp
-            , warp-systemd
             , wai
             , wai-early-return
             , mtl
@@ -134,6 +138,10 @@ common shared-properties
             , postgresql-types
             , postgresql-simple-postgresql-types
             , contravariant
+    if flag(systemd)
+        build-depends:
+            warp-systemd
+        cpp-options: -DWITH_SYSTEMD
     default-extensions:
         OverloadedStrings
         , NoImplicitPrelude

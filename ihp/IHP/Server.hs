@@ -1,14 +1,19 @@
+{-# LANGUAGE CPP #-}
 {-# LANGUAGE IncoherentInstances #-}
 
 module IHP.Server (run, application, initSessionMiddleware, initMiddlewareStack) where
 import IHP.Prelude
 import qualified Network.Wai.Handler.Warp as Warp
+#ifdef WITH_SYSTEMD
 import qualified Network.Wai.Handler.Warp.Systemd as Systemd
+#endif
 import Network.Wai
 import Network.Wai.Middleware.MethodOverridePost (methodOverridePost)
 import Network.Wai.Session.Maybe (withSession)
 import Network.Wai.Session.ClientSession.Deferred (clientsessionStore)
+#ifdef WITH_SYSTEMD
 import qualified Network.Wai.Middleware.HealthCheckEndpoint as HealthCheckEndpoint
+#endif
 import qualified Web.ClientSession as ClientSession
 import IHP.Controller.Session (sessionVaultKey)
 import qualified IHP.Environment as Env
@@ -29,8 +34,10 @@ import qualified System.IO as IO
 import qualified Network.Wai.Application.Static as Static
 import qualified WaiAppStatic.Types as Static
 import qualified IHP.EnvVar as EnvVar
+#ifdef WITH_SYSTEMD
 import qualified Network.HTTP.Client as HTTP
 import qualified Data.Function as Function
+#endif
 import IHP.RequestVault hiding (requestBodyMiddleware)
 import IHP.Controller.Response (responseHeadersVaultKey)
 import IHP.ControllerSupport (rlsContextVaultKey)
@@ -66,12 +73,13 @@ run configBuilder = do
                     let requestLoggerMiddleware = frameworkConfig.requestLoggerMiddleware
 
                     useSystemd <- EnvVar.envOrDefault "IHP_SYSTEMD" False
+                    ensureSystemdSupport useSystemd
 
                     let fullApp = middleware $ application staticApp requestLoggerMiddleware
                     let staticShortcut = staticRouteShortcut staticApp fullApp
 
                     runServer frameworkConfig useSystemd
-                        . (if useSystemd then HealthCheckEndpoint.healthCheck else Function.id)
+                        . systemdHealthCheckMiddleware useSystemd
                         . ErrorController.errorHandlerMiddleware frameworkConfig
                         $ staticShortcut
 
@@ -175,6 +183,24 @@ application staticApp middleware request respond = do
     frontControllerToWAIApp @RootApplication @AutoRefreshWSApp middleware RootApplication staticApp request respond
 {-# INLINABLE application #-}
 
+ensureSystemdSupport :: Bool -> IO ()
+#ifdef WITH_SYSTEMD
+ensureSystemdSupport _ = pure ()
+#else
+ensureSystemdSupport True = fail "IHP was built without systemd support. Unset IHP_SYSTEMD or rebuild IHP with the systemd Cabal flag enabled."
+ensureSystemdSupport False = pure ()
+#endif
+
+systemdHealthCheckMiddleware :: Bool -> Middleware
+#ifdef WITH_SYSTEMD
+systemdHealthCheckMiddleware useSystemd =
+    if useSystemd
+        then HealthCheckEndpoint.healthCheck
+        else Function.id
+#else
+systemdHealthCheckMiddleware _ = id
+#endif
+
 runServer :: FrameworkConfig -> Bool -> Application -> IO ()
 runServer config@FrameworkConfig { environment = Env.Development, appPort } useSystemd = \app -> do
     let warpSettings = Warp.defaultSettings
@@ -205,6 +231,7 @@ runServer FrameworkConfig { environment = Env.Production, appPort, exceptionTrac
             |> Warp.setGracefulShutdownTimeout (Just 6)
             |> Warp.setFdCacheDuration (5 * 60)
             |> Warp.setFileInfoCacheDuration (5 * 60)
+#ifdef WITH_SYSTEMD
         heartbeatCheck = do
                 manager <- HTTP.newManager HTTP.defaultManagerSettings
                 baseRequest <- HTTP.parseRequest ("http://127.0.0.1:" <> cs (show appPort) <> "/_healthz")
@@ -216,10 +243,15 @@ runServer FrameworkConfig { environment = Env.Production, appPort, exceptionTrac
             |> Systemd.setRequireSocketActivation True
             |> Systemd.setHeartbeatInterval (Just 30)
             |> Systemd.setHeartbeatCheck heartbeatCheck
+#endif
     in
+#ifdef WITH_SYSTEMD
         if useSystemd
             then Systemd.runSystemdWarp systemdSettings warpSettings
             else Warp.runSettings warpSettings
+#else
+        Warp.runSettings warpSettings
+#endif
 
 withInitalizers :: FrameworkConfig -> ModelContext -> IO () -> IO ()
 withInitalizers frameworkConfig modelContext continue = do
