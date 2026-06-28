@@ -56,6 +56,35 @@ maybeName <- sqlQueryTyped [typedSql| SELECT name FROM items ORDER BY name LIMIT
 -- maybeName :: Maybe Text
 ```
 
+If you want the expected shape in the function name, use
+`sqlQueryTypedRows`, `sqlQueryTypedOneOrNothing`, and
+`sqlQueryTypedSingle`:
+
+```haskell
+names <- sqlQueryTypedRows [typedSql| SELECT name FROM items ORDER BY name |]
+-- names :: [Text]
+
+maybeName <- sqlQueryTypedOneOrNothing [typedSql|
+    SELECT name FROM items ORDER BY name LIMIT 1
+|]
+-- maybeName :: Maybe Text
+
+total <- sqlQueryTypedSingle [typedSql| SELECT COUNT(*) FROM items |]
+-- total :: Int64
+```
+
+For nullable single-column queries that return at most one row, the precise
+result shape is `Maybe (Maybe a)`: the outer `Maybe` is "no row", the inner
+`Maybe` is "the SQL value was NULL". Use `sqlQueryTypedMaybeColumn` when you
+want both cases collapsed into `Nothing`:
+
+```haskell
+score <- sqlQueryTypedMaybeColumn [typedSql|
+    SELECT score FROM items WHERE id = ${itemId}
+|]
+-- score :: Maybe Double
+```
+
 ## Selecting Multiple Columns
 
 When selecting multiple columns, the result is a tuple:
@@ -218,6 +247,33 @@ Pass the `pagination` value to your view and call `renderPagination` there, exac
 
 Because the query is wrapped in a subquery before `LIMIT`/`OFFSET` are applied, any `ORDER BY` must live **inside** the query you pass in. See the [Pagination guide](pagination.html#typed-sql-pagination) for the full details.
 
+## Pipeline Mode
+
+Use `sqlQueryTypedPipelined` together with `IHP.FetchPipelined.pipeline` to run
+independent typed SQL queries in a single PostgreSQL pipeline batch:
+
+```haskell
+import IHP.FetchPipelined (pipeline)
+import IHP.TypedSql (sqlQueryTypedPipelined, typedSql)
+
+action DashboardAction = do
+    (names, total) <- pipeline do
+        names <- sqlQueryTypedPipelined [typedSql|
+            SELECT name FROM items ORDER BY name LIMIT 10
+        |]
+        total <- sqlQueryTypedPipelined [typedSql|
+            SELECT COUNT(*) FROM items
+        |]
+        pure (names, total)
+
+    -- names :: [Text]
+    -- total :: Int64
+    render DashboardView { names, total }
+```
+
+For nullable single-column queries in a pipeline, use
+`sqlQueryTypedMaybeColumnPipelined`.
+
 ## Nullability
 
 Typed SQL automatically determines whether result columns should be wrapped in `Maybe`:
@@ -252,6 +308,13 @@ results <- sqlQueryTyped [typedSql|
 literal <- sqlQueryTyped [typedSql| SELECT 1 |]
 -- literal :: Int
 ```
+
+IHP also corrects conservative cases where PostgreSQL reports computed
+expressions as nullable even though a value is guaranteed, including
+`COUNT(*)`, `EXISTS`, non-null literals, window ranking functions, `COALESCE`
+with a known non-null argument, and JSON constructors like
+`json_build_object`, `jsonb_build_object`, `json_build_array`, and
+`jsonb_build_array`.
 
 ### Primary and Foreign Keys
 

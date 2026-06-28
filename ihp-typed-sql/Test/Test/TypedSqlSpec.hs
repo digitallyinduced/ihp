@@ -345,6 +345,14 @@ tests = do
             (mkTestModule "TypedQuery 'ExactlyOneRow Int64"
                 "[typedSql| WITH item_counts AS (SELECT count(*) AS c FROM typed_sql_test_items) SELECT c FROM item_counts |]")
 
+        compilePassTest "jsonb_build_object inferred as non-Maybe JSON"
+            (mkTestModuleWithAeson "TypedQuery 'ExactlyOneRow Aeson.Value"
+                "[typedSql| SELECT jsonb_build_object('name', NULL::text) |]")
+
+        compilePassTest "json_build_array inferred as non-Maybe JSON"
+            (mkTestModuleWithAeson "TypedQuery 'ExactlyOneRow Aeson.Value"
+                "[typedSql| SELECT json_build_array(NULL::text) |]")
+
     describe "TypedSql macro runtime execution" do
         runtimeTest "executes typedSql queries end-to-end via ghci" runtimeModule
         runtimeTest "UPDATE and DELETE with parameters" runtimeUpdateDeleteModule
@@ -447,6 +455,10 @@ tests = do
         it "extractNonNullableComputedColumns does not mark NULL::text" do
             let Just ast = parseSql "SELECT NULL::text"
             extractNonNullableComputedColumnsFromAst ast `shouldBe` Set.empty
+
+        it "extractNonNullableComputedColumns detects JSON build constructors" do
+            let Just ast = parseSql "SELECT jsonb_build_object('x', NULL::text), json_build_array(NULL::text)"
+            extractNonNullableComputedColumnsFromAst ast `shouldBe` Set.fromList [0, 1]
 
         it "detectStarSelects detects bare SELECT *" do
             let Just ast = parseSql "SELECT * FROM items"
@@ -790,6 +802,23 @@ mkTestModule typeSig body = Text.unlines
     , "query = " <> body
     ]
 
+mkTestModuleWithAeson :: Text -> Text -> Text
+mkTestModuleWithAeson typeSig body = Text.unlines
+    [ "{-# LANGUAGE DataKinds #-}"
+    , "{-# LANGUAGE NoImplicitPrelude #-}"
+    , "{-# LANGUAGE NoFieldSelectors #-}"
+    , "{-# LANGUAGE OverloadedStrings #-}"
+    , "{-# LANGUAGE QuasiQuotes #-}"
+    , "module TypedSqlCase where"
+    , ""
+    , "import IHP.Prelude"
+    , "import IHP.TypedSql (QueryCardinality (..), TypedQuery, typedSql)"
+    , "import qualified Data.Aeson as Aeson"
+    , ""
+    , "query :: " <> typeSig
+    , "query = " <> body
+    ]
+
 -- | Build a test module that also needs PrimaryKey type instances.
 mkTestModuleWithPK :: [Text] -> Text -> Text -> Text
 mkTestModuleWithPK pkTables typeSig body = Text.unlines $
@@ -834,6 +863,7 @@ compilePassModule = Text.unlines
     , "import IHP.Hasql.FromRow (FromRowHasql (..))"
     , "import IHP.TypedSql (QueryCardinality (..), TypedQuery, typedSql, typedSqlStar)"
     , "import IHP.TypedSql.RowType (SqlRow)"
+    , "import qualified Data.Aeson as Aeson"
     , "import qualified Hasql.Decoders as HasqlDecoders"
     , ""
     , "type instance PrimaryKey \"typed_sql_test_items\" = UUID"
@@ -969,11 +999,18 @@ compilePassModule = Text.unlines
     , ""
     , "qRightJoinCoalesced :: TypedQuery 'AtMostOneRow (SqlRow '[ '(\"coalesce\", Text), '(\"name\", Text) ])"
     , "qRightJoinCoalesced = [typedSql| SELECT COALESCE(i.name, '(no-item)'), a.name FROM typed_sql_test_items i RIGHT JOIN typed_sql_test_authors a ON a.id = i.author_id LIMIT 1 |]"
+    , ""
+    , "qJsonBuildObject :: TypedQuery 'ExactlyOneRow Aeson.Value"
+    , "qJsonBuildObject = [typedSql| SELECT jsonb_build_object('name', NULL::text) |]"
+    , ""
+    , "qJsonBuildArray :: TypedQuery 'ExactlyOneRow Aeson.Value"
+    , "qJsonBuildArray = [typedSql| SELECT json_build_array(NULL::text) |]"
     ]
 
 runtimeModule :: Text
 runtimeModule = Text.unlines
     [ "{-# LANGUAGE DataKinds #-}"
+    , "{-# LANGUAGE ApplicativeDo #-}"
     , "{-# LANGUAGE ImplicitParams #-}"
     , "{-# LANGUAGE NoImplicitPrelude #-}"
     , "{-# LANGUAGE NoFieldSelectors #-}"
@@ -987,7 +1024,8 @@ runtimeModule = Text.unlines
     , "import IHP.Prelude"
     , "import IHP.ModelSupport (Id'(..), ModelContext, PrimaryKey, createModelContext, releaseModelContext, noopLogger)"
     , "import IHP.Hasql.FromRow (FromRowHasql (..))"
-    , "import IHP.TypedSql (sqlExecTyped, sqlQueryTyped, typedSql, typedSqlStar)"
+    , "import IHP.FetchPipelined (pipeline)"
+    , "import IHP.TypedSql (sqlExecTyped, sqlQueryTyped, sqlQueryTypedRows, sqlQueryTypedOneOrNothing, sqlQueryTypedSingle, sqlQueryTypedMaybeColumn, sqlQueryTypedPipelined, sqlQueryTypedMaybeColumnPipelined, typedSql, typedSqlStar)"
     , "import qualified Hasql.Decoders as HasqlDecoders"
     , "import System.Environment (lookupEnv)"
     , ""
@@ -1053,6 +1091,58 @@ runtimeModule = Text.unlines
     , ""
     , "        when ((namesViaTypedSql :: [Text]) /= [\"First\", \"Second\"]) do"
     , "            error (\"unexpected names from typedSql second query: \" <> show namesViaTypedSql)"
+    , ""
+    , "        namesViaRows <- sqlQueryTypedRows [typedSql|"
+    , "            SELECT name FROM typed_sql_test_items"
+    , "            ORDER BY name"
+    , "        |]"
+    , ""
+    , "        when ((namesViaRows :: [Text]) /= [\"First\", \"Second\"]) do"
+    , "            error (\"unexpected names from sqlQueryTypedRows: \" <> show namesViaRows)"
+    , ""
+    , "        maybeFirst <- sqlQueryTypedOneOrNothing [typedSql|"
+    , "            SELECT name FROM typed_sql_test_items"
+    , "            WHERE id = ${itemId1}"
+    , "        |]"
+    , ""
+    , "        when ((maybeFirst :: Maybe Text) /= Just \"First\") do"
+    , "            error (\"unexpected row from sqlQueryTypedOneOrNothing: \" <> show maybeFirst)"
+    , ""
+    , "        countViaSingle <- sqlQueryTypedSingle [typedSql| SELECT COUNT(*) FROM typed_sql_test_items |]"
+    , ""
+    , "        when ((countViaSingle :: Int64) /= 2) do"
+    , "            error (\"unexpected count from sqlQueryTypedSingle: \" <> show countViaSingle)"
+    , ""
+    , "        maybeScore <- sqlQueryTypedMaybeColumn [typedSql|"
+    , "            SELECT score FROM typed_sql_test_items"
+    , "            WHERE id = ${itemId1}"
+    , "        |]"
+    , ""
+    , "        when ((maybeScore :: Maybe Double) /= Just 1.5) do"
+    , "            error (\"unexpected value from sqlQueryTypedMaybeColumn: \" <> show maybeScore)"
+    , ""
+    , "        missingScore <- sqlQueryTypedMaybeColumn [typedSql|"
+    , "            SELECT score FROM typed_sql_test_items"
+    , "            WHERE id = ${(\"10000000-0000-0000-0000-000000000099\" :: UUID)}"
+    , "        |]"
+    , ""
+    , "        when ((missingScore :: Maybe Double) /= Nothing) do"
+    , "            error (\"unexpected missing value from sqlQueryTypedMaybeColumn: \" <> show missingScore)"
+    , ""
+    , "        (pipelinedNames, pipelinedCount, pipelinedMissingScore) <- pipeline do"
+    , "            pipelinedNames <- sqlQueryTypedPipelined [typedSql|"
+    , "                SELECT name FROM typed_sql_test_items"
+    , "                ORDER BY name"
+    , "            |]"
+    , "            pipelinedCount <- sqlQueryTypedPipelined [typedSql| SELECT COUNT(*) FROM typed_sql_test_items |]"
+    , "            pipelinedMissingScore <- sqlQueryTypedMaybeColumnPipelined [typedSql|"
+    , "                SELECT score FROM typed_sql_test_items"
+    , "                WHERE id = ${(\"10000000-0000-0000-0000-000000000099\" :: UUID)}"
+    , "            |]"
+    , "            pure (pipelinedNames, pipelinedCount, pipelinedMissingScore)"
+    , ""
+    , "        when ((pipelinedNames :: [Text]) /= [\"First\", \"Second\"] || (pipelinedCount :: Int64) /= 2 || (pipelinedMissingScore :: Maybe Double) /= Nothing) do"
+    , "            error (\"unexpected typedSql pipeline result: \" <> show (pipelinedNames, pipelinedCount, pipelinedMissingScore))"
     , ""
     , "        allItems <- sqlQueryTyped [typedSqlStar|"
     , "            SELECT typed_sql_test_items.*"

@@ -501,9 +501,20 @@ isExprNonNullable sqMap = \case
 -- | Functions that are guaranteed to return a non-null value.
 -- count() always returns 0 for empty groups.
 -- row_number(), rank(), dense_rank() are window functions that never return NULL.
+-- json[b]_build_object and json[b]_build_array return JSON null/object/array
+-- values rather than SQL NULL when their arguments are NULL.
 isNonNullableFunction :: Ast.FuncName -> Bool
 isNonNullableFunction funcName =
-    funcNameToText funcName `elem` ["count", "row_number", "rank", "dense_rank"]
+    funcNameToText funcName `elem`
+        [ "count"
+        , "row_number"
+        , "rank"
+        , "dense_rank"
+        , "json_build_object"
+        , "jsonb_build_object"
+        , "json_build_array"
+        , "jsonb_build_array"
+        ]
 
 -- | Special syntax expressions that are non-nullable.
 isSubexprNonNullable :: SubqueryTargetMap -> Ast.FuncExprCommonSubexpr -> Bool

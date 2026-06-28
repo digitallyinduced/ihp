@@ -384,6 +384,24 @@ Explicit `TypedQuery` signatures also need the cardinality argument:
 Use `'AtMostOneRow` for `LIMIT 1` / primary-key lookups and `'ExactlyOneRow`
 for singleton queries such as `COUNT(*)`.
 
+You can also use cardinality-specific helper names when that makes migrations
+easier to read:
+
+```haskell
+names <- sqlQueryTypedRows [typedSql| SELECT name FROM posts ORDER BY name |]
+maybeName <- sqlQueryTypedOneOrNothing [typedSql| SELECT name FROM posts LIMIT 1 |]
+count <- sqlQueryTypedSingle [typedSql| SELECT COUNT(*) FROM posts |]
+```
+
+Nullable single-column queries with `LIMIT 1` have the precise shape
+`Maybe (Maybe a)` because "no row" and "row with SQL NULL" are independent.
+Use `sqlQueryTypedMaybeColumn` when you want both to become `Nothing`:
+
+```diff
+-maybeScore <- sqlQueryTyped [typedSql| SELECT score FROM posts WHERE id = ${postId} LIMIT 1 |]
++maybeScore <- sqlQueryTypedMaybeColumn [typedSql| SELECT score FROM posts WHERE id = ${postId} LIMIT 1 |]
+```
+
 ## `typedSql` is stricter and uses `Int64` for `bigint`
 
 `typedSql` now rejects `SELECT *`, `SELECT table.*`, and `INSERT` statements without an explicit column list by default. This prevents compiled decoders from silently depending on development database column order.
