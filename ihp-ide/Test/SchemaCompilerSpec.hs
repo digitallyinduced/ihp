@@ -1459,6 +1459,44 @@ tests = do
                         newRecord = Generated.ActualTypes.PostRevision def def def def  def
                     |]
 
+        describe "compileNewType / compileNewConstructor" do
+            let statements = parseSqlStatements [trimming|
+                CREATE TABLE posts (
+                    id UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL,
+                    title TEXT NOT NULL
+                );
+                CREATE TABLE comments (
+                    id UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL,
+                    post_id UUID NOT NULL,
+                    body TEXT NOT NULL,
+                    author TEXT,
+                    likes_count INT DEFAULT 0 NOT NULL
+                );
+                ALTER TABLE comments ADD CONSTRAINT comments_ref_post_id FOREIGN KEY (post_id) REFERENCES posts (id) ON DELETE NO ACTION;
+            |]
+            let
+                isComments :: Statement -> Bool
+                isComments (StatementCreateTable CreateTable { name }) = name == "comments"
+                isComments _ = False
+            let (Just (StatementCreateTable commentsTable)) = find isComments statements
+
+            it "should generate a New<Model> record holding only the required columns (NOT NULL, no default, not PK)" do
+                let ?schema = Schema statements
+                    ?compilerOptions = fullCompileOptions
+                (compileNewType commentsTable |> Text.strip) `shouldBe` [trimming|
+                    data NewComment = NewComment {postId :: (Id' "posts"), body :: Text} deriving (Eq, Show)
+                |]
+
+            it "should generate a new<Model> smart constructor that sets the required columns via 'set'" do
+                let ?schema = Schema statements
+                    ?compilerOptions = fullCompileOptions
+                (compileNewConstructor commentsTable |> Text.strip) `shouldBe` [trimming|
+                    newComment :: NewComment -> Comment
+                    newComment attributes = newRecord @Comment
+                        |> set #postId attributes.postId
+                        |> set #body attributes.body
+                |]
+
 -- | Extract the body of a statement module (everything after the import block)
 getStatementBody :: Text -> Text
 getStatementBody full =
