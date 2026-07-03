@@ -88,15 +88,18 @@ GET        /ServiceLogs?serviceName                   ServiceLogsAction
 GET        /OpenEditor                                OpenEditorAction
 |]
 
+-- The New* actions accept POST in addition to GET: the codegen views submit
+-- their "Preview" forms (and option toggles) via POST back to the same action
+-- (see https://github.com/digitallyinduced/ihp/issues/2743)
 [routes|CodeGenController
 GET        /Generators                                GeneratorsAction
-GET        /NewController                             NewControllerAction
-GET        /NewScript                                 NewScriptAction
-GET        /NewView                                   NewViewAction
-GET        /NewMail                                   NewMailAction
-GET        /NewAction                                 NewActionAction
-GET        /NewApplication                            NewApplicationAction
-GET        /NewJob                                    NewJobAction
+GET|POST   /NewController                             NewControllerAction
+GET|POST   /NewScript                                 NewScriptAction
+GET|POST   /NewView                                   NewViewAction
+GET|POST   /NewMail                                   NewMailAction
+GET|POST   /NewAction                                 NewActionAction
+GET|POST   /NewApplication                            NewApplicationAction
+GET|POST   /NewJob                                    NewJobAction
 POST       /CreateController                          CreateControllerAction
 POST       /CreateScript                              CreateScriptAction
 POST       /CreateView                                CreateViewAction
@@ -109,7 +112,7 @@ GET        /OpenController                            OpenControllerAction
 
 [routes|MigrationsController
 GET        /Migrations                                MigrationsAction
-GET        /NewMigration                              NewMigrationAction
+GET|POST   /NewMigration                              NewMigrationAction
 POST       /CreateMigration                           CreateMigrationAction
 GET        /EditMigration?migrationId                 EditMigrationAction
 POST|PATCH /UpdateMigration?migrationId               UpdateMigrationAction

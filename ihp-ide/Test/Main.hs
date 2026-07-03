@@ -19,6 +19,7 @@ import qualified IDE.WorkerSignalSpec
 import qualified IDE.PortConfigSpec
 import qualified SchemaCompilerSpec
 import qualified IDE.ToolServer.MiddlewareSpec
+import qualified IDE.ToolServer.RoutesSpec
 import qualified IDE.Logs.ControllerSpec
 import qualified IDE.DevServerSpec
 import qualified ServerSpec
@@ -41,6 +42,7 @@ main = hspec do
     IDE.PortConfigSpec.tests
     SchemaCompilerSpec.tests
     IDE.ToolServer.MiddlewareSpec.tests
+    IDE.ToolServer.RoutesSpec.tests
     IDE.Logs.ControllerSpec.tests
     IDE.DevServerSpec.tests
     ServerSpec.tests

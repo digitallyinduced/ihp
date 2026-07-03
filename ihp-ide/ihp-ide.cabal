@@ -379,6 +379,7 @@ test-suite tests
         IDE.PortConfigSpec
         SchemaCompilerSpec
         IDE.ToolServer.MiddlewareSpec
+        IDE.ToolServer.RoutesSpec
         IDE.Logs.ControllerSpec
         IDE.DevServerSpec
         ServerSpec
