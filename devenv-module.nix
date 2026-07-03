@@ -157,7 +157,7 @@ that is defined in flake-module.nix
                 ihpPackageNames = [
                     "ihp-ide" "ihp-hsx" "ihp-schema-compiler"
                     "ihp-postgres-parser" "ihp-pagehead"
-                    "ihp-log" "ihp-modal" "ihp-mail"
+                    "ihp-modal" "ihp-mail"
                     "ihp-migrate" "ihp-openai" "ihp-ssc" "ihp-graphql"
                     "ihp-datasync-typescript" "ihp-sitemap"
                     "ihp-job-dashboard" "ihp-imagemagick"
@@ -184,7 +184,7 @@ that is defined in flake-module.nix
                 ihpPackageNames = [
                     "ihp-ide" "ihp-hsx" "ihp-schema-compiler"
                     "ihp-postgres-parser" "ihp-pagehead"
-                    "ihp-log" "ihp-modal" "ihp-mail"
+                    "ihp-modal" "ihp-mail"
                     "ihp-migrate" "ihp-openai" "ihp-ssc" "ihp-graphql"
                     "ihp-datasync-typescript" "ihp-sitemap"
                     "ihp-job-dashboard" "ihp-imagemagick"
