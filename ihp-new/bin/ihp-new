@@ -12,60 +12,113 @@ fi
 IHP_NEW_VERSION="1.6.0"
 BOILERPLATE_GIT_URL="https://github.com/digitallyinduced/ihp-boilerplate.git"
 
-for _ in once; do
-	# requires at least one argument
-	# two could be wrong, more definitely are
-	# if it's one but it starts with a minus, that's invalid
-	if [ $# -lt 1 ] || [ $# -ge 2 ] || [[ "$#" == "1" && "$1" =~ ^-.* ]]; then
-		# two arguments where the first one is a valid option and the second doesn't start with minus are valid
-		if [[ "$#" == "2" ]] && [[ "$1" == "--default" || "$1" == "--elm" || "$1" == "--purescript-halogen" ]] && [[ "$2" =~ ^[^-].* ]]; then
-			break
-		fi
+DEFAULT_IHP_VERSION="1.6"
+SUPPORTED_IHP_VERSIONS="1.4 1.5 1.6"
 
-		if [[ "$#" == "1" && "$1" == "--version" ]]; then
+# Maps an IHP version to its ihp-boilerplate ref.
+boilerplate_ref_for_version() {
+	case "$1" in
+		1.6) echo "master" ;;
+		1.5) echo "v1.5" ;;
+		1.4) echo "v1.4.0" ;;
+		*) return 1 ;;
+	esac
+}
+
+print_usage() {
+	echo "Usage: ihp-new PROJECT_NAME"
+	echo ""
+	echo "or:    ihp-new --OPTION PROJECT_NAME"
+	echo ""
+	echo "Generates an empty IHP project"
+	echo ""
+	echo "Full documentation: https://ihp.digitallyinduced.com/Guide/installation.html"
+	echo "Project template: $BOILERPLATE_GIT_URL"
+	echo ""
+	echo "In case there already exists a directory named like the given project name, this script will stop execution."
+	echo ""
+	echo "Available options:"
+	echo ""
+	echo "        --version"
+	echo "            Print version of ihp-new"
+	echo ""
+	echo "        --ihp-version VERSION"
+	echo "            (default: $DEFAULT_IHP_VERSION)"
+	echo "            Selects the IHP version used by the generated project."
+	echo "            Supported versions: $SUPPORTED_IHP_VERSIONS"
+	echo ""
+	echo "        --default"
+	echo "            (recommended, default, code on branch master)"
+	echo "            Generates a pure IHP project."
+	echo ""
+	echo "        --elm"
+	echo "            (code on branch elm)"
+	echo "            Generates an IHP project with Elm ready to go."
+	echo ""
+	echo "        --purescript-halogen"
+	echo "            (code on branch purescript-halogen)"
+	echo "            Generates an IHP project with PureScript + Halogen ready to go."
+	echo ""
+}
+
+FLAVOR="default"
+IHP_VERSION="$DEFAULT_IHP_VERSION"
+PROJECT_NAME=""
+
+while [ $# -gt 0 ]; do
+	case "$1" in
+		--version)
 			echo "ihp-new version: $IHP_NEW_VERSION"
 			exit 0
-		fi
-
-		echo "Usage: ihp-new PROJECT_NAME"
-		echo ""
-		echo "or:    ihp-new --OPTION PROJECT_NAME"
-		echo ""
-		echo "Generates an empty IHP project"
-		echo ""
-		echo "Full documentation: https://ihp.digitallyinduced.com/Guide/installation.html"
-		echo "Project template: $BOILERPLATE_GIT_URL"
-		echo ""
-		echo "In case there already exists a directory named like the given project name, this script will stop execution."
-		echo ""
-		echo "Available options:"
-		echo ""
-		echo "        --version"
-		echo "            Print version of ihp-new"
-		echo ""
-		echo "        --default"
-		echo "            (recommended, default, code on branch master)"
-		echo "            Generates a pure IHP project."
-		echo ""
-		echo "        --elm"
-		echo "            (code on branch elm)"
-		echo "            Generates an IHP project with Elm ready to go."
-		echo ""
-		echo "        --purescript-halogen"
-		echo "            (code on branch purescript-halogen)"
-		echo "            Generates an IHP project with PureScript + Halogen ready to go."
-		echo ""
-
-		if [[ "$#" == "1" && "$1" == "--help" ]]; then
+			;;
+		--help)
+			print_usage
 			exit 0
-		fi
-		exit 1
-	fi
+			;;
+		--default | --elm | --purescript-halogen)
+			FLAVOR="${1#--}"
+			shift
+			;;
+		--ihp-version)
+			if [ -z "$2" ] || [[ "$2" =~ ^-.* ]]; then
+				echo "Error: --ihp-version requires a version argument (e.g. --ihp-version 1.5)"
+				exit 1
+			fi
+			IHP_VERSION="$2"
+			shift 2
+			;;
+		--ihp-version=*)
+			IHP_VERSION="${1#*=}"
+			shift
+			;;
+		-*)
+			echo "Error: unknown option '$1'"
+			echo ""
+			print_usage
+			exit 1
+			;;
+		*)
+			if [ -n "$PROJECT_NAME" ]; then
+				echo "Error: unexpected argument '$1' (project name '$PROJECT_NAME' already given)"
+				echo ""
+				print_usage
+				exit 1
+			fi
+			PROJECT_NAME="$1"
+			shift
+			;;
+	esac
 done
 
-PROJECT_NAME=$1
-if [[ "$#" == "2" ]]; then
-	PROJECT_NAME=$2
+if [ -z "$PROJECT_NAME" ]; then
+	print_usage
+	exit 1
+fi
+
+# Validate the requested IHP version
+if ! boilerplate_ref_for_version "$IHP_VERSION" >/dev/null; then
+	echo "Error: unsupported IHP version '$IHP_VERSION'. Supported versions: $SUPPORTED_IHP_VERSIONS"
+	exit 1
 fi
 
 if [ -d "$PROJECT_NAME" ]; then
@@ -218,16 +271,24 @@ if ! [ -x "$(command -v make)" ]; then
 	esac
 fi
 
-BOILERPLATE_GIT_BRANCH="master"
-
-if [[ "$1" == "--elm" ]]; then
+if [[ "$FLAVOR" == "elm" ]]; then
 	echo "We will now create your new IHP project with Elm. This may take up to 30 seconds."
 	BOILERPLATE_GIT_BRANCH="elm"
-elif [[ "$1" == "--purescript-halogen" ]]; then
+elif [[ "$FLAVOR" == "purescript-halogen" ]]; then
 	echo "We will now create your new IHP project with PureScript + Halogen. This may take up to 30 seconds."
 	BOILERPLATE_GIT_BRANCH="purescript-halogen"
 else
-	echo "We will now create your new IHP project. This may take up to 30 seconds."
+	BOILERPLATE_GIT_BRANCH="$(boilerplate_ref_for_version "$IHP_VERSION")"
+	if [[ "$IHP_VERSION" == "$DEFAULT_IHP_VERSION" ]]; then
+		echo "We will now create your new IHP project. This may take up to 30 seconds."
+	else
+		echo "We will now create your new IHP $IHP_VERSION project. This may take up to 30 seconds."
+	fi
+fi
+
+# --ihp-version only applies to the default flavor
+if [[ "$FLAVOR" != "default" && "$IHP_VERSION" != "$DEFAULT_IHP_VERSION" ]]; then
+	echo "Warning: --ihp-version $IHP_VERSION is only supported for the default project flavor; ignoring it for the $FLAVOR project."
 fi
 
 git clone --quiet --depth=1 --branch "$BOILERPLATE_GIT_BRANCH" "$BOILERPLATE_GIT_URL" -- "$PROJECT_NAME"
