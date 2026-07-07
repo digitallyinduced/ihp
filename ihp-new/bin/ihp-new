@@ -18,7 +18,7 @@ SUPPORTED_IHP_VERSIONS="1.4 1.5 1.6"
 # Maps an IHP version to its ihp-boilerplate ref.
 boilerplate_ref_for_version() {
 	case "$1" in
-		1.6) echo "master" ;;
+		1.6) echo "v1.6" ;;
 		1.5) echo "v1.5" ;;
 		1.4) echo "v1.4.0" ;;
 		*) return 1 ;;
@@ -48,7 +48,7 @@ print_usage() {
 	echo "            Supported versions: $SUPPORTED_IHP_VERSIONS"
 	echo ""
 	echo "        --default"
-	echo "            (recommended, default, code on branch master)"
+	echo "            (recommended, default, IHP $DEFAULT_IHP_VERSION)"
 	echo "            Generates a pure IHP project."
 	echo ""
 	echo "        --elm"
