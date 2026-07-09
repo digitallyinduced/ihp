@@ -349,7 +349,7 @@ do
     |]
 ```
 
-See the [Typed SQL Guide](typed-sql.html) for full details including RETURNING clauses, JOINs with nullable columns, and schema-change safety.
+See the [Typed SQL Guide](typed-sql.html) for full details including RETURNING clauses, no-result utility statements, JOINs with nullable columns, and schema-change safety.
 
 ### Unsafe raw SQL (escape hatch)
 

@@ -373,16 +373,18 @@ Common updates:
 +    Nothing -> ...
 ```
 
-Explicit `TypedQuery` signatures also need the cardinality argument:
+Explicit `TypedQuery` signatures also need cardinality and statement-result
+arguments. Row-returning queries use `'ReturnsRows`:
 
 ```diff
 -query :: TypedQuery Text
-+query :: TypedQuery 'ManyRows Text
++query :: TypedQuery 'ManyRows 'ReturnsRows Text
  query = [typedSql| SELECT name FROM posts ORDER BY name |]
 ```
 
 Use `'AtMostOneRow` for `LIMIT 1` / primary-key lookups and `'ExactlyOneRow`
-for singleton queries such as `COUNT(*)`.
+for singleton queries such as `COUNT(*)`. Import `QueryExecResult (..)` when
+you write explicit signatures using `'ReturnsRows`.
 
 You can also use cardinality-specific helper names when that makes migrations
 easier to read:
@@ -453,11 +455,17 @@ Import `Data.Int (Int64)` where you add explicit signatures.
      |> fetch
 ```
 
-`sqlExecTyped` returns `Int64` for the affected-row count. If your code annotated the result, update the annotation:
+`sqlExecTyped` returns `Int64` for the affected-row count of DML statements. If your code annotated the result, update the annotation:
 
 ```diff
 -rowsUpdated <- (sqlExecTyped [typedSql| UPDATE posts SET published = true |] :: IO Integer)
 +rowsUpdated <- (sqlExecTyped [typedSql| UPDATE posts SET published = true |] :: IO Int64)
+```
+
+Known no-result utility statements, such as `SET CONSTRAINTS`, return `()`:
+
+```haskell
+sqlExecTyped [typedSql| SET CONSTRAINTS ALL DEFERRED |] :: IO ()
 ```
 
 ## Join Support Removed from QueryBuilder
