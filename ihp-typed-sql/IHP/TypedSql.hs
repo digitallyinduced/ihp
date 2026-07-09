@@ -17,12 +17,17 @@ module IHP.TypedSql
     , sqlExecTyped
     ) where
 
+import qualified Data.Char                       as Char
+import qualified Data.Text                       as Text
 import qualified Hasql.Decoders                  as HasqlDecoders
 import qualified Hasql.DynamicStatements.Snippet as Snippet
 import qualified Hasql.Pipeline                  as HasqlPipeline
-import           IHP.ModelSupport                (sqlQueryHasql)
+import qualified Hasql.Statement                 as HasqlStatement
+import           IHP.ModelSupport                (sqlExecHasql, sqlExecHasqlCount, sqlQueryHasql)
 import           IHP.Prelude
+import qualified PostgresqlSyntax.Ast            as Ast
 
+import           IHP.TypedSql.ParamHints             (parseSql)
 import           IHP.TypedSql.Quoter                 (typedSql, typedSqlStar)
 import           IHP.TypedSql.Types                  (QueryCardinality (..), TypedQuery (..), TypedQueryResult)
 
@@ -114,14 +119,82 @@ sqlQueryTypedMaybeColumnPipelined query =
         Nothing -> Nothing
         Just inner -> inner
 
--- | Run a typed statement (INSERT\/UPDATE\/DELETE) and return the affected row count.
+data TypedExecResult
+    = TypedExecRowsAffected
+    | TypedExecNoResult
+    deriving (Eq, Show)
+
+-- | Run a typed statement and return the affected row count.
 --
 -- Use 'sqlQueryTyped' instead if your statement has a RETURNING clause.
+-- Statements without a row-count result, such as @SET CONSTRAINTS@, are run
+-- with Hasql's no-result decoder and return @0@.
 --
 -- > rowsAffected <- sqlExecTyped [typedSql| DELETE FROM items WHERE id = ${itemId} |]
 sqlExecTyped :: (?modelContext :: ModelContext) => TypedQuery cardinality result -> IO Int64
 sqlExecTyped TypedQuery { tqSnippet } =
-    runTypedSqlSession tqSnippet HasqlDecoders.rowsAffected
+    case typedExecResult tqSnippet of
+        TypedExecRowsAffected ->
+            sqlExecHasqlCount ?modelContext.hasqlPool tqSnippet
+        TypedExecNoResult -> do
+            sqlExecHasql ?modelContext.hasqlPool tqSnippet
+            pure 0
+
+typedExecResult :: Snippet.Snippet -> TypedExecResult
+typedExecResult snippet =
+    typedExecResultForSql (HasqlStatement.toSql (Snippet.toPreparableStatement snippet HasqlDecoders.noResult))
+
+typedExecResultForSql :: Text -> TypedExecResult
+typedExecResultForSql sql =
+    case parseSql (cs sql) of
+        Just (Ast.InsertPreparableStmt _) -> TypedExecRowsAffected
+        Just (Ast.UpdatePreparableStmt _) -> TypedExecRowsAffected
+        Just (Ast.DeletePreparableStmt _) -> TypedExecRowsAffected
+        _ ->
+            case firstSqlKeyword sql of
+                Just keyword | keyword `elem` rowsAffectedKeywords -> TypedExecRowsAffected
+                _ -> TypedExecNoResult
+
+rowsAffectedKeywords :: [Text]
+rowsAffectedKeywords =
+    [ "insert"
+    , "update"
+    , "delete"
+    , "merge"
+    ]
+
+firstSqlKeyword :: Text -> Maybe Text
+firstSqlKeyword sql =
+    let trimmed = dropSqlTrivia sql
+        keyword = Text.takeWhile isKeywordChar trimmed
+    in if Text.null keyword
+        then Nothing
+        else Just (Text.toLower keyword)
+
+dropSqlTrivia :: Text -> Text
+dropSqlTrivia sql =
+    let stripped = Text.dropWhile Char.isSpace sql
+    in if "--" `Text.isPrefixOf` stripped
+        then dropSqlTrivia (dropLineComment stripped)
+        else if "/*" `Text.isPrefixOf` stripped
+            then dropSqlTrivia (dropBlockComment stripped)
+            else stripped
+
+dropLineComment :: Text -> Text
+dropLineComment sql =
+    Text.drop 1 (Text.dropWhile (/= '\n') sql)
+
+dropBlockComment :: Text -> Text
+dropBlockComment sql =
+    let rest = Text.drop 2 sql
+        (_, afterComment) = Text.breakOn "*/" rest
+    in if Text.null afterComment
+        then ""
+        else Text.drop 2 afterComment
+
+isKeywordChar :: Char -> Bool
+isKeywordChar char =
+    Char.isAlphaNum char || char == '_'
 
 runTypedSqlSession :: (?modelContext :: ModelContext) => Snippet.Snippet -> HasqlDecoders.Result result -> IO result
 runTypedSqlSession snippet decoder =
