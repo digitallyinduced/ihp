@@ -42,7 +42,7 @@ action ItemsAction = do
     render IndexView { names }
 ```
 
-The `typedSql` quasiquoter produces a `TypedQuery cardinality result` value. Use `sqlQueryTyped` to execute it. The return shape follows the cardinality that can be proven from the SQL:
+The `typedSql` quasiquoter produces a `TypedQuery cardinality execResult result` value. Use `sqlQueryTyped` to execute statements that return rows. The return shape follows the cardinality that can be proven from the SQL:
 
 - many rows: `[result]`
 - at most one row, e.g. `LIMIT 1` or a primary-key lookup: `Maybe result`
@@ -210,7 +210,7 @@ names <- sqlQueryTyped [typedSql|
 
 ## INSERT / UPDATE / DELETE
 
-Use `sqlExecTyped` for write operations. It returns `Int64` (the number of affected rows). For known typed utility statements without an affected-row count, such as `SET CONSTRAINTS`, it returns `0` after the statement succeeds:
+Use `sqlExecTyped` for write operations. For `INSERT`, `UPDATE`, and `DELETE` statements without `RETURNING`, it returns `Int64` (the number of affected rows). For known typed utility statements without an affected-row count, such as `SET CONSTRAINTS`, it returns `()` after the statement succeeds:
 
 ```haskell
 rowsInserted <- sqlExecTyped [typedSql|
@@ -222,14 +222,14 @@ rowsDeleted <- sqlExecTyped [typedSql|
     DELETE FROM items WHERE views < ${minViews}
 |]
 
-_ <- sqlExecTyped [typedSql|
+sqlExecTyped [typedSql|
     SET CONSTRAINTS ALL DEFERRED
 |]
 ```
 
 ## Pagination
 
-Use `paginatedTypedSql` to paginate a typedSql query. It takes a `TypedQuery` and returns a list of records together with a `Pagination` state, mirroring IHP's other paginators:
+Use `paginatedTypedSql` to paginate a typedSql query. It takes a many-row `TypedQuery` that returns rows and returns a list of records together with a `Pagination` state, mirroring IHP's other paginators:
 
 ```haskell
 import IHP.TypedSql.Pagination (paginatedTypedSql, paginatedTypedSqlWithOptions)

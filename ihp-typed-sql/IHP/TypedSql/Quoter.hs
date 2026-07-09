@@ -10,14 +10,17 @@ module IHP.TypedSql.Quoter
 
 import qualified Control.Exception              as Exception
 import           Data.Coerce                    (coerce)
+import qualified Data.Char                      as Char
 import qualified Data.List                      as List
 import qualified Data.Map.Strict                as Map
 import qualified Data.Set                       as Set
 import qualified Data.String.Conversions        as CS
+import qualified Data.Text                      as Text
 import qualified Hasql.DynamicStatements.Snippet as Snippet
 import qualified Language.Haskell.TH            as TH
 import qualified Language.Haskell.TH.Quote      as TH
 import qualified Language.Haskell.TH.Syntax     as TH
+import qualified PostgresqlSyntax.Ast           as Ast
 import           Text.Read                      (readMaybe)
 import qualified Prelude
 import           IHP.Prelude
@@ -37,7 +40,7 @@ import           IHP.TypedSql.Placeholders      (PlaceholderPlan (..), parseExpr
                                                  planPlaceholders)
 import           IHP.TypedSql.RowType           (SqlRow (..), sanitizeColumnName, deduplicateNames, sqlRowType)
 import           IHP.TypedSql.TypeMapping       (hsTypeForColumns, hsTypesForColumns, hsTypeForParam, detectFullTable)
-import           IHP.TypedSql.Types             (QueryCardinality (..), TypedQuery (..))
+import           IHP.TypedSql.Types             (QueryCardinality (..), QueryExecResult (..), TypedQuery (..))
 
 -- | QuasiQuoter entry point for typed SQL.
 -- Disallows SELECT * and SELECT table.* by default to prevent production errors
@@ -143,6 +146,7 @@ typedSqlExp allowStar rawSql = do
 
     let nonNullableColumns = maybe Set.empty extractNonNullableComputedColumnsFromAst parsedAst
     let queryCardinality = maybe ManyRows (inferCardinality drTables) parsedAst
+    let queryExecResult = inferExecResult parsedAst (CS.cs ppDescribeSql) drColumns
 
     let isCompositeColumn =
             case drColumns of
@@ -185,13 +189,110 @@ typedSqlExp allowStar rawSql = do
                 )
                 resultDecoder
 
-    pure (TH.SigE typedQueryExpr (TH.AppT (TH.AppT (TH.ConT ''TypedQuery) (cardinalityType queryCardinality)) resultType))
+    pure
+        ( TH.SigE
+            typedQueryExpr
+            ( TH.AppT
+                ( TH.AppT
+                    (TH.AppT (TH.ConT ''TypedQuery) (cardinalityType queryCardinality))
+                    (execResultType queryExecResult)
+                )
+                resultType
+            )
+        )
 
 cardinalityType :: QueryCardinality -> TH.Type
 cardinalityType = \case
     ManyRows -> TH.PromotedT 'ManyRows
     AtMostOneRow -> TH.PromotedT 'AtMostOneRow
     ExactlyOneRow -> TH.PromotedT 'ExactlyOneRow
+
+execResultType :: QueryExecResult -> TH.Type
+execResultType = \case
+    ReturnsRows -> TH.PromotedT 'ReturnsRows
+    ReturnsAffectedRows -> TH.PromotedT 'ReturnsAffectedRows
+    ReturnsNoResult -> TH.PromotedT 'ReturnsNoResult
+
+inferExecResult :: Maybe Ast.PreparableStmt -> Text -> [DescribeColumn] -> QueryExecResult
+inferExecResult _ _ (_:_) =
+    ReturnsRows
+inferExecResult parsedAst sql [] =
+    case parsedAst of
+        Just (Ast.InsertPreparableStmt _) -> ReturnsAffectedRows
+        Just (Ast.UpdatePreparableStmt _) -> ReturnsAffectedRows
+        Just (Ast.DeletePreparableStmt _) -> ReturnsAffectedRows
+        Just (Ast.CallPreparableStmt _) -> ReturnsNoResult
+        _ ->
+            case firstSqlKeyword sql of
+                Just keyword | keyword `elem` noResultKeywords -> ReturnsNoResult
+                _ -> ReturnsAffectedRows
+
+noResultKeywords :: [Text]
+noResultKeywords =
+    -- Keep no-result classification explicit. Unknown statements should keep
+    -- the affected-rows decoder so unparsed DML cannot silently return ().
+    [ "alter"
+    , "analyze"
+    , "begin"
+    , "call"
+    , "cluster"
+    , "comment"
+    , "commit"
+    , "create"
+    , "deallocate"
+    , "discard"
+    , "drop"
+    , "grant"
+    , "listen"
+    , "lock"
+    , "notify"
+    , "prepare"
+    , "refresh"
+    , "reindex"
+    , "release"
+    , "reset"
+    , "revoke"
+    , "rollback"
+    , "savepoint"
+    , "set"
+    , "start"
+    , "truncate"
+    , "unlisten"
+    , "vacuum"
+    ]
+
+firstSqlKeyword :: Text -> Maybe Text
+firstSqlKeyword sql =
+    let trimmed = dropSqlTrivia sql
+        keyword = Text.takeWhile isKeywordChar trimmed
+    in if Text.null keyword
+        then Nothing
+        else Just (Text.toLower keyword)
+
+dropSqlTrivia :: Text -> Text
+dropSqlTrivia sql =
+    let stripped = Text.dropWhile Char.isSpace sql
+    in if "--" `Text.isPrefixOf` stripped
+        then dropSqlTrivia (dropLineComment stripped)
+        else if "/*" `Text.isPrefixOf` stripped
+            then dropSqlTrivia (dropBlockComment stripped)
+            else stripped
+
+dropLineComment :: Text -> Text
+dropLineComment sql =
+    Text.drop 1 (Text.dropWhile (/= '\n') sql)
+
+dropBlockComment :: Text -> Text
+dropBlockComment sql =
+    let rest = Text.drop 2 sql
+        (_, afterComment) = Text.breakOn "*/" rest
+    in if Text.null afterComment
+        then ""
+        else Text.drop 2 afterComment
+
+isKeywordChar :: Char -> Bool
+isKeywordChar char =
+    Char.isAlphaNum char || char == '_'
 
 isListType :: TH.Type -> Bool
 isListType = \case

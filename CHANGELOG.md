@@ -5,14 +5,15 @@
 - `typedSql` `${...}` parameters now accept `Maybe` and `[Maybe]` values, not just bare values and lists. Alongside `${x}` and `${[x]}` you can now write `${Just x}`, `${Nothing}` (binds SQL `NULL`), and `${[Just x]}` — so enum-filtered joins like `WHERE status = ANY(${[Just Active, Just Pending]})` work without fetch-ids-then-`filterWhereIn` or text casts. Bare values still work for every column, and wrong-typed parameters are still rejected at compile time.
 - The schema compiler now also generates a `DefaultParamEncoder [Maybe <Enum>]` instance for each enum type, alongside the existing `<Enum>`, `Maybe <Enum>`, and `[<Enum>]` instances, so `[Maybe <Enum>]` arrays bind as parameters.
 - `IHP.TypedSql` now exposes `sqlQueryTypedPipelined`, explicit cardinality helpers (`sqlQueryTypedRows`, `sqlQueryTypedOneOrNothing`, `sqlQueryTypedSingle`), and `sqlQueryTypedMaybeColumn`. `typedSql` also infers `json[b]_build_object` and `json[b]_build_array` as non-null computed JSON expressions.
-- `sqlExecTyped` now also supports known typed no-result utility statements such as `SET CONSTRAINTS ...`, returning `0` after successful execution. ([#2747](https://github.com/digitallyinduced/ihp/issues/2747))
+- `sqlExecTyped` now also supports known typed no-result utility statements such as `SET CONSTRAINTS ...`, returning `()` after successful execution. ([#2747](https://github.com/digitallyinduced/ihp/issues/2747))
 - Fixed the IDE codegen "Preview" buttons failing with `405 Method Not Allowed`: the `New*` ToolServer routes were declared GET-only in the routes-DSL migration, but the codegen views submit their preview and option forms via POST. They now accept `GET|POST` again, as AutoRoute did in v1.5. ([#2743](https://github.com/digitallyinduced/ihp/issues/2743), [#2744](https://github.com/digitallyinduced/ihp/pull/2744))
 
 ### Breaking Changes
 
-- `typedSql` now tracks conservative query cardinality in `TypedQuery`, and
-  `sqlQueryTyped` returns `[result]`, `Maybe result`, or `result` depending on
-  whether the query is inferred as many-row, at-most-one-row, or exactly-one-row.
+- `typedSql` now tracks conservative query cardinality and statement result
+  kind in `TypedQuery`, and `sqlQueryTyped` returns `[result]`,
+  `Maybe result`, or `result` depending on whether the query is inferred as
+  many-row, at-most-one-row, or exactly-one-row.
   For example, `SELECT COUNT(*) ...` now returns `Int64` directly, while
   `LIMIT 1` queries return `Maybe result`.
 

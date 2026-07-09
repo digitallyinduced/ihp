@@ -153,7 +153,7 @@ action UsersAction = do
 
 ## Typed SQL Pagination
 
-To paginate a [`typedSql`](typed-sql.html) query, use `paginatedTypedSql`. It is the typedSql counterpart to `paginatedSqlQuery`: it takes a `TypedQuery` and returns a list of records and a `Pagination` value, just like `paginate`.
+To paginate a [`typedSql`](typed-sql.html) query, use `paginatedTypedSql`. It is the typedSql counterpart to `paginatedSqlQuery`: it takes a many-row `TypedQuery` that returns rows and returns a list of records and a `Pagination` value, just like `paginate`.
 
 These functions live in the `IHP.TypedSql.Pagination` module, which is not part of `ControllerPrelude`, so add an explicit import:
 
