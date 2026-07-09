@@ -127,8 +127,8 @@ data TypedExecResult
 -- | Run a typed statement and return the affected row count.
 --
 -- Use 'sqlQueryTyped' instead if your statement has a RETURNING clause.
--- Statements without a row-count result, such as @SET CONSTRAINTS@, are run
--- with Hasql's no-result decoder and return @0@.
+-- Known utility statements without a row-count result, such as
+-- @SET CONSTRAINTS@, are run with Hasql's no-result decoder and return @0@.
 --
 -- > rowsAffected <- sqlExecTyped [typedSql| DELETE FROM items WHERE id = ${itemId} |]
 sqlExecTyped :: (?modelContext :: ModelContext) => TypedQuery cardinality result -> IO Int64
@@ -150,17 +150,44 @@ typedExecResultForSql sql =
         Just (Ast.InsertPreparableStmt _) -> TypedExecRowsAffected
         Just (Ast.UpdatePreparableStmt _) -> TypedExecRowsAffected
         Just (Ast.DeletePreparableStmt _) -> TypedExecRowsAffected
+        Just (Ast.CallPreparableStmt _) -> TypedExecNoResult
         _ ->
             case firstSqlKeyword sql of
-                Just keyword | keyword `elem` rowsAffectedKeywords -> TypedExecRowsAffected
-                _ -> TypedExecNoResult
+                Just keyword | keyword `elem` noResultKeywords -> TypedExecNoResult
+                _ -> TypedExecRowsAffected
 
-rowsAffectedKeywords :: [Text]
-rowsAffectedKeywords =
-    [ "insert"
-    , "update"
-    , "delete"
-    , "merge"
+noResultKeywords :: [Text]
+noResultKeywords =
+    -- Keep no-result classification explicit. Unknown statements should keep
+    -- the old rowsAffected decoder so unparsed DML cannot silently report 0.
+    [ "alter"
+    , "analyze"
+    , "begin"
+    , "call"
+    , "cluster"
+    , "comment"
+    , "commit"
+    , "create"
+    , "deallocate"
+    , "discard"
+    , "drop"
+    , "grant"
+    , "listen"
+    , "lock"
+    , "notify"
+    , "prepare"
+    , "refresh"
+    , "reindex"
+    , "release"
+    , "reset"
+    , "revoke"
+    , "rollback"
+    , "savepoint"
+    , "set"
+    , "start"
+    , "truncate"
+    , "unlisten"
+    , "vacuum"
     ]
 
 firstSqlKeyword :: Text -> Maybe Text

@@ -16,9 +16,8 @@
   `json_build_array`, and `jsonb_build_array` as non-null computed JSON
   expressions.
 
-- `sqlExecTyped` now also supports typed no-result statements such as
-  `SET CONSTRAINTS ...`, returning `0` when PostgreSQL does not provide an
-  affected-row count.
+- `sqlExecTyped` now also supports known typed no-result utility statements
+  such as `SET CONSTRAINTS ...`, returning `0` after successful execution.
 
 ## v1.7.0
 

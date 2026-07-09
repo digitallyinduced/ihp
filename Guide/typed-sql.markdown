@@ -210,7 +210,7 @@ names <- sqlQueryTyped [typedSql|
 
 ## INSERT / UPDATE / DELETE
 
-Use `sqlExecTyped` for write operations. It returns `Int64` (the number of affected rows). For typed statements where PostgreSQL does not provide an affected-row count, such as `SET CONSTRAINTS`, it returns `0` after the statement succeeds:
+Use `sqlExecTyped` for write operations. It returns `Int64` (the number of affected rows). For known typed utility statements without an affected-row count, such as `SET CONSTRAINTS`, it returns `0` after the statement succeeds:
 
 ```haskell
 rowsInserted <- sqlExecTyped [typedSql|
