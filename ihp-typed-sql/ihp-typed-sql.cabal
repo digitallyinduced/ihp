@@ -80,6 +80,7 @@ library
             , template-haskell
             , temporary
             , text
+            , unix
             , wai
 
 source-repository head
