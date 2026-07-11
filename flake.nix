@@ -55,6 +55,7 @@
                     services_migrate = ./NixSupport/nixosModules/services/migrate.nix;
                     services_loadSchema = ./NixSupport/nixosModules/services/loadSchema.nix;
                     services_appKeygen = ./NixSupport/nixosModules/services/app-keygen.nix;
+                    services_postgresExtensions = ./NixSupport/nixosModules/services/postgres-extensions.nix;
                     options = ./NixSupport/nixosModules/options.nix;
                     binaryCache = ./NixSupport/nixosModules/binaryCache.nix;
                 };

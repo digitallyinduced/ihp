@@ -18,6 +18,27 @@ tests = do
             it "should handle an empty schema" do
                 diffSchemas [] [] `shouldBe` []
 
+            it "should not generate statements for extensions" do
+                let targetSchema = sql [i|
+                    CREATE EXTENSION IF NOT EXISTS "earthdistance";
+                    CREATE TABLE users (
+                        id UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL
+                    );
+                |]
+                let actualSchema = sql [i|
+                    CREATE TABLE users (
+                        id UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL
+                    );
+                |]
+
+                diffSchemas targetSchema actualSchema `shouldBe` []
+
+            it "should not drop extensions that only exist in the database" do
+                let targetSchema = sql ""
+                let actualSchema = sql [i|CREATE EXTENSION IF NOT EXISTS "earthdistance";|]
+
+                diffSchemas targetSchema actualSchema `shouldBe` []
+
             it "should handle a new table" do
                 let targetSchema = sql [i|
                     CREATE TABLE users (

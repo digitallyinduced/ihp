@@ -57,6 +57,44 @@ let
             done
             exit 1
         fi
+
+        offendingExtensionFiles=""
+        for file in *.sql; do
+            [ -e "$file" ] || continue
+            if sed 's/--.*//' "$file" | grep -Eiq '(create|alter|drop)[[:space:]]+extension'; then
+                offendingExtensionFiles="$offendingExtensionFiles $file"
+            fi
+        done
+
+        if [ -n "$offendingExtensionFiles" ]; then
+            extensionNames="$(
+                for file in $offendingExtensionFiles; do
+                    sed 's/--.*//' "$file" \
+                        | grep -Eio '(create|alter|drop)[[:space:]]+extension([[:space:]]+if([[:space:]]+not)?[[:space:]]+exists)?[[:space:]]+"?[a-zA-Z0-9_-]+' \
+                        | awk '{ print $NF }' | tr -d '"' || true
+                done | sort -u
+            )"
+            firstExtension="$(printf '%s\n' "$extensionNames" | head -n1)"
+
+            echo "error: the following migrations contain CREATE/ALTER/DROP EXTENSION statements:" >&2
+            for file in $offendingExtensionFiles; do
+                echo "    Application/Migration/$file" >&2
+            done
+            echo "" >&2
+            echo "In production, migrations run as the app database user, which is not a" >&2
+            echo "superuser and cannot manage most extensions (e.g. earthdistance, postgis)." >&2
+            echo "" >&2
+            echo "Remove the statement from the migration and instead declare the extension" >&2
+            echo "in your NixOS deployment configuration:" >&2
+            echo "" >&2
+            printf '    services.ihp.postgresExtensions = [%s ];\n' "$(printf ' "%s"' $extensionNames)" >&2
+            echo "" >&2
+            echo "IHP then creates the extension as the postgres superuser before migrations run." >&2
+            echo "Keep 'CREATE EXTENSION IF NOT EXISTS ...' in Application/Schema.sql so fresh" >&2
+            echo "development databases still get it; for an existing development database run it" >&2
+            echo "once manually: psql -c 'CREATE EXTENSION IF NOT EXISTS \"$firstExtension\"'" >&2
+            exit 1
+        fi
     '' + ''
         mkdir -p $out
         touch $out/ok

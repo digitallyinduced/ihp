@@ -49,6 +49,26 @@ with lib;
             type = types.str;
         };
 
+        postgresExtensions = mkOption {
+            type = types.listOf types.str;
+            default = [];
+            example = [ "cube" "earthdistance" "pg_trgm" ];
+            description = ''
+                PostgreSQL extensions provisioned with CREATE EXTENSION IF NOT EXISTS
+                as the postgres superuser, before migrations run and before the schema
+                is loaded on a fresh server.
+
+                Needed because migrations run as the app database user, which cannot
+                CREATE EXTENSION for untrusted extensions (e.g. earthdistance, postgis).
+
+                Only used by the appWithPostgres module (local postgres). For external
+                databases (RDS etc.) create extensions manually.
+
+                Extensions not bundled with postgres (e.g. postgis) additionally need
+                services.postgresql.extensions to install the package.
+            '';
+        };
+
         # https://ihp.digitallyinduced.com/Guide/database-migrations.html#skipping-old-migrations
         minimumRevision = mkOption {
             type = types.int;

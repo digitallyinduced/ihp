@@ -10,6 +10,7 @@ in
         ihp.nixosModules.services_appKeygen
         ihp.nixosModules.services_worker
         ihp.nixosModules.services_migrate
+        ihp.nixosModules.services_postgresExtensions
     ];
 
     # Pin the nixpkgs to the IHP nixpkgs
@@ -20,6 +21,7 @@ in
 
     # Vim and psql commands are helpful when accessing the server
     environment.systemPackages = with pkgs; [ vim postgresql ];
+    programs.vim.enable = true;
     programs.vim.defaultEditor = true;
 
     # Allow public access
@@ -68,6 +70,7 @@ in
             CREATE DATABASE ${cfg.databaseName} OWNER ${cfg.databaseUser};
             GRANT ALL PRIVILEGES ON DATABASE ${cfg.databaseName} TO "${cfg.databaseUser}";
             \connect ${cfg.databaseName}
+            ${lib.concatMapStringsSep "\n" (extension: ''CREATE EXTENSION IF NOT EXISTS "${extension}";'') cfg.postgresExtensions}
             SET ROLE '${cfg.databaseUser}';
             CREATE TABLE IF NOT EXISTS schema_migrations (revision BIGINT NOT NULL UNIQUE);
             \i ${ihp}/IHPSchema.sql
