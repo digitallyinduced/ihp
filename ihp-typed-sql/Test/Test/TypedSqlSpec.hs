@@ -23,6 +23,7 @@ import           System.Directory                  (createDirectoryIfMissing,
                                                     listDirectory,
                                                     removePathForcibly)
 import           System.Environment                (getEnvironment, lookupEnv)
+import           System.Exit                       (ExitCode (..))
 import           System.FilePath                   (takeDirectory)
 import           System.IO                         (Handle, hClose, hFlush)
 import           System.IO.Temp.OsPath              (withSystemTempDirectory)
@@ -30,8 +31,10 @@ import           System.OsPath                     (encodeUtf, decodeUtf)
 import           System.Process                    (CreateProcess (..), ProcessHandle,
                                                     StdStream (CreatePipe, NoStream),
                                                     createProcess,
+                                                    getProcessExitCode,
                                                     interruptProcessGroupOf, proc,
                                                     readCreateProcessWithExitCode,
+                                                    readProcessWithExitCode,
                                                     terminateProcess, waitForProcess)
 import           System.Timeout                    (timeout)
 import           Test.Hspec
@@ -230,6 +233,57 @@ tests = do
                 secondInitializedAt <- getModificationTime pgVersionPath
                 secondInitializedAt `shouldBe` firstInitializedAt
 
+        it "rebuilds the automatic database when cached pgdata is missing" do
+            requireAutoDatabaseTools
+            withAutoDatabaseFixture
+                "CREATE TABLE typed_sql_rebuilt (id UUID PRIMARY KEY, name TEXT NOT NULL);\n"
+                \_tempDir _schemaPath stateDir envOverrides -> do
+                let testModule = mkTestModule "TypedQuery 'AtMostOneRow 'ReturnsRows Text"
+                        "[typedSql| SELECT name FROM typed_sql_rebuilt LIMIT 1 |]"
+                    pgDataPath = stateDir </> "pgdata"
+                    postmasterPath = pgDataPath </> "postmaster.pid"
+                    supervisorPidPath = stateDir </> "supervisor.pid"
+                firstOutput <- ghciLoadModuleWithEnv testModule envOverrides
+                assertGhciSuccess firstOutput
+                waitForCondition 200
+                    (do
+                        postmasterExists <- doesFileExist postmasterPath
+                        supervisorExists <- doesFileExist supervisorPidPath
+                        pure (not postmasterExists && not supervisorExists)
+                    ) `shouldReturn` True
+
+                removePathForcibly pgDataPath
+                doesFileExist (stateDir </> "schema.hash") `shouldReturn` True
+
+                secondOutput <- ghciLoadModuleWithEnv testModule envOverrides
+                assertGhciSuccess secondOutput
+                doesFileExist (pgDataPath </> "PG_VERSION") `shouldReturn` True
+
+        it "stops and reaps the supervisor while GHCi remains alive" do
+            requireAutoDatabaseTools
+            withAutoDatabaseFixture
+                "CREATE TABLE typed_sql_idle (id UUID PRIMARY KEY, name TEXT NOT NULL);\n"
+                \tempDir _schemaPath stateDir envOverrides -> do
+                let modulePath = tempDir </> "IdleTypedSqlCase.hs"
+                    postmasterPath = stateDir </> "pgdata" </> "postmaster.pid"
+                    supervisorPidPath = stateDir </> "supervisor.pid"
+                    testModule = mkTestModule "TypedQuery 'AtMostOneRow 'ReturnsRows Text"
+                        "[typedSql| SELECT name FROM typed_sql_idle LIMIT 1 |]"
+                (inputHandle, processHandle) <- startGhciLoadProcess modulePath testModule envOverrides
+                let cleanup = stopGhciProcess inputHandle processHandle
+                flip Exception.finally cleanup do
+                    initialized <- waitForCondition 1200 do
+                        postmasterExists <- doesFileExist postmasterPath
+                        supervisorExists <- doesFileExist supervisorPidPath
+                        schemaLoaded <- doesFileExist (stateDir </> "schema.hash")
+                        pure (postmasterExists && supervisorExists && schemaLoaded)
+                    initialized `shouldBe` True
+                    supervisorPid <- Prelude.readFile supervisorPidPath
+
+                    waitForCondition 300 (not <$> doesFileExist postmasterPath) `shouldReturn` True
+                    waitForCondition 100 (not <$> processIsAlive supervisorPid) `shouldReturn` True
+                    getProcessExitCode processHandle `shouldReturn` Nothing
+
         it "serializes concurrent automatic database initialization" do
             requireAutoDatabaseTools
             withAutoDatabaseFixture
@@ -322,6 +376,46 @@ tests = do
                         expectationFailure
                             ("expected cached pgdata to remain; state entries: " <> Prelude.show stateEntries)
                     waitForCondition 100 (not <$> doesDirectoryExist stateLockPath) `shouldReturn` True
+
+        it "stops PostgreSQL when the automatic database state directory is removed" do
+            requireAutoDatabaseTools
+            withAutoDatabaseFixture
+                ( "CREATE TABLE typed_sql_removed_state (id UUID PRIMARY KEY, name TEXT NOT NULL);\n"
+                    <> "SELECT pg_sleep(30);\n"
+                )
+                \tempDir _schemaPath stateDir envOverrides -> do
+                let modulePath = tempDir </> "RemovedStateTypedSqlCase.hs"
+                    postmasterPath = stateDir </> "pgdata" </> "postmaster.pid"
+                    supervisorPidPath = stateDir </> "supervisor.pid"
+                    testModule = mkTestModule "TypedQuery 'AtMostOneRow 'ReturnsRows Text"
+                        "[typedSql| SELECT name FROM typed_sql_removed_state LIMIT 1 |]"
+                (inputHandle, processHandle) <- startGhciLoadProcess modulePath testModule envOverrides
+                let cleanup = stopGhciProcess inputHandle processHandle
+                flip Exception.finally cleanup do
+                    initialized <- waitForCondition 1200 do
+                        postmasterExists <- doesFileExist postmasterPath
+                        supervisorExists <- doesFileExist supervisorPidPath
+                        pure (postmasterExists && supervisorExists)
+                    initialized `shouldBe` True
+
+                    postmasterPidContents <- Prelude.readFile postmasterPath
+                    postmasterPid <- case listToMaybe (Prelude.lines postmasterPidContents) of
+                        Just processId -> pure processId
+                        Nothing -> expectationFailure "postmaster.pid did not contain a process id" >> pure ""
+                    supervisorPid <- Prelude.readFile supervisorPidPath
+
+                    -- Let the supervisor persist the postmaster identity outside the state directory.
+                    threadDelay 1500000
+                    removePathForcibly stateDir
+                    postmasterStopped <- waitForCondition 200 (not <$> processIsAlive postmasterPid)
+                    unless postmasterStopped do
+                        postmasterStatus <- processStatus postmasterPid
+                        supervisorStatus <- processStatus supervisorPid
+                        expectationFailure
+                            ( "PostgreSQL did not stop; postmaster status: " <> Prelude.show postmasterStatus
+                                <> "; supervisor status: " <> Prelude.show supervisorStatus
+                            )
+                    waitForCondition 200 (not <$> processIsAlive supervisorPid) `shouldReturn` True
 
     describe "TypedSql macro compile-time success" do
         compilePassTest "primary key inferred as Id'"
@@ -791,6 +885,17 @@ waitForCondition attempts condition
         if satisfied
             then pure True
             else threadDelay 50000 >> waitForCondition (attempts - 1) condition
+
+processIsAlive :: String -> IO Bool
+processIsAlive processId = isJust <$> processStatus processId
+
+processStatus :: String -> IO (Maybe String)
+processStatus processId = do
+    (exitCode, stdOut, _) <- readProcessWithExitCode "ps" ["-p", processId, "-o", "stat=,command="] ""
+        `Exception.catch` \(_ :: IOException) -> pure (ExitFailure 1, "", "")
+    pure $ if exitCode == ExitSuccess && not (null stdOut)
+        then Just stdOut
+        else Nothing
 
 ghciLoadModule :: Text -> IO Text
 ghciLoadModule source =

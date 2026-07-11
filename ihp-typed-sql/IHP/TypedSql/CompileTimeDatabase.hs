@@ -7,7 +7,7 @@ module IHP.TypedSql.CompileTimeDatabase
     , withAutoDatabase
     ) where
 
-import           Control.Concurrent       (threadDelay)
+import           Control.Concurrent       (forkIO, threadDelay)
 import qualified Control.Exception        as Exception
 import           Data.Bits                (xor)
 import qualified Data.ByteString          as BS
@@ -36,7 +36,8 @@ import           System.Posix.Signals     (nullSignal, signalProcess)
 import           System.Posix.User        (getEffectiveUserID)
 import           System.Process           (CreateProcess (..), StdStream (NoStream),
                                             createProcess, getCurrentPid, getPid,
-                                            proc, readProcessWithExitCode)
+                                            proc, readProcessWithExitCode,
+                                            waitForProcess)
 import           Text.Read                (readMaybe)
 import qualified Prelude
 
@@ -67,6 +68,7 @@ data PostgreSqlTools = PostgreSqlTools
     , psqlPath      :: !FilePath
     , pgIsReadyPath :: !FilePath
     , shellPath     :: !FilePath
+    , psPath        :: !(Maybe FilePath)
     }
 
 autoDatabaseEnabled :: IO Bool
@@ -246,6 +248,7 @@ findPostgreSqlTools = do
     commands <- forM commandNames \command -> do
         executable <- findExecutable command >>= Prelude.traverse canonicalizePath
         pure (command, executable)
+    psPath <- findExecutable "ps" >>= Prelude.traverse canonicalizePath
     let missing = [command | (command, Nothing) <- commands]
     unless (null missing) do
         fail
@@ -266,6 +269,7 @@ findPostgreSqlTools = do
         , psqlPath = command "psql"
         , pgIsReadyPath = command "pg_isready"
         , shellPath = command "sh"
+        , psPath
         }
 
 ensureCompatibleCluster :: PostgreSqlTools -> AutoDatabase -> IO ()
@@ -276,19 +280,18 @@ ensureCompatibleCluster tools autoDatabase@AutoDatabase { adbRoot, adbPgData, ad
     storedFingerprint <- readFileIfExists (adbRoot </> "toolchain")
     let reusable = pgDataExists && pgVersionExists && storedFingerprint == Just fingerprint
 
-    when (pgDataExists && not reusable) do
+    unless reusable do
         waitForNoLeases adbRoot
-        stopped <- stopServer tools autoDatabase
-        unless stopped do
-            fail
-                ( "typedSql: cannot replace an incompatible compile-time database "
-                    <> "because PostgreSQL did not stop: " <> adbPgData
-                )
-        removePathForcibly adbPgData
+        when pgDataExists do
+            stopped <- stopServer tools autoDatabase
+            unless stopped do
+                fail
+                    ( "typedSql: cannot replace an incompatible compile-time database "
+                        <> "because PostgreSQL did not stop: " <> adbPgData
+                    )
+            removePathForcibly adbPgData
         removeFileIfExists (adbRoot </> "schema.hash")
         removeFileIfExists (adbRoot </> "toolchain")
-
-    unless reusable do
         runChecked (initdbPath tools) ["-D", adbPgData, "--no-locale", "--encoding=UTF8"]
         appendFile (adbPgData </> "postgresql.conf") "\ninclude_if_exists = 'ihp-typed-sql.conf'\n"
         writeFileAtomic (adbRoot </> "toolchain") fingerprint
@@ -328,6 +331,14 @@ ensureServer tools autoDatabase@AutoDatabase { adbPgData, adbPgHost, adbRoot } =
         Prelude.writeFile (adbRoot </> "postgresql.log") ""
         runChecked (pgCtlPath tools)
             ["-D", adbPgData, "-l", adbRoot </> "postgresql.log", "-w", "start"]
+    rememberPostmasterPid autoDatabase
+
+rememberPostmasterPid :: AutoDatabase -> IO ()
+rememberPostmasterPid AutoDatabase { adbPgData, adbPgHost } = do
+    postmasterPid <- readFileIfExists (adbPgData </> "postmaster.pid")
+    case postmasterPid >>= listToMaybe . Prelude.lines of
+        Just processId -> writeFileAtomic (adbPgHost </> "postmaster.pid") processId
+        Nothing -> fail ("typedSql: PostgreSQL did not write postmaster.pid in " <> adbPgData)
 
 stopServer :: PostgreSqlTools -> AutoDatabase -> IO Bool
 stopServer PostgreSqlTools { pgCtlPath } AutoDatabase { adbPgData } = do
@@ -457,7 +468,9 @@ ensureSupervisor tools autoDatabase@AutoDatabase { adbRoot, adbPgData, adbPgHost
         let script = supervisorScript
             process = (proc (shellPath tools)
                 [ "-c", script, "ihp-typed-sql-supervisor"
-                , adbRoot, adbPgData, adbPgHost, pgCtlPath tools, Prelude.show idleSeconds
+                , adbRoot, adbPgData, adbPgHost, pgCtlPath tools
+                , fromMaybe "" (psPath tools)
+                , Prelude.show idleSeconds
                 ])
                 { std_in = NoStream
                 , std_out = NoStream
@@ -469,6 +482,10 @@ ensureSupervisor tools autoDatabase@AutoDatabase { adbRoot, adbPgData, adbPgHost
         processId <- getPid processHandle
         forM_ processId \pid -> writeFileAtomic (adbRoot </> "supervisor.pid") (Prelude.show pid)
         Prelude.writeFile (adbPgHost </> "supervisor.heartbeat") ""
+        _ <- forkIO do
+            _ <- waitForProcess processHandle
+            pure ()
+        pure ()
 
 supervisorIsHealthy :: AutoDatabase -> IO Bool
 supervisorIsHealthy AutoDatabase { adbRoot, adbPgHost } = do
@@ -496,17 +513,35 @@ supervisorScript = List.unlines
     , "pgdata=$2"
     , "pghost=$3"
     , "pgctl=$4"
-    , "idle_seconds=$5"
+    , "ps=$5"
+    , "idle_seconds=$6"
     , "heartbeat=$pghost/supervisor.heartbeat"
+    , "remembered_postmaster_pid=$pghost/postmaster.pid"
     , "log=$root/supervisor.log"
     , "postmaster_pid="
     , "empty_seconds=0"
     , "missing_lock_owner_seconds=0"
     , ""
     , "refresh_postmaster_pid() {"
+    , "  postmaster_pid="
     , "  if [ -r \"$pgdata/postmaster.pid\" ]; then"
     , "    IFS= read -r postmaster_pid < \"$pgdata/postmaster.pid\" || true"
+    , "    if [ -n \"$postmaster_pid\" ]; then"
+    , "      printf '%s' \"$postmaster_pid\" > \"$remembered_postmaster_pid\" 2>/dev/null || true"
+    , "    fi"
+    , "  elif [ -r \"$remembered_postmaster_pid\" ]; then"
+    , "    IFS= read -r postmaster_pid < \"$remembered_postmaster_pid\" || true"
     , "  fi"
+    , "}"
+    , ""
+    , "postmaster_belongs_to_cluster() {"
+    , "  [ -n \"$postmaster_pid\" ] || return 1"
+    , "  [ -n \"$ps\" ] || return 1"
+    , "  postmaster_command=$(\"$ps\" -p \"$postmaster_pid\" -o command= 2>/dev/null) || return 1"
+    , "  case \"$postmaster_command\" in"
+    , "    *\"$pgdata\"*) return 0 ;;"
+    , "    *) return 1 ;;"
+    , "  esac"
     , "}"
     , ""
     , "prune_leases() {"
@@ -573,7 +608,7 @@ supervisorScript = List.unlines
     , "        refresh_postmaster_pid"
     , "        \"$pgctl\" -D \"$pgdata\" -m fast -w stop >> \"$log\" 2>&1 || true"
     , "        refresh_postmaster_pid"
-    , "        if [ -n \"$postmaster_pid\" ] && kill -0 \"$postmaster_pid\" 2>/dev/null; then"
+    , "        if postmaster_belongs_to_cluster && kill -0 \"$postmaster_pid\" 2>/dev/null; then"
     , "          printf 'PostgreSQL is still running after pg_ctl stop\\n' >> \"$log\" 2>/dev/null || true"
     , "          rm -rf \"$root/lock\""
     , "          empty_seconds=0"
@@ -593,8 +628,9 @@ supervisorScript = List.unlines
     , "  sleep 1"
     , "done"
     , ""
-    , "if [ -n \"$postmaster_pid\" ] && kill -0 \"$postmaster_pid\" 2>/dev/null; then"
-    , "  kill -TERM \"$postmaster_pid\" 2>/dev/null || true"
+    , "refresh_postmaster_pid"
+    , "if postmaster_belongs_to_cluster && kill -0 \"$postmaster_pid\" 2>/dev/null; then"
+    , "  kill -INT \"$postmaster_pid\" 2>/dev/null || true"
     , "fi"
     , "rm -f \"$root/supervisor.pid\" 2>/dev/null || true"
     , "rm -rf \"$pghost\" 2>/dev/null || true"
