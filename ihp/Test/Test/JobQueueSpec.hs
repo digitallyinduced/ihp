@@ -3,16 +3,22 @@ module Test.JobQueueSpec where
 import Test.Hspec
 import IHP.Prelude
 import qualified IHP.Job.Queue as JobQueue
+import IHP.Job.Queue.Pool (runPool)
 import IHP.ModelSupport (createModelContext, releaseModelContext, HasqlError (..), noopLogger)
 import System.Log.FastLogger (FastLogger)
 import qualified IHP.PGListener as PGListener
 import qualified Hasql.Pool as HasqlPool
 import qualified Hasql.Session as HasqlSession
+import qualified Hasql.Statement as Hasql
+import qualified Hasql.Encoders as Encoders
+import qualified Hasql.Decoders as Decoders
 import Control.Monad.Trans.Resource (runResourceT)
 import Control.Concurrent.STM (atomically, newTBQueue)
 import qualified Control.Concurrent as Concurrent
+import qualified Control.Concurrent.Async as Async
 import qualified Control.Exception as Exception
 import System.Environment (lookupEnv)
+import System.Timeout (timeout)
 
 data TestContext = TestContext
     { logger :: FastLogger
@@ -48,6 +54,60 @@ tests = do
                 didRecover <- waitUntil 6_000_000 (JobQueue.notificationTriggersHealthy pool longTestTableName)
                 didRecover `shouldBe` True
 
+        it "retries a failed startup install when poller repair is disabled" do
+            withJobWatcherForMissingTable False testTableName \pool -> do
+                createTestTable pool testTableName
+                didRecover <- waitUntil 6_000_000 (JobQueue.notificationTriggersHealthy pool testTableName)
+                didRecover `shouldBe` True
+
+        it "creates only the missing trigger while an ACCESS SHARE lock is held" do
+            withJobWatcher False \pool -> do
+                dropUpdateNotificationTrigger pool testTableName
+                lock <- Async.async (holdAccessShareLock pool testTableName)
+                Exception.finally
+                    (do
+                        didAcquireLock <- waitUntil 2_000_000 (accessShareLockHeld pool testTableName)
+                        didAcquireLock `shouldBe` True
+
+                        repairResult <- timeout 2_000_000 (ensureTestNotificationTriggers pool testTableName)
+                        repairResult `shouldBe` Just ()
+                        lockState <- Async.poll lock
+                        case lockState of
+                            Nothing -> pure ()
+                            Just _ -> expectationFailure "ACCESS SHARE lock was released before trigger repair completed"
+                        JobQueue.notificationTriggersHealthy pool testTableName `shouldReturn` True)
+                    (Async.cancel lock)
+
+        it "replaces disabled notification triggers" do
+            withJobWatcher False \pool -> do
+                disableInsertNotificationTrigger pool testTableName
+                JobQueue.notificationTriggersHealthy pool testTableName `shouldReturn` False
+                ensureTestNotificationTriggers pool testTableName
+                JobQueue.notificationTriggersHealthy pool testTableName `shouldReturn` True
+
+        it "replaces notification triggers with an invalid definition" do
+            withJobWatcher False \pool -> do
+                createInvalidInsertNotificationTrigger pool testTableName
+                JobQueue.notificationTriggersHealthy pool testTableName `shouldReturn` False
+                ensureTestNotificationTriggers pool testTableName
+                JobQueue.notificationTriggersHealthy pool testTableName `shouldReturn` True
+
+        it "does not wait for another trigger installer" do
+            withJobWatcher False \pool -> do
+                lock <- Async.async (holdTriggerInstallLock pool testTableName)
+                Exception.finally
+                    (do
+                        didAcquireLock <- waitUntil 2_000_000 (triggerInstallLockHeld pool)
+                        didAcquireLock `shouldBe` True
+
+                        let install = runScript pool (JobQueue.createNotificationTriggerSQL (cs testTableName))
+                        installResult <- timeout 1_000_000 (Exception.try install :: IO (Either HasqlError ()))
+                        case installResult of
+                            Just (Left _) -> pure ()
+                            Just (Right _) -> expectationFailure "concurrent trigger installation unexpectedly succeeded"
+                            Nothing -> expectationFailure "concurrent trigger installation waited for the advisory lock")
+                    (Async.cancel lock)
+
 withJobWatcher :: Bool -> (HasqlPool.Pool -> IO ()) -> IO ()
 withJobWatcher enablePollerTriggerRepair =
     withJobWatcherForTable enablePollerTriggerRepair testTableName
@@ -62,6 +122,23 @@ withJobWatcherForTable enablePollerTriggerRepair tableName action = do
             (do
                 dropTestArtifacts pool tableName
                 createTestTable pool tableName
+
+                PGListener.withPGListener databaseUrl logger \pgListener -> do
+                    runResourceT do
+                        queue <- liftIO (atomically (newTBQueue 32))
+                        (subscription, _) <- JobQueue.watchForJobWithPollerTriggerRepair enablePollerTriggerRepair pool pgListener tableName 100000 queue
+                        liftIO (action pool `Exception.finally` PGListener.unsubscribe subscription pgListener))
+            (dropTestArtifacts pool tableName)
+
+withJobWatcherForMissingTable :: Bool -> Text -> (HasqlPool.Pool -> IO ()) -> IO ()
+withJobWatcherForMissingTable enablePollerTriggerRepair tableName action = do
+    withDB \modelContext logger databaseUrl -> do
+        let ?context = TestContext { logger = logger }
+        let pool = modelContext.hasqlPool
+
+        Exception.finally
+            (do
+                dropTestArtifacts pool tableName
 
                 PGListener.withPGListener databaseUrl logger \pgListener -> do
                     runResourceT do
@@ -118,6 +195,73 @@ dropNotificationTriggers pool tableName =
     runScript pool $
         "DROP TRIGGER IF EXISTS " <> insertTriggerName tableName <> " ON \"" <> tableName <> "\";"
         <> "DROP TRIGGER IF EXISTS " <> updateTriggerName tableName <> " ON \"" <> tableName <> "\";"
+
+dropUpdateNotificationTrigger :: HasqlPool.Pool -> Text -> IO ()
+dropUpdateNotificationTrigger pool tableName =
+    runScript pool ("DROP TRIGGER IF EXISTS " <> updateTriggerName tableName <> " ON \"" <> tableName <> "\";")
+
+disableInsertNotificationTrigger :: HasqlPool.Pool -> Text -> IO ()
+disableInsertNotificationTrigger pool tableName =
+    runScript pool ("ALTER TABLE \"" <> tableName <> "\" DISABLE TRIGGER " <> insertTriggerName tableName <> ";")
+
+createInvalidInsertNotificationTrigger :: HasqlPool.Pool -> Text -> IO ()
+createInvalidInsertNotificationTrigger pool tableName =
+    runScript pool $
+        "DROP TRIGGER " <> insertTriggerName tableName <> " ON \"" <> tableName <> "\";"
+        <> "CREATE TRIGGER " <> insertTriggerName tableName
+        <> " AFTER INSERT ON \"" <> tableName <> "\""
+        <> " FOR EACH ROW WHEN (NEW.status = 'job_status_retry')"
+        <> " EXECUTE PROCEDURE " <> triggerFunctionName tableName <> "();"
+
+holdAccessShareLock :: HasqlPool.Pool -> Text -> IO ()
+holdAccessShareLock pool tableName =
+    runScript pool $
+        "BEGIN;"
+        <> "SET LOCAL application_name = 'ihp_job_queue_access_share_test';"
+        <> "LOCK TABLE \"" <> tableName <> "\" IN ACCESS SHARE MODE;"
+        <> "SELECT pg_sleep(3);"
+        <> "ROLLBACK;"
+
+accessShareLockHeld :: HasqlPool.Pool -> Text -> IO Bool
+accessShareLockHeld pool tableName = do
+    let sql = "SELECT EXISTS ("
+            <> " SELECT 1 FROM pg_locks l"
+            <> " JOIN pg_stat_activity a ON a.pid = l.pid"
+            <> " WHERE l.relation = $1::regclass"
+            <> " AND l.mode = 'AccessShareLock'"
+            <> " AND l.granted"
+            <> " AND a.application_name = 'ihp_job_queue_access_share_test')"
+    let encoder = Encoders.param (Encoders.nonNullable Encoders.text)
+    let decoder = Decoders.singleRow (Decoders.column (Decoders.nonNullable Decoders.bool))
+    let statement = Hasql.unpreparable sql encoder decoder
+    runPool pool (HasqlSession.statement tableName statement)
+
+holdTriggerInstallLock :: HasqlPool.Pool -> Text -> IO ()
+holdTriggerInstallLock pool tableName = do
+    let functionName = triggerFunctionName tableName
+    runScript pool $
+        "BEGIN;"
+        <> "SET LOCAL application_name = 'ihp_job_queue_trigger_install_test';"
+        <> "SELECT pg_advisory_xact_lock(hashtext(current_schema()), hashtext('" <> functionName <> "'::name::text));"
+        <> "SELECT pg_sleep(3);"
+        <> "ROLLBACK;"
+
+triggerInstallLockHeld :: HasqlPool.Pool -> IO Bool
+triggerInstallLockHeld pool = do
+    let sql = "SELECT EXISTS ("
+            <> " SELECT 1 FROM pg_locks l"
+            <> " JOIN pg_stat_activity a ON a.pid = l.pid"
+            <> " WHERE l.locktype = 'advisory'"
+            <> " AND l.granted"
+            <> " AND a.application_name = 'ihp_job_queue_trigger_install_test')"
+    let decoder = Decoders.singleRow (Decoders.column (Decoders.nonNullable Decoders.bool))
+    let statement = Hasql.unpreparable sql Encoders.noParams decoder
+    runPool pool (HasqlSession.statement () statement)
+
+ensureTestNotificationTriggers :: HasqlPool.Pool -> Text -> IO ()
+ensureTestNotificationTriggers pool tableName = do
+    let ?context = TestContext { logger = noopLogger }
+    JobQueue.ensureNotificationTriggers pool tableName
 
 dropTestArtifacts :: HasqlPool.Pool -> Text -> IO ()
 dropTestArtifacts pool tableName =
