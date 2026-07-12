@@ -58,10 +58,16 @@ let
             exit 1
         fi
 
+        # Strip SQL line comments, then flatten to a single line so statements
+        # spanning multiple lines are still detected
+        withoutComments() {
+            sed 's/--.*//' "$1" | tr '\n' ' '
+        }
+
         offendingExtensionFiles=""
         for file in *.sql; do
             [ -e "$file" ] || continue
-            if sed 's/--.*//' "$file" | grep -Eiq '(create|alter|drop)[[:space:]]+extension'; then
+            if withoutComments "$file" | grep -Eiq '(create|alter|drop)[[:space:]]+extension'; then
                 offendingExtensionFiles="$offendingExtensionFiles $file"
             fi
         done
@@ -69,7 +75,7 @@ let
         if [ -n "$offendingExtensionFiles" ]; then
             extensionNames="$(
                 for file in $offendingExtensionFiles; do
-                    sed 's/--.*//' "$file" \
+                    withoutComments "$file" \
                         | grep -Eio '(create|alter|drop)[[:space:]]+extension([[:space:]]+if([[:space:]]+not)?[[:space:]]+exists)?[[:space:]]+"?[a-zA-Z0-9_-]+' \
                         | awk '{ print $NF }' | tr -d '"' || true
                 done | sort -u

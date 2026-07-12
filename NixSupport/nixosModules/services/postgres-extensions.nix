@@ -5,10 +5,13 @@ let
     # Extension names referenced by CREATE EXTENSION statements in Application/Schema.sql
     schemaExtensions =
         let
-            matchLine = line: builtins.match ''[[:space:]]*[cC][rR][eE][aA][tT][eE][[:space:]]+[eE][xX][tT][eE][nN][sS][iI][oO][nN]([[:space:]]+[iI][fF][[:space:]]+[nN][oO][tT][[:space:]]+[eE][xX][iI][sS][tT][sS])?[[:space:]]+["']?([a-zA-Z0-9_-]+).*'' line;
-            extensionsInLine = line: let match = matchLine line; in if match == null then [] else [ (builtins.elemAt match 1) ];
+            # Strip SQL line comments, then flatten to a single line so statements
+            # spanning multiple lines are still detected
+            stripComment = line: builtins.elemAt (builtins.split "--" line) 0;
+            flattenedSchema = lib.concatMapStringsSep " " stripComment (lib.splitString "\n" (builtins.readFile cfg.schema));
+            matches = builtins.split ''[cC][rR][eE][aA][tT][eE][[:space:]]+[eE][xX][tT][eE][nN][sS][iI][oO][nN]([[:space:]]+[iI][fF][[:space:]]+[nN][oO][tT][[:space:]]+[eE][xX][iI][sS][tT][sS])?[[:space:]]+["']?([a-zA-Z0-9_-]+)'' flattenedSchema;
         in
-            lib.unique (lib.concatMap extensionsInLine (lib.splitString "\n" (builtins.readFile cfg.schema)));
+            lib.unique (lib.concatMap (match: if builtins.isList match then [ (builtins.elemAt match 1) ] else []) matches);
 
     undeclaredExtensions = lib.subtractLists cfg.postgresExtensions schemaExtensions;
 in
