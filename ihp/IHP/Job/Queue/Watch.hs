@@ -54,7 +54,10 @@ watchForJobWithPollerTriggerRepair :: (?context :: context, HasField "logger" co
 watchForJobWithPollerTriggerRepair enablePollerTriggerRepair pool pgListener tableName pollInterval onNewJob = do
     let tableNameBS = cs tableName
     liftIO do
-        runPool pool (HasqlSession.script (createNotificationTriggerSQL tableNameBS))
+        result <- Exception.tryAny (runPool pool (HasqlSession.script (createNotificationTriggerSQL tableNameBS)))
+        case result of
+            Left err -> ?context.logger (toLogStr ("Failed to install notification triggers for " <> tableName <> ": " <> tshow err <> ". Falling back to poller."))
+            Right _ -> pure ()
 
         -- Recreate notification triggers when PGListener reconnects (e.g. after `make db` drops the database)
         PGListener.onReconnect (\connection -> do
@@ -143,25 +146,52 @@ ensureNotificationTriggers pool tableName = do
 
 -- | Returns a SQL script to create the notification trigger.
 --
--- Wrapped in a DO $$ block with EXCEPTION handler because concurrent requests
--- can race to CREATE OR REPLACE the same function, causing PostgreSQL to throw
--- 'tuple concurrently updated' (SQLSTATE XX000). This is safe to ignore: the
--- other connection's CREATE OR REPLACE will have succeeded.
+-- The function body is always updated via @CREATE OR REPLACE FUNCTION@, which only
+-- locks the function's row in @pg_proc@, not the job table.
+--
+-- The trigger DDL is only executed when the triggers don't exist yet:
+-- @DROP TRIGGER@ takes an @AccessExclusiveLock@ on the job table, which conflicts with
+-- every other lock — even the @AccessShareLock@s held by a running @pg_dump@. Running
+-- DROP + CREATE TRIGGER unconditionally on every start meant a job worker (re)started
+-- while a backup was in flight would block on the trigger DDL, and all subsequent
+-- INSERTs/UPDATEs on the job table would queue up behind that pending lock request,
+-- stalling job processing until the backup finished.
+--
+-- When the triggers are actually missing (first install, or after @make db@), a short
+-- @lock_timeout@ makes the DDL fail fast instead of blocking; the caller falls back to
+-- the poller and the trigger installation is retried on the next reconnect.
+--
+-- The @pg_advisory_xact_lock@ serializes concurrent installation attempts, which would
+-- otherwise cause 'tuple concurrently updated' (XX000) errors from concurrent
+-- @CREATE OR REPLACE FUNCTION@ calls.
+--
+-- Note: because existing triggers are left untouched, a change to the trigger
+-- definition itself requires dropping the old triggers once (e.g. in a migration)
+-- so they get recreated with the new definition.
 createNotificationTriggerSQL :: ByteString -> Text
 createNotificationTriggerSQL tableName =
         cs $
         "DO $$\n"
         <> "BEGIN\n"
+        <> "    PERFORM pg_advisory_xact_lock(hashtext('" <> functionName <> "'));\n"
         <> "    CREATE OR REPLACE FUNCTION " <> functionName <> "() RETURNS TRIGGER AS $BODY$"
             <> "BEGIN\n"
             <> "    PERFORM pg_notify('" <> channelName tableName <> "', '');\n"
             <> "    RETURN new;"
             <> "\nEND;\n"
             <> "$BODY$ language plpgsql;\n"
-        <> "    DROP TRIGGER IF EXISTS " <> insertTriggerName <> " ON " <> tableName <> ";\n"
-        <> "    CREATE TRIGGER " <> insertTriggerName <> " AFTER INSERT ON \"" <> tableName <> "\" FOR EACH ROW WHEN (NEW.status = 'job_status_not_started' OR NEW.status = 'job_status_retry') EXECUTE PROCEDURE " <> functionName <> "();\n"
-        <> "    DROP TRIGGER IF EXISTS " <> updateTriggerName <> " ON " <> tableName <> ";\n"
-        <> "    CREATE TRIGGER " <> updateTriggerName <> " AFTER UPDATE ON \"" <> tableName <> "\" FOR EACH ROW WHEN (NEW.status = 'job_status_not_started' OR NEW.status = 'job_status_retry') EXECUTE PROCEDURE " <> functionName <> "();\n"
+        <> "    IF NOT EXISTS (SELECT 1 FROM pg_trigger WHERE tgname = '" <> insertTriggerName <> "'::name AND tgrelid = '" <> tableName <> "'::regclass)\n"
+        <> "       OR NOT EXISTS (SELECT 1 FROM pg_trigger WHERE tgname = '" <> updateTriggerName <> "'::name AND tgrelid = '" <> tableName <> "'::regclass) THEN\n"
+        <> "        SET LOCAL lock_timeout = '5s';\n"
+        <> "        BEGIN\n"
+        <> "            DROP TRIGGER IF EXISTS " <> insertTriggerName <> " ON \"" <> tableName <> "\";\n"
+        <> "            CREATE TRIGGER " <> insertTriggerName <> " AFTER INSERT ON \"" <> tableName <> "\" FOR EACH ROW WHEN (NEW.status = 'job_status_not_started' OR NEW.status = 'job_status_retry') EXECUTE PROCEDURE " <> functionName <> "();\n"
+        <> "            DROP TRIGGER IF EXISTS " <> updateTriggerName <> " ON \"" <> tableName <> "\";\n"
+        <> "            CREATE TRIGGER " <> updateTriggerName <> " AFTER UPDATE ON \"" <> tableName <> "\" FOR EACH ROW WHEN (NEW.status = 'job_status_not_started' OR NEW.status = 'job_status_retry') EXECUTE PROCEDURE " <> functionName <> "();\n"
+        <> "        EXCEPTION\n"
+        <> "            WHEN duplicate_object THEN null; -- another connection installed the triggers first\n"
+        <> "        END;\n"
+        <> "    END IF;\n"
         <> "EXCEPTION\n"
         <> "    WHEN SQLSTATE 'XX000' THEN null; -- 'tuple concurrently updated': another connection installed it first\n"
         <> "END; $$"
