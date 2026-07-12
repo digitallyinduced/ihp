@@ -7,7 +7,9 @@ module IHP.TypedSql.CompileTimeDatabase
     , withAutoDatabase
     ) where
 
-import           Control.Concurrent       (forkIO, threadDelay)
+import           Control.Concurrent       (MVar, forkIO, modifyMVar, modifyMVar_,
+                                            newEmptyMVar, newMVar, putMVar,
+                                            readMVar, threadDelay, withMVar)
 import qualified Control.Exception        as Exception
 import           Data.Bits                (xor)
 import qualified Data.ByteString          as BS
@@ -22,23 +24,24 @@ import           System.Directory         (canonicalizePath, createDirectory,
                                             createDirectoryIfMissing,
                                             doesDirectoryExist, doesFileExist,
                                             findExecutable, getCurrentDirectory,
-                                            getModificationTime, listDirectory,
-                                            makeAbsolute, removeFile,
-                                            removePathForcibly, renameFile)
+                                            listDirectory, makeAbsolute,
+                                            removePathForcibly)
 import           System.Environment       (lookupEnv)
 import           System.Exit              (ExitCode (ExitFailure, ExitSuccess))
 import           System.FilePath          (takeDirectory)
-import           System.IO                (appendFile)
+import           System.IO                (Handle, appendFile, hClose)
 import           System.IO.Temp           (createTempDirectory)
 import           System.Posix.Files       (fileOwner, getSymbolicLinkStatus,
                                             isDirectory, setFileMode)
 import           System.Posix.Signals     (nullSignal, signalProcess)
 import           System.Posix.User        (getEffectiveUserID)
-import           System.Process           (CreateProcess (..), StdStream (NoStream),
-                                            createProcess, getCurrentPid, getPid,
-                                            proc, readProcessWithExitCode,
-                                            waitForProcess)
+import           System.Process           (CreateProcess (..), StdStream (CreatePipe, NoStream),
+                                            createProcess, getCurrentPid, proc,
+                                            readProcessWithExitCode,
+                                            terminateProcess, waitForProcess)
+import           System.Timeout           (timeout)
 import           Text.Read                (readMaybe)
+import qualified System.IO.Unsafe         as Unsafe
 import qualified Prelude
 
 data AutoDatabase = AutoDatabase
@@ -49,9 +52,16 @@ data AutoDatabase = AutoDatabase
     , adbSchemaHash :: !String
     }
 
-data AutoDatabaseLease = AutoDatabaseLease
-    { adlDatabase  :: !AutoDatabase
-    , adlLeasePath :: !FilePath
+data ManagedAutoDatabase = ManagedAutoDatabase
+    { madDatabase             :: !AutoDatabase
+    , madToolchainFingerprint :: !String
+    , madWatchdogInput        :: !Handle
+    , madWatchdogDone         :: !(MVar ())
+    }
+
+data AutoDatabaseState = AutoDatabaseState
+    { adsDatabase   :: !(Maybe ManagedAutoDatabase)
+    , adsGeneration :: !Word64
     }
 
 data SchemaInputs = SchemaInputs
@@ -68,8 +78,18 @@ data PostgreSqlTools = PostgreSqlTools
     , psqlPath      :: !FilePath
     , pgIsReadyPath :: !FilePath
     , shellPath     :: !FilePath
-    , psPath        :: !(Maybe FilePath)
     }
+
+autoDatabaseState :: MVar AutoDatabaseState
+autoDatabaseState = Unsafe.unsafePerformIO (newMVar AutoDatabaseState
+    { adsDatabase = Nothing
+    , adsGeneration = 0
+    })
+{-# NOINLINE autoDatabaseState #-}
+
+autoDatabaseOperationLock :: MVar ()
+autoDatabaseOperationLock = Unsafe.unsafePerformIO (newMVar ())
+{-# NOINLINE autoDatabaseOperationLock #-}
 
 autoDatabaseEnabled :: IO Bool
 autoDatabaseEnabled =
@@ -77,49 +97,243 @@ autoDatabaseEnabled =
         Just value -> map Char.toLower value `elem` ["1", "true", "yes", "on"]
         Nothing -> False
 
--- | Run a metadata operation against the worktree-local compile-time database.
--- The lease covers only the operation, allowing the database to stop while a
--- long-running GHCi or HLS process remains idle.
+-- | Run a metadata operation against a database private to this GHC process.
+-- PostgreSQL is stopped after a short idle period, while an EOF watchdog removes
+-- the complete cluster when the compiler exits, including after an abrupt exit.
 withAutoDatabase :: (AutoDatabase -> IO a) -> IO a
-withAutoDatabase action = do
-    schemaInputs <- discoverSchemaInputs
-    Exception.bracket
-        (acquireAutoDatabase schemaInputs)
-        releaseAutoDatabase
-        (action . adlDatabase)
+withAutoDatabase action =
+    withMVar autoDatabaseOperationLock \_ -> do
+        schemaInputs <- discoverSchemaInputs
+        tools <- findPostgreSqlTools
+        (managed, generation) <- modifyMVar autoDatabaseState \state -> do
+            database <- ensureManagedDatabase tools schemaInputs (adsDatabase state)
+            let generation = adsGeneration state + 1
+            pure
+                ( AutoDatabaseState
+                    { adsDatabase = Just database
+                    , adsGeneration = generation
+                    }
+                , (database, generation)
+                )
+        action (madDatabase managed)
+            `Exception.finally` scheduleIdleStop tools generation
 
-acquireAutoDatabase :: SchemaInputs -> IO AutoDatabaseLease
-acquireAutoDatabase schemaInputs = do
-    tools <- findPostgreSqlTools
-    configuredRoot <- autoDatabaseRoot schemaInputs
-    createDirectoryIfMissing True configuredRoot
-    root <- canonicalizePath configuredRoot
+scheduleIdleStop :: PostgreSqlTools -> Word64 -> IO ()
+scheduleIdleStop tools generation = do
+    idleSeconds <- autoDatabaseIdleSeconds
+    _ <- forkIO do
+        threadDelay (idleSeconds * 1000000)
+        modifyMVar_ autoDatabaseState \state -> do
+            when (adsGeneration state == generation) do
+                forM_ (adsDatabase state) (stopServer tools . madDatabase)
+            pure state
+    pure ()
+
+autoDatabaseIdleSeconds :: IO Int
+autoDatabaseIdleSeconds = do
+    configured <- lookupEnv "IHP_TYPED_SQL_IDLE_SECONDS"
+    pure $ case configured >>= readMaybe of
+        Just seconds | seconds > 0 -> seconds
+        _ -> 3
+
+ensureManagedDatabase
+    :: PostgreSqlTools
+    -> SchemaInputs
+    -> Maybe ManagedAutoDatabase
+    -> IO ManagedAutoDatabase
+ensureManagedDatabase tools schemaInputs current = do
+    fingerprint <- toolchainFingerprint tools
+    case current of
+        Just managed -> do
+            let database = madDatabase managed
+            pgVersionExists <- doesFileExist (adbPgData database </> "PG_VERSION")
+            if pgVersionExists && madToolchainFingerprint managed == fingerprint
+                then do
+                    database' <- (do
+                        ensureServer tools database
+                        ensureCurrentSchema tools schemaInputs database
+                        ) `Exception.onException` stopServer tools database
+                    pure managed { madDatabase = database' }
+                else do
+                    destroyManagedDatabase tools managed
+                    startManagedDatabase tools fingerprint schemaInputs
+        Nothing -> startManagedDatabase tools fingerprint schemaInputs
+
+startManagedDatabase
+    :: PostgreSqlTools
+    -> String
+    -> SchemaInputs
+    -> IO ManagedAutoDatabase
+startManagedDatabase tools fingerprint schemaInputs = do
+    stateRoot <- autoDatabaseStateRoot schemaInputs
+    createDirectoryIfMissing True stateRoot
+    stateRoot' <- canonicalizePath stateRoot
+    ensurePrivateDirectory stateRoot'
+    let processesRoot = stateRoot' </> "processes"
+    createDirectoryIfMissing True processesRoot
+    ensurePrivateDirectory processesRoot
+    pruneStaleProcessDirectories tools processesRoot
+
+    processId <- getCurrentPid
+    root <- createTempDirectory processesRoot ("ghc-" <> Prelude.show processId <> "-")
     ensurePrivateDirectory root
-    createDirectoryIfMissing True (leasesDirectory root)
-    ensurePrivateDirectory (leasesDirectory root)
+    Prelude.writeFile (root </> "owner.pid") (Prelude.show processId)
     pgHost <- socketDirectory root
     let pgData = root </> "pgdata"
-        autoDatabase = AutoDatabase
+        database = AutoDatabase
             { adbUrl = CS.cs ("postgresql:///app?host=" <> pgHost)
             , adbRoot = root
             , adbPgData = pgData
             , adbPgHost = pgHost
-            , adbSchemaHash = siHash schemaInputs
+            , adbSchemaHash = ""
             }
 
-    withStateLock root do
-        ensurePrivateDirectory pgHost
-        ensureCompatibleCluster tools autoDatabase
-        ensureSupervisor tools autoDatabase
-        ensureServer tools autoDatabase
-        ensureCurrentSchema tools schemaInputs autoDatabase
-        leasePath <- createLease root
-        pure AutoDatabaseLease { adlDatabase = autoDatabase, adlLeasePath = leasePath }
+    (watchdogInput, watchdogDone) <- startWatchdog tools database
+    let managed = ManagedAutoDatabase
+            { madDatabase = database
+            , madToolchainFingerprint = fingerprint
+            , madWatchdogInput = watchdogInput
+            , madWatchdogDone = watchdogDone
+            }
+    (do
+        runChecked (initdbPath tools)
+            [ "-D", pgData
+            , "--no-locale"
+            , "--encoding=UTF8"
+            , "--no-sync"
+            , "--wal-segsize=1"
+            ]
+        appendFile (pgData </> "postgresql.conf") (postgresqlConfiguration pgHost)
+        ensureServer tools database
+        database' <- ensureCurrentSchema tools schemaInputs database
+        pure managed { madDatabase = database' }
+        ) `Exception.onException` destroyManagedDatabase tools managed
 
-releaseAutoDatabase :: AutoDatabaseLease -> IO ()
-releaseAutoDatabase AutoDatabaseLease { adlLeasePath } = do
-    ignoreIOException (Prelude.writeFile (adlLeasePath </> "released") "")
-    ignoreIOException (removePathForcibly adlLeasePath)
+postgresqlConfiguration :: FilePath -> String
+postgresqlConfiguration pgHost =
+    let escapedSocketPath = concatMap (\character -> if character == '\'' then "''" else [character]) pgHost
+    in List.unlines
+        [ "unix_socket_directories = '" <> escapedSocketPath <> "'"
+        , "listen_addresses = ''"
+        , "shared_buffers = 4MB"
+        , "max_connections = 10"
+        , "autovacuum = off"
+        , "fsync = off"
+        , "synchronous_commit = off"
+        , "full_page_writes = off"
+        , "wal_level = minimal"
+        , "max_wal_senders = 0"
+        , "max_worker_processes = 0"
+        , "max_parallel_workers = 0"
+        , "jit = off"
+        , "min_wal_size = 4MB"
+        , "max_wal_size = 32MB"
+        ]
+
+startWatchdog :: PostgreSqlTools -> AutoDatabase -> IO (Handle, MVar ())
+startWatchdog PostgreSqlTools { pgCtlPath, shellPath } AutoDatabase { adbRoot, adbPgData, adbPgHost } = do
+    let process = (proc shellPath
+            [ "-c", watchdogScript, "ihp-typed-sql-watchdog"
+            , pgCtlPath, adbRoot, adbPgData, adbPgHost
+            ])
+            { std_in = CreatePipe
+            , std_out = NoStream
+            , std_err = NoStream
+            , close_fds = True
+            , new_session = True
+            }
+    (maybeInput, _, _, processHandle) <- createProcess process
+    case maybeInput of
+        Nothing -> do
+            terminateProcess processHandle
+            fail "typedSql: failed to create the compile-time database watchdog pipe"
+        Just watchdogInput -> do
+            watchdogDone <- newEmptyMVar
+            _ <- forkIO do
+                _ <- waitForProcess processHandle
+                    `Exception.finally` putMVar watchdogDone ()
+                pure ()
+            pure (watchdogInput, watchdogDone)
+
+watchdogScript :: String
+watchdogScript = List.unlines
+    [ "pgctl=$1"
+    , "root=$2"
+    , "pgdata=$3"
+    , "pghost=$4"
+    , "IFS= read -r _ || true"
+    , "\"$pgctl\" -D \"$pgdata\" -m fast -w stop >/dev/null 2>&1 || true"
+    , "rm -rf \"$root\""
+    , "rm -rf \"$pghost\""
+    ]
+
+destroyManagedDatabase :: PostgreSqlTools -> ManagedAutoDatabase -> IO ()
+destroyManagedDatabase tools ManagedAutoDatabase { madDatabase, madWatchdogInput, madWatchdogDone } = do
+    ignoreIOException (hClose madWatchdogInput)
+    finished <- timeout 10000000 (readMVar madWatchdogDone)
+    when (isNothing finished) do
+        stopServer tools madDatabase
+        ignoreIOException (removePathForcibly (adbRoot madDatabase))
+        ignoreIOException (removePathForcibly (adbPgHost madDatabase))
+
+pruneStaleProcessDirectories :: PostgreSqlTools -> FilePath -> IO ()
+pruneStaleProcessDirectories tools processesRoot = do
+    entries <- listDirectory processesRoot
+    forM_ entries \entry -> do
+        let root = processesRoot </> entry
+        isProcessDirectory <- doesDirectoryExist root
+        when isProcessDirectory do
+            owner <- readFileIfExists (root </> "owner.pid")
+            forM_ owner \ownerPid -> do
+                alive <- processIsAlive ownerPid
+                unless alive do
+                    pgHost <- socketDirectoryPath root
+                    let database = AutoDatabase
+                            { adbUrl = ""
+                            , adbRoot = root
+                            , adbPgData = root </> "pgdata"
+                            , adbPgHost = pgHost
+                            , adbSchemaHash = ""
+                            }
+                    stopServer tools database
+                    ignoreIOException (removePathForcibly root)
+                    ignoreIOException (removePathForcibly pgHost)
+
+ensureServer :: PostgreSqlTools -> AutoDatabase -> IO ()
+ensureServer tools database@AutoDatabase { adbPgData, adbRoot } = do
+    ready <- databaseIsReady tools database
+    unless ready do
+        stopServer tools database
+        Prelude.writeFile (adbRoot </> "postgresql.log") ""
+        runChecked (pgCtlPath tools)
+            ["-D", adbPgData, "-l", adbRoot </> "postgresql.log", "-w", "start"]
+
+stopServer :: PostgreSqlTools -> AutoDatabase -> IO ()
+stopServer PostgreSqlTools { pgCtlPath } AutoDatabase { adbPgData } = do
+    pgDataExists <- doesDirectoryExist adbPgData
+    when pgDataExists do
+        _ <- readProcessWithExitCode
+            pgCtlPath ["-D", adbPgData, "-m", "fast", "-w", "stop"] ""
+            `Exception.catch` \(_ :: IOException) -> pure (ExitFailure 1, "", "")
+        pure ()
+
+databaseIsReady :: PostgreSqlTools -> AutoDatabase -> IO Bool
+databaseIsReady PostgreSqlTools { pgIsReadyPath } AutoDatabase { adbPgHost } = do
+    (exitCode, _, _) <- readProcessWithExitCode pgIsReadyPath ["-h", adbPgHost, "-d", "postgres"] ""
+        `Exception.catch` \(_ :: IOException) -> pure (ExitFailure 1, "", "")
+    pure (exitCode == ExitSuccess)
+
+ensureCurrentSchema :: PostgreSqlTools -> SchemaInputs -> AutoDatabase -> IO AutoDatabase
+ensureCurrentSchema tools schemaInputs database@AutoDatabase { adbRoot, adbPgHost, adbSchemaHash }
+    | adbSchemaHash == siHash schemaInputs = pure database
+    | otherwise = do
+        runChecked (dropdbPath tools) ["--if-exists", "-h", adbPgHost, "app"]
+        runChecked (createdbPath tools) ["-h", adbPgHost, "app"]
+        forM_ (catMaybes [siIhpSchema schemaInputs, Just (siAppSchema schemaInputs)]) \schemaFile ->
+            runChecked (psqlPath tools)
+                ["-v", "ON_ERROR_STOP=1", "-h", adbPgHost, "app", "-f", schemaFile]
+        Prelude.writeFile (adbRoot </> "schema.hash") (siHash schemaInputs)
+        pure database { adbSchemaHash = siHash schemaInputs }
 
 dependentSchemaFiles :: IO [FilePath]
 dependentSchemaFiles = do
@@ -210,8 +424,8 @@ fnv1a64 =
   where
     step hash byte = (hash `xor` fromIntegral byte) * 1099511628211
 
-autoDatabaseRoot :: SchemaInputs -> IO FilePath
-autoDatabaseRoot SchemaInputs { siAppSchema } = do
+autoDatabaseStateRoot :: SchemaInputs -> IO FilePath
+autoDatabaseStateRoot SchemaInputs { siAppSchema } = do
     lookupEnv "IHP_TYPED_SQL_STATE_DIR" >>= \case
         Just path | not (null path) -> makeAbsolute path
         _ -> lookupEnv "DEVENV_STATE" >>= \case
@@ -225,12 +439,17 @@ autoDatabaseRoot SchemaInputs { siAppSchema } = do
 
 socketDirectory :: FilePath -> IO FilePath
 socketDirectory root = do
+    path <- socketDirectoryPath root
+    let socketBase = takeDirectory path
+    ensurePrivateDirectory socketBase
+    ensurePrivateDirectory path
+    pure path
+
+socketDirectoryPath :: FilePath -> IO FilePath
+socketDirectoryPath root = do
     userId <- getEffectiveUserID
     let socketBase = "/tmp" </> ("ihp-typed-sql-" <> Prelude.show userId)
-        socketPath = socketBase </> showHex (fnv1a64 (BSC.pack root)) ""
-    ensurePrivateDirectory socketBase
-    ensurePrivateDirectory socketPath
-    pure socketPath
+    pure (socketBase </> showHex (fnv1a64 (BSC.pack root)) "")
 
 ensurePrivateDirectory :: FilePath -> IO ()
 ensurePrivateDirectory path = do
@@ -248,7 +467,6 @@ findPostgreSqlTools = do
     commands <- forM commandNames \command -> do
         executable <- findExecutable command >>= Prelude.traverse canonicalizePath
         pure (command, executable)
-    psPath <- findExecutable "ps" >>= Prelude.traverse canonicalizePath
     let missing = [command | (command, Nothing) <- commands]
     unless (null missing) do
         fail
@@ -269,38 +487,7 @@ findPostgreSqlTools = do
         , psqlPath = command "psql"
         , pgIsReadyPath = command "pg_isready"
         , shellPath = command "sh"
-        , psPath
         }
-
-ensureCompatibleCluster :: PostgreSqlTools -> AutoDatabase -> IO ()
-ensureCompatibleCluster tools autoDatabase@AutoDatabase { adbRoot, adbPgData, adbPgHost } = do
-    fingerprint <- toolchainFingerprint tools
-    pgDataExists <- doesDirectoryExist adbPgData
-    pgVersionExists <- doesFileExist (adbPgData </> "PG_VERSION")
-    storedFingerprint <- readFileIfExists (adbRoot </> "toolchain")
-    let reusable = pgDataExists && pgVersionExists && storedFingerprint == Just fingerprint
-
-    unless reusable do
-        waitForNoLeases adbRoot
-        when pgDataExists do
-            stopped <- stopServer tools autoDatabase
-            unless stopped do
-                fail
-                    ( "typedSql: cannot replace an incompatible compile-time database "
-                        <> "because PostgreSQL did not stop: " <> adbPgData
-                    )
-            removePathForcibly adbPgData
-        removeFileIfExists (adbRoot </> "schema.hash")
-        removeFileIfExists (adbRoot </> "toolchain")
-        runChecked (initdbPath tools) ["-D", adbPgData, "--no-locale", "--encoding=UTF8"]
-        appendFile (adbPgData </> "postgresql.conf") "\ninclude_if_exists = 'ihp-typed-sql.conf'\n"
-        writeFileAtomic (adbRoot </> "toolchain") fingerprint
-
-    let escapedSocketPath = concatMap (\character -> if character == '\'' then "''" else [character]) adbPgHost
-    Prelude.writeFile (adbPgData </> "ihp-typed-sql.conf")
-        ( "unix_socket_directories = '" <> escapedSocketPath <> "'\n"
-            <> "listen_addresses = ''\n"
-        )
 
 toolchainFingerprint :: PostgreSqlTools -> IO String
 toolchainFingerprint PostgreSqlTools { initdbPath, pgCtlPath } = do
@@ -314,328 +501,6 @@ toolchainFingerprint PostgreSqlTools { initdbPath, pgCtlPath } = do
                     <> "\nstderr:\n" <> stdErr
                 )
 
-ensureServer :: PostgreSqlTools -> AutoDatabase -> IO ()
-ensureServer tools autoDatabase@AutoDatabase { adbPgData, adbPgHost, adbRoot } = do
-    ready <- databaseIsReady tools autoDatabase
-    unless ready do
-        (statusCode, _, _) <- readProcessWithExitCode (pgCtlPath tools) ["-D", adbPgData, "status"] ""
-            `Exception.catch` \(_ :: IOException) -> pure (ExitFailure 1, "", "")
-        when (statusCode == ExitSuccess) do
-            waitForNoLeases adbRoot
-            stopped <- stopServer tools autoDatabase
-            unless stopped do
-                fail
-                    ( "typedSql: PostgreSQL is running but not reachable at its expected socket: "
-                        <> adbPgHost
-                    )
-        Prelude.writeFile (adbRoot </> "postgresql.log") ""
-        runChecked (pgCtlPath tools)
-            ["-D", adbPgData, "-l", adbRoot </> "postgresql.log", "-w", "start"]
-    rememberPostmasterPid autoDatabase
-
-rememberPostmasterPid :: AutoDatabase -> IO ()
-rememberPostmasterPid AutoDatabase { adbPgData, adbPgHost } = do
-    postmasterPid <- readFileIfExists (adbPgData </> "postmaster.pid")
-    case postmasterPid >>= listToMaybe . Prelude.lines of
-        Just processId -> writeFileAtomic (adbPgHost </> "postmaster.pid") processId
-        Nothing -> fail ("typedSql: PostgreSQL did not write postmaster.pid in " <> adbPgData)
-
-stopServer :: PostgreSqlTools -> AutoDatabase -> IO Bool
-stopServer PostgreSqlTools { pgCtlPath } AutoDatabase { adbPgData } = do
-    _ <- readProcessWithExitCode
-        pgCtlPath ["-D", adbPgData, "-m", "fast", "-w", "stop"] ""
-        `Exception.catch` \(_ :: IOException) -> pure (ExitFailure 1, "", "")
-    not <$> postmasterIsAlive adbPgData
-
-postmasterIsAlive :: FilePath -> IO Bool
-postmasterIsAlive pgData = do
-    postmasterPid <- readFileIfExists (pgData </> "postmaster.pid")
-    case postmasterPid >>= listToMaybe . Prelude.lines of
-        Just processId -> processIsAlive processId
-        Nothing -> pure False
-
-databaseIsReady :: PostgreSqlTools -> AutoDatabase -> IO Bool
-databaseIsReady PostgreSqlTools { pgIsReadyPath } AutoDatabase { adbPgHost } = do
-    (exitCode, _, _) <- readProcessWithExitCode pgIsReadyPath ["-h", adbPgHost, "-d", "postgres"] ""
-        `Exception.catch` \(_ :: IOException) -> pure (ExitFailure 1, "", "")
-    pure (exitCode == ExitSuccess)
-
-ensureCurrentSchema :: PostgreSqlTools -> SchemaInputs -> AutoDatabase -> IO ()
-ensureCurrentSchema tools schemaInputs AutoDatabase { adbRoot, adbPgHost, adbSchemaHash } = do
-    storedHash <- readFileIfExists (adbRoot </> "schema.hash")
-    unless (storedHash == Just adbSchemaHash) do
-        waitForNoLeases adbRoot
-        removeFileIfExists (adbRoot </> "schema.hash")
-        (do
-            runChecked (dropdbPath tools) ["--if-exists", "-h", adbPgHost, "app"]
-            runChecked (createdbPath tools) ["-h", adbPgHost, "app"]
-            forM_ (catMaybes [siIhpSchema schemaInputs, Just (siAppSchema schemaInputs)]) \schemaFile ->
-                runChecked (psqlPath tools)
-                    ["-v", "ON_ERROR_STOP=1", "-h", adbPgHost, "app", "-f", schemaFile]
-            writeFileAtomic (adbRoot </> "schema.hash") adbSchemaHash
-            ) `Exception.onException` removeFileIfExists (adbRoot </> "schema.hash")
-
-createLease :: FilePath -> IO FilePath
-createLease root = do
-    processId <- getCurrentPid
-    leasePath <- createTempDirectory (leasesDirectory root) ("lease-" <> Prelude.show processId <> "-")
-    ensurePrivateDirectory leasePath
-    Prelude.writeFile (leasePath </> "owner.pid") (Prelude.show processId)
-        `Exception.onException` removePathForcibly leasePath
-    pure leasePath
-
-leasesDirectory :: FilePath -> FilePath
-leasesDirectory root = root </> "leases"
-
-waitForNoLeases :: FilePath -> IO ()
-waitForNoLeases root = loop (0 :: Int)
-  where
-    loop attempts = do
-        liveLeases <- pruneAndCountLiveLeases root
-        if liveLeases == 0
-            then pure ()
-            else if attempts >= 6000
-                then fail "typedSql: timed out waiting for another compile-time database operation"
-                else threadDelay 50000 >> loop (attempts + 1)
-
-pruneAndCountLiveLeases :: FilePath -> IO Int
-pruneAndCountLiveLeases root = do
-    entries <- listDirectory (leasesDirectory root)
-        `Exception.catch` \(_ :: IOException) -> pure []
-    fmap sum $ forM entries \entry -> do
-        let leasePath = leasesDirectory root </> entry
-        isLeaseDirectory <- doesDirectoryExist leasePath
-        if not isLeaseDirectory
-            then pure 0
-            else do
-                released <- doesFileExist (leasePath </> "released")
-                owner <- readFileIfExists (leasePath </> "owner.pid")
-                alive <- maybe (pure False) processIsAlive owner
-                if released || not alive
-                    then ignoreIOException (removePathForcibly leasePath) >> pure 0
-                    else pure 1
-
-withStateLock :: FilePath -> IO a -> IO a
-withStateLock root action =
-    Exception.bracket (acquireStateLock root) (releaseStateLock root) \_ -> action
-
-acquireStateLock :: FilePath -> IO String
-acquireStateLock root = do
-    processId <- Prelude.show <$> getCurrentPid
-    loop processId (0 :: Int) (0 :: Int)
-  where
-    lockPath = root </> "lock"
-    ownerPath = lockPath </> "owner.pid"
-
-    loop processId attempts missingOwnerAttempts
-        | attempts >= 6000 = fail "typedSql: timed out waiting for the compile-time database lock"
-        | otherwise = do
-            result <- Exception.try (createDirectory lockPath)
-            case result of
-                Right () -> do
-                    Prelude.writeFile ownerPath processId
-                        `Exception.onException` ignoreIOException (removePathForcibly lockPath)
-                    pure processId
-                Left (exception :: IOException)
-                    | isAlreadyExistsError exception -> do
-                        owner <- readFileIfExists ownerPath
-                        case owner of
-                            Just ownerPid -> do
-                                alive <- processIsAlive ownerPid
-                                unless alive (ignoreIOException (removePathForcibly lockPath))
-                                threadDelay 50000
-                                loop processId (attempts + 1) 0
-                            Nothing -> do
-                                when (missingOwnerAttempts >= 40) do
-                                    ignoreIOException (removePathForcibly lockPath)
-                                threadDelay 50000
-                                loop processId (attempts + 1) (missingOwnerAttempts + 1)
-                    | otherwise -> Exception.throwIO exception
-
-releaseStateLock :: FilePath -> String -> IO ()
-releaseStateLock root processId = do
-    let lockPath = root </> "lock"
-    owner <- readFileIfExists (lockPath </> "owner.pid")
-    when (owner == Just processId) do
-        ignoreIOException (removePathForcibly lockPath)
-
-ensureSupervisor :: PostgreSqlTools -> AutoDatabase -> IO ()
-ensureSupervisor tools autoDatabase@AutoDatabase { adbRoot, adbPgData, adbPgHost } = do
-    healthy <- supervisorIsHealthy autoDatabase
-    unless healthy do
-        idleSeconds <- supervisorIdleSeconds
-        Prelude.writeFile (adbRoot </> "supervisor.log") ""
-        let script = supervisorScript
-            process = (proc (shellPath tools)
-                [ "-c", script, "ihp-typed-sql-supervisor"
-                , adbRoot, adbPgData, adbPgHost, pgCtlPath tools
-                , fromMaybe "" (psPath tools)
-                , Prelude.show idleSeconds
-                ])
-                { std_in = NoStream
-                , std_out = NoStream
-                , std_err = NoStream
-                , close_fds = True
-                , new_session = True
-                }
-        (_, _, _, processHandle) <- createProcess process
-        processId <- getPid processHandle
-        forM_ processId \pid -> writeFileAtomic (adbRoot </> "supervisor.pid") (Prelude.show pid)
-        Prelude.writeFile (adbPgHost </> "supervisor.heartbeat") ""
-        _ <- forkIO do
-            _ <- waitForProcess processHandle
-            pure ()
-        pure ()
-
-supervisorIsHealthy :: AutoDatabase -> IO Bool
-supervisorIsHealthy AutoDatabase { adbRoot, adbPgHost } = do
-    let heartbeat = adbPgHost </> "supervisor.heartbeat"
-    exists <- doesFileExist heartbeat
-    supervisorPid <- readFileIfExists (adbRoot </> "supervisor.pid")
-    supervisorAlive <- maybe (pure False) processIsAlive supervisorPid
-    if not exists || not supervisorAlive
-        then pure False
-        else do
-            modified <- getModificationTime heartbeat
-            now <- getCurrentTime
-            pure (diffUTCTime now modified < 5)
-
-supervisorIdleSeconds :: IO Int
-supervisorIdleSeconds = do
-    configured <- lookupEnv "IHP_TYPED_SQL_IDLE_SECONDS"
-    pure $ case configured >>= readMaybe of
-        Just seconds | seconds > 0 -> seconds
-        _ -> 15
-
-supervisorScript :: String
-supervisorScript = List.unlines
-    [ "root=$1"
-    , "pgdata=$2"
-    , "pghost=$3"
-    , "pgctl=$4"
-    , "ps=$5"
-    , "idle_seconds=$6"
-    , "heartbeat=$pghost/supervisor.heartbeat"
-    , "remembered_postmaster_pid=$pghost/postmaster.pid"
-    , "log=$root/supervisor.log"
-    , "postmaster_pid="
-    , "empty_seconds=0"
-    , "missing_lock_owner_seconds=0"
-    , ""
-    , "refresh_postmaster_pid() {"
-    , "  postmaster_pid="
-    , "  if [ -r \"$pgdata/postmaster.pid\" ]; then"
-    , "    IFS= read -r postmaster_pid < \"$pgdata/postmaster.pid\" || true"
-    , "    if [ -n \"$postmaster_pid\" ]; then"
-    , "      printf '%s' \"$postmaster_pid\" > \"$remembered_postmaster_pid\" 2>/dev/null || true"
-    , "    fi"
-    , "  elif [ -r \"$remembered_postmaster_pid\" ]; then"
-    , "    IFS= read -r postmaster_pid < \"$remembered_postmaster_pid\" || true"
-    , "  fi"
-    , "}"
-    , ""
-    , "postmaster_belongs_to_cluster() {"
-    , "  [ -n \"$postmaster_pid\" ] || return 1"
-    , "  [ -n \"$ps\" ] || return 1"
-    , "  postmaster_command=$(\"$ps\" -p \"$postmaster_pid\" -o command= 2>/dev/null) || return 1"
-    , "  case \"$postmaster_command\" in"
-    , "    *\"$pgdata\"*) return 0 ;;"
-    , "    *) return 1 ;;"
-    , "  esac"
-    , "}"
-    , ""
-    , "prune_leases() {"
-    , "  live_leases=0"
-    , "  for lease in \"$root\"/leases/*; do"
-    , "    [ -d \"$lease\" ] || continue"
-    , "    if [ -e \"$lease/released\" ]; then"
-    , "      rm -rf \"$lease\""
-    , "      continue"
-    , "    fi"
-    , "    owner="
-    , "    if [ -r \"$lease/owner.pid\" ]; then"
-    , "      IFS= read -r owner < \"$lease/owner.pid\" || true"
-    , "    fi"
-    , "    if [ -n \"$owner\" ] && kill -0 \"$owner\" 2>/dev/null; then"
-    , "      live_leases=1"
-    , "    else"
-    , "      rm -rf \"$lease\""
-    , "    fi"
-    , "  done"
-    , "}"
-    , ""
-    , "acquire_lock() {"
-    , "  while ! mkdir \"$root/lock\" 2>/dev/null; do"
-    , "    [ -d \"$root\" ] || return 1"
-    , "    lock_owner="
-    , "    if [ -r \"$root/lock/owner.pid\" ]; then"
-    , "      IFS= read -r lock_owner < \"$root/lock/owner.pid\" || true"
-    , "    fi"
-    , "    if [ -n \"$lock_owner\" ]; then"
-    , "      missing_lock_owner_seconds=0"
-    , "      if ! kill -0 \"$lock_owner\" 2>/dev/null; then"
-    , "        printf 'removing stale lock owned by %s\\n' \"$lock_owner\" >> \"$log\" 2>/dev/null || true"
-    , "        rm -rf \"$root/lock\""
-    , "      fi"
-    , "    else"
-    , "      missing_lock_owner_seconds=$((missing_lock_owner_seconds + 1))"
-    , "      if [ \"$missing_lock_owner_seconds\" -ge 3 ]; then"
-    , "        printf 'removing lock without owner pid\\n' >> \"$log\" 2>/dev/null || true"
-    , "        rm -rf \"$root/lock\""
-    , "        missing_lock_owner_seconds=0"
-    , "      fi"
-    , "    fi"
-    , "    : > \"$heartbeat\" 2>/dev/null || true"
-    , "    sleep 1"
-    , "  done"
-    , "  printf '%s' \"$$\" > \"$root/lock/owner.pid\""
-    , "}"
-    , ""
-    , "while [ -d \"$root\" ]; do"
-    , "  : > \"$heartbeat\" 2>/dev/null || true"
-    , "  refresh_postmaster_pid"
-    , "  prune_leases"
-    , "  if [ \"$live_leases\" -eq 1 ]; then"
-    , "    empty_seconds=0"
-    , "  else"
-    , "    empty_seconds=$((empty_seconds + 1))"
-    , "  fi"
-    , ""
-    , "  if [ \"$empty_seconds\" -ge \"$idle_seconds\" ]; then"
-    , "    if acquire_lock; then"
-    , "      prune_leases"
-    , "      if [ \"$live_leases\" -eq 0 ]; then"
-    , "        refresh_postmaster_pid"
-    , "        \"$pgctl\" -D \"$pgdata\" -m fast -w stop >> \"$log\" 2>&1 || true"
-    , "        refresh_postmaster_pid"
-    , "        if postmaster_belongs_to_cluster && kill -0 \"$postmaster_pid\" 2>/dev/null; then"
-    , "          printf 'PostgreSQL is still running after pg_ctl stop\\n' >> \"$log\" 2>/dev/null || true"
-    , "          rm -rf \"$root/lock\""
-    , "          empty_seconds=0"
-    , "        else"
-    , "          rm -rf \"$root/lock\""
-    , "          rm -f \"$root/supervisor.pid\""
-    , "          rm -rf \"$pghost\""
-    , "          exit 0"
-    , "        fi"
-    , "      fi"
-    , "      rm -rf \"$root/lock\""
-    , "      empty_seconds=0"
-    , "    else"
-    , "      break"
-    , "    fi"
-    , "  fi"
-    , "  sleep 1"
-    , "done"
-    , ""
-    , "refresh_postmaster_pid"
-    , "if postmaster_belongs_to_cluster && kill -0 \"$postmaster_pid\" 2>/dev/null; then"
-    , "  kill -INT \"$postmaster_pid\" 2>/dev/null || true"
-    , "fi"
-    , "rm -f \"$root/supervisor.pid\" 2>/dev/null || true"
-    , "rm -rf \"$pghost\" 2>/dev/null || true"
-    ]
-
 processIsAlive :: String -> IO Bool
 processIsAlive processId =
     case readMaybe processId :: Maybe Int of
@@ -648,23 +513,12 @@ readFileIfExists :: FilePath -> IO (Maybe String)
 readFileIfExists path = do
     exists <- doesFileExist path
     if exists
-        then (Just . BSC.unpack <$> BS.readFile path)
-            `Exception.catch` \(_ :: IOException) -> pure Nothing
+        then Just <$> Prelude.readFile path
         else pure Nothing
 
-writeFileAtomic :: FilePath -> String -> IO ()
-writeFileAtomic path contents = do
-    processId <- getCurrentPid
-    let temporaryPath = path <> ".tmp-" <> Prelude.show processId
-    ignoreIOException (removeFile temporaryPath)
-    Prelude.writeFile temporaryPath contents
-    renameFile temporaryPath path
-
-removeFileIfExists :: FilePath -> IO ()
-removeFileIfExists path = ignoreIOException (removeFile path)
-
-ignoreIOException :: IO () -> IO ()
-ignoreIOException action = action `Exception.catch` \(_ :: IOException) -> pure ()
+ignoreIOException :: IO a -> IO ()
+ignoreIOException action =
+    (action >> pure ()) `Exception.catch` \(_ :: IOException) -> pure ()
 
 runChecked :: FilePath -> [String] -> IO ()
 runChecked command args = do

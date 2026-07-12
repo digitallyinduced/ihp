@@ -2,10 +2,10 @@
 
 ## Unreleased
 
-- The automatic compile-time PostgreSQL database now reuses one cache under
-  the worktree's `.devenv/state` directory. A detached idle supervisor stops
-  PostgreSQL after metadata operations and recovers abandoned compiler locks,
-  preventing temporary clusters and orphaned server processes from accumulating.
+- Each compiler process now reuses a lightweight private compile-time PostgreSQL
+  cluster under the worktree's `.devenv/state` directory. PostgreSQL stops after
+  metadata operations become idle, and an EOF watchdog removes the cluster when
+  the compiler exits, including after abrupt termination.
 
 - Added `sqlQueryTypedPipelined` for running typed SQL queries through
   `IHP.FetchPipelined.pipeline`.

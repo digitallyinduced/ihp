@@ -106,5 +106,6 @@ test-suite tests
             , string-conversions
             , temporary-ospath
             , text
+            , unix
     other-modules:
         Test.TypedSqlSpec

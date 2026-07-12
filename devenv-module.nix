@@ -11,10 +11,7 @@ that is defined in flake-module.nix
 
                     # Wrap a package's check phase with a temporary PostgreSQL server
                     withTestPostgres = pkg: pkg.overrideAttrs (old: {
-                        nativeCheckInputs = (old.nativeCheckInputs or []) ++ [
-                            pkgs.postgresql
-                            pkgs.unixtools.ps
-                        ];
+                        nativeCheckInputs = (old.nativeCheckInputs or []) ++ [ pkgs.postgresql ];
                         preCheck = ''
                             ${old.preCheck or ""}
                             export PGDATA="$TMPDIR/pgdata"
