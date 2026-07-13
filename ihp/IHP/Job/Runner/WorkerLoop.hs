@@ -6,7 +6,6 @@ module IHP.Job.Runner.WorkerLoop
 
 import IHP.Prelude
 import IHP.ControllerPrelude
-import qualified IHP.Environment as Environment
 import qualified IHP.Job.Queue as Queue
 import qualified Control.Exception.Safe as Exception
 import qualified Control.Concurrent as Concurrent
@@ -129,8 +128,7 @@ jobWorkerFetchAndRunLoop JobWorkerArgs { .. } = do
 
     dispatcher <- allocate (async (dispatcherLoop `Exception.finally` cancelAllWorkers)) cancel
 
-    let enablePollerTriggerRepair = frameworkConfig.environment == Environment.Development
-    (subscription, pollerReleaseKey) <- Queue.watchForJobWithPollerTriggerRepair enablePollerTriggerRepair pool pgListener (tableName @job) (queuePollInterval @job) action
+    (subscription, pollerReleaseKey) <- Queue.watchForJob pool pgListener (tableName @job) (queuePollInterval @job) action
 
     -- Start stale job recovery if configured
     staleRecoveryReleaseKey <- case staleJobTimeout @job of
