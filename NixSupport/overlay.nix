@@ -64,17 +64,7 @@ let
             ihp-migrate = (localPackage "ihp-migrate").overrideAttrs (old: { mainProgram = "migrate"; });
             ihp-openai = localPackage "ihp-openai";
             ihp-ssc = localPackage "ihp-ssc";
-            # ihp-zip 0.1.1 defines its own `hContentDisposition = "Content-Disposition"`,
-            # which now clashes with `Network.HTTP.Types.hContentDisposition` (exported by
-            # newer http-types) and fails to compile with an "Ambiguous occurrence" error.
-            # Drop the redundant local binding; the http-types value is identical. Remove
-            # this once a fixed ihp-zip is released and picked up by nixpkgs.
-            ihp-zip = fastBuild (final.haskell.lib.overrideCabal (hackagePackage "ihp-zip") (old: {
-                postPatch = (old.postPatch or "") + ''
-                    substituteInPlace IHP/Zip/ControllerFunctions.hs \
-                        --replace-fail 'hContentDisposition = "Content-Disposition"' ""
-                '';
-            }));
+            ihp-zip = fastBuild (hackagePackage "ihp-zip");
             ihp-hsx = localPackage "ihp-hsx";
             ihp-graphql = localPackage "ihp-graphql";
             ihp-datasync-typescript = localPackage "ihp-datasync-typescript";
