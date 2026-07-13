@@ -80,14 +80,12 @@ let
             ihp-hspec = localPackage "ihp-hspec";
             ihp-welcome = localPackage "ihp-welcome";
 
-            # Forks of wai-session / wai-session-clientsession with deferred
-            # session decryption and optional Set-Cookie (Maybe ByteString).
-            # https://hackage.haskell.org/package/wai-session-maybe
-            # https://hackage.haskell.org/package/wai-session-clientsession-deferred
-            wai-session-maybe = hackagePackage "wai-session-maybe";
-            wai-session-clientsession-deferred = hackagePackage "wai-session-clientsession-deferred";
+            # wai-session-maybe / wai-session-clientsession-deferred (deferred
+            # session decryption + optional Set-Cookie) are shipped by the pinned
+            # nixpkgs at 1.0.0, so we consume them from the default set verbatim
+            # for a cache hit instead of the previous hackagePackage forks.
 
-            # HsOpenSSL 0.11.7.10 fails to compile against openssl 3.6.1 on Linux
+            # HsOpenSSL 0.11.7.10 fails to compile against openssl 3.6.1+ on Linux
             # because the C compiler escalates `-Wpointer-sign` to an error (the
             # OpenSSL 3.6.1 headers tightened up `char*` vs `unsigned char*`).
             # nixpkgs already passes `-Wno-error=incompatible-pointer-types`; we
@@ -109,8 +107,9 @@ let
             # postgresql-connection-string and hasql-interpolate all resolve
             # correctly with no overrides needed.
 
-            # Fork of temporary using OsPath instead of FilePath
-            temporary-ospath = hackagePackage "temporary-ospath";
+            # temporary-ospath (temporary using OsPath instead of FilePath) is
+            # shipped by the pinned nixpkgs at 1.3, so it resolves from the default
+            # set with no override needed.
 
             # postgresql-simple-postgresql-types and hasql-mapping are unbroken in
             # the pinned nixpkgs, so no markUnbroken overrides are needed.
