@@ -54,8 +54,8 @@ tests = do
                 didRecover <- waitUntil 6_000_000 (JobQueue.notificationTriggersHealthy pool longTestTableName)
                 didRecover `shouldBe` True
 
-        it "retries a failed startup install when poller repair is disabled" do
-            withJobWatcherForMissingTable False testTableName \pool -> do
+        it "retries a failed startup install with the default watcher" do
+            withJobWatcherForMissingTable testTableName \pool -> do
                 createTestTable pool testTableName
                 didRecover <- waitUntil 6_000_000 (JobQueue.notificationTriggersHealthy pool testTableName)
                 didRecover `shouldBe` True
@@ -77,20 +77,6 @@ tests = do
                             Just _ -> expectationFailure "ACCESS SHARE lock was released before trigger repair completed"
                         JobQueue.notificationTriggersHealthy pool testTableName `shouldReturn` True)
                     (Async.cancel lock)
-
-        it "replaces disabled notification triggers" do
-            withJobWatcher False \pool -> do
-                disableInsertNotificationTrigger pool testTableName
-                JobQueue.notificationTriggersHealthy pool testTableName `shouldReturn` False
-                ensureTestNotificationTriggers pool testTableName
-                JobQueue.notificationTriggersHealthy pool testTableName `shouldReturn` True
-
-        it "replaces notification triggers with an invalid definition" do
-            withJobWatcher False \pool -> do
-                createInvalidInsertNotificationTrigger pool testTableName
-                JobQueue.notificationTriggersHealthy pool testTableName `shouldReturn` False
-                ensureTestNotificationTriggers pool testTableName
-                JobQueue.notificationTriggersHealthy pool testTableName `shouldReturn` True
 
         it "does not wait for another trigger installer" do
             withJobWatcher False \pool -> do
@@ -130,8 +116,8 @@ withJobWatcherForTable enablePollerTriggerRepair tableName action = do
                         liftIO (action pool `Exception.finally` PGListener.unsubscribe subscription pgListener))
             (dropTestArtifacts pool tableName)
 
-withJobWatcherForMissingTable :: Bool -> Text -> (HasqlPool.Pool -> IO ()) -> IO ()
-withJobWatcherForMissingTable enablePollerTriggerRepair tableName action = do
+withJobWatcherForMissingTable :: Text -> (HasqlPool.Pool -> IO ()) -> IO ()
+withJobWatcherForMissingTable tableName action = do
     withDB \modelContext logger databaseUrl -> do
         let ?context = TestContext { logger = logger }
         let pool = modelContext.hasqlPool
@@ -143,7 +129,7 @@ withJobWatcherForMissingTable enablePollerTriggerRepair tableName action = do
                 PGListener.withPGListener databaseUrl logger \pgListener -> do
                     runResourceT do
                         queue <- liftIO (atomically (newTBQueue 32))
-                        (subscription, _) <- JobQueue.watchForJobWithPollerTriggerRepair enablePollerTriggerRepair pool pgListener tableName 100000 queue
+                        (subscription, _) <- JobQueue.watchForJob pool pgListener tableName 100000 queue
                         liftIO (action pool `Exception.finally` PGListener.unsubscribe subscription pgListener))
             (dropTestArtifacts pool tableName)
 
@@ -199,19 +185,6 @@ dropNotificationTriggers pool tableName =
 dropUpdateNotificationTrigger :: HasqlPool.Pool -> Text -> IO ()
 dropUpdateNotificationTrigger pool tableName =
     runScript pool ("DROP TRIGGER IF EXISTS " <> updateTriggerName tableName <> " ON \"" <> tableName <> "\";")
-
-disableInsertNotificationTrigger :: HasqlPool.Pool -> Text -> IO ()
-disableInsertNotificationTrigger pool tableName =
-    runScript pool ("ALTER TABLE \"" <> tableName <> "\" DISABLE TRIGGER " <> insertTriggerName tableName <> ";")
-
-createInvalidInsertNotificationTrigger :: HasqlPool.Pool -> Text -> IO ()
-createInvalidInsertNotificationTrigger pool tableName =
-    runScript pool $
-        "DROP TRIGGER " <> insertTriggerName tableName <> " ON \"" <> tableName <> "\";"
-        <> "CREATE TRIGGER " <> insertTriggerName tableName
-        <> " AFTER INSERT ON \"" <> tableName <> "\""
-        <> " FOR EACH ROW WHEN (NEW.status = 'job_status_retry')"
-        <> " EXECUTE PROCEDURE " <> triggerFunctionName tableName <> "();"
 
 holdAccessShareLock :: HasqlPool.Pool -> Text -> IO ()
 holdAccessShareLock pool tableName =

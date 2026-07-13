@@ -26,7 +26,7 @@ import qualified Hasql.Connection as HasqlConnection
 import qualified Hasql.Statement as Hasql
 import qualified Hasql.Encoders as Encoders
 import qualified Hasql.Decoders as Decoders
-import Control.Concurrent.STM (TBQueue, TVar, atomically, newTVarIO, readTVarIO, writeTVar)
+import Control.Concurrent.STM (TBQueue, atomically)
 import Data.Functor.Contravariant (contramap)
 
 -- | Calls a callback every time something is inserted, updated or deleted in a given database table.
@@ -46,35 +46,27 @@ import Data.Functor.Contravariant (contramap)
 -- You will see that @"Something changed in the projects table"@ is printed onto the screen.
 watchForJob :: (?context :: context, HasField "logger" context FastLogger) => HasqlPool.Pool -> PGListener.PGListener -> Text -> Int -> TBQueue JobWorkerProcessMessage -> ResourceT IO (PGListener.Subscription, ReleaseKey)
 watchForJob pool pgListener tableName pollInterval onNewJob =
-    watchForJobWithPollerTriggerRepair False pool pgListener tableName pollInterval onNewJob
+    watchForJobWithPollerTriggerRepair True pool pgListener tableName pollInterval onNewJob
 
--- | Like 'watchForJob' but allows enabling a poller-side trigger integrity check.
--- Useful in development to recover from missing triggers after `make db`.
+-- | Like 'watchForJob' but allows disabling the poller-side trigger integrity check.
 watchForJobWithPollerTriggerRepair :: (?context :: context, HasField "logger" context FastLogger) => Bool -> HasqlPool.Pool -> PGListener.PGListener -> Text -> Int -> TBQueue JobWorkerProcessMessage -> ResourceT IO (PGListener.Subscription, ReleaseKey)
 watchForJobWithPollerTriggerRepair enablePollerTriggerRepair pool pgListener tableName pollInterval onNewJob = do
     let tableNameBS = cs tableName
-    triggerRepairNeeded <- liftIO (newTVarIO False)
     liftIO do
         result <- Exception.tryAny (runPool pool (HasqlSession.script (createNotificationTriggerSQL tableNameBS)))
         case result of
-            Left err -> do
-                atomically (writeTVar triggerRepairNeeded True)
-                ?context.logger (toLogStr ("Failed to install notification triggers for " <> tableName <> ": " <> tshow err <> ". Falling back to poller and retrying later."))
-            Right _ -> atomically (writeTVar triggerRepairNeeded False)
+            Left err -> ?context.logger (toLogStr ("Failed to install notification triggers for " <> tableName <> ": " <> tshow err <> ". Falling back to poller."))
+            Right _ -> pure ()
 
         -- Recreate notification triggers when PGListener reconnects (e.g. after `make db` drops the database)
         PGListener.onReconnect (\connection -> do
             result <- HasqlConnection.use connection (HasqlSession.script (createNotificationTriggerSQL tableNameBS))
             case result of
-                Left err -> do
-                    atomically (writeTVar triggerRepairNeeded True)
-                    ?context.logger (toLogStr ("Failed to recreate notification triggers for " <> tableName <> ": " <> tshow err <> ". Falling back to poller and retrying later."))
-                Right _ -> do
-                    atomically (writeTVar triggerRepairNeeded False)
-                    ?context.logger (toLogStr ("Recreated notification triggers for " <> tableName))
+                Left err -> ?context.logger (toLogStr ("Failed to recreate notification triggers for " <> tableName <> ": " <> tshow err <> ". Falling back to poller."))
+                Right _ -> ?context.logger (toLogStr ("Recreated notification triggers for " <> tableName))
             ) pgListener
 
-    poller <- pollForJobWithTriggerRepairState enablePollerTriggerRepair triggerRepairNeeded pool tableName pollInterval onNewJob
+    poller <- pollForJob enablePollerTriggerRepair pool tableName pollInterval onNewJob
     subscription <- liftIO $ pgListener |> PGListener.subscribe (channelName tableNameBS) (const (do
             didWrite <- atomically $ tryWriteTBQueue onNewJob JobAvailable
             unless didWrite (?context.logger (toLogStr ("Job queue full for " <> tableName)))
@@ -91,16 +83,11 @@ watchForJobWithPollerTriggerRepair enablePollerTriggerRepair pool pgListener tab
 -- This function returns a Async. Call 'cancel' on the async to stop polling the database.
 pollForJob :: (?context :: context, HasField "logger" context FastLogger) => Bool -> HasqlPool.Pool -> Text -> Int -> TBQueue JobWorkerProcessMessage -> ResourceT IO ReleaseKey
 pollForJob enablePollerTriggerRepair pool tableName pollInterval onNewJob = do
-    triggerRepairNeeded <- liftIO (newTVarIO False)
-    pollForJobWithTriggerRepairState enablePollerTriggerRepair triggerRepairNeeded pool tableName pollInterval onNewJob
-
-pollForJobWithTriggerRepairState :: (?context :: context, HasField "logger" context FastLogger) => Bool -> TVar Bool -> HasqlPool.Pool -> Text -> Int -> TBQueue JobWorkerProcessMessage -> ResourceT IO ReleaseKey
-pollForJobWithTriggerRepairState enablePollerTriggerRepair triggerRepairNeeded pool tableName pollInterval onNewJob = do
     let sql = "SELECT COUNT(*) FROM " <> tableName
             <> " WHERE " <> pendingJobConditionSQL
     let decoder = Decoders.singleRow (Decoders.column (Decoders.nonNullable Decoders.int8))
     let statement = Hasql.unpreparable sql Encoders.noParams decoder
-    let handler isFirstPoll = do
+    let handler = forever do
             pollResult <- Exception.tryAny do
                 count :: Int <- fromIntegral <$> runPool pool (HasqlSession.statement () statement)
 
@@ -114,50 +101,38 @@ pollForJobWithTriggerRepairState enablePollerTriggerRepair triggerRepairNeeded p
                 Left exception -> ?context.logger (toLogStr ("Job poller: " <> tshow exception))
                 Right _ -> pure ()
 
-            repairNeeded <- readTVarIO triggerRepairNeeded
-            -- After a startup failure, first poll once before retrying so the
-            -- fallback remains useful and we don't immediately repeat a timed-out DDL request.
-            when (enablePollerTriggerRepair || (repairNeeded && not isFirstPoll)) do
-                repairResult <- Exception.tryAny (ensureNotificationTriggers pool tableName)
-                case repairResult of
-                    Left exception -> ?context.logger (toLogStr ("Job poller: Failed to repair notification triggers for " <> tableName <> ": " <> tshow exception))
-                    Right _ -> atomically (writeTVar triggerRepairNeeded False)
-
             -- Add up to 2 seconds of jitter to avoid all job queues polling at the same time
             jitter <- Random.randomRIO (0, 2000000)
             let pollIntervalWithJitter = pollInterval + jitter
 
             Concurrent.threadDelay pollIntervalWithJitter
-            handler False
 
-    fst <$> allocate (Async.async (handler True)) Async.cancel
+            when enablePollerTriggerRepair do
+                repairResult <- Exception.tryAny (ensureNotificationTriggers pool tableName)
+                case repairResult of
+                    Left exception -> ?context.logger (toLogStr ("Job poller: Failed to repair notification triggers for " <> tableName <> ": " <> tshow exception))
+                    Right _ -> pure ()
+
+    fst <$> allocate (Async.async handler) Async.cancel
 
 notificationTriggersHealthy :: HasqlPool.Pool -> Text -> IO Bool
 notificationTriggersHealthy pool tableName = do
     let insertTriggerName = "did_insert_job_" <> tableName
     let updateTriggerName = "did_update_job_" <> tableName
-    let functionName = "notify_job_queued_" <> tableName
     let sql = "SELECT COUNT(*) FROM pg_trigger t"
             <> " JOIN pg_class c ON t.tgrelid = c.oid"
             <> " JOIN pg_namespace n ON c.relnamespace = n.oid"
             <> " WHERE n.nspname = current_schema()"
             <> " AND c.relname = $1::name"
             <> " AND NOT t.tgisinternal"
-            <> " AND t.tgenabled = 'O'"
-            <> " AND t.tgfoid = to_regproc($4)"
-            <> " AND t.tgqual IS NOT NULL"
-            <> " AND position('job_status_not_started' IN pg_get_triggerdef(t.oid)) > 0"
-            <> " AND position('job_status_retry' IN pg_get_triggerdef(t.oid)) > 0"
-            <> " AND ((t.tgname = $2::name AND t.tgtype = 5)"
-            <> "   OR (t.tgname = $3::name AND t.tgtype = 17))"
+            <> " AND (t.tgname = $2::name OR t.tgname = $3::name)"
     let encoder =
-            contramap (\(tableNameParam, _, _, _) -> tableNameParam) (Encoders.param (Encoders.nonNullable Encoders.text))
-            <> contramap (\(_, insertTriggerNameParam, _, _) -> insertTriggerNameParam) (Encoders.param (Encoders.nonNullable Encoders.text))
-            <> contramap (\(_, _, updateTriggerNameParam, _) -> updateTriggerNameParam) (Encoders.param (Encoders.nonNullable Encoders.text))
-            <> contramap (\(_, _, _, functionNameParam) -> functionNameParam) (Encoders.param (Encoders.nonNullable Encoders.text))
+            contramap (\(tableNameParam, _, _) -> tableNameParam) (Encoders.param (Encoders.nonNullable Encoders.text))
+            <> contramap (\(_, insertTriggerNameParam, _) -> insertTriggerNameParam) (Encoders.param (Encoders.nonNullable Encoders.text))
+            <> contramap (\(_, _, updateTriggerNameParam) -> updateTriggerNameParam) (Encoders.param (Encoders.nonNullable Encoders.text))
     let decoder = Decoders.singleRow (Decoders.column (Decoders.nonNullable Decoders.int8))
     let statement = Hasql.unpreparable sql encoder decoder
-    count :: Int <- fromIntegral <$> runPool pool (HasqlSession.statement (tableName, insertTriggerName, updateTriggerName, functionName) statement)
+    count :: Int <- fromIntegral <$> runPool pool (HasqlSession.statement (tableName, insertTriggerName, updateTriggerName) statement)
     pure (count == 2)
 
 ensureNotificationTriggers :: (?context :: context, HasField "logger" context FastLogger) => HasqlPool.Pool -> Text -> IO ()
@@ -166,16 +141,16 @@ ensureNotificationTriggers pool tableName = do
     unless healthy do
         let insertTriggerName = "did_insert_job_" <> tableName
         let updateTriggerName = "did_update_job_" <> tableName
-        ?context.logger (toLogStr ("Job poller: Missing or invalid notification triggers for " <> tableName <> " (" <> insertTriggerName <> ", " <> updateTriggerName <> "). Repairing."))
+        ?context.logger (toLogStr ("Job poller: Missing notification triggers for " <> tableName <> " (" <> insertTriggerName <> ", " <> updateTriggerName <> "). Recreating."))
         runPool pool (HasqlSession.script (createNotificationTriggerSQL (cs tableName)))
-        ?context.logger (toLogStr ("Job poller: Repaired notification triggers for " <> tableName))
+        ?context.logger (toLogStr ("Job poller: Recreated notification triggers for " <> tableName))
 
 -- | Returns a SQL script to create the notification trigger.
 --
 -- The function body is always updated via @CREATE OR REPLACE FUNCTION@, which only
 -- locks the function's row in @pg_proc@, not the job table.
 --
--- The trigger DDL is only executed when a trigger is missing or invalid:
+-- The trigger DDL is only executed when a trigger is missing:
 -- @DROP TRIGGER@ takes an @AccessExclusiveLock@ on the job table, which conflicts with
 -- every other lock — even the @AccessShareLock@s held by a running @pg_dump@. Running
 -- DROP + CREATE TRIGGER unconditionally on every start meant a job worker (re)started
@@ -183,12 +158,14 @@ ensureNotificationTriggers pool tableName = do
 -- INSERTs/UPDATEs on the job table would queue up behind that pending lock request,
 -- stalling job processing until the backup finished.
 --
--- When a trigger is missing or invalid (first install, after @make db@, or after manual
--- changes), a short @lock_timeout@ makes the DDL fail fast instead of blocking; the
--- caller falls back to the poller and retries later. Healthy triggers are never dropped.
+-- When a trigger is missing (first install or after @make db@), a short @lock_timeout@
+-- makes the DDL fail fast instead of blocking; the caller falls back to the poller and
+-- retries later. Healthy triggers are never dropped.
 --
 -- The non-blocking advisory lock ensures only one process attempts installation at a
 -- time. Other processes immediately fall back to polling instead of queuing behind it.
+-- Changes to an existing trigger definition require an explicit migration because
+-- worker startup deliberately never drops a healthy, existing trigger.
 createNotificationTriggerSQL :: ByteString -> Text
 createNotificationTriggerSQL tableName =
         cs $
@@ -204,33 +181,17 @@ createNotificationTriggerSQL tableName =
             <> "    RETURN new;"
             <> "\nEND;\n"
             <> "$BODY$ language plpgsql;\n"
-        -- PostgreSQL encodes AFTER ROW INSERT as 5 and AFTER ROW UPDATE as 17 in pg_trigger.tgtype.
-        <> repairTriggerSQL insertTriggerName "5" insertTriggerDefinition
-        <> repairTriggerSQL updateTriggerName "17" updateTriggerDefinition
+        <> "    IF NOT EXISTS (SELECT 1 FROM pg_trigger WHERE tgname = '" <> insertTriggerName <> "'::name AND tgrelid = '" <> tableName <> "'::regclass) THEN\n"
+        <> "        CREATE TRIGGER " <> insertTriggerName <> " AFTER INSERT ON \"" <> tableName <> "\" FOR EACH ROW WHEN (NEW.status = 'job_status_not_started' OR NEW.status = 'job_status_retry') EXECUTE PROCEDURE " <> functionName <> "();\n"
+        <> "    END IF;\n"
+        <> "    IF NOT EXISTS (SELECT 1 FROM pg_trigger WHERE tgname = '" <> updateTriggerName <> "'::name AND tgrelid = '" <> tableName <> "'::regclass) THEN\n"
+        <> "        CREATE TRIGGER " <> updateTriggerName <> " AFTER UPDATE ON \"" <> tableName <> "\" FOR EACH ROW WHEN (NEW.status = 'job_status_not_started' OR NEW.status = 'job_status_retry') EXECUTE PROCEDURE " <> functionName <> "();\n"
+        <> "    END IF;\n"
         <> "END; $$"
     where
         functionName = "notify_job_queued_" <> tableName
         insertTriggerName = "did_insert_job_" <> tableName
         updateTriggerName = "did_update_job_" <> tableName
-        insertTriggerDefinition = "AFTER INSERT ON \"" <> tableName <> "\" FOR EACH ROW WHEN (NEW.status = 'job_status_not_started' OR NEW.status = 'job_status_retry') EXECUTE PROCEDURE " <> functionName <> "()"
-        updateTriggerDefinition = "AFTER UPDATE ON \"" <> tableName <> "\" FOR EACH ROW WHEN (NEW.status = 'job_status_not_started' OR NEW.status = 'job_status_retry') EXECUTE PROCEDURE " <> functionName <> "()"
-        triggerExistsSQL triggerName = "EXISTS (SELECT 1 FROM pg_trigger WHERE tgname = '" <> triggerName <> "'::name AND tgrelid = '" <> tableName <> "'::regclass)"
-        triggerHealthySQL triggerName triggerType =
-            "EXISTS (SELECT 1 FROM pg_trigger WHERE tgname = '" <> triggerName <> "'::name"
-            <> " AND tgrelid = '" <> tableName <> "'::regclass"
-            <> " AND tgenabled = 'O'"
-            <> " AND tgfoid = to_regproc('" <> functionName <> "')"
-            <> " AND tgqual IS NOT NULL"
-            <> " AND position('job_status_not_started' IN pg_get_triggerdef(oid)) > 0"
-            <> " AND position('job_status_retry' IN pg_get_triggerdef(oid)) > 0"
-            <> " AND tgtype = " <> triggerType <> ")"
-        repairTriggerSQL triggerName triggerType triggerDefinition =
-            "    IF " <> triggerExistsSQL triggerName <> " AND NOT " <> triggerHealthySQL triggerName triggerType <> " THEN\n"
-            <> "        DROP TRIGGER " <> triggerName <> " ON \"" <> tableName <> "\";\n"
-            <> "    END IF;\n"
-            <> "    IF NOT " <> triggerHealthySQL triggerName triggerType <> " THEN\n"
-            <> "        CREATE TRIGGER " <> triggerName <> " " <> triggerDefinition <> ";\n"
-            <> "    END IF;\n"
 
 -- | Retuns the event name of the event that the pg notify trigger dispatches
 channelName :: ByteString -> ByteString
