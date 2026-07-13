@@ -24,7 +24,7 @@ import IHP.TypedSql (typedSql, sqlQueryTyped, sqlExecTyped)
 
 The `QuasiQuotes` extension is required but already enabled by default in IHP projects.
 
-**Important**: `typedSql` describes queries against PostgreSQL during compilation. It first uses `DATABASE_URL`, so an already-running `devenv up` database is preferred. In the IHP dev shell, `typedSql` can also start a private PostgreSQL automatically for non-interactive typechecking, e.g. in coding-agent workspaces where `devenv up` is not running. Each compiler process keeps a small private cluster under `.devenv/state/ihp-typed-sql`, stops PostgreSQL after compile-time metadata activity becomes idle, and removes the cluster when the compiler exits. For `nix build`, this is handled automatically — see [Production Builds](#production-builds) below.
+**Important**: `typedSql` describes queries against PostgreSQL during compilation. It first uses `DATABASE_URL`, so an already-running `devenv up` database is preferred. In the IHP dev shell, `typedSql` can also start a private PostgreSQL automatically for non-interactive typechecking, e.g. in coding-agent workspaces where `devenv up` is not running. Each compiler process keeps a compact private cluster under `.devenv/state/ihp-typed-sql`, stops PostgreSQL after compile-time metadata activity becomes idle, rebuilds the disposable cluster when the schema changes, and removes it when the compiler exits. For `nix build`, this is handled automatically — see [Production Builds](#production-builds) below.
 
 ## Basic Queries
 
