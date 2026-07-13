@@ -195,6 +195,9 @@ diffSchemas targetSchema' actualSchema' = (drop <> create)
 
 removeNoise = filter \case
         Comment {} -> False
+        -- Extensions are provisioned as the postgres superuser (services.ihp.postgresExtensions),
+        -- migrations run as the app database user and would fail with a permission error
+        CreateExtension {} -> False
         StatementCreateTable { unsafeGetCreateTable = CreateTable { name = "schema_migrations" } }      -> False
         AddConstraint { tableName = "schema_migrations" }                                               -> False
         CreateFunction { functionName } | "notify_" `Text.isPrefixOf` functionName                      -> False

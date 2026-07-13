@@ -470,12 +470,39 @@ The `appWithPostgres` module sets up PostgreSQL with sensible defaults. For prod
 # Increase connection limit (default is 100)
 services.postgresql.settings.max_connections = 1000;
 
-# Add extensions
-services.postgresql.extensions = plugins: [ plugins.pg_uuidv7 ];
-
 # Automated daily backups
 services.postgresqlBackup.enable = true;
 ```
+
+#### PostgreSQL Extensions
+
+In production, migrations and the schema run as the app database user, which is not a superuser. PostgreSQL only allows non-superusers to `CREATE EXTENSION` for extensions marked as trusted — many common ones are not (`earthdistance`, `postgis`, `pg_stat_statements`, ...). A `CREATE EXTENSION` inside a migration works in development (where your database user is a superuser) but fails the production deploy with `permission denied to create extension`. For that reason the migration build check rejects migrations containing extension statements.
+
+Instead, declare the extensions your app uses in your deployment configuration:
+
+```nix
+services.ihp = {
+    # ...
+    postgresExtensions = [ "cube" "earthdistance" ];
+};
+```
+
+IHP creates these extensions as the postgres superuser during initial provisioning and before every migration run, so your schema and migrations can rely on them existing.
+
+Keep the `CREATE EXTENSION IF NOT EXISTS "..."` statements in your `Application/Schema.sql`: fresh development databases are created from `Schema.sql` by a superuser, so that's how development picks up the extension. In production the statement is a no-op because the extension already exists. To add an extension to an already existing development database, run it once manually, e.g. `psql -c 'CREATE EXTENSION IF NOT EXISTS "earthdistance"'`.
+
+Extensions that don't ship with PostgreSQL itself (e.g. `postgis` or `pg_uuidv7`) additionally need their package installed into the server:
+
+```nix
+# Install the extension package (contrib extensions like cube, earthdistance,
+# uuid-ossp or pg_trgm are always bundled and don't need this)
+services.postgresql.extensions = plugins: [ plugins.postgis ];
+```
+
+A few things to keep in mind:
+
+- `services.ihp.postgresExtensions` is only used by the `appWithPostgres` module. With an external database (e.g. RDS via the `app` module), create the extensions manually as a privileged user.
+- Removing an extension from the list doesn't drop it from the database. Drop it manually with `DROP EXTENSION` as the postgres superuser if needed.
 
 For tighter security on the database, configure authentication rules:
 
