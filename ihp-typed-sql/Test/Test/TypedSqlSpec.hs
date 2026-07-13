@@ -37,159 +37,163 @@ tests = do
                 assertGhciSuccess ghciOutput
 
         compileFailTest "fails when a scalar parameter has the wrong type"
-            (mkTestModule "TypedQuery Text"
+            (mkTestModule "TypedQuery 'AtMostOneRow 'ReturnsRows Text"
                 "[typedSql| SELECT name FROM typed_sql_test_items WHERE views = ${(\"not an int\" :: Text)} LIMIT 1 |]")
             []
 
         compileFailTest "fails when a foreign-key parameter has the wrong type"
-            (mkTestModuleWithPK ["typed_sql_test_items", "typed_sql_test_authors"] "TypedQuery Text"
+            (mkTestModuleWithPK ["typed_sql_test_items", "typed_sql_test_authors"] "TypedQuery 'AtMostOneRow 'ReturnsRows Text"
                 "[typedSql| SELECT name FROM typed_sql_test_items WHERE author_id = ${(\"not-an-id\" :: Text)} LIMIT 1 |]")
             []
 
         compileFailTest "fails when an IN parameter has the wrong element type"
-            (mkTestModuleWithPK ["typed_sql_test_items", "typed_sql_test_authors"] "TypedQuery Text"
+            (mkTestModuleWithPK ["typed_sql_test_items", "typed_sql_test_authors"] "TypedQuery 'AtMostOneRow 'ReturnsRows Text"
                 "let authorIds = [\"one\" :: Text, \"two\" :: Text]\n      in [typedSql| SELECT name FROM typed_sql_test_items WHERE author_id IN (${authorIds}) LIMIT 1 |]")
             []
 
         compileFailTest "fails when a placeholder expression is invalid Haskell"
-            (mkTestModule "TypedQuery Text"
+            (mkTestModule "TypedQuery 'AtMostOneRow 'ReturnsRows Text"
                 "[typedSql| SELECT name FROM typed_sql_test_items WHERE views = ${(} LIMIT 1 |]")
             ["failed to parse expression"]
 
         compileFailTest "fails when SQL parameter count does not match ${...} placeholders"
-            (mkTestModule "TypedQuery Text"
+            (mkTestModule "TypedQuery 'AtMostOneRow 'ReturnsRows Text"
                 "[typedSql| SELECT name FROM typed_sql_test_items WHERE views = $1 LIMIT 1 |]")
             ["placeholder count mismatch"]
 
         compileFailTest "fails when selecting a single composite value without expansion"
-            (mkTestModule "TypedQuery Text"
+            (mkTestModule "TypedQuery 'AtMostOneRow 'ReturnsRows Text"
                 "[typedSql| SELECT ROW(name, views)::typed_sql_test_pair FROM typed_sql_test_items LIMIT 1 |]")
             ["composite columns must be expanded"]
 
         compileFailTest "fails when using SELECT * (bare asterisk)"
-            (mkTestModule "TypedQuery Text"
+            (mkTestModule "TypedQuery 'AtMostOneRow 'ReturnsRows Text"
                 "[typedSql| SELECT * FROM typed_sql_test_items LIMIT 1 |]")
             ["is not allowed"]
 
         compileFailTest "fails when using SELECT table.*"
-            (mkTestModule "TypedQuery Text"
+            (mkTestModule "TypedQuery 'AtMostOneRow 'ReturnsRows Text"
                 "[typedSql| SELECT typed_sql_test_items.* FROM typed_sql_test_items LIMIT 1 |]")
             ["is not allowed"]
 
         compileFailTest "fails when INSERT VALUES has no explicit column list"
-            (mkTestModule "TypedQuery Text"
+            (mkTestModule "TypedQuery 'ManyRows 'ReturnsRows Text"
                 "[typedSql| INSERT INTO typed_sql_test_items VALUES ('00000000-0000-0000-0000-000000000099'::uuid, '00000000-0000-0000-0000-000000000001'::uuid, 'X', 1, 1.0, ARRAY['x']::text[]) RETURNING name |]")
             ["explicit column list"]
 
         compileFailTest "fails when SQL references an unknown column"
-            (mkTestModule "TypedQuery Text"
+            (mkTestModule "TypedQuery 'AtMostOneRow 'ReturnsRows Text"
                 "[typedSql| SELECT no_such_column FROM typed_sql_test_items LIMIT 1 |]")
             ["does not exist"]
 
         compileFailTest "fails when primary-key result type is annotated as UUID instead of Id"
-            (mkTestModuleWithPK ["typed_sql_test_items"] "TypedQuery UUID"
+            (mkTestModuleWithPK ["typed_sql_test_items"] "TypedQuery 'AtMostOneRow 'ReturnsRows UUID"
                 "[typedSql| SELECT id FROM typed_sql_test_items LIMIT 1 |]")
             []
 
         compileFailTest "fails when nullable column result is annotated as non-Maybe"
-            (mkTestModule "TypedQuery Double"
+            (mkTestModule "TypedQuery 'AtMostOneRow 'ReturnsRows Double"
                 "[typedSql| SELECT score FROM typed_sql_test_items LIMIT 1 |]")
             []
 
         compileFailTest "fails when multi-column result is annotated as a tuple"
-            (mkTestModule "TypedQuery (Text, Text)"
+            (mkTestModule "TypedQuery 'AtMostOneRow 'ReturnsRows (Text, Text)"
                 "[typedSql| SELECT i.name, a.name FROM typed_sql_test_items i LEFT JOIN typed_sql_test_authors a ON a.id = i.author_id LIMIT 1 |]")
             []
 
         compileFailTest "fails when multi-column result is annotated as a scalar"
-            (mkTestModule "TypedQuery Text"
+            (mkTestModule "TypedQuery 'AtMostOneRow 'ReturnsRows Text"
                 "[typedSql| SELECT name, views FROM typed_sql_test_items LIMIT 1 |]")
             []
 
         compileFailTest "fails when boolean expression result is annotated as Int"
-            (mkTestModule "TypedQuery Int"
+            (mkTestModule "TypedQuery 'AtMostOneRow 'ReturnsRows Int"
                 "[typedSql| SELECT author_id IS NULL FROM typed_sql_test_items LIMIT 1 |]")
             []
 
         compileFailTest "fails when boolean expression result is annotated as non-Maybe Bool"
-            (mkTestModule "TypedQuery Bool"
+            (mkTestModule "TypedQuery 'AtMostOneRow 'ReturnsRows Bool"
                 "[typedSql| SELECT author_id IS NULL FROM typed_sql_test_items LIMIT 1 |]")
             []
 
         compileFailTest "fails when COUNT(*) result is annotated as Maybe Int64"
-            (mkTestModule "TypedQuery (Maybe Int64)"
+            (mkTestModule "TypedQuery 'ExactlyOneRow 'ReturnsRows (Maybe Int64)"
                 "[typedSql| SELECT COUNT(*) FROM typed_sql_test_items |]")
             []
 
         compileFailTest "fails when COALESCE multi-column result is annotated as a tuple"
-            (mkTestModule "TypedQuery (Maybe Text, Text)"
+            (mkTestModule "TypedQuery 'AtMostOneRow 'ReturnsRows (Maybe Text, Text)"
                 "[typedSql| SELECT COALESCE(i.name, '(no-item)'), a.name FROM typed_sql_test_items i RIGHT JOIN typed_sql_test_authors a ON a.id = i.author_id LIMIT 1 |]")
             []
 
         compileFailTest "fails when literal expression result is annotated as Maybe Int"
-            (mkTestModule "TypedQuery (Maybe Int)"
+            (mkTestModule "TypedQuery 'ExactlyOneRow 'ReturnsRows (Maybe Int)"
                 "[typedSql| SELECT 1 |]")
             []
 
         compileFailTest "fails when arithmetic expression result is annotated as non-Maybe Int"
-            (mkTestModule "TypedQuery Int"
+            (mkTestModule "TypedQuery 'AtMostOneRow 'ReturnsRows Int"
                 "[typedSql| SELECT views + 1 FROM typed_sql_test_items LIMIT 1 |]")
             []
 
         compileFailTest "fails when CASE expression result is annotated as non-Maybe Text"
-            (mkTestModule "TypedQuery Text"
+            (mkTestModule "TypedQuery 'AtMostOneRow 'ReturnsRows Text"
                 "[typedSql| SELECT CASE WHEN views > 5 THEN name ELSE 'low' END FROM typed_sql_test_items LIMIT 1 |]")
             []
 
         compileFailTest "fails when EXISTS expression result is annotated as Maybe Bool"
-            (mkTestModule "TypedQuery (Maybe Bool)"
+            (mkTestModule "TypedQuery 'ExactlyOneRow 'ReturnsRows (Maybe Bool)"
                 "[typedSql| SELECT EXISTS(SELECT 1 FROM typed_sql_test_items WHERE views > 7) |]")
             []
 
         compileFailTest "fails when NULL literal result is annotated as non-Maybe Text"
-            (mkTestModule "TypedQuery Text"
+            (mkTestModule "TypedQuery 'ExactlyOneRow 'ReturnsRows Text"
                 "[typedSql| SELECT NULL::text |]")
             []
 
         compileFailTest "fails when CTE result is annotated as Maybe Text"
-            (mkTestModule "TypedQuery (Maybe Text)"
+            (mkTestModule "TypedQuery 'AtMostOneRow 'ReturnsRows (Maybe Text)"
                 "[typedSql| WITH item_names AS (SELECT name FROM typed_sql_test_items WHERE views > 6) SELECT name FROM item_names LIMIT 1 |]")
             []
 
         compileFailTest "fails when subquery result is annotated as Maybe Text"
-            (mkTestModule "TypedQuery (Maybe Text)"
+            (mkTestModule "TypedQuery 'AtMostOneRow 'ReturnsRows (Maybe Text)"
                 "[typedSql| SELECT name FROM (SELECT name FROM typed_sql_test_items WHERE views < 6) sub LIMIT 1 |]")
             []
 
         compileFailTest "fails when UNION result is annotated as non-Maybe Text"
-            (mkTestModule "TypedQuery Text"
+            (mkTestModule "TypedQuery 'ManyRows 'ReturnsRows Text"
                 "[typedSql| SELECT name FROM typed_sql_test_items WHERE views > 6 UNION ALL SELECT name FROM typed_sql_test_items WHERE views < 6 |]")
             []
 
         compileFailTest "fails when window function result is annotated as Maybe Int64"
-            (mkTestModule "TypedQuery (Maybe Int64)"
+            (mkTestModule "TypedQuery 'AtMostOneRow 'ReturnsRows (Maybe Int64)"
                 "[typedSql| SELECT row_number() OVER (ORDER BY name) FROM typed_sql_test_items LIMIT 1 |]")
             []
 
         compileFailTest "fails when grouped COUNT(*) result is annotated as a tuple"
-            (mkTestModule "TypedQuery (Text, Maybe Int64)"
+            (mkTestModule "TypedQuery 'AtMostOneRow 'ReturnsRows (Text, Maybe Int64)"
                 "[typedSql| SELECT name, COUNT(*) FROM typed_sql_test_items GROUP BY name ORDER BY name LIMIT 1 |]")
             []
 
         compileFailTest "fails when array literal result is annotated as non-Maybe [Text]"
-            (mkTestModule "TypedQuery [Text]"
+            (mkTestModule "TypedQuery 'ExactlyOneRow 'ReturnsRows [Text]"
                 "[typedSql| SELECT ARRAY['x','y']::text[] |]")
             []
 
         compileFailTest "fails when NULLIF expression result is annotated as non-Maybe Text"
-            (mkTestModule "TypedQuery Text"
+            (mkTestModule "TypedQuery 'AtMostOneRow 'ReturnsRows Text"
                 "[typedSql| SELECT NULLIF(name, 'First') FROM typed_sql_test_items LIMIT 1 |]")
             []
 
         compileFailTest "explains polymorphic-argument inference failure with placeholder context"
-            (mkTestModule "TypedQuery Text"
+            (mkTestModule "TypedQuery 'AtMostOneRow 'ReturnsRows Text"
                 "let chunk = (\"x\" :: Text) in [typedSql| SELECT CONCAT(name, ${chunk}) FROM typed_sql_test_items LIMIT 1 |]")
             ["could not determine the type of `${chunk}`", "polymorphic-argument context", "::text"]
+
+        compileFailTest "fails when sqlExecTyped is used for a row-returning query"
+            sqlExecTypedSelectCompileFailModule
+            ["sqlExecTyped cannot run SQL statements that return rows"]
 
         it "auto-starts a temporary database when DATABASE_URL is unreachable" do
             maybeInitdb <- findExecutable "initdb"
@@ -211,121 +215,155 @@ tests = do
                         , ("IHP_TYPED_SQL_SCHEMA", schemaPath)
                         ]
                 ghciOutput <- ghciLoadModuleWithEnv
-                    (mkTestModule "TypedQuery Text"
+                    (mkTestModule "TypedQuery 'AtMostOneRow 'ReturnsRows Text"
                         "[typedSql| SELECT name FROM typed_sql_auto_items LIMIT 1 |]")
                     envOverrides
                 assertGhciSuccess ghciOutput
 
     describe "TypedSql macro compile-time success" do
         compilePassTest "primary key inferred as Id'"
-            (mkTestModuleWithPK ["typed_sql_test_items"] "TypedQuery (Id' \"typed_sql_test_items\")"
+            (mkTestModuleWithPK ["typed_sql_test_items"] "TypedQuery 'AtMostOneRow 'ReturnsRows (Id' \"typed_sql_test_items\")"
                 "[typedSql| SELECT id FROM typed_sql_test_items LIMIT 1 |]")
 
         compilePassTest "nullable column inferred as Maybe"
-            (mkTestModule "TypedQuery (Maybe Double)"
+            (mkTestModule "TypedQuery 'AtMostOneRow 'ReturnsRows (Maybe Double)"
                 "[typedSql| SELECT score FROM typed_sql_test_items LIMIT 1 |]")
 
         compilePassTest "LEFT JOIN right side inferred as Maybe"
-            (mkTestModule "TypedQuery (SqlRow '[ '(\"name\", Text), '(\"name_1\", Maybe Text) ])"
+            (mkTestModule "TypedQuery 'AtMostOneRow 'ReturnsRows (SqlRow '[ '(\"name\", Text), '(\"name_1\", Maybe Text) ])"
                 "[typedSql| SELECT i.name, a.name FROM typed_sql_test_items i LEFT JOIN typed_sql_test_authors a ON a.id = i.author_id LIMIT 1 |]")
 
         compilePassTest "RIGHT JOIN left side inferred as Maybe"
-            (mkTestModule "TypedQuery (SqlRow '[ '(\"name\", Maybe Text), '(\"name_1\", Text) ])"
+            (mkTestModule "TypedQuery 'AtMostOneRow 'ReturnsRows (SqlRow '[ '(\"name\", Maybe Text), '(\"name_1\", Text) ])"
                 "[typedSql| SELECT i.name, a.name FROM typed_sql_test_items i RIGHT JOIN typed_sql_test_authors a ON a.id = i.author_id ORDER BY a.name LIMIT 1 |]")
 
         compilePassTest "multi-column ad-hoc returns SqlRow"
-            (mkTestModule "TypedQuery (SqlRow '[ '(\"name\", Text), '(\"views\", Int) ])"
+            (mkTestModule "TypedQuery 'AtMostOneRow 'ReturnsRows (SqlRow '[ '(\"name\", Text), '(\"views\", Int) ])"
                 "[typedSql| SELECT name, views FROM typed_sql_test_items LIMIT 1 |]")
 
         compilePassTest "boolean expression inferred as Maybe Bool"
-            (mkTestModule "TypedQuery (Maybe Bool)"
+            (mkTestModule "TypedQuery 'AtMostOneRow 'ReturnsRows (Maybe Bool)"
                 "[typedSql| SELECT author_id IS NULL FROM typed_sql_test_items LIMIT 1 |]")
 
         compilePassTest "COUNT(*) inferred as Int64"
-            (mkTestModule "TypedQuery Int64"
+            (mkTestModule "TypedQuery 'ExactlyOneRow 'ReturnsRows Int64"
                 "[typedSql| SELECT COUNT(*) FROM typed_sql_test_items |]")
 
         compilePassTest "COALESCE with non-null fallback inferred as non-Maybe"
-            (mkTestModule "TypedQuery (SqlRow '[ '(\"coalesce\", Text), '(\"name\", Text) ])"
+            (mkTestModule "TypedQuery 'AtMostOneRow 'ReturnsRows (SqlRow '[ '(\"coalesce\", Text), '(\"name\", Text) ])"
                 "[typedSql| SELECT COALESCE(i.name, '(no-item)'), a.name FROM typed_sql_test_items i RIGHT JOIN typed_sql_test_authors a ON a.id = i.author_id LIMIT 1 |]")
 
         compilePassTest "literal expression inferred as Int"
-            (mkTestModule "TypedQuery Int"
+            (mkTestModule "TypedQuery 'ExactlyOneRow 'ReturnsRows Int"
                 "[typedSql| SELECT 1 |]")
 
         compilePassTest "arithmetic expression inferred as Maybe Int"
-            (mkTestModule "TypedQuery (Maybe Int)"
+            (mkTestModule "TypedQuery 'AtMostOneRow 'ReturnsRows (Maybe Int)"
                 "[typedSql| SELECT views + 1 FROM typed_sql_test_items LIMIT 1 |]")
 
         compilePassTest "CASE expression inferred as Maybe Text"
-            (mkTestModule "TypedQuery (Maybe Text)"
+            (mkTestModule "TypedQuery 'AtMostOneRow 'ReturnsRows (Maybe Text)"
                 "[typedSql| SELECT CASE WHEN views > 5 THEN name ELSE 'low' END FROM typed_sql_test_items LIMIT 1 |]")
 
         compilePassTest "EXISTS expression inferred as Bool"
-            (mkTestModule "TypedQuery Bool"
+            (mkTestModule "TypedQuery 'ExactlyOneRow 'ReturnsRows Bool"
                 "[typedSql| SELECT EXISTS(SELECT 1 FROM typed_sql_test_items WHERE views > 7) |]")
 
         compilePassTest "NULL literal inferred as Maybe Text"
-            (mkTestModule "TypedQuery (Maybe Text)"
+            (mkTestModule "TypedQuery 'ExactlyOneRow 'ReturnsRows (Maybe Text)"
                 "[typedSql| SELECT NULL::text |]")
 
         compilePassTest "CTE preserves column type"
-            (mkTestModule "TypedQuery Text"
+            (mkTestModule "TypedQuery 'AtMostOneRow 'ReturnsRows Text"
                 "[typedSql| WITH item_names AS (SELECT name FROM typed_sql_test_items WHERE views > 6) SELECT name FROM item_names LIMIT 1 |]")
 
         compilePassTest "subquery preserves column type"
-            (mkTestModule "TypedQuery Text"
+            (mkTestModule "TypedQuery 'AtMostOneRow 'ReturnsRows Text"
                 "[typedSql| SELECT name FROM (SELECT name FROM typed_sql_test_items WHERE views < 6) sub LIMIT 1 |]")
 
         compilePassTest "UNION inferred as Maybe"
-            (mkTestModule "TypedQuery (Maybe Text)"
+            (mkTestModule "TypedQuery 'ManyRows 'ReturnsRows (Maybe Text)"
                 "[typedSql| SELECT name FROM typed_sql_test_items WHERE views > 6 UNION ALL SELECT name FROM typed_sql_test_items WHERE views < 6 |]")
 
         compilePassTest "window function inferred as Int64"
-            (mkTestModule "TypedQuery Int64"
+            (mkTestModule "TypedQuery 'AtMostOneRow 'ReturnsRows Int64"
                 "[typedSql| SELECT row_number() OVER (ORDER BY name) FROM typed_sql_test_items LIMIT 1 |]")
 
         compilePassTest "grouped COUNT(*) returns SqlRow"
-            (mkTestModule "TypedQuery (SqlRow '[ '(\"name\", Text), '(\"count\", Int64) ])"
+            (mkTestModule "TypedQuery 'AtMostOneRow 'ReturnsRows (SqlRow '[ '(\"name\", Text), '(\"count\", Int64) ])"
                 "[typedSql| SELECT name, COUNT(*) FROM typed_sql_test_items GROUP BY name ORDER BY name LIMIT 1 |]")
 
         compilePassTest "array literal inferred as Maybe [Text]"
-            (mkTestModule "TypedQuery (Maybe [Text])"
+            (mkTestModule "TypedQuery 'ExactlyOneRow 'ReturnsRows (Maybe [Text])"
                 "[typedSql| SELECT ARRAY['x','y']::text[] |]")
 
         compilePassTest "NULLIF inferred as Maybe Text"
-            (mkTestModule "TypedQuery (Maybe Text)"
+            (mkTestModule "TypedQuery 'AtMostOneRow 'ReturnsRows (Maybe Text)"
                 "[typedSql| SELECT NULLIF(name, 'First') FROM typed_sql_test_items LIMIT 1 |]")
 
         compilePassTest "scalar parameter accepts correct type"
-            (mkTestModule "TypedQuery Text"
+            (mkTestModule "TypedQuery 'AtMostOneRow 'ReturnsRows Text"
                 "[typedSql| SELECT name FROM typed_sql_test_items WHERE views = ${(5 :: Int)} LIMIT 1 |]")
 
         compilePassTest "foreign-key parameter accepts Id' type"
-            (mkTestModuleWithPK ["typed_sql_test_items", "typed_sql_test_authors"] "TypedQuery Text"
+            (mkTestModuleWithPK ["typed_sql_test_items", "typed_sql_test_authors"] "TypedQuery 'AtMostOneRow 'ReturnsRows Text"
                 "let authorId = (\"00000000-0000-0000-0000-000000000001\" :: Id' \"typed_sql_test_authors\")\n      in [typedSql| SELECT name FROM typed_sql_test_items WHERE author_id = ${authorId} LIMIT 1 |]")
 
+        compilePassTest "foreign-key parameter accepts raw primary key list"
+            (mkTestModuleWithPK ["typed_sql_test_items", "typed_sql_test_authors"] "TypedQuery 'AtMostOneRow 'ReturnsRows Text"
+                "let authorIds = [(\"00000000-0000-0000-0000-000000000001\" :: UUID)]\n      in [typedSql| SELECT name FROM typed_sql_test_items WHERE author_id IN (${authorIds}) LIMIT 1 |]")
+
+        compilePassTest "foreign-key parameter accepts Maybe raw primary key"
+            (mkTestModuleWithPK ["typed_sql_test_items", "typed_sql_test_authors"] "TypedQuery 'AtMostOneRow 'ReturnsRows Text"
+                "let authorId = Just (\"00000000-0000-0000-0000-000000000001\" :: UUID)\n      in [typedSql| SELECT name FROM typed_sql_test_items WHERE author_id IS NOT DISTINCT FROM ${authorId} LIMIT 1 |]")
+
+        compilePassTest "foreign-key parameter accepts maybe raw primary key list"
+            (mkTestModuleWithPK ["typed_sql_test_items", "typed_sql_test_authors"] "TypedQuery 'AtMostOneRow 'ReturnsRows Text"
+                "let authorIds = [Just (\"00000000-0000-0000-0000-000000000001\" :: UUID)]\n      in [typedSql| SELECT name FROM typed_sql_test_items WHERE author_id = ANY(${authorIds}) LIMIT 1 |]")
+
+        compilePassTest "Maybe parameter accepts unannotated Nothing"
+            (mkTestModule "TypedQuery 'AtMostOneRow 'ReturnsRows Text"
+                "[typedSql| SELECT name FROM typed_sql_test_items WHERE score IS NOT DISTINCT FROM ${Nothing} LIMIT 1 |]")
+
+        compilePassTest "list parameter accepts unannotated empty list"
+            (mkTestModule "TypedQuery 'AtMostOneRow 'ReturnsRows Text"
+                "[typedSql| SELECT name FROM typed_sql_test_items WHERE name IN (${[]}) LIMIT 1 |]")
+
+        compilePassTest "list-of-Maybe parameter accepts unannotated Nothing list"
+            (mkTestModule "TypedQuery 'AtMostOneRow 'ReturnsRows Text"
+                "[typedSql| SELECT name FROM typed_sql_test_items WHERE score = ANY(${[Nothing]}) LIMIT 1 |]")
+
         compilePassTest "INNER JOIN columns are non-Maybe"
-            (mkTestModule "TypedQuery (SqlRow '[ '(\"name\", Text), '(\"name_1\", Text) ])"
+            (mkTestModule "TypedQuery 'AtMostOneRow 'ReturnsRows (SqlRow '[ '(\"name\", Text), '(\"name_1\", Text) ])"
                 "[typedSql| SELECT i.name, a.name FROM typed_sql_test_items i INNER JOIN typed_sql_test_authors a ON a.id = i.author_id LIMIT 1 |]")
 
         compilePassTest "COUNT through subquery alias inferred as Int64"
-            (mkTestModule "TypedQuery Int64"
+            (mkTestModule "TypedQuery 'ExactlyOneRow 'ReturnsRows Int64"
                 "[typedSql| SELECT p.c FROM (SELECT count(*) AS c FROM typed_sql_test_items) AS p |]")
 
         compilePassTest "SUM through subquery alias remains Maybe"
-            (mkTestModule "TypedQuery (Maybe Int64)"
+            (mkTestModule "TypedQuery 'ExactlyOneRow 'ReturnsRows (Maybe Int64)"
                 "[typedSql| SELECT p.s FROM (SELECT sum(views) AS s FROM typed_sql_test_items) AS p |]")
 
         compilePassTest "COUNT through CTE inferred as Int64"
-            (mkTestModule "TypedQuery Int64"
+            (mkTestModule "TypedQuery 'ExactlyOneRow 'ReturnsRows Int64"
                 "[typedSql| WITH item_counts AS (SELECT count(*) AS c FROM typed_sql_test_items) SELECT c FROM item_counts |]")
+
+        compilePassTest "jsonb_build_object inferred as non-Maybe JSON"
+            (mkTestModuleWithAeson "TypedQuery 'ExactlyOneRow 'ReturnsRows Aeson.Value"
+                "[typedSql| SELECT jsonb_build_object('name', NULL::text) |]")
+
+        compilePassTest "json_build_array inferred as non-Maybe JSON"
+            (mkTestModuleWithAeson "TypedQuery 'ExactlyOneRow 'ReturnsRows Aeson.Value"
+                "[typedSql| SELECT json_build_array(NULL::text) |]")
 
     describe "TypedSql macro runtime execution" do
         runtimeTest "executes typedSql queries end-to-end via ghci" runtimeModule
         runtimeTest "UPDATE and DELETE with parameters" runtimeUpdateDeleteModule
         runtimeTest "empty results and edge cases" runtimeEdgeCasesModule
         runtimeTest "additional column types (smallint, bigint, numeric, bytea, bool, timestamptz, date, jsonb)" runtimeExtraTypesModule
+        runtimeTest "paginatedTypedSql / paginatedTypedSqlWithOptions" runtimePaginationModule
+        runtimeTest "enum, Maybe enum, and [Maybe enum] parameters via ${...}" runtimeEnumModule
 
     describe "TypedSql SQL parser (pure, no postgres)" do
         it "parseSql succeeds on simple SELECT" do
@@ -422,6 +460,10 @@ tests = do
             let Just ast = parseSql "SELECT NULL::text"
             extractNonNullableComputedColumnsFromAst ast `shouldBe` Set.empty
 
+        it "extractNonNullableComputedColumns detects JSON build constructors" do
+            let Just ast = parseSql "SELECT jsonb_build_object('x', NULL::text), json_build_array(NULL::text)"
+            extractNonNullableComputedColumnsFromAst ast `shouldBe` Set.fromList [0, 1]
+
         it "detectStarSelects detects bare SELECT *" do
             let Just ast = parseSql "SELECT * FROM items"
             detectStarSelects ast `shouldBe` ["*"]
@@ -489,10 +531,12 @@ withTestModelContext action = do
 setupSchema :: (?modelContext :: ModelContext) => IO ()
 setupSchema = do
     -- Use unsafeSqlExecDiscardResult for DDL (DROP/CREATE) since they have no rows-affected count
+    unsafeSqlExecDiscardResult "DROP TABLE IF EXISTS typed_sql_test_enum_items" ()
     unsafeSqlExecDiscardResult "DROP TABLE IF EXISTS typed_sql_test_extras" ()
     unsafeSqlExecDiscardResult "DROP TABLE IF EXISTS typed_sql_test_items" ()
     unsafeSqlExecDiscardResult "DROP TABLE IF EXISTS typed_sql_test_authors" ()
     unsafeSqlExecDiscardResult "DROP TYPE IF EXISTS typed_sql_test_pair" ()
+    unsafeSqlExecDiscardResult "DROP TYPE IF EXISTS typed_sql_test_mood" ()
 
     unsafeSqlExecDiscardResult "CREATE TYPE typed_sql_test_pair AS (name TEXT, views INT)" ()
 
@@ -526,6 +570,21 @@ setupSchema = do
 
     unsafeSqlExecDiscardResult
         "INSERT INTO typed_sql_test_extras (id, small_count, big_count, amount, payload, metadata, created_at, due_date, active) VALUES ('20000000-0000-0000-0000-000000000001'::uuid, 7, 1000000000, 99.95, '\\xDEADBEEF', '{\"key\": \"value\"}', '2025-06-15 12:00:00+00', '2025-06-15', true)"
+        ()
+
+    -- Enum type + table for exercising DefaultParamEncoder enum interpolation in typedSql
+    unsafeSqlExecDiscardResult "CREATE TYPE typed_sql_test_mood AS ENUM ('happy', 'sad', 'neutral')" ()
+
+    unsafeSqlExecDiscardResult
+        "CREATE TABLE typed_sql_test_enum_items (id UUID PRIMARY KEY, name TEXT NOT NULL, mood typed_sql_test_mood NOT NULL, opt_mood typed_sql_test_mood)"
+        ()
+
+    unsafeSqlExecDiscardResult
+        "INSERT INTO typed_sql_test_enum_items (id, name, mood, opt_mood) VALUES ('30000000-0000-0000-0000-000000000001'::uuid, 'HappyItem', 'happy', 'happy')"
+        ()
+
+    unsafeSqlExecDiscardResult
+        "INSERT INTO typed_sql_test_enum_items (id, name, mood, opt_mood) VALUES ('30000000-0000-0000-0000-000000000002'::uuid, 'SadItem', 'sad', NULL)"
         ()
 
     pure ()
@@ -740,8 +799,25 @@ mkTestModule typeSig body = Text.unlines
     , "module TypedSqlCase where"
     , ""
     , "import IHP.Prelude"
-    , "import IHP.TypedSql (TypedQuery, typedSql)"
+    , "import IHP.TypedSql (QueryCardinality (..), QueryExecResult (..), TypedQuery, typedSql)"
     , "import IHP.TypedSql.RowType (SqlRow)"
+    , ""
+    , "query :: " <> typeSig
+    , "query = " <> body
+    ]
+
+mkTestModuleWithAeson :: Text -> Text -> Text
+mkTestModuleWithAeson typeSig body = Text.unlines
+    [ "{-# LANGUAGE DataKinds #-}"
+    , "{-# LANGUAGE NoImplicitPrelude #-}"
+    , "{-# LANGUAGE NoFieldSelectors #-}"
+    , "{-# LANGUAGE OverloadedStrings #-}"
+    , "{-# LANGUAGE QuasiQuotes #-}"
+    , "module TypedSqlCase where"
+    , ""
+    , "import IHP.Prelude"
+    , "import IHP.TypedSql (QueryCardinality (..), QueryExecResult (..), TypedQuery, typedSql)"
+    , "import qualified Data.Aeson as Aeson"
     , ""
     , "query :: " <> typeSig
     , "query = " <> body
@@ -760,7 +836,7 @@ mkTestModuleWithPK pkTables typeSig body = Text.unlines $
     , ""
     , "import IHP.Prelude"
     , "import IHP.ModelSupport (Id'(..), PrimaryKey)"
-    , "import IHP.TypedSql (TypedQuery, typedSql)"
+    , "import IHP.TypedSql (QueryCardinality (..), QueryExecResult (..), TypedQuery, typedSql)"
     , "import IHP.TypedSql.RowType (SqlRow)"
     , ""
     ]
@@ -769,6 +845,23 @@ mkTestModuleWithPK pkTables typeSig body = Text.unlines $
     [ ""
     , "query :: " <> typeSig
     , "query = " <> body
+    ]
+
+sqlExecTypedSelectCompileFailModule :: Text
+sqlExecTypedSelectCompileFailModule = Text.unlines
+    [ "{-# LANGUAGE DataKinds #-}"
+    , "{-# LANGUAGE ImplicitParams #-}"
+    , "{-# LANGUAGE NoImplicitPrelude #-}"
+    , "{-# LANGUAGE OverloadedStrings #-}"
+    , "{-# LANGUAGE QuasiQuotes #-}"
+    , "module TypedSqlExecCase where"
+    , ""
+    , "import IHP.Prelude"
+    , "import IHP.ModelSupport (ModelContext)"
+    , "import IHP.TypedSql (sqlExecTyped, typedSql)"
+    , ""
+    , "query :: (?modelContext :: ModelContext) => IO Int64"
+    , "query = sqlExecTyped [typedSql| SELECT 1 |]"
     ]
 
 -- Test modules ---------------------------------------------------------------
@@ -789,8 +882,9 @@ compilePassModule = Text.unlines
     , "import GHC.Records (HasField)"
     , "import IHP.ModelSupport (Id'(..), PrimaryKey)"
     , "import IHP.Hasql.FromRow (FromRowHasql (..))"
-    , "import IHP.TypedSql (TypedQuery, typedSql, typedSqlStar)"
+    , "import IHP.TypedSql (QueryCardinality (..), QueryExecResult (..), TypedQuery, typedSql, typedSqlStar)"
     , "import IHP.TypedSql.RowType (SqlRow)"
+    , "import qualified Data.Aeson as Aeson"
     , "import qualified Hasql.Decoders as HasqlDecoders"
     , ""
     , "type instance PrimaryKey \"typed_sql_test_items\" = UUID"
@@ -815,48 +909,48 @@ compilePassModule = Text.unlines
     , "            <*> HasqlDecoders.column (HasqlDecoders.nullable HasqlDecoders.float8)"
     , "            <*> HasqlDecoders.column (HasqlDecoders.nonNullable (HasqlDecoders.listArray (HasqlDecoders.nonNullable HasqlDecoders.text)))"
     , ""
-    , "qName :: TypedQuery Text"
+    , "qName :: TypedQuery 'AtMostOneRow 'ReturnsRows Text"
     , "qName = [typedSql| SELECT name FROM typed_sql_test_items LIMIT 1 |]"
     , ""
-    , "qAllFields :: TypedQuery TypedSqlTestItem"
+    , "qAllFields :: TypedQuery 'AtMostOneRow 'ReturnsRows TypedSqlTestItem"
     , "qAllFields = [typedSqlStar| SELECT typed_sql_test_items.* FROM typed_sql_test_items LIMIT 1 |]"
     , ""
-    , "qAllFieldsAlias :: TypedQuery TypedSqlTestItem"
+    , "qAllFieldsAlias :: TypedQuery 'AtMostOneRow 'ReturnsRows TypedSqlTestItem"
     , "qAllFieldsAlias = [typedSqlStar| SELECT i.* FROM typed_sql_test_items i JOIN typed_sql_test_authors a ON a.id = i.author_id LIMIT 1 |]"
     , ""
-    , "qPrimaryKey :: TypedQuery (Id' \"typed_sql_test_items\")"
+    , "qPrimaryKey :: TypedQuery 'AtMostOneRow 'ReturnsRows (Id' \"typed_sql_test_items\")"
     , "qPrimaryKey = [typedSql| SELECT id FROM typed_sql_test_items LIMIT 1 |]"
     , ""
-    , "qForeignKey :: TypedQuery (Maybe (Id' \"typed_sql_test_authors\"))"
+    , "qForeignKey :: TypedQuery 'AtMostOneRow 'ReturnsRows (Maybe (Id' \"typed_sql_test_authors\"))"
     , "qForeignKey = [typedSql| SELECT author_id FROM typed_sql_test_items LIMIT 1 |]"
     , ""
-    , "qNullable :: TypedQuery (Maybe Double)"
+    , "qNullable :: TypedQuery 'AtMostOneRow 'ReturnsRows (Maybe Double)"
     , "qNullable = [typedSql| SELECT score FROM typed_sql_test_items LIMIT 1 |]"
     , ""
-    , "qArray :: TypedQuery [Text]"
+    , "qArray :: TypedQuery 'AtMostOneRow 'ReturnsRows [Text]"
     , "qArray = [typedSql| SELECT tags FROM typed_sql_test_items LIMIT 1 |]"
     , ""
-    , "qRecord :: TypedQuery (SqlRow '[ '(\"id\", Id' \"typed_sql_test_items\"), '(\"name\", Text), '(\"views\", Int) ])"
+    , "qRecord :: TypedQuery 'AtMostOneRow 'ReturnsRows (SqlRow '[ '(\"id\", Id' \"typed_sql_test_items\"), '(\"name\", Text), '(\"views\", Int) ])"
     , "qRecord = [typedSql| SELECT id, name, views FROM typed_sql_test_items LIMIT 1 |]"
     , ""
     , "-- Verify .field access works on the generated record type"
     , "qRecordAccess :: (HasField \"id\" row (Id' \"typed_sql_test_items\"), HasField \"name\" row Text, HasField \"views\" row Int) => row -> (Id' \"typed_sql_test_items\", Text, Int)"
     , "qRecordAccess row = (row.id, row.name, row.views)"
     , ""
-    , "qEqParam :: TypedQuery Text"
+    , "qEqParam :: TypedQuery 'AtMostOneRow 'ReturnsRows Text"
     , "qEqParam = [typedSql| SELECT name FROM typed_sql_test_items WHERE views = ${5 :: Int} LIMIT 1 |]"
     , ""
-    , "qForeignKeyParamHint :: TypedQuery Text"
+    , "qForeignKeyParamHint :: TypedQuery 'AtMostOneRow 'ReturnsRows Text"
     , "qForeignKeyParamHint ="
     , "    let authorId = (\"00000000-0000-0000-0000-000000000001\" :: Id' \"typed_sql_test_authors\")"
     , "    in [typedSql| SELECT name FROM typed_sql_test_items WHERE author_id = ${authorId} LIMIT 1 |]"
     , ""
-    , "qInParamHint :: TypedQuery Text"
+    , "qInParamHint :: TypedQuery 'AtMostOneRow 'ReturnsRows Text"
     , "qInParamHint ="
     , "    let authorIds = [ (\"00000000-0000-0000-0000-000000000001\" :: Id' \"typed_sql_test_authors\") ]"
     , "    in [typedSql| SELECT name FROM typed_sql_test_items WHERE author_id IN (${authorIds}) LIMIT 1 |]"
     , ""
-    , "qAnyParamHint :: TypedQuery Text"
+    , "qAnyParamHint :: TypedQuery 'AtMostOneRow 'ReturnsRows Text"
     , "qAnyParamHint ="
     , "    let itemIds ="
     , "            [ (\"10000000-0000-0000-0000-000000000001\" :: Id' \"typed_sql_test_items\")"
@@ -864,73 +958,80 @@ compilePassModule = Text.unlines
     , "            ]"
     , "    in [typedSql| SELECT name FROM typed_sql_test_items WHERE id = ANY(${itemIds}) ORDER BY name LIMIT 1 |]"
     , ""
-    , "qCompositeExpanded :: TypedQuery (SqlRow '[ '(\"name\", Maybe Text), '(\"views\", Maybe Int) ])"
+    , "qCompositeExpanded :: TypedQuery 'AtMostOneRow 'ReturnsRows (SqlRow '[ '(\"name\", Maybe Text), '(\"views\", Maybe Int) ])"
     , "qCompositeExpanded = [typedSql| SELECT (ROW(name, views)::typed_sql_test_pair).* FROM typed_sql_test_items LIMIT 1 |]"
     , ""
-    , "qBoolExpr :: TypedQuery (Maybe Bool)"
+    , "qBoolExpr :: TypedQuery 'AtMostOneRow 'ReturnsRows (Maybe Bool)"
     , "qBoolExpr = [typedSql| SELECT author_id IS NULL FROM typed_sql_test_items LIMIT 1 |]"
     , ""
-    , "qCountExpr :: TypedQuery Int64"
+    , "qCountExpr :: TypedQuery 'ExactlyOneRow 'ReturnsRows Int64"
     , "qCountExpr = [typedSql| SELECT COUNT(*) FROM typed_sql_test_items |]"
     , ""
-    , "qLiteralInt :: TypedQuery Int"
+    , "qLiteralInt :: TypedQuery 'ExactlyOneRow 'ReturnsRows Int"
     , "qLiteralInt = [typedSql| SELECT 1 |]"
     , ""
-    , "qArithmeticExpr :: TypedQuery (Maybe Int)"
+    , "qArithmeticExpr :: TypedQuery 'AtMostOneRow 'ReturnsRows (Maybe Int)"
     , "qArithmeticExpr = [typedSql| SELECT views + 1 FROM typed_sql_test_items LIMIT 1 |]"
     , ""
-    , "qCaseExpr :: TypedQuery (Maybe Text)"
+    , "qCaseExpr :: TypedQuery 'AtMostOneRow 'ReturnsRows (Maybe Text)"
     , "qCaseExpr = [typedSql| SELECT CASE WHEN views > 5 THEN name ELSE 'low' END FROM typed_sql_test_items LIMIT 1 |]"
     , ""
-    , "qExistsExpr :: TypedQuery Bool"
+    , "qExistsExpr :: TypedQuery 'ExactlyOneRow 'ReturnsRows Bool"
     , "qExistsExpr = [typedSql| SELECT EXISTS(SELECT 1 FROM typed_sql_test_items WHERE views > 7) |]"
     , ""
-    , "qNullLiteral :: TypedQuery (Maybe Text)"
+    , "qNullLiteral :: TypedQuery 'ExactlyOneRow 'ReturnsRows (Maybe Text)"
     , "qNullLiteral = [typedSql| SELECT NULL::text |]"
     , ""
-    , "qCte :: TypedQuery Text"
+    , "qCte :: TypedQuery 'AtMostOneRow 'ReturnsRows Text"
     , "qCte = [typedSql| WITH item_names AS (SELECT name FROM typed_sql_test_items WHERE views > 6) SELECT name FROM item_names LIMIT 1 |]"
     , ""
-    , "qSubquery :: TypedQuery Text"
+    , "qSubquery :: TypedQuery 'AtMostOneRow 'ReturnsRows Text"
     , "qSubquery = [typedSql| SELECT name FROM (SELECT name FROM typed_sql_test_items WHERE views < 6) sub LIMIT 1 |]"
     , ""
-    , "qUnion :: TypedQuery (Maybe Text)"
+    , "qUnion :: TypedQuery 'ManyRows 'ReturnsRows (Maybe Text)"
     , "qUnion = [typedSql| SELECT name FROM typed_sql_test_items WHERE views > 6 UNION ALL SELECT name FROM typed_sql_test_items WHERE views < 6 |]"
     , ""
-    , "qWindow :: TypedQuery Int64"
+    , "qWindow :: TypedQuery 'AtMostOneRow 'ReturnsRows Int64"
     , "qWindow = [typedSql| SELECT row_number() OVER (ORDER BY name) FROM typed_sql_test_items LIMIT 1 |]"
     , ""
-    , "qGroupedCount :: TypedQuery (SqlRow '[ '(\"name\", Text), '(\"count\", Int64) ])"
+    , "qGroupedCount :: TypedQuery 'AtMostOneRow 'ReturnsRows (SqlRow '[ '(\"name\", Text), '(\"count\", Int64) ])"
     , "qGroupedCount = [typedSql| SELECT name, COUNT(*) FROM typed_sql_test_items GROUP BY name ORDER BY name LIMIT 1 |]"
     , ""
-    , "qArrayLiteral :: TypedQuery (Maybe [Text])"
+    , "qArrayLiteral :: TypedQuery 'ExactlyOneRow 'ReturnsRows (Maybe [Text])"
     , "qArrayLiteral = [typedSql| SELECT ARRAY['x','y']::text[] |]"
     , ""
-    , "qNullIfExpr :: TypedQuery (Maybe Text)"
+    , "qNullIfExpr :: TypedQuery 'AtMostOneRow 'ReturnsRows (Maybe Text)"
     , "qNullIfExpr = [typedSql| SELECT NULLIF(name, 'First') FROM typed_sql_test_items LIMIT 1 |]"
     , ""
-    , "qSchemaQualified :: TypedQuery Text"
+    , "qSchemaQualified :: TypedQuery 'AtMostOneRow 'ReturnsRows Text"
     , "qSchemaQualified = [typedSql| SELECT name FROM public.typed_sql_test_items LIMIT 1 |]"
     , ""
-    , "qQuotedIdentifiers :: TypedQuery Text"
+    , "qQuotedIdentifiers :: TypedQuery 'AtMostOneRow 'ReturnsRows Text"
     , "qQuotedIdentifiers = [typedSql| SELECT \"name\" FROM \"typed_sql_test_items\" LIMIT 1 |]"
     , ""
-    , "qInnerJoin :: TypedQuery (SqlRow '[ '(\"name\", Text), '(\"name_1\", Text) ])"
+    , "qInnerJoin :: TypedQuery 'AtMostOneRow 'ReturnsRows (SqlRow '[ '(\"name\", Text), '(\"name_1\", Text) ])"
     , "qInnerJoin = [typedSql| SELECT i.name, a.name FROM typed_sql_test_items i INNER JOIN typed_sql_test_authors a ON a.id = i.author_id LIMIT 1 |]"
     , ""
-    , "qLeftJoin :: TypedQuery (SqlRow '[ '(\"name\", Text), '(\"name_1\", Maybe Text) ])"
+    , "qLeftJoin :: TypedQuery 'AtMostOneRow 'ReturnsRows (SqlRow '[ '(\"name\", Text), '(\"name_1\", Maybe Text) ])"
     , "qLeftJoin = [typedSql| SELECT i.name, a.name FROM typed_sql_test_items i LEFT JOIN typed_sql_test_authors a ON a.id = i.author_id LIMIT 1 |]"
     , ""
-    , "qRightJoin :: TypedQuery (SqlRow '[ '(\"name\", Maybe Text), '(\"name_1\", Text) ])"
+    , "qRightJoin :: TypedQuery 'AtMostOneRow 'ReturnsRows (SqlRow '[ '(\"name\", Maybe Text), '(\"name_1\", Text) ])"
     , "qRightJoin = [typedSql| SELECT i.name, a.name FROM typed_sql_test_items i RIGHT JOIN typed_sql_test_authors a ON a.id = i.author_id LIMIT 1 |]"
     , ""
-    , "qRightJoinCoalesced :: TypedQuery (SqlRow '[ '(\"coalesce\", Text), '(\"name\", Text) ])"
+    , "qRightJoinCoalesced :: TypedQuery 'AtMostOneRow 'ReturnsRows (SqlRow '[ '(\"coalesce\", Text), '(\"name\", Text) ])"
     , "qRightJoinCoalesced = [typedSql| SELECT COALESCE(i.name, '(no-item)'), a.name FROM typed_sql_test_items i RIGHT JOIN typed_sql_test_authors a ON a.id = i.author_id LIMIT 1 |]"
+    , ""
+    , "qJsonBuildObject :: TypedQuery 'ExactlyOneRow 'ReturnsRows Aeson.Value"
+    , "qJsonBuildObject = [typedSql| SELECT jsonb_build_object('name', NULL::text) |]"
+    , ""
+    , "qJsonBuildArray :: TypedQuery 'ExactlyOneRow 'ReturnsRows Aeson.Value"
+    , "qJsonBuildArray = [typedSql| SELECT json_build_array(NULL::text) |]"
     ]
 
 runtimeModule :: Text
 runtimeModule = Text.unlines
     [ "{-# LANGUAGE DataKinds #-}"
+    , "{-# LANGUAGE ApplicativeDo #-}"
     , "{-# LANGUAGE ImplicitParams #-}"
     , "{-# LANGUAGE NoImplicitPrelude #-}"
     , "{-# LANGUAGE NoFieldSelectors #-}"
@@ -944,7 +1045,8 @@ runtimeModule = Text.unlines
     , "import IHP.Prelude"
     , "import IHP.ModelSupport (Id'(..), ModelContext, PrimaryKey, createModelContext, releaseModelContext, noopLogger)"
     , "import IHP.Hasql.FromRow (FromRowHasql (..))"
-    , "import IHP.TypedSql (sqlExecTyped, sqlQueryTyped, typedSql, typedSqlStar)"
+    , "import IHP.FetchPipelined (pipeline)"
+    , "import IHP.TypedSql (sqlExecTyped, sqlQueryTyped, sqlQueryTypedRows, sqlQueryTypedOneOrNothing, sqlQueryTypedSingle, sqlQueryTypedMaybeColumn, sqlQueryTypedPipelined, sqlQueryTypedMaybeColumnPipelined, typedSql, typedSqlStar)"
     , "import qualified Hasql.Decoders as HasqlDecoders"
     , "import System.Environment (lookupEnv)"
     , ""
@@ -1011,6 +1113,58 @@ runtimeModule = Text.unlines
     , "        when ((namesViaTypedSql :: [Text]) /= [\"First\", \"Second\"]) do"
     , "            error (\"unexpected names from typedSql second query: \" <> show namesViaTypedSql)"
     , ""
+    , "        namesViaRows <- sqlQueryTypedRows [typedSql|"
+    , "            SELECT name FROM typed_sql_test_items"
+    , "            ORDER BY name"
+    , "        |]"
+    , ""
+    , "        when ((namesViaRows :: [Text]) /= [\"First\", \"Second\"]) do"
+    , "            error (\"unexpected names from sqlQueryTypedRows: \" <> show namesViaRows)"
+    , ""
+    , "        maybeFirst <- sqlQueryTypedOneOrNothing [typedSql|"
+    , "            SELECT name FROM typed_sql_test_items"
+    , "            WHERE id = ${itemId1}"
+    , "        |]"
+    , ""
+    , "        when ((maybeFirst :: Maybe Text) /= Just \"First\") do"
+    , "            error (\"unexpected row from sqlQueryTypedOneOrNothing: \" <> show maybeFirst)"
+    , ""
+    , "        countViaSingle <- sqlQueryTypedSingle [typedSql| SELECT COUNT(*) FROM typed_sql_test_items |]"
+    , ""
+    , "        when ((countViaSingle :: Int64) /= 2) do"
+    , "            error (\"unexpected count from sqlQueryTypedSingle: \" <> show countViaSingle)"
+    , ""
+    , "        maybeScore <- sqlQueryTypedMaybeColumn [typedSql|"
+    , "            SELECT score FROM typed_sql_test_items"
+    , "            WHERE id = ${itemId1}"
+    , "        |]"
+    , ""
+    , "        when ((maybeScore :: Maybe Double) /= Just 1.5) do"
+    , "            error (\"unexpected value from sqlQueryTypedMaybeColumn: \" <> show maybeScore)"
+    , ""
+    , "        missingScore <- sqlQueryTypedMaybeColumn [typedSql|"
+    , "            SELECT score FROM typed_sql_test_items"
+    , "            WHERE id = ${(\"10000000-0000-0000-0000-000000000099\" :: UUID)}"
+    , "        |]"
+    , ""
+    , "        when ((missingScore :: Maybe Double) /= Nothing) do"
+    , "            error (\"unexpected missing value from sqlQueryTypedMaybeColumn: \" <> show missingScore)"
+    , ""
+    , "        (pipelinedNames, pipelinedCount, pipelinedMissingScore) <- pipeline do"
+    , "            pipelinedNames <- sqlQueryTypedPipelined [typedSql|"
+    , "                SELECT name FROM typed_sql_test_items"
+    , "                ORDER BY name"
+    , "            |]"
+    , "            pipelinedCount <- sqlQueryTypedPipelined [typedSql| SELECT COUNT(*) FROM typed_sql_test_items |]"
+    , "            pipelinedMissingScore <- sqlQueryTypedMaybeColumnPipelined [typedSql|"
+    , "                SELECT score FROM typed_sql_test_items"
+    , "                WHERE id = ${(\"10000000-0000-0000-0000-000000000099\" :: UUID)}"
+    , "            |]"
+    , "            pure (pipelinedNames, pipelinedCount, pipelinedMissingScore)"
+    , ""
+    , "        when ((pipelinedNames :: [Text]) /= [\"First\", \"Second\"] || (pipelinedCount :: Int64) /= 2 || (pipelinedMissingScore :: Maybe Double) /= Nothing) do"
+    , "            error (\"unexpected typedSql pipeline result: \" <> show (pipelinedNames, pipelinedCount, pipelinedMissingScore))"
+    , ""
     , "        allItems <- sqlQueryTyped [typedSqlStar|"
     , "            SELECT typed_sql_test_items.*"
     , "            FROM typed_sql_test_items"
@@ -1033,15 +1187,15 @@ runtimeModule = Text.unlines
     , "        when ((boolExprRows :: [Maybe Bool]) /= [Just False, Just False]) do"
     , "            error (\"unexpected rows from bool expression query: \" <> show boolExprRows)"
     , ""
-    , "        countRows <- sqlQueryTyped [typedSql| SELECT COUNT(*) FROM typed_sql_test_items |]"
+    , "        count <- sqlQueryTyped [typedSql| SELECT COUNT(*) FROM typed_sql_test_items |]"
     , ""
-    , "        when ((countRows :: [Int64]) /= [2]) do"
-    , "            error (\"unexpected rows from count query: \" <> show countRows)"
+    , "        when ((count :: Int64) /= 2) do"
+    , "            error (\"unexpected count query result: \" <> show count)"
     , ""
-    , "        literalRows <- sqlQueryTyped [typedSql| SELECT 1 |]"
+    , "        literal <- sqlQueryTyped [typedSql| SELECT 1 |]"
     , ""
-    , "        when ((literalRows :: [Int]) /= [1]) do"
-    , "            error (\"unexpected rows from literal query: \" <> show literalRows)"
+    , "        when ((literal :: Int) /= 1) do"
+    , "            error (\"unexpected literal query result: \" <> show literal)"
     , ""
     , "        arithmeticRows <- sqlQueryTyped [typedSql|"
     , "            SELECT views + 1 FROM typed_sql_test_items"
@@ -1060,15 +1214,15 @@ runtimeModule = Text.unlines
     , "        when ((caseRows :: [Maybe Text]) /= [Just \"low\", Just \"Second\"]) do"
     , "            error (\"unexpected rows from CASE query: \" <> show caseRows)"
     , ""
-    , "        existsRows <- sqlQueryTyped [typedSql| SELECT EXISTS(SELECT 1 FROM typed_sql_test_items WHERE views > 7) |]"
+    , "        exists <- sqlQueryTyped [typedSql| SELECT EXISTS(SELECT 1 FROM typed_sql_test_items WHERE views > 7) |]"
     , ""
-    , "        when ((existsRows :: [Bool]) /= [True]) do"
-    , "            error (\"unexpected rows from EXISTS query: \" <> show existsRows)"
+    , "        when ((exists :: Bool) /= True) do"
+    , "            error (\"unexpected EXISTS query result: \" <> show exists)"
     , ""
-    , "        nullLiteralRows <- sqlQueryTyped [typedSql| SELECT NULL::text |]"
+    , "        nullLiteral <- sqlQueryTyped [typedSql| SELECT NULL::text |]"
     , ""
-    , "        when ((nullLiteralRows :: [Maybe Text]) /= [Nothing]) do"
-    , "            error (\"unexpected rows from NULL literal query: \" <> show nullLiteralRows)"
+    , "        when ((nullLiteral :: Maybe Text) /= Nothing) do"
+    , "            error (\"unexpected NULL literal query result: \" <> show nullLiteral)"
     , ""
     , "        cteRows <- sqlQueryTyped [typedSql|"
     , "            WITH item_names AS (SELECT name FROM typed_sql_test_items WHERE views > 6)"
@@ -1116,10 +1270,10 @@ runtimeModule = Text.unlines
     , "        when (groupedCountValues /= [(\"First\", 1 :: Int64), (\"Second\", 1)]) do"
     , "            error (\"unexpected rows from grouped count: \" <> show groupedCountRows)"
     , ""
-    , "        arrayLiteralRows <- sqlQueryTyped [typedSql| SELECT ARRAY['x','y']::text[] |]"
+    , "        arrayLiteral <- sqlQueryTyped [typedSql| SELECT ARRAY['x','y']::text[] |]"
     , ""
-    , "        when ((arrayLiteralRows :: [Maybe [Text]]) /= [Just [\"x\", \"y\"]]) do"
-    , "            error (\"unexpected rows from array literal: \" <> show arrayLiteralRows)"
+    , "        when ((arrayLiteral :: Maybe [Text]) /= Just [\"x\", \"y\"]) do"
+    , "            error (\"unexpected array literal result: \" <> show arrayLiteral)"
     , ""
     , "        nullIfRows <- sqlQueryTyped [typedSql|"
     , "            SELECT NULLIF(name, 'First')"
@@ -1192,7 +1346,7 @@ runtimeUpdateDeleteModule = Text.unlines
     , ""
     , "import qualified Control.Exception as Exception"
     , "import IHP.Prelude"
-    , "import IHP.ModelSupport (Id'(..), ModelContext, PrimaryKey, createModelContext, releaseModelContext, noopLogger)"
+    , "import IHP.ModelSupport (Id'(..), ModelContext, PrimaryKey, createModelContext, releaseModelContext, noopLogger, withTransaction)"
     , "import IHP.TypedSql (sqlExecTyped, sqlQueryTyped, typedSql)"
     , "import System.Environment (lookupEnv)"
     , ""
@@ -1217,6 +1371,10 @@ runtimeUpdateDeleteModule = Text.unlines
     , "        -- Clean slate"
     , "        _ <- sqlExecTyped [typedSql| DELETE FROM typed_sql_test_items |]"
     , ""
+    , "        setConstraintsResult <- withTransaction do"
+    , "            sqlExecTyped [typedSql| SET CONSTRAINTS ALL DEFERRED |]"
+    , "        assertTest \"SET CONSTRAINTS no-result returns unit\" (setConstraintsResult == ())"
+    , ""
     , "        -- Insert two rows"
     , "        _ <- sqlExecTyped [typedSql|"
     , "            INSERT INTO typed_sql_test_items (id, author_id, name, views, score, tags)"
@@ -1234,7 +1392,7 @@ runtimeUpdateDeleteModule = Text.unlines
     , "        assertTest \"UPDATE single column rows affected\" (rowsUpdated == 1)"
     , ""
     , "        viewsAfter <- sqlQueryTyped [typedSql| SELECT views FROM typed_sql_test_items WHERE id = ${itemId1} |]"
-    , "        assertTest \"UPDATE single column value\" ((viewsAfter :: [Int]) == [10])"
+    , "        assertTest \"UPDATE single column value\" ((viewsAfter :: Maybe Int) == Just 10)"
     , ""
     , "        -- UPDATE multiple columns"
     , "        rowsUpdated2 <- sqlExecTyped [typedSql|"
@@ -1243,8 +1401,8 @@ runtimeUpdateDeleteModule = Text.unlines
     , "        assertTest \"UPDATE multiple columns rows affected\" (rowsUpdated2 == 1)"
     , ""
     , "        updated <- sqlQueryTyped [typedSql| SELECT name, views FROM typed_sql_test_items WHERE id = ${itemId2} |]"
-    , "        let updatedValues = map (\\r -> (r.name, r.views)) updated"
-    , "        assertTest \"UPDATE multiple columns values\" (updatedValues == [(\"Updated\" :: Text, 99 :: Int)])"
+    , "        let updatedValues = fmap (\\r -> (r.name, r.views)) updated"
+    , "        assertTest \"UPDATE multiple columns values\" (updatedValues == Just ((\"Updated\" :: Text), 99 :: Int))"
     , ""
     , "        -- UPDATE with no matching rows"
     , "        noMatch <- sqlExecTyped [typedSql|"
@@ -1312,7 +1470,7 @@ runtimeEdgeCasesModule = Text.unlines
     , ""
     , "        -- COUNT on empty table"
     , "        countEmpty <- sqlQueryTyped [typedSql| SELECT COUNT(*) FROM typed_sql_test_items |]"
-    , "        assertTest \"COUNT on empty table\" ((countEmpty :: [Int64]) == [0])"
+    , "        assertTest \"COUNT on empty table\" ((countEmpty :: Int64) == 0)"
     , ""
     , "        -- Re-insert rows for further tests"
     , "        _ <- sqlExecTyped [typedSql|"
@@ -1330,8 +1488,8 @@ runtimeEdgeCasesModule = Text.unlines
     , "            FROM typed_sql_test_items"
     , "            WHERE id = ${itemId1}"
     , "        |]"
-    , "        let fiveColValues = map (\\r -> (r.name, r.views, r.score, r.is_orphan, r.tags)) fiveColRows"
-    , "        assertTest \"5-column record select\" (fiveColValues == [(\"First\" :: Text, 5 :: Int, Just (1.5 :: Double), Just False, [\"red\", \"blue\"] :: [Text])])"
+    , "        let fiveColValues = fmap (\\r -> (r.name, r.views, r.score, r.is_orphan, r.tags)) fiveColRows"
+    , "        assertTest \"5-column record select\" (fiveColValues == Just (\"First\" :: Text, 5 :: Int, Just (1.5 :: Double), Just False, [\"red\", \"blue\"] :: [Text]))"
     , ""
     , "        -- Multi-param WHERE with AND"
     , "        andRows <- sqlQueryTyped [typedSql|"
@@ -1390,46 +1548,231 @@ runtimeExtraTypesModule = Text.unlines
     , ""
     , "        -- smallint -> Int"
     , "        smallRows <- sqlQueryTyped [typedSql| SELECT small_count FROM typed_sql_test_extras LIMIT 1 |]"
-    , "        assertTest \"smallint -> Int\" ((smallRows :: [Int]) == [7])"
+    , "        assertTest \"smallint -> Int\" ((smallRows :: Maybe Int) == Just 7)"
     , ""
     , "        -- bigint -> Int64"
     , "        bigRows <- sqlQueryTyped [typedSql| SELECT big_count FROM typed_sql_test_extras LIMIT 1 |]"
-    , "        assertTest \"bigint -> Int64\" ((bigRows :: [Int64]) == [1000000000])"
+    , "        assertTest \"bigint -> Int64\" ((bigRows :: Maybe Int64) == Just 1000000000)"
     , ""
     , "        -- numeric -> Scientific"
     , "        numericRows <- sqlQueryTyped [typedSql| SELECT amount FROM typed_sql_test_extras LIMIT 1 |]"
-    , "        assertTest \"numeric -> Scientific\" ((numericRows :: [Maybe Scientific]) == [Just 99.95])"
+    , "        assertTest \"numeric -> Scientific\" ((numericRows :: Maybe (Maybe Scientific)) == Just (Just 99.95))"
     , ""
     , "        -- bytea -> ByteString"
     , "        byteaRows <- sqlQueryTyped [typedSql| SELECT payload FROM typed_sql_test_extras LIMIT 1 |]"
-    , "        assertTest \"bytea -> ByteString\" ((byteaRows :: [Maybe BS.ByteString]) == [Just (BS.pack [0xDE, 0xAD, 0xBE, 0xEF])])"
+    , "        assertTest \"bytea -> ByteString\" ((byteaRows :: Maybe (Maybe BS.ByteString)) == Just (Just (BS.pack [0xDE, 0xAD, 0xBE, 0xEF])))"
     , ""
     , "        -- bool -> Bool"
     , "        boolRows <- sqlQueryTyped [typedSql| SELECT active FROM typed_sql_test_extras LIMIT 1 |]"
-    , "        assertTest \"bool -> Bool\" ((boolRows :: [Bool]) == [True])"
+    , "        assertTest \"bool -> Bool\" ((boolRows :: Maybe Bool) == Just True)"
     , ""
     , "        -- timestamptz -> UTCTime"
     , "        tsRows <- sqlQueryTyped [typedSql| SELECT created_at FROM typed_sql_test_extras LIMIT 1 |]"
     , "        let Just expectedTime = parseTimeM True defaultTimeLocale \"%Y-%m-%d %H:%M:%S%Z\" \"2025-06-15 12:00:00UTC\" :: Maybe UTCTime"
-    , "        assertTest \"timestamptz -> UTCTime\" ((tsRows :: [UTCTime]) == [expectedTime])"
+    , "        assertTest \"timestamptz -> UTCTime\" ((tsRows :: Maybe UTCTime) == Just expectedTime)"
     , ""
     , "        -- date -> Day"
     , "        dateRows <- sqlQueryTyped [typedSql| SELECT due_date FROM typed_sql_test_extras LIMIT 1 |]"
     , "        let Just expectedDate = parseTimeM True defaultTimeLocale \"%Y-%m-%d\" \"2025-06-15\" :: Maybe Day"
-    , "        assertTest \"date -> Day\" ((dateRows :: [Maybe Day]) == [Just expectedDate])"
+    , "        assertTest \"date -> Day\" ((dateRows :: Maybe (Maybe Day)) == Just (Just expectedDate))"
     , ""
     , "        -- jsonb -> Aeson.Value"
     , "        jsonRows <- sqlQueryTyped [typedSql| SELECT metadata FROM typed_sql_test_extras LIMIT 1 |]"
     , "        let expectedJson = Aeson.object [(\"key\", Aeson.String \"value\")]"
-    , "        assertTest \"jsonb -> Aeson.Value\" ((jsonRows :: [Maybe Aeson.Value]) == [Just expectedJson])"
+    , "        assertTest \"jsonb -> Aeson.Value\" ((jsonRows :: Maybe (Maybe Aeson.Value)) == Just (Just expectedJson))"
     , ""
     , "        -- multi-type record"
     , "        multiTypeRows <- sqlQueryTyped [typedSql|"
     , "            SELECT small_count, big_count, active"
     , "            FROM typed_sql_test_extras LIMIT 1"
     , "        |]"
-    , "        let multiTypeValues = map (\\r -> (r.small_count, r.big_count, r.active)) multiTypeRows"
-    , "        assertTest \"multi-type record\" (multiTypeValues == [(7 :: Int, 1000000000 :: Int64, True)])"
+    , "        let multiTypeValues = fmap (\\r -> (r.small_count, r.big_count, r.active)) multiTypeRows"
+    , "        assertTest \"multi-type record\" (multiTypeValues == Just (7 :: Int, 1000000000 :: Int64, True))"
+    , ""
+    , "        putStrLn \"RUNTIME_OK\""
+    ]
+
+-- | End-to-end test for 'paginatedTypedSql' \/ 'paginatedTypedSqlWithOptions'.
+-- Mirrors the raw-SQL @paginatedSqlQueryWithOptions@ spec
+-- (@ihp\/Test\/Test\/Pagination\/ControllerFunctionsSpec.hs@): seed 100 rows,
+-- then assert the page slice and 'Pagination' fields for a couple of pages and a
+-- @maxItems@ override.
+runtimePaginationModule :: Text
+runtimePaginationModule = Text.unlines
+    [ "{-# LANGUAGE DataKinds #-}"
+    , "{-# LANGUAGE ImplicitParams #-}"
+    , "{-# LANGUAGE NoImplicitPrelude #-}"
+    , "{-# LANGUAGE NoFieldSelectors #-}"
+    , "{-# LANGUAGE OverloadedRecordDot #-}"
+    , "{-# LANGUAGE OverloadedStrings #-}"
+    , "{-# LANGUAGE QuasiQuotes #-}"
+    , "{-# LANGUAGE TypeFamilies #-}"
+    , "module Main where"
+    , ""
+    , "import qualified Control.Exception as Exception"
+    , "import IHP.Prelude"
+    , "import IHP.ModelSupport (ModelContext, createModelContext, releaseModelContext, noopLogger, unsafeSqlExecDiscardResult)"
+    , "import IHP.TypedSql (QueryCardinality (..), QueryExecResult (..), TypedQuery, typedSql)"
+    , "import IHP.TypedSql.Pagination (paginatedTypedSql, paginatedTypedSqlWithOptions)"
+    , "import IHP.Pagination.ControllerFunctions (defaultPaginationOptions)"
+    , "import IHP.Pagination.Types (Options (..), Pagination (..))"
+    , "import System.Environment (lookupEnv)"
+    , "import qualified Network.Wai as Wai"
+    , "import qualified Data.Vault.Lazy as Vault"
+    , "import Wai.Request.Params.Middleware (RequestBody (..), requestBodyVaultKey)"
+    , ""
+    , "assertTest :: Text -> Bool -> IO ()"
+    , "assertTest name True  = putStrLn (\"PASS: \" <> name)"
+    , "assertTest name False = error (\"FAIL: \" <> name)"
+    , ""
+    , "firstOf :: [a] -> Maybe a"
+    , "firstOf (x : _) = Just x"
+    , "firstOf []      = Nothing"
+    , ""
+    , "-- Build a Request carrying the given query params (page / maxItems)."
+    , "contextWithParams :: [(ByteString, ByteString)] -> Wai.Request"
+    , "contextWithParams params ="
+    , "    let requestBody = FormBody { params, files = [], rawPayload = \"\" }"
+    , "    in Wai.defaultRequest { Wai.vault = Vault.insert requestBodyVaultKey requestBody Vault.empty }"
+    , ""
+    , "main :: IO ()"
+    , "main = do"
+    , "    let logger = noopLogger"
+    , "    databaseUrl <- cs . fromMaybe \"\" <$> lookupEnv \"DATABASE_URL\""
+    , "    modelContext <- createModelContext databaseUrl logger"
+    , "    let ?modelContext = modelContext"
+    , "    flip Exception.finally (releaseModelContext modelContext) do"
+    , "        -- Seed 100 rows with zero-padded, sortable names (item-001 .. item-100)."
+    , "        unsafeSqlExecDiscardResult \"DELETE FROM typed_sql_test_items\" ()"
+    , "        unsafeSqlExecDiscardResult"
+    , "            \"INSERT INTO typed_sql_test_items (id, author_id, name, views, score, tags) SELECT ('10000000-0000-0000-0000-' || lpad(g::text, 12, '0'))::uuid, '00000000-0000-0000-0000-000000000001'::uuid, 'item-' || lpad(g::text, 3, '0'), g, NULL, '{}'::text[] FROM generate_series(1, 100) g\""
+    , "            ()"
+    , ""
+    , "        let pageQuery = [typedSql| SELECT name FROM typed_sql_test_items ORDER BY name |] :: TypedQuery 'ManyRows 'ReturnsRows Text"
+    , ""
+    , "        -- First page, default options (maxItems 50)."
+    , "        do"
+    , "            let ?request = contextWithParams []"
+    , "            (results, pagination) <- paginatedTypedSql pageQuery"
+    , "            assertTest \"default page 1 length\" (length results == 50)"
+    , "            assertTest \"default page 1 first item\" (firstOf results == Just \"item-001\")"
+    , "            assertTest \"default page 1 currentPage\" (pagination.currentPage == 1)"
+    , "            assertTest \"default page 1 totalItems\" (pagination.totalItems == 100)"
+    , "            assertTest \"default page 1 pageSize\" (pagination.pageSize == 50)"
+    , ""
+    , "        -- Second page should contain items 51-100."
+    , "        do"
+    , "            let ?request = contextWithParams [(\"page\", \"2\")]"
+    , "            (results, pagination) <- paginatedTypedSql pageQuery"
+    , "            assertTest \"default page 2 length\" (length results == 50)"
+    , "            assertTest \"default page 2 first item\" (firstOf results == Just \"item-051\")"
+    , "            assertTest \"default page 2 currentPage\" (pagination.currentPage == 2)"
+    , ""
+    , "        -- maxItems request param overrides the page size."
+    , "        do"
+    , "            let ?request = contextWithParams [(\"maxItems\", \"10\")]"
+    , "            (results, pagination) <- paginatedTypedSqlWithOptions defaultPaginationOptions pageQuery"
+    , "            assertTest \"maxItems=10 length\" (length results == 10)"
+    , "            assertTest \"maxItems=10 pageSize\" (pagination.pageSize == 10)"
+    , "            assertTest \"maxItems=10 totalItems\" (pagination.totalItems == 100)"
+    , ""
+    , "        -- page + maxItems together: page 3 with pageSize 10 starts at item-021."
+    , "        do"
+    , "            let ?request = contextWithParams [(\"page\", \"3\"), (\"maxItems\", \"10\")]"
+    , "            (results, pagination) <- paginatedTypedSql pageQuery"
+    , "            assertTest \"page 3 + maxItems 10 length\" (length results == 10)"
+    , "            assertTest \"page 3 + maxItems 10 first item\" (firstOf results == Just \"item-021\")"
+    , "            assertTest \"page 3 + maxItems 10 currentPage\" (pagination.currentPage == 3)"
+    , "            assertTest \"page 3 + maxItems 10 pageSize\" (pagination.pageSize == 10)"
+    , ""
+    , "        -- Custom Options maxItems / windowSize are respected."
+    , "        do"
+    , "            let ?request = contextWithParams []"
+    , "            let options = Options { maxItems = 25, windowSize = 3 }"
+    , "            (results, pagination) <- paginatedTypedSqlWithOptions options pageQuery"
+    , "            assertTest \"custom maxItems=25 length\" (length results == 25)"
+    , "            assertTest \"custom maxItems=25 pageSize\" (pagination.pageSize == 25)"
+    , "            assertTest \"custom maxItems=25 window\" (pagination.window == 3)"
+    , ""
+    , "        putStrLn \"RUNTIME_OK\""
+    ]
+-- | Round-trips a generated-style enum through @${...}@ interpolation in a WHERE
+-- clause. The local @TypedSqlTestMood@ type mirrors the @DefaultParamEncoder@ instances the
+-- schema compiler emits for enums (scalar, @Maybe@, @[enum]@, and @[Maybe enum]@),
+-- so binding @${enumVal}@, @${Just enumVal}@, @${Nothing}@, and @${[Just enumVal]}@
+-- exercises exactly the generated instances.
+runtimeEnumModule :: Text
+runtimeEnumModule = Text.unlines
+    [ "{-# LANGUAGE DataKinds #-}"
+    , "{-# LANGUAGE ImplicitParams #-}"
+    , "{-# LANGUAGE NoImplicitPrelude #-}"
+    , "{-# LANGUAGE NoFieldSelectors #-}"
+    , "{-# LANGUAGE OverloadedRecordDot #-}"
+    , "{-# LANGUAGE OverloadedStrings #-}"
+    , "{-# LANGUAGE QuasiQuotes #-}"
+    , "{-# LANGUAGE TypeFamilies #-}"
+    , "module Main where"
+    , ""
+    , "import qualified Control.Exception as Exception"
+    , "import IHP.Prelude"
+    , "import IHP.ModelSupport (ModelContext, PrimaryKey, createModelContext, releaseModelContext, noopLogger)"
+    , "import IHP.TypedSql (sqlQueryTyped, typedSql)"
+    , "import qualified Hasql.Encoders"
+    , "import qualified Hasql.Implicits.Encoders"
+    , "import System.Environment (lookupEnv)"
+    , ""
+    , "type instance PrimaryKey \"typed_sql_test_enum_items\" = UUID"
+    , ""
+    , "-- Mirrors the data type + DefaultParamEncoder instances generated by the"
+    , "-- schema compiler for `CREATE TYPE typed_sql_test_mood AS ENUM (...)`."
+    , "-- The type name must match what the typedSql macro derives from the Postgres"
+    , "-- enum type `typed_sql_test_mood` (tableNameToModelName), i.e. TypedSqlTestMood."
+    , "data TypedSqlTestMood = Happy | Sad | Neutral deriving (Eq, Show)"
+    , ""
+    , "moodToText :: TypedSqlTestMood -> Text"
+    , "moodToText Happy = \"happy\""
+    , "moodToText Sad = \"sad\""
+    , "moodToText Neutral = \"neutral\""
+    , ""
+    , "instance Hasql.Implicits.Encoders.DefaultParamEncoder TypedSqlTestMood where"
+    , "    defaultParam = Hasql.Encoders.nonNullable (Hasql.Encoders.enum (Just \"public\") \"typed_sql_test_mood\" moodToText)"
+    , "instance Hasql.Implicits.Encoders.DefaultParamEncoder (Maybe TypedSqlTestMood) where"
+    , "    defaultParam = Hasql.Encoders.nullable (Hasql.Encoders.enum (Just \"public\") \"typed_sql_test_mood\" moodToText)"
+    , "instance Hasql.Implicits.Encoders.DefaultParamEncoder [TypedSqlTestMood] where"
+    , "    defaultParam = Hasql.Encoders.nonNullable $ Hasql.Encoders.foldableArray $ Hasql.Encoders.nonNullable (Hasql.Encoders.enum (Just \"public\") \"typed_sql_test_mood\" moodToText)"
+    , "instance Hasql.Implicits.Encoders.DefaultParamEncoder [Maybe TypedSqlTestMood] where"
+    , "    defaultParam = Hasql.Encoders.nonNullable $ Hasql.Encoders.foldableArray $ Hasql.Encoders.nullable (Hasql.Encoders.enum (Just \"public\") \"typed_sql_test_mood\" moodToText)"
+    , ""
+    , "assertTest :: Text -> Bool -> IO ()"
+    , "assertTest name True  = putStrLn (\"PASS: \" <> name)"
+    , "assertTest name False = error (\"FAIL: \" <> name)"
+    , ""
+    , "main :: IO ()"
+    , "main = do"
+    , "    let logger = noopLogger"
+    , "    databaseUrl <- cs . fromMaybe \"\" <$> lookupEnv \"DATABASE_URL\""
+    , "    modelContext <- createModelContext databaseUrl logger"
+    , "    let ?modelContext = modelContext"
+    , "    flip Exception.finally (releaseModelContext modelContext) do"
+    , "        -- ${enumVal}: a plain enum value binds against the non-null enum column"
+    , "        scalarNames <- sqlQueryTyped [typedSql| SELECT name FROM typed_sql_test_enum_items WHERE mood = ${Happy} ORDER BY name |]"
+    , "        assertTest \"dollar-enumVal\" ((scalarNames :: [Text]) == [\"HappyItem\"])"
+    , ""
+    , "        -- ${Just enumVal}: a Maybe enum value binds against the nullable enum column"
+    , "        justNames <- sqlQueryTyped [typedSql| SELECT name FROM typed_sql_test_enum_items WHERE opt_mood = ${Just Happy} ORDER BY name |]"
+    , "        assertTest \"dollar-Just-enumVal\" ((justNames :: [Text]) == [\"HappyItem\"])"
+    , ""
+    , "        -- ${Nothing}: a Maybe enum Nothing binds as SQL NULL"
+    , "        nothingNames <- sqlQueryTyped [typedSql| SELECT name FROM typed_sql_test_enum_items WHERE opt_mood IS NOT DISTINCT FROM ${Nothing} ORDER BY name |]"
+    , "        assertTest \"dollar-Nothing-binds-as-NULL\" ((nothingNames :: [Text]) == [\"SadItem\"])"
+    , ""
+    , "        -- ${[enumVal]}: a list of enum values binds as an enum array for = ANY(...)"
+    , "        listNames <- sqlQueryTyped [typedSql| SELECT name FROM typed_sql_test_enum_items WHERE mood = ANY(${[Happy]}) ORDER BY name |]"
+    , "        assertTest \"dollar-list-enumVal\" ((listNames :: [Text]) == [\"HappyItem\"])"
+    , ""
+    , "        -- ${[Just enumVal]}: a list of Maybe enum values binds as a nullable-element enum array"
+    , "        anyNames <- sqlQueryTyped [typedSql| SELECT name FROM typed_sql_test_enum_items WHERE mood = ANY(${[Just Happy, Just Sad]}) ORDER BY name |]"
+    , "        assertTest \"dollar-list-Just-enumVal\" ((anyNames :: [Text]) == [\"HappyItem\", \"SadItem\"])"
     , ""
     , "        putStrLn \"RUNTIME_OK\""
     ]

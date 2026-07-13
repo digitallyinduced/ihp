@@ -151,6 +151,37 @@ action UsersAction = do
 
 **Note:** When using `paginatedSqlQuery` with [AutoRefresh](auto-refresh.html), you need to call `trackTableRead` to let AutoRefresh know which tables your query accesses. Otherwise AutoRefresh will not watch those tables for changes.
 
+## Typed SQL Pagination
+
+To paginate a [`typedSql`](typed-sql.html) query, use `paginatedTypedSql`. It is the typedSql counterpart to `paginatedSqlQuery`: it takes a many-row `TypedQuery` that returns rows and returns a list of records and a `Pagination` value, just like `paginate`.
+
+These functions live in the `IHP.TypedSql.Pagination` module, which is not part of `ControllerPrelude`, so add an explicit import:
+
+```haskell
+import IHP.TypedSql.Pagination (paginatedTypedSql, paginatedTypedSqlWithOptions)
+```
+
+```haskell
+action UsersAction = do
+    (users, pagination) <- paginatedTypedSql
+        [typedSql| SELECT id, firstname, lastname FROM users ORDER BY lastname |]
+    render IndexView { .. }
+```
+
+To customize options, use `paginatedTypedSqlWithOptions`:
+
+```haskell
+action UsersAction = do
+    (users, pagination) <- paginatedTypedSqlWithOptions
+        (defaultPaginationOptions |> set #maxItems 10)
+        [typedSql| SELECT id, firstname, lastname FROM users ORDER BY lastname |]
+    render IndexView { .. }
+```
+
+**Note:** Like `paginatedSqlQuery`, the query is wrapped in a subquery before `LIMIT`/`OFFSET` are applied, so any `ORDER BY` must live *inside* the query you pass in (as in the examples above).
+
+The same [AutoRefresh](auto-refresh.html) caveat applies: call `trackTableRead` so AutoRefresh knows which tables the query reads.
+
 ## Helper Functions
 
 The `IHP.Pagination.Helpers` module provides functions for working with `Pagination` values in your views:

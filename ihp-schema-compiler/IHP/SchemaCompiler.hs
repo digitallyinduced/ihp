@@ -686,6 +686,8 @@ compileEnumDataDefinitions enum@(CreateEnumType { name, values }) =
         <> "    defaultParam = Hasql.Encoders.nullable (Hasql.Encoders.enum (Just \"public\") " <> tshow (Text.toLower name) <> " inputValue)\n"
         <> "instance Hasql.Implicits.Encoders.DefaultParamEncoder [" <> modelName <> "] where\n"
         <> "    defaultParam = Hasql.Encoders.nonNullable $ Hasql.Encoders.foldableArray $ Hasql.Encoders.nonNullable (Hasql.Encoders.enum (Just \"public\") " <> tshow (Text.toLower name) <> " inputValue)\n"
+        <> "instance Hasql.Implicits.Encoders.DefaultParamEncoder [Maybe " <> modelName <> "] where\n"
+        <> "    defaultParam = Hasql.Encoders.nonNullable $ Hasql.Encoders.foldableArray $ Hasql.Encoders.nullable (Hasql.Encoders.enum (Just \"public\") " <> tshow (Text.toLower name) <> " inputValue)\n"
         -- IsScalar instance for hasql-mapping (used by generated statement modules)
         <> "instance Mapping.IsScalar " <> modelName <> " where\n"
         <> "    encoder = Hasql.Encoders.enum (Just \"public\") " <> tshow (Text.toLower name) <> " inputValue\n"

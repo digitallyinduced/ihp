@@ -6,7 +6,7 @@ jobs:
   core-size:
     runs-on: ARM64
     steps:
-    - uses: actions/checkout@v6
+    - uses: actions/checkout@v7
 
     - name: Build baseline (master IHP) and PR benchmark
       working-directory: ihp/Bench

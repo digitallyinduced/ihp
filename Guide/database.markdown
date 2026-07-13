@@ -332,11 +332,11 @@ do
     -- commentsCount :: [(Id Post, Int64)]
 ```
 
-For a single value use the same quoter and pick the first row:
+For a single value use the same quoter. `sqlQueryTyped` returns the scalar directly when `typedSql` can prove the query returns exactly one row:
 
 ```haskell
 do
-    [count] <- sqlQueryTyped [typedSql| SELECT COUNT(*) FROM projects |]
+    count <- sqlQueryTyped [typedSql| SELECT COUNT(*) FROM projects |]
     -- count :: Int64
 ```
 
@@ -349,7 +349,7 @@ do
     |]
 ```
 
-See the [Typed SQL Guide](typed-sql.html) for full details including RETURNING clauses, JOINs with nullable columns, and schema-change safety.
+See the [Typed SQL Guide](typed-sql.html) for full details including RETURNING clauses, no-result utility statements, JOINs with nullable columns, and schema-change safety.
 
 ### Unsafe raw SQL (escape hatch)
 

@@ -501,9 +501,20 @@ isExprNonNullable sqMap = \case
 -- | Functions that are guaranteed to return a non-null value.
 -- count() always returns 0 for empty groups.
 -- row_number(), rank(), dense_rank() are window functions that never return NULL.
+-- json[b]_build_object and json[b]_build_array return JSON null/object/array
+-- values rather than SQL NULL when their arguments are NULL.
 isNonNullableFunction :: Ast.FuncName -> Bool
 isNonNullableFunction funcName =
-    funcNameToText funcName `elem` ["count", "row_number", "rank", "dense_rank"]
+    funcNameToText funcName `elem`
+        [ "count"
+        , "row_number"
+        , "rank"
+        , "dense_rank"
+        , "json_build_object"
+        , "jsonb_build_object"
+        , "json_build_array"
+        , "jsonb_build_array"
+        ]
 
 -- | Special syntax expressions that are non-nullable.
 isSubexprNonNullable :: SubqueryTargetMap -> Ast.FuncExprCommonSubexpr -> Bool
@@ -635,7 +646,7 @@ resolveParamHintTypes tables typeInfo hints = do
     resolved <- mapM (resolveHint tablesByName) (Map.toList hints)
     pure (Map.fromList (catMaybes resolved))
   where
-    resolveHint tablesByName (index, ParamHint { phTable, phColumn, phArray }) = do
+    resolveHint tablesByName (index, ParamHint { phTable, phColumn }) = do
         case Map.lookup phTable tablesByName of
             Nothing -> pure Nothing
             Just (tableOid, table@TableMeta { tmColumns }) ->
@@ -648,9 +659,13 @@ resolveParamHintTypes tables typeInfo hints = do
                             , dcTable = tableOid
                             , dcAttnum = Just attnum
                             }
-                        let stripped = stripMaybeType baseType
-                        let hintedType = if phArray then TH.AppT TH.ListT stripped else stripped
-                        pure (Just (index, hintedType))
+                        -- The quasiquoter annotates each ${...} with the column's *scalar*
+                        -- Haskell type and lets 'IHP.TypedSql.ParamEncoder.typedSqlParam'
+                        -- accept the value as a scalar, Maybe, list, or list-of-Maybe. So we
+                        -- strip the column's Maybe wrapper and ignore phArray here — the
+                        -- value's own shape (e.g. a list for IN/ANY) selects the encoding.
+                        let scalarType = stripMaybeType baseType
+                        pure (Just (index, scalarType))
 
     findColumn columns columnName =
         columns

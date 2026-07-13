@@ -1,6 +1,6 @@
 cabal-version:       2.2
 name:                ihp-typed-sql
-version:             1.5.0
+version:             1.7.0
 synopsis:            Compile-time typed SQL quasiquoter for IHP
 description:         A quasiquoter that infers Haskell types from PostgreSQL at compile time.
 license:             MIT
@@ -45,14 +45,17 @@ library
     exposed-modules:
         IHP.TypedSql
         IHP.TypedSql.Types
+        IHP.TypedSql.Pagination
         IHP.TypedSql.Quoter
         IHP.TypedSql.Placeholders
         IHP.TypedSql.ParamHints
+        IHP.TypedSql.ParamEncoder
         IHP.TypedSql.Metadata
         IHP.TypedSql.TypeMapping
         IHP.TypedSql.Decoders
         IHP.TypedSql.RowType
     other-modules:
+        IHP.TypedSql.Cardinality
         IHP.TypedSql.CompileTimeDatabase
     build-depends:
             base >= 4.17.0 && < 4.23
@@ -64,6 +67,7 @@ library
             , filepath
             , hasql
             , hasql-dynamic-statements
+            , hasql-implicits
             , hasql-mapping
             , hasql-pool
             , haskell-src-meta
@@ -76,6 +80,7 @@ library
             , template-haskell
             , temporary
             , text
+            , wai
 
 source-repository head
     type:     git

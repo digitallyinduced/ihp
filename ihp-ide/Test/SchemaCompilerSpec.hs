@@ -50,6 +50,8 @@ tests = do
                         defaultParam = Hasql.Encoders.nullable (Hasql.Encoders.enum (Just "public") "mood" inputValue)
                     instance Hasql.Implicits.Encoders.DefaultParamEncoder [Mood] where
                         defaultParam = Hasql.Encoders.nonNullable $ Hasql.Encoders.foldableArray $ Hasql.Encoders.nonNullable (Hasql.Encoders.enum (Just "public") "mood" inputValue)
+                    instance Hasql.Implicits.Encoders.DefaultParamEncoder [Maybe Mood] where
+                        defaultParam = Hasql.Encoders.nonNullable $ Hasql.Encoders.foldableArray $ Hasql.Encoders.nullable (Hasql.Encoders.enum (Just "public") "mood" inputValue)
                     instance Mapping.IsScalar Mood where
                         encoder = Hasql.Encoders.enum (Just "public") "mood" inputValue
                         decoder = Hasql.Decoders.enum (Just "public") "mood" textToEnumMood
@@ -118,6 +120,8 @@ tests = do
                         defaultParam = Hasql.Encoders.nullable (Hasql.Encoders.enum (Just "public") "province" inputValue)
                     instance Hasql.Implicits.Encoders.DefaultParamEncoder [Province] where
                         defaultParam = Hasql.Encoders.nonNullable $ Hasql.Encoders.foldableArray $ Hasql.Encoders.nonNullable (Hasql.Encoders.enum (Just "public") "province" inputValue)
+                    instance Hasql.Implicits.Encoders.DefaultParamEncoder [Maybe Province] where
+                        defaultParam = Hasql.Encoders.nonNullable $ Hasql.Encoders.foldableArray $ Hasql.Encoders.nullable (Hasql.Encoders.enum (Just "public") "province" inputValue)
                     instance Mapping.IsScalar Province where
                         encoder = Hasql.Encoders.enum (Just "public") "province" inputValue
                         decoder = Hasql.Decoders.enum (Just "public") "province" textToEnumProvince
@@ -153,6 +157,8 @@ tests = do
                         defaultParam = Hasql.Encoders.nullable (Hasql.Encoders.enum (Just "public") "property_type" inputValue)
                     instance Hasql.Implicits.Encoders.DefaultParamEncoder [PropertyType] where
                         defaultParam = Hasql.Encoders.nonNullable $ Hasql.Encoders.foldableArray $ Hasql.Encoders.nonNullable (Hasql.Encoders.enum (Just "public") "property_type" inputValue)
+                    instance Hasql.Implicits.Encoders.DefaultParamEncoder [Maybe PropertyType] where
+                        defaultParam = Hasql.Encoders.nonNullable $ Hasql.Encoders.foldableArray $ Hasql.Encoders.nullable (Hasql.Encoders.enum (Just "public") "property_type" inputValue)
                     instance Mapping.IsScalar PropertyType where
                         encoder = Hasql.Encoders.enum (Just "public") "property_type" inputValue
                         decoder = Hasql.Decoders.enum (Just "public") "property_type" textToEnumPropertyType

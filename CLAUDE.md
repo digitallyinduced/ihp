@@ -106,6 +106,10 @@ This is a monorepo with multiple Haskell packages:
 - The framework uses implicit parameters extensively (see `ImplicitParams` extension)
 - HSX uses quasiquotes: `[hsx|<div>content</div>|]`
 
+## Git Workflow
+
+- **Never force push.** If a push is rejected because the remote has advanced, `git fetch` and rebase (or merge) onto the updated remote, then push normally. Do not use `git push --force` or `--force-with-lease`.
+
 ## Hasql Database Patterns (Reference)
 
 Based on patterns from [hasql-tutorial1](https://github.com/nikita-volkov/hasql-tutorial1). Hasql provides type-safe PostgreSQL access with a layered architecture.

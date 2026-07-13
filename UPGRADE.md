@@ -2,7 +2,66 @@
 This document describes breaking changes, as well as how to fix them, that have occured at given releases.
 After updating your project, please consult the segments from your current release until now.
 
-# Upgrade to 1.6.0 (unreleased) from 1.5.0
+# Upgrade to 1.6.0 from 1.5.0
+
+Update your IHP flake input from the `v1.5` release branch to the `v1.6` release branch:
+
+```diff
+-        ihp.url = "github:digitallyinduced/ihp/v1.5";
++        ihp.url = "github:digitallyinduced/ihp/v1.6";
+```
+
+Then update your lock file:
+
+```bash
+nix flake update
+```
+
+## Controller actions and response helpers return `ResponseReceived`
+
+Controller actions now return `IO ResponseReceived` instead of `IO ()`. Response helpers such as `render`, `redirectTo`, `renderJson`, `renderPlain`, `renderXml`, `renderFile`, `renderNotFound`, and `renderAccessDenied` now send the WAI response directly and return the response token.
+
+Most actions need no body change when the response helper is the final expression:
+
+```haskell
+action ShowPostAction { postId } = do
+    post <- fetch postId
+    render ShowView { .. }
+```
+
+Fix explicit action/helper signatures that still mention `IO ()`:
+
+```diff
+-myResponse :: (?context :: ControllerContext) => IO ()
++myResponse :: (?request :: Request, ?respond :: Respond) => IO ResponseReceived
+ myResponse = redirectTo PostsAction
+```
+
+`IHP.ControllerPrelude` already exports `Request`, `Respond`, `ResponseReceived`, `earlyReturn`, `respondWith`, and `respondAndExit`. If the helper is outside controller modules, import those from `IHP.ControllerSupport`.
+
+Code that conditionally sends a response now needs `earlyReturn`, because `when`/`unless` still expect `IO ()`:
+
+```diff
+ action CreatePostAction = do
+     post <- fill @Post
+     when (not (isValid post)) do
+-        redirectTo NewPostAction
++        earlyReturn $ redirectTo NewPostAction
+     post <- createRecord post
+     redirectTo ShowPostAction { postId = post.id }
+```
+
+For custom raw WAI responses, use `respondWith` when it is the final result and `respondAndExit` when you need to stop execution in the middle of a handler:
+
+```haskell
+import Network.HTTP.Types.Status (status204)
+import Network.Wai (responseLBS)
+
+action HealthCheckAction =
+    respondWith $ responseLBS status204 [] ""
+```
+
+Code that caught `ResponseException` or called `handleNoResponseReturned` / `handleRouterException` should be removed. Normal responses are no longer implemented by throwing `ResponseException`.
 
 ## Production Script Binaries Are Separate Flake Outputs
 
@@ -100,6 +159,25 @@ Action required if your project has jobs:
 
 The `new-job` codegen now creates `WorkerMain.hs` automatically the first time it runs in a project, so newly scaffolded projects don't need any manual migration.
 
+## Dev mode no longer opens the browser by default
+
+`devenv up` now prints the IHP tool server URL instead of opening a browser automatically.
+
+If your local workflow or editor task relied on automatic browser opening, opt back in through `IHP_BROWSER`:
+
+```bash
+# macOS default browser
+export IHP_BROWSER=open
+
+# Linux default browser
+export IHP_BROWSER=xdg-open
+
+# Specific browser
+export IHP_BROWSER=firefox
+```
+
+Put the export in `.envrc` if you want it for every dev shell.
+
 ## `render` No Longer Handles JSON
 
 The `render` function now only renders HTML. Previously it used Accept header negotiation to serve both HTML and JSON, but the JSON path was unused in practice.
@@ -131,6 +209,26 @@ action ShowPostAction { postId } = do
 If your `View` instances only defined `html` (the common case), no changes are needed.
 
 The `renderJson` function is unchanged and can still be used directly in controllers.
+
+## `renderXmlSitemap` returns `ResponseReceived`
+
+`renderXmlSitemap` from `ihp-sitemap` follows the same response handling change as the controller helpers. Most sitemap actions need no body change when it is the final expression:
+
+```haskell
+action SitemapAction = do
+    posts <- query @Post |> fetch
+    renderXmlSitemap (Sitemap (map postSitemapLink posts))
+```
+
+Update helper signatures that still return `IO ()`:
+
+```diff
+-renderSitemap :: (?context :: ControllerContext) => Sitemap -> IO ()
++renderSitemap :: (?request :: Request, ?respond :: Respond) => Sitemap -> IO ResponseReceived
+ renderSitemap = renderXmlSitemap
+```
+
+If you call it inside `when` / `unless`, wrap it with `earlyReturn` just like `render` or `redirectTo`.
 
 ## Authentication moved to WAI middleware
 
@@ -165,6 +263,27 @@ The `initAuthentication` function has been removed in favor of a WAI middleware 
     ```
 
 **Removed functions:** `initAuthentication`, `currentRoleOrNothing`, `currentRole`, `currentRoleId`, `ensureIsRole`. Use the type-specific variants instead: `currentUserOrNothing`/`currentAdminOrNothing`, `currentUser`/`currentAdmin`, `currentUserId`/`currentAdminId`, `ensureIsUser`/`ensureIsAdmin`.
+
+## Authentication sessions use raw UUID bytes
+
+IHP's `login` helper now stores the authenticated user id as raw UUID ASCII bytes, and the auth middleware reads that format directly. Existing legacy 44-byte cereal-encoded UUID session values are still accepted by `parseSessionUUID`, but custom login/session code should stop writing the cereal form.
+
+If you wrote custom login code that used `setSession (sessionKey @User) user.id`, switch to writing the raw UUID bytes through `sessionInsert`:
+
+```diff
+-setSession (sessionKey @User) user.id
++sessionInsert (sessionKey @User) (UUID.toASCIIBytes (unpackId user.id))
+```
+
+Add imports if needed:
+
+```haskell
+import qualified Data.UUID as UUID
+import IHP.LoginSupport.Helper.Controller (sessionKey)
+import IHP.ModelSupport (unpackId)
+```
+
+Normal apps using IHP's `login user` / `logout user` helpers need no changes.
 
 ## ControllerContext TMap API removed
 
@@ -226,6 +345,127 @@ To make a minimal change without touching every signature, import the alias expl
 
 ```haskell
 import IHP.ControllerSupport (ControllerContext)
+```
+
+## `sqlQueryTyped` now returns scalars for singleton queries
+
+`typedSql` now tracks conservative query cardinality. `sqlQueryTyped` still
+returns a list for ordinary many-row queries, but returns a scalar directly when
+the query is proven to return exactly one row, and returns `Maybe result` when
+the query is proven to return at most one row.
+
+Common updates:
+
+```diff
+-[count] <- sqlQueryTyped [typedSql| SELECT COUNT(*) FROM posts |]
++count <- sqlQueryTyped [typedSql| SELECT COUNT(*) FROM posts |]
+ -- count :: Int64
+```
+
+```diff
+-names <- sqlQueryTyped [typedSql| SELECT name FROM posts ORDER BY created_at DESC LIMIT 1 |]
+-case names of
+-    [name] -> ...
+-    [] -> ...
++maybeName <- sqlQueryTyped [typedSql| SELECT name FROM posts ORDER BY created_at DESC LIMIT 1 |]
++case maybeName of
++    Just name -> ...
++    Nothing -> ...
+```
+
+Explicit `TypedQuery` signatures also need cardinality and statement-result
+arguments. Row-returning queries use `'ReturnsRows`:
+
+```diff
+-query :: TypedQuery Text
++query :: TypedQuery 'ManyRows 'ReturnsRows Text
+ query = [typedSql| SELECT name FROM posts ORDER BY name |]
+```
+
+Use `'AtMostOneRow` for `LIMIT 1` / primary-key lookups and `'ExactlyOneRow`
+for singleton queries such as `COUNT(*)`. Import `QueryExecResult (..)` when
+you write explicit signatures using `'ReturnsRows`.
+
+You can also use cardinality-specific helper names when that makes migrations
+easier to read:
+
+```haskell
+names <- sqlQueryTypedRows [typedSql| SELECT name FROM posts ORDER BY name |]
+maybeName <- sqlQueryTypedOneOrNothing [typedSql| SELECT name FROM posts LIMIT 1 |]
+count <- sqlQueryTypedSingle [typedSql| SELECT COUNT(*) FROM posts |]
+```
+
+Nullable single-column queries with `LIMIT 1` have the precise shape
+`Maybe (Maybe a)` because "no row" and "row with SQL NULL" are independent.
+Use `sqlQueryTypedMaybeColumn` when you want both to become `Nothing`:
+
+```diff
+-maybeScore <- sqlQueryTyped [typedSql| SELECT score FROM posts WHERE id = ${postId} LIMIT 1 |]
++maybeScore <- sqlQueryTypedMaybeColumn [typedSql| SELECT score FROM posts WHERE id = ${postId} LIMIT 1 |]
+```
+
+## `typedSql` is stricter and uses `Int64` for `bigint`
+
+`typedSql` now rejects `SELECT *`, `SELECT table.*`, and `INSERT` statements without an explicit column list by default. This prevents compiled decoders from silently depending on development database column order.
+
+Replace star selects with explicit columns:
+
+```diff
+-posts <- sqlQueryTyped [typedSql| SELECT * FROM posts |]
++posts <- sqlQueryTyped [typedSql|
++    SELECT id, title, body, created_at, updated_at
++    FROM posts
++|]
+```
+
+Replace inserts that depend on table column order:
+
+```diff
+-sqlExecTyped [typedSql| INSERT INTO posts VALUES (${id}, ${title}, ${body}) |]
++sqlExecTyped [typedSql|
++    INSERT INTO posts (id, title, body)
++    VALUES (${id}, ${title}, ${body})
++|]
+```
+
+If you intentionally want a star select, import and use `typedSqlStar`:
+
+```haskell
+import IHP.TypedSql (typedSqlStar)
+
+rows <- sqlQueryTyped [typedSqlStar| SELECT * FROM posts |]
+```
+
+`int8` / `bigint` columns and placeholders now map to `Int64` instead of `Integer`. This affects `COUNT(*)`, `row_number()`, `rank()`, `dense_rank()`, and schema columns declared as `bigint`:
+
+```diff
+-let count :: Integer = row.count
++let count :: Int64 = row.count
+```
+
+Import `Data.Int (Int64)` where you add explicit signatures.
+
+`IHP.QueryBuilder.limit` and `IHP.QueryBuilder.offset` also take `Int64`. Numeric literals still work, but values already typed as `Int` need conversion:
+
+```diff
+ let pageSize :: Int = 50
+ posts <- query @Post
+-    |> limit pageSize
++    |> limit (fromIntegral pageSize)
+     |> fetch
+```
+
+`sqlExecTyped` returns `Int64` for the affected-row count of DML statements. If your code annotated the result, update the annotation:
+
+```diff
+-rowsUpdated <- (sqlExecTyped [typedSql| UPDATE posts SET published = true |] :: IO Integer)
++rowsUpdated <- (sqlExecTyped [typedSql| UPDATE posts SET published = true |] :: IO Int64)
+```
+
+Known no-result utility statements, such as `SET CONSTRAINTS`, return `()`:
+
+```haskell
+sqlExecTyped [typedSql| SET CONSTRAINTS ALL DEFERRED |] :: IO ()
 ```
 
 ## Join Support Removed from QueryBuilder
@@ -331,6 +571,42 @@ forEach rows \row -> putStrLn (show row.id <> ": " <> row.title)
 ```
 
 The following types have also been removed: `HasQueryBuilder`, `JoinQueryBuilderWrapper`, `NoJoinQueryBuilderWrapper`, `LabeledQueryBuilderWrapper`, `LabeledData`, `NoJoins`. If your code references these types, replace with `QueryBuilder table` directly. For `LabeledData`, use a tuple with `typedSql` instead (see `labelResults` example above).
+
+## Raw SQL helpers are deprecated
+
+`sqlQuery`, `sqlQuerySingleRow`, `sqlExec`, `sqlExecDiscardResult`, `sqlQueryScalar`, and `sqlQueryScalarOrNothing` now emit deprecation warnings. They still work unchanged in 1.6 — you'll just see a warning on each call site. Two ways to resolve them:
+
+1. **Preferred — switch to typed SQL** for compile-time checking:
+
+   ```diff
+   -posts <- sqlQuery "SELECT id, title FROM posts WHERE published = true" ()
+   +posts <- sqlQueryTyped [typedSql| SELECT id, title FROM posts WHERE published = true |]
+   ```
+
+2. **Keep untyped/dynamic SQL** (dynamic table names, DDL, etc.) by switching to the `unsafe*` variant — same behavior, no warning:
+
+   ```diff
+   -sqlExec "CREATE INDEX ..." ()
+   +unsafeSqlExec "CREATE INDEX ..." ()
+   ```
+
+If you build with `-Werror` or a strict CI, either migrate the call sites or add `-Wno-deprecations` during the transition.
+
+## hspec response assertions moved to `IHP.Hspec`
+
+The response assertion helpers now live in the `ihp-hspec` package instead of `IHP.Test.Mocking`. If tests fail with missing helpers such as `responseStatusShouldBe`, `responseBodyShouldContain`, or `responseBodyShouldNotContain`, import them from `IHP.Hspec`:
+
+```diff
+ import IHP.Test.Mocking
++import IHP.Hspec
++    ( responseStatusShouldBe
++    , responseBodyShouldContain
++    , responseBodyShouldNotContain
++    , withIHPApp
++    )
+```
+
+If your test suite did not already depend on `ihp-hspec`, add it to the app's test dependencies. In the standard IHP flake layout, add `ihp-hspec` next to `hspec` in the Haskell package list used by tests.
 
 ## Optional: Migrate from `AutoRoute` to the explicit-routes DSL
 
@@ -519,13 +795,16 @@ instance FrontController WebApplication where
 
 The splice reifies each action constructor to find its parent type and emits one `HasPath` + `CanRoute` instance per type plus the `webRoutes` binding.
 
-### When *not* to migrate
+### Edge cases
 
-A few corners of `AutoRoute` don't have a 1:1 DSL equivalent. Stay on `AutoRoute` (or use the lower-level `IHP.RouterSupport` API directly) if you:
+Almost everything `AutoRoute` does maps directly onto the DSL — including **non-`UUID` id types**. A capture typed as `Id MyModel` is parsed through the model's primary-key type, so tables with an `Integer`, `Int`, or `Text` primary key work out of the box with no extra configuration — the old `autoRouteWithIdType` override is not needed. If a primary-key type has no built-in parser, add a one-line `UrlCapture` instance for it rather than reaching for a hand-written parser.
 
-- Override `autoRoute` for non-`UUID` id types via `autoRouteWithIdType` — the DSL infers capture types from record fields automatically, but if you'd been customising parsing this way, the manual route parser is the simpler path.
-- Have heavy `allowedMethodsForAction` logic that branches on action data — the DSL's per-route method declaration covers the common case, but a few exotic setups are clearer as a hand-written `parseRoute'`.
-- Generate routes programmatically at compile time via something other than the splice — keep your existing setup; the DSL is additive.
+Two rare setups can still drop down to the lower-level `IHP.RouterSupport` API (`parseRoute'`) *alongside* your `[routes|…|]` blocks — the DSL is additive, so you don't have to choose one or the other:
+
+- `allowedMethodsForAction` logic that branches dynamically on action data. The DSL declares the allowed methods per route, which covers the common case.
+- Routes generated programmatically by something other than the splice.
+
+`AutoRoute` remains fully supported in 1.6, but it is now considered legacy and is planned for removal in a future IHP release. Prefer the `[routes|…|]` DSL for both new and existing controllers.
 
 ### Codegen behaviour
 

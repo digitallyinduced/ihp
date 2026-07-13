@@ -42,7 +42,48 @@ action ItemsAction = do
     render IndexView { names }
 ```
 
-The `typedSql` quasiquoter produces a `TypedQuery result` value. Use `sqlQueryTyped` to execute it and get back a list of results.
+The `typedSql` quasiquoter produces a `TypedQuery cardinality execResult result` value. Use `sqlQueryTyped` to execute statements that return rows. The return shape follows the cardinality that can be proven from the SQL:
+
+- many rows: `[result]`
+- at most one row, e.g. `LIMIT 1` or a primary-key lookup: `Maybe result`
+- exactly one row, e.g. `COUNT(*)`, `SELECT 1`, or `EXISTS(...)`: `result`
+
+```haskell
+total <- sqlQueryTyped [typedSql| SELECT COUNT(*) FROM items |]
+-- total :: Int64
+
+maybeName <- sqlQueryTyped [typedSql| SELECT name FROM items ORDER BY name LIMIT 1 |]
+-- maybeName :: Maybe Text
+```
+
+If you want the expected shape in the function name, use
+`sqlQueryTypedRows`, `sqlQueryTypedOneOrNothing`, and
+`sqlQueryTypedSingle`:
+
+```haskell
+names <- sqlQueryTypedRows [typedSql| SELECT name FROM items ORDER BY name |]
+-- names :: [Text]
+
+maybeName <- sqlQueryTypedOneOrNothing [typedSql|
+    SELECT name FROM items ORDER BY name LIMIT 1
+|]
+-- maybeName :: Maybe Text
+
+total <- sqlQueryTypedSingle [typedSql| SELECT COUNT(*) FROM items |]
+-- total :: Int64
+```
+
+For nullable single-column queries that return at most one row, the precise
+result shape is `Maybe (Maybe a)`: the outer `Maybe` is "no row", the inner
+`Maybe` is "the SQL value was NULL". Use `sqlQueryTypedMaybeColumn` when you
+want both cases collapsed into `Nothing`:
+
+```haskell
+score <- sqlQueryTypedMaybeColumn [typedSql|
+    SELECT score FROM items WHERE id = ${itemId}
+|]
+-- score :: Maybe Double
+```
 
 ## Selecting Multiple Columns
 
@@ -169,7 +210,7 @@ names <- sqlQueryTyped [typedSql|
 
 ## INSERT / UPDATE / DELETE
 
-Use `sqlExecTyped` for write operations. It returns `Int64` (the number of affected rows):
+Use `sqlExecTyped` for write operations. For `INSERT`, `UPDATE`, and `DELETE` statements without `RETURNING`, it returns `Int64` (the number of affected rows). For known typed utility statements without an affected-row count, such as `SET CONSTRAINTS`, it returns `()` after the statement succeeds:
 
 ```haskell
 rowsInserted <- sqlExecTyped [typedSql|
@@ -180,7 +221,62 @@ rowsInserted <- sqlExecTyped [typedSql|
 rowsDeleted <- sqlExecTyped [typedSql|
     DELETE FROM items WHERE views < ${minViews}
 |]
+
+sqlExecTyped [typedSql|
+    SET CONSTRAINTS ALL DEFERRED
+|]
 ```
+
+## Pagination
+
+Use `paginatedTypedSql` to paginate a typedSql query. It takes a many-row `TypedQuery` that returns rows and returns a list of records together with a `Pagination` state, mirroring IHP's other paginators:
+
+```haskell
+import IHP.TypedSql.Pagination (paginatedTypedSql, paginatedTypedSqlWithOptions)
+
+action ItemsAction = do
+    (items, pagination) <- paginatedTypedSql [typedSql|
+        SELECT id, name, views FROM items ORDER BY name
+    |]
+    render IndexView { items, pagination }
+```
+
+Pass the `pagination` value to your view and call `renderPagination` there, exactly as with `paginate`. Use `paginatedTypedSqlWithOptions` to override the defaults (e.g. items per page):
+
+```haskell
+(items, pagination) <- paginatedTypedSqlWithOptions
+    (defaultPaginationOptions |> set #maxItems 10)
+    [typedSql| SELECT id, name, views FROM items ORDER BY name |]
+```
+
+Because the query is wrapped in a subquery before `LIMIT`/`OFFSET` are applied, any `ORDER BY` must live **inside** the query you pass in. See the [Pagination guide](pagination.html#typed-sql-pagination) for the full details.
+
+## Pipeline Mode
+
+Use `sqlQueryTypedPipelined` together with `IHP.FetchPipelined.pipeline` to run
+independent typed SQL queries in a single PostgreSQL pipeline batch:
+
+```haskell
+import IHP.FetchPipelined (pipeline)
+import IHP.TypedSql (sqlQueryTypedPipelined, typedSql)
+
+action DashboardAction = do
+    (names, total) <- pipeline do
+        names <- sqlQueryTypedPipelined [typedSql|
+            SELECT name FROM items ORDER BY name LIMIT 10
+        |]
+        total <- sqlQueryTypedPipelined [typedSql|
+            SELECT COUNT(*) FROM items
+        |]
+        pure (names, total)
+
+    -- names :: [Text]
+    -- total :: Int64
+    render DashboardView { names, total }
+```
+
+For nullable single-column queries in a pipeline, use
+`sqlQueryTypedMaybeColumnPipelined`.
 
 ## Nullability
 
@@ -202,20 +298,27 @@ names <- sqlQueryTyped [typedSql| SELECT name FROM items |]
 
 ### Computed Expressions
 
-Computed expressions (aggregates, CASE, arithmetic, literals, etc.) are always wrapped in `Maybe`, because PostgreSQL cannot guarantee they are non-null:
+Computed expressions (aggregates, CASE, arithmetic, literals, etc.) are wrapped in `Maybe` unless `typedSql` can prove they are non-null:
 
 ```haskell
-counts <- sqlQueryTyped [typedSql| SELECT COUNT(*) FROM items |]
--- counts :: [Maybe Int64]
+count <- sqlQueryTyped [typedSql| SELECT COUNT(*) FROM items |]
+-- count :: Int64
 
 results <- sqlQueryTyped [typedSql|
     SELECT CASE WHEN views > 5 THEN name ELSE 'low' END FROM items
 |]
 -- results :: [Maybe Text]
 
-literals <- sqlQueryTyped [typedSql| SELECT 1 |]
--- literals :: [Maybe Int]
+literal <- sqlQueryTyped [typedSql| SELECT 1 |]
+-- literal :: Int
 ```
+
+IHP also corrects conservative cases where PostgreSQL reports computed
+expressions as nullable even though a value is guaranteed, including
+`COUNT(*)`, `EXISTS`, non-null literals, window ranking functions, `COALESCE`
+with a known non-null argument, and JSON constructors like
+`json_build_object`, `jsonb_build_object`, `json_build_array`, and
+`jsonb_build_array`.
 
 ### Primary and Foreign Keys
 

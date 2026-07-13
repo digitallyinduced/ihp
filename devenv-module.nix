@@ -97,6 +97,7 @@ that is defined in flake-module.nix
                     nativeBuildInputs = [
                         (pkgs.ghc.ghc.withPackages (p: with p; [
                             ihp ihp-hsx ihp-hspec ihp-ide ihp-schema-compiler
+                            ihp-typed-sql
                             hspec
                         ]))
                         pkgs.gnumake
@@ -118,6 +119,14 @@ that is defined in flake-module.nix
                         createdb -h "$PGHOST" app
                         export DATABASE_URL="postgresql:///app?host=$PGHOST"
 
+                        # Test/TypedSqlSpec.hs uses [typedSql| … |], which describes each
+                        # query against DATABASE_URL at COMPILE time, so the schema must
+                        # exist before we compile. (withIHPApp creates its own per-test
+                        # databases at runtime; this load only serves the compile-time
+                        # describe.) Load IHP's schema first, then the app's.
+                        psql -h "$PGHOST" -d app -v ON_ERROR_STOP=1 -f ${self}/ihp-schema-compiler/data/IHPSchema.sql
+                        psql -h "$PGHOST" -d app -v ON_ERROR_STOP=1 -f Application/Schema.sql
+
                         # Generate types from Schema.sql
                         make -f $IHP_LIB/lib/IHP/Makefile.dist build/Generated/Types.hs
 
@@ -128,7 +137,7 @@ that is defined in flake-module.nix
                             -threaded \
                             -i. -ibuild -iConfig \
                             -package-env - \
-                            -package ihp -package ihp-hspec -package hspec \
+                            -package ihp -package ihp-hspec -package ihp-typed-sql -package hspec \
                             -main-is Test.Main \
                             Test/Main.hs -o test-runner
                         ./test-runner
@@ -151,7 +160,7 @@ that is defined in flake-module.nix
                 ihpPackageNames = [
                     "ihp-ide" "ihp-hsx" "ihp-schema-compiler"
                     "ihp-postgres-parser" "ihp-pagehead"
-                    "ihp-log" "ihp-modal" "ihp-mail"
+                    "ihp-modal" "ihp-mail"
                     "ihp-migrate" "ihp-openai" "ihp-ssc" "ihp-graphql"
                     "ihp-datasync-typescript" "ihp-sitemap"
                     "ihp-job-dashboard" "ihp-imagemagick"
@@ -549,7 +558,7 @@ that is defined in flake-module.nix
 
                 yarnOfflineCache = pkgs.fetchYarnDeps {
                     yarnLock = ./ihp-datasync/data/DataSync/yarn.lock;
-                    hash = "sha256-vu7gXhPlgnm76GAQiD7DqROCC80uwAhMrh24mXqdfG0=";
+                    hash = "sha256-D9pLOT4afe8M29nKgJyNZhCj0KlF6X8ZQ0e8RZZsVsY=";
                 };
 
                 nativeBuildInputs = [ pkgs.nodejs pkgs.yarn pkgs.yarnConfigHook ];
