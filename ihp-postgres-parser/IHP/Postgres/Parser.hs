@@ -698,7 +698,7 @@ createFunction = do
     lexeme "CREATE"
     orReplace <- isJust <$> optional (lexeme "OR" >> lexeme "REPLACE")
     lexeme "FUNCTION"
-    functionName <- qualifiedIdentifier
+    functionName <- functionIdentifier
     functionArguments <- between (char '(') (char ')') (functionArgument `sepBy` (char ',' >> space))
     space
     lexeme "RETURNS"
@@ -752,7 +752,7 @@ parseFunctionSetting :: Parser FunctionOption
 parseFunctionSetting = do
     symbol' "SET"
     settingName <- qualifiedIdentifier
-    symbol "="
+    symbol "=" <|> symbol' "TO"
     settingValue <- Text.strip . cs <$> someTill anySingle (lookAhead functionOptionBoundary)
     space
     pure (FunctionSettingOption FunctionSetting { settingName, settingValue })
@@ -983,6 +983,23 @@ qualifiedIdentifier = do
         char '.'
     identifier
 
+-- | Parses a (possibly schema-qualified) function name.
+--
+-- Like 'qualifiedIdentifier' this normalizes the default @public@ schema away
+-- (@public.foo@ becomes @foo@) so function names compare equal regardless of
+-- whether they were written qualified or not. Unlike 'qualifiedIdentifier' it
+-- preserves non-@public@ schemas (e.g. @private.sync_access@) as emitted by
+-- pg_dump.
+functionIdentifier :: Parser Text
+functionIdentifier = do
+    schemaOrName <- identifier
+    maybeName <- optional (char '.' >> identifier)
+    pure $ case maybeName of
+        Nothing -> schemaOrName
+        Just name
+            | schemaOrName == "public" -> name
+            | otherwise -> schemaOrName <> "." <> name
+
 addColumn tableName = do
     lexeme "COLUMN"
     (_, column) <- parseColumn
@@ -1032,7 +1049,7 @@ dropType = do
 dropFunction = do
     lexeme "DROP"
     lexeme "FUNCTION"
-    functionName <- qualifiedIdentifier
+    functionName <- functionIdentifier
     char ';'
     pure DropFunction { functionName }
 
