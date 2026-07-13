@@ -983,9 +983,22 @@ qualifiedIdentifier = do
         char '.'
     identifier
 
+-- | Parses a (possibly schema-qualified) function name.
+--
+-- Like 'qualifiedIdentifier' this normalizes the default @public@ schema away
+-- (@public.foo@ becomes @foo@) so function names compare equal regardless of
+-- whether they were written qualified or not. Unlike 'qualifiedIdentifier' it
+-- preserves non-@public@ schemas (e.g. @private.sync_access@) as emitted by
+-- pg_dump.
+functionIdentifier :: Parser Text
 functionIdentifier = do
     schemaOrName <- identifier
-    maybe schemaOrName (\name -> schemaOrName <> "." <> name) <$> optional (char '.' >> identifier)
+    maybeName <- optional (char '.' >> identifier)
+    pure $ case maybeName of
+        Nothing -> schemaOrName
+        Just name
+            | schemaOrName == "public" -> name
+            | otherwise -> schemaOrName <> "." <> name
 
 addColumn tableName = do
     lexeme "COLUMN"
@@ -1036,7 +1049,7 @@ dropType = do
 dropFunction = do
     lexeme "DROP"
     lexeme "FUNCTION"
-    functionName <- qualifiedIdentifier
+    functionName <- functionIdentifier
     char ';'
     pure DropFunction { functionName }
 
