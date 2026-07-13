@@ -31,7 +31,7 @@ import Data.Functor.Contravariant (contramap)
 
 -- | Calls a callback every time something is inserted, updated or deleted in a given database table.
 --
--- In the background this function creates and validates database triggers that notify this function about
+-- In the background this function creates database triggers and checks that they exist. The triggers notify this function about
 -- table changes using @pg_notify@. If installing the triggers fails temporarily, jobs are still found by the
 -- poller and trigger installation is retried.
 --
@@ -158,9 +158,10 @@ ensureNotificationTriggers pool tableName = do
 -- INSERTs/UPDATEs on the job table would queue up behind that pending lock request,
 -- stalling job processing until the backup finished.
 --
--- When a trigger is missing (first install or after @make db@), a short @lock_timeout@
--- makes the DDL fail fast instead of blocking; the caller falls back to the poller and
--- retries later. Healthy triggers are never dropped.
+-- When a trigger is missing (first install or after @make db@), the table lock required
+-- by @CREATE TRIGGER@ is acquired with @NOWAIT@. This prevents the repair from queuing
+-- behind an active writer and then blocking later writes. The caller falls back to the
+-- poller and retries later. Healthy triggers are never dropped.
 --
 -- The non-blocking advisory lock ensures only one process attempts installation at a
 -- time. Other processes immediately fall back to polling instead of queuing behind it.
@@ -181,6 +182,10 @@ createNotificationTriggerSQL tableName =
             <> "    RETURN new;"
             <> "\nEND;\n"
             <> "$BODY$ language plpgsql;\n"
+        <> "    IF NOT EXISTS (SELECT 1 FROM pg_trigger WHERE tgname = '" <> insertTriggerName <> "'::name AND tgrelid = '" <> tableName <> "'::regclass)\n"
+        <> "       OR NOT EXISTS (SELECT 1 FROM pg_trigger WHERE tgname = '" <> updateTriggerName <> "'::name AND tgrelid = '" <> tableName <> "'::regclass) THEN\n"
+        <> "        LOCK TABLE \"" <> tableName <> "\" IN SHARE ROW EXCLUSIVE MODE NOWAIT;\n"
+        <> "    END IF;\n"
         <> "    IF NOT EXISTS (SELECT 1 FROM pg_trigger WHERE tgname = '" <> insertTriggerName <> "'::name AND tgrelid = '" <> tableName <> "'::regclass) THEN\n"
         <> "        CREATE TRIGGER " <> insertTriggerName <> " AFTER INSERT ON \"" <> tableName <> "\" FOR EACH ROW WHEN (NEW.status = 'job_status_not_started' OR NEW.status = 'job_status_retry') EXECUTE PROCEDURE " <> functionName <> "();\n"
         <> "    END IF;\n"

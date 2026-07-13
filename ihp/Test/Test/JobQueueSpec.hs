@@ -78,6 +78,29 @@ tests = do
                         JobQueue.notificationTriggersHealthy pool testTableName `shouldReturn` True)
                     (Async.cancel lock)
 
+        it "fails immediately without blocking job writes when the trigger table lock is unavailable" do
+            withJobWatcher False \pool -> do
+                dropUpdateNotificationTrigger pool testTableName
+                writer <- Async.async (holdRowExclusiveLock pool testTableName)
+                Exception.finally
+                    (do
+                        didAcquireLock <- waitUntil 2_000_000 (rowExclusiveLockHeld pool testTableName)
+                        didAcquireLock `shouldBe` True
+
+                        repairResult <- timeout 1_000_000 (Exception.try (ensureTestNotificationTriggers pool testTableName) :: IO (Either HasqlError ()))
+                        case repairResult of
+                            Just (Left _) -> pure ()
+                            Just (Right _) -> expectationFailure "trigger repair unexpectedly succeeded while a writer held the table lock"
+                            Nothing -> expectationFailure "trigger repair waited for the table lock"
+
+                        writeResult <- timeout 1_000_000 (insertTestJob pool testTableName)
+                        writeResult `shouldBe` Just ()
+                        writerState <- Async.poll writer
+                        case writerState of
+                            Nothing -> pure ()
+                            Just _ -> expectationFailure "writer lock was released before the job insert completed")
+                    (Async.cancel writer)
+
         it "does not wait for another trigger installer" do
             withJobWatcher False \pool -> do
                 lock <- Async.async (holdTriggerInstallLock pool testTableName)
@@ -208,6 +231,33 @@ accessShareLockHeld pool tableName = do
     let decoder = Decoders.singleRow (Decoders.column (Decoders.nonNullable Decoders.bool))
     let statement = Hasql.unpreparable sql encoder decoder
     runPool pool (HasqlSession.statement tableName statement)
+
+holdRowExclusiveLock :: HasqlPool.Pool -> Text -> IO ()
+holdRowExclusiveLock pool tableName =
+    runScript pool $
+        "BEGIN;"
+        <> "SET LOCAL application_name = 'ihp_job_queue_row_exclusive_test';"
+        <> "LOCK TABLE \"" <> tableName <> "\" IN ROW EXCLUSIVE MODE;"
+        <> "SELECT pg_sleep(3);"
+        <> "ROLLBACK;"
+
+rowExclusiveLockHeld :: HasqlPool.Pool -> Text -> IO Bool
+rowExclusiveLockHeld pool tableName = do
+    let sql = "SELECT EXISTS ("
+            <> " SELECT 1 FROM pg_locks l"
+            <> " JOIN pg_stat_activity a ON a.pid = l.pid"
+            <> " WHERE l.relation = $1::regclass"
+            <> " AND l.mode = 'RowExclusiveLock'"
+            <> " AND l.granted"
+            <> " AND a.application_name = 'ihp_job_queue_row_exclusive_test')"
+    let encoder = Encoders.param (Encoders.nonNullable Encoders.text)
+    let decoder = Decoders.singleRow (Decoders.column (Decoders.nonNullable Decoders.bool))
+    let statement = Hasql.unpreparable sql encoder decoder
+    runPool pool (HasqlSession.statement tableName statement)
+
+insertTestJob :: HasqlPool.Pool -> Text -> IO ()
+insertTestJob pool tableName =
+    runScript pool ("INSERT INTO \"" <> tableName <> "\" (id) VALUES ('00000000-0000-0000-0000-000000000001');")
 
 holdTriggerInstallLock :: HasqlPool.Pool -> Text -> IO ()
 holdTriggerInstallLock pool tableName = do
