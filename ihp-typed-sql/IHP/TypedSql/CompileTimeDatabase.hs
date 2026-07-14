@@ -7,10 +7,10 @@ module IHP.TypedSql.CompileTimeDatabase
     , withAutoDatabase
     ) where
 
-import           Control.Concurrent       (MVar, forkIO, modifyMVar, modifyMVar_,
-                                            newEmptyMVar, newMVar, putMVar,
-                                            readMVar, takeMVar, tryTakeMVar,
-                                            withMVar)
+import           Control.Concurrent       (MVar, forkFinally, forkIO, isEmptyMVar,
+                                            modifyMVar, modifyMVar_, newEmptyMVar,
+                                            newMVar, putMVar, readMVar, takeMVar,
+                                            tryTakeMVar, withMVar)
 import qualified Control.Exception        as Exception
 import           Control.Monad            (void)
 import           Data.Bits                (xor)
@@ -93,6 +93,7 @@ data StopPolicy = FastOnly | ForceIfNeeded
 data StopServerResult
     = ServerStopped
     | ServerNotRunning
+    | ServerIdentityUnverified !String
     | ServerIdentityMismatch !Int !String
     | ServerStopFailed !String
 
@@ -106,6 +107,9 @@ data IdleStopRequest = IdleStopRequest
     , isrGeneration :: !Word64
     , isrDelay      :: !Int
     }
+
+privatePostgreSqlPort :: String
+privatePostgreSqlPort = "5432"
 
 autoDatabaseState :: MVar AutoDatabaseState
 autoDatabaseState = Unsafe.unsafePerformIO (newMVar AutoDatabaseState
@@ -121,6 +125,10 @@ autoDatabaseOperationLock = Unsafe.unsafePerformIO (newMVar ())
 idleStopRequests :: MVar IdleStopRequest
 idleStopRequests = Unsafe.unsafePerformIO newEmptyMVar
 {-# NOINLINE idleStopRequests #-}
+
+idleStopRequestQueueLock :: MVar ()
+idleStopRequestQueueLock = Unsafe.unsafePerformIO (newMVar ())
+{-# NOINLINE idleStopRequestQueueLock #-}
 
 idleStopWorkerStarted :: MVar Bool
 idleStopWorkerStarted = Unsafe.unsafePerformIO (newMVar False)
@@ -156,37 +164,80 @@ withAutoDatabase action =
 scheduleIdleStop :: PostgreSqlTools -> Word64 -> IO ()
 scheduleIdleStop tools generation = do
     idleSeconds <- autoDatabaseIdleSeconds
-    ensureIdleStopWorker
-    _ <- tryTakeMVar idleStopRequests
-    putMVar idleStopRequests IdleStopRequest
+    queueLatestIdleStopRequest IdleStopRequest
         { isrTools = tools
         , isrGeneration = generation
         , isrDelay = idleSeconds * 1000000
         }
+    ensureIdleStopWorker
+
+queueLatestIdleStopRequest :: IdleStopRequest -> IO ()
+queueLatestIdleStopRequest request =
+    withMVar idleStopRequestQueueLock \_ -> do
+        current <- tryTakeMVar idleStopRequests
+        case current of
+            Just currentRequest
+                | isrGeneration currentRequest > isrGeneration request ->
+                    putMVar idleStopRequests currentRequest
+            _ -> putMVar idleStopRequests request
 
 ensureIdleStopWorker :: IO ()
 ensureIdleStopWorker =
     modifyMVar_ idleStopWorkerStarted \started ->
         if started
             then pure True
-            else forkIO idleStopWorker >> pure True
+            else do
+                _ <- forkFinally idleStopWorker (const idleStopWorkerExited)
+                pure True
+
+idleStopWorkerExited :: IO ()
+idleStopWorkerExited = do
+    modifyMVar_ idleStopWorkerStarted (const (pure False))
+    pendingRequest <- not <$> isEmptyMVar idleStopRequests
+    when pendingRequest ensureIdleStopWorker
 
 idleStopWorker :: IO ()
 idleStopWorker = forever do
     request <- takeMVar idleStopRequests
-    waitUntilIdle request
+    waitUntilIdleSafely request
+
+waitUntilIdleSafely :: IdleStopRequest -> IO ()
+waitUntilIdleSafely request =
+    waitUntilIdle request `Exception.catch` handleIdleStopException request
+
+handleIdleStopException :: IdleStopRequest -> Exception.SomeException -> IO ()
+handleIdleStopException request exception =
+    case Exception.fromException exception of
+        Just asyncException -> Exception.throwIO (asyncException :: Exception.AsyncException)
+        Nothing -> do
+            withMVar autoDatabaseState \state ->
+                when (adsGeneration state == isrGeneration request) do
+                    forM_ (adsDatabase state) \managed ->
+                        appendLifecycleLog (madDatabase managed)
+                            ("idle stop failed with an exception: " <> Exception.displayException exception)
+            queueLatestIdleStopRequest request
 
 waitUntilIdle :: IdleStopRequest -> IO ()
 waitUntilIdle request =
     timeout (isrDelay request) (takeMVar idleStopRequests) >>= \case
-        Just newerRequest -> waitUntilIdle newerRequest
+        Just newerRequest -> waitUntilIdleSafely newerRequest
         Nothing ->
-            modifyMVar_ autoDatabaseState \state -> do
-                when (adsGeneration state == isrGeneration request) do
-                    forM_ (adsDatabase state) \managed -> do
-                        result <- stopServer (isrTools request) FastOnly (madDatabase managed)
-                        logStopFailure (madDatabase managed) "idle stop" result
-                pure state
+            modifyMVar autoDatabaseState (stopIfCurrent request) >>= \shouldRetry ->
+                when shouldRetry (queueLatestIdleStopRequest request)
+
+stopIfCurrent :: IdleStopRequest -> AutoDatabaseState -> IO (AutoDatabaseState, Bool)
+stopIfCurrent request state
+    | adsGeneration state /= isrGeneration request = pure (state, False)
+    | otherwise = do
+        shouldRetry <- case adsDatabase state of
+            Nothing -> pure False
+            Just managed -> do
+                result <- stopServer (isrTools request) FastOnly (madDatabase managed)
+                logStopFailure (madDatabase managed) "idle stop" result
+                pure $ case result of
+                    ServerStopFailed _ -> True
+                    _ -> False
+        pure (state, shouldRetry)
 
 autoDatabaseIdleSeconds :: IO Int
 autoDatabaseIdleSeconds = do
@@ -246,7 +297,7 @@ startManagedDatabase tools fingerprint schemaInputs = do
     pgHost <- socketDirectory root
     let pgData = root </> "pgdata"
         database = AutoDatabase
-            { adbUrl = CS.cs ("postgresql:///app?host=" <> pgHost)
+            { adbUrl = CS.cs ("postgresql:///app?host=" <> pgHost <> "&port=" <> privatePostgreSqlPort)
             , adbRoot = root
             , adbPgData = pgData
             , adbPgHost = pgHost
@@ -284,6 +335,7 @@ postgresqlConfiguration pgHost =
     in List.unlines
         [ "unix_socket_directories = '" <> escapedSocketPath <> "'"
         , "listen_addresses = ''"
+        , "port = " <> privatePostgreSqlPort
         , "shared_buffers = 4MB"
         , "max_connections = 10"
         , "autovacuum = off"
@@ -304,6 +356,7 @@ startWatchdog PostgreSqlTools { pgCtlPath, psqlPath, shellPath, rmPath, sleepPat
     let process = (proc shellPath
             [ "-c", watchdogScript, "ihp-typed-sql-watchdog"
             , pgCtlPath, psqlPath, rmPath, sleepPath, adbRoot, adbPgData, adbPgHost
+            , privatePostgreSqlPort
             ])
             { std_in = CreatePipe
             , std_out = NoStream
@@ -341,14 +394,22 @@ watchdogScript = List.unlines
     , "root=$5"
     , "pgdata=$6"
     , "pghost=$7"
+    , "pgport=$8"
     , "log=$root/watchdog.log"
+    , "socket_lock=$pghost/.s.PGSQL.$pgport.lock"
     , "exec >>\"$log\" 2>&1"
-    , "process_matches() {"
+    , "server_matches_data_directory() {"
     , "  for database in app postgres template1; do"
-    , "    data_directory=$(\"$psql\" -XAtw -h \"$pghost\" \"$database\" -c 'SHOW data_directory' 2>/dev/null) || continue"
+    , "    data_directory=$(\"$psql\" -XAtw -h \"$pghost\" -p \"$pgport\" \"$database\" -c 'SHOW data_directory' 2>/dev/null) || continue"
     , "    [ \"$data_directory\" = \"$pgdata\" ] && return 0"
     , "  done"
     , "  return 1"
+    , "}"
+    , "process_matches() {"
+    , "  socket_pid="
+    , "  [ -f \"$socket_lock\" ] && IFS= read -r socket_pid < \"$socket_lock\" || true"
+    , "  [ \"$socket_pid\" = \"$pid\" ] || return 1"
+    , "  server_matches_data_directory"
     , "}"
     , "wait_for_postmaster_exit() {"
     , "  attempts=0"
@@ -379,12 +440,18 @@ watchdogScript = List.unlines
     , "      printf '%s\\n' 'PostgreSQL did not stop; preserving cluster'"
     , "      exit 1"
     , "    fi"
+    , "  elif server_matches_data_directory; then"
+    , "    printf '%s\\n' 'postmaster.pid does not match the private socket lock; preserving cluster'"
+    , "    exit 1"
     , "  elif kill -0 \"$pid\" 2>/dev/null; then"
     , "    if ! wait_for_postmaster_exit; then"
     , "      printf '%s\\n' 'postmaster.pid belongs to another process; preserving cluster'"
     , "      exit 1"
     , "    fi"
     , "  fi"
+    , "elif server_matches_data_directory; then"
+    , "  printf '%s\\n' 'PostgreSQL is reachable but postmaster.pid is missing; preserving cluster'"
+    , "  exit 1"
     , "fi"
     , "\"$rm_command\" -rf \"$root\" \"$pghost\""
     ]
@@ -466,15 +533,26 @@ stopServer :: PostgreSqlTools -> StopPolicy -> AutoDatabase -> IO StopServerResu
 stopServer tools@PostgreSqlTools { pgCtlPath } policy database@AutoDatabase { adbPgData } = do
     pgDataExists <- doesDirectoryExist adbPgData
     if not pgDataExists
-        then pure ServerNotRunning
+        then serverReportsExpectedDataDirectory tools database >>= \serverRunning ->
+            pure $ if serverRunning
+                then ServerIdentityUnverified "PGDATA is missing while its server is still reachable"
+                else ServerNotRunning
         else readPostmasterPid database >>= \case
-            PostmasterPidMissing -> pure ServerNotRunning
+            PostmasterPidMissing ->
+                serverReportsExpectedDataDirectory tools database >>= \serverRunning ->
+                    pure $ if serverRunning
+                        then ServerIdentityUnverified "postmaster.pid is missing while its server is still reachable"
+                        else ServerNotRunning
             PostmasterPidInvalid contents ->
-                pure (ServerStopFailed ("invalid postmaster.pid: " <> contents))
+                pure (ServerIdentityUnverified ("invalid postmaster.pid: " <> contents))
             PostmasterPidFound processId -> do
                 alive <- processIsAlive processId
                 if not alive
-                    then clearStalePostmasterPid database >> pure ServerNotRunning
+                    then serverReportsExpectedDataDirectory tools database >>= \serverRunning ->
+                        if serverRunning
+                            then pure (ServerIdentityMismatch processId
+                                "the private socket is live but postmaster.pid names a dead process")
+                            else clearStalePostmasterPid database >> pure ServerNotRunning
                     else do
                         matches <- processMatchesDatabase tools database processId
                         if not matches
@@ -529,6 +607,9 @@ serverHasStopped _ = False
 logStopFailure :: AutoDatabase -> String -> StopServerResult -> IO ()
 logStopFailure _ _ ServerStopped = pure ()
 logStopFailure _ _ ServerNotRunning = pure ()
+logStopFailure database context (ServerIdentityUnverified message) =
+    appendLifecycleLog database
+        (context <> ": refusing to stop PostgreSQL because its identity cannot be verified: " <> message)
 logStopFailure database context (ServerIdentityMismatch processId command) =
     appendLifecycleLog database
         ( context <> ": refusing to signal PID " <> Prelude.show processId
@@ -542,26 +623,32 @@ appendLifecycleLog AutoDatabase { adbRoot } message =
     ignoreIOException (appendFile (adbRoot </> "watchdog.log") (message <> "\n"))
 
 readPostmasterPid :: AutoDatabase -> IO PostmasterPidState
-readPostmasterPid AutoDatabase { adbPgData } = do
-    readFileIfExists (adbPgData </> "postmaster.pid") <&> \case
-        Nothing -> PostmasterPidMissing
-        Just contents ->
-            let firstLine = fromMaybe "" (listToMaybe (Prelude.lines contents))
-            in case readMaybe firstLine of
-                Just processId | abs processId > 1 -> PostmasterPidFound (abs processId)
-                _ -> PostmasterPidInvalid firstLine
+readPostmasterPid AutoDatabase { adbPgData } =
+    readPidFile (adbPgData </> "postmaster.pid")
 
 clearStalePostmasterPid :: AutoDatabase -> IO ()
 clearStalePostmasterPid AutoDatabase { adbPgData } =
     ignoreIOException (removeFile (adbPgData </> "postmaster.pid"))
 
 processMatchesDatabase :: PostgreSqlTools -> AutoDatabase -> Int -> IO Bool
-processMatchesDatabase PostgreSqlTools { psqlPath } AutoDatabase { adbPgData, adbPgHost } _ =
+processMatchesDatabase tools database processId =
+    readSocketLockPid database >>= \case
+        PostmasterPidFound socketProcessId | socketProcessId == processId ->
+            serverReportsExpectedDataDirectory tools database
+        _ -> pure False
+
+readSocketLockPid :: AutoDatabase -> IO PostmasterPidState
+readSocketLockPid AutoDatabase { adbPgHost } =
+    readPidFile (adbPgHost </> (".s.PGSQL." <> privatePostgreSqlPort <> ".lock"))
+
+serverReportsExpectedDataDirectory :: PostgreSqlTools -> AutoDatabase -> IO Bool
+serverReportsExpectedDataDirectory PostgreSqlTools { psqlPath } AutoDatabase { adbPgData, adbPgHost } =
     or <$> Prelude.traverse reportsExpectedDataDirectory ["app", "postgres", "template1"]
   where
     reportsExpectedDataDirectory databaseName = do
         (exitCode, stdOut, _) <- readProcessWithExitCode psqlPath
-            [ "-X", "-A", "-t", "-w", "-h", adbPgHost, databaseName
+            [ "-X", "-A", "-t", "-w", "-h", adbPgHost
+            , "-p", privatePostgreSqlPort, databaseName
             , "-c", "SHOW data_directory"
             ] ""
             `Exception.catch` \(_ :: IOException) -> pure (ExitFailure 1, "", "")
@@ -576,25 +663,32 @@ ownerProcessIsAlive _ _ ownerPid =
 
 databaseIsReady :: PostgreSqlTools -> AutoDatabase -> IO Bool
 databaseIsReady PostgreSqlTools { pgIsReadyPath } AutoDatabase { adbPgHost } = do
-    (exitCode, _, _) <- readProcessWithExitCode pgIsReadyPath ["-h", adbPgHost] ""
+    (exitCode, _, _) <- readProcessWithExitCode pgIsReadyPath
+        ["-h", adbPgHost, "-p", privatePostgreSqlPort] ""
         `Exception.catch` \(_ :: IOException) -> pure (ExitFailure 1, "", "")
     pure (exitCode == ExitSuccess)
 
 initializeDatabase :: PostgreSqlTools -> SchemaInputs -> AutoDatabase -> IO AutoDatabase
 initializeDatabase tools schemaInputs database@AutoDatabase { adbRoot, adbPgHost } = do
     runChecked (psqlPath tools)
-        [ "-v", "ON_ERROR_STOP=1", "-h", adbPgHost, "postgres", "-c"
+        [ "-v", "ON_ERROR_STOP=1", "-h", adbPgHost, "-p", privatePostgreSqlPort
+        , "postgres", "-c"
         , "ALTER DATABASE template0 IS_TEMPLATE false; ALTER DATABASE template1 IS_TEMPLATE false;"
         ]
-    runChecked (dropdbPath tools) ["-h", adbPgHost, "--maintenance-db=postgres", "template0"]
+    runChecked (dropdbPath tools)
+        ["-h", adbPgHost, "-p", privatePostgreSqlPort, "--maintenance-db=postgres", "template0"]
     runChecked (psqlPath tools)
-        [ "-v", "ON_ERROR_STOP=1", "-h", adbPgHost, "postgres", "-c"
+        [ "-v", "ON_ERROR_STOP=1", "-h", adbPgHost, "-p", privatePostgreSqlPort
+        , "postgres", "-c"
         , "ALTER DATABASE template1 RENAME TO app;"
         ]
-    runChecked (dropdbPath tools) ["-h", adbPgHost, "--maintenance-db=app", "postgres"]
+    runChecked (dropdbPath tools)
+        ["-h", adbPgHost, "-p", privatePostgreSqlPort, "--maintenance-db=app", "postgres"]
     forM_ (catMaybes [siIhpSchema schemaInputs, Just (siAppSchema schemaInputs)]) \schemaFile ->
         runChecked (psqlPath tools)
-            ["-v", "ON_ERROR_STOP=1", "-h", adbPgHost, "app", "-f", schemaFile]
+            [ "-v", "ON_ERROR_STOP=1", "-h", adbPgHost, "-p", privatePostgreSqlPort
+            , "app", "-f", schemaFile
+            ]
     Prelude.writeFile (adbRoot </> "schema.hash") (siHash schemaInputs)
     pure database { adbSchemaHash = siHash schemaInputs }
 
@@ -778,6 +872,16 @@ readFileIfExists path = do
     if exists
         then Just <$> Prelude.readFile path
         else pure Nothing
+
+readPidFile :: FilePath -> IO PostmasterPidState
+readPidFile path =
+    readFileIfExists path <&> \case
+        Nothing -> PostmasterPidMissing
+        Just contents ->
+            let firstLine = fromMaybe "" (listToMaybe (Prelude.lines contents))
+            in case readMaybe firstLine of
+                Just processId | abs processId > 1 -> PostmasterPidFound (abs processId)
+                _ -> PostmasterPidInvalid firstLine
 
 ignoreIOException :: IO a -> IO ()
 ignoreIOException action =
