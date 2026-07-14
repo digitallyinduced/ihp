@@ -67,6 +67,32 @@ In a production context you need to specify the correct database URL via the `DA
 DATABASE_URL=postgresql://... migrate
 ```
 
+### Creating PostgreSQL Extensions
+
+Many PostgreSQL extensions can only be created by a database administrator. IHP supports a second connection for these migrations:
+
+```bash
+DATABASE_URL=postgresql://app@localhost/app \
+DATABASE_ADMIN_URL=postgresql://postgres@localhost/app \
+migrate
+```
+
+The admin connection is opened only when a migration contains exclusively `CREATE EXTENSION IF NOT EXISTS` statements. It executes the extension statements in their own transaction and nothing from the application schema. After that transaction commits, `migrate` verifies the installed extensions through `DATABASE_URL` and records the `schema_migrations` revision through the regular application connection. This also makes an interrupted run safe to retry because extension migrations require `IF NOT EXISTS`. All other migrations continue to use `DATABASE_URL`.
+
+An extension migration must be standalone:
+
+```sql
+-- Application/Migration/1700000000-create-earthdistance.sql
+CREATE EXTENSION IF NOT EXISTS "cube";
+CREATE EXTENSION IF NOT EXISTS "earthdistance";
+```
+
+Put tables, indexes, grants, and other changes in the next migration. `migrate` rejects a file that mixes `CREATE EXTENSION` with other executable SQL instead of running arbitrary statements through the admin connection. The Schema Designer's migration generator automatically splits extension statements into an earlier standalone migration.
+
+`migrate` does not copy the application's `search_path` to the administrator connection. If an extension supports choosing its installation schema and the target matters, specify it explicitly with `WITH SCHEMA trusted_schema`. Use a schema that untrusted roles cannot write to; extension installation executes with administrator privileges and must not resolve attacker-controlled objects.
+
+When using the NixOS `appWithPostgres` module, IHP configures the local admin connection automatically. For an external database, set `services.ihp.databaseAdminUrl` in the deployment configuration. The URL must connect to the same PostgreSQL server and database as `services.ihp.databaseUrl`. The migration tool compares the reported database names and, before recording the revision, verifies through the regular connection that every requested extension is installed.
+
 For running migrations when deploying from Github Actions, you can use `nix run .#migrate`.
 
 ### Skipping Old Migrations

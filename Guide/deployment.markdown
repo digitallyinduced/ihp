@@ -477,6 +477,16 @@ services.postgresql.extensions = plugins: [ plugins.pg_uuidv7 ];
 services.postgresqlBackup.enable = true;
 ```
 
+`services.postgresql.extensions` installs extension packages on the server; it does not execute `CREATE EXTENSION` in an application database. Put `CREATE EXTENSION IF NOT EXISTS` in a standalone migration. `appWithPostgres` automatically runs such migrations through a separate local PostgreSQL administrator connection, while all regular migrations continue to use the application role.
+
+For an external PostgreSQL server, configure the administrator connection explicitly:
+
+```nix
+services.ihp.databaseAdminUrl = "postgresql://migration-admin@database.example.com/app";
+```
+
+This role needs permission to create the required extensions. Both URLs must point to the same PostgreSQL server and database. The migration tool compares their database names and verifies the installed extensions again through the application connection before recording a revision. It never uses the administrator connection for migrations containing tables, indexes, data changes, revision bookkeeping, or other application SQL. See [Creating PostgreSQL Extensions](database-migrations.html#creating-postgresql-extensions) for the required migration format and schema security guidance.
+
 For tighter security on the database, configure authentication rules:
 
 ```nix

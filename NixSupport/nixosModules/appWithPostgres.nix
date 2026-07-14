@@ -1,6 +1,11 @@
 # Running IHP app + a local Postgres connected to it
 { config, nixpkgs, pkgs, modulesPath, lib, ihp, ... }:
-let cfg = config.services.ihp;
+let
+    cfg = config.services.ihp;
+    schemaExtensions = pkgs.runCommand "ihp-schema-extensions.sql" {} ''
+        ${ihp.apps."${pkgs.system}".migrate.program} --extract-extensions ${ihp}/IHPSchema.sql > $out
+        ${ihp.apps."${pkgs.system}".migrate.program} --extract-extensions ${cfg.schema} >> $out
+    '';
 in
 {
     imports = [
@@ -68,16 +73,25 @@ in
             CREATE DATABASE ${cfg.databaseName} OWNER ${cfg.databaseUser};
             GRANT ALL PRIVILEGES ON DATABASE ${cfg.databaseName} TO "${cfg.databaseUser}";
             \connect ${cfg.databaseName}
+            \i ${schemaExtensions}
             SET ROLE '${cfg.databaseUser}';
             CREATE TABLE IF NOT EXISTS schema_migrations (revision BIGINT NOT NULL UNIQUE);
             \i ${ihp}/IHPSchema.sql
             \i ${cfg.schema}
             \i ${cfg.fixtures}
         '';
+        authentication = lib.mkBefore ''
+            local ${cfg.databaseName} postgres peer map=ihp-migrate-admin
+        '';
+        identMap = lib.mkBefore ''
+            ihp-migrate-admin root postgres
+            ihp-migrate-admin postgres postgres
+        '';
     };
 
     services.ihp.databaseUser = "root";
     services.ihp.databaseUrl = "postgresql://${cfg.databaseUser}@/${cfg.databaseName}";
+    services.ihp.databaseAdminUrl = "postgresql://postgres@/${cfg.databaseName}";
 
     # Enable automatic GC to avoid the disk from filling up
     #
@@ -98,4 +112,3 @@ in
         PGDATABASE = cfg.databaseName;
     };
 }
-
