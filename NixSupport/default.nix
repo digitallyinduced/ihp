@@ -20,6 +20,7 @@
 , appSchemaSql ? null       # Path to Application/Schema.sql (required when buildWithPostgres = true)
 , ihpSchemaSql ? null       # Path to IHPSchema.sql (required when buildWithPostgres = true)
 , migrationCheck ? null     # Optional derivation that validates Application/Migration before building the app
+, previousIntermediates ? null # Optional intermediate output from a previous optimized app library build
 }:
 
 let
@@ -418,6 +419,9 @@ CABAL_EOF
             version = "0.1.0";
             src = appLibSrc;
             libraryHaskellDepends = [ base modelsPackage ] ++ builtins.filter (p: p != null) (haskellDeps ghc);
+            doInstallIntermediates = optimized;
+            enableSeparateIntermediatesOutput = optimized;
+            inherit previousIntermediates;
             license = pkgs.lib.licenses.free;
         }) {}
     ));
@@ -572,7 +576,7 @@ in
     pkgs.runCommand appName {
         inherit static binaries;
         nativeBuildInputs = [ pkgs.makeWrapper ];
-        passthru = { inherit scriptBinaries; migrationCheck = effectiveMigrationCheck; };
+        passthru = { inherit appLibPackage scriptBinaries; migrationCheck = effectiveMigrationCheck; };
     } ''
             test -e ${effectiveMigrationCheck}
 
