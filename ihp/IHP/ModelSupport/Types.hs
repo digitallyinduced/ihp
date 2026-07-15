@@ -16,6 +16,7 @@ module IHP.ModelSupport.Types
   ModelContext (..)
 , RowLevelSecurityContext (..)
 , TransactionRunner (..)
+, TrackedQueryRead (..)
   -- * Type Families
 , GetModelById
 , GetTableName
@@ -66,7 +67,9 @@ import GHC.TypeLits
 import GHC.Types
 import Data.Data
 import Data.Dynamic
+import Data.Maybe (isJust)
 import System.Log.FastLogger (FastLogger)
+import qualified Data.Set as Set
 
 -- | Runner that executes a hasql Session on the current transaction's connection
 newtype TransactionRunner = TransactionRunner
@@ -90,11 +93,33 @@ data ModelContext = ModelContext
     , transactionRunner :: Maybe TransactionRunner -- ^ When set, queries are sent through this runner instead of 'HasqlPool.use' directly
     , logger :: FastLogger
     , queryLoggingEnabled :: !Bool
-    -- | A callback that is called whenever a specific table is accessed using a SELECT query
+    -- | A callback that is called whenever a specific table is accessed using a SELECT query.
     , trackTableReadCallback :: Maybe (Text -> IO ())
     -- | Is set to a value if row level security was enabled at runtime
     , rowLevelSecurity :: Maybe RowLevelSecurityContext
     }
+
+-- | Information captured for one SELECT performed while rendering an AutoRefresh action.
+--
+-- 'trackedRowIds' is 'Nothing' when the result shape does not expose a conventional
+-- @id@ column. 'trackedQueryMatchesIds' reruns the original parameterized query,
+-- restricted to a batch of changed row IDs. The function closes over the prepared
+-- query and therefore retains both its SQL and its bound parameters.
+data TrackedQueryRead = TrackedQueryRead
+    { trackedRowIds :: !(Maybe (Set.Set Text))
+    , trackedQueryMatchesIds :: !(Maybe (Set.Set Text -> IO Bool))
+    }
+
+instance Eq TrackedQueryRead where
+    first == second =
+        first.trackedRowIds == second.trackedRowIds
+        && isJust first.trackedQueryMatchesIds == isJust second.trackedQueryMatchesIds
+
+instance Show TrackedQueryRead where
+    show TrackedQueryRead { trackedRowIds, trackedQueryMatchesIds } =
+        "TrackedQueryRead { trackedRowIds = " <> show trackedRowIds
+        <> ", trackedQueryMatchesIds = " <> show (isJust trackedQueryMatchesIds)
+        <> " }"
 
 -- | When row level security is enabled at runtime, this keeps track of the current
 -- logged in user and the postgresql role to switch to.

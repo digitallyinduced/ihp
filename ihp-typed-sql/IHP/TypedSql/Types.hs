@@ -11,7 +11,8 @@ import           Data.Kind                       (Type)
 import           GHC.TypeLits                    (ErrorMessage (Text), TypeError)
 import qualified Hasql.Decoders                as HasqlDecoders
 import qualified Hasql.DynamicStatements.Snippet as Snippet
-import           Prelude                         (Eq, Maybe, Show)
+import           Prelude                         (Bool, Eq, Maybe, Show)
+import           Data.Text                       (Text)
 
 -- | What the SQL parser can prove about how many rows a query returns.
 data QueryCardinality
@@ -49,4 +50,11 @@ type family SqlExecTypedResult (execResult :: QueryExecResult) :: Type where
 data TypedQuery (cardinality :: QueryCardinality) (execResult :: QueryExecResult) result = TypedQuery
     { tqSnippet       :: !Snippet.Snippet
     , tqResultDecoder :: !(HasqlDecoders.Row result)
+    -- | Tables read by the query and, when exposed by the result, the output
+    -- column containing that table's conventional single-column @id@ key.
+    -- AutoRefresh uses this runtime metadata to retain the parameterized query.
+    , tqAutoRefreshTables :: ![(Text, Maybe Text)]
+    -- | Whether the parser proved that each output row depends only on the
+    -- corresponding physical row. Complex shapes fall back to table tracking.
+    , tqAutoRefreshRowMatchingSafe :: !Bool
     }

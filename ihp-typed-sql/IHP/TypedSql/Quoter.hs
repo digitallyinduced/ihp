@@ -9,9 +9,11 @@ module IHP.TypedSql.Quoter
     ) where
 
 import qualified Control.Exception              as Exception
+import           Control.Monad                  (guard)
 import           Data.Coerce                    (coerce)
 import qualified Data.Char                      as Char
 import qualified Data.List                      as List
+import qualified Data.List.NonEmpty             as NonEmpty
 import qualified Data.Map.Strict                as Map
 import qualified Data.Set                       as Set
 import qualified Data.String.Conversions        as CS
@@ -29,12 +31,12 @@ import           IHP.Hasql.Encoders              ()
 import           IHP.TypedSql.Cardinality      (inferCardinality)
 import           IHP.TypedSql.CompileTimeDatabase (dependentSchemaFiles)
 import           IHP.TypedSql.Decoders          (resultDecoderForColumns)
-import           IHP.TypedSql.Metadata          (DescribeColumn (..), DescribeResult (..), PgTypeInfo (..), TableMeta (..),
+import           IHP.TypedSql.Metadata          (ColumnMeta (..), DescribeColumn (..), DescribeResult (..), PgTypeInfo (..), TableMeta (..),
                                                  describeStatement)
 import           IHP.TypedSql.ParamHints        (extractParamHintsFromAst, extractJoinNullableTablesFromAst,
                                                  extractNonNullableComputedColumnsFromAst,
                                                  parseSql, resolveParamHintTypes, detectStarSelects,
-                                                 detectInsertWithoutColumns)
+                                                 detectInsertWithoutColumns, extractReadTableNamesFromAst)
 import           IHP.TypedSql.ParamEncoder      (typedSqlParam)
 import           IHP.TypedSql.Placeholders      (PlaceholderPlan (..), parseExpr,
                                                  planPlaceholders)
@@ -147,6 +149,33 @@ typedSqlExp allowStar rawSql = do
     let nonNullableColumns = maybe Set.empty extractNonNullableComputedColumnsFromAst parsedAst
     let queryCardinality = maybe ManyRows (inferCardinality drTables) parsedAst
     let queryExecResult = inferExecResult parsedAst (CS.cs ppDescribeSql) drColumns
+    let readTableNames = maybe Set.empty extractReadTableNamesFromAst parsedAst
+    let autoRefreshRowMatchingSafe = maybe False (isAutoRefreshRowMatchingSafe ppDescribeSql) parsedAst
+    let outputNameCounts =
+            drColumns
+                |> map (\DescribeColumn { dcName } -> (CS.cs dcName :: Text, 1 :: Int))
+                |> Map.fromListWith (+)
+    let primaryKeyOutputs =
+            drColumns
+                |> mapMaybe (\DescribeColumn { dcName, dcTable, dcAttnum } -> do
+                    attnum <- dcAttnum
+                    TableMeta { tmName, tmColumns, tmPrimaryKeys } <- Map.lookup dcTable drTables
+                    ColumnMeta { cmName } <- Map.lookup attnum tmColumns
+                    guard (Set.size tmPrimaryKeys == 1 && attnum `Set.member` tmPrimaryKeys)
+                    guard (cmName == "id")
+                    let outputName = CS.cs dcName :: Text
+                    guard (Map.findWithDefault 0 outputName outputNameCounts == 1)
+                    pure (tmName, outputName))
+                |> map (\(tableName, columnName) -> (tableName, [columnName]))
+                |> Map.fromListWith (<>)
+    let autoRefreshTables =
+            readTableNames
+                |> Set.toList
+                |> map (\tableName ->
+                    let idColumn = case Map.lookup tableName primaryKeyOutputs of
+                            Just [columnName] -> Just columnName
+                            _ -> Nothing
+                    in (tableName, idColumn))
 
     let isCompositeColumn =
             case drColumns of
@@ -181,13 +210,20 @@ typedSqlExp allowStar rawSql = do
                 pure (rt, decoder)
 
     snippetExpr <- buildSnippetExpression ppRuntimeSql paramSnippets
+    let autoRefreshTablesExpr = TH.ListE (map autoRefreshTableExp autoRefreshTables)
     let typedQueryExpr =
             TH.AppE
                 (TH.AppE
-                    (TH.ConE 'TypedQuery)
-                    snippetExpr
+                    (TH.AppE
+                        (TH.AppE
+                            (TH.ConE 'TypedQuery)
+                            snippetExpr
+                        )
+                        resultDecoder
+                    )
+                    autoRefreshTablesExpr
                 )
-                resultDecoder
+                (if autoRefreshRowMatchingSafe then TH.ConE 'True else TH.ConE 'False)
 
     pure
         ( TH.SigE
@@ -200,6 +236,55 @@ typedSqlExp allowStar rawSql = do
                 resultType
             )
         )
+
+autoRefreshTableExp :: (Text, Maybe Text) -> TH.Exp
+autoRefreshTableExp (tableName, maybeIdColumn) =
+    TH.TupE
+        [ Just (textExp tableName)
+        , Just case maybeIdColumn of
+            Nothing -> TH.ConE 'Nothing
+            Just idColumn -> TH.AppE (TH.ConE 'Just) (textExp idColumn)
+        ]
+  where
+    textExp value = TH.AppE (TH.VarE 'Text.pack) (TH.LitE (TH.StringL (CS.cs value)))
+
+-- | Fine-grained changed-row matching is only sound when one physical row
+-- cannot change the output associated with another row. Unknown and complex
+-- SELECT shapes deliberately fall back to table-level tracking.
+isAutoRefreshRowMatchingSafe :: String -> Ast.PreparableStmt -> Bool
+isAutoRefreshRowMatchingSafe sql = \case
+    Ast.SelectPreparableStmt
+        (Left (Ast.SelectNoParens
+            Nothing
+            (Left (Ast.NormalSimpleSelect _targeting Nothing (Just fromClause) _where Nothing Nothing Nothing))
+            _sort
+            maybeLimit
+            _lock)) ->
+                hasOneDirectTable fromClause
+                && not (maybe False selectLimitHasOffset maybeLimit)
+                && countKeyword "select" sql == 1
+                && countKeyword "over" sql == 0
+                && countKeyword "table" sql == 0
+    _ -> False
+  where
+    hasOneDirectTable fromClause = case NonEmpty.toList fromClause of
+        [Ast.RelationExprTableRef _relation _alias Nothing] -> True
+        _ -> False
+
+selectLimitHasOffset :: Ast.SelectLimit -> Bool
+selectLimitHasOffset = \case
+    Ast.LimitOffsetSelectLimit _ _ -> True
+    Ast.OffsetLimitSelectLimit _ _ -> True
+    Ast.OffsetSelectLimit _ -> True
+    Ast.LimitSelectLimit _ -> False
+
+countKeyword :: String -> String -> Int
+countKeyword keyword sql =
+    length (filter (== keyword) (Prelude.words (map normalize sql)))
+  where
+    normalize character
+        | Char.isAlphaNum character || character == '_' = Char.toLower character
+        | otherwise = ' '
 
 cardinalityType :: QueryCardinality -> TH.Type
 cardinalityType = \case

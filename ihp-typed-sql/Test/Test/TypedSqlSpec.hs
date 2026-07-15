@@ -11,6 +11,7 @@ import           IHP.ModelSupport                  (createModelContext,
 import           IHP.Prelude
 import           IHP.TypedSql.ParamHints           (parseSql, extractJoinNullableTables,
                                                     extractNonNullableComputedColumnsFromAst,
+                                                    extractReadTableNamesFromAst,
                                                     detectStarSelects,
                                                     detectInsertWithoutColumns)
 import           System.Directory                  (createDirectoryIfMissing,
@@ -391,6 +392,16 @@ tests = do
         it "extractJoinNullableTables returns empty for plain FROM" do
             let sql = " SELECT name FROM items LIMIT 1 "
             extractJoinNullableTables sql `shouldBe` Set.empty
+
+        it "extractReadTableNamesFromAst captures SELECT tables but not DML targets" do
+            let Just selectAst = parseSql "SELECT i.name FROM items i JOIN authors a ON a.id = i.author_id"
+            let Just updateAst = parseSql "UPDATE items SET name = 'changed' RETURNING id"
+            extractReadTableNamesFromAst selectAst `shouldBe` Set.fromList ["items", "authors"]
+            extractReadTableNamesFromAst updateAst `shouldBe` Set.empty
+
+        it "extractReadTableNamesFromAst follows CTEs and FROM subqueries" do
+            let Just ast = parseSql "WITH visible AS (SELECT id FROM items) SELECT visible.id FROM (SELECT id FROM visible) visible"
+            extractReadTableNamesFromAst ast `shouldBe` Set.singleton "items"
 
         it "extractNonNullableComputedColumns detects count(*)" do
             let Just ast = parseSql "SELECT count(*) FROM items"
@@ -1043,11 +1054,15 @@ runtimeModule = Text.unlines
     , ""
     , "import qualified Control.Exception as Exception"
     , "import IHP.Prelude"
-    , "import IHP.ModelSupport (Id'(..), ModelContext, PrimaryKey, createModelContext, releaseModelContext, noopLogger)"
+    , "import IHP.ModelSupport (Id'(..), ModelContext, PrimaryKey, TrackedQueryRead(..), createModelContext, releaseModelContext, noopLogger)"
+    , "import IHP.AutoRefresh (withAutoRefreshReadTracker)"
+    , "import IHP.AutoRefresh.Types (AutoRefreshReadDependency (..))"
     , "import IHP.Hasql.FromRow (FromRowHasql (..))"
     , "import IHP.FetchPipelined (pipeline)"
-    , "import IHP.TypedSql (sqlExecTyped, sqlQueryTyped, sqlQueryTypedRows, sqlQueryTypedOneOrNothing, sqlQueryTypedSingle, sqlQueryTypedMaybeColumn, sqlQueryTypedPipelined, sqlQueryTypedMaybeColumnPipelined, typedSql, typedSqlStar)"
+    , "import IHP.TypedSql (TypedQuery(..), sqlExecTyped, sqlQueryTyped, sqlQueryTypedRows, sqlQueryTypedOneOrNothing, sqlQueryTypedSingle, sqlQueryTypedMaybeColumn, sqlQueryTypedPipelined, sqlQueryTypedMaybeColumnPipelined, typedSql, typedSqlStar)"
     , "import qualified Hasql.Decoders as HasqlDecoders"
+    , "import qualified Data.Map.Strict as Map"
+    , "import qualified Data.Set as Set"
     , "import System.Environment (lookupEnv)"
     , ""
     , "type instance PrimaryKey \"typed_sql_test_items\" = UUID"
@@ -1094,6 +1109,56 @@ runtimeModule = Text.unlines
     , "            INSERT INTO typed_sql_test_items (id, author_id, name, views, score, tags)"
     , "            VALUES (${itemId2}, ${authorId}, ${(\"Second\" :: Text)}, ${8 :: Int}, ${(2.0 :: Double)}, ${([\"green\"] :: [Text])})"
     , "        |]"
+    , ""
+    , "        trackedReads <- withAutoRefreshReadTracker do"
+    , "            _ <- sqlQueryTyped [typedSql|"
+    , "                SELECT id, name FROM typed_sql_test_items"
+    , "                WHERE views > ${6 :: Int}"
+    , "            |]"
+    , "            readIORef ?autoRefreshReadDependencies"
+    , ""
+    , "        trackedRead <- case Map.lookup \"typed_sql_test_items\" trackedReads of"
+    , "            Just (AutoRefreshTrackedQueryReads [read]) -> pure read"
+    , "            other -> error (\"unexpected Typed SQL AutoRefresh metadata: \" <> show other)"
+    , ""
+    , "        when (trackedRead.trackedRowIds /= Just (Set.singleton (tshow itemId2))) do"
+    , "            error (\"unexpected Typed SQL tracked IDs: \" <> show trackedRead.trackedRowIds)"
+    , ""
+    , "        matchesIds <- case trackedRead.trackedQueryMatchesIds of"
+    , "            Just matcher -> pure matcher"
+    , "            Nothing -> error \"Typed SQL query matcher was not captured\""
+    , "        matchingIdMatches <- matchesIds (Set.singleton (tshow itemId2))"
+    , "        filteredIdMatches <- matchesIds (Set.singleton (tshow itemId1))"
+    , "        unless (matchingIdMatches && not filteredIdMatches) do"
+    , "            error \"Typed SQL matcher did not retain its bound views > 6 parameter\""
+    , ""
+    , "        let safeTrackingQuery = [typedSql|"
+    , "                SELECT id, name FROM typed_sql_test_items"
+    , "                WHERE views > ${6 :: Int}"
+    , "            |]"
+    , "        unless safeTrackingQuery.tqAutoRefreshRowMatchingSafe do"
+    , "            error \"direct single-table Typed SQL query was not marked row-local\""
+    , ""
+    , "        let offsetTrackingQuery = [typedSql|"
+    , "                SELECT id, name FROM typed_sql_test_items"
+    , "                ORDER BY name OFFSET 1"
+    , "            |]"
+    , "        when offsetTrackingQuery.tqAutoRefreshRowMatchingSafe do"
+    , "            error \"OFFSET Typed SQL query was incorrectly marked row-local\""
+    , ""
+    , "        offsetTrackedReads <- withAutoRefreshReadTracker do"
+    , "            _ <- sqlQueryTyped offsetTrackingQuery"
+    , "            readIORef ?autoRefreshReadDependencies"
+    , "        case Map.lookup \"typed_sql_test_items\" offsetTrackedReads of"
+    , "            Just AutoRefreshWholeTable -> pure ()"
+    , "            other -> error (\"OFFSET Typed SQL query did not fall back conservatively: \" <> show other)"
+    , ""
+    , "        let windowTrackingQuery = [typedSql|"
+    , "                SELECT id, row_number() OVER (ORDER BY name)"
+    , "                FROM typed_sql_test_items"
+    , "            |]"
+    , "        when windowTrackingQuery.tqAutoRefreshRowMatchingSafe do"
+    , "            error \"windowed Typed SQL query was incorrectly marked row-local\""
     , ""
     , "        names <- sqlQueryTyped [typedSql|"
     , "            SELECT name FROM typed_sql_test_items"

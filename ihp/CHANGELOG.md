@@ -32,6 +32,9 @@
 - Add support for `CREATE INDEX ... NULLS [NOT] DISTINCT`.
 - Deprecate `sqlQuery` / `sqlExec` family in favor of explicitly named unsafe
   variants.
+- Add parameter-aware AutoRefresh relevance checks for QueryBuilder and Typed
+  SQL reads, plus opt-in notification batching through
+  `AutoRefreshBatchWindow` (default: `0` milliseconds).
 
 ## Fixes
 

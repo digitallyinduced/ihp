@@ -56,6 +56,8 @@ When the page is rendered a small JavaScript function will connect back to the I
 
 Whenever an `INSERT`, `UPDATE` or `DELETE` happens to the tables used by your action IHP will rerun your action on the server-side. When the generated HTML looks different than the HTML generated on the initial page load it will send the new HTML to the browser using the WebSocket connection. The JavaScript listening on the WebSocket will use the new HTML to update the current page. It uses morphdom to only touch the parts of your current DOM that have changed.
 
+For QueryBuilder queries, Auto Refresh also tracks the primary keys returned by each query and retains the prepared query together with its bound parameters. When the table uses the conventional single-column `id` key, updates and deletes to unrelated rows can therefore be ignored. For inserts, and for updates that might make a row newly match, IHP reuses the captured parameterized query to check only the changed row before re-rendering. Custom and composite primary keys are retained for future relevance checks but currently use the conservative table-level refresh fallback. The captured query snapshot is replaced after every re-render.
+
 
 ### Using Auto Refresh
 
@@ -78,6 +80,37 @@ action ShowProjectAction { projectId } = autoRefresh do
 That's it. When you open your browser dev tools, you will see that a WebSocket connection has been started when opening the page. When we update the project from a different browser tab, we will see that the page instantly updates to reflect our changes.
 
 ## Advanced Auto Refresh
+
+### Notification Batching
+
+By default Auto Refresh does not add a batching delay. Each PostgreSQL
+notification is checked as soon as its listener worker can run, which preserves
+the real-time behaviour expected by latency-sensitive pages.
+
+For write-heavy applications with many connected users, you can opt into a
+short batching window in `Config/Config.hs`:
+
+```haskell
+config :: ConfigBuilder
+config = do
+    option (AutoRefreshBatchWindow 100)
+```
+
+The value is in milliseconds. During that window IHP accumulates changed row
+IDs per table, then performs one relevance check per connected session for the
+whole batch. Continuous writes use consecutive windows, so changes arriving
+while a batch is being processed are not lost.
+
+Set the value to `0` to disable the intentional delay:
+
+```haskell
+option (AutoRefreshBatchWindow 0)
+```
+
+The default is `0`. You can also set the same option through the
+`IHP_AUTO_REFRESH_BATCH_WINDOW_MS` environment variable. A positive window is
+useful for high-fan-out dashboards; leave it at zero when minimum update latency
+matters more than limiting the maximum relevance-check rate.
 
 ### Auto Refresh Only for Specific Tables
 
@@ -124,3 +157,25 @@ action StatsAction = autoRefresh do
 ```
 
 The [`trackTableRead`](https://ihp.digitallyinduced.com/api-docs/IHP-ModelSupport.html#v:trackTableRead) marks the table as accessed for Auto Refresh and leads to the table being watched.
+
+Manually tracked raw SQL uses the safe table-level fallback, because IHP only knows the table name in that case.
+
+### Typed SQL Queries with Auto Refresh
+
+Queries executed with `sqlQueryTyped [typedSql| ... |]` are tracked automatically. Typed SQL retains the query's bound parameters, so Auto Refresh can apply the same changed-row check as QueryBuilder when the query result directly exposes the table's conventional single-column `id` key:
+
+```haskell
+action ProjectTasksAction { projectId } = autoRefresh do
+    tasks <- sqlQueryTyped [typedSql|
+        SELECT id, title
+        FROM tasks
+        WHERE project_id = ${projectId}
+        ORDER BY created_at
+    |]
+
+    render TasksView { .. }
+```
+
+If the result does not expose the primary key, or the query reads a table with a composite/non-standard primary key, Auto Refresh still watches the detected table but falls back to refreshing for every change to that table.
+
+The fine-grained path is intended for direct, row-local queries like the example above. Query shapes where one row can change the output of another row (for example `OFFSET`, window functions, correlated subqueries or aggregates) need conservative table-level tracking. Until Typed SQL emits explicit safety metadata for these shapes, call `trackTableRead "tasks"` in the same `autoRefresh` action to force that fallback.

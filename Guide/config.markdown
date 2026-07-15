@@ -716,6 +716,25 @@ config = do
     option (DataSyncMaxTransactionsPerConnection 20)
 ```
 
+### Auto Refresh
+
+Controls how long Auto Refresh accumulates PostgreSQL notifications before
+running relevance checks. The value is in milliseconds. The default of `0`
+adds no intentional delay; a positive value batches changes to reduce database
+work for write-heavy tables with many connected sessions.
+
+| | |
+|---|---|
+| **Type** | `AutoRefreshBatchWindow` |
+| **Default** | `0` |
+| **Env var** | `IHP_AUTO_REFRESH_BATCH_WINDOW_MS` |
+
+```haskell
+-- Config.hs
+config = do
+    option (AutoRefreshBatchWindow 100)
+```
+
 ### Row-Level Security
 
 Controls the PostgreSQL role used for queries with Row Level Security enabled.
@@ -783,6 +802,7 @@ These environment variables are read by IHP's server infrastructure and cannot b
 | `IHP_RLS_AUTHENTICATED_ROLE` | `ihp_authenticated` | Security |
 | `IHP_DATASYNC_MAX_SUBSCRIPTIONS_PER_CONNECTION` | `128` | DataSync |
 | `IHP_DATASYNC_MAX_TRANSACTIONS_PER_CONNECTION` | `10` | DataSync |
+| `IHP_AUTO_REFRESH_BATCH_WINDOW_MS` | `0` | AutoRefresh |
 | `IHP_SYSTEMD` | `False` | Deployment |
 | `IHP_STATIC` | Built-in | Static Files |
 | `APP_STATIC` | `static/` | Static Files |

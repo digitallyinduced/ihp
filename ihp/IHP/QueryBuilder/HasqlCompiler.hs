@@ -11,6 +11,8 @@ by threading a parameter counter and encoder accumulator through compilation.
 module IHP.QueryBuilder.HasqlCompiler
 ( buildStatement
 , buildWrappedStatement
+, buildQueryMatchesRowStatement
+, buildQueryMatchesRowsStatement
 , toSQL
 , compileOperator
 , CompilerState(..)
@@ -27,6 +29,7 @@ import Data.Functor.Contravariant.Divisible (conquer)
 import IHP.QueryBuilder.Types
 import IHP.QueryBuilder.Compiler (buildQuery)
 import qualified Data.List as List
+import qualified Data.Text as Text
 
 -- | Compile context: parameter counter + accumulated encoder.
 data CompilerState = CompilerState !Int !(Encoders.Params ())
@@ -53,6 +56,49 @@ buildWrappedStatement :: Text -> SQLQuery -> Text -> Decoders.Result a -> Hasql.
 buildWrappedStatement prefix sqlQuery suffix decoder =
     let (innerSql, CompilerState _ encoder) = compileQuery emptyCompilerState sqlQuery
     in Hasql.preparable (prefix <> innerSql <> suffix) encoder decoder
+
+-- | Build a statement that checks whether a row ID is present in a query result.
+--
+-- The query builder's parameters are already captured inside its @Params ()@
+-- encoder. They are lifted to the statement's 'Text' input and combined with a
+-- final, runtime row-ID parameter. This preserves the exact bound parameters of
+-- the original query instead of retaining SQL text alone.
+buildQueryMatchesRowStatement :: SQLQuery -> Hasql.Statement Text Bool
+buildQueryMatchesRowStatement sqlQuery =
+    let (innerSql, CompilerState nextParameter queryEncoder) = compileQuery emptyCompilerState sqlQuery
+        rowIdEncoder = Encoders.param (Encoders.nonNullable Encoders.text)
+        encoder = contramap (const ()) queryEncoder <> rowIdEncoder
+        tableType = quoteIdentifierPath sqlQuery.selectFrom
+        sql =
+            "SELECT EXISTS (SELECT 1 FROM (" <> innerSql
+            <> ") AS _ihp_auto_refresh_records WHERE _ihp_auto_refresh_records.id = "
+            <> "(jsonb_populate_record(NULL::" <> tableType
+            <> ", jsonb_build_object('id', $" <> tshow nextParameter <> "))).id)"
+        decoder = Decoders.singleRow (Decoders.column (Decoders.nonNullable Decoders.bool))
+    in Hasql.preparable sql encoder decoder
+
+-- | Batched variant of 'buildQueryMatchesRowStatement'. The changed IDs arrive
+-- as text in the compact notification payload. @jsonb_populate_record@ converts
+-- them back to the table's real @id@ type, preserving primary-key index usage.
+buildQueryMatchesRowsStatement :: SQLQuery -> Hasql.Statement [Text] Bool
+buildQueryMatchesRowsStatement sqlQuery =
+    let (innerSql, CompilerState nextParameter queryEncoder) = compileQuery emptyCompilerState sqlQuery
+        rowIdsEncoder = Encoders.param (Encoders.nonNullable (Encoders.foldableArray (Encoders.nonNullable Encoders.text)))
+        encoder = contramap (const ()) queryEncoder <> rowIdsEncoder
+        tableType = quoteIdentifierPath sqlQuery.selectFrom
+        sql =
+            "SELECT EXISTS (SELECT 1 FROM (" <> innerSql
+            <> ") AS _ihp_auto_refresh_records WHERE _ihp_auto_refresh_records.id = ANY (ARRAY("
+            <> "SELECT (jsonb_populate_record(NULL::" <> tableType
+            <> ", jsonb_build_object('id', _ihp_changed_id))).id "
+            <> "FROM unnest($" <> tshow nextParameter <> "::text[]) AS _ihp_changed_id)))"
+        decoder = Decoders.singleRow (Decoders.column (Decoders.nonNullable Decoders.bool))
+    in Hasql.preparable sql encoder decoder
+
+quoteIdentifierPath :: Text -> Text
+quoteIdentifierPath = Text.intercalate "." . map quoteIdentifierText . Text.splitOn "."
+  where
+    quoteIdentifierText name = "\"" <> Text.replace "\"" "\"\"" name <> "\""
 
 -- | Compile a QueryBuilder to SQL text (for testing / error messages).
 -- Discards the encoder.

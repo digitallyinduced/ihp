@@ -5,6 +5,7 @@ module IHP.TypedSql.ParamHints
     , parseSql
     , extractParamHintsFromAst
     , extractJoinNullableTablesFromAst
+    , extractReadTableNamesFromAst
     , extractNonNullableComputedColumnsFromAst
     , resolveParamHintTypes
     , detectStarSelects
@@ -75,6 +76,73 @@ extractJoinNullableTables sql =
 -- | Extract nullable tables from an already-parsed AST.
 extractJoinNullableTablesFromAst :: Ast.PreparableStmt -> Set.Set Text
 extractJoinNullableTablesFromAst = nullableTablesFromStmt
+
+-- | Extract the physical tables read by a SELECT statement.
+--
+-- DML statements deliberately return an empty set: a statement with RETURNING
+-- rows is not a table read for AutoRefresh purposes.
+extractReadTableNamesFromAst :: Ast.PreparableStmt -> Set.Set Text
+extractReadTableNamesFromAst statement = case statement of
+    Ast.SelectPreparableStmt selectStmt -> readTableNamesFromSelectStmt Set.empty selectStmt
+    _ -> Set.empty
+
+readTableNamesFromSelectStmt :: Set.Set Text -> Ast.SelectStmt -> Set.Set Text
+readTableNamesFromSelectStmt inheritedCtes = \case
+    Left (Ast.SelectNoParens maybeWith selectClause _sort _limit _lock) ->
+        let ctes = case maybeWith of
+                Just (Ast.WithClause _recursive values) -> toList values
+                Nothing -> []
+            cteNames = Set.fromList (map cteName ctes)
+            visibleCtes = inheritedCtes <> cteNames
+            cteTables = foldMap (readTableNamesFromCte visibleCtes) ctes
+        in cteTables <> readTableNamesFromSelectClause visibleCtes selectClause
+    Right selectWithParens -> readTableNamesFromSelectWithParens inheritedCtes selectWithParens
+
+readTableNamesFromCte :: Set.Set Text -> Ast.CommonTableExpr -> Set.Set Text
+readTableNamesFromCte visibleCtes (Ast.CommonTableExpr _name _cols _mat statement) =
+    case statement of
+        Ast.SelectPreparableStmt selectStmt -> readTableNamesFromSelectStmt visibleCtes selectStmt
+        _ -> Set.empty
+
+cteName :: Ast.CommonTableExpr -> Text
+cteName (Ast.CommonTableExpr name _cols _mat _statement) = identToText name
+
+readTableNamesFromSelectWithParens :: Set.Set Text -> Ast.SelectWithParens -> Set.Set Text
+readTableNamesFromSelectWithParens visibleCtes = \case
+    Ast.NoParensSelectWithParens selectNoParens ->
+        readTableNamesFromSelectStmt visibleCtes (Left selectNoParens)
+    Ast.WithParensSelectWithParens inner -> readTableNamesFromSelectWithParens visibleCtes inner
+
+readTableNamesFromSelectClause :: Set.Set Text -> Ast.SelectClause -> Set.Set Text
+readTableNamesFromSelectClause visibleCtes = \case
+    Left simpleSelect -> readTableNamesFromSimpleSelect visibleCtes simpleSelect
+    Right selectWithParens -> readTableNamesFromSelectWithParens visibleCtes selectWithParens
+
+readTableNamesFromSimpleSelect :: Set.Set Text -> Ast.SimpleSelect -> Set.Set Text
+readTableNamesFromSimpleSelect visibleCtes = \case
+    Ast.NormalSimpleSelect _targeting _into maybeFrom _where _group _having _window ->
+        maybe Set.empty (foldMap (readTableNamesFromTableRef visibleCtes) . toList) maybeFrom
+    Ast.BinSimpleSelect _op left _distinct right ->
+        readTableNamesFromSelectClause visibleCtes left <> readTableNamesFromSelectClause visibleCtes right
+    Ast.TableSimpleSelect relation ->
+        let tableName = relationExprName relation
+        in if tableName `Set.member` visibleCtes then Set.empty else Set.singleton tableName
+    Ast.ValuesSimpleSelect _ -> Set.empty
+
+readTableNamesFromTableRef :: Set.Set Text -> Ast.TableRef -> Set.Set Text
+readTableNamesFromTableRef visibleCtes = \case
+    Ast.RelationExprTableRef relation _alias _sample ->
+        let tableName = relationExprName relation
+        in if tableName `Set.member` visibleCtes then Set.empty else Set.singleton tableName
+    Ast.JoinTableRef joinedTable _alias -> readTableNamesFromJoinedTable visibleCtes joinedTable
+    Ast.SelectTableRef _lateral subquery _alias -> readTableNamesFromSelectWithParens visibleCtes subquery
+    Ast.FuncTableRef _lateral _function _alias -> Set.empty
+
+readTableNamesFromJoinedTable :: Set.Set Text -> Ast.JoinedTable -> Set.Set Text
+readTableNamesFromJoinedTable visibleCtes = \case
+    Ast.InParensJoinedTable inner -> readTableNamesFromJoinedTable visibleCtes inner
+    Ast.MethJoinedTable _method left right ->
+        readTableNamesFromTableRef visibleCtes left <> readTableNamesFromTableRef visibleCtes right
 
 nullableTablesFromStmt :: Ast.PreparableStmt -> Set.Set Text
 nullableTablesFromStmt = \case

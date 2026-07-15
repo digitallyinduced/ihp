@@ -925,9 +925,30 @@ trackTableRead tableName = case ?modelContext.trackTableReadCallback of
     Nothing -> pure ()
 {-# INLINABLE trackTableRead #-}
 
--- | Track all tables in SELECT queries executed within the given IO action.
+-- | Track a table read together with the rows returned and an executable matcher.
 --
--- You can read the touched tables by this function by accessing the variable @?touchedTables@ inside your given IO action.
+-- The matcher must retain the bound parameters of the original query. AutoRefresh
+-- uses it to check whether an inserted or newly matching row belongs to this read.
+trackTableReadWithQuery :: (?modelContext :: ModelContext) => Text -> Maybe (Set.Set Text) -> Maybe (Set.Set Text -> IO Bool) -> IO ()
+trackTableReadWithQuery tableName rowIds queryMatchesIds = case ?modelContext.trackTableReadCallback of
+    Just callback -> do
+        callback tableName
+        TableReadTracker.trackStructuredTableRead callback tableName (toDyn TrackedQueryRead
+            { trackedRowIds = rowIds
+            , trackedQueryMatchesIds = queryMatchesIds
+            })
+    Nothing -> pure ()
+{-# INLINABLE trackTableReadWithQuery #-}
+
+-- | Whether the current model context is collecting table reads.
+--
+-- Fetch functions use this to avoid adding ID projections to ordinary queries.
+isTableReadTrackingEnabled :: (?modelContext :: ModelContext) => IO Bool
+isTableReadTrackingEnabled = case ?modelContext.trackTableReadCallback of
+    Nothing -> pure False
+    Just callback -> TableReadTracker.hasTrackedTableReadCallback callback
+
+-- | Track all tables in SELECT queries executed within the given IO action.
 --
 -- __Example:__
 --

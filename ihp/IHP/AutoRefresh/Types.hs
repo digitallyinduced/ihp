@@ -12,6 +12,8 @@ import qualified IHP.PGListener as PGListener
 import qualified Data.Map.Strict as Map
 import IHP.QueryBuilder.Types (QueryBuilderRead)
 import Network.Wai (Request, ResponseReceived)
+import IHP.ModelSupport.Types (TrackedQueryRead)
+import qualified Data.Aeson as Aeson
 
 data AutoRefreshState = AutoRefreshEnabled { sessionId :: !UUID }
 
@@ -23,6 +25,7 @@ data AutoRefreshState = AutoRefreshEnabled { sessionId :: !UUID }
 data AutoRefreshReadDependency
     = AutoRefreshWholeTable
     | AutoRefreshQueryBuilderReads ![QueryBuilderRead]
+    | AutoRefreshTrackedQueryReads ![TrackedQueryRead]
     deriving (Eq, Show)
 
 -- | AutoRefresh session state.
@@ -91,3 +94,17 @@ data AutoRefreshServer = AutoRefreshServer
 
 newAutoRefreshServer :: PGListener.PGListener -> AutoRefreshServer
 newAutoRefreshServer pgListener = AutoRefreshServer { subscriptions = [], sessions = [], subscribedTables = mempty, pgListener }
+
+-- | The small JSON payload emitted by AutoRefresh row-level triggers.
+-- Keeping only the operation and conventional row ID avoids DataSync's large
+-- payload storage path while providing everything needed for query matching.
+data AutoRefreshRowChange = AutoRefreshRowChange
+    { operation :: !Text
+    , rowId :: !(Maybe Text)
+    } deriving (Eq, Show)
+
+instance Aeson.FromJSON AutoRefreshRowChange where
+    parseJSON = Aeson.withObject "AutoRefreshRowChange" \object ->
+        AutoRefreshRowChange
+            <$> object Aeson..: "op"
+            <*> object Aeson..:? "id"
