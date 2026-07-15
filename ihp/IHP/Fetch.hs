@@ -30,10 +30,21 @@ where
 import IHP.Prelude
 import IHP.ModelSupport
 import IHP.QueryBuilder
-import IHP.QueryBuilder.Types (SQLQuery (..), QueryBuilderRead (..), QueryBuilderReadKind (..))
+import IHP.QueryBuilder.Types (QueryBuilderRead (..), QueryBuilderReadKind (..), QueryBuilderPrimaryKey)
+import IHP.QueryBuilder.Tracking (isQueryBuilderReadTrackingEnabled, trackQueryBuilderRead)
 import IHP.Hasql.FromRow (FromRowHasql(..))
 import Hasql.Implicits.Encoders (DefaultParamEncoder)
-import IHP.Fetch.Statement (buildQueryListStatement, buildQueryVectorStatement, buildQueryMaybeStatement, buildCountStatement, buildExistsStatement)
+import IHP.Fetch.Statement
+    ( buildQueryListStatement
+    , buildQueryVectorStatement
+    , buildQueryMaybeStatement
+    , buildTrackedQueryListStatement
+    , buildTrackedQueryVectorStatement
+    , buildTrackedQueryMaybeStatement
+    , buildCountStatement
+    , buildExistsStatement
+    )
+import qualified Data.Vector as Vector
 
 class Fetchable fetchable model | fetchable -> model where
     type FetchResult fetchable model
@@ -45,21 +56,36 @@ instance (model ~ GetModelByTableName table, KnownSymbol table) => Fetchable (Qu
     type instance FetchResult (QueryBuilder table) model = [model]
     fetch :: (Table model, FromRowHasql model, ?modelContext :: ModelContext) => QueryBuilder table -> IO [model]
     fetch !queryBuilder = do
-        trackQueryRead (tableName @model) QueryBuilderRead
-            { trackedSqlQuery = buildQuery queryBuilder
-            , queryBuilderReadKind = QueryBuilderRows
-            }
+        structuredTracking <- isQueryBuilderReadTrackingEnabled
         let pool = ?modelContext.hasqlPool
-        sqlStatementHasql pool () (buildQueryListStatement queryBuilder)
+        let primaryKeyColumns = primaryKeyColumnNames @model
+        if structuredTracking && not (null primaryKeyColumns)
+            then do
+                rowsWithPrimaryKeys <- sqlStatementHasql pool () (buildTrackedQueryListStatement queryBuilder)
+                let (rows, resultPrimaryKeys) = unzip rowsWithPrimaryKeys
+                trackRowsQuery @model structuredTracking queryBuilder primaryKeyColumns (Just resultPrimaryKeys)
+                pure rows
+            else do
+                rows <- sqlStatementHasql pool () (buildQueryListStatement queryBuilder)
+                trackRowsQuery @model structuredTracking queryBuilder primaryKeyColumns Nothing
+                pure rows
 
     fetchOneOrNothing :: (?modelContext :: ModelContext) => (Table model, FromRowHasql model) => QueryBuilder table -> IO (Maybe model)
     fetchOneOrNothing !queryBuilder = do
-        trackQueryRead (tableName @model) QueryBuilderRead
-            { trackedSqlQuery = (buildQuery queryBuilder) { limitClause = Just 1 }
-            , queryBuilderReadKind = QueryBuilderRows
-            }
+        structuredTracking <- isQueryBuilderReadTrackingEnabled
         let pool = ?modelContext.hasqlPool
-        sqlStatementHasql pool () (buildQueryMaybeStatement queryBuilder)
+        let primaryKeyColumns = primaryKeyColumnNames @model
+        if structuredTracking && not (null primaryKeyColumns)
+            then do
+                rowWithPrimaryKey <- sqlStatementHasql pool () (buildTrackedQueryMaybeStatement queryBuilder)
+                let row = fst <$> rowWithPrimaryKey
+                let resultPrimaryKeys = maybe [] (pure . snd) rowWithPrimaryKey
+                trackRowsQuery @model structuredTracking queryBuilder primaryKeyColumns (Just resultPrimaryKeys)
+                pure row
+            else do
+                row <- sqlStatementHasql pool () (buildQueryMaybeStatement queryBuilder)
+                trackRowsQuery @model structuredTracking queryBuilder primaryKeyColumns Nothing
+                pure row
 
     fetchOne :: (?modelContext :: ModelContext) => (Table model, FromRowHasql model) => QueryBuilder table -> IO model
     fetchOne !queryBuilder = do
@@ -83,12 +109,19 @@ instance (model ~ GetModelByTableName table, KnownSymbol table) => Fetchable (Qu
 -- >     |> fetchVector
 fetchVector :: forall model table. (Table model, model ~ GetModelByTableName table, KnownSymbol table, FromRowHasql model, ?modelContext :: ModelContext) => QueryBuilder table -> IO (Vector model)
 fetchVector !queryBuilder = do
-    trackQueryRead (tableName @model) QueryBuilderRead
-        { trackedSqlQuery = buildQuery queryBuilder
-        , queryBuilderReadKind = QueryBuilderRows
-        }
+    structuredTracking <- isQueryBuilderReadTrackingEnabled
     let pool = ?modelContext.hasqlPool
-    sqlStatementHasql pool () (buildQueryVectorStatement queryBuilder)
+    let primaryKeyColumns = primaryKeyColumnNames @model
+    if structuredTracking && not (null primaryKeyColumns)
+        then do
+            rowsWithPrimaryKeys <- sqlStatementHasql pool () (buildTrackedQueryVectorStatement queryBuilder)
+            let (rows, resultPrimaryKeys) = Vector.unzip rowsWithPrimaryKeys
+            trackRowsQuery @model structuredTracking queryBuilder primaryKeyColumns (Just (Vector.toList resultPrimaryKeys))
+            pure rows
+        else do
+            rows <- sqlStatementHasql pool () (buildQueryVectorStatement queryBuilder)
+            trackRowsQuery @model structuredTracking queryBuilder primaryKeyColumns Nothing
+            pure rows
 
 -- | Returns the count of records selected by the query builder.
 --
@@ -105,12 +138,16 @@ fetchVector !queryBuilder = do
 -- >     -- SELECT COUNT(*) FROM projects WHERE is_active = true
 fetchCount :: forall table. (?modelContext :: ModelContext, KnownSymbol table) => QueryBuilder table -> IO Int
 fetchCount !queryBuilder = do
-    trackQueryRead (symbolToText @table) QueryBuilderRead
+    structuredTracking <- isQueryBuilderReadTrackingEnabled
+    let pool = ?modelContext.hasqlPool
+    count <- fromIntegral <$> sqlStatementHasql pool () (buildCountStatement queryBuilder)
+    trackQueryBuilderRead (symbolToText @table) (if structuredTracking then Just QueryBuilderRead
         { trackedSqlQuery = buildQuery queryBuilder
         , queryBuilderReadKind = QueryBuilderCount
-        }
-    let pool = ?modelContext.hasqlPool
-    fromIntegral <$> sqlStatementHasql pool () (buildCountStatement queryBuilder)
+        , queryBuilderPrimaryKeyColumns = []
+        , queryBuilderResultPrimaryKeys = Nothing
+        } else Nothing)
+    pure count
 
 -- | Checks whether the query has any results.
 --
@@ -124,12 +161,31 @@ fetchCount !queryBuilder = do
 -- >     -- SELECT EXISTS (SELECT * FROM messages WHERE is_unread = true)
 fetchExists :: forall table. (?modelContext :: ModelContext, KnownSymbol table) => QueryBuilder table -> IO Bool
 fetchExists !queryBuilder = do
-    trackQueryRead (symbolToText @table) QueryBuilderRead
+    structuredTracking <- isQueryBuilderReadTrackingEnabled
+    let pool = ?modelContext.hasqlPool
+    exists <- sqlStatementHasql pool () (buildExistsStatement queryBuilder)
+    trackQueryBuilderRead (symbolToText @table) (if structuredTracking then Just QueryBuilderRead
         { trackedSqlQuery = buildQuery queryBuilder
         , queryBuilderReadKind = QueryBuilderExists
-        }
-    let pool = ?modelContext.hasqlPool
-    sqlStatementHasql pool () (buildExistsStatement queryBuilder)
+        , queryBuilderPrimaryKeyColumns = []
+        , queryBuilderResultPrimaryKeys = Nothing
+        } else Nothing)
+    pure exists
+
+trackRowsQuery :: forall model table.
+    (Table model, KnownSymbol table, ?modelContext :: ModelContext)
+    => Bool
+    -> QueryBuilder table
+    -> [Text]
+    -> Maybe [QueryBuilderPrimaryKey]
+    -> IO ()
+trackRowsQuery structuredTracking queryBuilder primaryKeyColumns resultPrimaryKeys =
+    trackQueryBuilderRead (tableName @model) (if structuredTracking then Just QueryBuilderRead
+        { trackedSqlQuery = buildQuery queryBuilder
+        , queryBuilderReadKind = QueryBuilderRows
+        , queryBuilderPrimaryKeyColumns = primaryKeyColumns
+        , queryBuilderResultPrimaryKeys = resultPrimaryKeys
+        } else Nothing)
 
 genericFetchId :: forall table model. (Table model, KnownSymbol table, FromRowHasql model, ?modelContext :: ModelContext, model ~ GetModelByTableName table, GetTableName model ~ table, FilterPrimaryKey table) => Id' table -> IO [model]
 genericFetchId !id = query @model |> filterWhereId id |> fetch

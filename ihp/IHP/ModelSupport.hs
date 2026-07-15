@@ -72,6 +72,7 @@ import IHP.Hasql.FromRow (FromRowHasql(..), HasqlDecodeColumn(..))
 import IHP.Hasql.Encoders (ToSnippetParams(..), sqlToSnippet)
 import IHP.Hasql.Pool (usePoolWithRetry)
 import IHP.PGSimpleCompat ()
+import qualified IHP.ModelSupport.TableReadTracker as TableReadTracker
 
 -- | Provides a mock ModelContext to be used when a database connection is not available
 notConnectedModelContext :: FastLogger -> ModelContext
@@ -918,20 +919,11 @@ instance Default Aeson.Value where
 --
 trackTableRead :: (?modelContext :: ModelContext) => Text -> IO ()
 trackTableRead tableName = case ?modelContext.trackTableReadCallback of
-    Just callback -> callback TrackedTableRead { trackedTableName = tableName, trackedQuery = Nothing }
+    Just callback -> do
+        callback tableName
+        TableReadTracker.trackWholeTableRead callback tableName
     Nothing -> pure ()
 {-# INLINABLE trackTableRead #-}
-
--- | Track a table read together with a structured query value.
---
--- QueryBuilder fetch functions use this to retain the query that produced a
--- rendered result. Raw SQL should continue to call 'trackTableRead', which is
--- intentionally treated as a conservative whole-table dependency.
-trackQueryRead :: forall query. (Typeable query, ?modelContext :: ModelContext) => Text -> query -> IO ()
-trackQueryRead tableName query = case ?modelContext.trackTableReadCallback of
-    Just callback -> callback TrackedTableRead { trackedTableName = tableName, trackedQuery = Just (toDyn query) }
-    Nothing -> pure ()
-{-# INLINABLE trackQueryRead #-}
 
 -- | Track all tables in SELECT queries executed within the given IO action.
 --
@@ -946,17 +938,13 @@ trackQueryRead tableName query = case ?modelContext.trackTableReadCallback of
 -- >     tables <- readIORef ?touchedTables
 -- >     -- tables = Set.fromList ["projects", "users"]
 -- >
-withTableReadTracker :: (?modelContext :: ModelContext) => ((?modelContext :: ModelContext, ?touchedTables :: IORef (Set.Set Text), ?trackedTableReads :: IORef [TrackedTableRead]) => IO a) -> IO a
+withTableReadTracker :: (?modelContext :: ModelContext) => ((?modelContext :: ModelContext, ?touchedTables :: IORef (Set.Set Text)) => IO a) -> IO a
 withTableReadTracker trackedSection = do
     touchedTablesVar <- newIORef Set.empty
-    trackedTableReadsVar <- newIORef []
-    let trackTableReadCallback = Just \trackedRead -> do
-            modifyIORef' touchedTablesVar (Set.insert trackedRead.trackedTableName)
-            modifyIORef' trackedTableReadsVar (trackedRead:)
+    let trackTableReadCallback = Just \tableName -> modifyIORef' touchedTablesVar (Set.insert tableName)
     let oldModelContext = ?modelContext
     let ?modelContext = oldModelContext { trackTableReadCallback }
     let ?touchedTables = touchedTablesVar
-    let ?trackedTableReads = trackedTableReadsVar
     trackedSection
 
 

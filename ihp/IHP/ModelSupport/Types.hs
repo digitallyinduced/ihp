@@ -16,7 +16,6 @@ module IHP.ModelSupport.Types
   ModelContext (..)
 , RowLevelSecurityContext (..)
 , TransactionRunner (..)
-, TrackedTableRead (..)
   -- * Type Families
 , GetModelById
 , GetTableName
@@ -91,24 +90,10 @@ data ModelContext = ModelContext
     , transactionRunner :: Maybe TransactionRunner -- ^ When set, queries are sent through this runner instead of 'HasqlPool.use' directly
     , logger :: FastLogger
     , queryLoggingEnabled :: !Bool
-    -- | A callback that is called whenever a table is accessed using a SELECT query.
-    -- QueryBuilder reads attach their structured query as a 'Dynamic'; manual
-    -- 'trackTableRead' calls leave it empty and therefore remain a conservative
-    -- whole-table dependency.
-    , trackTableReadCallback :: Maybe (TrackedTableRead -> IO ())
+    -- | A callback that is called whenever a specific table is accessed using a SELECT query
+    , trackTableReadCallback :: Maybe (Text -> IO ())
     -- | Is set to a value if row level security was enabled at runtime
     , rowLevelSecurity :: Maybe RowLevelSecurityContext
-    }
-
--- | A database read captured while rendering a controller action.
---
--- The query is kept behind 'Dynamic' so the model layer does not depend on the
--- QueryBuilder and create an import cycle. Consumers that understand a query
--- type can recover it with 'fromDynamic'; unknown query types must be treated
--- as a whole-table dependency.
-data TrackedTableRead = TrackedTableRead
-    { trackedTableName :: !Text
-    , trackedQuery :: !(Maybe Dynamic)
     }
 
 -- | When row level security is enabled at runtime, this keeps track of the current

@@ -23,9 +23,15 @@ data AutoRefreshState = AutoRefreshEnabled { sessionId :: !UUID }
 data AutoRefreshReadDependency
     = AutoRefreshWholeTable
     | AutoRefreshQueryBuilderReads ![QueryBuilderRead]
-    deriving (Show)
+    deriving (Eq, Show)
 
-data AutoRefreshSession = AutoRefreshSession
+-- | AutoRefresh session state.
+--
+-- The original 'AutoRefreshSession' constructor is retained unchanged for
+-- source compatibility. Sessions created by AutoRefresh use
+-- 'TrackedAutoRefreshSession' to retain bounded structured dependencies.
+data AutoRefreshSession
+    = AutoRefreshSession
         { id :: !UUID
         -- | A callback to rerun an action within the given request and respond
         , renderView :: !(Request -> Respond -> IO ResponseReceived)
@@ -33,14 +39,48 @@ data AutoRefreshSession = AutoRefreshSession
         , event :: !(MVar ())
         -- | All tables this auto refresh session watches
         , tables :: !(Set Text)
-        -- | Structured QueryBuilder reads, or a conservative whole-table
-        -- dependency when raw SQL or another unknown read touched the table.
-        , readDependencies :: !(Map.Map Text AutoRefreshReadDependency)
         -- | The last rendered html of this action. Initially this is the result of the initial page rendering
         , lastResponse :: !LByteString
         -- | Keep track of the last ping to this session to close it after too much time has passed without anything happening
         , lastPing :: !UTCTime
         }
+    | TrackedAutoRefreshSession
+        { id :: !UUID
+        , renderView :: !(Request -> Respond -> IO ResponseReceived)
+        , event :: !(MVar ())
+        , tables :: !(Set Text)
+        -- | Structured QueryBuilder reads, or a conservative whole-table
+        -- dependency when raw SQL or another unknown read touched the table.
+        , readDependencies :: !(Map.Map Text AutoRefreshReadDependency)
+        , lastResponse :: !LByteString
+        , lastPing :: !UTCTime
+        }
+
+-- | Read dependencies for a session. Sessions constructed through the legacy
+-- constructor conservatively depend on every touched table.
+getAutoRefreshReadDependencies :: AutoRefreshSession -> Map.Map Text AutoRefreshReadDependency
+getAutoRefreshReadDependencies TrackedAutoRefreshSession { readDependencies } = readDependencies
+getAutoRefreshReadDependencies AutoRefreshSession { tables } =
+    Map.fromSet (const AutoRefreshWholeTable) tables
+
+-- | Replace a session's dependencies and upgrade legacy sessions to the
+-- tracked representation.
+setAutoRefreshReadDependencies :: Map.Map Text AutoRefreshReadDependency -> AutoRefreshSession -> AutoRefreshSession
+setAutoRefreshReadDependencies readDependencies session = case session of
+    TrackedAutoRefreshSession {} -> session
+        { tables = Map.keysSet readDependencies
+        , readDependencies
+        }
+    AutoRefreshSession { id, renderView, event, lastResponse, lastPing } ->
+        TrackedAutoRefreshSession
+            { id
+            , renderView
+            , event
+            , tables = Map.keysSet readDependencies
+            , readDependencies
+            , lastResponse
+            , lastPing
+            }
 
 data AutoRefreshServer = AutoRefreshServer
         { subscriptions :: [PGListener.Subscription]
