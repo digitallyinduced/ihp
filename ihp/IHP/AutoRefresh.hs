@@ -14,7 +14,10 @@ import IHP.Controller.Session
 import qualified Network.Wai.Internal as Wai
 import qualified Data.Binary.Builder as ByteString
 import qualified Data.Set as Set
+import qualified Data.Map.Strict as Map
+import Data.Dynamic (fromDynamic)
 import IHP.ModelSupport
+import IHP.QueryBuilder.Types (QueryBuilderRead)
 import qualified Control.Exception as Exception
 import qualified Control.Concurrent.MVar as MVar
 import qualified Data.Maybe as Maybe
@@ -83,12 +86,19 @@ autoRefresh runAction = do
                     -- values back into the renderView callback is enough.
                     let originalRequest = ?request
                     let renderView = \waiRequest waiRespond -> do
-                            earlyReturnMiddleware (\_ respond -> do
-                                let ?request = originalRequest
-                                let ?context = ?request
-                                let ?respond = respond
-                                action ?theAction
-                                ) waiRequest waiRespond
+                            withTableReadTracker do
+                                result <- earlyReturnMiddleware (\_ respond -> do
+                                    let ?request = originalRequest
+                                    let ?context = ?request
+                                    let ?respond = respond
+                                    action ?theAction
+                                    ) waiRequest waiRespond
+                                trackedTableReads <- readIORef ?trackedTableReads
+                                let readDependencies = buildAutoRefreshReadDependencies trackedTableReads
+                                let tables = Map.keysSet readDependencies
+                                updateSession autoRefreshServer id (\session -> session { tables, readDependencies })
+                                registerNewNotificationTriggers ?touchedTables autoRefreshServer
+                                pure result
 
                     -- We save the allowed session ids to the session cookie to only grant a client access
                     -- to sessions it initially opened itself
@@ -102,12 +112,14 @@ autoRefresh runAction = do
                             runAction
 
                         -- After the action completes, set up the auto refresh session
-                        tables <- readIORef ?touchedTables
+                        trackedTableReads <- readIORef ?trackedTableReads
+                        let readDependencies = buildAutoRefreshReadDependencies trackedTableReads
+                        let tables = Map.keysSet readDependencies
                         lastPing <- getCurrentTime
                         case capturedResponse of
                             Just lastResponse -> do
                                 event <- MVar.newEmptyMVar
-                                let session = AutoRefreshSession { id, renderView, event, tables, lastResponse, lastPing }
+                                let session = AutoRefreshSession { id, renderView, event, tables, readDependencies, lastResponse, lastPing }
                                 modifyIORef' autoRefreshServer (\s -> s { sessions = session:s.sessions } )
                                 async (gcSessions autoRefreshServer)
                                 registerNotificationTrigger ?touchedTables autoRefreshServer
@@ -185,6 +197,37 @@ captureResponseBody originalRespond action = do
     result <- action capturingRespond
     captured <- readIORef bodyRef
     pure (result, captured)
+
+-- | Convert generic model-layer read tracking into the QueryBuilder-specific
+-- dependencies retained by AutoRefresh.
+--
+-- A whole-table or unknown read is absorbing: a later QueryBuilder read of the
+-- same table must not make the session look safe to filter.
+buildAutoRefreshReadDependencies :: [TrackedTableRead] -> Map.Map Text AutoRefreshReadDependency
+buildAutoRefreshReadDependencies = foldl' addRead Map.empty
+    where
+        addRead dependencies TrackedTableRead { trackedTableName, trackedQuery } =
+            case trackedQuery >>= fromDynamic @QueryBuilderRead of
+                Nothing -> Map.insert trackedTableName AutoRefreshWholeTable dependencies
+                Just queryRead -> Map.alter (addQueryRead queryRead) trackedTableName dependencies
+
+        addQueryRead queryRead Nothing = Just (AutoRefreshQueryBuilderReads [queryRead])
+        addQueryRead _ (Just AutoRefreshWholeTable) = Just AutoRefreshWholeTable
+        addQueryRead queryRead (Just (AutoRefreshQueryBuilderReads queryReads)) =
+            Just (AutoRefreshQueryBuilderReads (queryRead:queryReads))
+
+-- | Subscribe only to tables that appeared during a rerender and are not yet
+-- known to the AutoRefresh server. This avoids reinstalling development
+-- triggers on every rerender while still allowing an action's dependencies to
+-- change over time.
+registerNewNotificationTriggers :: (?modelContext :: ModelContext, ?request :: Request) => IORef (Set Text) -> IORef AutoRefreshServer -> IO ()
+registerNewNotificationTriggers touchedTablesVar autoRefreshServer = do
+    touchedTables <- readIORef touchedTablesVar
+    subscribedTables <- (.subscribedTables) <$> readIORef autoRefreshServer
+    let newTables = touchedTables `Set.difference` subscribedTables
+    unless (Set.null newTables) do
+        newTablesVar <- newIORef newTables
+        registerNotificationTrigger newTablesVar autoRefreshServer
 
 registerNotificationTrigger :: (?modelContext :: ModelContext, ?request :: Request) => IORef (Set Text) -> IORef AutoRefreshServer -> IO ()
 registerNotificationTrigger touchedTablesVar autoRefreshServer = do

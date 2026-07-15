@@ -30,6 +30,7 @@ where
 import IHP.Prelude
 import IHP.ModelSupport
 import IHP.QueryBuilder
+import IHP.QueryBuilder.Types (SQLQuery (..), QueryBuilderRead (..), QueryBuilderReadKind (..))
 import IHP.Hasql.FromRow (FromRowHasql(..))
 import Hasql.Implicits.Encoders (DefaultParamEncoder)
 import IHP.Fetch.Statement (buildQueryListStatement, buildQueryVectorStatement, buildQueryMaybeStatement, buildCountStatement, buildExistsStatement)
@@ -44,13 +45,19 @@ instance (model ~ GetModelByTableName table, KnownSymbol table) => Fetchable (Qu
     type instance FetchResult (QueryBuilder table) model = [model]
     fetch :: (Table model, FromRowHasql model, ?modelContext :: ModelContext) => QueryBuilder table -> IO [model]
     fetch !queryBuilder = do
-        trackTableRead (tableName @model)
+        trackQueryRead (tableName @model) QueryBuilderRead
+            { trackedSqlQuery = buildQuery queryBuilder
+            , queryBuilderReadKind = QueryBuilderRows
+            }
         let pool = ?modelContext.hasqlPool
         sqlStatementHasql pool () (buildQueryListStatement queryBuilder)
 
     fetchOneOrNothing :: (?modelContext :: ModelContext) => (Table model, FromRowHasql model) => QueryBuilder table -> IO (Maybe model)
     fetchOneOrNothing !queryBuilder = do
-        trackTableRead (tableName @model)
+        trackQueryRead (tableName @model) QueryBuilderRead
+            { trackedSqlQuery = (buildQuery queryBuilder) { limitClause = Just 1 }
+            , queryBuilderReadKind = QueryBuilderRows
+            }
         let pool = ?modelContext.hasqlPool
         sqlStatementHasql pool () (buildQueryMaybeStatement queryBuilder)
 
@@ -76,7 +83,10 @@ instance (model ~ GetModelByTableName table, KnownSymbol table) => Fetchable (Qu
 -- >     |> fetchVector
 fetchVector :: forall model table. (Table model, model ~ GetModelByTableName table, KnownSymbol table, FromRowHasql model, ?modelContext :: ModelContext) => QueryBuilder table -> IO (Vector model)
 fetchVector !queryBuilder = do
-    trackTableRead (tableName @model)
+    trackQueryRead (tableName @model) QueryBuilderRead
+        { trackedSqlQuery = buildQuery queryBuilder
+        , queryBuilderReadKind = QueryBuilderRows
+        }
     let pool = ?modelContext.hasqlPool
     sqlStatementHasql pool () (buildQueryVectorStatement queryBuilder)
 
@@ -95,7 +105,10 @@ fetchVector !queryBuilder = do
 -- >     -- SELECT COUNT(*) FROM projects WHERE is_active = true
 fetchCount :: forall table. (?modelContext :: ModelContext, KnownSymbol table) => QueryBuilder table -> IO Int
 fetchCount !queryBuilder = do
-    trackTableRead (symbolToText @table)
+    trackQueryRead (symbolToText @table) QueryBuilderRead
+        { trackedSqlQuery = buildQuery queryBuilder
+        , queryBuilderReadKind = QueryBuilderCount
+        }
     let pool = ?modelContext.hasqlPool
     fromIntegral <$> sqlStatementHasql pool () (buildCountStatement queryBuilder)
 
@@ -111,7 +124,10 @@ fetchCount !queryBuilder = do
 -- >     -- SELECT EXISTS (SELECT * FROM messages WHERE is_unread = true)
 fetchExists :: forall table. (?modelContext :: ModelContext, KnownSymbol table) => QueryBuilder table -> IO Bool
 fetchExists !queryBuilder = do
-    trackTableRead (symbolToText @table)
+    trackQueryRead (symbolToText @table) QueryBuilderRead
+        { trackedSqlQuery = buildQuery queryBuilder
+        , queryBuilderReadKind = QueryBuilderExists
+        }
     let pool = ?modelContext.hasqlPool
     sqlStatementHasql pool () (buildExistsStatement queryBuilder)
 

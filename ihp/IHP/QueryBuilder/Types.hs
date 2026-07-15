@@ -14,6 +14,8 @@ module IHP.QueryBuilder.Types
 , OrderByDirection (..)
 , FilterOperator (..)
 , MatchSensitivity (..)
+, QueryBuilderRead (..)
+, QueryBuilderReadKind (..)
   -- * Helpers
 , addCondition
 , qualifyAndJoinColumns
@@ -156,6 +158,23 @@ data SQLQuery = SQLQuery
     -- Built once at query construction time so the compiler avoids re-qualifying
     -- and re-joining the column list on every compilation.
     } deriving (Show)
+
+-- | Describes how a QueryBuilder query contributed to a rendered response.
+--
+-- AutoRefresh retains this value so it can later decide whether a row change
+-- can affect the rendered result without reconstructing query semantics from
+-- rendered SQL.
+data QueryBuilderRead = QueryBuilderRead
+    { trackedSqlQuery :: !SQLQuery
+    , queryBuilderReadKind :: !QueryBuilderReadKind
+    } deriving (Show)
+
+-- | The result shape consumed from a tracked QueryBuilder query.
+data QueryBuilderReadKind
+    = QueryBuilderRows
+    | QueryBuilderCount
+    | QueryBuilderExists
+    deriving (Eq, Show)
 
 
 instance SetField "selectFrom" SQLQuery Text where setField value sqlQuery = sqlQuery { selectFrom = value }

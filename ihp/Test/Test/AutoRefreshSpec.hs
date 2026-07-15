@@ -13,12 +13,16 @@ import IHP.FrameworkConfig
 import IHP.ControllerPrelude hiding (get, request)
 import Network.Wai
 import Network.HTTP.Types
-import IHP.AutoRefresh (globalAutoRefreshServerVar, sessionResponseHasChanged, updateSession)
+import IHP.AutoRefresh (buildAutoRefreshReadDependencies, globalAutoRefreshServerVar, sessionResponseHasChanged, updateSession)
 import IHP.AutoRefresh.Types
 import IHP.AutoRefresh.View (autoRefreshMeta)
+import IHP.QueryBuilder.Types (QueryBuilderRead (..), QueryBuilderReadKind (..), SQLQuery (..))
 import qualified Control.Concurrent.MVar as MVar
 import qualified Data.ByteString as BS
 import qualified Data.ByteString.Lazy as LBS
+import qualified Data.Map.Strict as Map
+import qualified Data.Set as Set
+import Data.Dynamic (toDyn)
 import qualified IHP.PGListener as PGListener
 import System.Log.FastLogger (FastLogger)
 import IHP.Server (initMiddlewareStack)
@@ -94,6 +98,55 @@ testLogger = noopLogger
 tests :: Spec
 tests = beforeAll (mockContextNoDatabase WebApplication config) do
     describe "AutoRefresh" do
+        describe "read dependency tracking" do
+            let sqlQuery = SQLQuery
+                    { selectFrom = "tasks"
+                    , distinctClause = False
+                    , distinctOnClause = Nothing
+                    , whereCondition = Nothing
+                    , orderByClause = []
+                    , limitClause = Nothing
+                    , offsetClause = Nothing
+                    , columns = ["id"]
+                    , columnsSql = "tasks.id"
+                    }
+            let queryRead = QueryBuilderRead
+                    { trackedSqlQuery = sqlQuery
+                    , queryBuilderReadKind = QueryBuilderRows
+                    }
+            let structuredRead = TrackedTableRead
+                    { trackedTableName = "tasks"
+                    , trackedQuery = Just (toDyn queryRead)
+                    }
+            let wholeTableRead = TrackedTableRead
+                    { trackedTableName = "tasks"
+                    , trackedQuery = Nothing
+                    }
+
+            it "retains structured QueryBuilder reads" $ \_ -> do
+                let dependencies = buildAutoRefreshReadDependencies [structuredRead]
+                case Map.lookup "tasks" dependencies of
+                    Just (AutoRefreshQueryBuilderReads [trackedRead]) -> do
+                        trackedRead.trackedSqlQuery.selectFrom `shouldBe` "tasks"
+                        trackedRead.queryBuilderReadKind `shouldBe` QueryBuilderRows
+                    _ -> expectationFailure "Expected a structured QueryBuilder dependency"
+
+            it "keeps whole-table reads absorbing regardless of read order" $ \_ -> do
+                forM_ [[wholeTableRead, structuredRead], [structuredRead, wholeTableRead]] \reads ->
+                    Map.lookup "tasks" (buildAutoRefreshReadDependencies reads)
+                        `shouldSatisfy` \case
+                            Just AutoRefreshWholeTable -> True
+                            _ -> False
+
+            it "collects structured and manual reads through the model context" $ withContext do
+                withTableReadTracker do
+                    trackQueryRead "tasks" queryRead
+                    trackTableRead "users"
+
+                    readIORef ?touchedTables `shouldReturn` Set.fromList ["tasks", "users"]
+                    trackedReads <- readIORef ?trackedTableReads
+                    length trackedReads `shouldBe` 2
+
         describe "autoRefreshMeta" do
             it "renders the ihp-auto-refresh-id meta tag on the initial response" $ withContext do
                 MVar.modifyMVar_ globalAutoRefreshServerVar (\_ -> pure Nothing)
@@ -160,6 +213,7 @@ tests = beforeAll (mockContextNoDatabase WebApplication config) do
                             , renderView = \_ respond -> respond (Wai.responseLBS status200 [] "")
                             , event
                             , tables = mempty
+                            , readDependencies = mempty
                             , lastResponse = "resolved"
                             , lastPing = now
                             }
