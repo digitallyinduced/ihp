@@ -29,6 +29,7 @@ import IHP.AutoRefresh
     , sessionResponseHasChanged
     , shouldRefreshForChange
     , shouldRefreshForChangeBatch
+    , shouldRefreshForChangeBatchWithCache
     , updateSession
     , withAutoRefreshReadTracker
     )
@@ -244,6 +245,38 @@ tests = beforeAll (mockContextNoDatabase WebApplication config) do
                                 |> filterWhereGreaterThan (#views, 6 :: Int))
                         }
                 queryBuilderMatcherCacheKey changedIds parameterizedRead `shouldBe` Nothing
+
+            it "checks every visible ID before running an earlier query matcher" $ \_ ->
+                withAutoRefreshDB \modelContext -> do
+                    matcherQueries <- newIORef (0 :: Int)
+                    let matchingModelContext = modelContext
+                            { queryLoggingEnabled = True
+                            , logger = \_ -> atomicModifyIORef' matcherQueries \count -> (count + 1, ())
+                            }
+                    let changedId = "b0000000-0000-0000-0000-000000000002"
+                    let earlierRead = queryRead
+                            { trackedSqlQuery = buildQuery
+                                (query @AutoRefreshItem
+                                    |> filterWhereGreaterThan (#views, 6 :: Int))
+                            , queryBuilderResultPrimaryKeys =
+                                Just [QueryBuilderPrimaryKey [Aeson.String "b0000000-0000-0000-0000-000000000001"]]
+                            }
+                    let directlyAffectedRead = earlierRead
+                            { queryBuilderResultPrimaryKeys =
+                                Just [QueryBuilderPrimaryKey [Aeson.String changedId]]
+                            }
+                    let batch = emptyAutoRefreshChangeBatch
+                            { updatedRowIds = Set.singleton changedId
+                            }
+                    matcherCache <- newIORef Map.empty
+
+                    shouldRefreshForChangeBatchWithCache
+                        matchingModelContext
+                        matcherCache
+                        (AutoRefreshQueryBuilderReads [earlierRead, directlyAffectedRead])
+                        batch
+                        `shouldReturn` True
+                    readIORef matcherQueries `shouldReturn` 0
 
             it "falls back to whole-table tracking for OFFSET queries" $ \_ -> do
                 let offsetRead = queryRead

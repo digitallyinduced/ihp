@@ -3,6 +3,7 @@ module IHP.TypedSql.ParamHints
     , extractParamHints
     , extractJoinNullableTables
     , parseSql
+    , sqlCodeOnly
     , extractParamHintsFromAst
     , extractJoinNullableTablesFromAst
     , extractReadTableNamesFromAst
@@ -13,6 +14,7 @@ module IHP.TypedSql.ParamHints
     ) where
 
 import           Data.Foldable                (foldMap, toList)
+import qualified Data.Char                    as Char
 import qualified Data.List                   as List
 import qualified Data.Map.Strict             as Map
 import qualified Data.Set                    as Set
@@ -40,13 +42,81 @@ data ParamHint = ParamHint
     deriving (Eq, Show)
 
 -- | Parse SQL into an AST. Returns Nothing if parsing fails.
--- Note: postgresql-syntax does not tolerate leading/trailing whitespace,
--- so we strip it before parsing.
+--
+-- @postgresql-syntax@ expects comments to have already been consumed by its
+-- lexer. Typed SQL accepts ordinary PostgreSQL comments, so remove them while
+-- preserving quoted strings, quoted identifiers and dollar-quoted bodies.
 parseSql :: String -> Maybe Ast.PreparableStmt
 parseSql sql =
-    case Parsing.run Parsing.preparableStmt (Text.strip (Text.pack sql)) of
+    case Parsing.run Parsing.preparableStmt (Text.strip (stripSqlComments (Text.pack sql))) of
         Left _err -> Nothing
         Right stmt -> Just stmt
+
+-- | Keep only executable SQL text, replacing comments and quoted values with
+-- whitespace. This is used by conservative keyword checks: a word such as
+-- @select@ inside a string or comment must not change query classification.
+sqlCodeOnly :: String -> String
+sqlCodeOnly = scanSql False
+
+stripSqlComments :: Text -> Text
+stripSqlComments = Text.pack . scanSql True . Text.unpack
+
+-- | A small PostgreSQL-aware scanner shared by parsing and keyword checks.
+-- Block comments can nest in PostgreSQL, and dollar quotes can use arbitrary
+-- tags, so a simple regular expression is not sufficient here.
+scanSql :: Bool -> String -> String
+scanSql keepQuoted = normal
+  where
+    quoted character = if keepQuoted then character else ' '
+    quotedText value = if keepQuoted then value else replicate (length value) ' '
+
+    normal [] = []
+    normal ('-':'-':rest) = ' ' : ' ' : lineComment rest
+    normal ('/':'*':rest) = ' ' : ' ' : blockComment 1 rest
+    normal ('E':'\'':rest) = 'E' : quoted '\'' : singleQuoted True rest
+    normal ('e':'\'':rest) = 'e' : quoted '\'' : singleQuoted True rest
+    normal ('\'':rest) = quoted '\'' : singleQuoted False rest
+    normal ('"':rest) = quoted '"' : doubleQuoted rest
+    normal input@('$':_) = case dollarDelimiter input of
+        Just (delimiter, rest) -> quotedText delimiter <> dollarQuoted delimiter rest
+        Nothing -> '$' : normal (drop 1 input)
+    normal (character:rest) = character : normal rest
+
+    lineComment [] = []
+    lineComment ('\n':rest) = '\n' : normal rest
+    lineComment (_:rest) = ' ' : lineComment rest
+
+    blockComment _ [] = []
+    blockComment depth ('/':'*':rest) = ' ' : ' ' : blockComment (depth + 1) rest
+    blockComment 1 ('*':'/':rest) = ' ' : ' ' : normal rest
+    blockComment depth ('*':'/':rest) = ' ' : ' ' : blockComment (depth - 1) rest
+    blockComment depth ('\n':rest) = '\n' : blockComment depth rest
+    blockComment depth (_:rest) = ' ' : blockComment depth rest
+
+    singleQuoted _ [] = []
+    singleQuoted escape ('\'':'\'':rest) = quoted '\'' : quoted '\'' : singleQuoted escape rest
+    singleQuoted True ('\\':character:rest) = quoted '\\' : quoted character : singleQuoted True rest
+    singleQuoted _ ('\'':rest) = quoted '\'' : normal rest
+    singleQuoted escape (character:rest) = quoted character : singleQuoted escape rest
+
+    doubleQuoted [] = []
+    doubleQuoted ('"':'"':rest) = quoted '"' : quoted '"' : doubleQuoted rest
+    doubleQuoted ('"':rest) = quoted '"' : normal rest
+    doubleQuoted (character:rest) = quoted character : doubleQuoted rest
+
+    dollarQuoted _ [] = []
+    dollarQuoted delimiter input
+        | delimiter `List.isPrefixOf` input =
+            quotedText delimiter <> normal (drop (length delimiter) input)
+    dollarQuoted delimiter ('\n':rest) = '\n' : dollarQuoted delimiter rest
+    dollarQuoted delimiter (character:rest) = quoted character : dollarQuoted delimiter rest
+
+    dollarDelimiter ('$':rest) =
+        let (tag, suffix) = span (\character -> Char.isAlphaNum character || character == '_') rest
+        in case suffix of
+            '$':after -> Just ('$' : tag <> "$", after)
+            _ -> Nothing
+    dollarDelimiter _ = Nothing
 
 -- | Extract parameter hints by parsing SQL and walking the AST.
 -- Falls back to empty map if parsing fails.
@@ -88,14 +158,17 @@ extractReadTableNamesFromAst statement = case statement of
 
 readTableNamesFromSelectStmt :: Set.Set Text -> Ast.SelectStmt -> Set.Set Text
 readTableNamesFromSelectStmt inheritedCtes = \case
-    Left (Ast.SelectNoParens maybeWith selectClause _sort _limit _lock) ->
+    Left (Ast.SelectNoParens maybeWith selectClause maybeSort maybeLimit _lock) ->
         let ctes = case maybeWith of
                 Just (Ast.WithClause _recursive values) -> toList values
                 Nothing -> []
             cteNames = Set.fromList (map cteName ctes)
             visibleCtes = inheritedCtes <> cteNames
             cteTables = foldMap (readTableNamesFromCte visibleCtes) ctes
-        in cteTables <> readTableNamesFromSelectClause visibleCtes selectClause
+        in cteTables
+            <> readTableNamesFromSelectClause visibleCtes selectClause
+            <> maybe Set.empty (readTableNamesFromSortClause visibleCtes) maybeSort
+            <> maybe Set.empty (readTableNamesFromSelectLimit visibleCtes) maybeLimit
     Right selectWithParens -> readTableNamesFromSelectWithParens inheritedCtes selectWithParens
 
 readTableNamesFromCte :: Set.Set Text -> Ast.CommonTableExpr -> Set.Set Text
@@ -120,8 +193,13 @@ readTableNamesFromSelectClause visibleCtes = \case
 
 readTableNamesFromSimpleSelect :: Set.Set Text -> Ast.SimpleSelect -> Set.Set Text
 readTableNamesFromSimpleSelect visibleCtes = \case
-    Ast.NormalSimpleSelect _targeting _into maybeFrom _where _group _having _window ->
-        maybe Set.empty (foldMap (readTableNamesFromTableRef visibleCtes) . toList) maybeFrom
+    Ast.NormalSimpleSelect targeting _into maybeFrom maybeWhere maybeGroup maybeHaving maybeWindow ->
+        maybe Set.empty (readTableNamesFromTargeting visibleCtes) targeting
+        <> maybe Set.empty (foldMap (readTableNamesFromTableRef visibleCtes) . toList) maybeFrom
+        <> maybe Set.empty (readTableNamesFromAExpr visibleCtes) maybeWhere
+        <> maybe Set.empty (foldMap (readTableNamesFromGroupByItem visibleCtes) . toList) maybeGroup
+        <> maybe Set.empty (readTableNamesFromAExpr visibleCtes) maybeHaving
+        <> maybe Set.empty (foldMap (readTableNamesFromWindowDefinition visibleCtes) . toList) maybeWindow
     Ast.BinSimpleSelect _op left _distinct right ->
         readTableNamesFromSelectClause visibleCtes left <> readTableNamesFromSelectClause visibleCtes right
     Ast.TableSimpleSelect relation ->
@@ -136,13 +214,251 @@ readTableNamesFromTableRef visibleCtes = \case
         in if tableName `Set.member` visibleCtes then Set.empty else Set.singleton tableName
     Ast.JoinTableRef joinedTable _alias -> readTableNamesFromJoinedTable visibleCtes joinedTable
     Ast.SelectTableRef _lateral subquery _alias -> readTableNamesFromSelectWithParens visibleCtes subquery
-    Ast.FuncTableRef _lateral _function _alias -> Set.empty
+    Ast.FuncTableRef _lateral function _alias -> readTableNamesFromFuncTable visibleCtes function
 
 readTableNamesFromJoinedTable :: Set.Set Text -> Ast.JoinedTable -> Set.Set Text
 readTableNamesFromJoinedTable visibleCtes = \case
     Ast.InParensJoinedTable inner -> readTableNamesFromJoinedTable visibleCtes inner
-    Ast.MethJoinedTable _method left right ->
-        readTableNamesFromTableRef visibleCtes left <> readTableNamesFromTableRef visibleCtes right
+    Ast.MethJoinedTable method left right ->
+        readTableNamesFromTableRef visibleCtes left
+        <> readTableNamesFromTableRef visibleCtes right
+        <> readTableNamesFromJoinMeth visibleCtes method
+
+readTableNamesFromTargeting :: Set.Set Text -> Ast.Targeting -> Set.Set Text
+readTableNamesFromTargeting visibleCtes = \case
+    Ast.NormalTargeting targets -> foldMap (readTableNamesFromTargetEl visibleCtes) targets
+    Ast.AllTargeting maybeTargets -> maybe Set.empty (foldMap (readTableNamesFromTargetEl visibleCtes)) maybeTargets
+    Ast.DistinctTargeting maybeExpressions targets ->
+        maybe Set.empty (foldMap (readTableNamesFromAExpr visibleCtes)) maybeExpressions
+        <> foldMap (readTableNamesFromTargetEl visibleCtes) targets
+
+readTableNamesFromTargetEl :: Set.Set Text -> Ast.TargetEl -> Set.Set Text
+readTableNamesFromTargetEl visibleCtes = \case
+    Ast.AliasedExprTargetEl expression _alias -> readTableNamesFromAExpr visibleCtes expression
+    Ast.ImplicitlyAliasedExprTargetEl expression _alias -> readTableNamesFromAExpr visibleCtes expression
+    Ast.ExprTargetEl expression -> readTableNamesFromAExpr visibleCtes expression
+    Ast.AsteriskTargetEl -> Set.empty
+
+readTableNamesFromAExpr :: Set.Set Text -> Ast.AExpr -> Set.Set Text
+readTableNamesFromAExpr visibleCtes = \case
+    Ast.CExprAExpr expression -> readTableNamesFromCExpr visibleCtes expression
+    Ast.TypecastAExpr expression _typeName -> recurse expression
+    Ast.CollateAExpr expression _collation -> recurse expression
+    Ast.AtTimeZoneAExpr left right -> recurse left <> recurse right
+    Ast.PlusAExpr expression -> recurse expression
+    Ast.MinusAExpr expression -> recurse expression
+    Ast.SymbolicBinOpAExpr left _operator right -> recurse left <> recurse right
+    Ast.PrefixQualOpAExpr _operator expression -> recurse expression
+    Ast.SuffixQualOpAExpr expression _operator -> recurse expression
+    Ast.AndAExpr left right -> recurse left <> recurse right
+    Ast.OrAExpr left right -> recurse left <> recurse right
+    Ast.NotAExpr expression -> recurse expression
+    Ast.VerbalExprBinOpAExpr left _not _operator right maybeEscape ->
+        recurse left <> recurse right <> maybe Set.empty recurse maybeEscape
+    Ast.ReversableOpAExpr expression _not operator ->
+        recurse expression <> readTableNamesFromReversableOp visibleCtes operator
+    Ast.IsnullAExpr expression -> recurse expression
+    Ast.NotnullAExpr expression -> recurse expression
+    Ast.OverlapsAExpr left right -> readTableNamesFromRow visibleCtes left <> readTableNamesFromRow visibleCtes right
+    Ast.SubqueryAExpr expression _operator _subType subquery ->
+        recurse expression <> either (readTableNamesFromSelectWithParens visibleCtes) recurse subquery
+    Ast.UniqueAExpr subquery -> readTableNamesFromSelectWithParens visibleCtes subquery
+    Ast.DefaultAExpr -> Set.empty
+  where
+    recurse = readTableNamesFromAExpr visibleCtes
+
+readTableNamesFromCExpr :: Set.Set Text -> Ast.CExpr -> Set.Set Text
+readTableNamesFromCExpr visibleCtes = \case
+    Ast.ColumnrefCExpr _ -> Set.empty
+    Ast.AexprConstCExpr _ -> Set.empty
+    Ast.ParamCExpr _ _ -> Set.empty
+    Ast.InParensCExpr expression _ -> readTableNamesFromAExpr visibleCtes expression
+    Ast.CaseCExpr expression -> readTableNamesFromCaseExpr visibleCtes expression
+    Ast.FuncCExpr expression -> readTableNamesFromFuncExpr visibleCtes expression
+    Ast.SelectWithParensCExpr subquery _ -> readTableNamesFromSelectWithParens visibleCtes subquery
+    Ast.ExistsCExpr subquery -> readTableNamesFromSelectWithParens visibleCtes subquery
+    Ast.ArrayCExpr value -> either (readTableNamesFromSelectWithParens visibleCtes) (readTableNamesFromArrayExpr visibleCtes) value
+    Ast.ExplicitRowCExpr maybeExpressions -> maybe Set.empty (foldMap (readTableNamesFromAExpr visibleCtes)) maybeExpressions
+    Ast.ImplicitRowCExpr (Ast.ImplicitRow expressions lastExpression) ->
+        foldMap (readTableNamesFromAExpr visibleCtes) expressions
+        <> readTableNamesFromAExpr visibleCtes lastExpression
+    Ast.GroupingCExpr expressions -> foldMap (readTableNamesFromAExpr visibleCtes) expressions
+
+readTableNamesFromFuncExpr :: Set.Set Text -> Ast.FuncExpr -> Set.Set Text
+readTableNamesFromFuncExpr visibleCtes = \case
+    Ast.ApplicationFuncExpr (Ast.FuncApplication _name maybeParams) maybeWithinGroup maybeFilter maybeOver ->
+        maybe Set.empty (readTableNamesFromFuncParams visibleCtes) maybeParams
+        <> maybe Set.empty (readTableNamesFromSortClause visibleCtes) maybeWithinGroup
+        <> maybe Set.empty (readTableNamesFromAExpr visibleCtes) maybeFilter
+        <> maybe Set.empty (readTableNamesFromOverClause visibleCtes) maybeOver
+    Ast.SubexprFuncExpr subexpr -> readTableNamesFromFuncSubexpr visibleCtes subexpr
+
+readTableNamesFromFuncTable :: Set.Set Text -> Ast.FuncTable -> Set.Set Text
+readTableNamesFromFuncTable visibleCtes = \case
+    Ast.FuncExprFuncTable expression _ordinality -> readWindowless expression
+    Ast.RowsFromFuncTable rows _ordinality -> foldMap (\(Ast.RowsfromItem expression _columns) -> readWindowless expression) rows
+  where
+    readWindowless (Ast.ApplicationFuncExprWindowless (Ast.FuncApplication _name maybeParams)) =
+        maybe Set.empty (readTableNamesFromFuncParams visibleCtes) maybeParams
+    readWindowless (Ast.CommonSubexprFuncExprWindowless subexpr) =
+        readTableNamesFromFuncSubexpr visibleCtes subexpr
+
+readTableNamesFromFuncParams :: Set.Set Text -> Ast.FuncApplicationParams -> Set.Set Text
+readTableNamesFromFuncParams visibleCtes = \case
+    Ast.NormalFuncApplicationParams _distinct expressions maybeSort ->
+        foldMap (readTableNamesFromFuncArgExpr visibleCtes) expressions
+        <> maybe Set.empty (readTableNamesFromSortClause visibleCtes) maybeSort
+    Ast.VariadicFuncApplicationParams maybeExpressions lastExpression maybeSort ->
+        maybe Set.empty (foldMap (readTableNamesFromFuncArgExpr visibleCtes)) maybeExpressions
+        <> readTableNamesFromFuncArgExpr visibleCtes lastExpression
+        <> maybe Set.empty (readTableNamesFromSortClause visibleCtes) maybeSort
+    Ast.StarFuncApplicationParams -> Set.empty
+
+readTableNamesFromFuncArgExpr :: Set.Set Text -> Ast.FuncArgExpr -> Set.Set Text
+readTableNamesFromFuncArgExpr visibleCtes = \case
+    Ast.ExprFuncArgExpr expression -> recurse expression
+    Ast.ColonEqualsFuncArgExpr _name expression -> recurse expression
+    Ast.EqualsGreaterFuncArgExpr _name expression -> recurse expression
+  where
+    recurse = readTableNamesFromAExpr visibleCtes
+
+readTableNamesFromFuncSubexpr :: Set.Set Text -> Ast.FuncExprCommonSubexpr -> Set.Set Text
+readTableNamesFromFuncSubexpr visibleCtes = \case
+    Ast.CollationForFuncExprCommonSubexpr expression -> recurse expression
+    Ast.CastFuncExprCommonSubexpr expression _ -> recurse expression
+    Ast.TreatFuncExprCommonSubexpr expression _ -> recurse expression
+    Ast.NullIfFuncExprCommonSubexpr left right -> recurse left <> recurse right
+    Ast.CoalesceFuncExprCommonSubexpr expressions -> foldMap recurse expressions
+    Ast.GreatestFuncExprCommonSubexpr expressions -> foldMap recurse expressions
+    Ast.LeastFuncExprCommonSubexpr expressions -> foldMap recurse expressions
+    Ast.ExtractFuncExprCommonSubexpr maybeList -> maybe Set.empty (\(Ast.ExtractList _ expression) -> recurse expression) maybeList
+    Ast.OverlayFuncExprCommonSubexpr (Ast.OverlayList source placing from maybeFor) ->
+        recurse source <> recurse placing <> recurse from <> maybe Set.empty recurse maybeFor
+    Ast.PositionFuncExprCommonSubexpr maybeList ->
+        maybe Set.empty (\(Ast.PositionList left right) -> recurseB left <> recurseB right) maybeList
+    Ast.SubstringFuncExprCommonSubexpr maybeList -> maybe Set.empty readSubstring maybeList
+    Ast.TrimFuncExprCommonSubexpr _modifier trimList -> readTrim trimList
+    _ -> Set.empty
+  where
+    recurse = readTableNamesFromAExpr visibleCtes
+    recurseB = readTableNamesFromBExpr visibleCtes
+    readSubstring (Ast.ExprSubstrList expression fromFor) = recurse expression <> readFromFor fromFor
+    readSubstring (Ast.ExprListSubstrList expressions) = foldMap recurse expressions
+    readFromFor (Ast.FromForSubstrListFromFor from for) = recurse from <> recurse for
+    readFromFor (Ast.ForFromSubstrListFromFor for from) = recurse for <> recurse from
+    readFromFor (Ast.FromSubstrListFromFor from) = recurse from
+    readFromFor (Ast.ForSubstrListFromFor for) = recurse for
+    readTrim (Ast.ExprFromExprListTrimList expression expressions) = recurse expression <> foldMap recurse expressions
+    readTrim (Ast.FromExprListTrimList expressions) = foldMap recurse expressions
+    readTrim (Ast.ExprListTrimList expressions) = foldMap recurse expressions
+
+readTableNamesFromCaseExpr :: Set.Set Text -> Ast.CaseExpr -> Set.Set Text
+readTableNamesFromCaseExpr visibleCtes (Ast.CaseExpr maybeArg whenClauses maybeDefault) =
+    maybe Set.empty recurse maybeArg
+    <> foldMap (\(Ast.WhenClause condition result) -> recurse condition <> recurse result) whenClauses
+    <> maybe Set.empty recurse maybeDefault
+  where
+    recurse = readTableNamesFromAExpr visibleCtes
+
+readTableNamesFromArrayExpr :: Set.Set Text -> Ast.ArrayExpr -> Set.Set Text
+readTableNamesFromArrayExpr visibleCtes = \case
+    Ast.ExprListArrayExpr expressions -> foldMap (readTableNamesFromAExpr visibleCtes) expressions
+    Ast.ArrayExprListArrayExpr arrays -> foldMap (readTableNamesFromArrayExpr visibleCtes) arrays
+    Ast.EmptyArrayExpr -> Set.empty
+
+readTableNamesFromRow :: Set.Set Text -> Ast.Row -> Set.Set Text
+readTableNamesFromRow visibleCtes = \case
+    Ast.ExplicitRowRow maybeExpressions -> maybe Set.empty (foldMap (readTableNamesFromAExpr visibleCtes)) maybeExpressions
+    Ast.ImplicitRowRow (Ast.ImplicitRow expressions lastExpression) ->
+        foldMap (readTableNamesFromAExpr visibleCtes) expressions
+        <> readTableNamesFromAExpr visibleCtes lastExpression
+
+readTableNamesFromReversableOp :: Set.Set Text -> Ast.AExprReversableOp -> Set.Set Text
+readTableNamesFromReversableOp visibleCtes = \case
+    Ast.DistinctFromAExprReversableOp expression -> recurse expression
+    Ast.BetweenAExprReversableOp _not lower upper -> readTableNamesFromBExpr visibleCtes lower <> recurse upper
+    Ast.BetweenSymmetricAExprReversableOp lower upper -> readTableNamesFromBExpr visibleCtes lower <> recurse upper
+    Ast.InAExprReversableOp (Ast.SelectInExpr subquery) -> readTableNamesFromSelectWithParens visibleCtes subquery
+    Ast.InAExprReversableOp (Ast.ExprListInExpr expressions) -> foldMap recurse expressions
+    _ -> Set.empty
+  where
+    recurse = readTableNamesFromAExpr visibleCtes
+
+readTableNamesFromBExpr :: Set.Set Text -> Ast.BExpr -> Set.Set Text
+readTableNamesFromBExpr visibleCtes = \case
+    Ast.CExprBExpr expression -> readTableNamesFromCExpr visibleCtes expression
+    Ast.TypecastBExpr expression _ -> recurse expression
+    Ast.PlusBExpr expression -> recurse expression
+    Ast.MinusBExpr expression -> recurse expression
+    Ast.SymbolicBinOpBExpr left _ right -> recurse left <> recurse right
+    Ast.QualOpBExpr _ expression -> recurse expression
+    Ast.IsOpBExpr expression _ _ -> recurse expression
+  where
+    recurse = readTableNamesFromBExpr visibleCtes
+
+readTableNamesFromJoinMeth :: Set.Set Text -> Ast.JoinMeth -> Set.Set Text
+readTableNamesFromJoinMeth visibleCtes = \case
+    Ast.QualJoinMeth _ (Ast.OnJoinQual expression) -> readTableNamesFromAExpr visibleCtes expression
+    _ -> Set.empty
+
+readTableNamesFromGroupByItem :: Set.Set Text -> Ast.GroupByItem -> Set.Set Text
+readTableNamesFromGroupByItem visibleCtes = \case
+    Ast.ExprGroupByItem expression -> recurse expression
+    Ast.RollupGroupByItem expressions -> foldMap recurse expressions
+    Ast.CubeGroupByItem expressions -> foldMap recurse expressions
+    Ast.GroupingSetsGroupByItem groups -> foldMap (readTableNamesFromGroupByItem visibleCtes) groups
+    Ast.EmptyGroupingSetGroupByItem -> Set.empty
+  where
+    recurse = readTableNamesFromAExpr visibleCtes
+
+readTableNamesFromSortClause :: Set.Set Text -> Ast.SortClause -> Set.Set Text
+readTableNamesFromSortClause visibleCtes = foldMap \case
+    Ast.UsingSortBy expression _ _ -> readTableNamesFromAExpr visibleCtes expression
+    Ast.AscDescSortBy expression _ _ -> readTableNamesFromAExpr visibleCtes expression
+
+readTableNamesFromWindowDefinition :: Set.Set Text -> Ast.WindowDefinition -> Set.Set Text
+readTableNamesFromWindowDefinition visibleCtes (Ast.WindowDefinition _name specification) =
+    readTableNamesFromWindowSpecification visibleCtes specification
+
+readTableNamesFromOverClause :: Set.Set Text -> Ast.OverClause -> Set.Set Text
+readTableNamesFromOverClause visibleCtes = \case
+    Ast.WindowOverClause specification -> readTableNamesFromWindowSpecification visibleCtes specification
+    Ast.ColIdOverClause _ -> Set.empty
+
+readTableNamesFromWindowSpecification :: Set.Set Text -> Ast.WindowSpecification -> Set.Set Text
+readTableNamesFromWindowSpecification visibleCtes (Ast.WindowSpecification _existing maybePartition maybeSort maybeFrame) =
+    maybe Set.empty (foldMap (readTableNamesFromAExpr visibleCtes)) maybePartition
+    <> maybe Set.empty (readTableNamesFromSortClause visibleCtes) maybeSort
+    <> maybe Set.empty (readTableNamesFromFrameClause visibleCtes) maybeFrame
+
+readTableNamesFromFrameClause :: Set.Set Text -> Ast.FrameClause -> Set.Set Text
+readTableNamesFromFrameClause visibleCtes (Ast.FrameClause _mode extent _exclusion) = case extent of
+    Ast.SingularFrameExtent bound -> readTableNamesFromFrameBound visibleCtes bound
+    Ast.BetweenFrameExtent lower upper ->
+        readTableNamesFromFrameBound visibleCtes lower <> readTableNamesFromFrameBound visibleCtes upper
+
+readTableNamesFromFrameBound :: Set.Set Text -> Ast.FrameBound -> Set.Set Text
+readTableNamesFromFrameBound visibleCtes = \case
+    Ast.PrecedingFrameBound expression -> readTableNamesFromAExpr visibleCtes expression
+    Ast.FollowingFrameBound expression -> readTableNamesFromAExpr visibleCtes expression
+    _ -> Set.empty
+
+readTableNamesFromSelectLimit :: Set.Set Text -> Ast.SelectLimit -> Set.Set Text
+readTableNamesFromSelectLimit visibleCtes = \case
+    Ast.LimitOffsetSelectLimit limitClause offsetClause -> readLimit limitClause <> readOffset offsetClause
+    Ast.OffsetLimitSelectLimit offsetClause limitClause -> readOffset offsetClause <> readLimit limitClause
+    Ast.LimitSelectLimit limitClause -> readLimit limitClause
+    Ast.OffsetSelectLimit offsetClause -> readOffset offsetClause
+  where
+    readLimit (Ast.LimitLimitClause value maybeExpression) =
+        readLimitValue value <> maybe Set.empty (readTableNamesFromAExpr visibleCtes) maybeExpression
+    readLimit (Ast.FetchOnlyLimitClause _ maybeValue _) = maybe Set.empty readFetchValue maybeValue
+    readLimitValue (Ast.ExprSelectLimitValue expression) = readTableNamesFromAExpr visibleCtes expression
+    readLimitValue Ast.AllSelectLimitValue = Set.empty
+    readOffset (Ast.ExprOffsetClause expression) = readTableNamesFromAExpr visibleCtes expression
+    readOffset (Ast.FetchFirstOffsetClause value _) = readFetchValue value
+    readFetchValue (Ast.ExprSelectFetchFirstValue expression) = readTableNamesFromCExpr visibleCtes expression
+    readFetchValue (Ast.NumSelectFetchFirstValue _ _) = Set.empty
 
 nullableTablesFromStmt :: Ast.PreparableStmt -> Set.Set Text
 nullableTablesFromStmt = \case

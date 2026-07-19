@@ -13,7 +13,8 @@ import           IHP.TypedSql.ParamHints           (parseSql, extractJoinNullabl
                                                     extractNonNullableComputedColumnsFromAst,
                                                     extractReadTableNamesFromAst,
                                                     detectStarSelects,
-                                                    detectInsertWithoutColumns)
+                                                    detectInsertWithoutColumns,
+                                                    sqlCodeOnly)
 import           System.Directory                  (createDirectoryIfMissing,
                                                     doesFileExist,
                                                     findExecutable,
@@ -373,6 +374,17 @@ tests = do
         it "parseSql handles leading/trailing whitespace from quasiquoter" do
             parseSql " SELECT 1 " `shouldSatisfy` isJust
 
+        it "parseSql handles SQL comments without stripping comment markers from literals" do
+            parseSql "-- leading comment\nSELECT 'not -- a comment', $$not /* a comment */$$ /* trailing comment */" `shouldSatisfy` isJust
+
+        it "parseSql handles nested block comments" do
+            parseSql "/* outer /* nested */ comment */ SELECT 1" `shouldSatisfy` isJust
+
+        it "parseSql distinguishes standard and escape string backslashes" do
+            parseSql "SELECT 'trailing\\' /* comment */" `shouldSatisfy` isJust
+            Text.pack (sqlCodeOnly "SELECT E'escaped\\' hidden -- still in the string'")
+                `shouldNotSatisfy` Text.isInfixOf "hidden"
+
         it "extractJoinNullableTables detects LEFT JOIN nullable table" do
             let sql = " SELECT i.name, a.name FROM items i LEFT JOIN authors a ON a.id = i.aid LIMIT 1 "
             extractJoinNullableTables sql `shouldBe` Set.fromList ["authors"]
@@ -402,6 +414,12 @@ tests = do
         it "extractReadTableNamesFromAst follows CTEs and FROM subqueries" do
             let Just ast = parseSql "WITH visible AS (SELECT id FROM items) SELECT visible.id FROM (SELECT id FROM visible) visible"
             extractReadTableNamesFromAst ast `shouldBe` Set.singleton "items"
+
+        it "extractReadTableNamesFromAst follows target-list subqueries" do
+            let Just existsAst = parseSql "SELECT EXISTS (SELECT 1 FROM items WHERE id = 1)"
+            let Just scalarAst = parseSql "SELECT (SELECT COUNT(*) FROM items)"
+            extractReadTableNamesFromAst existsAst `shouldBe` Set.singleton "items"
+            extractReadTableNamesFromAst scalarAst `shouldBe` Set.singleton "items"
 
         it "extractNonNullableComputedColumns detects count(*)" do
             let Just ast = parseSql "SELECT count(*) FROM items"
@@ -1159,6 +1177,33 @@ runtimeModule = Text.unlines
     , "            |]"
     , "        when windowTrackingQuery.tqAutoRefreshRowMatchingSafe do"
     , "            error \"windowed Typed SQL query was incorrectly marked row-local\""
+    , ""
+    , "        let selectLiteralTrackingQuery = [typedSql|"
+    , "                SELECT id, 'select' AS marker"
+    , "                FROM typed_sql_test_items"
+    , "            |]"
+    , "        unless selectLiteralTrackingQuery.tqAutoRefreshRowMatchingSafe do"
+    , "            error \"a SQL keyword inside a literal disabled row-local tracking\""
+    , ""
+    , "        commentedTrackedReads <- withAutoRefreshReadTracker do"
+    , "            _ <- sqlQueryTyped [typedSql|"
+    , "                -- this comment must not disable AutoRefresh tracking"
+    , "                SELECT id, name FROM typed_sql_test_items"
+    , "                WHERE views > ${6 :: Int} /* retained parameter */"
+    , "            |]"
+    , "            readIORef ?autoRefreshReadDependencies"
+    , "        unless (Map.member \"typed_sql_test_items\" commentedTrackedReads) do"
+    , "            error \"commented Typed SQL query was not tracked\""
+    , ""
+    , "        nestedTrackedReads <- withAutoRefreshReadTracker do"
+    , "            _ <- sqlQueryTyped [typedSql|"
+    , "                SELECT EXISTS ("
+    , "                    SELECT 1 FROM typed_sql_test_items WHERE views > ${6 :: Int}"
+    , "                )"
+    , "            |]"
+    , "            readIORef ?autoRefreshReadDependencies"
+    , "        unless (Map.member \"typed_sql_test_items\" nestedTrackedReads) do"
+    , "            error \"target-list subquery was not tracked\""
     , ""
     , "        names <- sqlQueryTyped [typedSql|"
     , "            SELECT name FROM typed_sql_test_items"

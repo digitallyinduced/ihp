@@ -509,28 +509,32 @@ shouldRefreshForChangeBatchWithCache _ _ _ AutoRefreshChangeBatch { hasUnknownCh
 shouldRefreshForChangeBatchWithCache modelContext matcherCache (AutoRefreshQueryBuilderReads reads) batch =
     if null reads
         then pure True
-        else anyM (queryBuilderReadAffectsBatch modelContext matcherCache batch) reads
+        else queryBuilderReadsAffectBatch modelContext matcherCache reads batch
 shouldRefreshForChangeBatchWithCache _ _ (AutoRefreshTrackedQueryReads reads) batch =
     if null reads
         then pure True
         else trackedReadsAffectBatch reads batch
 
-queryBuilderReadAffectsBatch
+-- Check every read's already-visible IDs before running any retained matcher.
+-- A page commonly performs several reads of the same table. If a later read
+-- already contains an updated/deleted row, the refresh decision is known and
+-- no earlier read should issue an avoidable SELECT EXISTS query.
+queryBuilderReadsAffectBatch
     :: ModelContext
     -> IORef (Map.Map Text Bool)
+    -> [QueryBuilderRead]
     -> AutoRefreshChangeBatch
-    -> QueryBuilderRead
     -> IO Bool
-queryBuilderReadAffectsBatch modelContext matcherCache batch queryRead =
-    case queryBuilderReadRowIds queryRead of
-        Nothing -> pure True
-        Just visibleRowIds
-            | not (Set.null (visibleRowIds `Set.intersection` directlyAffectingIds)) -> pure True
-            | Set.null rowsToMatch -> pure False
-            | otherwise -> queryBuilderQueryAffects modelContext matcherCache rowsToMatch queryRead
+queryBuilderReadsAffectBatch modelContext matcherCache reads batch
+    | any isNothing visibleRowIds = pure True
+    | any directlyAffected (catMaybes visibleRowIds) = pure True
+    | Set.null rowsToMatch = pure False
+    | otherwise = anyM (queryBuilderQueryAffects modelContext matcherCache rowsToMatch) reads
   where
+    visibleRowIds = map queryBuilderReadRowIds reads
     directlyAffectingIds = batch.updatedRowIds <> batch.deletedRowIds
     rowsToMatch = batch.insertedRowIds <> batch.updatedRowIds
+    directlyAffected ids = not (Set.null (ids `Set.intersection` directlyAffectingIds))
 
 -- Only the conventional scalar @id@ can be matched against the compact trigger
 -- payload. Marc's retained custom/composite keys remain available in the

@@ -36,7 +36,8 @@ import           IHP.TypedSql.Metadata          (ColumnMeta (..), DescribeColumn
 import           IHP.TypedSql.ParamHints        (extractParamHintsFromAst, extractJoinNullableTablesFromAst,
                                                  extractNonNullableComputedColumnsFromAst,
                                                  parseSql, resolveParamHintTypes, detectStarSelects,
-                                                 detectInsertWithoutColumns, extractReadTableNamesFromAst)
+                                                 detectInsertWithoutColumns, extractReadTableNamesFromAst,
+                                                 sqlCodeOnly)
 import           IHP.TypedSql.ParamEncoder      (typedSqlParam)
 import           IHP.TypedSql.Placeholders      (PlaceholderPlan (..), parseExpr,
                                                  planPlaceholders)
@@ -262,11 +263,12 @@ isAutoRefreshRowMatchingSafe sql = \case
             _lock)) ->
                 hasOneDirectTable fromClause
                 && not (maybe False selectLimitHasOffset maybeLimit)
-                && countKeyword "select" sql == 1
-                && countKeyword "over" sql == 0
-                && countKeyword "table" sql == 0
+                && countKeyword "select" codeOnlySql == 1
+                && countKeyword "over" codeOnlySql == 0
+                && countKeyword "table" codeOnlySql == 0
     _ -> False
   where
+    codeOnlySql = sqlCodeOnly sql
     hasOneDirectTable fromClause = case NonEmpty.toList fromClause of
         [Ast.RelationExprTableRef _relation _alias Nothing] -> True
         _ -> False
