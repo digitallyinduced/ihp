@@ -120,6 +120,7 @@ tableModule options table =
             ]
         moduleName = "Generated." <> tableNameToModelName table.name
         modelName = tableNameToModelName table.name
+        typesImports = generatedTypesImports table
         statementImports = Text.unlines
             [ "import qualified Generated.Statements.RowDecoder" <> modelName
             , "import qualified Generated.Statements.Create" <> modelName
@@ -132,7 +133,7 @@ tableModule options table =
             {-# OPTIONS_GHC -Wno-unused-imports -Wno-dodgy-imports -Wno-unused-matches -Wno-ambiguous-fields #-}
             module $moduleName where
             $defaultImports
-            import Generated.ActualTypes
+            $typesImports
             $statementImports
         |]
 
@@ -141,10 +142,11 @@ tableIncludeModule table =
         ((OsPath.</>) "build/Generated" (either (error . show) id (encodeUtf (cs (tableNameToModelName table.name) <> "Include.hs"))), prelude <> compileInclude table)
     where
         moduleName = "Generated." <> tableNameToModelName table.name <> "Include"
+        typesImports = generatedTypesImports table
         prelude = [trimming|
             -- This file is auto generated and will be overriden regulary. Please edit `Application/Schema.sql` to change the Types\n"
             module $moduleName where
-            import Generated.ActualTypes
+            $typesImports
             import IHP.ModelSupport (Include, GetModelById)
         |] <> "\n\n"
 
@@ -740,6 +742,40 @@ compileEnumDataDefinitions _ = ""
 qualifiedConstructorNameFromTableName :: Text -> Text
 qualifiedConstructorNameFromTableName unqualifiedName = "Generated.ActualTypes." <> (tableNameToModelName unqualifiedName)
 
+-- | Imports for the per-table generated modules ('tableModule', the statement
+-- modules and 'tableIncludeModule') that previously imported the whole
+-- 'Generated.ActualTypes' aggregator.
+--
+-- These modules only reference the table's own record (qualified as
+-- @Generated.ActualTypes.<Model>@ — the alias import keeps those references
+-- working), enums, primary keys and, with relation support enabled, the models
+-- referencing this table (which appear unqualified in generated
+-- @query \@Model@ expressions).
+--
+-- Importing exactly these instead of the aggregator keeps a table module's
+-- interface hash independent of unrelated tables. That matters because these
+-- modules consist of orphan instances: GHC validates orphan modules by their
+-- whole interface hash, so with the aggregator import every module that
+-- transitively imported any per-table module was recompiled on every
+-- @Schema.sql@ change, no matter which table changed.
+generatedTypesImports :: (?schema :: Schema, ?compilerOptions :: CompilerOptions) => CreateTable -> Text
+generatedTypesImports table = Text.unlines (ownImports <> referencingImports)
+    where
+        modelName = tableNameToModelName table.name
+        ownImports =
+            [ "import Generated.ActualTypes." <> modelName <> " as Generated.ActualTypes"
+            , "import Generated.Enums"
+            , "import Generated.ActualTypes.PrimaryKeys"
+            ]
+        referencingImports =
+            if ?compilerOptions.compileRelationSupport
+                then columnsReferencingTable table.name
+                        |> map (\(refTableName, _, _) -> tableNameToModelName refTableName)
+                        |> filter (/= modelName)
+                        |> ordNub
+                        |> map ("import Generated.ActualTypes." <>)
+                else []
+
 --
 -- Trigger types don't have encoders as they're not real data columns.
 hasqlSupportsColumnType :: PostgresType -> Bool
@@ -1261,8 +1297,6 @@ statementModuleBaseImports :: Text
 statementModuleBaseImports =
     Text.unlines
         [ "import Prelude (($), (.), (<$>), (<*>), (<>), (+), (*), (-), show, fromIntegral, length, null, zip, mconcat, (++), Maybe(..), (!!), map, Bool(..), Int, Integer, pure, (&&), not)"
-        , "import Generated.ActualTypes"
-        , "import Generated.Enums"
         , "import IHP.ModelSupport.Types (Id'(..), MetaBag(..))"
         , "import qualified Hasql.Statement as Statement"
         , "import qualified Hasql.Decoders as Decoders"
@@ -1397,7 +1431,7 @@ compileRowDecoderModule table@(CreateTable { name }) =
         -- expression that ApplicativeDo doesn't need to analyze.
         pureExpr = "    pure (let theRecord = " <> qualifiedConstructorNameFromTableName name <> " " <> constructorArgs <> " in theRecord)"
     in "{-# LANGUAGE ApplicativeDo, OverloadedLabels, TypeApplications, ScopedTypeVariables #-}\n"
-        <> statementModuleHeader moduleName ["rowDecoder"] extraImports
+        <> statementModuleHeader table moduleName ["rowDecoder"] extraImports
         <> Text.unlines
         ([ "rowDecoder :: Decoders.Row " <> qualifiedModelName
          , "rowDecoder = do"
@@ -1419,12 +1453,12 @@ compileCreateStatement table@(CreateTable { name }) =
         then compileDynamicCreateStatement moduleName qualifiedModelName name writableColumns allColumnNames table columns rowDecoderImport
         else compileStaticCreateStatement moduleName qualifiedModelName name writableColumns allColumnNames table columns rowDecoderImport
 
-compileStaticCreateStatement :: (?schema :: Schema) => Text -> Text -> Text -> [Column] -> Text -> CreateTable -> [Column] -> Text -> Text
+compileStaticCreateStatement :: (?schema :: Schema, ?compilerOptions :: CompilerOptions) => Text -> Text -> Text -> [Column] -> Text -> CreateTable -> [Column] -> Text -> Text
 compileStaticCreateStatement moduleName qualifiedModelName tableName writableColumns allColumnNames table columns rowDecoderImport =
     let writableColumnNames = commaSep (map (.name) writableColumns)
         placeholders = commaSep ["$" <> tshow i | i <- [1 .. length writableColumns]]
         encoderLines = map (hasqlColumnEncoder table) writableColumns
-    in statementModuleHeader moduleName ["statement", "discardResultStatement"] rowDecoderImport
+    in statementModuleHeader table moduleName ["statement", "discardResultStatement"] rowDecoderImport
         <> Text.unlines
         [ "statement :: Statement.Statement " <> qualifiedModelName <> " " <> qualifiedModelName
         , "statement = Statement.preparable sqlReturningResult encoder decoder"
@@ -1450,7 +1484,7 @@ compileStaticCreateStatement moduleName qualifiedModelName tableName writableCol
         , "decoder = Decoders.singleRow RowDecoder.rowDecoder"
         ]
 
-compileDynamicCreateStatement :: (?schema :: Schema) => Text -> Text -> Text -> [Column] -> Text -> CreateTable -> [Column] -> Text -> Text
+compileDynamicCreateStatement :: (?schema :: Schema, ?compilerOptions :: CompilerOptions) => Text -> Text -> Text -> [Column] -> Text -> CreateTable -> [Column] -> Text -> Text
 compileDynamicCreateStatement moduleName qualifiedModelName tableName writableColumns allColumnNames table columns rowDecoderImport =
     let columnBitIndices = columnsWithBitIndices columns writableColumns
         sqlEntries = map (\(col, bitIdx) -> compileSqlEntry False bitIdx col) columnBitIndices
@@ -1475,7 +1509,7 @@ compileDynamicCreateStatement moduleName qualifiedModelName tableName writableCo
             , "    [ " <> Text.intercalate "\n    , " encoderEntries
             , "    ]"
             ]
-    in dynamicStatementModule moduleName qualifiedModelName sqlBody encoderBody rowDecoderImport
+    in dynamicStatementModule table moduleName qualifiedModelName sqlBody encoderBody rowDecoderImport
 
 compileUpdateStatement :: (?schema :: Schema, ?compilerOptions :: CompilerOptions) => CreateTable -> Text
 compileUpdateStatement table@(CreateTable { name }) =
@@ -1518,7 +1552,7 @@ compileUpdateStatement table@(CreateTable { name }) =
 
         moduleName = "Generated.Statements.Update" <> modelName
         rowDecoderImport = "import qualified Generated.Statements.RowDecoder" <> modelName <> " as RowDecoder\n"
-    in dynamicStatementModule moduleName qualifiedModelName sqlBody encoderBody rowDecoderImport
+    in dynamicStatementModule table moduleName qualifiedModelName sqlBody encoderBody rowDecoderImport
     where
         compileUpdateWhereClause :: [Column] -> Text
         compileUpdateWhereClause [col] = "\\startIdx -> " <> tshow col.name <> " <> \" = $\" <> Text.pack (show startIdx)"
@@ -1528,9 +1562,9 @@ compileUpdateStatement table@(CreateTable { name }) =
                     ) cols [(0 :: Int)..]
             in "\\startIdx -> Text.intercalate \" AND \" [" <> Text.intercalate ", " parts <> "]"
 
-dynamicStatementModule :: Text -> Text -> Text -> Text -> Text -> Text
-dynamicStatementModule moduleName qualifiedModelName sqlBody encoderBody rowDecoderImport =
-    statementModuleHeader moduleName ["statement", "discardResultStatement"] (rowDecoderImport <> statementModuleDynamicImports)
+dynamicStatementModule :: (?schema :: Schema, ?compilerOptions :: CompilerOptions) => CreateTable -> Text -> Text -> Text -> Text -> Text -> Text
+dynamicStatementModule table moduleName qualifiedModelName sqlBody encoderBody rowDecoderImport =
+    statementModuleHeader table moduleName ["statement", "discardResultStatement"] (rowDecoderImport <> statementModuleDynamicImports)
     <> Text.unlines
         [ "statement :: Integer -> Statement.Statement " <> qualifiedModelName <> " " <> qualifiedModelName
         , "statement touchedFields = Statement.preparable (sql touchedFields True) (encoder touchedFields) decoder"
@@ -1546,13 +1580,14 @@ dynamicStatementModule moduleName qualifiedModelName sqlBody encoderBody rowDeco
         , "decoder = Decoders.singleRow RowDecoder.rowDecoder"
         ]
 
-statementModuleHeader :: Text -> [Text] -> Text -> Text
-statementModuleHeader moduleName exports extraImports =
+statementModuleHeader :: (?schema :: Schema, ?compilerOptions :: CompilerOptions) => CreateTable -> Text -> [Text] -> Text -> Text
+statementModuleHeader table moduleName exports extraImports =
     Text.unlines
         [ "-- This file is auto generated and will be overriden regulary."
         , "{-# OPTIONS_GHC -Wno-unused-imports -Wno-dodgy-imports -Wno-unused-matches #-}"
         , "module " <> moduleName <> " (" <> intercalate ", " exports <> ") where"
         , ""
+        , generatedTypesImports table
         , statementModuleBaseImports
         ]
     <> extraImports
@@ -1574,7 +1609,7 @@ compileFetchByIdStatement table@(CreateTable { name }) =
 
         rowDecoderImport = "import qualified Generated.Statements.RowDecoder" <> modelName <> " as RowDecoder\n"
 
-    in statementModuleHeader moduleName ["statement"] rowDecoderImport
+    in statementModuleHeader table moduleName ["statement"] rowDecoderImport
         <> Text.unlines
         [ "statement :: Statement.Statement (Id' " <> tshow name <> ") (Maybe " <> qualifiedModelName <> ")"
         , "statement = Statement.preparable sql encoder decoder"
@@ -1615,13 +1650,13 @@ compileCreateManyStatement table@(CreateTable { name }) =
         then compileDynamicCreateManyStatement moduleName qualifiedModelName name writableColumns allColumnNames table columns rowDecoderImport
         else compileStaticCreateManyStatement moduleName qualifiedModelName name writableColumns allColumnNames table rowDecoderImport
 
-compileStaticCreateManyStatement :: (?schema :: Schema) => Text -> Text -> Text -> [Column] -> Text -> CreateTable -> Text -> Text
+compileStaticCreateManyStatement :: (?schema :: Schema, ?compilerOptions :: CompilerOptions) => Text -> Text -> Text -> [Column] -> Text -> CreateTable -> Text -> Text
 compileStaticCreateManyStatement moduleName qualifiedModelName tableName writableColumns allColumnNames table rowDecoderImport =
     let insertColumnNames = commaSep (map (.name) writableColumns)
         numCols = length writableColumns
         encoderLines = map (hasqlColumnEncoder table) writableColumns
         singleEncoderBlock = formatEncoderBlock encoderLines
-    in statementModuleHeader moduleName ["statement"] (rowDecoderImport <> "import qualified Data.Text as Text\n")
+    in statementModuleHeader table moduleName ["statement"] (rowDecoderImport <> "import qualified Data.Text as Text\n")
         <> Text.unlines
         [ "statement :: Int -> Statement.Statement [" <> qualifiedModelName <> "] [" <> qualifiedModelName <> "]"
         , "statement count = Statement.unpreparable (sql count) (encoder count) decoder"
@@ -1644,7 +1679,7 @@ compileStaticCreateManyStatement moduleName qualifiedModelName tableName writabl
         , "decoder = Decoders.rowList RowDecoder.rowDecoder"
         ]
 
-compileDynamicCreateManyStatement :: (?schema :: Schema) => Text -> Text -> Text -> [Column] -> Text -> CreateTable -> [Column] -> Text -> Text
+compileDynamicCreateManyStatement :: (?schema :: Schema, ?compilerOptions :: CompilerOptions) => Text -> Text -> Text -> [Column] -> Text -> CreateTable -> [Column] -> Text -> Text
 compileDynamicCreateManyStatement moduleName qualifiedModelName tableName writableColumns allColumnNames table columns rowDecoderImport =
     let columnBitIndices = columnsWithBitIndices columns writableColumns
         writableColumnNames = commaSep (map (.name) writableColumns)
@@ -1655,7 +1690,7 @@ compileDynamicCreateManyStatement moduleName qualifiedModelName tableName writab
 
         encoderEntries = map (\(col, bitIdx) -> compileEncoderEntry False bitIdx table col) columnBitIndices
 
-    in statementModuleHeader moduleName ["statement"] (rowDecoderImport <> statementModuleDynamicImports <> "import qualified Data.List as List\n")
+    in statementModuleHeader table moduleName ["statement"] (rowDecoderImport <> statementModuleDynamicImports <> "import qualified Data.List as List\n")
         <> Text.unlines
         [ "statement :: [Integer] -> Statement.Statement [" <> qualifiedModelName <> "] [" <> qualifiedModelName <> "]"
         , "statement touchedFieldsList = Statement.unpreparable (sql touchedFieldsList) (encoder touchedFieldsList) decoder"
