@@ -14,7 +14,11 @@ import IHP.Controller.Session
 import qualified Network.Wai.Internal as Wai
 import qualified Data.Binary.Builder as ByteString
 import qualified Data.Set as Set
+import qualified Data.Map.Strict as Map
+import Data.Dynamic (fromDynamic)
 import IHP.ModelSupport
+import IHP.QueryBuilder.Types (QueryBuilderRead (..), QueryBuilderReadKind (..))
+import qualified IHP.ModelSupport.TableReadTracker as TableReadTracker
 import qualified Control.Exception as Exception
 import qualified Control.Concurrent.MVar as MVar
 import qualified Data.Maybe as Maybe
@@ -34,6 +38,10 @@ import IHP.Environment (Environment(..))
 {-# NOINLINE globalAutoRefreshServerVar #-}
 globalAutoRefreshServerVar :: MVar.MVar (Maybe (IORef AutoRefreshServer))
 globalAutoRefreshServerVar = unsafePerformIO (MVar.newMVar Nothing)
+
+{-# NOINLINE notificationTriggerRegistrationLock #-}
+notificationTriggerRegistrationLock :: MVar.MVar ()
+notificationTriggerRegistrationLock = unsafePerformIO (MVar.newMVar ())
 
 getOrCreateAutoRefreshServer :: (?request :: Request) => IO (IORef AutoRefreshServer)
 getOrCreateAutoRefreshServer =
@@ -83,12 +91,20 @@ autoRefresh runAction = do
                     -- values back into the renderView callback is enough.
                     let originalRequest = ?request
                     let renderView = \waiRequest waiRespond -> do
-                            earlyReturnMiddleware (\_ respond -> do
-                                let ?request = originalRequest
-                                let ?context = ?request
-                                let ?respond = respond
-                                action ?theAction
-                                ) waiRequest waiRespond
+                            withAutoRefreshReadTracker do
+                                result <- earlyReturnMiddleware (\_ respond -> do
+                                    let ?request = originalRequest
+                                    let ?context = ?request
+                                    let ?respond = respond
+                                    action ?theAction
+                                    ) waiRequest waiRespond
+                                readDependencies <- readIORef ?autoRefreshReadDependencies
+                                commitAutoRefreshReadDependencies
+                                    (registerNewNotificationTriggers ?touchedTables autoRefreshServer)
+                                    autoRefreshServer
+                                    id
+                                    readDependencies
+                                pure result
 
                     -- We save the allowed session ids to the session cookie to only grant a client access
                     -- to sessions it initially opened itself
@@ -96,21 +112,23 @@ autoRefresh runAction = do
                     -- Otherwise you might try to guess session UUIDs to access other peoples auto refresh sessions
                     setSession "autoRefreshSessions" (map UUID.toText (id:availableSessions) |> Text.intercalate "")
 
-                    withTableReadTracker do
+                    withAutoRefreshReadTracker do
                         (result, capturedResponse) <- captureResponseBody ?respond \respond -> do
                             let ?respond = respond
                             runAction
 
                         -- After the action completes, set up the auto refresh session
-                        tables <- readIORef ?touchedTables
+                        readDependencies <- readIORef ?autoRefreshReadDependencies
+                        let tables = Map.keysSet readDependencies
                         lastPing <- getCurrentTime
                         case capturedResponse of
                             Just lastResponse -> do
                                 event <- MVar.newEmptyMVar
-                                let session = AutoRefreshSession { id, renderView, event, tables, lastResponse, lastPing }
-                                modifyIORef' autoRefreshServer (\s -> s { sessions = session:s.sessions } )
-                                async (gcSessions autoRefreshServer)
+                                let session = TrackedAutoRefreshSession { id, renderView, event, tables, readDependencies, lastResponse, lastPing }
                                 registerNotificationTrigger ?touchedTables autoRefreshServer
+                                atomicModifyIORef' autoRefreshServer (\s -> (s { sessions = session:s.sessions }, ()))
+                                _ <- async (gcSessions autoRefreshServer)
+                                pure ()
                             Nothing -> pure () -- Response wasn't a builder type, can't do auto refresh
 
                         pure result
@@ -128,7 +146,9 @@ instance WSApp AutoRefreshWSApp where
         availableSessions <- getAvailableSessions autoRefreshServer
 
         when (sessionId `elem` availableSessions) do
-            AutoRefreshSession { renderView, event } <- getSessionById autoRefreshServer sessionId
+            session <- getSessionById autoRefreshServer sessionId
+            let renderView = session.renderView
+            let event = session.event
 
             let handleOtherException :: SomeException -> IO ()
                 handleOtherException ex = ?context.frameworkConfig.logger (toLogStr ("AutoRefresh: Failed to re-render view: " <> tshow ex))
@@ -164,7 +184,7 @@ instance WSApp AutoRefreshWSApp where
         getState >>= \case
             AutoRefreshActive { sessionId } -> do
                 autoRefreshServer <- getOrCreateAutoRefreshServer
-                modifyIORef' autoRefreshServer (\server -> server { sessions = filter (\AutoRefreshSession { id } -> id /= sessionId) server.sessions })
+                atomicModifyIORef' autoRefreshServer (\server -> (server { sessions = filter (\session -> session.id /= sessionId) server.sessions }, ()))
             AwaitingSessionID -> pure ()
 
 
@@ -186,47 +206,139 @@ captureResponseBody originalRespond action = do
     captured <- readIORef bodyRef
     pure (result, captured)
 
+-- | Maximum structured reads retained for a table in one rendered response.
+-- Above this limit AutoRefresh falls back to a constant-size whole-table
+-- dependency instead of retaining an unbounded number of encoder closures.
+maxAutoRefreshQueryBuilderReadsPerTable :: Int
+maxAutoRefreshQueryBuilderReadsPerTable = 64
+
+-- | Maximum returned keys retained for one row query.
+maxAutoRefreshPrimaryKeysPerRead :: Int
+maxAutoRefreshPrimaryKeysPerRead = 1024
+
+-- | Track reads for AutoRefresh without changing the public ModelContext or
+-- 'withTableReadTracker' APIs. Dependencies are aggregated and bounded while
+-- the action runs, rather than collecting an unbounded intermediate list.
+withAutoRefreshReadTracker :: (?modelContext :: ModelContext)
+    => (( ?modelContext :: ModelContext
+        , ?touchedTables :: IORef (Set Text)
+        , ?autoRefreshReadDependencies :: IORef (Map.Map Text AutoRefreshReadDependency)
+        ) => IO a)
+    -> IO a
+withAutoRefreshReadTracker trackedSection = do
+    touchedTablesVar <- newIORef Set.empty
+    readDependenciesVar <- newIORef Map.empty
+    let trackTableReadCallback tableName =
+            atomicModifyIORef' touchedTablesVar (\tables -> (Set.insert tableName tables, ()))
+    let collectRead trackedRead =
+            atomicModifyIORef' readDependenciesVar (\dependencies -> (addTrackedRead trackedRead dependencies, ()))
+    let oldModelContext = ?modelContext
+    let ?modelContext = oldModelContext { trackTableReadCallback = Just trackTableReadCallback }
+    let ?touchedTables = touchedTablesVar
+    let ?autoRefreshReadDependencies = readDependenciesVar
+    TableReadTracker.withTrackedTableReadCallback trackTableReadCallback collectRead trackedSection
+
+addTrackedRead :: TableReadTracker.TrackedTableRead -> Map.Map Text AutoRefreshReadDependency -> Map.Map Text AutoRefreshReadDependency
+addTrackedRead trackedRead dependencies = case trackedRead of
+    TableReadTracker.TrackedWholeTableRead tableName ->
+        addWholeTableReadDependency tableName dependencies
+    TableReadTracker.TrackedStructuredTableRead tableName dynamicRead ->
+        case fromDynamic @QueryBuilderRead dynamicRead of
+            Nothing -> addWholeTableReadDependency tableName dependencies
+            Just queryBuilderRead -> addQueryBuilderReadDependency tableName queryBuilderRead dependencies
+
+-- | A manual or unknown read is absorbing for the table.
+addWholeTableReadDependency :: Text -> Map.Map Text AutoRefreshReadDependency -> Map.Map Text AutoRefreshReadDependency
+addWholeTableReadDependency tableName =
+    Map.insert tableName AutoRefreshWholeTable
+
+-- | Add a bounded structured read. Row reads without canonical returned keys,
+-- oversized result sets, and tables exceeding the read limit safely degrade to
+-- a whole-table dependency and release all retained queries for that table.
+addQueryBuilderReadDependency :: Text -> QueryBuilderRead -> Map.Map Text AutoRefreshReadDependency -> Map.Map Text AutoRefreshReadDependency
+addQueryBuilderReadDependency tableName queryBuilderRead =
+    Map.alter addRead tableName
+    where
+        addRead _ | cannotRetainRead = Just AutoRefreshWholeTable
+        addRead Nothing = Just (AutoRefreshQueryBuilderReads [queryBuilderRead])
+        addRead (Just AutoRefreshWholeTable) = Just AutoRefreshWholeTable
+        addRead (Just (AutoRefreshQueryBuilderReads queryReads))
+            | length queryReads >= maxAutoRefreshQueryBuilderReadsPerTable = Just AutoRefreshWholeTable
+            | otherwise = Just (AutoRefreshQueryBuilderReads (queryBuilderRead:queryReads))
+
+        cannotRetainRead = case queryBuilderRead.queryBuilderReadKind of
+            QueryBuilderRows ->
+                null queryBuilderRead.queryBuilderPrimaryKeyColumns
+                || case queryBuilderRead.queryBuilderResultPrimaryKeys of
+                    Nothing -> True
+                    Just primaryKeys -> length primaryKeys > maxAutoRefreshPrimaryKeysPerRead
+            QueryBuilderCount -> False
+            QueryBuilderExists -> False
+
+-- | Register every new table first and only then publish the new dependency
+-- snapshot. If registration throws, the session continues to describe the HTML
+-- that is still displayed by the client.
+commitAutoRefreshReadDependencies
+    :: IO ()
+    -> IORef AutoRefreshServer
+    -> UUID
+    -> Map.Map Text AutoRefreshReadDependency
+    -> IO ()
+commitAutoRefreshReadDependencies registerNewTables autoRefreshServer sessionId readDependencies = do
+    registerNewTables
+    updateSession autoRefreshServer sessionId (setAutoRefreshReadDependencies readDependencies)
+
+-- | Register tables touched by a rerender. Production registration skips
+-- already subscribed tables; development registration deliberately reinstalls
+-- their idempotent trigger SQL because @make db@ may have recreated the DB.
+registerNewNotificationTriggers :: (?modelContext :: ModelContext, ?request :: Request) => IORef (Set Text) -> IORef AutoRefreshServer -> IO ()
+registerNewNotificationTriggers = registerNotificationTrigger
+
 registerNotificationTrigger :: (?modelContext :: ModelContext, ?request :: Request) => IORef (Set Text) -> IORef AutoRefreshServer -> IO ()
-registerNotificationTrigger touchedTablesVar autoRefreshServer = do
-    touchedTables <- Set.toList <$> readIORef touchedTablesVar
-    subscribedTables <- (.subscribedTables) <$> (autoRefreshServer |> readIORef)
+registerNotificationTrigger touchedTablesVar autoRefreshServer =
+    MVar.withMVar notificationTriggerRegistrationLock \_ -> do
+        touchedTables <- Set.toList <$> readIORef touchedTablesVar
+        subscribedTables <- (.subscribedTables) <$> readIORef autoRefreshServer
 
-    let subscriptionRequired = touchedTables |> filter (\table -> subscribedTables |> Set.notMember table)
+        let subscriptionRequired = touchedTables |> filter (\table -> subscribedTables |> Set.notMember table)
 
-    -- In development, always re-run trigger SQL for all touched tables because
-    -- `make db` drops and recreates the database, destroying triggers that were
-    -- previously installed. The trigger SQL is idempotent so re-running is safe.
-    -- In production, only install triggers for newly seen tables.
-    let isDevelopment = ?request.frameworkConfig.environment == Development
+        -- In development, always re-run trigger SQL for all touched tables because
+        -- `make db` drops and recreates the database, destroying triggers that were
+        -- previously installed. The trigger SQL is idempotent so re-running is safe.
+        -- In production, only install triggers for newly seen tables.
+        let isDevelopment = ?request.frameworkConfig.environment == Development
 
-    modifyIORef' autoRefreshServer (\server -> server { subscribedTables = server.subscribedTables <> Set.fromList subscriptionRequired })
-
-    pgListener <- (.pgListener) <$> readIORef autoRefreshServer
-    subscriptions <- subscriptionRequired |> mapM (\table -> do
-        -- We need to add the trigger from the main IHP database role other we will get this error:
-        -- ERROR:  permission denied for schema public
-        withRowLevelSecurityDisabled do
-            let pool = ?modelContext.hasqlPool
-            runSessionHasql pool (HasqlSession.script (notificationTriggerSQL table))
-
-        pgListener |> PGListener.subscribe (channelName table) \notification -> do
-                sessions <- (.sessions) <$> readIORef autoRefreshServer
-                sessions
-                    |> filter (\session -> table `Set.member` session.tables)
-                    |> map (\session -> session.event)
-                    |> mapM (\event -> MVar.tryPutMVar event ())
-                pure ())
-
-    -- Re-run trigger SQL for already-subscribed tables in dev mode
-    when isDevelopment do
-        let alreadySubscribed = touchedTables |> filter (\table -> subscribedTables |> Set.member table)
-        forM_ alreadySubscribed \table -> do
+        pgListener <- (.pgListener) <$> readIORef autoRefreshServer
+        forM_ subscriptionRequired \table -> do
+            -- We need to add the trigger from the main IHP database role other we will get this error:
+            -- ERROR:  permission denied for schema public
             withRowLevelSecurityDisabled do
                 let pool = ?modelContext.hasqlPool
                 runSessionHasql pool (HasqlSession.script (notificationTriggerSQL table))
 
-    modifyIORef' autoRefreshServer (\s -> s { subscriptions = s.subscriptions <> subscriptions })
-    pure ()
+            subscription <- pgListener |> PGListener.subscribe (channelName table) \_notification -> do
+                    sessions <- (.sessions) <$> readIORef autoRefreshServer
+                    sessions
+                        |> filter (\session -> table `Set.member` session.tables)
+                        |> map (\session -> session.event)
+                        |> mapM (\event -> MVar.tryPutMVar event ())
+                    pure ()
+
+            atomicModifyIORef' autoRefreshServer \server ->
+                ( server
+                    { subscriptions = server.subscriptions <> [subscription]
+                    , subscribedTables = Set.insert table server.subscribedTables
+                    }
+                , ()
+                )
+
+        -- Re-run trigger SQL for already-subscribed tables in dev mode
+        when isDevelopment do
+            let alreadySubscribed = touchedTables |> filter (\table -> subscribedTables |> Set.member table)
+            forM_ alreadySubscribed \table -> do
+                withRowLevelSecurityDisabled do
+                    let pool = ?modelContext.hasqlPool
+                    runSessionHasql pool (HasqlSession.script (notificationTriggerSQL table))
 
 -- | Returns the ids of all sessions available to the client based on what sessions are found in the session cookie
 getAvailableSessions :: (?request :: Request) => IORef AutoRefreshServer -> IO [UUID]
@@ -246,7 +358,7 @@ getSessionById :: IORef AutoRefreshServer -> UUID -> IO AutoRefreshSession
 getSessionById autoRefreshServer sessionId = do
     autoRefreshServer <- readIORef autoRefreshServer
     autoRefreshServer.sessions
-        |> find (\AutoRefreshSession { id } -> id == sessionId)
+        |> find (\session -> session.id == sessionId)
         |> Maybe.fromMaybe (error "getSessionById: Could not find the session")
         |> pure
 
@@ -254,8 +366,7 @@ getSessionById autoRefreshServer sessionId = do
 updateSession :: IORef AutoRefreshServer -> UUID -> (AutoRefreshSession -> AutoRefreshSession) -> IO ()
 updateSession server sessionId updateFunction = do
     let updateSession' session = if session.id == sessionId then updateFunction session else session
-    modifyIORef' server (\server -> server { sessions = map updateSession' server.sessions })
-    pure ()
+    atomicModifyIORef' server (\server -> (server { sessions = map updateSession' server.sessions }, ()))
 
 -- | Returns 'True' when the rendered html differs from the session's latest
 -- known response.
@@ -276,11 +387,11 @@ sessionResponseHasChanged autoRefreshServer sessionId html = do
 gcSessions :: IORef AutoRefreshServer -> IO ()
 gcSessions autoRefreshServer = do
     now <- getCurrentTime
-    modifyIORef' autoRefreshServer (\autoRefreshServer -> autoRefreshServer { sessions = filter (not . isSessionExpired now) autoRefreshServer.sessions })
+    atomicModifyIORef' autoRefreshServer (\server -> (server { sessions = filter (not . isSessionExpired now) server.sessions }, ()))
 
 -- | A session is expired if it was not pinged in the last 60 seconds
 isSessionExpired :: UTCTime -> AutoRefreshSession -> Bool
-isSessionExpired now AutoRefreshSession { lastPing } = (now `diffUTCTime` lastPing) > (secondsToNominalDiffTime 60)
+isSessionExpired now session = (now `diffUTCTime` session.lastPing) > (secondsToNominalDiffTime 60)
 
 -- | Returns the event name of the event that the pg notify trigger dispatches
 channelName :: Text -> ByteString

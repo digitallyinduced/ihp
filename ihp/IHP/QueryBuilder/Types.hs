@@ -14,6 +14,9 @@ module IHP.QueryBuilder.Types
 , OrderByDirection (..)
 , FilterOperator (..)
 , MatchSensitivity (..)
+, QueryBuilderRead (..)
+, QueryBuilderReadKind (..)
+, QueryBuilderPrimaryKey (..)
   -- * Helpers
 , addCondition
 , qualifyAndJoinColumns
@@ -31,6 +34,7 @@ import qualified GHC.Generics
 import qualified Hasql.Encoders as Encoders
 import qualified Prelude
 import qualified Data.Text as Text
+import qualified Data.Aeson as Aeson
 
 -- | Represents whether string matching should be case-sensitive or not
 data MatchSensitivity = CaseSensitive | CaseInsensitive deriving (Show, Eq)
@@ -156,6 +160,42 @@ data SQLQuery = SQLQuery
     -- Built once at query construction time so the compiler avoids re-qualifying
     -- and re-joining the column list on every compilation.
     } deriving (Show)
+
+-- | Describes how a QueryBuilder query contributed to a rendered response.
+--
+-- AutoRefresh retains this value so it can later decide whether a row change
+-- can affect the rendered result without reconstructing query semantics from
+-- rendered SQL.
+data QueryBuilderRead = QueryBuilderRead
+    { trackedSqlQuery :: !SQLQuery
+    , queryBuilderReadKind :: !QueryBuilderReadKind
+    -- | Canonical database column names making up the table's primary key.
+    , queryBuilderPrimaryKeyColumns :: ![Text]
+    -- | Primary keys returned by a row fetch. 'Nothing' means that this result
+    -- shape has no row identity (e.g. count/exists), or the table has no key.
+    , queryBuilderResultPrimaryKeys :: !(Maybe [QueryBuilderPrimaryKey])
+    } deriving (Show)
+
+instance Eq QueryBuilderRead where
+    first == second =
+        sqlQueryEq first.trackedSqlQuery second.trackedSqlQuery
+        && first.queryBuilderReadKind == second.queryBuilderReadKind
+        && first.queryBuilderPrimaryKeyColumns == second.queryBuilderPrimaryKeyColumns
+        && first.queryBuilderResultPrimaryKeys == second.queryBuilderResultPrimaryKeys
+
+-- | A primary key as database JSON values in canonical column order.
+-- This represents scalar, custom-column, and composite primary keys without
+-- adding constraints to the public Fetchable API.
+newtype QueryBuilderPrimaryKey = QueryBuilderPrimaryKey
+    { primaryKeyValues :: [Aeson.Value]
+    } deriving (Eq, Show)
+
+-- | The result shape consumed from a tracked QueryBuilder query.
+data QueryBuilderReadKind
+    = QueryBuilderRows
+    | QueryBuilderCount
+    | QueryBuilderExists
+    deriving (Eq, Show)
 
 
 instance SetField "selectFrom" SQLQuery Text where setField value sqlQuery = sqlQuery { selectFrom = value }

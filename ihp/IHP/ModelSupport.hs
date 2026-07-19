@@ -72,6 +72,7 @@ import IHP.Hasql.FromRow (FromRowHasql(..), HasqlDecodeColumn(..))
 import IHP.Hasql.Encoders (ToSnippetParams(..), sqlToSnippet)
 import IHP.Hasql.Pool (usePoolWithRetry)
 import IHP.PGSimpleCompat ()
+import qualified IHP.ModelSupport.TableReadTracker as TableReadTracker
 
 -- | Provides a mock ModelContext to be used when a database connection is not available
 notConnectedModelContext :: FastLogger -> ModelContext
@@ -918,7 +919,9 @@ instance Default Aeson.Value where
 --
 trackTableRead :: (?modelContext :: ModelContext) => Text -> IO ()
 trackTableRead tableName = case ?modelContext.trackTableReadCallback of
-    Just callback -> callback tableName
+    Just callback -> do
+        callback tableName
+        TableReadTracker.trackWholeTableRead callback tableName
     Nothing -> pure ()
 {-# INLINABLE trackTableRead #-}
 
@@ -1055,4 +1058,3 @@ withoutQueryLogging callback =
         let ?modelContext = modelContext { logger = noopLogger }
         in
             callback
-

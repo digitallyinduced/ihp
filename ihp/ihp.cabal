@@ -289,6 +289,8 @@ library
     autogen-modules: Paths_ihp
     other-modules:
         Paths_ihp
+        IHP.ModelSupport.TableReadTracker
+        IHP.QueryBuilder.Tracking
 
 source-repository head
     type:     git
