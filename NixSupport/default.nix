@@ -413,23 +413,35 @@ CABAL_EOF
         '';
     });
 
-    appLibPackageBase = pkgs.haskell.lib.disableLibraryProfiling (pkgs.haskell.lib.dontHaddock (
+    mkAppLibPackage = withIntermediates: pkgs.haskell.lib.disableLibraryProfiling (pkgs.haskell.lib.dontHaddock (
         ghc.callPackage ({ mkDerivation, base }: mkDerivation {
             pname = "${appName}-lib";
             version = "0.1.0";
             src = appLibSrc;
             libraryHaskellDepends = [ base modelsPackage ] ++ builtins.filter (p: p != null) (haskellDeps ghc);
-            doInstallIntermediates = optimized;
-            enableSeparateIntermediatesOutput = optimized;
+            doInstallIntermediates = withIntermediates;
+            enableSeparateIntermediatesOutput = withIntermediates;
             inherit previousIntermediates;
             license = pkgs.lib.licenses.free;
         }) {}
     ));
 
-    appLibPackage =
+    withAppLibPostgres = pkg:
         if buildWithPostgres
-        then withBuildTimePostgres appLibPackageBase
-        else appLibPackageBase;
+        then withBuildTimePostgres pkg
+        else pkg;
+
+    # The executables link against a lib variant WITHOUT the intermediates
+    # output: a nix remote builder copies back every output of each derivation
+    # it builds, so the multi-GB .hi/.o tree would otherwise travel with every
+    # offloaded build even though only the next incremental compile needs it.
+    # The with-intermediates variant exists solely to seed that next build; it
+    # is published as passthru.appLibPackage so existing flakes that reference
+    # .intermediates (the optimized-app-lib-intermediates output consumed via
+    # the prevBuild input, including older revisions of consuming repos) keep
+    # evaluating unchanged.
+    appLibPackage = withAppLibPostgres (mkAppLibPackage false);
+    appLibPackageWithIntermediates = withAppLibPostgres (mkAppLibPackage optimized);
 
     allHaskellPackagesWithAppLib = ghc.ghcWithPackages (p: [ appLibPackage ]);
 
@@ -576,7 +588,14 @@ in
     pkgs.runCommand appName {
         inherit static binaries;
         nativeBuildInputs = [ pkgs.makeWrapper ];
-        passthru = { inherit appLibPackage scriptBinaries; migrationCheck = effectiveMigrationCheck; };
+        # appLibPackage stays the with-intermediates variant here: consumers
+        # reach it as passthru.appLibPackage.intermediates (see mkAppLibPackage).
+        passthru = {
+            appLibPackage = appLibPackageWithIntermediates;
+            appLibPackageForExecutables = appLibPackage;
+            inherit scriptBinaries;
+            migrationCheck = effectiveMigrationCheck;
+        };
     } ''
             test -e ${effectiveMigrationCheck}
 
