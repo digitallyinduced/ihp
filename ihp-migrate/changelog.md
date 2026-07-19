@@ -4,6 +4,7 @@
 
 - Show the actual error message when a migration fails
 - Fail when duplicate migration timestamps are detected
+- Run standalone `CREATE EXTENSION IF NOT EXISTS` migrations through the optional `DATABASE_ADMIN_URL` connection
 
 ## v1.5.0
 

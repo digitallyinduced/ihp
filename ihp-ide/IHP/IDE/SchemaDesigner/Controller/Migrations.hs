@@ -52,6 +52,7 @@ instance Controller MigrationsController where
         let description = paramOrDefault "" "description"
         let sqlStatements = paramOrNothing "sqlStatements"
         (revision, plan) <- MigrationGenerator.buildPlan description sqlStatements
+        let paths = MigrationGenerator.migrationPathsFromPlan plan
         let path = MigrationGenerator.migrationPathFromPlan plan
 
         executePlan plan
@@ -59,7 +60,10 @@ instance Controller MigrationsController where
         let createOnly = paramOrDefault False "createOnly"
         if createOnly
             then do
-                setSuccessMessage ("Migration generated: " <> path)
+                setSuccessMessage (case paths of
+                    [_] -> "Migration generated: " <> intercalate ", " paths
+                    _ -> "Migrations generated: " <> intercalate ", " paths
+                    )
                 openEditor path 0 0
                 redirectTo MigrationsAction
             else do

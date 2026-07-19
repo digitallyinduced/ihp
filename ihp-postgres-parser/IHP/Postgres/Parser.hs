@@ -5,6 +5,9 @@ Copyright: (c) digitally induced GmbH, 2020
 -}
 module IHP.Postgres.Parser
 ( parseSqlFile
+, parseSqlText
+, parseCreateExtensionMigration
+, containsCreateExtensionStatement
 , parseDDL
 , expression
 , sqlType
@@ -22,7 +25,8 @@ import Data.String.Conversions (cs)
 import Data.Maybe (isJust, catMaybes, isNothing, listToMaybe)
 import Data.Either (lefts, rights)
 import Data.Functor (($>))
-import Data.Char (isAlphaNum)
+import Data.Char (isAlpha, isAlphaNum, isSpace, toLower)
+import qualified Data.List as List
 import Control.Monad (when)
 import Text.Megaparsec
 import Data.Void
@@ -41,10 +45,165 @@ parseSqlFile :: OsPath -> IO (Either ByteString [Statement])
 parseSqlFile schemaFilePath = do
     fp <- decodeUtf schemaFilePath
     schemaSql <- Text.readFile fp
-    let result = runParser parseDDL fp schemaSql
-    case result of
-        Left error -> pure (Left (cs $ errorBundlePretty error))
-        Right r -> pure (Right r)
+    pure (parseSqlWithSource fp schemaSql)
+
+-- | Parses SQL text into statements.
+parseSqlText :: Text -> Either ByteString [Statement]
+parseSqlText = parseSqlWithSource "input"
+
+parseSqlWithSource :: FilePath -> Text -> Either ByteString [Statement]
+parseSqlWithSource source sql =
+    let result = runParser parseDDL source sql
+    in case result of
+        Left error -> Left (cs $ errorBundlePretty error)
+        Right statements -> Right statements
+
+-- | Parses a migration containing only @CREATE EXTENSION@ statements.
+--
+-- Comments and whitespace are allowed, but every executable statement must be
+-- a @CREATE EXTENSION@. This parser is deliberately separate from 'parseDDL':
+-- it is used as a privilege boundary by @ihp-migrate@ and therefore fails
+-- closed when it encounters any other statement.
+parseCreateExtensionMigration :: Text -> Either ByteString [Statement]
+parseCreateExtensionMigration sql =
+    case runParser createExtensionMigration "migration" sql of
+        Left error -> Left (cs $ errorBundlePretty error)
+        Right statements -> Right statements
+
+createExtensionMigration :: Parser [Statement]
+createExtensionMigration =
+    extensionSpaceConsumer
+        *> some (createExtensionForMigration <* extensionSpaceConsumer)
+        <* eof
+
+createExtensionForMigration :: Parser Statement
+createExtensionForMigration = do
+    extensionKeyword "CREATE"
+    extensionKeyword "EXTENSION"
+    ifNotExists <- isJust <$> optional do
+        extensionKeyword "IF"
+        extensionKeyword "NOT"
+        extensionKeyword "EXISTS"
+    name <- extensionIdentifier
+    optional (extensionKeyword "WITH")
+    optional do
+        extensionKeyword "SCHEMA"
+        extensionIdentifier
+    optional do
+        extensionKeyword "VERSION"
+        extensionVersion
+    optional (extensionKeyword "CASCADE")
+    extensionSymbol ";"
+    pure CreateExtension { name, ifNotExists }
+
+extensionSpaceConsumer :: Parser ()
+extensionSpaceConsumer = Lexer.space
+    space1
+    (Lexer.skipLineComment "--")
+    (Lexer.skipBlockCommentNested "/*" "*/")
+
+extensionLexeme :: Parser a -> Parser a
+extensionLexeme = Lexer.lexeme extensionSpaceConsumer
+
+extensionKeyword :: Text -> Parser ()
+extensionKeyword keyword = extensionLexeme (string' keyword <* notFollowedBy (satisfy isIdentifierCharacter)) $> ()
+
+extensionSymbol :: Text -> Parser ()
+extensionSymbol value = extensionLexeme (string value) $> ()
+
+extensionIdentifier :: Parser Text
+extensionIdentifier = extensionLexeme (quotedIdentifier <|> unquotedIdentifier)
+    where
+        quotedIdentifier = Text.pack <$> between (char '"') (char '"') (some quotedIdentifierCharacter)
+        quotedIdentifierCharacter = try (string "\"\"" $> '"') <|> satisfy (/= '"')
+        unquotedIdentifier = do
+            firstCharacter <- satisfy (\character -> isAlpha character || character == '_')
+            remainingCharacters <- many (satisfy isIdentifierCharacter)
+            pure (Text.toLower (Text.pack (firstCharacter : remainingCharacters)))
+
+extensionVersion :: Parser ()
+extensionVersion = extensionLexeme (quotedVersion <|> unquotedVersion) $> ()
+    where
+        quotedVersion = between (char '\'') (char '\'') (many quotedVersionCharacter)
+        quotedVersionCharacter = try (string "''" $> '\'') <|> satisfy (/= '\'')
+        unquotedVersion = some (satisfy isIdentifierCharacter)
+
+isIdentifierCharacter :: Char -> Bool
+isIdentifierCharacter character = isAlphaNum character || character == '_' || character == '$'
+
+-- | Returns 'True' when SQL contains a top-level @CREATE EXTENSION@ token
+-- sequence. Quoted strings, quoted identifiers, dollar-quoted bodies, and SQL
+-- comments are ignored. It is used only to reject mixed or unsupported
+-- extension migrations; a positive match never causes SQL to run with elevated
+-- privileges unless 'parseCreateExtensionMigration' also accepts the full file.
+containsCreateExtensionStatement :: Text -> Bool
+containsCreateExtensionStatement = scan True . Text.unpack
+    where
+        scan _ [] = False
+        scan statementStart ('-' : '-' : rest) = scan statementStart (dropLineComment rest)
+        scan statementStart ('/' : '*' : rest) = scan statementStart (dropBlockComment 1 rest)
+        scan _ ('\'' : rest) = scan False (dropQuoted '\'' rest)
+        scan _ ('"' : rest) = scan False (dropQuoted '"' rest)
+        scan statementStart ('$' : rest) = case dollarQuoteDelimiter rest of
+            Just (delimiter, afterDelimiter) -> scan False (dropDollarQuoted delimiter afterDelimiter)
+            Nothing -> scan False rest
+        scan _ (';' : rest) = scan True rest
+        scan statementStart input@(character : rest)
+            | isSpace character = scan statementStart rest
+            | isAlpha character || character == '_' =
+                let (wordRest, remaining) = span isIdentifierCharacter rest
+                    keyword = map toLower (character : wordRest)
+                in if statementStart && keyword == "create" && startsWithExtension remaining
+                    then True
+                    else scan False remaining
+            | otherwise = scan False (drop 1 input)
+
+        startsWithExtension input =
+            case dropSqlTrivia input of
+                character : rest
+                    | isAlpha character || character == '_' ->
+                        let (wordRest, _) = span isIdentifierCharacter rest
+                        in map toLower (character : wordRest) == "extension"
+                _ -> False
+
+dropSqlTrivia :: String -> String
+dropSqlTrivia input =
+    case dropWhile isSpace input of
+        '-' : '-' : rest -> dropSqlTrivia (dropLineComment rest)
+        '/' : '*' : rest -> dropSqlTrivia (dropBlockComment 1 rest)
+        rest -> rest
+
+dropLineComment :: String -> String
+dropLineComment = drop 1 . dropWhile (/= '\n')
+
+dropBlockComment :: Int -> String -> String
+dropBlockComment _ [] = []
+dropBlockComment depth ('/' : '*' : rest) = dropBlockComment (depth + 1) rest
+dropBlockComment 1 ('*' : '/' : rest) = rest
+dropBlockComment depth ('*' : '/' : rest) = dropBlockComment (depth - 1) rest
+dropBlockComment depth (_ : rest) = dropBlockComment depth rest
+
+dropQuoted :: Char -> String -> String
+dropQuoted _ [] = []
+dropQuoted quote (character : next : rest)
+    | character == quote && next == quote = dropQuoted quote rest
+    | character == '\\' = dropQuoted quote rest
+dropQuoted quote (character : rest)
+    | character == quote = rest
+    | otherwise = dropQuoted quote rest
+
+dollarQuoteDelimiter :: String -> Maybe (String, String)
+dollarQuoteDelimiter rest =
+    let (tag, remaining) = span (\character -> isAlphaNum character || character == '_') rest
+    in case remaining of
+        '$' : afterDelimiter -> Just ("$" <> tag <> "$", afterDelimiter)
+        _ -> Nothing
+
+dropDollarQuoted :: String -> String -> String
+dropDollarQuoted _ [] = []
+dropDollarQuoted delimiter input
+    | delimiter `List.isPrefixOf` input = drop (length delimiter) input
+dropDollarQuoted delimiter (_ : rest) = dropDollarQuoted delimiter rest
 
 type Parser = Parsec Void Text
 
@@ -91,7 +250,7 @@ createExtension = do
         lexeme "SCHEMA"
         lexeme "public"
     char ';'
-    pure CreateExtension { name, ifNotExists = True }
+    pure CreateExtension { name, ifNotExists }
 
 createTable = do
     lexeme "CREATE"
