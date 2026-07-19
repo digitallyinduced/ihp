@@ -1,6 +1,8 @@
 module Test.TypedSqlSpec where
 
+import           Control.Concurrent                 (threadDelay)
 import qualified Control.Exception                 as Exception
+import qualified Data.List                         as List
 import qualified Data.Set                          as Set
 import qualified Data.Text                         as Text
 import qualified Data.Text.IO                      as Text
@@ -14,16 +16,35 @@ import           IHP.TypedSql.ParamHints           (parseSql, extractJoinNullabl
                                                     detectStarSelects,
                                                     detectInsertWithoutColumns)
 import           System.Directory                  (createDirectoryIfMissing,
+                                                    doesDirectoryExist,
                                                     doesFileExist,
                                                     findExecutable,
-                                                    getCurrentDirectory)
+                                                    getCurrentDirectory,
+                                                    listDirectory,
+                                                    removePathForcibly,
+                                                    renameFile)
 import           System.Environment                (getEnvironment, lookupEnv)
-import           System.FilePath                   (takeDirectory)
-import           System.Process                    (CreateProcess (..), proc,
-                                                    readCreateProcessWithExitCode)
+import           System.Exit                       (ExitCode (..))
+import           System.FilePath                   (searchPathSeparator,
+                                                    takeDirectory)
+import           System.IO                         (Handle, hClose, hFlush)
 import           System.IO.Temp.OsPath              (withSystemTempDirectory)
 import           System.OsPath                     (encodeUtf, decodeUtf)
+import           System.Posix.Files                (setFileMode)
+import           System.Posix.Signals              (nullSignal, signalProcess,
+                                                    sigCONT, sigKILL)
+import           System.Process                    (CreateProcess (..), ProcessHandle,
+                                                    StdStream (CreatePipe, Inherit, NoStream),
+                                                    createProcess,
+                                                    getProcessExitCode,
+                                                    getPid,
+                                                    interruptProcessGroupOf, proc,
+                                                    readCreateProcessWithExitCode,
+                                                    readProcessWithExitCode,
+                                                    terminateProcess, waitForProcess)
+import           System.Timeout                    (timeout)
 import           Test.Hspec
+import           Text.Read                         (readMaybe)
 import qualified Prelude
 
 tests :: Spec
@@ -195,30 +216,365 @@ tests = do
             sqlExecTypedSelectCompileFailModule
             ["sqlExecTyped cannot run SQL statements that return rows"]
 
-        it "auto-starts a temporary database when DATABASE_URL is unreachable" do
-            maybeInitdb <- findExecutable "initdb"
-            when (isNothing maybeInitdb) do
-                pendingWith "requires PostgreSQL tools on PATH"
+        it "rebuilds one compact private cluster across schema changes" do
+            requireAutoDatabaseTools
+            withAutoDatabaseFixture
+                "CREATE TABLE typed_sql_schema_before (id UUID PRIMARY KEY, name TEXT NOT NULL);\n"
+                \tempDir schemaPath stateDir envOverrides -> do
+                let modulePath = tempDir </> "ReusableTypedSqlCase.hs"
+                    firstModule = mkTestModule "TypedQuery 'AtMostOneRow 'ReturnsRows Text"
+                        "[typedSql| SELECT name FROM typed_sql_schema_before LIMIT 1 |]"
+                    secondModule = mkTestModule "TypedQuery 'AtMostOneRow 'ReturnsRows Text"
+                        "[typedSql| SELECT name FROM typed_sql_schema_after LIMIT 1 |]"
+                (inputHandle, processHandle) <- startGhciLoadProcess modulePath firstModule envOverrides
+                let cleanup = stopGhciProcess inputHandle processHandle
+                flip Exception.finally cleanup do
+                    waitForCondition 1200 ((== 1) . length <$> readyAutoDatabaseProcessRoots stateDir)
+                        `shouldReturn` True
+                    [processRoot] <- readyAutoDatabaseProcessRoots stateDir
+                    let postmasterPath = processRoot </> "pgdata" </> "postmaster.pid"
+                        schemaHashPath = processRoot </> "schema.hash"
+                    firstHash <- Prelude.readFile schemaHashPath
+                    configuration <- Prelude.readFile (processRoot </> "pgdata" </> "postgresql.conf")
+                    configuration `shouldContain` "shared_buffers = 4MB"
+                    configuration `shouldContain` "max_worker_processes = 0"
+                    databaseDirectories processRoot `shouldReturn` 1
 
-            template <- encodeUtf "typed-sql-auto-db"
-            withSystemTempDirectory template \tempOsDir -> do
-                tempDir <- decodeUtf tempOsDir
-                let applicationDir = tempDir </> "Application"
-                let schemaPath = applicationDir </> "Schema.sql"
-                createDirectoryIfMissing True applicationDir
-                Text.writeFile schemaPath "CREATE TABLE typed_sql_auto_items (id UUID PRIMARY KEY, name TEXT NOT NULL);\n"
+                    waitForCondition 300 (not <$> doesFileExist postmasterPath) `shouldReturn` True
+                    getProcessExitCode processHandle `shouldReturn` Nothing
 
-                let missingSocket = tempDir </> "missing-socket"
-                let envOverrides =
-                        [ ("DATABASE_URL", "postgresql:///app?host=" <> missingSocket)
-                        , ("IHP_TYPED_SQL_AUTO_DB", "1")
-                        , ("IHP_TYPED_SQL_SCHEMA", schemaPath)
-                        ]
-                ghciOutput <- ghciLoadModuleWithEnv
-                    (mkTestModule "TypedQuery 'AtMostOneRow 'ReturnsRows Text"
-                        "[typedSql| SELECT name FROM typed_sql_auto_items LIMIT 1 |]")
-                    envOverrides
-                assertGhciSuccess ghciOutput
+                    Text.writeFile schemaPath
+                        "CREATE TABLE typed_sql_schema_after (id UUID PRIMARY KEY, name TEXT NOT NULL);\n"
+                    Text.writeFile modulePath secondModule
+                    Text.hPutStr inputHandle (":load " <> tshow modulePath <> "\n")
+                    hFlush inputHandle
+
+                    waitForCondition 1200 (do
+                        roots <- readyAutoDatabaseProcessRoots stateDir
+                        pure $ case roots of
+                            [newRoot] -> newRoot /= processRoot
+                            _ -> False
+                        ) `shouldReturn` True
+                    [newProcessRoot] <- readyAutoDatabaseProcessRoots stateDir
+                    doesDirectoryExist processRoot `shouldReturn` False
+                    secondHash <- Prelude.readFile (newProcessRoot </> "schema.hash")
+                    secondHash `shouldNotBe` firstHash
+                    databaseDirectories newProcessRoot `shouldReturn` 1
+
+                    Text.hPutStr inputHandle ":quit\n"
+                    hFlush inputHandle
+                    exited <- timeout 10000000 (waitForProcess processHandle)
+                    exited `shouldSatisfy` isJust
+                    ignoreProcessException (hClose inputHandle)
+                    removed <- waitForCondition 400 (null <$> autoDatabaseProcessRoots stateDir)
+                    unless removed do
+                        roots <- autoDatabaseProcessRoots stateDir
+                        watchdogLogs <- forM roots \root -> do
+                            logContents <- readTestFileIfExists (root </> "watchdog.log")
+                            pure (root <> ":\n" <> fromMaybe "<missing>" logContents)
+                        expectationFailure
+                            ( "private cluster was not removed after GHCi exited"
+                                <> "\nwatchdog logs:\n"
+                                <> Prelude.unlines watchdogLogs
+                            )
+
+        it "uses isolated clusters for concurrent GHC processes" do
+            requireAutoDatabaseTools
+            withAutoDatabaseFixture
+                "CREATE TABLE typed_sql_concurrent (id UUID PRIMARY KEY, name TEXT NOT NULL);\n"
+                \tempDir _schemaPath stateDir envOverrides -> do
+                let firstModulePath = tempDir </> "ConcurrentTypedSqlCase1.hs"
+                    secondModulePath = tempDir </> "ConcurrentTypedSqlCase2.hs"
+                    testModule = mkTestModule "TypedQuery 'AtMostOneRow 'ReturnsRows Text"
+                        "[typedSql| SELECT name FROM typed_sql_concurrent LIMIT 1 |]"
+                (firstInput, firstProcess) <- startGhciLoadProcess firstModulePath testModule envOverrides
+                (secondInput, secondProcess) <- startGhciLoadProcess secondModulePath testModule envOverrides
+                let cleanup = do
+                        stopGhciProcess firstInput firstProcess
+                        stopGhciProcess secondInput secondProcess
+                flip Exception.finally cleanup do
+                    waitForCondition 1200 ((== 2) . length <$> readyAutoDatabaseProcessRoots stateDir)
+                        `shouldReturn` True
+                    roots <- readyAutoDatabaseProcessRoots stateDir
+                    ownerPids <- Prelude.traverse (Prelude.readFile . (</> "owner.pid")) roots
+                    Set.size (Set.fromList ownerPids) `shouldBe` 2
+                    getProcessExitCode firstProcess `shouldReturn` Nothing
+                    getProcessExitCode secondProcess `shouldReturn` Nothing
+
+        it "removes the private cluster when only the compiler dies during schema loading" do
+            requireAutoDatabaseTools
+            withAutoDatabaseFixture
+                "CREATE TABLE typed_sql_interrupted_placeholder (id UUID PRIMARY KEY);\n"
+                \tempDir schemaPath stateDir envOverrides -> do
+                let modulePath = tempDir </> "InterruptedTypedSqlCase.hs"
+                    schemaLoadMarker = tempDir </> "schema-load-started"
+                    testModule = mkTestModule "TypedQuery 'AtMostOneRow 'ReturnsRows Text"
+                        "[typedSql| SELECT name FROM typed_sql_interrupted LIMIT 1 |]"
+                    markerSqlPath = Text.replace "'" "''" (Text.pack schemaLoadMarker)
+                Text.writeFile schemaPath
+                    ( "CREATE TABLE typed_sql_interrupted (id UUID PRIMARY KEY, name TEXT NOT NULL);\n"
+                        <> "COPY (SELECT 'started') TO '" <> markerSqlPath <> "';\n"
+                        <> "SELECT pg_sleep(30);\n"
+                    )
+                (inputHandle, processHandle) <- startGhciLoadProcess modulePath testModule envOverrides
+                let cleanup = stopGhciProcess inputHandle processHandle
+                flip Exception.finally cleanup do
+                    waitForCondition 1200 ((== 1) . length <$> autoDatabaseProcessRoots stateDir)
+                        `shouldReturn` True
+                    [processRoot] <- autoDatabaseProcessRoots stateDir
+                    let postmasterPath = processRoot </> "pgdata" </> "postmaster.pid"
+                    waitForCondition 1200 (doesFileExist postmasterPath) `shouldReturn` True
+                    waitForCondition 1200 (doesFileExist schemaLoadMarker) `shouldReturn` True
+                    postmasterPidContents <- Prelude.readFile postmasterPath
+                    postmasterPid <- case listToMaybe (Prelude.lines postmasterPidContents) of
+                        Just processId -> pure processId
+                        Nothing -> expectationFailure "postmaster.pid did not contain a process id" >> pure ""
+                    ownerPid <- Prelude.readFile (processRoot </> "owner.pid")
+
+                    getPid processHandle >>= \case
+                        Just compilerPid ->
+                            ignoreProcessException (signalProcess sigKILL compilerPid)
+                        Nothing -> expectationFailure "GHCi process exited before it could be killed"
+                    ignoreProcessException (hClose inputHandle)
+                    exited <- timeout 5000000 (waitForProcess processHandle)
+                    when (isNothing exited) do
+                        ignoreProcessException (terminateProcess processHandle)
+                        _ <- timeout 5000000 (waitForProcess processHandle)
+                        pure ()
+
+                    waitForCondition 300 (not <$> processIsAlive ownerPid) `shouldReturn` True
+                    waitForCondition 300 (not <$> processIsAlive postmasterPid) `shouldReturn` True
+                    removed <- waitForCondition 400 (not <$> doesDirectoryExist processRoot)
+                    unless removed do
+                        watchdogLog <- readTestFileIfExists (processRoot </> "watchdog.log")
+                        expectationFailure
+                            ( "private cluster was not removed after compiler SIGKILL"
+                                <> "\nwatchdog.log:\n" <> fromMaybe "<missing>" watchdogLog
+                            )
+
+        it "removes the private cluster when only the compiler dies during initdb" do
+            requireAutoDatabaseTools
+            withAutoDatabaseFixture
+                "CREATE TABLE typed_sql_initdb_interrupted (id UUID PRIMARY KEY, name TEXT NOT NULL);\n"
+                \tempDir _schemaPath stateDir envOverrides -> do
+                realInitdb <- findExecutable "initdb" >>= \case
+                    Just path -> pure path
+                    Nothing -> expectationFailure "initdb disappeared from PATH" >> pure "initdb"
+                basePath <- fromMaybe "" <$> lookupEnv "PATH"
+                let wrapperDirectory = tempDir </> "initdb-wrapper"
+                    wrapperPath = wrapperDirectory </> "initdb"
+                    markerPath = tempDir </> "initdb-single-user-stopped"
+                    modulePath = tempDir </> "InitdbInterruptedTypedSqlCase.hs"
+                    testModule = mkTestModule "TypedQuery 'AtMostOneRow 'ReturnsRows Text"
+                        "[typedSql| SELECT name FROM typed_sql_initdb_interrupted LIMIT 1 |]"
+                    wrappedPath = wrapperDirectory <> [searchPathSeparator] <> basePath
+                    testEnvironment =
+                        setEnvironmentOverride "PATH" wrappedPath
+                            (setEnvironmentOverride "IHP_TEST_REAL_INITDB" realInitdb
+                                (setEnvironmentOverride "IHP_TEST_INITDB_MARKER" markerPath envOverrides))
+                createDirectoryIfMissing True wrapperDirectory
+                Text.writeFile wrapperPath (Text.unlines
+                    [ "#!/bin/sh"
+                    , "real_initdb=$IHP_TEST_REAL_INITDB"
+                    , "marker=$IHP_TEST_INITDB_MARKER"
+                    , "pgdata="
+                    , "previous="
+                    , "for argument in \"$@\"; do"
+                    , "  if [ \"$previous\" = -D ]; then pgdata=$argument; break; fi"
+                    , "  previous=$argument"
+                    , "done"
+                    , "\"$real_initdb\" \"$@\" &"
+                    , "initdb_pid=$!"
+                    , "if [ -n \"$pgdata\" ]; then"
+                    , "  while kill -0 \"$initdb_pid\" 2>/dev/null; do"
+                    , "    backend_pid="
+                    , "    [ -f \"$pgdata/postmaster.pid\" ] && IFS= read -r backend_pid < \"$pgdata/postmaster.pid\" || true"
+                    , "    case \"$backend_pid\" in"
+                    , "      -[0-9]*)"
+                    , "        backend_pid=${backend_pid#-}"
+                    , "        if kill -STOP \"$backend_pid\" 2>/dev/null; then"
+                    , "          echo \"$$ $initdb_pid $backend_pid\" > \"$marker\""
+                    , "          break"
+                    , "        fi"
+                    , "        ;;"
+                    , "    esac"
+                    , "    sleep 0.01"
+                    , "  done"
+                    , "fi"
+                    , "wait \"$initdb_pid\""
+                    ])
+                setFileMode wrapperPath 0o700
+
+                (inputHandle, processHandle) <- startGhciLoadProcess modulePath testModule testEnvironment
+                let cleanup = stopGhciProcess inputHandle processHandle
+                flip Exception.finally cleanup do
+                    waitForCondition 1200 (doesFileExist markerPath) `shouldReturn` True
+                    markerContents <- Prelude.readFile markerPath
+                    (wrapperPid, initdbPid, backendPid) <- case Prelude.words markerContents of
+                        [wrapper, initdb, backend] -> pure (wrapper, initdb, backend)
+                        _ -> expectationFailure ("invalid initdb marker: " <> markerContents) >> pure ("", "", "")
+                    [processRoot] <- autoDatabaseProcessRoots stateDir
+
+                    getPid processHandle >>= \case
+                        Just compilerPid -> ignoreProcessException (signalProcess sigKILL compilerPid)
+                        Nothing -> expectationFailure "GHCi process exited before it could be killed"
+                    case readMaybe backendPid :: Maybe Int of
+                        Just processId -> ignoreProcessException (signalProcess sigCONT (fromIntegral processId))
+                        Nothing -> expectationFailure "initdb marker did not contain a backend PID"
+                    ignoreProcessException (hClose inputHandle)
+                    _ <- timeout 5000000 (waitForProcess processHandle)
+
+                    waitForCondition 400 (not <$> processIsAlive wrapperPid) `shouldReturn` True
+                    waitForCondition 400 (not <$> processIsAlive initdbPid) `shouldReturn` True
+                    waitForCondition 400 (not <$> processIsAlive backendPid) `shouldReturn` True
+                    waitForCondition 400 (not <$> doesDirectoryExist processRoot) `shouldReturn` True
+
+        it "retries idle shutdown after a worker exception" do
+            requireAutoDatabaseTools
+            withAutoDatabaseFixture
+                "CREATE TABLE typed_sql_idle_retry (id UUID PRIMARY KEY, name TEXT NOT NULL);\n"
+                \tempDir _schemaPath stateDir envOverrides -> do
+                let modulePath = tempDir </> "IdleRetryTypedSqlCase.hs"
+                    testModule = mkTestModule "TypedQuery 'AtMostOneRow 'ReturnsRows Text"
+                        "[typedSql| SELECT name FROM typed_sql_idle_retry LIMIT 1 |]"
+                (inputHandle, processHandle) <- startGhciLoadProcess modulePath testModule envOverrides
+                let cleanup = stopGhciProcess inputHandle processHandle
+                flip Exception.finally cleanup do
+                    waitForCondition 1200 ((== 1) . length <$> readyAutoDatabaseProcessRoots stateDir)
+                        `shouldReturn` True
+                    [processRoot] <- readyAutoDatabaseProcessRoots stateDir
+                    let postmasterPath = processRoot </> "pgdata" </> "postmaster.pid"
+                        watchdogLogPath = processRoot </> "watchdog.log"
+                        restorePermissions = do
+                            exists <- doesFileExist postmasterPath
+                            when exists (setFileMode postmasterPath 0o600)
+                    setFileMode postmasterPath 0o000
+                    flip Exception.finally restorePermissions do
+                        waitForCondition 300 (do
+                            logContents <- readTestFileIfExists watchdogLogPath
+                            pure (maybe False (List.isInfixOf "idle stop failed with an exception") logContents)
+                            ) `shouldReturn` True
+                        restorePermissions
+                        waitForCondition 400 (not <$> doesFileExist postmasterPath) `shouldReturn` True
+                        getProcessExitCode processHandle `shouldReturn` Nothing
+
+        it "does not signal a postmaster PID that disagrees with the private socket lock" do
+            requireAutoDatabaseTools
+            withAutoDatabaseFixture
+                "CREATE TABLE typed_sql_pid_binding (id UUID PRIMARY KEY, name TEXT NOT NULL);\n"
+                \tempDir _schemaPath stateDir envOverrides -> do
+                let modulePath = tempDir </> "PidBindingTypedSqlCase.hs"
+                    compilationFinishedMarker = tempDir </> "pid-binding-load-finished"
+                    testModule = mkTestModule "TypedQuery 'AtMostOneRow 'ReturnsRows Text"
+                        "[typedSql| SELECT name FROM typed_sql_pid_binding LIMIT 1 |]"
+                    longIdleEnvironment =
+                        setEnvironmentOverride "IHP_TYPED_SQL_IDLE_SECONDS" "30" envOverrides
+                (inputHandle, processHandle) <- startGhciLoadProcess modulePath testModule longIdleEnvironment
+                let processCleanup = stopGhciProcess inputHandle processHandle
+                flip Exception.finally processCleanup do
+                    Text.hPutStr inputHandle
+                        (":! touch " <> Text.pack compilationFinishedMarker <> "\n")
+                    hFlush inputHandle
+                    waitForCondition 1200 ((== 1) . length <$> readyAutoDatabaseProcessRoots stateDir)
+                        `shouldReturn` True
+                    waitForCondition 1200 (doesFileExist compilationFinishedMarker)
+                        `shouldReturn` True
+                    [processRoot] <- readyAutoDatabaseProcessRoots stateDir
+                    let postmasterPath = processRoot </> "pgdata" </> "postmaster.pid"
+                        replacementPath = postmasterPath <> ".test-replacement"
+                        replacePostmasterPid contents = do
+                            Prelude.writeFile replacementPath contents
+                            renameFile replacementPath postmasterPath
+                    originalPostmasterPid <- Prelude.readFile postmasterPath
+                    actualPostmasterPid <- case listToMaybe (Prelude.lines originalPostmasterPid) of
+                        Just processId -> pure processId
+                        Nothing -> expectationFailure "postmaster.pid did not contain a process id" >> pure ""
+                    socketDirectory <- case drop 4 (Prelude.lines originalPostmasterPid) of
+                        path : _ -> pure path
+                        _ -> expectationFailure "postmaster.pid did not contain a socket directory" >> pure ""
+                    (_, _, _, unrelatedProcess) <- createProcess (proc "sleep" ["60"])
+                        { std_in = NoStream
+                        , std_out = NoStream
+                        , std_err = NoStream
+                        }
+                    unrelatedPid <- getPid unrelatedProcess >>= \case
+                        Just processId -> pure processId
+                        Nothing -> expectationFailure "sleep process exited unexpectedly" >> pure 0
+                    let corruptedPostmasterPid = Prelude.unlines
+                            (Prelude.show unrelatedPid : drop 1 (Prelude.lines originalPostmasterPid))
+                        identityCleanup = do
+                            ignoreProcessException (replacePostmasterPid originalPostmasterPid)
+                            maybePgCtl <- findExecutable "pg_ctl"
+                            forM_ maybePgCtl \pgCtl -> do
+                                _ <- readProcessWithExitCode pgCtl
+                                    ["-D", processRoot </> "pgdata", "-m", "immediate", "-t", "5", "-w", "stop"] ""
+                                    `Exception.catch` \(_ :: IOException) -> pure (ExitFailure 1, "", "")
+                                pure ()
+                            ignoreProcessException (removePathForcibly processRoot)
+                            when ("ihp-typed-sql-" `List.isInfixOf` socketDirectory) do
+                                ignoreProcessException (removePathForcibly socketDirectory)
+                            ignoreProcessException (terminateProcess unrelatedProcess)
+                            _ <- timeout 5000000 (waitForProcess unrelatedProcess)
+                            pure ()
+                    flip Exception.finally identityCleanup do
+                        replacePostmasterPid corruptedPostmasterPid
+                        getPid processHandle >>= \case
+                            Just compilerPid -> ignoreProcessException (signalProcess sigKILL compilerPid)
+                            Nothing -> expectationFailure "GHCi process exited before it could be killed"
+                        ignoreProcessException (hClose inputHandle)
+                        _ <- timeout 5000000 (waitForProcess processHandle)
+
+                        waitForCondition 300 (do
+                            logContents <- readTestFileIfExists (processRoot </> "watchdog.log")
+                            pure (maybe False (List.isInfixOf "does not match the private socket lock") logContents)
+                            ) `shouldReturn` True
+                        getProcessExitCode unrelatedProcess `shouldReturn` Nothing
+                        processIsAlive actualPostmasterPid `shouldReturn` True
+                        doesDirectoryExist processRoot `shouldReturn` True
+
+        it "preserves unverified stale clusters without signaling their PID" do
+            requireAutoDatabaseTools
+            withAutoDatabaseFixture
+                "CREATE TABLE typed_sql_stale_pid (id UUID PRIMARY KEY, name TEXT NOT NULL);\n"
+                \tempDir _schemaPath stateDir envOverrides -> do
+                let staleRoot = stateDir </> "processes" </> "stale-process"
+                    stalePgData = staleRoot </> "pgdata"
+                    malformedRoot = stateDir </> "processes" </> "malformed-process"
+                    malformedPgData = malformedRoot </> "pgdata"
+                    modulePath = tempDir </> "StalePidTypedSqlCase.hs"
+                    testModule = mkTestModule "TypedQuery 'AtMostOneRow 'ReturnsRows Text"
+                        "[typedSql| SELECT name FROM typed_sql_stale_pid LIMIT 1 |]"
+                createDirectoryIfMissing True stalePgData
+                Prelude.writeFile (staleRoot </> "owner.pid") "99999999"
+                Prelude.writeFile (stalePgData </> "PG_VERSION") "17\n"
+                (_, _, _, unrelatedProcess) <- createProcess (proc "sleep" ["60"])
+                    { std_in = NoStream
+                    , std_out = NoStream
+                    , std_err = NoStream
+                    }
+                unrelatedPid <- getPid unrelatedProcess >>= \case
+                    Just processId -> pure processId
+                    Nothing -> expectationFailure "sleep process exited unexpectedly" >> pure 0
+                Prelude.writeFile (stalePgData </> "postmaster.pid")
+                    (Prelude.show unrelatedPid <> "\n")
+                createDirectoryIfMissing True malformedPgData
+                Prelude.writeFile (malformedRoot </> "owner.pid") "99999999"
+                Prelude.writeFile (malformedPgData </> "PG_VERSION") "17\n"
+                Prelude.writeFile (malformedPgData </> "postmaster.pid") "not-a-pid\n"
+
+                (inputHandle, processHandle) <- startGhciLoadProcess modulePath testModule envOverrides
+                let cleanup = do
+                        stopGhciProcess inputHandle processHandle
+                        ignoreProcessException (terminateProcess unrelatedProcess)
+                        _ <- timeout 5000000 (waitForProcess unrelatedProcess)
+                        ignoreProcessException (removePathForcibly staleRoot)
+                        ignoreProcessException (removePathForcibly malformedRoot)
+                flip Exception.finally cleanup do
+                    waitForCondition 1200 ((== 1) . length <$> readyAutoDatabaseProcessRoots stateDir)
+                        `shouldReturn` True
+                    getProcessExitCode unrelatedProcess `shouldReturn` Nothing
+                    doesDirectoryExist staleRoot `shouldReturn` True
+                    doesDirectoryExist malformedRoot `shouldReturn` True
 
     describe "TypedSql macro compile-time success" do
         compilePassTest "primary key inferred as Id'"
@@ -591,6 +947,160 @@ setupSchema = do
 
 -- GHCi infrastructure --------------------------------------------------------
 
+requireAutoDatabaseTools :: IO ()
+requireAutoDatabaseTools = do
+    maybeInitdb <- findExecutable "initdb"
+    when (isNothing maybeInitdb) do
+        pendingWith "requires PostgreSQL tools on PATH"
+
+withAutoDatabaseFixture
+    :: Text
+    -> (FilePath -> FilePath -> FilePath -> [(String, String)] -> IO a)
+    -> IO a
+withAutoDatabaseFixture schema action = do
+    template <- encodeUtf "typed-sql-auto-db"
+    withSystemTempDirectory template \tempOsDir -> do
+        tempDir <- decodeUtf tempOsDir
+        let applicationDir = tempDir </> "Application"
+            schemaPath = applicationDir </> "Schema.sql"
+            stateDir = tempDir <> "-typed-sql-state"
+            missingSocket = tempDir </> "missing-socket"
+            envOverrides =
+                [ ("DATABASE_URL", "postgresql:///app?host=" <> missingSocket)
+                , ("IHP_TYPED_SQL_AUTO_DB", "1")
+                , ("IHP_TYPED_SQL_SCHEMA", schemaPath)
+                , ("IHP_TYPED_SQL_STATE_DIR", stateDir)
+                , ("IHP_TYPED_SQL_IDLE_SECONDS", "3")
+                ]
+        createDirectoryIfMissing True applicationDir
+        Text.writeFile schemaPath schema
+        action tempDir schemaPath stateDir envOverrides
+            `Exception.finally` cleanupAutoDatabaseFixture stateDir
+
+cleanupAutoDatabaseFixture :: FilePath -> IO ()
+cleanupAutoDatabaseFixture stateDir = do
+    _ <- waitForCondition 300 (null <$> autoDatabaseProcessRoots stateDir)
+    processRoots <- autoDatabaseProcessRoots stateDir
+    forM_ processRoots \processRoot -> do
+        maybePgCtl <- findExecutable "pg_ctl"
+        forM_ maybePgCtl \pgCtl -> do
+            _ <- readProcessWithExitCode pgCtl
+                ["-D", processRoot </> "pgdata", "-m", "fast", "-w", "stop"] ""
+                `Exception.catch` \(_ :: IOException) -> pure (ExitFailure 1, "", "")
+            pure ()
+    ignoreProcessException (removePathForcibly stateDir)
+
+autoDatabaseProcessRoots :: FilePath -> IO [FilePath]
+autoDatabaseProcessRoots stateDir = do
+    let processesRoot = stateDir </> "processes"
+    exists <- doesDirectoryExist processesRoot
+    if not exists
+        then pure []
+        else do
+            entries <- listDirectory processesRoot
+            catMaybes <$> forM entries \entry -> do
+                let processRoot = processesRoot </> entry
+                isProcessRoot <- doesDirectoryExist processRoot
+                pure (if isProcessRoot then Just processRoot else Nothing)
+
+readyAutoDatabaseProcessRoots :: FilePath -> IO [FilePath]
+readyAutoDatabaseProcessRoots stateDir = do
+    roots <- autoDatabaseProcessRoots stateDir
+    catMaybes <$> forM roots \root -> do
+        initialized <- doesFileExist (root </> "pgdata" </> "PG_VERSION")
+        schemaLoaded <- doesFileExist (root </> "schema.hash")
+        pure (if initialized && schemaLoaded then Just root else Nothing)
+
+databaseDirectories :: FilePath -> IO Int
+databaseDirectories processRoot = do
+    let baseDirectory = processRoot </> "pgdata" </> "base"
+    entries <- listDirectory baseDirectory
+    length . catMaybes <$> forM entries \entry -> do
+        let path = baseDirectory </> entry
+        isDatabaseDirectory <- doesDirectoryExist path
+        pure (if isDatabaseDirectory then Just path else Nothing)
+
+readTestFileIfExists :: FilePath -> IO (Maybe String)
+readTestFileIfExists path = do
+    exists <- doesFileExist path
+    if exists
+        then (Just <$> Prelude.readFile path)
+            `Exception.catch` \(_ :: IOException) -> pure Nothing
+        else pure Nothing
+
+startGhciLoadProcess
+    :: FilePath
+    -> Text
+    -> [(String, String)]
+    -> IO (Handle, ProcessHandle)
+startGhciLoadProcess modulePath source envOverrides = do
+    packageRoot <- findIhpPackageRoot
+    let repoRoot = takeDirectory packageRoot
+    useRepoGhci <- doesFileExist (repoRoot </> ".ghci")
+    env <- ghciEnvironment envOverrides
+    Text.writeFile modulePath source
+
+    let commands = ghciDefaultExtensionCommands
+            <> [ ":set -fno-code"
+               , ":l " <> tshow modulePath
+               ]
+        ghciArgs =
+            if useRepoGhci
+                then ["-v0"]
+                else ["-ignore-dot-ghci", "-v0", "-i" <> packageRoot]
+        process = (proc "ghci" ghciArgs)
+            { cwd = Just (if useRepoGhci then repoRoot else packageRoot)
+            , env = Just env
+            , std_in = CreatePipe
+            , std_out = Inherit
+            , std_err = Inherit
+            , close_fds = True
+            , create_group = True
+            }
+
+    (maybeInputHandle, _, _, processHandle) <- createProcess process
+    case maybeInputHandle of
+        Nothing -> do
+            ignoreProcessException (terminateProcess processHandle)
+            fail "TypedSqlSpec: ghci stdin pipe was not created"
+        Just inputHandle -> do
+            Text.hPutStr inputHandle (Text.unlines commands)
+            hFlush inputHandle
+            pure (inputHandle, processHandle)
+
+stopGhciProcess :: Handle -> ProcessHandle -> IO ()
+stopGhciProcess inputHandle processHandle = do
+    ignoreProcessException (hClose inputHandle)
+    exited <- timeout 5000000 (waitForProcess processHandle)
+    when (isNothing exited) do
+        ignoreProcessException (interruptProcessGroupOf processHandle)
+        interrupted <- timeout 5000000 (waitForProcess processHandle)
+        when (isNothing interrupted) do
+            ignoreProcessException (terminateProcess processHandle)
+            _ <- timeout 5000000 (waitForProcess processHandle)
+            pure ()
+
+ignoreProcessException :: IO a -> IO ()
+ignoreProcessException action =
+    (action >> pure ()) `Exception.catch` \(_ :: IOException) -> pure ()
+
+waitForCondition :: Int -> IO Bool -> IO Bool
+waitForCondition attempts condition
+    | attempts <= 0 = pure False
+    | otherwise = do
+        satisfied <- condition
+        if satisfied
+            then pure True
+            else threadDelay 50000 >> waitForCondition (attempts - 1) condition
+
+processIsAlive :: String -> IO Bool
+processIsAlive processId =
+    case readMaybe processId :: Maybe Int of
+        Just pid | abs pid > 1 ->
+            (signalProcess nullSignal (fromIntegral (abs pid)) >> pure True)
+                `Exception.catch` \(_ :: IOException) -> pure False
+        _ -> pure False
+
 ghciLoadModule :: Text -> IO Text
 ghciLoadModule source =
     ghciLoadModuleWithEnv source []
@@ -716,6 +1226,10 @@ ghciEnvironment envOverrides = do
 applyEnvironmentOverrides :: [(String, String)] -> [(String, String)] -> [(String, String)]
 applyEnvironmentOverrides overrides base =
     overrides <> filter (\(name, _) -> name `notElem` map fst overrides) base
+
+setEnvironmentOverride :: String -> String -> [(String, String)] -> [(String, String)]
+setEnvironmentOverride name value environment =
+    (name, value) : filter ((/= name) . fst) environment
 
 -- Assertion helpers ----------------------------------------------------------
 

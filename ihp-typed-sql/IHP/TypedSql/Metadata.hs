@@ -31,7 +31,7 @@ import           IHP.FrameworkConfig           (defaultDatabaseUrl)
 import           IHP.Prelude
 import           IHP.TypedSql.CompileTimeDatabase
                                                 (adbUrl, autoDatabaseEnabled,
-                                                 ensureAutoDatabase)
+                                                 withAutoDatabase)
 
 -- | Result of describing a statement.
 -- High-level: this is the central metadata bundle for typedSql inference.
@@ -102,8 +102,8 @@ describeStatement sql = do
                 if autoEnabled
                     then do
                         autoResult <- Exception.try do
-                            autoDatabase <- ensureAutoDatabase
-                            describeStatementWith (adbUrl autoDatabase) sql
+                            withAutoDatabase \autoDatabase ->
+                                describeStatementWith (adbUrl autoDatabase) sql
                         case autoResult of
                             Right result -> pure result
                             Left (autoError :: IOException) ->

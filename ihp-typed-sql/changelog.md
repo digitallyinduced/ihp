@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+- Each compiler process now uses a compact private compile-time PostgreSQL
+  cluster under the worktree's `.devenv/state` directory. PostgreSQL stops after
+  metadata operations become idle, the disposable cluster is rebuilt on schema
+  changes, and an EOF watchdog removes it when the compiler exits, including
+  after abrupt termination.
+
 - Added `sqlQueryTypedPipelined` for running typed SQL queries through
   `IHP.FetchPipelined.pipeline`.
 
