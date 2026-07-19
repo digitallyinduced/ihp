@@ -7,10 +7,12 @@ module Test.QueryBuilderSpec where
 import Test.Hspec
 import IHP.Prelude
 import IHP.QueryBuilder
+import IHP.QueryBuilder.HasqlCompiler (buildQueryMatchesRowStatement, buildQueryMatchesRowsStatement)
 import IHP.ModelSupport
 import IHP.Job.Types (JobStatus(..))
 import IHP.Job.Queue ()
 import Test.ModelFixtures
+import qualified Hasql.Statement as HasqlStatement
 
 tests = do
     describe "QueryBuilder" do
@@ -21,6 +23,23 @@ tests = do
                 let theQuery = query @Post
 
                 (toSQL theQuery) `shouldBe` ("SELECT " <> postColumns <> " FROM posts")
+
+            it "keeps bound parameter slots when building an AutoRefresh row matcher" do
+                let theQuery = query @Post
+                        |> filterWhere (#title, "Test" :: Text)
+                        |> filterWhere (#public, True)
+                let statement = buildQueryMatchesRowStatement (buildQuery theQuery)
+
+                HasqlStatement.toSql statement `shouldBe`
+                    cs ("SELECT EXISTS (SELECT 1 FROM (SELECT " <> postColumns <> " FROM posts WHERE (posts.title = $1) AND (posts.public = $2)) AS _ihp_auto_refresh_records WHERE _ihp_auto_refresh_records.id = (jsonb_populate_record(NULL::\"posts\", jsonb_build_object('id', $3))).id)" :: Text)
+
+            it "builds one type-aware matcher for a batch of changed IDs" do
+                let theQuery = query @Post
+                        |> filterWhere (#title, "Test" :: Text)
+                let statement = buildQueryMatchesRowsStatement (buildQuery theQuery)
+
+                HasqlStatement.toSql statement `shouldBe`
+                    cs ("SELECT EXISTS (SELECT 1 FROM (SELECT " <> postColumns <> " FROM posts WHERE posts.title = $1) AS _ihp_auto_refresh_records WHERE _ihp_auto_refresh_records.id = ANY (ARRAY(SELECT (jsonb_populate_record(NULL::\"posts\", jsonb_build_object('id', _ihp_changed_id))).id FROM unnest($2::text[]) AS _ihp_changed_id)))" :: Text)
 
         describe "filterWhere" do
             it "should produce a SQL with a WHERE condition" do

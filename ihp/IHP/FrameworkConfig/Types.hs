@@ -26,6 +26,7 @@ module IHP.FrameworkConfig.Types
 , AuthMiddleware (..)
 , DataSyncMaxSubscriptionsPerConnection (..)
 , DataSyncMaxTransactionsPerConnection (..)
+, AutoRefreshBatchWindow (..)
 , Initializer (..)
 , FrameworkConfig (..)
 , ConfigProvider
@@ -111,6 +112,19 @@ newtype AuthMiddleware = AuthMiddleware Middleware
 newtype DataSyncMaxSubscriptionsPerConnection = DataSyncMaxSubscriptionsPerConnection Int
 newtype DataSyncMaxTransactionsPerConnection = DataSyncMaxTransactionsPerConnection Int
 
+-- | Time in milliseconds during which AutoRefresh accumulates database
+-- notifications before checking which sessions need to be re-rendered.
+--
+-- The default is @0@, which performs relevance checks without an intentional
+-- delay and preserves AutoRefresh's real-time behaviour. A positive value can
+-- reduce the amount of database work for write-heavy tables with many connected
+-- users by checking all changes received during the window as one batch.
+--
+-- __Example: batch notifications for 100 milliseconds__
+--
+-- > option (AutoRefreshBatchWindow 100)
+newtype AutoRefreshBatchWindow = AutoRefreshBatchWindow Int
+
 newtype Initializer = Initializer { onStartup :: (?context :: FrameworkConfig, ?modelContext :: ModelContext) => IO () }
 
 data FrameworkConfig = FrameworkConfig
@@ -173,6 +187,9 @@ data FrameworkConfig = FrameworkConfig
     -- | Authentication middleware that populates the request vault with the
     -- current user/admin. Runs after session and model context middlewares.
     , authenticationMiddleware :: !AuthMiddleware
+    -- | AutoRefresh notification batching window in milliseconds. A value of
+    -- @0@ means that no intentional batching delay is added.
+    , autoRefreshBatchWindow :: !Int
     , initializers :: ![Initializer]
     }
 

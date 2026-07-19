@@ -145,6 +145,9 @@ ihpDefaultConfig logger = do
     option $ DataSyncMaxSubscriptionsPerConnection dataSyncMaxSubscriptionsPerConnection
     option $ DataSyncMaxTransactionsPerConnection dataSyncMaxTransactionsPerConnection
 
+    autoRefreshBatchWindow <- envOrDefault "IHP_AUTO_REFRESH_BATCH_WINDOW_MS" 0
+    option $ AutoRefreshBatchWindow autoRefreshBatchWindow
+
     option $ CustomMiddleware id
     option $ AuthMiddleware id
 
@@ -152,6 +155,9 @@ ihpDefaultConfig logger = do
 
 instance EnvVarReader AppPort where
     envStringToValue string = AppPort <$> envStringToValue string
+
+instance EnvVarReader AutoRefreshBatchWindow where
+    envStringToValue string = AutoRefreshBatchWindow <$> envStringToValue string
 
 instance EnvVarReader RequestLogger.IPAddrSource where
     envStringToValue "FromHeader" = Right RequestLogger.FromHeader
@@ -191,6 +197,9 @@ buildFrameworkConfig rawLogger appConfig = do
             (RLSAuthenticatedRole rlsAuthenticatedRole) <- findOption @RLSAuthenticatedRole
             customMiddleware <- findOption @CustomMiddleware
             authenticationMiddleware <- findOption @AuthMiddleware
+            (AutoRefreshBatchWindow autoRefreshBatchWindow) <- findOption @AutoRefreshBatchWindow
+            when (autoRefreshBatchWindow < 0) do
+                error "AutoRefreshBatchWindow must be greater than or equal to 0 milliseconds"
             initializers <- fromMaybe [] <$> findOptionOrNothing @[Initializer]
 
             appConfig <- State.get

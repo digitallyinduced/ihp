@@ -14,11 +14,22 @@ import IHP.ControllerPrelude hiding (get, request)
 import Network.Wai
 import Network.HTTP.Types
 import IHP.AutoRefresh
-    ( addQueryBuilderReadDependency
+    ( AutoRefreshChangeBatch (..)
+    , addAutoRefreshRowChange
+    , addQueryBuilderReadDependency
     , addWholeTableReadDependency
+    , autoRefreshBatchWindowMicroseconds
     , commitAutoRefreshReadDependencies
+    , emptyAutoRefreshBatchWorkerState
+    , emptyAutoRefreshChangeBatch
+    , enqueueAutoRefreshRowChange
     , globalAutoRefreshServerVar
+    , queryBuilderMatcherCacheKey
+    , runAutoRefreshBatchWorker
     , sessionResponseHasChanged
+    , shouldRefreshForChange
+    , shouldRefreshForChangeBatch
+    , shouldRefreshForChangeBatchWithCache
     , updateSession
     , withAutoRefreshReadTracker
     )
@@ -27,6 +38,7 @@ import IHP.AutoRefresh.View (autoRefreshMeta)
 import IHP.QueryBuilder.Types (QueryBuilderRead (..), QueryBuilderReadKind (..), QueryBuilderPrimaryKey (..), SQLQuery (..))
 import IHP.Hasql.FromRow (FromRowHasql (..), HasqlDecodeColumn (..))
 import qualified Control.Concurrent.MVar as MVar
+import qualified Control.Concurrent.Async as Async
 import qualified Control.Exception as Exception
 import qualified Data.ByteString as BS
 import qualified Data.ByteString.Lazy as LBS
@@ -63,6 +75,25 @@ instance FromRowHasql AutoRefreshCompositeItem where
     hasqlRowDecoder = AutoRefreshCompositeItem
         <$> hasqlColumnDecoder
         <*> hasqlColumnDecoder
+        <*> hasqlColumnDecoder
+
+data AutoRefreshItem = AutoRefreshItem
+    { autoRefreshItemId :: UUID
+    , views :: Int
+    }
+    deriving (Eq, Show)
+
+type instance GetTableName AutoRefreshItem = "auto_refresh_items"
+type instance GetModelByTableName "auto_refresh_items" = AutoRefreshItem
+type instance PrimaryKey "auto_refresh_items" = UUID
+
+instance Table AutoRefreshItem where
+    columnNames = ["id", "views"]
+    primaryKeyColumnNames = ["id"]
+
+instance FromRowHasql AutoRefreshItem where
+    hasqlRowDecoder = AutoRefreshItem
+        <$> hasqlColumnDecoder
         <*> hasqlColumnDecoder
 
 data WebApplication = WebApplication deriving (Eq, Show, Data)
@@ -136,14 +167,19 @@ withAutoRefreshDB action = do
     modelContext <- createModelContext databaseUrl noopLogger
     let pool = modelContext.hasqlPool
     let setup = runHasqlScript pool
-            "DROP TABLE IF EXISTS auto_refresh_composite_items;\
+            "DROP TABLE IF EXISTS auto_refresh_items;\
+            \DROP TABLE IF EXISTS auto_refresh_composite_items;\
             \CREATE TABLE auto_refresh_composite_items (\
             \tenant_id UUID NOT NULL, item_id INT NOT NULL, name TEXT NOT NULL,\
             \PRIMARY KEY (tenant_id, item_id));\
             \INSERT INTO auto_refresh_composite_items (tenant_id, item_id, name) VALUES\
-            \('a0000000-0000-0000-0000-000000000001', 7, 'tracked');"
+            \('a0000000-0000-0000-0000-000000000001', 7, 'tracked');\
+            \CREATE TABLE auto_refresh_items (id UUID PRIMARY KEY, views INT NOT NULL);\
+            \INSERT INTO auto_refresh_items (id, views) VALUES\
+            \('b0000000-0000-0000-0000-000000000001', 5),\
+            \('b0000000-0000-0000-0000-000000000002', 8);"
     let teardown = do
-            _ <- HasqlPool.use pool (HasqlSession.script "DROP TABLE IF EXISTS auto_refresh_composite_items;")
+            _ <- HasqlPool.use pool (HasqlSession.script "DROP TABLE IF EXISTS auto_refresh_items; DROP TABLE IF EXISTS auto_refresh_composite_items;")
             releaseModelContext modelContext
     result <- Exception.try (setup >> action modelContext `Exception.finally` teardown)
     case result of
@@ -199,6 +235,56 @@ tests = beforeAll (mockContextNoDatabase WebApplication config) do
                             `shouldBe` Just [QueryBuilderPrimaryKey [Aeson.String "task-1"]]
                     _ -> expectationFailure "Expected a structured QueryBuilder dependency"
 
+            it "shares only dependencies whose parameters can be compared exactly" $ \_ -> do
+                let changedIds = Set.singleton "task-2"
+                queryBuilderMatcherCacheKey changedIds queryRead `shouldSatisfy` isJust
+
+                let parameterizedRead = queryRead
+                        { trackedSqlQuery = buildQuery
+                            (query @AutoRefreshItem
+                                |> filterWhereGreaterThan (#views, 6 :: Int))
+                        }
+                queryBuilderMatcherCacheKey changedIds parameterizedRead `shouldBe` Nothing
+
+            it "checks every visible ID before running an earlier query matcher" $ \_ ->
+                withAutoRefreshDB \modelContext -> do
+                    matcherQueries <- newIORef (0 :: Int)
+                    let matchingModelContext = modelContext
+                            { queryLoggingEnabled = True
+                            , logger = \_ -> atomicModifyIORef' matcherQueries \count -> (count + 1, ())
+                            }
+                    let changedId = "b0000000-0000-0000-0000-000000000002"
+                    let earlierRead = queryRead
+                            { trackedSqlQuery = buildQuery
+                                (query @AutoRefreshItem
+                                    |> filterWhereGreaterThan (#views, 6 :: Int))
+                            , queryBuilderResultPrimaryKeys =
+                                Just [QueryBuilderPrimaryKey [Aeson.String "b0000000-0000-0000-0000-000000000001"]]
+                            }
+                    let directlyAffectedRead = earlierRead
+                            { queryBuilderResultPrimaryKeys =
+                                Just [QueryBuilderPrimaryKey [Aeson.String changedId]]
+                            }
+                    let batch = emptyAutoRefreshChangeBatch
+                            { updatedRowIds = Set.singleton changedId
+                            }
+                    matcherCache <- newIORef Map.empty
+
+                    shouldRefreshForChangeBatchWithCache
+                        matchingModelContext
+                        matcherCache
+                        (AutoRefreshQueryBuilderReads [earlierRead, directlyAffectedRead])
+                        batch
+                        `shouldReturn` True
+                    readIORef matcherQueries `shouldReturn` 0
+
+            it "falls back to whole-table tracking for OFFSET queries" $ \_ -> do
+                let offsetRead = queryRead
+                        { trackedSqlQuery = sqlQuery { offsetClause = Just 1 }
+                        }
+                let dependencies = addQueryBuilderReadDependency "tasks" offsetRead Map.empty
+                Map.lookup "tasks" dependencies `shouldBe` Just AutoRefreshWholeTable
+
             it "keeps whole-table reads absorbing regardless of read order" $ \_ -> do
                 let structuredThenWhole =
                         addWholeTableReadDependency "tasks" (addQueryBuilderReadDependency "tasks" queryRead Map.empty)
@@ -252,6 +338,36 @@ tests = beforeAll (mockContextNoDatabase WebApplication config) do
                                         ]
                                     ]
                             _ -> expectationFailure "Expected one tracked composite-key fetch"
+
+            it "matches changed rows against the retained parameterized QueryBuilder query" $ \_ ->
+                withAutoRefreshDB \modelContext -> do
+                    let ?modelContext = modelContext
+                    dependency <- withAutoRefreshReadTracker do
+                        items <- query @AutoRefreshItem
+                            |> filterWhereGreaterThan (#views, 6 :: Int)
+                            |> fetch
+                        items `shouldBe`
+                            [ AutoRefreshItem
+                                { autoRefreshItemId = "b0000000-0000-0000-0000-000000000002"
+                                , views = 8
+                                }
+                            ]
+
+                        dependencies <- readIORef ?autoRefreshReadDependencies
+                        case Map.lookup "auto_refresh_items" dependencies of
+                            Just dependency@(AutoRefreshQueryBuilderReads [_]) -> pure dependency
+                            _ -> expectationFailure "Expected one tracked QueryBuilder fetch" >> pure AutoRefreshWholeTable
+
+                    shouldRefreshForChange modelContext dependency AutoRefreshRowChange
+                        { operation = "insert"
+                        , rowId = Just "b0000000-0000-0000-0000-000000000002"
+                        }
+                        `shouldReturn` True
+                    shouldRefreshForChange modelContext dependency AutoRefreshRowChange
+                        { operation = "insert"
+                        , rowId = Just "b0000000-0000-0000-0000-000000000001"
+                        }
+                        `shouldReturn` False
 
         describe "autoRefreshMeta" do
             it "renders the ihp-auto-refresh-id meta tag on the initial response" $ withContext do
@@ -372,3 +488,129 @@ tests = beforeAll (mockContextNoDatabase WebApplication config) do
                 commitAutoRefreshReadDependencies (pure ()) serverRef UUID.nil newDependencies
                 getAutoRefreshReadDependencies <$> getOnlyAutoRefreshSession serverRef
                     `shouldReturn` newDependencies
+
+        describe "parameterized query filtering" do
+            it "uses the captured matcher for inserts" $ withContext do
+                let boundOwnerId = "owner-1" :: Text
+                let read = TrackedQueryRead
+                        { trackedRowIds = Just mempty
+                        , trackedQueryMatchesIds = Just (\changedIds -> pure (boundOwnerId == "owner-1" && "matching-row" `Set.member` changedIds))
+                        }
+                let dependency = AutoRefreshTrackedQueryReads [read]
+
+                shouldRefreshForChange ?modelContext dependency AutoRefreshRowChange { operation = "insert", rowId = Just "matching-row" }
+                    `shouldReturn` True
+                shouldRefreshForChange ?modelContext dependency AutoRefreshRowChange { operation = "insert", rowId = Just "other-row" }
+                    `shouldReturn` False
+
+            it "uses known IDs for deletes and updates" $ withContext do
+                let read = TrackedQueryRead
+                        { trackedRowIds = Just (Set.fromList ["visible-row"])
+                        , trackedQueryMatchesIds = Just (\changedIds -> pure ("newly-visible-row" `Set.member` changedIds))
+                        }
+                let dependency = AutoRefreshTrackedQueryReads [read]
+
+                shouldRefreshForChange ?modelContext dependency AutoRefreshRowChange { operation = "delete", rowId = Just "other-row" }
+                    `shouldReturn` False
+                shouldRefreshForChange ?modelContext dependency AutoRefreshRowChange { operation = "update", rowId = Just "visible-row" }
+                    `shouldReturn` True
+                shouldRefreshForChange ?modelContext dependency AutoRefreshRowChange { operation = "update", rowId = Just "newly-visible-row" }
+                    `shouldReturn` True
+
+            it "falls back to refreshing when tracking is incomplete or the matcher fails" $ withContext do
+                let untrackedRead = TrackedQueryRead
+                        { trackedRowIds = Nothing
+                        , trackedQueryMatchesIds = Nothing
+                        }
+                let failingRead = TrackedQueryRead
+                        { trackedRowIds = Just mempty
+                        , trackedQueryMatchesIds = Just (\_ -> throwIO (userError "matcher failed"))
+                        }
+
+                shouldRefreshForChange ?modelContext (AutoRefreshTrackedQueryReads [untrackedRead]) AutoRefreshRowChange { operation = "update", rowId = Just "row" }
+                    `shouldReturn` True
+                shouldRefreshForChange ?modelContext (AutoRefreshTrackedQueryReads [failingRead]) AutoRefreshRowChange { operation = "insert", rowId = Just "row" }
+                    `shouldReturn` True
+
+        describe "notification batching" do
+            it "has no intentional batching delay by default" $ \mockContext -> do
+                mockContext.frameworkConfig.autoRefreshBatchWindow `shouldBe` 0
+                autoRefreshBatchWindowMicroseconds mockContext.frameworkConfig.autoRefreshBatchWindow
+                    `shouldBe` 0
+
+            it "accepts an explicit batching window" $ \_ -> do
+                frameworkConfig <- buildFrameworkConfig testLogger do
+                    option Development
+                    option (AutoRefreshBatchWindow 100)
+                frameworkConfig.autoRefreshBatchWindow `shouldBe` 100
+                autoRefreshBatchWindowMicroseconds frameworkConfig.autoRefreshBatchWindow
+                    `shouldBe` 100000
+
+            it "coalesces a burst before running relevance checks" $ \_ -> do
+                workerState <- MVar.newMVar emptyAutoRefreshBatchWorkerState
+                processedBatches <- newIORef []
+                let changes =
+                        [ AutoRefreshRowChange { operation = "insert", rowId = Just ("row-" <> tshow number) }
+                        | number <- [1..10 :: Int]
+                        ]
+
+                starts <- forM changes (enqueueAutoRefreshRowChange workerState)
+                starts `shouldBe` (True : replicate 9 False)
+
+                worker <- Async.async $ runAutoRefreshBatchWorker 0 workerState \batch ->
+                    atomicModifyIORef' processedBatches (\batches -> (batch:batches, ()))
+                Async.wait worker
+
+                batches <- readIORef processedBatches
+                case batches of
+                    [batch] -> do
+                        batch.insertedRowIds `shouldBe` Set.fromList ["row-" <> tshow number | number <- [1..10 :: Int]]
+                        batch.updatedRowIds `shouldBe` Set.empty
+                        batch.deletedRowIds `shouldBe` Set.empty
+                    _ -> expectationFailure ("Expected one batch, got " <> cs (tshow (length batches)))
+
+            it "calls a retained Typed SQL matcher once for all changed IDs" $ withContext do
+                receivedBatches <- newIORef []
+                let read = TrackedQueryRead
+                        { trackedRowIds = Just Set.empty
+                        , trackedQueryMatchesIds = Just \changedIds -> do
+                            atomicModifyIORef' receivedBatches (\batches -> (changedIds:batches, ()))
+                            pure ("matching-row" `Set.member` changedIds)
+                        }
+                let batch = foldl'
+                        (flip addAutoRefreshRowChange)
+                        emptyAutoRefreshChangeBatch
+                        [ AutoRefreshRowChange { operation = "insert", rowId = Just "other-row" }
+                        , AutoRefreshRowChange { operation = "insert", rowId = Just "matching-row" }
+                        ]
+
+                shouldRefreshForChangeBatch ?modelContext (AutoRefreshTrackedQueryReads [read]) batch
+                    `shouldReturn` True
+                readIORef receivedBatches
+                    `shouldReturn` [Set.fromList ["other-row", "matching-row"]]
+
+            it "keeps a trailing batch when a change arrives during processing" $ \_ -> do
+                workerState <- MVar.newMVar emptyAutoRefreshBatchWorkerState
+                firstBatchStarted <- MVar.newEmptyMVar
+                releaseFirstBatch <- MVar.newEmptyMVar
+                processedBatches <- newIORef []
+                let firstChange = AutoRefreshRowChange { operation = "insert", rowId = Just "first-row" }
+                let trailingChange = AutoRefreshRowChange { operation = "insert", rowId = Just "trailing-row" }
+                let processBatch batch = do
+                        isFirst <- atomicModifyIORef' processedBatches \batches ->
+                            (batch:batches, null batches)
+                        when isFirst do
+                            MVar.putMVar firstBatchStarted ()
+                            MVar.takeMVar releaseFirstBatch
+
+                enqueueAutoRefreshRowChange workerState firstChange `shouldReturn` True
+                worker <- Async.async (runAutoRefreshBatchWorker 0 workerState processBatch)
+                MVar.takeMVar firstBatchStarted
+
+                enqueueAutoRefreshRowChange workerState trailingChange `shouldReturn` False
+                MVar.putMVar releaseFirstBatch ()
+                Async.wait worker
+
+                batches <- reverse <$> readIORef processedBatches
+                map (.insertedRowIds) batches
+                    `shouldBe` [Set.singleton "first-row", Set.singleton "trailing-row"]

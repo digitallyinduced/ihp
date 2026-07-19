@@ -11,8 +11,10 @@ import           IHP.ModelSupport                  (createModelContext,
 import           IHP.Prelude
 import           IHP.TypedSql.ParamHints           (parseSql, extractJoinNullableTables,
                                                     extractNonNullableComputedColumnsFromAst,
+                                                    extractReadTableNamesFromAst,
                                                     detectStarSelects,
-                                                    detectInsertWithoutColumns)
+                                                    detectInsertWithoutColumns,
+                                                    sqlCodeOnly)
 import           System.Directory                  (createDirectoryIfMissing,
                                                     doesFileExist,
                                                     findExecutable,
@@ -372,6 +374,17 @@ tests = do
         it "parseSql handles leading/trailing whitespace from quasiquoter" do
             parseSql " SELECT 1 " `shouldSatisfy` isJust
 
+        it "parseSql handles SQL comments without stripping comment markers from literals" do
+            parseSql "-- leading comment\nSELECT 'not -- a comment', $$not /* a comment */$$ /* trailing comment */" `shouldSatisfy` isJust
+
+        it "parseSql handles nested block comments" do
+            parseSql "/* outer /* nested */ comment */ SELECT 1" `shouldSatisfy` isJust
+
+        it "parseSql distinguishes standard and escape string backslashes" do
+            parseSql "SELECT 'trailing\\' /* comment */" `shouldSatisfy` isJust
+            Text.pack (sqlCodeOnly "SELECT E'escaped\\' hidden -- still in the string'")
+                `shouldNotSatisfy` Text.isInfixOf "hidden"
+
         it "extractJoinNullableTables detects LEFT JOIN nullable table" do
             let sql = " SELECT i.name, a.name FROM items i LEFT JOIN authors a ON a.id = i.aid LIMIT 1 "
             extractJoinNullableTables sql `shouldBe` Set.fromList ["authors"]
@@ -391,6 +404,22 @@ tests = do
         it "extractJoinNullableTables returns empty for plain FROM" do
             let sql = " SELECT name FROM items LIMIT 1 "
             extractJoinNullableTables sql `shouldBe` Set.empty
+
+        it "extractReadTableNamesFromAst captures SELECT tables but not DML targets" do
+            let Just selectAst = parseSql "SELECT i.name FROM items i JOIN authors a ON a.id = i.author_id"
+            let Just updateAst = parseSql "UPDATE items SET name = 'changed' RETURNING id"
+            extractReadTableNamesFromAst selectAst `shouldBe` Set.fromList ["items", "authors"]
+            extractReadTableNamesFromAst updateAst `shouldBe` Set.empty
+
+        it "extractReadTableNamesFromAst follows CTEs and FROM subqueries" do
+            let Just ast = parseSql "WITH visible AS (SELECT id FROM items) SELECT visible.id FROM (SELECT id FROM visible) visible"
+            extractReadTableNamesFromAst ast `shouldBe` Set.singleton "items"
+
+        it "extractReadTableNamesFromAst follows target-list subqueries" do
+            let Just existsAst = parseSql "SELECT EXISTS (SELECT 1 FROM items WHERE id = 1)"
+            let Just scalarAst = parseSql "SELECT (SELECT COUNT(*) FROM items)"
+            extractReadTableNamesFromAst existsAst `shouldBe` Set.singleton "items"
+            extractReadTableNamesFromAst scalarAst `shouldBe` Set.singleton "items"
 
         it "extractNonNullableComputedColumns detects count(*)" do
             let Just ast = parseSql "SELECT count(*) FROM items"
@@ -1043,11 +1072,15 @@ runtimeModule = Text.unlines
     , ""
     , "import qualified Control.Exception as Exception"
     , "import IHP.Prelude"
-    , "import IHP.ModelSupport (Id'(..), ModelContext, PrimaryKey, createModelContext, releaseModelContext, noopLogger)"
+    , "import IHP.ModelSupport (Id'(..), ModelContext, PrimaryKey, TrackedQueryRead(..), createModelContext, releaseModelContext, noopLogger)"
+    , "import IHP.AutoRefresh (withAutoRefreshReadTracker)"
+    , "import IHP.AutoRefresh.Types (AutoRefreshReadDependency (..))"
     , "import IHP.Hasql.FromRow (FromRowHasql (..))"
     , "import IHP.FetchPipelined (pipeline)"
-    , "import IHP.TypedSql (sqlExecTyped, sqlQueryTyped, sqlQueryTypedRows, sqlQueryTypedOneOrNothing, sqlQueryTypedSingle, sqlQueryTypedMaybeColumn, sqlQueryTypedPipelined, sqlQueryTypedMaybeColumnPipelined, typedSql, typedSqlStar)"
+    , "import IHP.TypedSql (TypedQuery(..), sqlExecTyped, sqlQueryTyped, sqlQueryTypedRows, sqlQueryTypedOneOrNothing, sqlQueryTypedSingle, sqlQueryTypedMaybeColumn, sqlQueryTypedPipelined, sqlQueryTypedMaybeColumnPipelined, typedSql, typedSqlStar)"
     , "import qualified Hasql.Decoders as HasqlDecoders"
+    , "import qualified Data.Map.Strict as Map"
+    , "import qualified Data.Set as Set"
     , "import System.Environment (lookupEnv)"
     , ""
     , "type instance PrimaryKey \"typed_sql_test_items\" = UUID"
@@ -1094,6 +1127,83 @@ runtimeModule = Text.unlines
     , "            INSERT INTO typed_sql_test_items (id, author_id, name, views, score, tags)"
     , "            VALUES (${itemId2}, ${authorId}, ${(\"Second\" :: Text)}, ${8 :: Int}, ${(2.0 :: Double)}, ${([\"green\"] :: [Text])})"
     , "        |]"
+    , ""
+    , "        trackedReads <- withAutoRefreshReadTracker do"
+    , "            _ <- sqlQueryTyped [typedSql|"
+    , "                SELECT id, name FROM typed_sql_test_items"
+    , "                WHERE views > ${6 :: Int}"
+    , "            |]"
+    , "            readIORef ?autoRefreshReadDependencies"
+    , ""
+    , "        trackedRead <- case Map.lookup \"typed_sql_test_items\" trackedReads of"
+    , "            Just (AutoRefreshTrackedQueryReads [read]) -> pure read"
+    , "            other -> error (\"unexpected Typed SQL AutoRefresh metadata: \" <> show other)"
+    , ""
+    , "        when (trackedRead.trackedRowIds /= Just (Set.singleton (tshow itemId2))) do"
+    , "            error (\"unexpected Typed SQL tracked IDs: \" <> show trackedRead.trackedRowIds)"
+    , ""
+    , "        matchesIds <- case trackedRead.trackedQueryMatchesIds of"
+    , "            Just matcher -> pure matcher"
+    , "            Nothing -> error \"Typed SQL query matcher was not captured\""
+    , "        matchingIdMatches <- matchesIds (Set.singleton (tshow itemId2))"
+    , "        filteredIdMatches <- matchesIds (Set.singleton (tshow itemId1))"
+    , "        unless (matchingIdMatches && not filteredIdMatches) do"
+    , "            error \"Typed SQL matcher did not retain its bound views > 6 parameter\""
+    , ""
+    , "        let safeTrackingQuery = [typedSql|"
+    , "                SELECT id, name FROM typed_sql_test_items"
+    , "                WHERE views > ${6 :: Int}"
+    , "            |]"
+    , "        unless safeTrackingQuery.tqAutoRefreshRowMatchingSafe do"
+    , "            error \"direct single-table Typed SQL query was not marked row-local\""
+    , ""
+    , "        let offsetTrackingQuery = [typedSql|"
+    , "                SELECT id, name FROM typed_sql_test_items"
+    , "                ORDER BY name OFFSET 1"
+    , "            |]"
+    , "        when offsetTrackingQuery.tqAutoRefreshRowMatchingSafe do"
+    , "            error \"OFFSET Typed SQL query was incorrectly marked row-local\""
+    , ""
+    , "        offsetTrackedReads <- withAutoRefreshReadTracker do"
+    , "            _ <- sqlQueryTyped offsetTrackingQuery"
+    , "            readIORef ?autoRefreshReadDependencies"
+    , "        case Map.lookup \"typed_sql_test_items\" offsetTrackedReads of"
+    , "            Just AutoRefreshWholeTable -> pure ()"
+    , "            other -> error (\"OFFSET Typed SQL query did not fall back conservatively: \" <> show other)"
+    , ""
+    , "        let windowTrackingQuery = [typedSql|"
+    , "                SELECT id, row_number() OVER (ORDER BY name)"
+    , "                FROM typed_sql_test_items"
+    , "            |]"
+    , "        when windowTrackingQuery.tqAutoRefreshRowMatchingSafe do"
+    , "            error \"windowed Typed SQL query was incorrectly marked row-local\""
+    , ""
+    , "        let selectLiteralTrackingQuery = [typedSql|"
+    , "                SELECT id, 'select' AS marker"
+    , "                FROM typed_sql_test_items"
+    , "            |]"
+    , "        unless selectLiteralTrackingQuery.tqAutoRefreshRowMatchingSafe do"
+    , "            error \"a SQL keyword inside a literal disabled row-local tracking\""
+    , ""
+    , "        commentedTrackedReads <- withAutoRefreshReadTracker do"
+    , "            _ <- sqlQueryTyped [typedSql|"
+    , "                -- this comment must not disable AutoRefresh tracking"
+    , "                SELECT id, name FROM typed_sql_test_items"
+    , "                WHERE views > ${6 :: Int} /* retained parameter */"
+    , "            |]"
+    , "            readIORef ?autoRefreshReadDependencies"
+    , "        unless (Map.member \"typed_sql_test_items\" commentedTrackedReads) do"
+    , "            error \"commented Typed SQL query was not tracked\""
+    , ""
+    , "        nestedTrackedReads <- withAutoRefreshReadTracker do"
+    , "            _ <- sqlQueryTyped [typedSql|"
+    , "                SELECT EXISTS ("
+    , "                    SELECT 1 FROM typed_sql_test_items WHERE views > ${6 :: Int}"
+    , "                )"
+    , "            |]"
+    , "            readIORef ?autoRefreshReadDependencies"
+    , "        unless (Map.member \"typed_sql_test_items\" nestedTrackedReads) do"
+    , "            error \"target-list subquery was not tracked\""
     , ""
     , "        names <- sqlQueryTyped [typedSql|"
     , "            SELECT name FROM typed_sql_test_items"
