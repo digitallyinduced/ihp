@@ -19,11 +19,34 @@
 , buildWithPostgres ? false  # Start a temporary PostgreSQL during build (e.g. for typedSql TH)
 , appSchemaSql ? null       # Path to Application/Schema.sql (required when buildWithPostgres = true)
 , ihpSchemaSql ? null       # Path to IHPSchema.sql (required when buildWithPostgres = true)
+, staticBuild ? false
+, staticNativeDeps ? []
 , migrationCheck ? null     # Optional derivation that validates Application/Migration before building the app
 }:
 
 let
     splitSections = if !pkgs.stdenv.hostPlatform.isDarwin then "-split-sections" else "";
+    staticExtraLinkLibraries = [
+        "-optl=-Wl,--start-group"
+        "-optl=-lpq"
+        "-optl=-lpgcommon"
+        "-optl=-lpgport"
+        "-optl=-lssl"
+        "-optl=-lcrypto"
+        "-optl=-lz"
+        "-optl=-licui18n"
+        "-optl=-licuuc"
+        "-optl=-licudata"
+        "-optl=-lstdc++"
+        "-optl=-Wl,--end-group"
+    ];
+    staticGhcOptions = pkgs.lib.optionalString staticBuild (pkgs.lib.concatStringsSep " " (
+        [
+            "-fPIC"
+            "-optl=-static"
+            "-optl=-Wl,--gc-sections,--build-id"
+        ] ++ map (dep: "-L${dep}/lib") staticNativeDeps ++ staticExtraLinkLibraries
+    ));
 
     # Common IHP environment setup
     ihpEnvSetup = ''
@@ -429,13 +452,20 @@ CABAL_EOF
 
     allHaskellPackagesWithAppLib = ghc.ghcWithPackages (p: [ appLibPackage ]);
 
+    executableStdenv =
+        if staticBuild
+        then pkgs.buildPackages.stdenv
+        else pkgs.stdenv;
+
     compileExecutable = { executableName, mainPath, mainIs ? null, prepareMain, src ? appSrc, needsBuildTimePostgres ? false }:
-        pkgs.stdenv.mkDerivation {
+        executableStdenv.mkDerivation {
             name = "${appName}-${executableName}-binary";
             inherit src;
 
-            buildInputs = [ allHaskellPackagesWithAppLib ];
-            nativeBuildInputs = commonNativeBuildInputs ++ pkgs.lib.optional needsBuildTimePostgres pkgs.postgresql;
+            buildInputs = [ allHaskellPackagesWithAppLib ] ++ pkgs.lib.optionals staticBuild staticNativeDeps;
+            nativeBuildInputs =
+                commonNativeBuildInputs
+                ++ pkgs.lib.optional needsBuildTimePostgres pkgs.postgresql;
 
             buildPhase = ''
                 mkdir -p build/bin build/obj
@@ -456,8 +486,13 @@ CABAL_EOF
                     ${pkgs.lib.optionalString (mainIs != null) "-main-is '${mainIs}'"} \
                     $(make print-ghc-options) \
                     ${if optimized then prodGhcOptions else ""} \
+                    ${staticGhcOptions} \
                     ${mainPath} -o build/bin/${executableName} \
                     -odir build/obj -hidir build/obj
+
+                ${pkgs.lib.optionalString staticBuild ''
+                    strip --strip-all build/bin/${executableName}
+                ''}
 
                 ${pkgs.lib.optionalString needsBuildTimePostgres ''
                     cleanupBuildPostgres
@@ -578,7 +613,18 @@ in
 
             # Hash that changes only when `static` changes:
             INPUT_HASH="$(basename ${static} | cut -d- -f1)"
-            makeWrapper ${binaries}/bin/RunProdServer $out/bin/RunProdServer \
+
+            ${pkgs.lib.optionalString staticBuild ''
+            mkdir -p $out/libexec/ihp-static
+            cp ${binaries}/bin/RunProdServer $out/libexec/ihp-static/RunProdServer
+            chmod +x $out/libexec/ihp-static/RunProdServer
+            RAW_RUN_PROD_SERVER=$out/libexec/ihp-static/RunProdServer
+            ''}
+            ${pkgs.lib.optionalString (!staticBuild) ''
+            RAW_RUN_PROD_SERVER=${binaries}/bin/RunProdServer
+            ''}
+
+            makeWrapper "$RAW_RUN_PROD_SERVER" $out/bin/RunProdServer \
                 --set-default IHP_ASSET_VERSION $INPUT_HASH \
                 --set-default APP_STATIC ${static} \
                 --set-default IHP_STATIC ${ihp-static} \
@@ -586,7 +632,16 @@ in
 
             # Copy job runner binary to bin/ if we built it
             if [ -f ${binaries}/bin/RunJobs ]; then
-                makeWrapper ${binaries}/bin/RunJobs $out/bin/RunJobs \
+                ${pkgs.lib.optionalString staticBuild ''
+                cp ${binaries}/bin/RunJobs $out/libexec/ihp-static/RunJobs
+                chmod +x $out/libexec/ihp-static/RunJobs
+                RAW_RUN_JOBS=$out/libexec/ihp-static/RunJobs
+                ''}
+                ${pkgs.lib.optionalString (!staticBuild) ''
+                RAW_RUN_JOBS=${binaries}/bin/RunJobs
+                ''}
+
+                makeWrapper "$RAW_RUN_JOBS" $out/bin/RunJobs \
                     --set-default IHP_ASSET_VERSION $INPUT_HASH \
                     --set-default APP_STATIC ${static} \
                     --set-default IHP_STATIC ${ihp-static} \

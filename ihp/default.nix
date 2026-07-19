@@ -20,7 +20,8 @@
 , wai-app-static, wai-asset-path, wai-cors, wai-early-return
 , wai-extra, wai-flash-messages, wai-request-params
 , wai-session-clientsession-deferred, wai-session-maybe, wai-util
-, wai-websockets, warp, warp-systemd, websockets, with-utf8
+, wai-websockets, warp, warp-systemd ? null, websockets, with-utf8
+, systemdSupport ? true
 }:
 mkDerivation {
   pname = "ihp";
@@ -48,9 +49,8 @@ mkDerivation {
     uri-encode uuid vault vector wai wai-app-static wai-asset-path
     wai-cors wai-early-return wai-extra wai-flash-messages
     wai-request-params wai-session-clientsession-deferred
-    wai-session-maybe wai-util wai-websockets warp warp-systemd
-    websockets with-utf8
-  ];
+    wai-session-maybe wai-util wai-websockets warp websockets with-utf8
+  ] ++ lib.optional systemdSupport warp-systemd;
   testHaskellDepends = [
     aeson async attoparsec base basic-prelude binary blaze-html
     blaze-markup bytestring case-insensitive cereal cereal-text
@@ -72,9 +72,8 @@ mkDerivation {
     uri-encode uuid vault vector wai wai-app-static wai-asset-path
     wai-cors wai-early-return wai-extra wai-flash-messages
     wai-request-params wai-session-clientsession-deferred
-    wai-session-maybe wai-util wai-websockets warp warp-systemd
-    websockets with-utf8
-  ];
+    wai-session-maybe wai-util wai-websockets warp websockets with-utf8
+  ] ++ lib.optional systemdSupport warp-systemd;
   benchmarkHaskellDepends = [
     aeson async attoparsec base basic-prelude binary blaze-html
     blaze-markup bytestring case-insensitive cereal cereal-text
@@ -97,8 +96,9 @@ mkDerivation {
     wai-app-static wai-asset-path wai-cors wai-early-return wai-extra
     wai-flash-messages wai-request-params
     wai-session-clientsession-deferred wai-session-maybe wai-util
-    wai-websockets warp warp-systemd websockets with-utf8
-  ];
+    wai-websockets warp websockets with-utf8
+  ] ++ lib.optional systemdSupport warp-systemd;
+  configureFlags = lib.optional (!systemdSupport) "-f-systemd";
   homepage = "https://ihp.digitallyinduced.com/";
   description = "Haskell Web Framework";
   license = lib.licenses.mit;

@@ -1185,6 +1185,18 @@ This will trigger a full clean build and place the output at `./result`.
 
 After the build has finished, you can find the production binary at `result/bin/RunProdServer`.
 
+#### Experimental static builds
+
+On Linux, you can opt into experimental statically linked package outputs:
+
+```nix
+ihp.staticBuilds.enable = true;
+```
+
+This adds `.#static-prod-server`, `.#static-build-deps`, and `.#static-script-Name` for each script in `Application/Script/Name.hs`.
+The `static-prod-server` package still provides wrapped launchers at `result/bin/RunProdServer` and `result/bin/RunJobs`, while the raw static binaries are available under `result/libexec/ihp-static/`.
+Static builds do not support `IHP_SYSTEMD=true`; use the regular production outputs when you need systemd socket activation.
+
 ### Starting the app
 
 Now you should be able to start your app by running `result/bin/RunProdServer`.
