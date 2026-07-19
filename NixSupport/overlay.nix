@@ -80,14 +80,12 @@ let
             ihp-hspec = localPackage "ihp-hspec";
             ihp-welcome = localPackage "ihp-welcome";
 
-            # Forks of wai-session / wai-session-clientsession with deferred
-            # session decryption and optional Set-Cookie (Maybe ByteString).
-            # https://hackage.haskell.org/package/wai-session-maybe
-            # https://hackage.haskell.org/package/wai-session-clientsession-deferred
-            wai-session-maybe = hackagePackage "wai-session-maybe";
-            wai-session-clientsession-deferred = hackagePackage "wai-session-clientsession-deferred";
+            # wai-session-maybe / wai-session-clientsession-deferred (deferred
+            # session decryption + optional Set-Cookie) are shipped by the pinned
+            # nixpkgs at 1.0.0, so we consume them from the default set verbatim
+            # for a cache hit instead of the previous hackagePackage forks.
 
-            # HsOpenSSL 0.11.7.10 fails to compile against openssl 3.6.1 on Linux
+            # HsOpenSSL 0.11.7.10 fails to compile against openssl 3.6.1+ on Linux
             # because the C compiler escalates `-Wpointer-sign` to an error (the
             # OpenSSL 3.6.1 headers tightened up `char*` vs `unsigned char*`).
             # nixpkgs already passes `-Wno-error=incompatible-pointer-types`; we
@@ -103,55 +101,24 @@ let
             # verbatim for a cache hit. Restore the override only if a reverted
             # nixpkgs pin no longer carries 0.3.2.
 
-            # Hasql 1.10 ecosystem.
-            #
-            # These attrs mirror the upstream `ihpHasqlScope` from
-            # NixOS/nixpkgs#519795 (configuration-common.nix) so that
-            # derivations are bit-identical to nixpkgs' Hydra-built
-            # `haskellPackages.ihp` closure and resolve straight from
-            # cache.nixos.org. Keep in sync with configuration-common.nix.
-            postgresql-connection-string = hackagePackage "postgresql-connection-string";
+            # Hasql 1.10 ecosystem (incl. hasql-interpolate): the pinned nixpkgs
+            # ships hasql 1.10 as the `haskellPackages` default, so hasql,
+            # hasql-pool, postgresql-binary, text-builder,
+            # postgresql-connection-string and hasql-interpolate all resolve
+            # correctly with no overrides needed.
 
-            hasql                    = super.hasql_1_10_3;
-            hasql-pool               = super.hasql-pool_1_4_2;
-            hasql-dynamic-statements = super.hasql-dynamic-statements_0_5_1;
-            hasql-transaction        = super.hasql-transaction_1_2_2;
-            hasql-notifications      = super.hasql-notifications_0_2_5_0;
-            postgresql-binary        = super.postgresql-binary_0_15_0_1;
-            # text-builder 1.0.0.5 is needed by postgresql-simple-postgresql-types
-            text-builder             = super.text-builder_1_0_0_5;
+            # temporary-ospath (temporary using OsPath instead of FilePath) is
+            # shipped by the pinned nixpkgs at 1.3, so it resolves from the default
+            # set with no override needed.
 
-            # hasql-interpolate: upstream 1.0.1.0 requires hasql <1.10; use fork with hasql 1.10 support
-            # https://github.com/awkward-squad/hasql-interpolate/pull/27
-            # Uses overrideCabal instead of callCabal2nix to avoid IFD and Hackage cabal revision fetch failures
-            hasql-interpolate = final.haskell.lib.dontCheck (final.haskell.lib.doJailbreak (final.haskell.lib.overrideCabal super.hasql-interpolate (old: {
-                src = builtins.fetchTarball {
-                    url = "https://github.com/ChrisPenner/hasql-interpolate/archive/bb4666fdb7e0fef9f67702cb198e45d0a1de0ab9.tar.gz";
-                    sha256 = "1v3i4n4szxpir28a4vlhd2a0sl04fxkiw9wlyxcvd3vbrd9s2b8c";
-                };
-                revision = null;
-                editedCabalFile = null;
-            })));
-
-            # Fork of temporary using OsPath instead of FilePath
-            temporary-ospath = hackagePackage "temporary-ospath";
-
-            # postgresql-simple-postgresql-types and hasql-mapping are marked
-            # broken in nixpkgs; unmark them to mirror upstream ihpHasqlScope's
-            # `unmarkBroken` (configuration-nix.nix applies dontCheck for
-            # postgresql-simple-postgresql-types).
-            postgresql-simple-postgresql-types = final.haskell.lib.markUnbroken super.postgresql-simple-postgresql-types;
-            hasql-mapping = final.haskell.lib.markUnbroken super.hasql-mapping;
+            # postgresql-simple-postgresql-types and hasql-mapping are unbroken in
+            # the pinned nixpkgs, so no markUnbroken overrides are needed.
         };
 in
 final: prev: {
-    # Default: GHC 9.10 (binary-cached via nixpkgs haskellPackages)
+    # Default: GHC 9.12 — the pinned nixpkgs `haskellPackages` compiler.
+    # The dontCheck overrides below apply to that default build.
     ghc = final.haskellPackages.override {
-        overrides = ihpOverrides final;
-    };
-
-    # Experimental: GHC 9.12 (not yet binary-cached; builds from source)
-    ghc912 = final.haskell.packages.ghc912.override {
         overrides = final.lib.composeManyExtensions [
             (ihpOverrides final)
             (self: super: {
@@ -166,6 +133,12 @@ final: prev: {
             })
         ];
     };
+
+    # `ghc912` is an alias of the default `ghc` set: the pinned nixpkgs default
+    # compiler is already GHC 9.12, so a separate set would be an exact duplicate.
+    # The alias keeps `pkgs.ghc912.*` references working; drop it once they migrate
+    # to `pkgs.ghc`.
+    ghc912 = final.ghc;
 
     # GHC 9.14 — opt-in for apps using the digitallyinduced binary cache.
     # To use: set `ihp.ghcCompiler = pkgs.ghc914;` in your flake-module config.
