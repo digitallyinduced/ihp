@@ -131,6 +131,16 @@ ihpFlake:
                     default = "1";
                 };
 
+                previousAppLibIntermediates = lib.mkOption {
+                    description = ''
+                        Intermediate output from a previous optimized application build.
+                        When set, GHC reuses still-valid object and interface files and
+                        recompiles only modules affected by source changes.
+                    '';
+                    type = lib.types.nullOr lib.types.package;
+                    default = null;
+                };
+
                 scripts.optimized = lib.mkOption {
                     description = ''
                         Whether packages.script-<Name> flake outputs are compiled with optimizations.
@@ -200,6 +210,7 @@ ihpFlake:
                 ihp-static = ihpFlake.inputs.self.packages.${system}.ihp-static;
                 static = self'.packages.static;
                 inherit buildWithPostgres;
+                previousIntermediates = if optimized then cfg.previousAppLibIntermediates else null;
                 appSchemaSql = "${self'.packages.schema}/Schema.sql";
                 ihpSchemaSql = "${self'.packages.ihp-schema}/IHPSchema.sql";
             };
