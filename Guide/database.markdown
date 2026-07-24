@@ -850,6 +850,8 @@ IHP currently has support for the following Postgres column types:
 - REAL, FLOAT4
 - DOUBLE PRECISION, FLOAT8
 - POINT
+- POLYGON
+- GEOMETRY (PostGIS — see [PostGIS Geometry Columns](#postgis-geometry-columns))
 - DATE
 - BYTEA
 - TIME
@@ -862,6 +864,109 @@ IHP currently has support for the following Postgres column types:
 - TSVECTOR
 - Arrays of all the above types
 - Custom types, usually enums
+
+## PostGIS Geometry Columns
+
+IHP ships native support for PostGIS `geometry` columns, including the
+`geometry(SubType, SRID)` syntax used in most PostGIS schemas.
+
+### 1. Enable the PostGIS extension
+
+Add the extension to your project's `flake.nix` (see
+[Building Postgres With Extensions](package-management.html#building-postgres-with-extensions)):
+
+```nix
+devenv.shells.default = {
+    services.postgres.extensions = extensions: [ extensions.postgis ];
+};
+```
+
+Then run `CREATE EXTENSION postgis;` once (either via `Application/Fixtures.sql`
+or manually in `make psql`).
+
+### 2. Declare the column
+
+In `Application/Schema.sql`:
+
+```sql
+CREATE TABLE locations (
+    id UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL,
+    name TEXT NOT NULL,
+    geom geometry(Point, 4326) NOT NULL
+);
+```
+
+The generated Haskell field has type `Geometry` from
+[`postgresql-types`](https://hackage.haskell.org/package/postgresql-types)
+(`PostgresqlTypes.Geometry`). It is an opaque structured ADT matching the
+PostGIS / OGC geometry subtypes:
+
+```haskell
+-- Opaque: construct with refineFromShape / refineFromShapeAndSrid
+data Geometry  -- accessors: toSrid, toShape
+
+data Shape
+  = PointShape Coord
+  | LineStringShape [Coord]
+  | PolygonShape [[Coord]]
+  | MultiPointShape [Coord]
+  | MultiLineStringShape [[Coord]]
+  | MultiPolygonShape [[[Coord]]]
+  | GeometryCollectionShape [Shape]
+
+data Coord
+  = XyCoord Double Double
+  | XyzCoord Double Double Double
+  | XymCoord Double Double Double
+  | XyzmCoord Double Double Double Double
+```
+
+Because the PostGIS extension assigns the `geometry` OID dynamically, IHP
+resolves it by name at query time — no extra wiring is needed. Values
+round-trip through
+[EWKB](https://postgis.net/docs/using_postgis_dbmanagement.html#EWKB_EWKT) on
+the wire and through PostGIS's canonical upper-case hex EWKB in text form.
+
+### 3. Reading and writing values
+
+`IHP.ModelSupport` re-exports `PostgresqlTypes.Geometry` (including `Shape`
+and `Coord`). Shape constructors use the `*Shape` suffix so they do not
+clash with the built-in PostgreSQL `Point` / `Polygon` types:
+
+```haskell
+-- Fetch records normally; the `geom` field is a `Geometry`.
+locations <- query @Location |> fetch
+
+-- Construct a value structurally (Maybe-returning smart constructors
+-- reject mixed-dimensionality coordinate trees):
+let Just point = refineFromShapeAndSrid (PointShape (XyCoord 13.4 52.5)) (Just 4326)
+sqlExec "INSERT INTO locations (name, geom) VALUES (?, ?)"
+    ("Berlin" :: Text, point)
+
+-- Or let PostGIS parse WKT for you:
+sqlExec
+    "INSERT INTO locations (name, geom) VALUES (?, ST_GeomFromText(?, 4326))"
+    ("Hamburg" :: Text, "POINT(10.0 53.5)" :: Text)
+
+-- Pattern-match on fetched shapes in Haskell:
+forEach locations \location ->
+    case toShape location.geom of
+        PointShape (XyCoord x y) -> print (x, y)
+        _ -> pure ()
+```
+
+### Known limitations
+
+- The `geometry(SubType, SRID)` modifier is accepted by the parser but not
+  preserved in the Schema Designer AST — round-trip edits in the visual
+  designer keep the DDL-level constraint PostgreSQL enforces, but the
+  subtype/SRID hint is only stored in the SQL file itself.
+- `FromField` / `ToField` (postgresql-simple) instances for `Geometry` are
+  not shipped yet — IHP reads and writes geometry values through hasql. If
+  you still use postgresql-simple for a geometry column, provide a
+  project-local instance (or use hasql / `sqlExec` with `Geometry`).
+- The `geography` type is not yet supported natively; model it via a
+  project-local newtype or `PCustomType` for now.
 
 ## Transactions
 

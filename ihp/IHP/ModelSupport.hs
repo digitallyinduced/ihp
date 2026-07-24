@@ -5,6 +5,10 @@ module IHP.ModelSupport
 , module IHP.ModelSupport.Types
 , module PostgresqlTypes.Point
 , module PostgresqlTypes.Polygon
+-- | PostGIS geometry support from @postgresql-types@ (see nikita-volkov/postgresql-types#69).
+-- Shape constructors are suffixed (@PointShape@, @PolygonShape@, …) so they
+-- do not clash with 'PostgresqlTypes.Point.Point' / 'Polygon'.
+, module PostgresqlTypes.Geometry
 , module PostgresqlTypes.Inet
 , module PostgresqlTypes.Tsvector
 , module PostgresqlTypes.Interval
@@ -54,6 +58,7 @@ import qualified Hasql.Encoders as Encoders
 import qualified Hasql.Implicits.Encoders
 import PostgresqlTypes.Point
 import PostgresqlTypes.Polygon
+import PostgresqlTypes.Geometry
 import PostgresqlTypes.Inet
 import PostgresqlTypes.Interval
 import PostgresqlTypes.Tsvector
@@ -135,6 +140,9 @@ instance Default Point where
 
 instance Default Polygon where
     def = fromMaybe (error "Default Polygon: impossible") (refineFromPointList [(0,0), (0,0), (0,0)])
+
+instance Default Geometry where
+    def = fromMaybe (error "Default Geometry: impossible") (refineFromShape (PointShape (XyCoord 0 0)))
 
 instance Default Tsvector where
     def = normalizeFromLexemeList []
