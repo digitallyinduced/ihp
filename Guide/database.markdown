@@ -896,20 +896,29 @@ CREATE TABLE locations (
 );
 ```
 
-The generated Haskell field has type `Geometry`, a structured ADT matching
-the PostGIS / OGC geometry subtypes:
+The generated Haskell field has type `Geometry` from
+[`postgresql-types`](https://hackage.haskell.org/package/postgresql-types)
+(`PostgresqlTypes.Geometry`). It is an opaque structured ADT matching the
+PostGIS / OGC geometry subtypes:
 
 ```haskell
-data Geometry = Geometry (Maybe Int32) Shape
+-- Opaque: construct with refineFromShape / refineFromShapeAndSrid
+data Geometry  -- accessors: toSrid, toShape
+
 data Shape
-  = Point Coord
-  | LineString [Coord]
-  | Polygon [[Coord]]
-  | MultiPoint [Coord]
-  | MultiLineString [[Coord]]
-  | MultiPolygon [[[Coord]]]
-  | GeometryCollection [Shape]
-data Coord = Coord { coordX, coordY :: Double, coordZ, coordM :: Maybe Double }
+  = PointShape Coord
+  | LineStringShape [Coord]
+  | PolygonShape [[Coord]]
+  | MultiPointShape [Coord]
+  | MultiLineStringShape [[Coord]]
+  | MultiPolygonShape [[[Coord]]]
+  | GeometryCollectionShape [Shape]
+
+data Coord
+  = XyCoord Double Double
+  | XyzCoord Double Double Double
+  | XymCoord Double Double Double
+  | XyzmCoord Double Double Double Double
 ```
 
 Because the PostGIS extension assigns the `geometry` OID dynamically, IHP
@@ -920,18 +929,17 @@ the wire and through PostGIS's canonical upper-case hex EWKB in text form.
 
 ### 3. Reading and writing values
 
-`IHP.ModelSupport` re-exports the `Geometry` and `Coord` types; import
-`PostgresqlTypes.Geometry` qualified to reach the `Shape` constructors (they
-would otherwise clash with `PostgresqlTypes.Point.Point`):
+`IHP.ModelSupport` re-exports `PostgresqlTypes.Geometry` (including `Shape`
+and `Coord`). Shape constructors use the `*Shape` suffix so they do not
+clash with the built-in PostgreSQL `Point` / `Polygon` types:
 
 ```haskell
-import qualified PostgresqlTypes.Geometry as G
-
 -- Fetch records normally; the `geom` field is a `Geometry`.
 locations <- query @Location |> fetch
 
--- Construct a value structurally:
-let point = Geometry (Just 4326) (G.Point (Coord 13.4 52.5 Nothing Nothing))
+-- Construct a value structurally (Maybe-returning smart constructors
+-- reject mixed-dimensionality coordinate trees):
+let Just point = refineFromShapeAndSrid (PointShape (XyCoord 13.4 52.5)) (Just 4326)
 sqlExec "INSERT INTO locations (name, geom) VALUES (?, ?)"
     ("Berlin" :: Text, point)
 
@@ -942,16 +950,10 @@ sqlExec
 
 -- Pattern-match on fetched shapes in Haskell:
 forEach locations \location ->
-    case geometryShape location.geom of
-        G.Point (Coord x y _ _) -> print (x, y)
+    case toShape location.geom of
+        PointShape (XyCoord x y) -> print (x, y)
         _ -> pure ()
 ```
-
-Dimension consistency (mixing XY with XYZ coords in a single geometry, for
-example) is validated by the smart constructors `fromShape` and
-`fromShapeWithSrid` from `PostgresqlTypes.Geometry`; the raw `Geometry`
-constructor is still exported so pattern-matching and simple construction
-remain straightforward.
 
 ### Known limitations
 
@@ -960,8 +962,9 @@ remain straightforward.
   designer keep the DDL-level constraint PostgreSQL enforces, but the
   subtype/SRID hint is only stored in the SQL file itself.
 - `FromField` / `ToField` (postgresql-simple) instances for `Geometry` are
-  not shipped — IHP reads and writes geometry values through hasql. If you
-  use `sqlQuery` with geometry columns, wrap the value at the call site.
+  not shipped yet — IHP reads and writes geometry values through hasql. If
+  you still use postgresql-simple for a geometry column, provide a
+  project-local instance (or use hasql / `sqlExec` with `Geometry`).
 - The `geography` type is not yet supported natively; model it via a
   project-local newtype or `PCustomType` for now.
 

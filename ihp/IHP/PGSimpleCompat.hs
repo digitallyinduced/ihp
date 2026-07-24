@@ -24,8 +24,9 @@ import IHP.NameSupport (fieldNameToColumnName)
 --
 -- NB: PostGIS 'Geometry' is read/written through hasql (see
 -- 'IHP.Hasql.Encoders') — not through postgresql-simple's FromField/ToField.
--- User-level custom @sqlQuery@ calls with a @geometry@ column need a
--- project-local FromField/ToField instance wrapping the raw EWKB bytes.
+-- postgresql-simple-postgresql-types does not yet ship Geometry instances;
+-- project-local FromField/ToField (e.g. via ViaIsScalar) can fill the gap
+-- if needed.
 import Database.PostgreSQL.Simple.PostgresqlTypes ()
 
 -- Id instances

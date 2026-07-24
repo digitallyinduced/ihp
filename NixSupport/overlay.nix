@@ -143,10 +143,10 @@ let
             postgresql-simple-postgresql-types = final.haskell.lib.markUnbroken super.postgresql-simple-postgresql-types;
             hasql-mapping = final.haskell.lib.markUnbroken super.hasql-mapping;
 
-            # postgresql-types with PostGIS Geometry (merged in nikita-volkov/postgresql-types#69).
-            # Pin to git master until a Hackage release ships Geometry. Version stays
-            # 0.1.3.2 (no cabal bump yet). dontCheck: tests need a live PostgreSQL.
-            # https://github.com/nikita-volkov/postgresql-types/pull/69
+            # postgresql-types with PostGIS Geometry (merged in
+            # nikita-volkov/postgresql-types#69). Pin to git master until a
+            # Hackage release ships Geometry; cabal version is still 0.1.3.2.
+            # dontCheck: tests need a live PostgreSQL server.
             postgresql-types = final.haskell.lib.overrideCabal
                 (final.haskell.lib.dontCheck super.postgresql-types)
                 (old: {
@@ -159,6 +159,7 @@ let
                     revision = null;
                     editedCabalFile = null;
                 });
+
 
         };
 in
