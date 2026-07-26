@@ -22,6 +22,7 @@ that is defined in flake-module.nix
                             echo "listen_addresses = '''" >> "$PGDATA/postgresql.conf"
                             pg_ctl -D "$PGDATA" -l "$TMPDIR/pg.log" start
                             export DATABASE_URL="postgresql:///postgres?host=$PGHOST"
+                            export IHP_MIGRATE_TEST_DATABASE_URL="$DATABASE_URL"
                         '';
                         postCheck = ''
                             pg_ctl -D "$PGDATA" stop || true
@@ -60,6 +61,7 @@ that is defined in flake-module.nix
             // {
                 default = withTestPostgres self.packages.${system}.default;
                 ihp-datasync = withTestPostgres self.packages.${system}.ihp-datasync;
+                ihp-migrate = withTestPostgres pkgs.ghc.ihp-migrate;
                 ihp-typed-sql = withTestPostgres self.packages.${system}.ihp-typed-sql;
                 ihp-pglistener = withTestPostgres pkgs.ghc.ihp-pglistener;
             }

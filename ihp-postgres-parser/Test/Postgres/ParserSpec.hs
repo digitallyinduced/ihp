@@ -11,6 +11,7 @@ import IHP.Postgres.Types
 import Data.Text (Text)
 import qualified Data.Text as Text
 import Data.String.Conversions (cs)
+import Data.Either (isLeft)
 import qualified Text.Megaparsec as Megaparsec
 import GHC.IO (evaluate)
 
@@ -23,8 +24,53 @@ spec = do
         it "should parse an CREATE EXTENSION for the UUID extension" do
             parseSql "CREATE EXTENSION IF NOT EXISTS \"uuid-ossp\";" `shouldBe` CreateExtension { name = "uuid-ossp", ifNotExists = True }
 
+        it "should preserve a missing IF NOT EXISTS clause" do
+            parseSql "CREATE EXTENSION \"uuid-ossp\";" `shouldBe` CreateExtension { name = "uuid-ossp", ifNotExists = False }
+
         it "should parse an CREATE EXTENSION with schema suffix" do
             parseSql "CREATE EXTENSION IF NOT EXISTS \"uuid-ossp\" WITH SCHEMA public;" `shouldBe` CreateExtension { name = "uuid-ossp", ifNotExists = True }
+
+        describe "parseCreateExtensionMigration" do
+            it "accepts one or more extension statements and comments" do
+                parseCreateExtensionMigration "-- Required for earthdistance\nCREATE EXTENSION IF NOT EXISTS cube;\nCREATE EXTENSION IF NOT EXISTS \"earthdistance\" WITH SCHEMA public;"
+                    `shouldBe` Right
+                        [ CreateExtension { name = "cube", ifNotExists = True }
+                        , CreateExtension { name = "earthdistance", ifNotExists = True }
+                        ]
+
+            it "is case insensitive" do
+                parseCreateExtensionMigration "create extension if not exists PG_TRGM;"
+                    `shouldBe` Right [CreateExtension { name = "pg_trgm", ifNotExists = True }]
+
+            it "accepts PostgreSQL extension options" do
+                parseCreateExtensionMigration "CREATE EXTENSION IF NOT EXISTS PostGIS WITH SCHEMA public VERSION '3.4.2' CASCADE;"
+                    `shouldBe` Right [CreateExtension { name = "postgis", ifNotExists = True }]
+
+                parseCreateExtensionMigration "CREATE EXTENSION IF NOT EXISTS postgis WITH VERSION stable CASCADE;"
+                    `shouldBe` Right [CreateExtension { name = "postgis", ifNotExists = True }]
+
+            it "preserves quoted extension names" do
+                parseCreateExtensionMigration "CREATE EXTENSION IF NOT EXISTS \"MixedCase\";"
+                    `shouldBe` Right [CreateExtension { name = "MixedCase", ifNotExists = True }]
+
+            it "rejects a mixed migration" do
+                parseCreateExtensionMigration "CREATE EXTENSION IF NOT EXISTS pg_trgm; CREATE TABLE users ();"
+                    `shouldSatisfy` isLeft
+
+        describe "containsCreateExtensionStatement" do
+            it "detects extension statements split by comments and whitespace" do
+                containsCreateExtensionStatement "CREATE /* reason */\nEXTENSION IF NOT EXISTS postgis;" `shouldBe` True
+
+            it "ignores extension keywords inside strings, identifiers, comments, and function bodies" do
+                containsCreateExtensionStatement "SELECT 'CREATE EXTENSION postgis'; -- CREATE EXTENSION cube\nSELECT $$ CREATE EXTENSION earthdistance $$; SELECT \"CREATE\";"
+                    `shouldBe` False
+
+            it "only matches CREATE at the start of a statement" do
+                containsCreateExtensionStatement "SELECT create extension; SELECT create, extension;"
+                    `shouldBe` False
+
+                containsCreateExtensionStatement "CREATE TABLE places (); CREATE /* privileged */ EXTENSION postgis;"
+                    `shouldBe` True
 
         it "should parse a line comment" do
             parseSql "-- Comment value" `shouldBe` Comment { content = " Comment value" }
@@ -230,6 +276,84 @@ spec = do
                             }
                         ]
                     }
+
+        it "should parse pg_dump CREATE FUNCTION SET options with TO" do
+            let sql = "CREATE OR REPLACE FUNCTION private.sync_access()\nRETURNS TRIGGER\nLANGUAGE plpgsql\nSECURITY DEFINER\nSET search_path TO 'public', 'private', 'pg_temp'\nAS $$BEGIN\n    RETURN NEW;\nEND;$$;"
+            parseSql sql `shouldBe` CreateFunction
+                    { functionName = "private.sync_access"
+                    , functionArguments = []
+                    , functionBody = "BEGIN\n    RETURN NEW;\nEND;"
+                    , orReplace = True
+                    , returns = PTrigger
+                    , language = "plpgsql"
+                    , securityDefiner = True
+                    , functionSettings =
+                        [ FunctionSetting
+                            { settingName = "search_path"
+                            , settingValue = "'public', 'private', 'pg_temp'"
+                            }
+                        ]
+                    }
+
+        it "should parse CREATE FUNCTION SET options with TO and an unqualified name" do
+            -- Isolates the `SET ... TO ...` change from the schema-qualified name change
+            let sql = "CREATE OR REPLACE FUNCTION sync_access()\nRETURNS TRIGGER\nLANGUAGE plpgsql\nSECURITY DEFINER\nSET search_path TO 'public'\nAS $$BEGIN\n    RETURN NEW;\nEND;$$;"
+            parseSql sql `shouldBe` CreateFunction
+                    { functionName = "sync_access"
+                    , functionArguments = []
+                    , functionBody = "BEGIN\n    RETURN NEW;\nEND;"
+                    , orReplace = True
+                    , returns = PTrigger
+                    , language = "plpgsql"
+                    , securityDefiner = True
+                    , functionSettings =
+                        [ FunctionSetting
+                            { settingName = "search_path"
+                            , settingValue = "'public'"
+                            }
+                        ]
+                    }
+
+        it "should preserve a non-public schema on CREATE FUNCTION with = style settings" do
+            -- Isolates the schema-qualified name change from the `SET ... TO ...` change
+            let sql = "CREATE OR REPLACE FUNCTION private.sync_access()\nRETURNS TRIGGER\nLANGUAGE plpgsql\nSECURITY DEFINER\nSET search_path = public, private, pg_temp\nAS $$BEGIN\n    RETURN NEW;\nEND;$$;"
+            parseSql sql `shouldBe` CreateFunction
+                    { functionName = "private.sync_access"
+                    , functionArguments = []
+                    , functionBody = "BEGIN\n    RETURN NEW;\nEND;"
+                    , orReplace = True
+                    , returns = PTrigger
+                    , language = "plpgsql"
+                    , securityDefiner = True
+                    , functionSettings =
+                        [ FunctionSetting
+                            { settingName = "search_path"
+                            , settingValue = "public, private, pg_temp"
+                            }
+                        ]
+                    }
+
+        it "should normalize the default public schema away on CREATE FUNCTION" do
+            -- Keeps function names comparable regardless of an explicit `public.` prefix,
+            -- matching how `qualifiedIdentifier` treats every other identifier.
+            let sql = "CREATE OR REPLACE FUNCTION public.sync_access()\nRETURNS TRIGGER\nAS $$BEGIN\n    RETURN NEW;\nEND;$$ language plpgsql;"
+            parseSql sql `shouldBe` CreateFunction
+                    { functionName = "sync_access"
+                    , functionArguments = []
+                    , functionBody = "BEGIN\n    RETURN NEW;\nEND;"
+                    , orReplace = True
+                    , returns = PTrigger
+                    , language = "plpgsql"
+                    , securityDefiner = False
+                    , functionSettings = []
+                    }
+
+        it "should parse DROP FUNCTION with a non-public schema-qualified name" do
+            -- DROP FUNCTION must accept the same schema-qualified names as CREATE FUNCTION
+            parseSql "DROP FUNCTION private.sync_access;" `shouldBe` DropFunction { functionName = "private.sync_access" }
+
+        it "should normalize the default public schema away on DROP FUNCTION" do
+            parseSql "DROP FUNCTION public.sync_access;" `shouldBe` DropFunction { functionName = "sync_access" }
 
         it "should parse a pg_dump CREATE INDEX with VARIADIC function arguments" do
             let sql = "CREATE INDEX agent_runs_ingest_gmail_message_latest_idx ON public.agent_runs USING btree (organization_id, jsonb_extract_path_text(input, VARIADIC ARRAY['gmailMessageId'::text]), COALESCE(completed_at, last_event_at, started_at, created_at) DESC, id DESC) WHERE ((type = 'ingest'::public.agent_run_type) AND (jsonb_extract_path_text(input, VARIADIC ARRAY['source'::text]) = 'gmail_email_ingest'::text));"

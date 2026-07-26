@@ -3,6 +3,7 @@ import IHP.ViewPrelude
 import IHP.IDE.ToolServer.Types
 import IHP.IDE.ToolServer.Routes ()
 import IHP.IDE.CodeGen.Types
+import qualified Data.Text as Text
 
 data NewView = NewView { plan :: [GeneratorAction] }
 
@@ -20,8 +21,7 @@ instance View NewView where
                 |> mapMaybe \case
                     CreateFile { fileContent } -> Just fileContent
                     _ -> Nothing
-                |> headMay
-                |> fromMaybe ""
+                |> Text.intercalate "\n"
 
 
 renderForm :: Text -> Html

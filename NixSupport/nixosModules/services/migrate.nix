@@ -11,6 +11,8 @@ in
             DATABASE_URL = cfg.databaseUrl;
             MINIMUM_REVISION = "${toString cfg.minimumRevision}";
             IHP_MIGRATION_DIR = "${cfg.migrations}/";
+        } // lib.optionalAttrs (cfg.databaseAdminUrl != null) {
+            DATABASE_ADMIN_URL = cfg.databaseAdminUrl;
         };
     };
 }

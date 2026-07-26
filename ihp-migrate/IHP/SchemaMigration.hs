@@ -14,7 +14,7 @@ import Data.Maybe (fromMaybe, mapMaybe, isJust, listToMaybe)
 import Data.List (groupBy, sortBy)
 import Data.Ord (comparing)
 import Data.Function ((&), on)
-import Control.Monad (unless, forM, join)
+import Control.Monad (unless, join)
 import Data.Int (Int64)
 import System.Environment (lookupEnv)
 import System.Exit (die)
@@ -29,6 +29,9 @@ import qualified Hasql.Session as Session
 import qualified Hasql.Statement as Statement
 import qualified Hasql.Decoders as Decoders
 import qualified Hasql.Encoders as Encoders
+import qualified IHP.Postgres.Parser as PostgresParser
+import qualified IHP.Postgres.Compiler as PostgresCompiler
+import IHP.Postgres.Types (Statement (CreateExtension), ifNotExists)
 
 data Migration = Migration
     { revision :: Int
@@ -39,6 +42,12 @@ data MigrateOptions = MigrateOptions
     { minimumRevision :: !(Maybe Int) -- ^ When deploying a fresh install of an existing app that has existing migrations, it might be useful to ignore older migrations as they're already part of the existing schema
     }
 
+-- | Determines which database connection is allowed to execute a migration.
+data MigrationKind
+    = RegularMigration
+    | CreateExtensionMigration
+    deriving (Show, Eq)
+
 -- | Run a session on the bare connection, dying on error
 runSession :: Connection.Connection -> Session.Session a -> IO a
 runSession connection session = Connection.use connection session >>= either (die . show) pure
@@ -47,33 +56,181 @@ runSession connection session = Connection.use connection session >>= either (di
 --
 -- Returns @Left errorMessage@ if a migration fails, @Right ()@ if all migrations succeed.
 migrate :: Connection.Connection -> MigrateOptions -> IO (Either Text ())
-migrate connection options = do
+migrate connection = migrateWithAdminConnectionProvider connection (pure Nothing)
+
+-- | Migrates the database, using the optional admin connection only for
+-- standalone @CREATE EXTENSION@ migrations.
+--
+-- The admin connection executes only the extension statement. Verification
+-- and the @schema_migrations@ revision insert always use the regular
+-- application connection.
+migrateWithAdminConnection :: Connection.Connection -> Maybe Connection.Connection -> MigrateOptions -> IO (Either Text ())
+migrateWithAdminConnection connection adminConnection =
+    migrateWithAdminConnectionProvider connection (pure adminConnection)
+
+-- | Migrates the database while acquiring the optional admin connection only
+-- when the first standalone @CREATE EXTENSION@ migration is encountered.
+migrateWithAdminConnectionProvider :: Connection.Connection -> IO (Maybe Connection.Connection) -> MigrateOptions -> IO (Either Text ())
+migrateWithAdminConnectionProvider connection getAdminConnection options = do
     createSchemaMigrationsTable connection
 
     let minimumRevision = fromMaybe 0 options.minimumRevision
 
     openMigrations <- findOpenMigrations connection minimumRevision
-    results <- forM openMigrations (runMigration connection)
-    case sequence results of
-        Left err -> pure (Left err)
-        Right _ -> pure (Right ())
+    runOpenMigrations openMigrations
+    where
+        runOpenMigrations [] = pure (Right ())
+        runOpenMigrations (migration : migrations) = do
+            result <- runMigrationWithAdminConnectionProvider connection getAdminConnection migration
+            case result of
+                Left errorMessage -> pure (Left errorMessage)
+                Right () -> runOpenMigrations migrations
 
 -- | The sql statements contained in the migration file are executed. Then the revision is inserted into the @schema_migrations@ table.
 --
 -- All queries are executed inside a database transaction to make sure that it can be restored when something goes wrong.
 runMigration :: Connection.Connection -> Migration -> IO (Either Text ())
-runMigration connection Migration { revision, migrationFile } = do
+runMigration connection = runMigrationWithAdminConnectionProvider connection (pure Nothing)
+
+-- | Runs one migration on the regular or admin connection according to its
+-- contents. A migration containing @CREATE EXTENSION@ must contain no other
+-- executable SQL.
+runMigrationWithAdminConnection :: Connection.Connection -> Maybe Connection.Connection -> Migration -> IO (Either Text ())
+runMigrationWithAdminConnection connection adminConnection =
+    runMigrationWithAdminConnectionProvider connection (pure adminConnection)
+
+-- | Runs one migration, lazily acquiring the optional admin connection for a
+-- standalone @CREATE EXTENSION@ migration.
+runMigrationWithAdminConnectionProvider :: Connection.Connection -> IO (Maybe Connection.Connection) -> Migration -> IO (Either Text ())
+runMigrationWithAdminConnectionProvider connection getAdminConnection Migration { revision, migrationFile } = do
     migrationFilePath <- migrationPath Migration { revision, migrationFile }
     migrationSql <- Text.readFile (cs migrationFilePath)
 
+    case classifyMigration migrationSql of
+        Left errorMessage -> pure (Left (migrationFile <> ": " <> errorMessage))
+        Right RegularMigration -> runRegularMigration migrationSql
+        Right CreateExtensionMigration -> do
+            adminConnection <- getAdminConnection
+            case adminConnection of
+                Nothing -> runRegularMigration migrationSql
+                Just adminConnection -> runPrivilegedExtensionMigration migrationSql adminConnection
+    where
+        runRegularMigration migrationSql =
+            runTransaction connection do
+                Session.script (cs migrationSql)
+                Session.statement (fromIntegral revision :: Int64) insertRevisionStatement
+
+        runPrivilegedExtensionMigration migrationSql adminConnection = do
+            databasesMatch <- validateSameDatabase connection adminConnection
+            case databasesMatch of
+                Left errorMessage -> pure (Left errorMessage)
+                Right () -> do
+                    extensionResult <- runTransaction adminConnection (Session.script (cs migrationSql))
+                    case extensionResult of
+                        Left errorMessage -> pure (Left errorMessage)
+                        Right () -> verifyAndRecordExtensions migrationSql
+
+        verifyAndRecordExtensions migrationSql =
+            case extensionNamesFromMigration migrationSql of
+                Left errorMessage -> pure (Left errorMessage)
+                Right extensionNames -> do
+                    installedExtensions <- useSession connection do
+                        traverse (\extensionName -> Session.statement extensionName extensionExistsStatement) extensionNames
+                    case installedExtensions of
+                        Left errorMessage -> pure (Left errorMessage)
+                        Right installed -> case map fst (filter (not . snd) (zip extensionNames installed)) of
+                            [] -> runTransaction connection do
+                                Session.statement (fromIntegral revision :: Int64) insertRevisionStatement
+                            missingExtensions -> pure (Left (Text.unlines
+                                [ "The admin connection completed the migration, but the following extensions are not visible through DATABASE_URL:"
+                                , Text.intercalate ", " missingExtensions
+                                , "Check that DATABASE_ADMIN_URL points to the same PostgreSQL server and database."
+                                ]))
+
+-- | Runs a session in a transaction and attempts to roll it back after an
+-- error so the cached connection remains usable by later migrations.
+runTransaction :: Connection.Connection -> Session.Session a -> IO (Either Text a)
+runTransaction connection session = do
     result <- Connection.use connection do
         Session.script "BEGIN"
-        Session.script (cs migrationSql)
-        Session.statement (fromIntegral revision :: Int64) insertRevisionStatement
+        value <- session
         Session.script "COMMIT"
+        pure value
     case result of
-        Left err -> pure (Left (cs (show err)))
-        Right () -> pure (Right ())
+        Left error -> do
+            _ <- Connection.use connection (Session.script "ROLLBACK")
+            pure (Left (cs (show error)))
+        Right value -> pure (Right value)
+
+-- | Classifies a migration without ever treating partially parsed SQL as an
+-- extension migration. Unsupported or mixed extension migrations fail closed.
+classifyMigration :: Text -> Either Text MigrationKind
+classifyMigration migrationSql =
+    case PostgresParser.parseCreateExtensionMigration migrationSql of
+        Right statements
+            | all hasIfNotExists statements -> Right CreateExtensionMigration
+            | otherwise -> Left "CREATE EXTENSION migrations must use IF NOT EXISTS"
+        Left _
+            | PostgresParser.containsCreateExtensionStatement migrationSql ->
+                Left (Text.unlines
+                    [ "CREATE EXTENSION migrations must be standalone"
+                    , "The file may only contain CREATE EXTENSION IF NOT EXISTS statements, comments, and whitespace."
+                    , "Move all other SQL into a separate migration."
+                    ])
+            | otherwise -> Right RegularMigration
+    where
+        hasIfNotExists CreateExtension { ifNotExists } = ifNotExists
+        hasIfNotExists _ = False
+
+-- | Returns the PostgreSQL-resolved extension names from a migration already
+-- accepted by 'classifyMigration'.
+extensionNamesFromMigration :: Text -> Either Text [Text]
+extensionNamesFromMigration migrationSql =
+    case PostgresParser.parseCreateExtensionMigration migrationSql of
+        Left parserError -> Left (cs parserError)
+        Right statements -> traverse extensionName statements
+    where
+        extensionName (CreateExtension name _) = Right name
+        extensionName _ = Left "Expected a CREATE EXTENSION statement"
+
+-- | Extracts extension creation statements from a complete schema. The result
+-- can be executed as a database administrator before loading the schema as the
+-- application role.
+extractCreateExtensionsSql :: Text -> Either Text Text
+extractCreateExtensionsSql schemaSql =
+    case PostgresParser.parseSqlText schemaSql of
+        Left parserError -> Left (cs parserError)
+        Right statements ->
+            let extensionStatements = filter isCreateExtension statements
+            in if all usesIfNotExists extensionStatements
+                then Right (PostgresCompiler.compileSql extensionStatements)
+                else Left "Schema.sql CREATE EXTENSION statements must use IF NOT EXISTS"
+    where
+        isCreateExtension CreateExtension {} = True
+        isCreateExtension _ = False
+        usesIfNotExists CreateExtension { ifNotExists } = ifNotExists
+        usesIfNotExists _ = False
+
+-- | Checks that the application and admin connections select a database with
+-- the same name.
+validateSameDatabase :: Connection.Connection -> Connection.Connection -> IO (Either Text ())
+validateSameDatabase connection adminConnection = do
+    database <- useSession connection (Session.statement () currentDatabaseStatement)
+    adminDatabase <- useSession adminConnection (Session.statement () currentDatabaseStatement)
+    pure do
+        databaseName <- database
+        adminDatabaseName <- adminDatabase
+        if databaseName == adminDatabaseName
+            then Right ()
+            else Left ("DATABASE_URL connects to database \"" <> databaseName <> "\", but DATABASE_ADMIN_URL connects to \"" <> adminDatabaseName <> "\"")
+
+-- | Runs a Hasql session while retaining connection errors as text.
+useSession :: Connection.Connection -> Session.Session a -> IO (Either Text a)
+useSession connection session = do
+    result <- Connection.use connection session
+    case result of
+        Left error -> pure (Left (cs (show error)))
+        Right value -> pure (Right value)
 
 insertRevisionStatement :: Statement.Statement Int64 ()
 insertRevisionStatement =
@@ -81,6 +238,22 @@ insertRevisionStatement =
         "INSERT INTO schema_migrations (revision) VALUES ($1)"
         (Encoders.param (Encoders.nonNullable Encoders.int8))
         Decoders.noResult
+
+-- | Checks whether an extension is installed in the selected database.
+extensionExistsStatement :: Statement.Statement Text Bool
+extensionExistsStatement =
+    Statement.preparable
+        "SELECT EXISTS (SELECT 1 FROM pg_catalog.pg_extension WHERE extname = $1)"
+        (Encoders.param (Encoders.nonNullable Encoders.text))
+        (Decoders.singleRow (Decoders.column (Decoders.nonNullable Decoders.bool)))
+
+-- | Reads the name of the currently selected database.
+currentDatabaseStatement :: Statement.Statement () Text
+currentDatabaseStatement =
+    Statement.preparable
+        "SELECT pg_catalog.current_database()::pg_catalog.text"
+        Encoders.noParams
+        (Decoders.singleRow (Decoders.column (Decoders.nonNullable Decoders.text)))
 
 checkSchemaMigrationsExistsStatement :: Statement.Statement () (Maybe Text)
 checkSchemaMigrationsExistsStatement =

@@ -11,9 +11,65 @@ import Data.String.Interpolate.IsString (i)
 import qualified Text.Megaparsec as Megaparsec
 import qualified IHP.Postgres.Parser as Parser
 import IHP.Postgres.Types
+import IHP.IDE.CodeGen.Types (GeneratorAction (..))
 
 tests = do
     describe "MigrationGenerator" do
+        describe "nextMigrationRevision" do
+            it "uses the timestamp when it is newer than existing migrations" do
+                nextMigrationRevision 200 [100, 101] `shouldBe` 200
+
+            it "allocates after future-dated migrations so a split plan cannot collide" do
+                let revision = nextMigrationRevision 100 [200]
+                revision `shouldBe` 201
+                revision + 1 `shouldBe` 202
+
+        describe "migration paths" do
+            it "reports every generated migration and opens the regular migration last" do
+                let plan =
+                        [ EnsureDirectory { directory = textToOsPath "Application/Migration" }
+                        , CreateFile { filePath = textToOsPath "Application/Migration/100-create-extensions.sql", fileContent = "" }
+                        , CreateFile { filePath = textToOsPath "Application/Migration/101-add-places.sql", fileContent = "" }
+                        ]
+
+                migrationPathsFromPlan plan `shouldBe`
+                    [ "Application/Migration/100-create-extensions.sql"
+                    , "Application/Migration/101-add-places.sql"
+                    ]
+                migrationPathFromPlan plan `shouldBe` "Application/Migration/101-add-places.sql"
+
+        describe "migrationFilesFromStatements" do
+            it "places extensions in a standalone migration before regular statements" do
+                let statements = sql [i|
+                    CREATE EXTENSION IF NOT EXISTS "earthdistance";
+                    CREATE TABLE places ();
+                |]
+
+                migrationFilesFromStatements 100 "add-places" statements `shouldBe`
+                    [ ("100-create-extensions.sql", "CREATE EXTENSION IF NOT EXISTS earthdistance;\n")
+                    , ("101-add-places.sql", "CREATE TABLE places (\n\n);\n")
+                    ]
+
+            it "keeps an extension-only diff in the requested migration" do
+                let statements = sql [i|CREATE EXTENSION IF NOT EXISTS "earthdistance";|]
+
+                migrationFilesFromStatements 100 "add-earthdistance" statements `shouldBe`
+                    [("100-add-earthdistance.sql", "CREATE EXTENSION IF NOT EXISTS earthdistance;\n")]
+
+        describe "migrationFilesFromSql" do
+            it "splits a generated SQL preview when it is submitted" do
+                migrationFilesFromSql 100 "add-places" [i|
+                    CREATE EXTENSION IF NOT EXISTS "earthdistance";
+                    CREATE TABLE places ();
+                |] `shouldBe`
+                    [ ("100-create-extensions.sql", "CREATE EXTENSION IF NOT EXISTS earthdistance;\n")
+                    , ("101-add-places.sql", "CREATE TABLE places (\n\n);\n")
+                    ]
+
+            it "preserves manually formatted regular SQL" do
+                migrationFilesFromSql 100 "backfill" "  UPDATE users SET active = TRUE;\n"
+                    `shouldBe` [("100-backfill.sql", "  UPDATE users SET active = TRUE;\n")]
+
         describe "diffSchemas" do
             it "should handle an empty schema" do
                 diffSchemas [] [] `shouldBe` []

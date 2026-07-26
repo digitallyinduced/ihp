@@ -228,6 +228,7 @@ data PostgresType
     | PDouble
     | PPoint
     | PPolygon
+    | PGeometry
     | PDate
     | PBinary
     | PTime

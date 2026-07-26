@@ -1,5 +1,5 @@
 { mkDerivation, base, directory, filepath, hasql, hasql-transaction
-, hspec, lib, string-conversions, temporary-ospath, text, with-utf8
+, hspec, ihp-postgres-parser, lib, string-conversions, temporary-ospath, text, with-utf8
 }:
 mkDerivation {
   pname = "ihp-migrate";
@@ -8,15 +8,16 @@ mkDerivation {
   isLibrary = true;
   isExecutable = true;
   libraryHaskellDepends = [
-    base directory filepath hasql hasql-transaction string-conversions
-    text with-utf8
+    base directory filepath hasql hasql-transaction ihp-postgres-parser
+    string-conversions text with-utf8
   ];
   executableHaskellDepends = [
     base directory filepath hasql hasql-transaction string-conversions
     text with-utf8
   ];
   testHaskellDepends = [
-    base directory filepath hspec temporary-ospath with-utf8
+    base directory filepath hasql hspec string-conversions temporary-ospath text
+    with-utf8
   ];
   homepage = "https://ihp.digitallyinduced.com/";
   description = "Provides the IHP migrate binary";

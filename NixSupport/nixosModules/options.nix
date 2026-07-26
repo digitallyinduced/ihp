@@ -49,6 +49,16 @@ with lib;
             type = types.str;
         };
 
+        databaseAdminUrl = mkOption {
+            type = types.nullOr types.str;
+            default = null;
+            description = ''
+                Optional privileged PostgreSQL connection used exclusively for
+                standalone CREATE EXTENSION migrations. Regular migrations
+                always use services.ihp.databaseUrl.
+            '';
+        };
+
         # https://ihp.digitallyinduced.com/Guide/database-migrations.html#skipping-old-migrations
         minimumRevision = mkOption {
             type = types.int;
