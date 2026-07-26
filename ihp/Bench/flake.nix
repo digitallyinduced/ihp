@@ -38,9 +38,13 @@
                     inherit name;
                     src = ihp-forum;
                     nativeBuildInputs = [
-                        (ghcPkgs.ghc.withPackages (p: with p; [
-                            ihp ihp-mail ihp-schema-compiler
-                            base wai text mmark mmark-ext wreq neat-interpolation
+                        # Qualify package names with `p.` — the flake input is also
+                        # called `ihp`, and `with p; [ ihp … ]` would resolve to that
+                        # flake (a set), not the Haskell package, causing:
+                        #   ghcWithPackages: expected a derivation, got a set
+                        (ghcPkgs.ghc.withPackages (p: [
+                            p.ihp p.ihp-mail p.ihp-schema-compiler
+                            p.wai p.mmark p.mmark-ext p.wreq p.neat-interpolation
                         ]))
                         pkgs.gnumake
                         pkgs.gawk
