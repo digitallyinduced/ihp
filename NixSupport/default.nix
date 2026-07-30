@@ -20,6 +20,7 @@
 , appSchemaSql ? null       # Path to Application/Schema.sql (required when buildWithPostgres = true)
 , ihpSchemaSql ? null       # Path to IHPSchema.sql (required when buildWithPostgres = true)
 , migrationCheck ? null     # Optional derivation that validates Application/Migration before building the app
+, previousIntermediates ? null # Optional intermediate output from a previous optimized app library build
 }:
 
 let
@@ -162,37 +163,44 @@ CABAL_EOF
 
     # Inline mkDerivation instead of callCabal2nix to avoid IFD (Import From Derivation).
     # The dependencies here must match the .cabal template generated in modelsPackageSrc above.
-    modelsPackage = pkgs.haskell.lib.disableLibraryProfiling (pkgs.haskell.lib.dontHaddock (
-        ghc.callPackage ({ mkDerivation, base, ihp, basic-prelude, text, bytestring, time, uuid, aeson, postgresql-simple, deepseq, data-default, scientific, string-conversions, hasql, hasql-dynamic-statements, hasql-implicits, hasql-mapping, hasql-postgresql-types, hasql-pool, unordered-containers, postgresql-types }: mkDerivation {
-            pname = "${appName}-models";
-            version = "0.1.0";
-            src = modelsPackageSrc;
-            libraryHaskellDepends = [
-                base
-                ihp
-                basic-prelude
-                text
-                bytestring
-                time
-                uuid
-                aeson
-                postgresql-simple
-                deepseq
-                data-default
-                scientific
-                string-conversions
-                hasql
-                hasql-dynamic-statements
-                hasql-implicits
-                hasql-mapping
-                hasql-postgresql-types
-                hasql-pool
-                unordered-containers
-                postgresql-types
-            ];
-            license = pkgs.lib.licenses.free;
-        }) {}
-    ));
+    # Every generated table expands into several modules. With large schemas,
+    # split sections create enough archive members for the final library
+    # assembly to exceed the platform's argument-size limit.
+    modelsPackage = pkgs.haskell.lib.overrideCabal (
+        pkgs.haskell.lib.disableLibraryProfiling (pkgs.haskell.lib.dontHaddock (
+            ghc.callPackage ({ mkDerivation, base, ihp, basic-prelude, text, bytestring, time, uuid, aeson, postgresql-simple, deepseq, data-default, scientific, string-conversions, hasql, hasql-dynamic-statements, hasql-implicits, hasql-mapping, hasql-postgresql-types, hasql-pool, unordered-containers, postgresql-types }: mkDerivation {
+                pname = "${appName}-models";
+                version = "0.1.0";
+                src = modelsPackageSrc;
+                libraryHaskellDepends = [
+                    base
+                    ihp
+                    basic-prelude
+                    text
+                    bytestring
+                    time
+                    uuid
+                    aeson
+                    postgresql-simple
+                    deepseq
+                    data-default
+                    scientific
+                    string-conversions
+                    hasql
+                    hasql-dynamic-statements
+                    hasql-implicits
+                    hasql-mapping
+                    hasql-postgresql-types
+                    hasql-pool
+                    unordered-containers
+                    postgresql-types
+                ];
+                license = pkgs.lib.licenses.free;
+            }) {}
+        ))
+    ) (old: {
+        configureFlags = (old.configureFlags or []) ++ [ "--disable-split-sections" ];
+    });
 
     allHaskellPackages =
         (if withHoogle
@@ -418,6 +426,9 @@ CABAL_EOF
             version = "0.1.0";
             src = appLibSrc;
             libraryHaskellDepends = [ base modelsPackage ] ++ builtins.filter (p: p != null) (haskellDeps ghc);
+            doInstallIntermediates = optimized;
+            enableSeparateIntermediatesOutput = optimized;
+            inherit previousIntermediates;
             license = pkgs.lib.licenses.free;
         }) {}
     ));
@@ -572,7 +583,7 @@ in
     pkgs.runCommand appName {
         inherit static binaries;
         nativeBuildInputs = [ pkgs.makeWrapper ];
-        passthru = { inherit scriptBinaries; migrationCheck = effectiveMigrationCheck; };
+        passthru = { inherit appLibPackage scriptBinaries; migrationCheck = effectiveMigrationCheck; };
     } ''
             test -e ${effectiveMigrationCheck}
 
