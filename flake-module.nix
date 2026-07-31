@@ -131,6 +131,25 @@ ihpFlake:
                     default = "1";
                 };
 
+                buildStaticLibraries = lib.mkOption {
+                    description = ''
+                        Whether production-server builds compile static Haskell libraries
+                        in addition to shared libraries.
+                    '';
+                    type = lib.types.bool;
+                    default = true;
+                };
+
+                ghcAllocationArea = lib.mkOption {
+                    description = ''
+                        Optional GHC compile-time RTS allocation area for production-server
+                        builds, such as "128M". When unset, the nixpkgs Haskell builder
+                        default is used.
+                    '';
+                    type = lib.types.nullOr lib.types.str;
+                    default = null;
+                };
+
                 previousAppLibIntermediates = lib.mkOption {
                     description = ''
                         Intermediate output from a previous optimized application build.
@@ -211,6 +230,7 @@ ihpFlake:
                 static = self'.packages.static;
                 inherit buildWithPostgres;
                 previousIntermediates = if optimized then cfg.previousAppLibIntermediates else null;
+                inherit (cfg) buildStaticLibraries ghcAllocationArea;
                 appSchemaSql = "${self'.packages.schema}/Schema.sql";
                 ihpSchemaSql = "${self'.packages.ihp-schema}/IHPSchema.sql";
             };
