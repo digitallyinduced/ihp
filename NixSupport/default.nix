@@ -21,6 +21,8 @@
 , ihpSchemaSql ? null       # Path to IHPSchema.sql (required when buildWithPostgres = true)
 , migrationCheck ? null     # Optional derivation that validates Application/Migration before building the app
 , previousIntermediates ? null # Optional intermediate output from a previous optimized app library build
+, buildStaticLibraries ? true # Build static Haskell libraries in addition to shared libraries
+, ghcAllocationArea ? null # Optional GHC compile-time RTS allocation area, e.g. "128M"
 }:
 
 let
@@ -166,7 +168,7 @@ CABAL_EOF
     # Every generated table expands into several modules. With large schemas,
     # split sections create enough archive members for the final library
     # assembly to exceed the platform's argument-size limit.
-    modelsPackage = pkgs.haskell.lib.overrideCabal (
+    modelsPackage = configureHaskellBuild (pkgs.haskell.lib.overrideCabal (
         pkgs.haskell.lib.disableLibraryProfiling (pkgs.haskell.lib.dontHaddock (
             ghc.callPackage ({ mkDerivation, base, ihp, basic-prelude, text, bytestring, time, uuid, aeson, postgresql-simple, deepseq, data-default, scientific, string-conversions, hasql, hasql-dynamic-statements, hasql-implicits, hasql-mapping, hasql-postgresql-types, hasql-pool, unordered-containers, postgresql-types }: mkDerivation {
                 pname = "${appName}-models";
@@ -200,7 +202,7 @@ CABAL_EOF
         ))
     ) (old: {
         configureFlags = (old.configureFlags or []) ++ [ "--disable-split-sections" ];
-    });
+    }));
 
     allHaskellPackages =
         (if withHoogle
@@ -420,7 +422,22 @@ CABAL_EOF
         '';
     });
 
-    appLibPackageBase = pkgs.haskell.lib.disableLibraryProfiling (pkgs.haskell.lib.dontHaddock (
+    configureHaskellBuild = pkg:
+        pkgs.haskell.lib.overrideCabal
+            (if buildStaticLibraries then pkg else pkgs.haskell.lib.disableStaticLibraries pkg)
+            (old: {
+                configureFlags = (old.configureFlags or [])
+                    ++ pkgs.lib.optionals (!buildStaticLibraries) [
+                        "--disable-library-vanilla"
+                    ]
+                    ++ pkgs.lib.optionals (ghcAllocationArea != null) [
+                        "--ghc-option=+RTS"
+                        "--ghc-option=-A${ghcAllocationArea}"
+                        "--ghc-option=-RTS"
+                    ];
+            });
+
+    appLibPackageBase = configureHaskellBuild (pkgs.haskell.lib.disableLibraryProfiling (pkgs.haskell.lib.dontHaddock (
         ghc.callPackage ({ mkDerivation, base }: mkDerivation {
             pname = "${appName}-lib";
             version = "0.1.0";
@@ -431,7 +448,7 @@ CABAL_EOF
             inherit previousIntermediates;
             license = pkgs.lib.licenses.free;
         }) {}
-    ));
+    )));
 
     appLibPackage =
         if buildWithPostgres
@@ -463,6 +480,7 @@ CABAL_EOF
                 ''}
 
                 ghc -j1 +RTS -N1 -RTS \
+                    ${pkgs.lib.optionalString (!buildStaticLibraries) "-dynamic"} \
                     -O${if optimized then optimizationLevel else "0"} ${splitSections} \
                     ${pkgs.lib.optionalString (mainIs != null) "-main-is '${mainIs}'"} \
                     $(make print-ghc-options) \
