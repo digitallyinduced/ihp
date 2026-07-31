@@ -131,20 +131,20 @@ ihpFlake:
                     default = "1";
                 };
 
-                unoptimizedBuildStaticLibraries = lib.mkOption {
+                buildStaticLibraries = lib.mkOption {
                     description = ''
-                        Whether the unoptimized production-server build compiles static
-                        Haskell libraries in addition to shared libraries.
+                        Whether production-server builds compile static Haskell libraries
+                        in addition to shared libraries.
                     '';
                     type = lib.types.bool;
                     default = true;
                 };
 
-                unoptimizedGhcAllocationArea = lib.mkOption {
+                ghcAllocationArea = lib.mkOption {
                     description = ''
-                        Optional GHC compile-time RTS allocation area for the unoptimized
-                        production-server build, such as "128M". When unset, the nixpkgs
-                        Haskell builder default is used.
+                        Optional GHC compile-time RTS allocation area for production-server
+                        builds, such as "128M". When unset, the nixpkgs Haskell builder
+                        default is used.
                     '';
                     type = lib.types.nullOr lib.types.str;
                     default = null;
@@ -230,8 +230,7 @@ ihpFlake:
                 static = self'.packages.static;
                 inherit buildWithPostgres;
                 previousIntermediates = if optimized then cfg.previousAppLibIntermediates else null;
-                buildStaticLibraries = optimized || cfg.unoptimizedBuildStaticLibraries;
-                ghcAllocationArea = if optimized then null else cfg.unoptimizedGhcAllocationArea;
+                inherit (cfg) buildStaticLibraries ghcAllocationArea;
                 appSchemaSql = "${self'.packages.schema}/Schema.sql";
                 ihpSchemaSql = "${self'.packages.ihp-schema}/IHPSchema.sql";
             };
