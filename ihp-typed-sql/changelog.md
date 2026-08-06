@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- Multi-column `typedSql` results (`SqlRow`) now support up to **16** selected
+  columns (was 10). Selecting more yields a clear `TypeError` instead of a
+  stuck `RowTuple` type-family error
+  ([#2767](https://github.com/digitallyinduced/ihp/issues/2767)).
+
 - Added `sqlQueryTypedPipelined` for running typed SQL queries through
   `IHP.FetchPipelined.pipeline`.
 
