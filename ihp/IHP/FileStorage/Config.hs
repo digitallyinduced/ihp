@@ -6,6 +6,7 @@ Copyright: (c) digitally induced GmbH, 2021
 module IHP.FileStorage.Config
 ( initS3Storage
 , initStaticDirStorage
+, initS3CompatibleStorage
 , initMinioStorage
 , initFilebaseStorage
 ) where
@@ -50,8 +51,9 @@ initS3Storage region bucket = do
 
 -- | Stores files in a self-hosted S3 compatible object storage server, e.g. Garage or SeaweedFS.
 --
--- The access key and secret key have to be provided using the @MINIO_ACCESS_KEY@ and @MINIO_SECRET_KEY@ env vars.
--- The naming of these env vars is historical, they're plain S3 credentials.
+-- The access key and secret key are read from the @AWS_ACCESS_KEY_ID@ and @AWS_SECRET_ACCESS_KEY@ env vars,
+-- the same names the AWS CLI and other S3 tooling use. The legacy @MINIO_ACCESS_KEY@ and @MINIO_SECRET_KEY@
+-- env vars still take precedence when they are set.
 --
 -- __Example:__ Set up a S3 compatible storage in @Config.hs@
 --
@@ -66,18 +68,23 @@ initS3Storage region bucket = do
 -- > config = do
 -- >     option Development
 -- >     option (AppHostname "localhost")
--- >     initMinioStorage "https://storage.example.com" "my-bucket-name"
+-- >     initS3CompatibleStorage "https://storage.example.com" "my-bucket-name"
 --
-initMinioStorage :: HasCallStack => Text -> Text -> State.StateT TMap.TMap IO ()
-initMinioStorage server bucket = do
+initS3CompatibleStorage :: HasCallStack => Text -> Text -> State.StateT TMap.TMap IO ()
+initS3CompatibleStorage server bucket = do
     connectInfo <- server
         |> cs
         |> fromString
-        |> setCredsFrom [fromMinioEnv]
+        |> setCredsFrom [fromMinioEnv, fromAWSEnv]
         |> configIO
 
     let baseUrl = server <> "/" <> bucket <> "/"
     option S3Storage { connectInfo, bucket, baseUrl }
+
+-- | Alias for 'initS3CompatibleStorage', kept for backwards compatibility.
+initMinioStorage :: HasCallStack => Text -> Text -> State.StateT TMap.TMap IO ()
+initMinioStorage = initS3CompatibleStorage
+{-# DEPRECATED initMinioStorage "Use initS3CompatibleStorage instead" #-}
 
 -- | Stores files publicly visible inside the @static@ directory
 --

@@ -121,7 +121,7 @@ Open your `Config/Config.hs` and import `import IHP.FileStorage.Config`:
 import IHP.FileStorage.Config
 ```
 
-Then add a call to [`initMinioStorage`](https://ihp.digitallyinduced.com/api-docs/IHP-FileStorage-Config.html#v:initMinioStorage). Despite its name it works with any S3 compatible server:
+Then add a call to [`initS3CompatibleStorage`](https://ihp.digitallyinduced.com/api-docs/IHP-FileStorage-Config.html#v:initS3CompatibleStorage):
 
 ```haskell
 module Config where
@@ -137,13 +137,13 @@ config = do
     option (AppHostname "localhost")
 
     -- Local development, we use Garage.
-    initMinioStorage "http://127.0.0.1:3900" "ihp-bucket"
+    initS3CompatibleStorage "http://127.0.0.1:3900" "ihp-bucket"
 
     -- Or if you have a remote server:
-    -- initMinioStorage "https://storage.example.com" "my-bucket-name"
+    -- initS3CompatibleStorage "https://storage.example.com" "my-bucket-name"
 ```
 
-The access key and secret key have to be provided using the `MINIO_ACCESS_KEY` and `MINIO_SECRET_KEY` env vars. These are plain S3 credentials, the naming is historical.
+The access key and secret key have to be provided using the `AWS_ACCESS_KEY_ID` and `AWS_SECRET_ACCESS_KEY` env vars, the same names the AWS CLI and other S3 tooling use.
 
 For easy development you can add these env vars to your `.envrc` file:
 
@@ -154,9 +154,11 @@ use devenv
 
 # ...
 # When working locally, these are the credentials imported above.
-export MINIO_ACCESS_KEY="GK00000000000000000000000f"
-export MINIO_SECRET_KEY="0000000000000000000000000000000000000000000000000000000000000000"
+export AWS_ACCESS_KEY_ID="GK00000000000000000000000f"
+export AWS_SECRET_ACCESS_KEY="0000000000000000000000000000000000000000000000000000000000000000"
 ```
+
+If your app already sets `MINIO_ACCESS_KEY` and `MINIO_SECRET_KEY`, those keep working and take precedence.
 
 ### Filebase
 > Filebase provides an S3 compatible API on top of decentralized object storage systems such as Storj, Skynet, Sia and IPFS
