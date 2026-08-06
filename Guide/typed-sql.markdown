@@ -87,17 +87,19 @@ score <- sqlQueryTypedMaybeColumn [typedSql|
 
 ## Selecting Multiple Columns
 
-When selecting multiple columns, the result is a tuple:
+When selecting multiple columns, the result is a labeled `SqlRow` (field access via `OverloadedRecordDot`):
 
 ```haskell
 rows <- sqlQueryTyped [typedSql|
     SELECT id, name, views FROM items LIMIT 10
 |]
 
--- rows :: [(Id' "items", Text, Int)]
-forEach rows \(itemId, name, views) -> do
-    putStrLn (name <> ": " <> show views)
+-- rows :: [SqlRow '[ '("id", Id' "items"), '("name", Text), '("views", Int) ]]
+forEach rows \row -> do
+    putStrLn (row.name <> ": " <> show row.views)
 ```
+
+`typedSql` supports up to **16 selected columns** in a multi-column ad-hoc query. Selecting more produces a compile-time error asking you to split the query or project fewer columns.
 
 Primary key columns are automatically typed as `Id' "table_name"` rather than raw `UUID`.
 
