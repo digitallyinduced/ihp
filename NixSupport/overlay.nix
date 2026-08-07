@@ -110,10 +110,31 @@ let
             # derivations are bit-identical to nixpkgs' Hydra-built
             # `haskellPackages.ihp` closure and resolve straight from
             # cache.nixos.org. Keep in sync with configuration-common.nix.
+            #
+            # Exception: hasql and hasql-pool are pinned to newer patch
+            # releases than the nixpkgs attrs (hasql_1_10_3 / hasql-pool_1_4_2)
+            # so async-timeout cleanup does not return closed connections to
+            # the pool (https://github.com/digitallyinduced/ihp/issues/2765).
+            # Drop the overrideCabal once nixpkgs ships >= these versions.
             postgresql-connection-string = hackagePackage "postgresql-connection-string";
 
-            hasql                    = super.hasql_1_10_3;
-            hasql-pool               = super.hasql-pool_1_4_2;
+            # hasql-1.10.3.7: pipeline cleanup handles PipelineAborted (#311)
+            # Adds comonad vs 1.10.3 in nixpkgs.
+            hasql = final.haskell.lib.overrideCabal super.hasql_1_10_3 (old: {
+                version = "1.10.3.7";
+                sha256 = "0jj5243k77q7f3k2mw8crf3n5pdqbdzcj439ca1n4yvznwip9a3b";
+                revision = null;
+                editedCabalFile = null;
+                libraryHaskellDepends = (old.libraryHaskellDepends or []) ++ [ self.comonad ];
+            });
+            # hasql-pool-1.4.2.3: discard connections after driver errors (#55)
+            # plus later 1.4.2.x pool fixes; requires hasql >= 1.10.
+            hasql-pool = final.haskell.lib.overrideCabal super.hasql-pool_1_4_2 (old: {
+                version = "1.4.2.3";
+                sha256 = "1sizwh7lhdczny3lmjvxc07aa4f82h2qf22cs0cf66w5lky0yxkf";
+                revision = null;
+                editedCabalFile = null;
+            });
             hasql-dynamic-statements = super.hasql-dynamic-statements_0_5_1;
             hasql-transaction        = super.hasql-transaction_1_2_2;
             hasql-notifications      = super.hasql-notifications_0_2_5_0;
