@@ -18,8 +18,8 @@ import qualified Network.Wai as Wai
 currentUser :: (?request :: Wai.Request, user ~ CurrentUserRecord, Typeable user) => user
 currentUser = fromMaybe (error "Application.Helper.View.currentUser: Not logged in") currentUserOrNothing
 
-currentUserId :: forall user userId. (?request :: Wai.Request, HasField "id" user userId, Typeable user, user ~ CurrentUserRecord) => userId
-currentUserId = (currentUser @user).id
+currentUserId :: forall user. (?request :: Wai.Request, ModelSupport.Table user, Typeable user, user ~ CurrentUserRecord) => ModelSupport.TableId user
+currentUserId = ModelSupport.modelId (currentUser @user)
 
 -- | Returns the current user or 'Nothing'.
 --

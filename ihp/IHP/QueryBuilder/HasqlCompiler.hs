@@ -56,7 +56,7 @@ buildWrappedStatement prefix sqlQuery suffix decoder =
 
 -- | Compile a QueryBuilder to SQL text (for testing / error messages).
 -- Discards the encoder.
-toSQL :: forall table. KnownSymbol table => QueryBuilder table -> Text
+toSQL :: QueryBuilder table -> Text
 toSQL queryBuilder =
     let (sql, _) = compileQuery emptyCompilerState (buildQuery queryBuilder)
     in sql
