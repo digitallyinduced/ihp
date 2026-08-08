@@ -14,11 +14,14 @@ import           IHP.TypedSql.ParamHints           (parseSql, extractJoinNullabl
                                                     detectStarSelects,
                                                     detectInsertWithoutColumns)
 import           System.Directory                  (createDirectoryIfMissing,
+                                                    doesDirectoryExist,
                                                     doesFileExist,
                                                     findExecutable,
                                                     getCurrentDirectory)
+import           IHP.TypedSql.CompileTimeDatabase  (reapAbandonedAutoDatabasesIn)
+import           System.Exit                       (ExitCode (ExitSuccess))
 import           System.Environment                (getEnvironment, lookupEnv)
-import           System.FilePath                   (takeDirectory)
+import           System.FilePath                   (takeDirectory, (</>))
 import           System.Process                    (CreateProcess (..), proc,
                                                     readCreateProcessWithExitCode)
 import           System.IO.Temp.OsPath              (withSystemTempDirectory)
@@ -377,6 +380,44 @@ tests = do
         runtimeTest "paginatedTypedSql / paginatedTypedSqlWithOptions" runtimePaginationModule
         runtimeTest "enum, Maybe enum, and [Maybe enum] parameters via ${...}" runtimeEnumModule
 
+    describe "TypedSql abandoned auto-database reaping (no postgres)" do
+        it "reaps a directory whose owning process is gone, keeps a live one" do
+            withSystemTempDirectory' "typed-sql-reap" \tempDirectory -> do
+                let deadRoot = tempDirectory </> "ihp-typed-sql-dead"
+                let liveRoot = tempDirectory </> "ihp-typed-sql-live"
+                let unrelated = tempDirectory </> "some-other-directory"
+                mapM_ (createDirectoryIfMissing True) [deadRoot, liveRoot, unrelated]
+
+                -- A pid that cannot be running. Guard rather than assume.
+                deadPidIsFree <- not <$> pidExists deadTestPid
+                deadPidIsFree `shouldBe` True
+
+                Prelude.writeFile (deadRoot </> "owner.pid") (Prelude.show deadTestPid)
+                -- pid 1 is always running *and* owned by root. That second part
+                -- matters: it pins the regression where liveness was probed with
+                -- `kill -0`, which reports EPERM for another user's process and
+                -- so treated a live database as abandoned.
+                Prelude.writeFile (liveRoot </> "owner.pid") (Prelude.show livePid)
+
+                reapAbandonedAutoDatabasesIn tempDirectory
+
+                doesDirectoryExist deadRoot `shouldReturn` False
+                doesDirectoryExist liveRoot `shouldReturn` True
+                doesDirectoryExist unrelated `shouldReturn` True
+
+        it "leaves a recent directory without an owner file alone" do
+            withSystemTempDirectory' "typed-sql-reap" \tempDirectory -> do
+                -- No owner file means the process died before the monitor started.
+                -- Those are only reaped once past the grace period, so that a
+                -- database being created right now is never pulled out from under
+                -- a concurrent build.
+                let root = tempDirectory </> "ihp-typed-sql-just-created"
+                createDirectoryIfMissing True root
+
+                reapAbandonedAutoDatabasesIn tempDirectory
+
+                doesDirectoryExist root `shouldReturn` True
+
     describe "TypedSql SQL parser (pure, no postgres)" do
         it "parseSql succeeds on simple SELECT" do
             parseSql "SELECT 1" `shouldSatisfy` isJust
@@ -525,6 +566,27 @@ tests = do
             detectInsertWithoutColumns ast `shouldBe` []
 
 -- Test helpers ---------------------------------------------------------------
+
+-- | pid 1 is always running, and owned by root rather than by the test user.
+livePid :: Int
+livePid = 1
+
+-- | Above the default pid_max on Linux and macOS, so it cannot name a process.
+-- The test asserts this rather than trusting it.
+deadTestPid :: Int
+deadTestPid = 99998
+
+pidExists :: Int -> IO Bool
+pidExists pid = do
+    (exitCode, _, _) <- readCreateProcessWithExitCode (proc "ps" ["-p", Prelude.show pid]) ""
+    pure (exitCode == ExitSuccess)
+
+-- | 'withSystemTempDirectory' over 'FilePath' instead of 'OsPath'.
+withSystemTempDirectory' :: String -> (FilePath -> IO a) -> IO a
+withSystemTempDirectory' name action = do
+    template <- encodeUtf name
+    withSystemTempDirectory template \osDirectory ->
+        decodeUtf osDirectory >>= action
 
 requirePostgresTestHook :: IO ()
 requirePostgresTestHook = do

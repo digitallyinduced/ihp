@@ -5,6 +5,7 @@ module IHP.TypedSql.CompileTimeDatabase
     , autoDatabaseEnabled
     , dependentSchemaFiles
     , ensureAutoDatabase
+    , reapAbandonedAutoDatabasesIn
     ) where
 
 import qualified Control.Exception       as Exception
@@ -21,7 +22,8 @@ import           IHP.Prelude
 import           Numeric                 (showHex)
 import           System.Directory        (createDirectoryIfMissing, doesFileExist,
                                           findExecutable, getCurrentDirectory,
-                                          getTemporaryDirectory,
+                                          getModificationTime,
+                                          getTemporaryDirectory, listDirectory,
                                           removePathForcibly)
 import           System.Environment      (lookupEnv)
 import           System.Exit             (ExitCode (ExitFailure, ExitSuccess))
@@ -30,6 +32,7 @@ import           System.IO               (appendFile)
 import           System.IO.Temp          (createTempDirectory)
 import           System.Process          (createProcess, proc,
                                           readProcessWithExitCode)
+import           Text.Read               (readMaybe)
 import qualified System.IO.Unsafe        as Unsafe
 import qualified Prelude
 
@@ -168,6 +171,7 @@ fnv1a64 =
 startAutoDatabase :: SchemaInputs -> IO AutoDatabase
 startAutoDatabase schemaInputs = do
     ensureRequiredExecutables
+    reapAbandonedAutoDatabases
     tempDirectory <- getTemporaryDirectory
     root <- createTempDirectory tempDirectory "ihp-typed-sql-"
     let pgData = root </> "pgdata"
@@ -183,6 +187,10 @@ startAutoDatabase schemaInputs = do
 
     (do
         createDirectoryIfMissing True pgHost
+        -- Started before initdb, not after the cluster is up: if this process is
+        -- killed (Ctrl-C, a cancelled parallel build, the OOM killer) there is no
+        -- exception to unwind, so the monitor is the only thing that can clean up.
+        startCleanupMonitor root pgData
         runChecked "initdb" ["-D", pgData, "--no-locale", "--encoding=UTF8"]
         appendFile (pgData </> "postgresql.conf")
             ( "unix_socket_directories = '" <> pgHost <> "'\n"
@@ -192,7 +200,6 @@ startAutoDatabase schemaInputs = do
         runChecked "createdb" ["-h", pgHost, "app"]
         forM_ (catMaybes [siIhpSchema schemaInputs, Just (siAppSchema schemaInputs)]) \schemaFile ->
             runChecked "psql" ["-v", "ON_ERROR_STOP=1", "-h", pgHost, "app", "-f", schemaFile]
-        startCleanupMonitor root pgData
         pure autoDatabase
         ) `Exception.onException` cleanupAutoDatabase autoDatabase
 
@@ -247,6 +254,10 @@ startCleanupMonitor root pgData = do
             [ "parent=$PPID"
             , "root=$1"
             , "pgdata=$2"
+            -- Record the owning compiler process so a later run can tell an
+            -- abandoned database apart from one that is still in use. See
+            -- 'reapAbandonedAutoDatabases'.
+            , "echo \"$parent\" > \"$root/" <> ownerPidFileName <> "\""
             , "("
             , "  while kill -0 \"$parent\" 2>/dev/null; do sleep 1; done"
             , "  pg_ctl -D \"$pgdata\" -m fast -w stop >/dev/null 2>&1 || true"
@@ -255,3 +266,71 @@ startCleanupMonitor root pgData = do
             ]
     _ <- createProcess (proc "sh" ["-c", script, "ihp-typed-sql-monitor", root, pgData])
     pure ()
+
+ownerPidFileName :: String
+ownerPidFileName = "owner.pid"
+
+-- | Removes auto-database directories left behind by earlier runs.
+--
+-- 'startCleanupMonitor' handles the normal case, but it cannot help when the
+-- compiler process dies without unwinding — Ctrl-C, a parallel build being
+-- cancelled, the OOM killer, a reboot. Those runs leave the temp directory, and
+-- sometimes a live postgres, behind forever.
+--
+-- That accumulates: enough clusters exhaust the system's SysV shared memory, at
+-- which point every later typedSql compile fails during initdb with
+-- @could not create shared memory segment: No space left on device@, which
+-- points at the kernel rather than at the real cause.
+reapAbandonedAutoDatabases :: IO ()
+reapAbandonedAutoDatabases =
+    getTemporaryDirectory >>= reapAbandonedAutoDatabasesIn
+
+-- | 'reapAbandonedAutoDatabases' against an explicit directory. Exposed for tests.
+reapAbandonedAutoDatabasesIn :: FilePath -> IO ()
+reapAbandonedAutoDatabasesIn tempDirectory = ignoringIOExceptions do
+    entries <- listDirectory tempDirectory
+    let candidates = filter ("ihp-typed-sql-" `List.isPrefixOf`) entries
+    forM_ candidates \entry -> ignoringIOExceptions do
+        let root = tempDirectory </> entry
+        abandoned <- isAbandonedAutoDatabase root
+        when abandoned do
+            _ <- readProcessWithExitCode "pg_ctl"
+                    ["-D", root </> "pgdata", "-m", "immediate", "-w", "stop"] ""
+                `Exception.catch` \(_ :: Exception.IOException) -> pure (ExitSuccess, "", "")
+            removePathForcibly root
+
+-- | A directory is abandoned when the compiler process that created it is gone.
+--
+-- If there is no owner file the directory was created but never got as far as
+-- starting the monitor, so fall back to age. The grace period only has to
+-- exceed the time between 'createTempDirectory' and 'startCleanupMonitor', but
+-- is generous so that a concurrently starting database is never reaped.
+isAbandonedAutoDatabase :: FilePath -> IO Bool
+isAbandonedAutoDatabase root = do
+    let ownerFile = root </> ownerPidFileName
+    hasOwner <- doesFileExist ownerFile
+    if hasOwner
+        then do
+            contents <- Prelude.readFile ownerFile
+            case readMaybe (List.dropWhileEnd Char.isSpace contents) of
+                Nothing -> pure True
+                Just pid -> not <$> processIsAlive (pid :: Int)
+        else do
+            modifiedAt <- getModificationTime root
+            now <- getCurrentTime
+            pure (diffUTCTime now modifiedAt > abandonedGracePeriod)
+
+abandonedGracePeriod :: NominalDiffTime
+abandonedGracePeriod = 60 * 60 -- one hour
+
+-- | @ps -p@ rather than @kill -0@: @kill -0@ fails with EPERM for a process
+-- owned by another user, which is indistinguishable from "no such process" by
+-- exit code alone and would make us treat a live database as abandoned.
+processIsAlive :: Int -> IO Bool
+processIsAlive pid = do
+    (exitCode, _, _) <- readProcessWithExitCode "ps" ["-p", Prelude.show pid] ""
+    pure (exitCode == ExitSuccess)
+
+ignoringIOExceptions :: IO () -> IO ()
+ignoringIOExceptions action =
+    action `Exception.catch` \(_ :: Exception.IOException) -> pure ()
