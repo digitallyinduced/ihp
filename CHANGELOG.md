@@ -8,6 +8,10 @@
 - `sqlExecTyped` now also supports known typed no-result utility statements such as `SET CONSTRAINTS ...`, returning `()` after successful execution. ([#2747](https://github.com/digitallyinduced/ihp/issues/2747))
 - Fixed the IDE codegen "Preview" buttons failing with `405 Method Not Allowed`: the `New*` ToolServer routes were declared GET-only in the routes-DSL migration, but the codegen views submit their preview and option forms via POST. They now accept `GET|POST` again, as AutoRoute did in v1.5. ([#2743](https://github.com/digitallyinduced/ihp/issues/2743), [#2744](https://github.com/digitallyinduced/ihp/pull/2744))
 
+### Performance, Build, and Tooling
+
+- Reduced type-family work for model and query code by removing unnecessary table-name `KnownSymbol` constraints and generating direct model ID metadata, keeping common paths such as `currentUserId` shallow on large schemas. ([#2766](https://github.com/digitallyinduced/ihp/issues/2766))
+
 ### Breaking Changes
 
 - `typedSql` now tracks conservative query cardinality and statement result
@@ -56,7 +60,6 @@
 
 ### Performance, Build, and Tooling
 
-- Reduced type-family work for model and query code by removing unnecessary table-name `KnownSymbol` constraints and generating direct model ID metadata, keeping common paths such as `currentUserId` shallow on large schemas. ([#2766](https://github.com/digitallyinduced/ihp/issues/2766))
 - HSX rendering now uses a direct `ByteString.Builder` markup backend instead of the Blaze `MarkupM` tree, giving 2-4x faster HSX rendering in benchmarks. `respondHtml` / `respondSvg` use WAI builders directly for zero-copy responses. ([#2563](https://github.com/digitallyinduced/ihp/pull/2563))
 - `pathTo` and `renderFieldForUrl` are marked `NOINLINE` to reduce Core bloat, and the new routes DSL caches the merged route trie at application construction time. ([#2524](https://github.com/digitallyinduced/ihp/pull/2524), [#2652](https://github.com/digitallyinduced/ihp/pull/2652))
 - Nix production builds now compile web, worker, and script executables in separate derivations, allowing more parallelism and better cache reuse. ([#2715](https://github.com/digitallyinduced/ihp/pull/2715))
