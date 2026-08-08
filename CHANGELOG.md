@@ -10,6 +10,8 @@
 
 ### Breaking Changes
 
+- `DefaultScope` has been removed. `query @Model` now always starts without
+  implicit filters; define and use explicit query functions for reusable scopes.
 - `typedSql` now tracks conservative query cardinality and statement result
   kind in `TypedQuery`, and `sqlQueryTyped` returns `[result]`,
   `Maybe result`, or `result` depending on whether the query is inferred as
