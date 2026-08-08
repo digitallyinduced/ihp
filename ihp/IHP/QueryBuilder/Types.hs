@@ -19,7 +19,6 @@ module IHP.QueryBuilder.Types
 , qualifyAndJoinColumns
 , queryBuilderTableName
   -- * Type Classes
-, DefaultScope (..)
 , EqOrIsOperator (..)
 , FilterPrimaryKey (..)
 ) where
@@ -174,14 +173,6 @@ instance SetField "whereCondition" SQLQuery (Maybe Condition) where setField val
 instance SetField "orderByClause" SQLQuery [OrderByClause] where setField value sqlQuery = sqlQuery { orderByClause = value }
 instance SetField "limitClause" SQLQuery (Maybe Int64) where setField value sqlQuery = sqlQuery { limitClause = value }
 instance SetField "offsetClause" SQLQuery (Maybe Int64) where setField value sqlQuery = sqlQuery { offsetClause = value }
-
--- | Type class for default scoping of queries
-class DefaultScope table where
-    defaultScope :: QueryBuilder table -> QueryBuilder table
-
-instance {-# OVERLAPPABLE #-} DefaultScope table where
-    {-# INLINE defaultScope #-}
-    defaultScope queryBuilder = queryBuilder
 
 instance Table (GetModelByTableName table) => Default (QueryBuilder table) where
     {-# INLINE def #-}
