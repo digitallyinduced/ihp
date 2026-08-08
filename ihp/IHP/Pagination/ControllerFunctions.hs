@@ -18,7 +18,7 @@ import IHP.Pagination.Types ( Options(..), Pagination(..) )
 import IHP.Pagination.Internal ( pageSize', page, offset' )
 import IHP.QueryBuilder ( QueryBuilder, filterWhereILike, limit, offset )
 import IHP.Fetch (fetchCount)
-import IHP.ModelSupport (GetModelByTableName, sqlQueryHasql, Table)
+import IHP.ModelSupport (GetModelByTableName, sqlQueryHasql)
 import IHP.Hasql.FromRow (FromRowHasql(..))
 import IHP.Hasql.Encoders (ToSnippetParams(..), sqlToSnippet)
 import Network.Wai (Request)
@@ -53,8 +53,7 @@ paginate :: forall controller table .
     (?request::Request
     , ?modelContext :: ModelContext
     , ?theAction :: controller
-    , ?request :: Request
-    , KnownSymbol table) =>
+    , ?request :: Request) =>
     QueryBuilder table
     -> IO (QueryBuilder table, Pagination)
 paginate = paginateWithOptions defaultPaginationOptions
@@ -84,8 +83,7 @@ paginateWithOptions :: forall controller table .
     (?request::Request
     , ?modelContext :: ModelContext
     , ?theAction :: controller
-    , ?request :: Request
-    , KnownSymbol table) =>
+    , ?request :: Request) =>
     Options
     -> QueryBuilder table
     -> IO (QueryBuilder table, Pagination)
@@ -129,8 +127,6 @@ filterList :: forall name table model .
     , KnownSymbol name
     , HasField name model Text
     , model ~ GetModelByTableName table
-    , KnownSymbol table
-    , Table model
     ) =>
     Proxy name
     -> QueryBuilder table

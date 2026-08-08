@@ -71,7 +71,7 @@ query = let tn = tableName @model
 
 -- | Extract the SQLQuery from a QueryBuilder.
 {-# INLINE buildQuery #-}
-buildQuery :: forall table. KnownSymbol table => QueryBuilder table -> SQLQuery
+buildQuery :: QueryBuilder table -> SQLQuery
 buildQuery (QueryBuilder sq) = sq
 
 -- | Build a qualified column name like @tablename.column_name@ from a table name

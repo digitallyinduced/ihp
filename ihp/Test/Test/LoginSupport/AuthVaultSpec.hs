@@ -14,7 +14,8 @@ import Network.HTTP.Types.Status (status200)
 import IHP.LoginSupport.Types (CurrentUserRecord, CurrentAdminRecord, currentUserVaultKey, currentAdminVaultKey)
 import IHP.LoginSupport.Middleware (authMiddlewareWith, userIdMiddleware, adminIdMiddleware, parseSessionUUID)
 import IHP.Controller.Session (sessionVaultKey)
-import IHP.ModelSupport.Types (PrimaryKey, Id' (Id))
+import IHP.ModelSupport.Types (PrimaryKey, Id' (Id), GetModelByTableName)
+import IHP.ModelSupport (Table (..))
 import qualified IHP.LoginSupport.Helper.Controller as Controller
 import qualified IHP.LoginSupport.Helper.View as View
 import qualified Data.Vault.Lazy as Vault
@@ -44,6 +45,14 @@ tests = do
                 let app = userMiddleware (Just user) $ \req respond -> do
                         let ?request = req
                         View.currentUserOrNothing `shouldBe` Just user
+                        respond $ Wai.responseLBS status200 [] ""
+                runSession (request defaultRequest >> pure ()) app
+
+            it "returns the generated table ID from View.currentUserId" do
+                let user = TestUser { id = "00000000-0000-0000-0000-000000000001" }
+                let app = userMiddleware (Just user) $ \req respond -> do
+                        let ?request = req
+                        View.currentUserId @TestUser `shouldBe` user.id
                         respond $ Wai.responseLBS status200 [] ""
                 runSession (request defaultRequest >> pure ()) app
 
@@ -161,9 +170,25 @@ type instance CurrentUserRecord = TestUser
 type instance CurrentAdminRecord = TestAdmin
 
 type instance GetTableName TestUser = "test_users"
+type instance GetModelByTableName "test_users" = TestUser
 type instance PrimaryKey "test_users" = UUID
 type instance GetTableName TestAdmin = "test_admins"
+type instance GetModelByTableName "test_admins" = TestAdmin
 type instance PrimaryKey "test_admins" = UUID
+
+instance Table TestUser where
+    type TableId TestUser = Id' "test_users"
+    tableName = "test_users"
+    modelId TestUser { id } = id
+    columnNames = ["id"]
+    primaryKeyColumnNames = ["id"]
+
+instance Table TestAdmin where
+    type TableId TestAdmin = Id' "test_admins"
+    tableName = "test_admins"
+    modelId TestAdmin { id } = id
+    columnNames = ["id"]
+    primaryKeyColumnNames = ["id"]
 
 -- | Middleware that stores a known user, using the same code path as the real middleware.
 userMiddleware :: Maybe TestUser -> Wai.Middleware

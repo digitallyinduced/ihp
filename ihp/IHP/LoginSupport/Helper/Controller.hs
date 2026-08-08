@@ -49,8 +49,8 @@ currentUser = fromMaybe (redirectToLogin (newSessionUrl (Proxy @user))) currentU
 {-# INLINABLE currentUser #-}
 
 -- | Returns the ID of the current user. Redirects to login if not logged in.
-currentUserId :: forall user userId. (?request :: Request, ?respond :: Respond, HasNewSessionUrl user, HasField "id" user userId, Typeable user, user ~ CurrentUserRecord) => userId
-currentUserId = (currentUser @user).id
+currentUserId :: forall user. (?request :: Request, ?respond :: Respond, HasNewSessionUrl user, ModelSupport.Table user, Typeable user, user ~ CurrentUserRecord) => ModelSupport.TableId user
+currentUserId = ModelSupport.modelId (currentUser @user)
 {-# INLINABLE currentUserId #-}
 
 -- | Ensures that a user is logged in. Redirects to login page if not.
@@ -85,8 +85,8 @@ currentAdmin = fromMaybe (redirectToLogin (newSessionUrl (Proxy @admin))) curren
 {-# INLINABLE currentAdmin #-}
 
 -- | Returns the ID of the current admin. Redirects to login if not logged in.
-currentAdminId :: forall admin adminId. (?request :: Request, ?respond :: Respond, HasNewSessionUrl admin, HasField "id" admin adminId, Typeable admin, admin ~ CurrentAdminRecord) => adminId
-currentAdminId = (currentAdmin @admin).id
+currentAdminId :: forall admin. (?request :: Request, ?respond :: Respond, HasNewSessionUrl admin, ModelSupport.Table admin, Typeable admin, admin ~ CurrentAdminRecord) => ModelSupport.TableId admin
+currentAdminId = ModelSupport.modelId (currentAdmin @admin)
 {-# INLINABLE currentAdminId #-}
 
 -- | Returns the current admin's UUID or 'Nothing' if not logged in.

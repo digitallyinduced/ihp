@@ -40,6 +40,7 @@ import Hasql.Implicits.Encoders (DefaultParamEncoder(..))
 import IHP.Hasql.Encoders () -- Import for DefaultParamEncoder instances
 import IHP.QueryBuilder.Compiler (qualifiedColumnName)
 import Data.Functor.Contravariant (contramap)
+import qualified Data.Text as Text
 
 -- | Build a 'ConditionValue' from any 'DefaultParamEncoder' value.
 paramValue :: DefaultParamEncoder a => a -> ConditionValue
@@ -89,11 +90,11 @@ condValueForOp _ value = paramValue value
 -- For case-insensitive versions of these operators, see 'filterWhereILike' and 'filterWhereIMatches'.
 --
 -- When your condition is too complex, use a raw sql query with 'IHP.ModelSupport.sqlQuery'.
-filterWhere :: forall name table model value. (KnownSymbol table, KnownSymbol name, DefaultParamEncoder value, HasField name model value, EqOrIsOperator value, model ~ GetModelByTableName table, Table model) => (Proxy name, value) -> QueryBuilder table -> QueryBuilder table
+filterWhere :: forall name table model value. (KnownSymbol name, DefaultParamEncoder value, HasField name model value, EqOrIsOperator value, model ~ GetModelByTableName table) => (Proxy name, value) -> QueryBuilder table -> QueryBuilder table
 filterWhere (name, value) queryBuilder = addCondition condition queryBuilder
     where
         condition = let op = toEqOrIsOperator value in ColumnCondition columnName op (condValueForOp op value) Nothing Nothing
-        columnName = qualifiedColumnName (tableName @model) (symbolToText @name)
+        columnName = qualifiedColumnName (queryBuilderTableName queryBuilder) (symbolToText @name)
 {-# INLINE filterWhere #-}
 
 -- | Like 'filterWhere' but negates the condition.
@@ -105,11 +106,11 @@ filterWhere (name, value) queryBuilder = addCondition condition queryBuilder
 -- >     |> fetch
 -- > -- SELECT * FROM projects WHERE user_id != '23d5ea33-b28e-4f0a-99b3-77a3564a2546'
 --
-filterWhereNot :: forall name table model value. (KnownSymbol table, KnownSymbol name, DefaultParamEncoder value, HasField name model value, EqOrIsOperator value, model ~ GetModelByTableName table, Table model) => (Proxy name, value) -> QueryBuilder table -> QueryBuilder table
+filterWhereNot :: forall name table model value. (KnownSymbol name, DefaultParamEncoder value, HasField name model value, EqOrIsOperator value, model ~ GetModelByTableName table) => (Proxy name, value) -> QueryBuilder table -> QueryBuilder table
 filterWhereNot (name, value) queryBuilder = addCondition condition queryBuilder
     where
         condition = let op = negateFilterOperator (toEqOrIsOperator value) in ColumnCondition columnName op (condValueForOp op value) Nothing Nothing
-        columnName = qualifiedColumnName (tableName @model) (symbolToText @name)
+        columnName = qualifiedColumnName (queryBuilderTableName queryBuilder) (symbolToText @name)
 {-# INLINE filterWhereNot #-}
 
 -- | Adds a @WHERE x IN (y)@ condition to the query.
@@ -123,7 +124,7 @@ filterWhereNot (name, value) queryBuilder = addCondition condition queryBuilder
 --
 -- For negation use 'filterWhereNotIn'
 --
-filterWhereIn :: forall name table model value. (KnownSymbol table, KnownSymbol name, DefaultParamEncoder [value], DefaultParamEncoder value, HasField name model value, model ~ GetModelByTableName table, EqOrIsOperator value, Table model) => (Proxy name, [value]) -> QueryBuilder table -> QueryBuilder table
+filterWhereIn :: forall name table model value. (KnownSymbol name, DefaultParamEncoder [value], DefaultParamEncoder value, HasField name model value, model ~ GetModelByTableName table, EqOrIsOperator value) => (Proxy name, [value]) -> QueryBuilder table -> QueryBuilder table
 filterWhereIn (name, value) queryBuilder =
         case head nullValues of
             Nothing -> addCondition inCondition queryBuilder -- All values non null
@@ -143,7 +144,7 @@ filterWhereIn (name, value) queryBuilder =
 
         inCondition = ColumnCondition columnName InOp (paramValue nonNullValues) Nothing Nothing
 
-        columnName = qualifiedColumnName (tableName @model) (symbolToText @name)
+        columnName = qualifiedColumnName (queryBuilderTableName queryBuilder) (symbolToText @name)
 {-# INLINE filterWhereIn #-}
 
 -- Like 'filterWhereIn', but case insensitive.
@@ -155,7 +156,7 @@ filterWhereIn (name, value) queryBuilder =
 -- >     |> fetch
 -- > -- SELECT * FROM users WHERE LOWER(email) IN ('user1@example.com', 'user2@example.com')
 --
-filterWhereInCaseInsensitive :: forall name table model value. ( KnownSymbol table, KnownSymbol name, DefaultParamEncoder value, HasField name model value, model ~ GetModelByTableName table, EqOrIsOperator value, Table model) => (Proxy name, [Text]) -> QueryBuilder table -> QueryBuilder table
+filterWhereInCaseInsensitive :: forall name table model value. (KnownSymbol name, DefaultParamEncoder value, HasField name model value, model ~ GetModelByTableName table, EqOrIsOperator value) => (Proxy name, [Text]) -> QueryBuilder table -> QueryBuilder table
 filterWhereInCaseInsensitive (name, values) queryBuilder =
         case head nullValues of
             Nothing -> addCondition inCondition queryBuilder
@@ -175,7 +176,7 @@ filterWhereInCaseInsensitive (name, values) queryBuilder =
         inCondition = ColumnCondition lowerColumnName InOp (paramValue lowerValues) Nothing Nothing
 
         lowerColumnName = "LOWER(" <> columnName <> ")"
-        columnName = qualifiedColumnName (tableName @model) (symbolToText @name)
+        columnName = qualifiedColumnName (queryBuilderTableName queryBuilder) (symbolToText @name)
 
 {-# INLINE filterWhereInCaseInsensitive #-}
 
@@ -191,7 +192,7 @@ filterWhereInCaseInsensitive (name, values) queryBuilder =
 --
 -- The inclusive version of this function is called 'filterWhereIn'.
 --
-filterWhereNotIn :: forall name table model value. (KnownSymbol table, KnownSymbol name, DefaultParamEncoder [value], DefaultParamEncoder value, HasField name model value, model ~ GetModelByTableName table, EqOrIsOperator value) => (Proxy name, [value]) -> QueryBuilder table -> QueryBuilder table
+filterWhereNotIn :: forall name table model value. (KnownSymbol name, DefaultParamEncoder [value], DefaultParamEncoder value, HasField name model value, model ~ GetModelByTableName table, EqOrIsOperator value) => (Proxy name, [value]) -> QueryBuilder table -> QueryBuilder table
 filterWhereNotIn (_, []) queryBuilder = queryBuilder -- Handle empty case by ignoring query part: `WHERE x NOT IN ()`
 filterWhereNotIn (name, value) queryBuilder =
         case head nullValues of
@@ -208,7 +209,7 @@ filterWhereNotIn (name, value) queryBuilder =
 
         notInCondition = ColumnCondition columnName NotInOp (paramValue nonNullValues) Nothing Nothing
 
-        columnName = qualifiedColumnName (symbolToText @table) (symbolToText @name)
+        columnName = qualifiedColumnName (queryBuilderTableName queryBuilder) (symbolToText @name)
 {-# INLINE filterWhereNotIn #-}
 
 
@@ -220,11 +221,11 @@ filterWhereNotIn (name, value) queryBuilder =
 -- >     |> filterWhereLike (#title, "%" <> searchTerm <> "%")
 -- >     |> fetch
 -- > -- SELECT * FROM articles WHERE title LIKE '%..%'
-filterWhereLike :: forall name table model value. (KnownSymbol table, KnownSymbol name, DefaultParamEncoder value, HasField name model value, model ~ GetModelByTableName table, Table model) => (Proxy name, value) -> QueryBuilder table -> QueryBuilder table
+filterWhereLike :: forall name table model value. (KnownSymbol name, DefaultParamEncoder value, HasField name model value, model ~ GetModelByTableName table) => (Proxy name, value) -> QueryBuilder table -> QueryBuilder table
 filterWhereLike (name, value) queryBuilder = addCondition condition queryBuilder
     where
         condition = ColumnCondition columnName (LikeOp CaseSensitive) (paramValue value) Nothing Nothing
-        columnName = qualifiedColumnName (tableName @model) (symbolToText @name)
+        columnName = qualifiedColumnName (queryBuilderTableName queryBuilder) (symbolToText @name)
 {-# INLINE filterWhereLike #-}
 
 
@@ -236,11 +237,11 @@ filterWhereLike (name, value) queryBuilder = addCondition condition queryBuilder
 -- >     |> filterWhereILike (#title, "%" <> searchTerm <> "%")
 -- >     |> fetch
 -- > -- SELECT * FROM articles WHERE title ILIKE '%..%'
-filterWhereILike :: forall name table model value. (KnownSymbol table, KnownSymbol name, DefaultParamEncoder value, HasField name model value, model ~ GetModelByTableName table, Table model) => (Proxy name, value) -> QueryBuilder table -> QueryBuilder table
+filterWhereILike :: forall name table model value. (KnownSymbol name, DefaultParamEncoder value, HasField name model value, model ~ GetModelByTableName table) => (Proxy name, value) -> QueryBuilder table -> QueryBuilder table
 filterWhereILike (name, value) queryBuilder = addCondition condition queryBuilder
     where
         condition = ColumnCondition columnName (LikeOp CaseInsensitive) (paramValue value) Nothing Nothing
-        columnName = qualifiedColumnName (tableName @model) (symbolToText @name)
+        columnName = qualifiedColumnName (queryBuilderTableName queryBuilder) (symbolToText @name)
 {-# INLINE filterWhereILike #-}
 
 
@@ -252,20 +253,20 @@ filterWhereILike (name, value) queryBuilder = addCondition condition queryBuilde
 -- >     |> filterWhereMatches (#name, "^(M(rs|r|iss)|Dr|Sir). ")
 -- >     |> fetch
 -- > -- SELECT * FROM articles WHERE title ~ '^(M(rs|r|iss)|Dr|Sir). '
-filterWhereMatches :: forall name table model value. (KnownSymbol table, KnownSymbol name, DefaultParamEncoder value, HasField name model value, table ~ GetTableName model, Table model) => (Proxy name, value) -> QueryBuilder table -> QueryBuilder table
+filterWhereMatches :: forall name table model value. (KnownSymbol name, DefaultParamEncoder value, HasField name model value, model ~ GetModelByTableName table) => (Proxy name, value) -> QueryBuilder table -> QueryBuilder table
 filterWhereMatches (name, value) queryBuilder = addCondition condition queryBuilder
     where
         condition = ColumnCondition columnName (MatchesOp CaseSensitive) (paramValue value) Nothing Nothing
-        columnName = qualifiedColumnName (tableName @model) (symbolToText @name)
+        columnName = qualifiedColumnName (queryBuilderTableName queryBuilder) (symbolToText @name)
 {-# INLINE filterWhereMatches #-}
 
 
 -- | Adds a @WHERE x ~* y@ condition to the query. Case-insensitive version of 'filterWhereMatches'.
-filterWhereIMatches :: forall name table model value. (KnownSymbol table, KnownSymbol name, DefaultParamEncoder value, HasField name model value, model ~ GetModelByTableName table, Table model) => (Proxy name, value) -> QueryBuilder table -> QueryBuilder table
+filterWhereIMatches :: forall name table model value. (KnownSymbol name, DefaultParamEncoder value, HasField name model value, model ~ GetModelByTableName table) => (Proxy name, value) -> QueryBuilder table -> QueryBuilder table
 filterWhereIMatches (name, value) queryBuilder = addCondition condition queryBuilder
     where
         condition = ColumnCondition columnName (MatchesOp CaseInsensitive) (paramValue value) Nothing Nothing
-        columnName = qualifiedColumnName (tableName @model) (symbolToText @name)
+        columnName = qualifiedColumnName (queryBuilderTableName queryBuilder) (symbolToText @name)
 {-# INLINE filterWhereIMatches #-}
 
 
@@ -280,10 +281,8 @@ filterWhereIMatches (name, value) queryBuilder = addCondition condition queryBui
 -- >     |> fetch
 -- > -- SELECT * FROM posts WHERE scheduled_at <= NOW()
 filterWherePast
-    :: ( KnownSymbol table
-       , KnownSymbol name
+    :: ( KnownSymbol name
        , HasField name (GetModelByTableName table) value
-       , Table (GetModelByTableName table)
        )
     => Proxy name -> QueryBuilder table -> QueryBuilder table
 filterWherePast name = filterWhereSql (name, "<= NOW()")
@@ -300,10 +299,8 @@ filterWherePast name = filterWhereSql (name, "<= NOW()")
 -- >     |> fetch
 -- > -- SELECT * FROM posts WHERE scheduled_at > NOW()
 filterWhereFuture
-    :: ( KnownSymbol table
-       , KnownSymbol name
+    :: ( KnownSymbol name
        , HasField name (GetModelByTableName table) value
-       , Table (GetModelByTableName table)
        )
     => Proxy name -> QueryBuilder table -> QueryBuilder table
 filterWhereFuture name = filterWhereSql (name, "> NOW()")
@@ -319,11 +316,11 @@ filterWhereFuture name = filterWhereSql (name, "> NOW()")
 -- > -- SELECT * FROM assignments WHERE grade > 80
 --
 -- See also: 'filterWhereLarger', 'filterWhereGreaterThanOrEqualTo', 'filterWhereAtLeast'
-filterWhereGreaterThan :: forall name table model value. (KnownSymbol table, KnownSymbol name, DefaultParamEncoder value, HasField name model value, model ~ GetModelByTableName table, Table model) => (Proxy name, value) -> QueryBuilder table -> QueryBuilder table
+filterWhereGreaterThan :: forall name table model value. (KnownSymbol name, DefaultParamEncoder value, HasField name model value, model ~ GetModelByTableName table) => (Proxy name, value) -> QueryBuilder table -> QueryBuilder table
 filterWhereGreaterThan (name, value) queryBuilder = addCondition condition queryBuilder
     where
         condition = ColumnCondition columnName GreaterThanOp (paramValue value) Nothing Nothing
-        columnName = qualifiedColumnName (tableName @model) (symbolToText @name)
+        columnName = qualifiedColumnName (queryBuilderTableName queryBuilder) (symbolToText @name)
 {-# INLINE filterWhereGreaterThan #-}
 
 -- | Alias for 'filterWhereGreaterThan'. Adds a @WHERE x > y@ condition to the query.
@@ -334,7 +331,7 @@ filterWhereGreaterThan (name, value) queryBuilder = addCondition condition query
 -- >     |> filterWhereLarger (#grade, 80)
 -- >     |> fetch
 -- > -- SELECT * FROM assignments WHERE grade > 80
-filterWhereLarger :: forall name table model value. (KnownSymbol table, KnownSymbol name, DefaultParamEncoder value, HasField name model value, model ~ GetModelByTableName table, Table model) => (Proxy name, value) -> QueryBuilder table -> QueryBuilder table
+filterWhereLarger :: forall name table model value. (KnownSymbol name, DefaultParamEncoder value, HasField name model value, model ~ GetModelByTableName table) => (Proxy name, value) -> QueryBuilder table -> QueryBuilder table
 filterWhereLarger = filterWhereGreaterThan
 {-# INLINE filterWhereLarger #-}
 
@@ -348,11 +345,11 @@ filterWhereLarger = filterWhereGreaterThan
 -- > -- SELECT * FROM assignments WHERE grade >= 80
 --
 -- See also: 'filterWhereAtLeast', 'filterWhereGreaterThan', 'filterWhereLarger'
-filterWhereGreaterThanOrEqualTo :: forall name table model value. (KnownSymbol table, KnownSymbol name, DefaultParamEncoder value, HasField name model value, model ~ GetModelByTableName table, Table model) => (Proxy name, value) -> QueryBuilder table -> QueryBuilder table
+filterWhereGreaterThanOrEqualTo :: forall name table model value. (KnownSymbol name, DefaultParamEncoder value, HasField name model value, model ~ GetModelByTableName table) => (Proxy name, value) -> QueryBuilder table -> QueryBuilder table
 filterWhereGreaterThanOrEqualTo (name, value) queryBuilder = addCondition condition queryBuilder
     where
         condition = ColumnCondition columnName GreaterThanOrEqualToOp (paramValue value) Nothing Nothing
-        columnName = qualifiedColumnName (tableName @model) (symbolToText @name)
+        columnName = qualifiedColumnName (queryBuilderTableName queryBuilder) (symbolToText @name)
 {-# INLINE filterWhereGreaterThanOrEqualTo #-}
 
 -- | Alias for 'filterWhereGreaterThanOrEqualTo'. Adds a @WHERE x >= y@ condition to the query.
@@ -363,7 +360,7 @@ filterWhereGreaterThanOrEqualTo (name, value) queryBuilder = addCondition condit
 -- >     |> filterWhereAtLeast (#grade, 80)
 -- >     |> fetch
 -- > -- SELECT * FROM assignments WHERE grade >= 80
-filterWhereAtLeast :: forall name table model value. (KnownSymbol table, KnownSymbol name, DefaultParamEncoder value, HasField name model value, model ~ GetModelByTableName table, Table model) => (Proxy name, value) -> QueryBuilder table -> QueryBuilder table
+filterWhereAtLeast :: forall name table model value. (KnownSymbol name, DefaultParamEncoder value, HasField name model value, model ~ GetModelByTableName table) => (Proxy name, value) -> QueryBuilder table -> QueryBuilder table
 filterWhereAtLeast = filterWhereGreaterThanOrEqualTo
 {-# INLINE filterWhereAtLeast #-}
 
@@ -377,11 +374,11 @@ filterWhereAtLeast = filterWhereGreaterThanOrEqualTo
 -- > -- SELECT * FROM assignments WHERE grade < 60
 --
 -- See also: 'filterWhereSmaller', 'filterWhereLessThanOrEqualTo', 'filterWhereAtMost'
-filterWhereLessThan :: forall name table model value. (KnownSymbol table, KnownSymbol name, DefaultParamEncoder value, HasField name model value, model ~ GetModelByTableName table, Table model) => (Proxy name, value) -> QueryBuilder table -> QueryBuilder table
+filterWhereLessThan :: forall name table model value. (KnownSymbol name, DefaultParamEncoder value, HasField name model value, model ~ GetModelByTableName table) => (Proxy name, value) -> QueryBuilder table -> QueryBuilder table
 filterWhereLessThan (name, value) queryBuilder = addCondition condition queryBuilder
     where
         condition = ColumnCondition columnName LessThanOp (paramValue value) Nothing Nothing
-        columnName = qualifiedColumnName (tableName @model) (symbolToText @name)
+        columnName = qualifiedColumnName (queryBuilderTableName queryBuilder) (symbolToText @name)
 {-# INLINE filterWhereLessThan #-}
 
 -- | Alias for 'filterWhereLessThan'. Adds a @WHERE x < y@ condition to the query.
@@ -392,7 +389,7 @@ filterWhereLessThan (name, value) queryBuilder = addCondition condition queryBui
 -- >     |> filterWhereSmaller (#grade, 60)
 -- >     |> fetch
 -- > -- SELECT * FROM assignments WHERE grade < 60
-filterWhereSmaller :: forall name table model value. (KnownSymbol table, KnownSymbol name, DefaultParamEncoder value, HasField name model value, model ~ GetModelByTableName table, Table model) => (Proxy name, value) -> QueryBuilder table -> QueryBuilder table
+filterWhereSmaller :: forall name table model value. (KnownSymbol name, DefaultParamEncoder value, HasField name model value, model ~ GetModelByTableName table) => (Proxy name, value) -> QueryBuilder table -> QueryBuilder table
 filterWhereSmaller = filterWhereLessThan
 {-# INLINE filterWhereSmaller #-}
 
@@ -406,11 +403,11 @@ filterWhereSmaller = filterWhereLessThan
 -- > -- SELECT * FROM assignments WHERE grade <= 60
 --
 -- See also: 'filterWhereAtMost', 'filterWhereLessThan', 'filterWhereSmaller'
-filterWhereLessThanOrEqualTo :: forall name table model value. (KnownSymbol table, KnownSymbol name, DefaultParamEncoder value, HasField name model value, model ~ GetModelByTableName table, Table model) => (Proxy name, value) -> QueryBuilder table -> QueryBuilder table
+filterWhereLessThanOrEqualTo :: forall name table model value. (KnownSymbol name, DefaultParamEncoder value, HasField name model value, model ~ GetModelByTableName table) => (Proxy name, value) -> QueryBuilder table -> QueryBuilder table
 filterWhereLessThanOrEqualTo (name, value) queryBuilder = addCondition condition queryBuilder
     where
         condition = ColumnCondition columnName LessThanOrEqualToOp (paramValue value) Nothing Nothing
-        columnName = qualifiedColumnName (tableName @model) (symbolToText @name)
+        columnName = qualifiedColumnName (queryBuilderTableName queryBuilder) (symbolToText @name)
 {-# INLINE filterWhereLessThanOrEqualTo #-}
 
 -- | Alias for 'filterWhereLessThanOrEqualTo'. Adds a @WHERE x <= y@ condition to the query.
@@ -421,7 +418,7 @@ filterWhereLessThanOrEqualTo (name, value) queryBuilder = addCondition condition
 -- >     |> filterWhereAtMost (#grade, 60)
 -- >     |> fetch
 -- > -- SELECT * FROM assignments WHERE grade <= 60
-filterWhereAtMost :: forall name table model value. (KnownSymbol table, KnownSymbol name, DefaultParamEncoder value, HasField name model value, model ~ GetModelByTableName table, Table model) => (Proxy name, value) -> QueryBuilder table -> QueryBuilder table
+filterWhereAtMost :: forall name table model value. (KnownSymbol name, DefaultParamEncoder value, HasField name model value, model ~ GetModelByTableName table) => (Proxy name, value) -> QueryBuilder table -> QueryBuilder table
 filterWhereAtMost = filterWhereLessThanOrEqualTo
 {-# INLINE filterWhereAtMost #-}
 
@@ -437,11 +434,11 @@ filterWhereAtMost = filterWhereLessThanOrEqualTo
 -- >     |> fetch
 -- > -- SELECT * FROM projects WHERE started_at < current_timestamp - interval '1 day'
 --
-filterWhereSql :: forall name table model value. (KnownSymbol table, KnownSymbol name, HasField name model value, model ~ GetModelByTableName table, Table model) => (Proxy name, Text) -> QueryBuilder table -> QueryBuilder table
+filterWhereSql :: forall name table model value. (KnownSymbol name, HasField name model value, model ~ GetModelByTableName table) => (Proxy name, Text) -> QueryBuilder table -> QueryBuilder table
 filterWhereSql (name, sqlCondition) queryBuilder = addCondition condition queryBuilder
     where
         condition = ColumnCondition columnName SqlOp (Literal sqlCondition) Nothing Nothing
-        columnName = qualifiedColumnName (tableName @model) (symbolToText @name)
+        columnName = qualifiedColumnName (queryBuilderTableName queryBuilder) (symbolToText @name)
 {-# INLINE filterWhereSql #-}
 
 -- | Adds a @WHERE LOWER(x) = LOWER(y)@ condition to the query.
@@ -457,21 +454,27 @@ filterWhereSql (name, sqlCondition) queryBuilder = addCondition condition queryB
 --
 -- >>> CREATE UNIQUE INDEX users_email_index ON users ((LOWER(email)));
 --
-filterWhereCaseInsensitive :: forall name table model value. (KnownSymbol table, KnownSymbol name, DefaultParamEncoder value, HasField name model value, EqOrIsOperator value, model ~ GetModelByTableName table, Table model) => (Proxy name, value) -> QueryBuilder table -> QueryBuilder table
+filterWhereCaseInsensitive :: forall name table model value. (KnownSymbol name, DefaultParamEncoder value, HasField name model value, EqOrIsOperator value, model ~ GetModelByTableName table) => (Proxy name, value) -> QueryBuilder table -> QueryBuilder table
 filterWhereCaseInsensitive (name, value) queryBuilder = addCondition condition queryBuilder
     where
         condition = let op = toEqOrIsOperator value in ColumnCondition columnName op (condValueForOp op value) (Just "LOWER") (Just "LOWER")
-        columnName = qualifiedColumnName (tableName @model) (symbolToText @name)
+        columnName = qualifiedColumnName (queryBuilderTableName queryBuilder) (symbolToText @name)
 {-# INLINE filterWhereCaseInsensitive #-}
 
 
-filterWhereIdIn :: forall table model. (KnownSymbol table, Table model, model ~ GetModelByTableName table, DefaultParamEncoder [PrimaryKey (GetTableName model)]) => [Id model] -> QueryBuilder table -> QueryBuilder table
+filterWhereIdIn :: forall table model. (Table model, model ~ GetModelByTableName table, DefaultParamEncoder [PrimaryKey table]) => [Id' table] -> QueryBuilder table -> QueryBuilder table
 filterWhereIdIn values queryBuilder =
     -- We don't need to treat null values differently here, because primary keys imply not-null
     -- Extract the raw primary key values from the Id wrappers
     let
         rawPrimaryKeys = map (\(Id pk) -> pk) values
-        condition = ColumnCondition (primaryKeyConditionColumnSelector @model) InOp (paramValue rawPrimaryKeys) Nothing Nothing
+        condition = ColumnCondition primaryKeySelector InOp (paramValue rawPrimaryKeys) Nothing Nothing
+        table = queryBuilderTableName queryBuilder
+        qualifyColumnName column = table <> "." <> column
+        primaryKeySelector = case primaryKeyColumnNames @model of
+            [] -> error . cs $ "Impossible happened in filterWhereIdIn. No primary keys found for table " <> table <> ". At least one primary key is required."
+            [column] -> qualifyColumnName column
+            columns -> "(" <> Text.intercalate ", " (map qualifyColumnName columns) <> ")"
      in
         addCondition condition queryBuilder
 {-# INLINE filterWhereIdIn #-}
