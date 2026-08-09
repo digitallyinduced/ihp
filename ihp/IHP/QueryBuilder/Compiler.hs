@@ -53,10 +53,10 @@ negateFilterOperator SqlOp = SqlOp
 -- >    query @User
 -- >     |> filterWhere (#active, True)
 -- >     |> fetch
-query :: forall model table. (table ~ GetTableName model, Table model) => DefaultScope table => QueryBuilder table
+query :: forall model table. (table ~ GetTableName model, Table model) => QueryBuilder table
 query = let tn = tableName @model
             cols = columnNames @model
-        in (defaultScope @table) QueryBuilder { unQueryBuilder = SQLQuery
+        in QueryBuilder { unQueryBuilder = SQLQuery
     { selectFrom = tn
     , columns = cols
     , columnsSql = qualifyAndJoinColumns tn cols
@@ -71,7 +71,7 @@ query = let tn = tableName @model
 
 -- | Extract the SQLQuery from a QueryBuilder.
 {-# INLINE buildQuery #-}
-buildQuery :: forall table. KnownSymbol table => QueryBuilder table -> SQLQuery
+buildQuery :: QueryBuilder table -> SQLQuery
 buildQuery (QueryBuilder sq) = sq
 
 -- | Build a qualified column name like @tablename.column_name@ from a table name

@@ -671,6 +671,18 @@ tests = do
             (mkTestModule "TypedQuery 'AtMostOneRow 'ReturnsRows (SqlRow '[ '(\"name\", Text), '(\"views\", Int) ])"
                 "[typedSql| SELECT name, views FROM typed_sql_test_items LIMIT 1 |]")
 
+        -- Regression for https://github.com/digitallyinduced/ihp/issues/2767:
+        -- RowTuple / TupleGet support up to 16 columns (previously 10).
+        compilePassTest "supports more than 10 selected columns"
+            (mkTestModule
+                "TypedQuery 'ExactlyOneRow 'ReturnsRows (SqlRow '[ '(\"c1\", Int), '(\"c2\", Int), '(\"c3\", Int), '(\"c4\", Int), '(\"c5\", Int), '(\"c6\", Int), '(\"c7\", Int), '(\"c8\", Int), '(\"c9\", Int), '(\"c10\", Int), '(\"c11\", Int) ])"
+                "[typedSql| SELECT 1 AS c1, 2 AS c2, 3 AS c3, 4 AS c4, 5 AS c5, 6 AS c6, 7 AS c7, 8 AS c8, 9 AS c9, 10 AS c10, 11 AS c11 |]")
+
+        compilePassTest "supports 16 selected columns"
+            (mkTestModule
+                "TypedQuery 'ExactlyOneRow 'ReturnsRows (SqlRow '[ '(\"c1\", Int), '(\"c2\", Int), '(\"c3\", Int), '(\"c4\", Int), '(\"c5\", Int), '(\"c6\", Int), '(\"c7\", Int), '(\"c8\", Int), '(\"c9\", Int), '(\"c10\", Int), '(\"c11\", Int), '(\"c12\", Int), '(\"c13\", Int), '(\"c14\", Int), '(\"c15\", Int), '(\"c16\", Int) ])"
+                "[typedSql| SELECT 1 AS c1, 2 AS c2, 3 AS c3, 4 AS c4, 5 AS c5, 6 AS c6, 7 AS c7, 8 AS c8, 9 AS c9, 10 AS c10, 11 AS c11, 12 AS c12, 13 AS c13, 14 AS c14, 15 AS c15, 16 AS c16 |]")
+
         compilePassTest "boolean expression inferred as Maybe Bool"
             (mkTestModule "TypedQuery 'AtMostOneRow 'ReturnsRows (Maybe Bool)"
                 "[typedSql| SELECT author_id IS NULL FROM typed_sql_test_items LIMIT 1 |]")

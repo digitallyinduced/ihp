@@ -220,7 +220,9 @@ tests = do
                     instance Default (Id' "users") where def = Id def
 
                     instance IHP.ModelSupport.Table (User') where
+                        type TableId (User') = Id' "users"
                         tableName = "users"
+                        modelId (User id ids electricityUnitPrice meta) = id
                         columnNames = ["id","ids","electricity_unit_price"]
                         primaryKeyColumnNames = ["id"]
 
@@ -320,7 +322,9 @@ tests = do
                     instance Default (Id' "users") where def = Id def
 
                     instance IHP.ModelSupport.Table (User') where
+                        type TableId (User') = Id' "users"
                         tableName = "users"
+                        modelId (User id ids electricityUnitPrice meta) = id
                         columnNames = ["id","ids","electricity_unit_price"]
                         primaryKeyColumnNames = ["id"]
 
@@ -419,7 +423,9 @@ tests = do
                     instance Default (Id' "users") where def = Id def
 
                     instance IHP.ModelSupport.Table (User') where
+                        type TableId (User') = Id' "users"
                         tableName = "users"
+                        modelId (User id ts meta) = id
                         columnNames = ["id","ts"]
                         primaryKeyColumnNames = ["id"]
 
@@ -552,7 +558,9 @@ tests = do
                     instance Default (Id' "landing_pages") where def = Id def
 
                     instance IHP.ModelSupport.Table (LandingPage' paragraphCtasLandingPages paragraphCtasToLandingPages) where
+                        type TableId (LandingPage' paragraphCtasLandingPages paragraphCtasToLandingPages) = Id' "landing_pages"
                         tableName = "landing_pages"
+                        modelId (LandingPage id paragraphCtasLandingPages paragraphCtasToLandingPages meta) = id
                         columnNames = ["id"]
                         primaryKeyColumnNames = ["id"]
 
@@ -682,7 +690,9 @@ tests = do
             it "should compile Table instance" $ \statement -> do
                 getInstanceDecl "IHP.ModelSupport.Table" compileOutput `shouldBe` [trimming|
                     instance IHP.ModelSupport.Table (Thing' others) where
+                        type TableId (Thing' others) = Id' "things"
                         tableName = "things"
+                        modelId (Thing thingArbitraryIdent others meta) = thingArbitraryIdent
                         columnNames = ["thing_arbitrary_ident"]
                         primaryKeyColumnNames = ["thing_arbitrary_ident"]
 
@@ -742,7 +752,9 @@ tests = do
             it "should compile Table instance" $ \statement -> do
                 getInstanceDecl "IHP.ModelSupport.Table" compileOutput `shouldBe` [trimming|
                     instance IHP.ModelSupport.Table (BitPartRef' bitRef partRef) where
+                        type TableId (BitPartRef' bitRef partRef) = Id' "bit_part_refs"
                         tableName = "bit_part_refs"
+                        modelId (BitPartRef bitRef partRef meta) = Id (bitRef, partRef)
                         columnNames = ["bit_ref","part_ref"]
                         primaryKeyColumnNames = ["bit_ref","part_ref"]
 
@@ -914,7 +926,9 @@ tests = do
                     instance Default (Id' "posts") where def = Id def
 
                     instance IHP.ModelSupport.Table (Post') where
+                        type TableId (Post') = Id' "posts"
                         tableName = "posts"
+                        modelId (Post id title userId meta) = id
                         columnNames = ["id","title","user_id"]
                         primaryKeyColumnNames = ["id"]
 
@@ -1446,7 +1460,9 @@ tests = do
             it "should include inherited columns in Table instance" do
                 getInstanceDecl "IHP.ModelSupport.Table" compileOutput `shouldBe` [trimming|
                     instance IHP.ModelSupport.Table (PostRevision') where
+                        type TableId (PostRevision') = Id' "post_revisions"
                         tableName = "post_revisions"
+                        modelId (PostRevision id revisionContent title body meta) = id
                         columnNames = ["id","revision_content","title","body"]
                         primaryKeyColumnNames = ["id"]
 

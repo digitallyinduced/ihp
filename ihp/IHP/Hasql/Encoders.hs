@@ -1,4 +1,5 @@
 {-# LANGUAGE UndecidableInstances #-}
+{-# LANGUAGE TypeApplications #-}
 {-# OPTIONS_GHC -Wno-orphans #-}
 {-|
 Module: IHP.Hasql.Encoders
@@ -34,10 +35,17 @@ import Data.Functor.Contravariant.Divisible (divide)
 import Data.Vector (Vector)
 import IHP.ModelSupport.Types (Id'(..), PrimaryKey)
 import Database.PostgreSQL.Simple.Types (Binary(..))
+import Data.String (fromString)
+import qualified Hasql.Decoders as Decoders
 import qualified Hasql.Mapping.IsScalar as Mapping
 import Hasql.PostgresqlTypes ()
+import PostgresqlTypes.Algebra (IsScalar (binaryDecoder, binaryEncoder, textualEncoder))
+import qualified PtrPeeker
+import qualified PtrPoker.Write as Write
+import qualified TextBuilder
 import PostgresqlTypes.Point (Point)
 import PostgresqlTypes.Polygon (Polygon)
+import PostgresqlTypes.Geometry (Geometry)
 import PostgresqlTypes.Inet (Inet)
 import PostgresqlTypes.Interval (Interval)
 import PostgresqlTypes.Tsvector (Tsvector)
@@ -168,6 +176,49 @@ instance DefaultParamEncoder Polygon where
 
 -- | Encode 'Maybe Polygon' as nullable PostgreSQL polygon
 instance DefaultParamEncoder (Maybe Polygon) where
+    defaultParam = Encoders.nullable Mapping.encoder
+
+-- | 'Hasql.Mapping.IsScalar' bridge for 'Geometry'.
+--
+-- 'Hasql.PostgresqlTypes' ships these instances for every standard
+-- 'postgresql-types' type, but has not yet added 'Geometry' (merged upstream
+-- in nikita-volkov/postgresql-types#69). This mirrors
+-- 'Hasql.PostgresqlTypes.Core' until that package catches up.
+--
+-- Because the PostGIS extension assigns the @geometry@ OID dynamically at
+-- @CREATE EXTENSION@ time, no static OIDs are provided and hasql resolves
+-- the type by @typeName@ at query time.
+instance Mapping.IsScalar Geometry where
+    encoder =
+        Encoders.custom
+            Nothing
+            "geometry"
+            Nothing
+            []
+            (\_ value -> Write.toByteString (binaryEncoder value))
+            (TextBuilder.toText . textualEncoder)
+    decoder =
+        Decoders.custom
+            Nothing
+            "geometry"
+            Nothing
+            []
+            ( \_ bytes ->
+                case PtrPeeker.runVariableOnByteString (binaryDecoder @Geometry) bytes of
+                    Left bytesUnconsumed ->
+                        Left ("Binary decoder did not consume all input bytes, unconsumed bytes: " <> fromString (show bytesUnconsumed))
+                    Right (Left err) -> Left (fromString (show err))
+                    Right (Right value) -> Right value
+            )
+
+-- | Encode 'Geometry' as a PostGIS geometry via postgresql-types binary encoder.
+--   The OID is resolved by name at query time since the PostGIS extension
+--   assigns it dynamically.
+instance DefaultParamEncoder Geometry where
+    defaultParam = Encoders.nonNullable Mapping.encoder
+
+-- | Encode 'Maybe Geometry' as a nullable PostGIS geometry
+instance DefaultParamEncoder (Maybe Geometry) where
     defaultParam = Encoders.nullable Mapping.encoder
 
 -- | Encode 'Interval' as PostgreSQL interval via postgresql-types binary encoder

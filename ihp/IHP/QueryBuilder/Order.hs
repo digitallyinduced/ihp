@@ -31,11 +31,11 @@ import IHP.QueryBuilder.Compiler (qualifiedColumnName)
 -- >     |> orderBy #createdAt -- >     |> limit 10
 -- >     |> fetch
 -- > -- SELECT * FROM books LIMIT 10 ORDER BY created_at ASC
-orderByAsc :: forall name model table value. (KnownSymbol table, KnownSymbol name, HasField name model value, model ~ GetModelByTableName table, Table model) => Proxy name -> QueryBuilder table -> QueryBuilder table
+orderByAsc :: forall name model table value. (KnownSymbol name, HasField name model value, model ~ GetModelByTableName table) => Proxy name -> QueryBuilder table -> QueryBuilder table
 orderByAsc !name (QueryBuilder sq) =
     QueryBuilder sq { orderByClause = orderByClause sq <> [OrderByClause { orderByColumn = columnName, orderByDirection = Asc }] }
     where
-        columnName = qualifiedColumnName (tableName @model) (symbolToText @name)
+        columnName = qualifiedColumnName (selectFrom sq) (symbolToText @name)
 {-# INLINE orderByAsc #-}
 
 -- | Adds an @ORDER BY .. DESC@ to your query.
@@ -49,15 +49,15 @@ orderByAsc !name (QueryBuilder sq) =
 -- >     |> limit 10
 -- >     |> fetch
 -- > -- SELECT * FROM projects LIMIT 10 ORDER BY created_at DESC
-orderByDesc :: forall name model table value. (KnownSymbol table, KnownSymbol name, HasField name model value, model ~ GetModelByTableName table, Table model) => Proxy name -> QueryBuilder table -> QueryBuilder table
+orderByDesc :: forall name model table value. (KnownSymbol name, HasField name model value, model ~ GetModelByTableName table) => Proxy name -> QueryBuilder table -> QueryBuilder table
 orderByDesc !name (QueryBuilder sq) =
     QueryBuilder sq { orderByClause = orderByClause sq <> [OrderByClause { orderByColumn = columnName, orderByDirection = Desc }] }
     where
-        columnName = qualifiedColumnName (tableName @model) (symbolToText @name)
+        columnName = qualifiedColumnName (selectFrom sq) (symbolToText @name)
 {-# INLINE orderByDesc #-}
 
 -- | Alias for 'orderByAsc'
-orderBy :: (KnownSymbol table, KnownSymbol name, HasField name model value, model ~ GetModelByTableName table, Table model) => Proxy name -> QueryBuilder table -> QueryBuilder table
+orderBy :: (KnownSymbol name, HasField name model value, model ~ GetModelByTableName table) => Proxy name -> QueryBuilder table -> QueryBuilder table
 orderBy !name = orderByAsc name
 {-# INLINE orderBy #-}
 
@@ -115,9 +115,9 @@ distinct (QueryBuilder sq) =
 -- >     |> distinctOn #categoryId
 -- >     |> fetch
 -- > -- SELECT DISTINCT ON (category_id) * FROM books
-distinctOn :: forall name model value table. (KnownSymbol table, KnownSymbol name, HasField name model value, model ~ GetModelByTableName table, Table model) => Proxy name -> QueryBuilder table -> QueryBuilder table
+distinctOn :: forall name model value table. (KnownSymbol name, HasField name model value, model ~ GetModelByTableName table) => Proxy name -> QueryBuilder table -> QueryBuilder table
 distinctOn !name (QueryBuilder sq) =
     QueryBuilder sq { distinctOnClause = Just columnName }
     where
-        columnName = qualifiedColumnName (tableName @model) (symbolToText @name)
+        columnName = qualifiedColumnName (selectFrom sq) (symbolToText @name)
 {-# INLINE distinctOn #-}

@@ -21,8 +21,8 @@ module IHP.QueryBuilder
 , OrderByDirection (..)
 , FilterOperator (..)
 , MatchSensitivity (..)
+, queryBuilderTableName
   -- * Type Classes
-, DefaultScope (..)
 , EqOrIsOperator
 , FilterPrimaryKey (..)
   -- * SQL Compilation

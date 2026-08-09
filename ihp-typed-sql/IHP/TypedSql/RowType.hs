@@ -48,6 +48,9 @@ deriving instance Show (RowTuple fields) => Show (SqlRow fields)
 deriving instance Eq   (RowTuple fields) => Eq   (SqlRow fields)
 
 -- | Map a field list to its tuple representation.
+--
+-- Supports 2–16 selected columns. Beyond that, a 'TypeError' explains the limit.
+-- (See https://github.com/digitallyinduced/ihp/issues/2767.)
 type family RowTuple (fields :: [(Symbol, Type)]) where
     RowTuple '[ '(_, a), '(_, b) ] = (a, b)
     RowTuple '[ '(_, a), '(_, b), '(_, c) ] = (a, b, c)
@@ -58,6 +61,16 @@ type family RowTuple (fields :: [(Symbol, Type)]) where
     RowTuple '[ '(_, a), '(_, b), '(_, c), '(_, d), '(_, e), '(_, f), '(_, g), '(_, h) ] = (a, b, c, d, e, f, g, h)
     RowTuple '[ '(_, a), '(_, b), '(_, c), '(_, d), '(_, e), '(_, f), '(_, g), '(_, h), '(_, i) ] = (a, b, c, d, e, f, g, h, i)
     RowTuple '[ '(_, a), '(_, b), '(_, c), '(_, d), '(_, e), '(_, f), '(_, g), '(_, h), '(_, i), '(_, j) ] = (a, b, c, d, e, f, g, h, i, j)
+    RowTuple '[ '(_, a), '(_, b), '(_, c), '(_, d), '(_, e), '(_, f), '(_, g), '(_, h), '(_, i), '(_, j), '(_, k) ] = (a, b, c, d, e, f, g, h, i, j, k)
+    RowTuple '[ '(_, a), '(_, b), '(_, c), '(_, d), '(_, e), '(_, f), '(_, g), '(_, h), '(_, i), '(_, j), '(_, k), '(_, l) ] = (a, b, c, d, e, f, g, h, i, j, k, l)
+    RowTuple '[ '(_, a), '(_, b), '(_, c), '(_, d), '(_, e), '(_, f), '(_, g), '(_, h), '(_, i), '(_, j), '(_, k), '(_, l), '(_, m) ] = (a, b, c, d, e, f, g, h, i, j, k, l, m)
+    RowTuple '[ '(_, a), '(_, b), '(_, c), '(_, d), '(_, e), '(_, f), '(_, g), '(_, h), '(_, i), '(_, j), '(_, k), '(_, l), '(_, m), '(_, n) ] = (a, b, c, d, e, f, g, h, i, j, k, l, m, n)
+    RowTuple '[ '(_, a), '(_, b), '(_, c), '(_, d), '(_, e), '(_, f), '(_, g), '(_, h), '(_, i), '(_, j), '(_, k), '(_, l), '(_, m), '(_, n), '(_, o) ] = (a, b, c, d, e, f, g, h, i, j, k, l, m, n, o)
+    RowTuple '[ '(_, a), '(_, b), '(_, c), '(_, d), '(_, e), '(_, f), '(_, g), '(_, h), '(_, i), '(_, j), '(_, k), '(_, l), '(_, m), '(_, n), '(_, o), '(_, p) ] = (a, b, c, d, e, f, g, h, i, j, k, l, m, n, o, p)
+    RowTuple fields = TypeError
+        ( 'Text "typedSql supports at most 16 selected columns; this query selects more."
+          ':$$: 'Text "Split the query or project fewer columns."
+        )
 
 -- | Look up a field's type by name.
 type family LookupField (name :: Symbol) (fields :: [(Symbol, Type)]) :: Type where
@@ -80,21 +93,25 @@ class TupleGet (n :: Nat) tuple result | n tuple -> result where
 -- Arity 2
 instance TupleGet 0 (a,b) a where tupleGet (x,_) = x; {-# INLINE tupleGet #-}
 instance TupleGet 1 (a,b) b where tupleGet (_,x) = x; {-# INLINE tupleGet #-}
+
 -- Arity 3
 instance TupleGet 0 (a,b,c) a where tupleGet (x,_,_) = x; {-# INLINE tupleGet #-}
 instance TupleGet 1 (a,b,c) b where tupleGet (_,x,_) = x; {-# INLINE tupleGet #-}
 instance TupleGet 2 (a,b,c) c where tupleGet (_,_,x) = x; {-# INLINE tupleGet #-}
+
 -- Arity 4
 instance TupleGet 0 (a,b,c,d) a where tupleGet (x,_,_,_) = x; {-# INLINE tupleGet #-}
 instance TupleGet 1 (a,b,c,d) b where tupleGet (_,x,_,_) = x; {-# INLINE tupleGet #-}
 instance TupleGet 2 (a,b,c,d) c where tupleGet (_,_,x,_) = x; {-# INLINE tupleGet #-}
 instance TupleGet 3 (a,b,c,d) d where tupleGet (_,_,_,x) = x; {-# INLINE tupleGet #-}
+
 -- Arity 5
 instance TupleGet 0 (a,b,c,d,e) a where tupleGet (x,_,_,_,_) = x; {-# INLINE tupleGet #-}
 instance TupleGet 1 (a,b,c,d,e) b where tupleGet (_,x,_,_,_) = x; {-# INLINE tupleGet #-}
 instance TupleGet 2 (a,b,c,d,e) c where tupleGet (_,_,x,_,_) = x; {-# INLINE tupleGet #-}
 instance TupleGet 3 (a,b,c,d,e) d where tupleGet (_,_,_,x,_) = x; {-# INLINE tupleGet #-}
 instance TupleGet 4 (a,b,c,d,e) e where tupleGet (_,_,_,_,x) = x; {-# INLINE tupleGet #-}
+
 -- Arity 6
 instance TupleGet 0 (a,b,c,d,e,f) a where tupleGet (x,_,_,_,_,_) = x; {-# INLINE tupleGet #-}
 instance TupleGet 1 (a,b,c,d,e,f) b where tupleGet (_,x,_,_,_,_) = x; {-# INLINE tupleGet #-}
@@ -102,6 +119,7 @@ instance TupleGet 2 (a,b,c,d,e,f) c where tupleGet (_,_,x,_,_,_) = x; {-# INLINE
 instance TupleGet 3 (a,b,c,d,e,f) d where tupleGet (_,_,_,x,_,_) = x; {-# INLINE tupleGet #-}
 instance TupleGet 4 (a,b,c,d,e,f) e where tupleGet (_,_,_,_,x,_) = x; {-# INLINE tupleGet #-}
 instance TupleGet 5 (a,b,c,d,e,f) f where tupleGet (_,_,_,_,_,x) = x; {-# INLINE tupleGet #-}
+
 -- Arity 7
 instance TupleGet 0 (a,b,c,d,e,f,g) a where tupleGet (x,_,_,_,_,_,_) = x; {-# INLINE tupleGet #-}
 instance TupleGet 1 (a,b,c,d,e,f,g) b where tupleGet (_,x,_,_,_,_,_) = x; {-# INLINE tupleGet #-}
@@ -110,6 +128,7 @@ instance TupleGet 3 (a,b,c,d,e,f,g) d where tupleGet (_,_,_,x,_,_,_) = x; {-# IN
 instance TupleGet 4 (a,b,c,d,e,f,g) e where tupleGet (_,_,_,_,x,_,_) = x; {-# INLINE tupleGet #-}
 instance TupleGet 5 (a,b,c,d,e,f,g) f where tupleGet (_,_,_,_,_,x,_) = x; {-# INLINE tupleGet #-}
 instance TupleGet 6 (a,b,c,d,e,f,g) g where tupleGet (_,_,_,_,_,_,x) = x; {-# INLINE tupleGet #-}
+
 -- Arity 8
 instance TupleGet 0 (a,b,c,d,e,f,g,h) a where tupleGet (x,_,_,_,_,_,_,_) = x; {-# INLINE tupleGet #-}
 instance TupleGet 1 (a,b,c,d,e,f,g,h) b where tupleGet (_,x,_,_,_,_,_,_) = x; {-# INLINE tupleGet #-}
@@ -119,6 +138,7 @@ instance TupleGet 4 (a,b,c,d,e,f,g,h) e where tupleGet (_,_,_,_,x,_,_,_) = x; {-
 instance TupleGet 5 (a,b,c,d,e,f,g,h) f where tupleGet (_,_,_,_,_,x,_,_) = x; {-# INLINE tupleGet #-}
 instance TupleGet 6 (a,b,c,d,e,f,g,h) g where tupleGet (_,_,_,_,_,_,x,_) = x; {-# INLINE tupleGet #-}
 instance TupleGet 7 (a,b,c,d,e,f,g,h) h where tupleGet (_,_,_,_,_,_,_,x) = x; {-# INLINE tupleGet #-}
+
 -- Arity 9
 instance TupleGet 0 (a,b,c,d,e,f,g,h,i) a where tupleGet (x,_,_,_,_,_,_,_,_) = x; {-# INLINE tupleGet #-}
 instance TupleGet 1 (a,b,c,d,e,f,g,h,i) b where tupleGet (_,x,_,_,_,_,_,_,_) = x; {-# INLINE tupleGet #-}
@@ -129,6 +149,7 @@ instance TupleGet 5 (a,b,c,d,e,f,g,h,i) f where tupleGet (_,_,_,_,_,x,_,_,_) = x
 instance TupleGet 6 (a,b,c,d,e,f,g,h,i) g where tupleGet (_,_,_,_,_,_,x,_,_) = x; {-# INLINE tupleGet #-}
 instance TupleGet 7 (a,b,c,d,e,f,g,h,i) h where tupleGet (_,_,_,_,_,_,_,x,_) = x; {-# INLINE tupleGet #-}
 instance TupleGet 8 (a,b,c,d,e,f,g,h,i) i where tupleGet (_,_,_,_,_,_,_,_,x) = x; {-# INLINE tupleGet #-}
+
 -- Arity 10
 instance TupleGet 0 (a,b,c,d,e,f,g,h,i,j) a where tupleGet (x,_,_,_,_,_,_,_,_,_) = x; {-# INLINE tupleGet #-}
 instance TupleGet 1 (a,b,c,d,e,f,g,h,i,j) b where tupleGet (_,x,_,_,_,_,_,_,_,_) = x; {-# INLINE tupleGet #-}
@@ -140,6 +161,99 @@ instance TupleGet 6 (a,b,c,d,e,f,g,h,i,j) g where tupleGet (_,_,_,_,_,_,x,_,_,_)
 instance TupleGet 7 (a,b,c,d,e,f,g,h,i,j) h where tupleGet (_,_,_,_,_,_,_,x,_,_) = x; {-# INLINE tupleGet #-}
 instance TupleGet 8 (a,b,c,d,e,f,g,h,i,j) i where tupleGet (_,_,_,_,_,_,_,_,x,_) = x; {-# INLINE tupleGet #-}
 instance TupleGet 9 (a,b,c,d,e,f,g,h,i,j) j where tupleGet (_,_,_,_,_,_,_,_,_,x) = x; {-# INLINE tupleGet #-}
+
+-- Arity 11
+instance TupleGet 0 (a,b,c,d,e,f,g,h,i,j,k) a where tupleGet (x,_,_,_,_,_,_,_,_,_,_) = x; {-# INLINE tupleGet #-}
+instance TupleGet 1 (a,b,c,d,e,f,g,h,i,j,k) b where tupleGet (_,x,_,_,_,_,_,_,_,_,_) = x; {-# INLINE tupleGet #-}
+instance TupleGet 2 (a,b,c,d,e,f,g,h,i,j,k) c where tupleGet (_,_,x,_,_,_,_,_,_,_,_) = x; {-# INLINE tupleGet #-}
+instance TupleGet 3 (a,b,c,d,e,f,g,h,i,j,k) d where tupleGet (_,_,_,x,_,_,_,_,_,_,_) = x; {-# INLINE tupleGet #-}
+instance TupleGet 4 (a,b,c,d,e,f,g,h,i,j,k) e where tupleGet (_,_,_,_,x,_,_,_,_,_,_) = x; {-# INLINE tupleGet #-}
+instance TupleGet 5 (a,b,c,d,e,f,g,h,i,j,k) f where tupleGet (_,_,_,_,_,x,_,_,_,_,_) = x; {-# INLINE tupleGet #-}
+instance TupleGet 6 (a,b,c,d,e,f,g,h,i,j,k) g where tupleGet (_,_,_,_,_,_,x,_,_,_,_) = x; {-# INLINE tupleGet #-}
+instance TupleGet 7 (a,b,c,d,e,f,g,h,i,j,k) h where tupleGet (_,_,_,_,_,_,_,x,_,_,_) = x; {-# INLINE tupleGet #-}
+instance TupleGet 8 (a,b,c,d,e,f,g,h,i,j,k) i where tupleGet (_,_,_,_,_,_,_,_,x,_,_) = x; {-# INLINE tupleGet #-}
+instance TupleGet 9 (a,b,c,d,e,f,g,h,i,j,k) j where tupleGet (_,_,_,_,_,_,_,_,_,x,_) = x; {-# INLINE tupleGet #-}
+instance TupleGet 10 (a,b,c,d,e,f,g,h,i,j,k) k where tupleGet (_,_,_,_,_,_,_,_,_,_,x) = x; {-# INLINE tupleGet #-}
+
+-- Arity 12
+instance TupleGet 0 (a,b,c,d,e,f,g,h,i,j,k,l) a where tupleGet (x,_,_,_,_,_,_,_,_,_,_,_) = x; {-# INLINE tupleGet #-}
+instance TupleGet 1 (a,b,c,d,e,f,g,h,i,j,k,l) b where tupleGet (_,x,_,_,_,_,_,_,_,_,_,_) = x; {-# INLINE tupleGet #-}
+instance TupleGet 2 (a,b,c,d,e,f,g,h,i,j,k,l) c where tupleGet (_,_,x,_,_,_,_,_,_,_,_,_) = x; {-# INLINE tupleGet #-}
+instance TupleGet 3 (a,b,c,d,e,f,g,h,i,j,k,l) d where tupleGet (_,_,_,x,_,_,_,_,_,_,_,_) = x; {-# INLINE tupleGet #-}
+instance TupleGet 4 (a,b,c,d,e,f,g,h,i,j,k,l) e where tupleGet (_,_,_,_,x,_,_,_,_,_,_,_) = x; {-# INLINE tupleGet #-}
+instance TupleGet 5 (a,b,c,d,e,f,g,h,i,j,k,l) f where tupleGet (_,_,_,_,_,x,_,_,_,_,_,_) = x; {-# INLINE tupleGet #-}
+instance TupleGet 6 (a,b,c,d,e,f,g,h,i,j,k,l) g where tupleGet (_,_,_,_,_,_,x,_,_,_,_,_) = x; {-# INLINE tupleGet #-}
+instance TupleGet 7 (a,b,c,d,e,f,g,h,i,j,k,l) h where tupleGet (_,_,_,_,_,_,_,x,_,_,_,_) = x; {-# INLINE tupleGet #-}
+instance TupleGet 8 (a,b,c,d,e,f,g,h,i,j,k,l) i where tupleGet (_,_,_,_,_,_,_,_,x,_,_,_) = x; {-# INLINE tupleGet #-}
+instance TupleGet 9 (a,b,c,d,e,f,g,h,i,j,k,l) j where tupleGet (_,_,_,_,_,_,_,_,_,x,_,_) = x; {-# INLINE tupleGet #-}
+instance TupleGet 10 (a,b,c,d,e,f,g,h,i,j,k,l) k where tupleGet (_,_,_,_,_,_,_,_,_,_,x,_) = x; {-# INLINE tupleGet #-}
+instance TupleGet 11 (a,b,c,d,e,f,g,h,i,j,k,l) l where tupleGet (_,_,_,_,_,_,_,_,_,_,_,x) = x; {-# INLINE tupleGet #-}
+
+-- Arity 13
+instance TupleGet 0 (a,b,c,d,e,f,g,h,i,j,k,l,m) a where tupleGet (x,_,_,_,_,_,_,_,_,_,_,_,_) = x; {-# INLINE tupleGet #-}
+instance TupleGet 1 (a,b,c,d,e,f,g,h,i,j,k,l,m) b where tupleGet (_,x,_,_,_,_,_,_,_,_,_,_,_) = x; {-# INLINE tupleGet #-}
+instance TupleGet 2 (a,b,c,d,e,f,g,h,i,j,k,l,m) c where tupleGet (_,_,x,_,_,_,_,_,_,_,_,_,_) = x; {-# INLINE tupleGet #-}
+instance TupleGet 3 (a,b,c,d,e,f,g,h,i,j,k,l,m) d where tupleGet (_,_,_,x,_,_,_,_,_,_,_,_,_) = x; {-# INLINE tupleGet #-}
+instance TupleGet 4 (a,b,c,d,e,f,g,h,i,j,k,l,m) e where tupleGet (_,_,_,_,x,_,_,_,_,_,_,_,_) = x; {-# INLINE tupleGet #-}
+instance TupleGet 5 (a,b,c,d,e,f,g,h,i,j,k,l,m) f where tupleGet (_,_,_,_,_,x,_,_,_,_,_,_,_) = x; {-# INLINE tupleGet #-}
+instance TupleGet 6 (a,b,c,d,e,f,g,h,i,j,k,l,m) g where tupleGet (_,_,_,_,_,_,x,_,_,_,_,_,_) = x; {-# INLINE tupleGet #-}
+instance TupleGet 7 (a,b,c,d,e,f,g,h,i,j,k,l,m) h where tupleGet (_,_,_,_,_,_,_,x,_,_,_,_,_) = x; {-# INLINE tupleGet #-}
+instance TupleGet 8 (a,b,c,d,e,f,g,h,i,j,k,l,m) i where tupleGet (_,_,_,_,_,_,_,_,x,_,_,_,_) = x; {-# INLINE tupleGet #-}
+instance TupleGet 9 (a,b,c,d,e,f,g,h,i,j,k,l,m) j where tupleGet (_,_,_,_,_,_,_,_,_,x,_,_,_) = x; {-# INLINE tupleGet #-}
+instance TupleGet 10 (a,b,c,d,e,f,g,h,i,j,k,l,m) k where tupleGet (_,_,_,_,_,_,_,_,_,_,x,_,_) = x; {-# INLINE tupleGet #-}
+instance TupleGet 11 (a,b,c,d,e,f,g,h,i,j,k,l,m) l where tupleGet (_,_,_,_,_,_,_,_,_,_,_,x,_) = x; {-# INLINE tupleGet #-}
+instance TupleGet 12 (a,b,c,d,e,f,g,h,i,j,k,l,m) m where tupleGet (_,_,_,_,_,_,_,_,_,_,_,_,x) = x; {-# INLINE tupleGet #-}
+
+-- Arity 14
+instance TupleGet 0 (a,b,c,d,e,f,g,h,i,j,k,l,m,n) a where tupleGet (x,_,_,_,_,_,_,_,_,_,_,_,_,_) = x; {-# INLINE tupleGet #-}
+instance TupleGet 1 (a,b,c,d,e,f,g,h,i,j,k,l,m,n) b where tupleGet (_,x,_,_,_,_,_,_,_,_,_,_,_,_) = x; {-# INLINE tupleGet #-}
+instance TupleGet 2 (a,b,c,d,e,f,g,h,i,j,k,l,m,n) c where tupleGet (_,_,x,_,_,_,_,_,_,_,_,_,_,_) = x; {-# INLINE tupleGet #-}
+instance TupleGet 3 (a,b,c,d,e,f,g,h,i,j,k,l,m,n) d where tupleGet (_,_,_,x,_,_,_,_,_,_,_,_,_,_) = x; {-# INLINE tupleGet #-}
+instance TupleGet 4 (a,b,c,d,e,f,g,h,i,j,k,l,m,n) e where tupleGet (_,_,_,_,x,_,_,_,_,_,_,_,_,_) = x; {-# INLINE tupleGet #-}
+instance TupleGet 5 (a,b,c,d,e,f,g,h,i,j,k,l,m,n) f where tupleGet (_,_,_,_,_,x,_,_,_,_,_,_,_,_) = x; {-# INLINE tupleGet #-}
+instance TupleGet 6 (a,b,c,d,e,f,g,h,i,j,k,l,m,n) g where tupleGet (_,_,_,_,_,_,x,_,_,_,_,_,_,_) = x; {-# INLINE tupleGet #-}
+instance TupleGet 7 (a,b,c,d,e,f,g,h,i,j,k,l,m,n) h where tupleGet (_,_,_,_,_,_,_,x,_,_,_,_,_,_) = x; {-# INLINE tupleGet #-}
+instance TupleGet 8 (a,b,c,d,e,f,g,h,i,j,k,l,m,n) i where tupleGet (_,_,_,_,_,_,_,_,x,_,_,_,_,_) = x; {-# INLINE tupleGet #-}
+instance TupleGet 9 (a,b,c,d,e,f,g,h,i,j,k,l,m,n) j where tupleGet (_,_,_,_,_,_,_,_,_,x,_,_,_,_) = x; {-# INLINE tupleGet #-}
+instance TupleGet 10 (a,b,c,d,e,f,g,h,i,j,k,l,m,n) k where tupleGet (_,_,_,_,_,_,_,_,_,_,x,_,_,_) = x; {-# INLINE tupleGet #-}
+instance TupleGet 11 (a,b,c,d,e,f,g,h,i,j,k,l,m,n) l where tupleGet (_,_,_,_,_,_,_,_,_,_,_,x,_,_) = x; {-# INLINE tupleGet #-}
+instance TupleGet 12 (a,b,c,d,e,f,g,h,i,j,k,l,m,n) m where tupleGet (_,_,_,_,_,_,_,_,_,_,_,_,x,_) = x; {-# INLINE tupleGet #-}
+instance TupleGet 13 (a,b,c,d,e,f,g,h,i,j,k,l,m,n) n where tupleGet (_,_,_,_,_,_,_,_,_,_,_,_,_,x) = x; {-# INLINE tupleGet #-}
+
+-- Arity 15
+instance TupleGet 0 (a,b,c,d,e,f,g,h,i,j,k,l,m,n,o) a where tupleGet (x,_,_,_,_,_,_,_,_,_,_,_,_,_,_) = x; {-# INLINE tupleGet #-}
+instance TupleGet 1 (a,b,c,d,e,f,g,h,i,j,k,l,m,n,o) b where tupleGet (_,x,_,_,_,_,_,_,_,_,_,_,_,_,_) = x; {-# INLINE tupleGet #-}
+instance TupleGet 2 (a,b,c,d,e,f,g,h,i,j,k,l,m,n,o) c where tupleGet (_,_,x,_,_,_,_,_,_,_,_,_,_,_,_) = x; {-# INLINE tupleGet #-}
+instance TupleGet 3 (a,b,c,d,e,f,g,h,i,j,k,l,m,n,o) d where tupleGet (_,_,_,x,_,_,_,_,_,_,_,_,_,_,_) = x; {-# INLINE tupleGet #-}
+instance TupleGet 4 (a,b,c,d,e,f,g,h,i,j,k,l,m,n,o) e where tupleGet (_,_,_,_,x,_,_,_,_,_,_,_,_,_,_) = x; {-# INLINE tupleGet #-}
+instance TupleGet 5 (a,b,c,d,e,f,g,h,i,j,k,l,m,n,o) f where tupleGet (_,_,_,_,_,x,_,_,_,_,_,_,_,_,_) = x; {-# INLINE tupleGet #-}
+instance TupleGet 6 (a,b,c,d,e,f,g,h,i,j,k,l,m,n,o) g where tupleGet (_,_,_,_,_,_,x,_,_,_,_,_,_,_,_) = x; {-# INLINE tupleGet #-}
+instance TupleGet 7 (a,b,c,d,e,f,g,h,i,j,k,l,m,n,o) h where tupleGet (_,_,_,_,_,_,_,x,_,_,_,_,_,_,_) = x; {-# INLINE tupleGet #-}
+instance TupleGet 8 (a,b,c,d,e,f,g,h,i,j,k,l,m,n,o) i where tupleGet (_,_,_,_,_,_,_,_,x,_,_,_,_,_,_) = x; {-# INLINE tupleGet #-}
+instance TupleGet 9 (a,b,c,d,e,f,g,h,i,j,k,l,m,n,o) j where tupleGet (_,_,_,_,_,_,_,_,_,x,_,_,_,_,_) = x; {-# INLINE tupleGet #-}
+instance TupleGet 10 (a,b,c,d,e,f,g,h,i,j,k,l,m,n,o) k where tupleGet (_,_,_,_,_,_,_,_,_,_,x,_,_,_,_) = x; {-# INLINE tupleGet #-}
+instance TupleGet 11 (a,b,c,d,e,f,g,h,i,j,k,l,m,n,o) l where tupleGet (_,_,_,_,_,_,_,_,_,_,_,x,_,_,_) = x; {-# INLINE tupleGet #-}
+instance TupleGet 12 (a,b,c,d,e,f,g,h,i,j,k,l,m,n,o) m where tupleGet (_,_,_,_,_,_,_,_,_,_,_,_,x,_,_) = x; {-# INLINE tupleGet #-}
+instance TupleGet 13 (a,b,c,d,e,f,g,h,i,j,k,l,m,n,o) n where tupleGet (_,_,_,_,_,_,_,_,_,_,_,_,_,x,_) = x; {-# INLINE tupleGet #-}
+instance TupleGet 14 (a,b,c,d,e,f,g,h,i,j,k,l,m,n,o) o where tupleGet (_,_,_,_,_,_,_,_,_,_,_,_,_,_,x) = x; {-# INLINE tupleGet #-}
+
+-- Arity 16
+instance TupleGet 0 (a,b,c,d,e,f,g,h,i,j,k,l,m,n,o,p) a where tupleGet (x,_,_,_,_,_,_,_,_,_,_,_,_,_,_,_) = x; {-# INLINE tupleGet #-}
+instance TupleGet 1 (a,b,c,d,e,f,g,h,i,j,k,l,m,n,o,p) b where tupleGet (_,x,_,_,_,_,_,_,_,_,_,_,_,_,_,_) = x; {-# INLINE tupleGet #-}
+instance TupleGet 2 (a,b,c,d,e,f,g,h,i,j,k,l,m,n,o,p) c where tupleGet (_,_,x,_,_,_,_,_,_,_,_,_,_,_,_,_) = x; {-# INLINE tupleGet #-}
+instance TupleGet 3 (a,b,c,d,e,f,g,h,i,j,k,l,m,n,o,p) d where tupleGet (_,_,_,x,_,_,_,_,_,_,_,_,_,_,_,_) = x; {-# INLINE tupleGet #-}
+instance TupleGet 4 (a,b,c,d,e,f,g,h,i,j,k,l,m,n,o,p) e where tupleGet (_,_,_,_,x,_,_,_,_,_,_,_,_,_,_,_) = x; {-# INLINE tupleGet #-}
+instance TupleGet 5 (a,b,c,d,e,f,g,h,i,j,k,l,m,n,o,p) f where tupleGet (_,_,_,_,_,x,_,_,_,_,_,_,_,_,_,_) = x; {-# INLINE tupleGet #-}
+instance TupleGet 6 (a,b,c,d,e,f,g,h,i,j,k,l,m,n,o,p) g where tupleGet (_,_,_,_,_,_,x,_,_,_,_,_,_,_,_,_) = x; {-# INLINE tupleGet #-}
+instance TupleGet 7 (a,b,c,d,e,f,g,h,i,j,k,l,m,n,o,p) h where tupleGet (_,_,_,_,_,_,_,x,_,_,_,_,_,_,_,_) = x; {-# INLINE tupleGet #-}
+instance TupleGet 8 (a,b,c,d,e,f,g,h,i,j,k,l,m,n,o,p) i where tupleGet (_,_,_,_,_,_,_,_,x,_,_,_,_,_,_,_) = x; {-# INLINE tupleGet #-}
+instance TupleGet 9 (a,b,c,d,e,f,g,h,i,j,k,l,m,n,o,p) j where tupleGet (_,_,_,_,_,_,_,_,_,x,_,_,_,_,_,_) = x; {-# INLINE tupleGet #-}
+instance TupleGet 10 (a,b,c,d,e,f,g,h,i,j,k,l,m,n,o,p) k where tupleGet (_,_,_,_,_,_,_,_,_,_,x,_,_,_,_,_) = x; {-# INLINE tupleGet #-}
+instance TupleGet 11 (a,b,c,d,e,f,g,h,i,j,k,l,m,n,o,p) l where tupleGet (_,_,_,_,_,_,_,_,_,_,_,x,_,_,_,_) = x; {-# INLINE tupleGet #-}
+instance TupleGet 12 (a,b,c,d,e,f,g,h,i,j,k,l,m,n,o,p) m where tupleGet (_,_,_,_,_,_,_,_,_,_,_,_,x,_,_,_) = x; {-# INLINE tupleGet #-}
+instance TupleGet 13 (a,b,c,d,e,f,g,h,i,j,k,l,m,n,o,p) n where tupleGet (_,_,_,_,_,_,_,_,_,_,_,_,_,x,_,_) = x; {-# INLINE tupleGet #-}
+instance TupleGet 14 (a,b,c,d,e,f,g,h,i,j,k,l,m,n,o,p) o where tupleGet (_,_,_,_,_,_,_,_,_,_,_,_,_,_,x,_) = x; {-# INLINE tupleGet #-}
+instance TupleGet 15 (a,b,c,d,e,f,g,h,i,j,k,l,m,n,o,p) p where tupleGet (_,_,_,_,_,_,_,_,_,_,_,_,_,_,_,x) = x; {-# INLINE tupleGet #-}
 
 -- ---------------------------------------------------------------------------
 -- HasField: wires SqlRow into OverloadedRecordDot
