@@ -218,6 +218,9 @@ final: prev: {
                     # time <1.15 and fails on GHC 9.14's containers-0.8 / time-1.15.
                     # Jailbreaking lets that pinned version build on the new boot libs.
                     "Cabal-syntax_3_14_2_0"
+                    # darcs 2.18.5 caps http-client-tls <0.4 and tls <2.2, while
+                    # the RC3 package set provides newer compatible releases.
+                    "darcs"
                     "lucid" "lucid2" "clay" "tasty-hspec" "config-ini" "fsnotify"
                     "string-interpolate" "rebase" "rerebase" "with-utf8" "minio-hs"
                     "sandwich" "brick" "postgresql-simple" "hasql-dynamic-statements"
