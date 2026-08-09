@@ -101,29 +101,11 @@ let
             # verbatim for a cache hit. Restore the override only if a reverted
             # nixpkgs pin no longer carries 0.3.2.
 
-            # Hasql 1.10 is the pinned nixpkgs default, so the surrounding
-            # ecosystem (including hasql-interpolate, postgresql-binary,
-            # text-builder and postgresql-connection-string) needs no overrides.
-            # Keep only the newer hasql and hasql-pool patch releases that fix
-            # poisoned pooled connections after async timeouts (#2765).
-
-            # hasql-1.10.3.7: pipeline cleanup handles PipelineAborted (#311)
-            # Adds comonad vs 1.10.3 in nixpkgs.
-            hasql = final.haskell.lib.overrideCabal super.hasql_1_10_3 (old: {
-                version = "1.10.3.7";
-                sha256 = "0jj5243k77q7f3k2mw8crf3n5pdqbdzcj439ca1n4yvznwip9a3b";
-                revision = null;
-                editedCabalFile = null;
-                libraryHaskellDepends = (old.libraryHaskellDepends or []) ++ [ self.comonad ];
-            });
-            # hasql-pool-1.4.2.3: discard connections after driver errors (#55)
-            # plus later 1.4.2.x pool fixes; requires hasql >= 1.10.
-            hasql-pool = final.haskell.lib.overrideCabal super.hasql-pool_1_4_2 (old: {
-                version = "1.4.2.3";
-                sha256 = "1sizwh7lhdczny3lmjvxc07aa4f82h2qf22cs0cf66w5lky0yxkf";
-                revision = null;
-                editedCabalFile = null;
-            });
+            # Hasql 1.10 is the pinned nixpkgs default, including hasql 1.10.3.7
+            # and hasql-pool 1.4.2.3 with the poisoned-connection fixes from
+            # #2765. The surrounding ecosystem (including hasql-interpolate,
+            # postgresql-binary, text-builder and postgresql-connection-string)
+            # also needs no overrides.
 
             # temporary-ospath is shipped by the pinned nixpkgs at 1.3, so it
             # also resolves from the default set with no override needed.
@@ -180,6 +162,13 @@ final: prev: {
         if prev.haskell.packages ? ghc914
         then final.haskell.packages.ghc914.override {
             overrides = final.lib.composeManyExtensions [
+                # The RC3 nixpkgs snapshot updated ghc-exactprint to 1.14.1.0,
+                # while its GHC 9.14 configuration still references the removed
+                # 1.14.0.0 attribute. Keep the old name as a compatibility alias
+                # until nixpkgs updates configuration-ghc-9.14.x.nix.
+                (self: super: {
+                    ghc-exactprint_1_14_0_0 = super.ghc-exactprint_1_14_1_0;
+                })
                 (ihpOverrides final)
                 (self: super: {
                     say = final.haskell.lib.dontCheck super.say;

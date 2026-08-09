@@ -482,7 +482,7 @@ ihpFlake:
                 # devenv defaults to `pkgs.haskell-language-server.override {
                 #   supportedGhcVersions = [ ghcVersion ] }` with ghcVersion =
                 # package.version dots-stripped. That breaks on GHC RCs
-                # (9.12.4.20260614 → "912420260614", not in the allowlist) and
+                # (9.12.4.20260713 → "912420260713", not in the allowlist) and
                 # takes the boilerplate-devShell check down with it. Disable HLS
                 # until we're on a release GHC / devenv that accepts the version.
                 languages.haskell.lsp.enable = false;
