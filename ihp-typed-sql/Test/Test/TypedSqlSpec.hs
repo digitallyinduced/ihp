@@ -30,9 +30,9 @@ import           System.FilePath                   (searchPathSeparator,
 import           System.IO                         (Handle, hClose, hFlush)
 import           System.IO.Temp.OsPath              (withSystemTempDirectory)
 import           System.OsPath                     (encodeUtf, decodeUtf)
-import           System.Posix.Files                (setFileMode)
+import           System.Posix.Files                (setFileMode, setFileTimes)
 import           System.Posix.Signals              (nullSignal, signalProcess,
-                                                    sigCONT, sigKILL)
+                                                    sigCONT, sigKILL, sigSTOP)
 import           System.Process                    (CreateProcess (..), ProcessHandle,
                                                     StdStream (CreatePipe, Inherit, NoStream),
                                                     createProcess,
@@ -221,12 +221,33 @@ tests = do
             withAutoDatabaseFixture
                 "CREATE TABLE typed_sql_schema_before (id UUID PRIMARY KEY, name TEXT NOT NULL);\n"
                 \tempDir schemaPath stateDir envOverrides -> do
-                let modulePath = tempDir </> "ReusableTypedSqlCase.hs"
+                realInitdb <- findExecutable "initdb" >>= \case
+                    Just path -> pure path
+                    Nothing -> expectationFailure "initdb disappeared from PATH" >> pure "initdb"
+                basePath <- fromMaybe "" <$> lookupEnv "PATH"
+                let wrapperDirectory = tempDir </> "initdb-version-wrapper"
+                    wrapperPath = wrapperDirectory </> "initdb"
+                    versionMarker = tempDir </> "initdb-version-calls"
+                    wrappedPath = wrapperDirectory <> [searchPathSeparator] <> basePath
+                    testEnvironment =
+                        setEnvironmentOverride "PATH" wrappedPath
+                            (setEnvironmentOverride "IHP_TEST_REAL_INITDB" realInitdb
+                                (setEnvironmentOverride "IHP_TEST_INITDB_VERSION_MARKER" versionMarker envOverrides))
+                    modulePath = tempDir </> "ReusableTypedSqlCase.hs"
                     firstModule = mkTestModule "TypedQuery 'AtMostOneRow 'ReturnsRows Text"
                         "[typedSql| SELECT name FROM typed_sql_schema_before LIMIT 1 |]"
                     secondModule = mkTestModule "TypedQuery 'AtMostOneRow 'ReturnsRows Text"
                         "[typedSql| SELECT name FROM typed_sql_schema_after LIMIT 1 |]"
-                (inputHandle, processHandle) <- startGhciLoadProcess modulePath firstModule envOverrides
+                createDirectoryIfMissing True wrapperDirectory
+                Text.writeFile wrapperPath (Text.unlines
+                    [ "#!/bin/sh"
+                    , "if [ \"$1\" = --version ]; then"
+                    , "  printf 'called\\n' >> \"$IHP_TEST_INITDB_VERSION_MARKER\""
+                    , "fi"
+                    , "exec \"$IHP_TEST_REAL_INITDB\" \"$@\""
+                    ])
+                setFileMode wrapperPath 0o700
+                (inputHandle, processHandle) <- startGhciLoadProcess modulePath firstModule testEnvironment
                 let cleanup = stopGhciProcess inputHandle processHandle
                 flip Exception.finally cleanup do
                     waitForCondition 1200 ((== 1) . length <$> readyAutoDatabaseProcessRoots stateDir)
@@ -260,6 +281,8 @@ tests = do
                     secondHash <- Prelude.readFile (newProcessRoot </> "schema.hash")
                     secondHash `shouldNotBe` firstHash
                     databaseDirectories newProcessRoot `shouldReturn` 1
+                    versionCalls <- Prelude.lines <$> Prelude.readFile versionMarker
+                    length versionCalls `shouldBe` 1
 
                     Text.hPutStr inputHandle ":quit\n"
                     hFlush inputHandle
@@ -458,6 +481,36 @@ tests = do
                         waitForCondition 400 (not <$> doesFileExist postmasterPath) `shouldReturn` True
                         getProcessExitCode processHandle `shouldReturn` Nothing
 
+        it "does not query an unresponsive postmaster to verify its identity" do
+            requireAutoDatabaseTools
+            withAutoDatabaseFixture
+                "CREATE TABLE typed_sql_unresponsive (id UUID PRIMARY KEY, name TEXT NOT NULL);\n"
+                \tempDir _schemaPath stateDir envOverrides -> do
+                let modulePath = tempDir </> "UnresponsiveTypedSqlCase.hs"
+                    testModule = mkTestModule "TypedQuery 'AtMostOneRow 'ReturnsRows Text"
+                        "[typedSql| SELECT name FROM typed_sql_unresponsive LIMIT 1 |]"
+                (inputHandle, processHandle) <- startGhciLoadProcess modulePath testModule envOverrides
+                let cleanup = stopGhciProcess inputHandle processHandle
+                flip Exception.finally cleanup do
+                    waitForCondition 1200 ((== 1) . length <$> readyAutoDatabaseProcessRoots stateDir)
+                        `shouldReturn` True
+                    [processRoot] <- readyAutoDatabaseProcessRoots stateDir
+                    let postmasterPath = processRoot </> "pgdata" </> "postmaster.pid"
+                        watchdogLogPath = processRoot </> "watchdog.log"
+                    postmasterPid <- Prelude.readFile postmasterPath >>= \contents ->
+                        case listToMaybe (Prelude.lines contents) >>= readMaybe of
+                            Just processId -> pure processId
+                            Nothing -> expectationFailure "postmaster.pid did not contain a process id" >> pure 0
+                    signalProcess sigSTOP postmasterPid
+                    flip Exception.finally
+                        (ignoreProcessException (signalProcess sigCONT postmasterPid)) do
+                        waitForCondition 300 (do
+                            logContents <- readTestFileIfExists watchdogLogPath
+                            pure (maybe False (List.isInfixOf "idle stop: PostgreSQL stop failed") logContents)
+                            ) `shouldReturn` True
+                    waitForCondition 400 (not <$> doesFileExist postmasterPath) `shouldReturn` True
+                    getProcessExitCode processHandle `shouldReturn` Nothing
+
         it "does not signal a postmaster PID that disagrees with the private socket lock" do
             requireAutoDatabaseTools
             withAutoDatabaseFixture
@@ -537,9 +590,9 @@ tests = do
             withAutoDatabaseFixture
                 "CREATE TABLE typed_sql_stale_pid (id UUID PRIMARY KEY, name TEXT NOT NULL);\n"
                 \tempDir _schemaPath stateDir envOverrides -> do
-                let staleRoot = stateDir </> "processes" </> "stale-process"
+                let staleRoot = stateDir </> "processes" </> "ghc-stale-process"
                     stalePgData = staleRoot </> "pgdata"
-                    malformedRoot = stateDir </> "processes" </> "malformed-process"
+                    malformedRoot = stateDir </> "processes" </> "ghc-malformed-process"
                     malformedPgData = malformedRoot </> "pgdata"
                     modulePath = tempDir </> "StalePidTypedSqlCase.hs"
                     testModule = mkTestModule "TypedQuery 'AtMostOneRow 'ReturnsRows Text"
@@ -575,6 +628,27 @@ tests = do
                     getProcessExitCode unrelatedProcess `shouldReturn` Nothing
                     doesDirectoryExist staleRoot `shouldReturn` True
                     doesDirectoryExist malformedRoot `shouldReturn` True
+
+        it "reaps an old ownerless process directory" do
+            requireAutoDatabaseTools
+            withAutoDatabaseFixture
+                "CREATE TABLE typed_sql_ownerless (id UUID PRIMARY KEY, name TEXT NOT NULL);\n"
+                \tempDir _schemaPath stateDir envOverrides -> do
+                let ownerlessRoot = stateDir </> "processes" </> "ghc-ownerless-process"
+                    modulePath = tempDir </> "OwnerlessTypedSqlCase.hs"
+                    testModule = mkTestModule "TypedQuery 'AtMostOneRow 'ReturnsRows Text"
+                        "[typedSql| SELECT name FROM typed_sql_ownerless LIMIT 1 |]"
+                    testEnvironment =
+                        setEnvironmentOverride "IHP_TYPED_SQL_STALE_SECONDS" "1" envOverrides
+                createDirectoryIfMissing True (ownerlessRoot </> "pgdata")
+                setFileTimes ownerlessRoot 1 1
+
+                (inputHandle, processHandle) <- startGhciLoadProcess modulePath testModule testEnvironment
+                let cleanup = stopGhciProcess inputHandle processHandle
+                flip Exception.finally cleanup do
+                    waitForCondition 1200 ((== 1) . length <$> readyAutoDatabaseProcessRoots stateDir)
+                        `shouldReturn` True
+                    doesDirectoryExist ownerlessRoot `shouldReturn` False
 
     describe "TypedSql macro compile-time success" do
         compilePassTest "primary key inferred as Id'"
@@ -949,8 +1023,8 @@ setupSchema = do
 
 requireAutoDatabaseTools :: IO ()
 requireAutoDatabaseTools = do
-    maybeInitdb <- findExecutable "initdb"
-    when (isNothing maybeInitdb) do
+    available <- Prelude.traverse findExecutable ["initdb", "ps"]
+    when (any isNothing available) do
         pendingWith "requires PostgreSQL tools on PATH"
 
 withAutoDatabaseFixture

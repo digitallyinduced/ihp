@@ -11,7 +11,8 @@ that is defined in flake-module.nix
 
                     # Wrap a package's check phase with a temporary PostgreSQL server
                     withTestPostgres = pkg: pkg.overrideAttrs (old: {
-                        nativeCheckInputs = (old.nativeCheckInputs or []) ++ [ pkgs.postgresql ];
+                        nativeCheckInputs = (old.nativeCheckInputs or [])
+                            ++ [ pkgs.postgresql pkgs.ps ];
                         preCheck = ''
                             ${old.preCheck or ""}
                             export PGDATA="$TMPDIR/pgdata"
@@ -211,7 +212,7 @@ that is defined in flake-module.nix
         ;
 
         devenv.shells.default = {
-            packages = with pkgs; [ cabal2nix ];
+            packages = with pkgs; [ cabal2nix ps ];
             containers = lib.mkForce {};  # https://github.com/cachix/devenv/issues/528
 
             languages.haskell.enable = true;
