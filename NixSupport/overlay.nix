@@ -101,15 +101,32 @@ let
             # verbatim for a cache hit. Restore the override only if a reverted
             # nixpkgs pin no longer carries 0.3.2.
 
-            # Hasql 1.10 ecosystem (incl. hasql-interpolate): the pinned nixpkgs
-            # ships hasql 1.10 as the `haskellPackages` default, so hasql,
-            # hasql-pool, postgresql-binary, text-builder,
-            # postgresql-connection-string and hasql-interpolate all resolve
-            # correctly with no overrides needed.
+            # Hasql 1.10 is the pinned nixpkgs default, so the surrounding
+            # ecosystem (including hasql-interpolate, postgresql-binary,
+            # text-builder and postgresql-connection-string) needs no overrides.
+            # Keep only the newer hasql and hasql-pool patch releases that fix
+            # poisoned pooled connections after async timeouts (#2765).
 
-            # temporary-ospath (temporary using OsPath instead of FilePath) is
-            # shipped by the pinned nixpkgs at 1.3, so it resolves from the default
-            # set with no override needed.
+            # hasql-1.10.3.7: pipeline cleanup handles PipelineAborted (#311)
+            # Adds comonad vs 1.10.3 in nixpkgs.
+            hasql = final.haskell.lib.overrideCabal super.hasql_1_10_3 (old: {
+                version = "1.10.3.7";
+                sha256 = "0jj5243k77q7f3k2mw8crf3n5pdqbdzcj439ca1n4yvznwip9a3b";
+                revision = null;
+                editedCabalFile = null;
+                libraryHaskellDepends = (old.libraryHaskellDepends or []) ++ [ self.comonad ];
+            });
+            # hasql-pool-1.4.2.3: discard connections after driver errors (#55)
+            # plus later 1.4.2.x pool fixes; requires hasql >= 1.10.
+            hasql-pool = final.haskell.lib.overrideCabal super.hasql-pool_1_4_2 (old: {
+                version = "1.4.2.3";
+                sha256 = "1sizwh7lhdczny3lmjvxc07aa4f82h2qf22cs0cf66w5lky0yxkf";
+                revision = null;
+                editedCabalFile = null;
+            });
+
+            # temporary-ospath is shipped by the pinned nixpkgs at 1.3, so it
+            # also resolves from the default set with no override needed.
 
             # postgresql-simple-postgresql-types and hasql-mapping are unbroken in
             # the pinned nixpkgs, so no markUnbroken overrides are needed.

@@ -20,6 +20,9 @@
 , appSchemaSql ? null       # Path to Application/Schema.sql (required when buildWithPostgres = true)
 , ihpSchemaSql ? null       # Path to IHPSchema.sql (required when buildWithPostgres = true)
 , migrationCheck ? null     # Optional derivation that validates Application/Migration before building the app
+, previousIntermediates ? null # Optional intermediate output from a previous optimized app library build
+, buildStaticLibraries ? true # Build static Haskell libraries in addition to shared libraries
+, ghcAllocationArea ? null # Optional GHC compile-time RTS allocation area, e.g. "128M"
 }:
 
 let
@@ -162,37 +165,44 @@ CABAL_EOF
 
     # Inline mkDerivation instead of callCabal2nix to avoid IFD (Import From Derivation).
     # The dependencies here must match the .cabal template generated in modelsPackageSrc above.
-    modelsPackage = pkgs.haskell.lib.disableLibraryProfiling (pkgs.haskell.lib.dontHaddock (
-        ghc.callPackage ({ mkDerivation, base, ihp, basic-prelude, text, bytestring, time, uuid, aeson, postgresql-simple, deepseq, data-default, scientific, string-conversions, hasql, hasql-dynamic-statements, hasql-implicits, hasql-mapping, hasql-postgresql-types, hasql-pool, unordered-containers, postgresql-types }: mkDerivation {
-            pname = "${appName}-models";
-            version = "0.1.0";
-            src = modelsPackageSrc;
-            libraryHaskellDepends = [
-                base
-                ihp
-                basic-prelude
-                text
-                bytestring
-                time
-                uuid
-                aeson
-                postgresql-simple
-                deepseq
-                data-default
-                scientific
-                string-conversions
-                hasql
-                hasql-dynamic-statements
-                hasql-implicits
-                hasql-mapping
-                hasql-postgresql-types
-                hasql-pool
-                unordered-containers
-                postgresql-types
-            ];
-            license = pkgs.lib.licenses.free;
-        }) {}
-    ));
+    # Every generated table expands into several modules. With large schemas,
+    # split sections create enough archive members for the final library
+    # assembly to exceed the platform's argument-size limit.
+    modelsPackage = configureHaskellBuild (pkgs.haskell.lib.overrideCabal (
+        pkgs.haskell.lib.disableLibraryProfiling (pkgs.haskell.lib.dontHaddock (
+            ghc.callPackage ({ mkDerivation, base, ihp, basic-prelude, text, bytestring, time, uuid, aeson, postgresql-simple, deepseq, data-default, scientific, string-conversions, hasql, hasql-dynamic-statements, hasql-implicits, hasql-mapping, hasql-postgresql-types, hasql-pool, unordered-containers, postgresql-types }: mkDerivation {
+                pname = "${appName}-models";
+                version = "0.1.0";
+                src = modelsPackageSrc;
+                libraryHaskellDepends = [
+                    base
+                    ihp
+                    basic-prelude
+                    text
+                    bytestring
+                    time
+                    uuid
+                    aeson
+                    postgresql-simple
+                    deepseq
+                    data-default
+                    scientific
+                    string-conversions
+                    hasql
+                    hasql-dynamic-statements
+                    hasql-implicits
+                    hasql-mapping
+                    hasql-postgresql-types
+                    hasql-pool
+                    unordered-containers
+                    postgresql-types
+                ];
+                license = pkgs.lib.licenses.free;
+            }) {}
+        ))
+    ) (old: {
+        configureFlags = (old.configureFlags or []) ++ [ "--disable-split-sections" ];
+    }));
 
     allHaskellPackages =
         (if withHoogle
@@ -412,20 +422,50 @@ CABAL_EOF
         '';
     });
 
-    appLibPackageBase = pkgs.haskell.lib.disableLibraryProfiling (pkgs.haskell.lib.dontHaddock (
+    configureHaskellBuild = pkg:
+        pkgs.haskell.lib.overrideCabal
+            (if buildStaticLibraries then pkg else pkgs.haskell.lib.disableStaticLibraries pkg)
+            (old: {
+                configureFlags = (old.configureFlags or [])
+                    ++ pkgs.lib.optionals (!buildStaticLibraries) [
+                        "--disable-library-vanilla"
+                    ]
+                    ++ pkgs.lib.optionals (ghcAllocationArea != null) [
+                        "--ghc-option=+RTS"
+                        "--ghc-option=-A${ghcAllocationArea}"
+                        "--ghc-option=-RTS"
+                    ];
+            });
+
+    mkAppLibPackage = withIntermediates: configureHaskellBuild (pkgs.haskell.lib.disableLibraryProfiling (pkgs.haskell.lib.dontHaddock (
         ghc.callPackage ({ mkDerivation, base }: mkDerivation {
             pname = "${appName}-lib";
             version = "0.1.0";
             src = appLibSrc;
             libraryHaskellDepends = [ base modelsPackage ] ++ builtins.filter (p: p != null) (haskellDeps ghc);
+            doInstallIntermediates = withIntermediates;
+            enableSeparateIntermediatesOutput = withIntermediates;
+            inherit previousIntermediates;
             license = pkgs.lib.licenses.free;
         }) {}
-    ));
+    )));
 
-    appLibPackage =
+    withAppLibPostgres = pkg:
         if buildWithPostgres
-        then withBuildTimePostgres appLibPackageBase
-        else appLibPackageBase;
+        then withBuildTimePostgres pkg
+        else pkg;
+
+    # The executables link against a lib variant WITHOUT the intermediates
+    # output: a nix remote builder copies back every output of each derivation
+    # it builds, so the multi-GB .hi/.o tree would otherwise travel with every
+    # offloaded build even though only the next incremental compile needs it.
+    # The with-intermediates variant exists solely to seed that next build; it
+    # is published as passthru.appLibPackage so existing flakes that reference
+    # .intermediates (the optimized-app-lib-intermediates output consumed via
+    # the prevBuild input, including older revisions of consuming repos) keep
+    # evaluating unchanged.
+    appLibPackage = withAppLibPostgres (mkAppLibPackage false);
+    appLibPackageWithIntermediates = withAppLibPostgres (mkAppLibPackage optimized);
 
     allHaskellPackagesWithAppLib = ghc.ghcWithPackages (p: [ appLibPackage ]);
 
@@ -452,6 +492,7 @@ CABAL_EOF
                 ''}
 
                 ghc -j1 +RTS -N1 -RTS \
+                    ${pkgs.lib.optionalString (!buildStaticLibraries) "-dynamic"} \
                     -O${if optimized then optimizationLevel else "0"} ${splitSections} \
                     ${pkgs.lib.optionalString (mainIs != null) "-main-is '${mainIs}'"} \
                     $(make print-ghc-options) \
@@ -572,7 +613,14 @@ in
     pkgs.runCommand appName {
         inherit static binaries;
         nativeBuildInputs = [ pkgs.makeWrapper ];
-        passthru = { inherit scriptBinaries; migrationCheck = effectiveMigrationCheck; };
+        # appLibPackage stays the with-intermediates variant here: consumers
+        # reach it as passthru.appLibPackage.intermediates (see mkAppLibPackage).
+        passthru = {
+            appLibPackage = appLibPackageWithIntermediates;
+            appLibPackageForExecutables = appLibPackage;
+            inherit scriptBinaries;
+            migrationCheck = effectiveMigrationCheck;
+        };
     } ''
             test -e ${effectiveMigrationCheck}
 

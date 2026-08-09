@@ -1089,7 +1089,9 @@ instance QueryBuilder.FilterPrimaryKey "#{name}" where
 compileTableInstance :: (?schema :: Schema, ?compilerOptions :: CompilerOptions) => CreateTable -> Text
 compileTableInstance table@(CreateTable { name, constraints }) = cs [i|
 instance #{instanceHead} where
+    type TableId (#{compileTypePattern table}) = Id' "#{name}"
     tableName = \"#{name}\"
+    modelId (#{compileDataTypePattern table}) = #{compilePrimaryKeyValue table}
     columnNames = #{columnNames}
     primaryKeyColumnNames = #{primaryKeyColumnNames}
 |]
@@ -1208,13 +1210,15 @@ compileFieldBitInstances table@(CreateTable { name }) = unlines (map compileInst
 compileHasFieldId :: (?schema :: Schema, ?compilerOptions :: CompilerOptions) => CreateTable -> Text
 compileHasFieldId table@CreateTable { name, primaryKeyConstraint } = cs [i|
 instance HasField "id" #{tableNameToModelName name} (Id' "#{name}") where
-    getField (#{compileDataTypePattern table}) = #{compilePrimaryKeyValue}
+    getField (#{compileDataTypePattern table}) = #{compilePrimaryKeyValue table}
     {-# INLINE getField #-}
 |]
-    where
-        compilePrimaryKeyValue = case primaryKeyColumnNames primaryKeyConstraint of
-            [id] -> columnNameToFieldName id
-            ids -> "Id (" <> commaSep (map columnNameToFieldName ids) <> ")"
+
+compilePrimaryKeyValue :: CreateTable -> Text
+compilePrimaryKeyValue CreateTable { primaryKeyConstraint } =
+    case primaryKeyColumnNames primaryKeyConstraint of
+        [id] -> columnNameToFieldName id
+        ids -> "Id (" <> commaSep (map columnNameToFieldName ids) <> ")"
 
 needsHasFieldId :: CreateTable -> Bool
 needsHasFieldId CreateTable { columns, primaryKeyConstraint } =
@@ -1729,5 +1733,4 @@ compileDynamicCreateManyStatement moduleName qualifiedModelName tableName writab
         , "decoder :: Decoders.Result [" <> qualifiedModelName <> "]"
         , "decoder = Decoders.rowList RowDecoder.rowDecoder"
         ]
-
 

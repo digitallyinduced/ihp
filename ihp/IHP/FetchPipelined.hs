@@ -56,7 +56,6 @@ import Data.Functor.Contravariant.Divisible (conquer)
 fetchPipelined :: forall model table.
     ( Table model
     , model ~ GetModelByTableName table
-    , KnownSymbol table
     , FromRowHasql model
     ) => QueryBuilder table -> Pipeline.Pipeline [model]
 fetchPipelined !queryBuilder = Pipeline.statement () (buildQueryListStatement queryBuilder)
@@ -73,7 +72,6 @@ fetchPipelined !queryBuilder = Pipeline.statement () (buildQueryListStatement qu
 fetchVectorPipelined :: forall model table.
     ( Table model
     , model ~ GetModelByTableName table
-    , KnownSymbol table
     , FromRowHasql model
     ) => QueryBuilder table -> Pipeline.Pipeline (Vector model)
 fetchVectorPipelined !queryBuilder = Pipeline.statement () (buildQueryVectorStatement queryBuilder)
@@ -90,7 +88,6 @@ fetchVectorPipelined !queryBuilder = Pipeline.statement () (buildQueryVectorStat
 fetchOneOrNothingPipelined :: forall model table.
     ( Table model
     , model ~ GetModelByTableName table
-    , KnownSymbol table
     , FromRowHasql model
     ) => QueryBuilder table -> Pipeline.Pipeline (Maybe model)
 fetchOneOrNothingPipelined !queryBuilder = Pipeline.statement () (buildQueryMaybeStatement queryBuilder)
@@ -104,9 +101,7 @@ fetchOneOrNothingPipelined !queryBuilder = Pipeline.statement () (buildQueryMayb
 -- >     users <- query @User |> fetchPipelined
 -- >     userCount <- query @User |> filterWhere (#active, True) |> fetchCountPipelined
 -- >     pure (users, userCount)
-fetchCountPipelined :: forall table.
-    ( KnownSymbol table
-    ) => QueryBuilder table -> Pipeline.Pipeline Int
+fetchCountPipelined :: forall table. QueryBuilder table -> Pipeline.Pipeline Int
 fetchCountPipelined !queryBuilder = fromIntegral <$> Pipeline.statement () (buildCountStatement queryBuilder)
 {-# INLINE fetchCountPipelined #-}
 
@@ -118,9 +113,7 @@ fetchCountPipelined !queryBuilder = fromIntegral <$> Pipeline.statement () (buil
 -- >     users <- query @User |> fetchPipelined
 -- >     hasUnread <- query @Message |> filterWhere (#isUnread, True) |> fetchExistsPipelined
 -- >     pure (users, hasUnread)
-fetchExistsPipelined :: forall table.
-    ( KnownSymbol table
-    ) => QueryBuilder table -> Pipeline.Pipeline Bool
+fetchExistsPipelined :: forall table. QueryBuilder table -> Pipeline.Pipeline Bool
 fetchExistsPipelined !queryBuilder = Pipeline.statement () (buildExistsStatement queryBuilder)
 {-# INLINE fetchExistsPipelined #-}
 

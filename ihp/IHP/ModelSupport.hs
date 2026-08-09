@@ -1,4 +1,4 @@
-{-# LANGUAGE MultiParamTypeClasses, TypeFamilies, FlexibleContexts, AllowAmbiguousTypes, UndecidableInstances, FlexibleInstances, IncoherentInstances, DataKinds, PolyKinds, TypeApplications, ScopedTypeVariables, ConstraintKinds, TypeOperators, GADTs, GeneralizedNewtypeDeriving, CPP #-}
+{-# LANGUAGE MultiParamTypeClasses, TypeFamilies, FlexibleContexts, AllowAmbiguousTypes, UndecidableInstances, FlexibleInstances, IncoherentInstances, DataKinds, PolyKinds, TypeApplications, ScopedTypeVariables, ConstraintKinds, TypeOperators, GADTs, GeneralizedNewtypeDeriving, DefaultSignatures, CPP #-}
 
 module IHP.ModelSupport
 ( module IHP.ModelSupport
@@ -651,10 +651,13 @@ rollbackTransaction = case ?modelContext.transactionRunner of
     Nothing -> error "rollbackTransaction: Not in a transaction"
 {-# INLINABLE rollbackTransaction #-}
 
--- | Access meta data for a database table
-class
-    ( KnownSymbol (GetTableName record)
-    ) => Table record where
+-- | Access meta data for a database table.
+--
+-- Generated instances provide the term-level metadata directly. The default
+-- implementations keep hand-written instances source-compatible without
+-- forcing every use of @Table record@ to also solve @KnownSymbol
+-- (GetTableName record)@.
+class Table record where
     -- | Returns the table name of a given model.
     --
     -- __Example:__
@@ -664,8 +667,24 @@ class
     --
 
     tableName :: Text
+    default tableName :: KnownSymbol (GetTableName record) => Text
     tableName = symbolToText @(GetTableName record)
     {-# INLINE tableName #-}
+
+    -- | The ID type of this table. Generated instances set this directly to a
+    -- concrete @Id' "table_name"@, avoiding a @GetTableName@ reduction on
+    -- common paths such as 'currentUserId'.
+    type TableId record
+    type TableId record = Id record
+
+    -- | Returns the primary-key value of a record.
+    --
+    -- Schema-generated instances provide an implementation. The fallback
+    -- keeps existing hand-written 'Table' instances source-compatible; such
+    -- instances should define this method before calling it.
+    modelId :: record -> TableId record
+    modelId _ = error "Table.modelId: no implementation provided by this Table instance"
+    {-# INLINE modelId #-}
 
     -- | Returns the list of column names for a given model
     --
@@ -1063,4 +1082,3 @@ withoutQueryLogging callback =
         let ?modelContext = modelContext { logger = noopLogger }
         in
             callback
-

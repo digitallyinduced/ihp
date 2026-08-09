@@ -17,8 +17,8 @@ module IHP.QueryBuilder.Types
   -- * Helpers
 , addCondition
 , qualifyAndJoinColumns
+, queryBuilderTableName
   -- * Type Classes
-, DefaultScope (..)
 , EqOrIsOperator (..)
 , FilterPrimaryKey (..)
 ) where
@@ -131,12 +131,20 @@ sqlQueryEq a b =
     condEq _ _ = False
 
 -- | Display QueryBuilder's as their sql query inside HSX
-instance KnownSymbol table => ToHtml (QueryBuilder table) where
+instance ToHtml (QueryBuilder table) where
     toHtml queryBuilder = toHtml (toSQLQueryBuilder queryBuilder)
       where
         -- Inline SQL generation for ToHtml to avoid circular imports
         toSQLQueryBuilder :: QueryBuilder table -> Text
-        toSQLQueryBuilder qb = "QueryBuilder<" <> symbolToText @table <> ">"
+        toSQLQueryBuilder qb = "QueryBuilder<" <> queryBuilderTableName qb <> ">"
+
+-- | Returns the term-level table name stored in a query builder.
+--
+-- Query builders already carry this value in their 'SQLQuery', so callers do
+-- not need to recover it through @KnownSymbol table@.
+queryBuilderTableName :: QueryBuilder table -> Text
+queryBuilderTableName = selectFrom . unQueryBuilder
+{-# INLINE queryBuilderTableName #-}
 
 -- | ORDER BY direction
 data OrderByDirection = Asc | Desc deriving (Eq, Show, GHC.Generics.Generic, DeepSeq.NFData)
@@ -165,14 +173,6 @@ instance SetField "whereCondition" SQLQuery (Maybe Condition) where setField val
 instance SetField "orderByClause" SQLQuery [OrderByClause] where setField value sqlQuery = sqlQuery { orderByClause = value }
 instance SetField "limitClause" SQLQuery (Maybe Int64) where setField value sqlQuery = sqlQuery { limitClause = value }
 instance SetField "offsetClause" SQLQuery (Maybe Int64) where setField value sqlQuery = sqlQuery { offsetClause = value }
-
--- | Type class for default scoping of queries
-class DefaultScope table where
-    defaultScope :: QueryBuilder table -> QueryBuilder table
-
-instance {-# OVERLAPPABLE #-} DefaultScope table where
-    {-# INLINE defaultScope #-}
-    defaultScope queryBuilder = queryBuilder
 
 instance Table (GetModelByTableName table) => Default (QueryBuilder table) where
     {-# INLINE def #-}

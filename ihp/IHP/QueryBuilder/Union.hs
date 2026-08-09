@@ -15,7 +15,6 @@ module IHP.QueryBuilder.Union
 import IHP.Prelude
 import IHP.ModelSupport
 import IHP.QueryBuilder.Types
-import IHP.QueryBuilder.Compiler (query)
 
 -- | Merges the results of two query builders by ORing their WHERE conditions.
 --
@@ -54,9 +53,9 @@ queryUnion (QueryBuilder first) (QueryBuilder second) =
 -- >
 -- >      projects <- fetch theQuery
 -- >      render IndexView { .. }
-queryUnionList :: forall table. (Table (GetModelByTableName table), KnownSymbol table, GetTableName (GetModelByTableName table) ~ table) => [QueryBuilder table] -> QueryBuilder table
+queryUnionList :: forall table. Table (GetModelByTableName table) => [QueryBuilder table] -> QueryBuilder table
 -- For empty list, create a condition that is always false: id <> id (which is always false for non-null)
-queryUnionList [] = addCondition (ColumnCondition "id" NotEqOp (Literal "id") Nothing Nothing) (query @(GetModelByTableName table) @table)
+queryUnionList [] = addCondition (ColumnCondition "id" NotEqOp (Literal "id") Nothing Nothing) (def :: QueryBuilder table)
 queryUnionList [single] = single
 queryUnionList (first:rest) =
     let QueryBuilder firstSq = first
