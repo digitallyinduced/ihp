@@ -377,7 +377,8 @@ ihpFlake:
                                 # compile time to describe queries (see IHP_TYPED_SQL_AUTO_DB
                                 # below), so the postgres tools must be on PATH whenever the
                                 # app depends on ihp-typed-sql.
-                                ++ lib.optionals buildWithPostgres [ postgresql ];
+                                ++ lib.optionals buildWithPostgres
+                                    [ postgresql ps ];
                             buildPhase = ''
                                 export IHP_LIB=${ihpLib}
 
@@ -452,6 +453,7 @@ ihpFlake:
                 packages = [ ghcCompiler.ihp ghcCompiler.ihp-ide pkgs.gnumake ihpFlake.inputs.self.packages."${system}".run-script ]
                     ++ cfg.packages
                     ++ [pkgs.mktemp] # Without this 'make build/bin/RunUnoptimizedProdServer' fails on macOS
+                    ++ [ pkgs.ps ]
                     ++ [(let cfg = config.devenv.shells.default.services.postgres; in
                         if cfg.extensions != null
                         then
