@@ -132,6 +132,10 @@ let
         };
 in
 final: prev: {
+    # nix-prefetch-darcs consumes the top-level darcs attribute directly. Keep it
+    # on the same bounds-relaxed build as the default GHC package set.
+    darcs = final.ghc.darcs;
+
     # Default: GHC 9.12 — the pinned nixpkgs `haskellPackages` compiler.
     # The dontCheck overrides below apply to that default build.
     ghc = final.haskellPackages.override {
@@ -146,6 +150,18 @@ final: prev: {
 
                 # cryptonite tests have a flaky failure (1 of 1548)
                 cryptonite = final.haskell.lib.dontCheck super.cryptonite;
+
+                # darcs 2.18.5 caps http-client-tls <0.4 and tls <2.2, while
+                # the RC3 package set provides newer compatible releases. A full
+                # doJailbreak conflicts with nixpkgs' patched darcs.cabal, so only
+                # relax these two bounds after the nixpkgs patches are applied.
+                darcs = super.darcs.overrideAttrs (old: {
+                    postPatch = (old.postPatch or "") + ''
+                        substituteInPlace darcs.cabal \
+                            --replace-fail "http-client-tls   >= 0.3.5 && < 0.4" "http-client-tls   >= 0.3.5" \
+                            --replace-fail "tls               >= 2.0.6 && < 2.2" "tls               >= 2.0.6"
+                    '';
+                });
             })
         ];
     };
@@ -167,7 +183,7 @@ final: prev: {
                 # 1.14.0.0 attribute. Keep the old name as a compatibility alias
                 # until nixpkgs updates configuration-ghc-9.14.x.nix.
                 (self: super: {
-                    ghc-exactprint_1_14_0_0 = super.ghc-exactprint_1_14_1_0;
+                    ghc-exactprint_1_14_0_0 = final.haskell.lib.dontCheck super.ghc-exactprint_1_14_1_0;
                 })
                 (ihpOverrides final)
                 (self: super: {
