@@ -146,4 +146,34 @@ describe('DataSubscription disconnect cleanup', () => {
         expect(closeNotifications).toBe(1);
         expect(store.get('test')).toBe(replacement);
     });
+
+    test('deletes a reconnect response that arrives after the subscription was closed', async () => {
+        const controller = DataSyncController.getInstance();
+        const sub = makeSubscription([]);
+        const sentMessages = [];
+        let resolveCreateOnServer;
+        sub.isClosed = true;
+        controller.dataSubscriptions.push(sub);
+        controller.sendMessage = (message) => {
+            sentMessages.push(message);
+            if (message.tag === 'CreateDataSubscription') {
+                return new Promise(resolve => { resolveCreateOnServer = resolve; });
+            }
+            return Promise.resolve({});
+        };
+
+        const reconnect = sub.onDataSyncReconnect();
+        await sub.close();
+        resolveCreateOnServer({ subscriptionId: 'reconnected-id', result: [] });
+        await reconnect;
+
+        expect(sentMessages).toEqual([
+            { tag: 'CreateDataSubscription', query: sub.query },
+            { tag: 'DeleteDataSubscription', subscriptionId: 'reconnected-id' },
+        ]);
+        expect(controller.dataSubscriptions).not.toContain(sub);
+        expect(sub.isClosed).toBe(true);
+        expect(sub.isConnected).toBe(false);
+        expect(sub.subscriptionId).toBe(null);
+    });
 });
