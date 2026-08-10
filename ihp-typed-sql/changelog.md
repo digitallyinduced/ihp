@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Added ModelContext-free TypedSQL execution APIs for converting queries to
+  Hasql statements or sessions, or running them directly on an explicit Hasql
+  pool. The existing IHP-aware helpers remain unchanged.
+
 - Each compiler process now uses a compact private compile-time PostgreSQL
   cluster under the worktree's `.devenv/state` directory. PostgreSQL stops after
   metadata operations become idle, the disposable cluster is rebuilt on schema

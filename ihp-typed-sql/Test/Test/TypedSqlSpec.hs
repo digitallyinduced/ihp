@@ -801,6 +801,7 @@ tests = do
 
     describe "TypedSql macro runtime execution" do
         runtimeTest "executes typedSql queries end-to-end via ghci" runtimeModule
+        runtimeTest "executes typedSql without a ModelContext implicit parameter" runtimeExplicitHasqlModule
         runtimeTest "UPDATE and DELETE with parameters" runtimeUpdateDeleteModule
         runtimeTest "empty results and edge cases" runtimeEdgeCasesModule
         runtimeTest "additional column types (smallint, bigint, numeric, bytea, bool, timestamptz, date, jsonb)" runtimeExtraTypesModule
@@ -1928,6 +1929,62 @@ runtimeModule = Text.unlines
     , "        let rightJoinCoalescedValues = map (\\r -> (r.coalesce, r.name)) rightJoinCoalescedRows"
     , "        when (rightJoinCoalescedValues /= [(\"First\", \"Alice\"), (\"Second\", \"Alice\"), (\"(no-item)\", \"Bob\")]) do"
     , "            error (\"unexpected rows from right join with COALESCE: \" <> show rightJoinCoalescedRows)"
+    , ""
+    , "        putStrLn \"RUNTIME_OK\""
+    ]
+
+runtimeExplicitHasqlModule :: Text
+runtimeExplicitHasqlModule = Text.unlines
+    [ "{-# LANGUAGE DataKinds #-}"
+    , "{-# LANGUAGE NoImplicitPrelude #-}"
+    , "{-# LANGUAGE NoFieldSelectors #-}"
+    , "{-# LANGUAGE OverloadedRecordDot #-}"
+    , "{-# LANGUAGE OverloadedStrings #-}"
+    , "{-# LANGUAGE QuasiQuotes #-}"
+    , "{-# LANGUAGE TypeFamilies #-}"
+    , "module Main where"
+    , ""
+    , "import qualified Control.Exception as Exception"
+    , "import qualified Hasql.Session as HasqlSession"
+    , "import IHP.Hasql.Pool (usePoolWithRetry)"
+    , "import IHP.ModelSupport (Id'(..), PrimaryKey, createModelContext, releaseModelContext, noopLogger)"
+    , "import IHP.Prelude"
+    , "import IHP.TypedSql (sqlExecTypedSession, sqlExecTypedStatement, sqlExecTypedWithPool, sqlQueryTypedSession, sqlQueryTypedStatement, sqlQueryTypedWithPool, typedSql)"
+    , "import System.Environment (lookupEnv)"
+    , ""
+    , "type instance PrimaryKey \"typed_sql_test_items\" = UUID"
+    , "type instance PrimaryKey \"typed_sql_test_authors\" = UUID"
+    , ""
+    , "main :: IO ()"
+    , "main = do"
+    , "    databaseUrl <- cs . fromMaybe \"\" <$> lookupEnv \"DATABASE_URL\""
+    , "    modelContext <- createModelContext databaseUrl noopLogger"
+    , "    let pool = modelContext.hasqlPool"
+    , "    flip Exception.finally (releaseModelContext modelContext) do"
+    , "        _ <- sqlExecTypedWithPool pool [typedSql| DELETE FROM typed_sql_test_items |]"
+    , ""
+    , "        let itemId = (\"10000000-0000-0000-0000-000000000001\" :: UUID)"
+    , "        let authorId = (\"00000000-0000-0000-0000-000000000001\" :: UUID)"
+    , "        rowsInserted <- sqlExecTypedWithPool pool [typedSql|"
+    , "            INSERT INTO typed_sql_test_items (id, author_id, name, views, score, tags)"
+    , "            VALUES (${itemId}, ${authorId}, ${(\"Explicit\" :: Text)}, ${7 :: Int}, ${(Nothing :: Maybe Double)}, ${([] :: [Text])})"
+    , "        |]"
+    , "        when (rowsInserted /= 1) do error \"unexpected insert count\""
+    , ""
+    , "        names <- sqlQueryTypedWithPool pool [typedSql| SELECT name FROM typed_sql_test_items ORDER BY name |]"
+    , "        when ((names :: [Text]) /= [\"Explicit\"]) do error \"unexpected explicit-pool query result\""
+    , ""
+    , "        namesViaSession <- usePoolWithRetry pool (sqlQueryTypedSession [typedSql| SELECT name FROM typed_sql_test_items ORDER BY name |])"
+    , "        when ((namesViaSession :: [Text]) /= [\"Explicit\"]) do error \"unexpected session query result\""
+    , ""
+    , "        rowsUpdated <- usePoolWithRetry pool (sqlExecTypedSession [typedSql| UPDATE typed_sql_test_items SET views = ${8 :: Int} WHERE id = ${itemId} |])"
+    , "        when (rowsUpdated /= 1) do error \"unexpected session update count\""
+    , ""
+    , "        views <- usePoolWithRetry pool (HasqlSession.statement () (sqlQueryTypedStatement [typedSql| SELECT views FROM typed_sql_test_items WHERE id = ${itemId} |]))"
+    , "        when ((views :: Maybe Int) /= Just 8) do error \"unexpected statement query result\""
+    , ""
+    , "        rowsDeleted <- usePoolWithRetry pool (HasqlSession.statement () (sqlExecTypedStatement [typedSql| DELETE FROM typed_sql_test_items WHERE id = ${itemId} |]))"
+    , "        when (rowsDeleted /= 1) do error \"unexpected statement delete count\""
     , ""
     , "        putStrLn \"RUNTIME_OK\""
     ]
