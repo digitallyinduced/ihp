@@ -1,4 +1,5 @@
 import { DataSubscription, DataSyncController } from './ihp-datasync.js';
+import { jest } from '@jest/globals';
 
 function makeSubscription(records) {
     const query = {
@@ -71,9 +72,37 @@ describe('DataSubscription.onUpdate', () => {
     });
 });
 
+describe('DataSubscription legacy cache', () => {
+    test('restores and updates records through the constructor cache', () => {
+        const query = {
+            table: 'test',
+            conditionExpression: [],
+            orderByClause: [],
+            distinctOnColumn: null,
+            limit: null,
+            offset: null,
+        };
+        const queryKey = JSON.stringify(query);
+        const cache = new Map([[queryKey, [{ id: '1', name: 'Cached' }]]]);
+        const sub = new DataSubscription(query, null, cache);
+
+        expect(sub.records).toEqual([{ id: '1', name: 'Cached' }]);
+
+        sub.onUpdate('1', { name: 'Updated' }, null);
+
+        expect(cache.get(queryKey)).toEqual([{ id: '1', name: 'Updated' }]);
+    });
+});
+
 describe('DataSubscription disconnect cleanup', () => {
     beforeEach(() => {
+        jest.useFakeTimers();
         DataSyncController.instance = null;
+    });
+
+    afterEach(() => {
+        jest.clearAllTimers();
+        jest.useRealTimers();
     });
 
     test('removes an unused subscription locally after its socket was closed', async () => {
@@ -88,51 +117,56 @@ describe('DataSubscription disconnect cleanup', () => {
         expect(sub.isConnected).toBe(false);
     });
 
-    test('keeps an imperative subscription registered for reconnect after disconnect', () => {
+    test('prunes an unused subscription after the React commit grace period', async () => {
         const controller = DataSyncController.getInstance();
         const sub = makeSubscription([]);
         controller.dataSubscriptions.push(sub);
 
         sub.onDataSyncClosed();
+
+        jest.advanceTimersByTime(999);
+        expect(controller.dataSubscriptions).toContain(sub);
+
+        jest.advanceTimersByTime(1);
+        await Promise.resolve();
+        expect(controller.dataSubscriptions).not.toContain(sub);
+    });
+
+    test('keeps a subscription when React commits before reconnect', () => {
+        const controller = DataSyncController.getInstance();
+        const sub = makeSubscription([]);
+        controller.dataSubscriptions.push(sub);
+
+        sub.onDataSyncClosed();
+        jest.advanceTimersByTime(100);
+        const unsubscribe = sub.subscribe(() => {});
+        jest.advanceTimersByTime(900);
 
         expect(controller.dataSubscriptions).toContain(sub);
-        expect(sub.isClosed).toBe(true);
-        expect(sub.isConnected).toBe(false);
-    });
+        expect(sub.subscribers).toHaveLength(1);
 
-    test('removes a disconnected subscription after its last subscriber leaves', () => {
-        const controller = DataSyncController.getInstance();
-        const sub = makeSubscription([]);
-        const unsubscribe = sub.subscribe(() => {});
-        controller.dataSubscriptions.push(sub);
-
-        sub.onDataSyncClosed();
         unsubscribe();
-
-        expect(controller.dataSubscriptions).not.toContain(sub);
-        expect(sub.subscribers).toHaveLength(0);
     });
 
-    test('deletes a connected subscription after its last subscriber leaves', async () => {
+    test('notifies local stores only once when close is repeated', async () => {
         const controller = DataSyncController.getInstance();
         const sub = makeSubscription([]);
-        const sentMessages = [];
-        controller.sendMessage = (message) => {
-            sentMessages.push(message);
-            return Promise.resolve({});
+        const replacement = makeSubscription([]);
+        const store = new Map([['test', sub]]);
+        let closeNotifications = 0;
+        sub.isClosed = true;
+        sub.onClose = () => {
+            closeNotifications++;
+            store.delete('test');
         };
-        sub.isConnected = true;
-        sub.subscriptionId = 'subscription-id';
         controller.dataSubscriptions.push(sub);
-        const unsubscribe = sub.subscribe(() => {});
 
-        unsubscribe();
-        await Promise.resolve();
+        await sub.close();
+        store.set('test', replacement);
+        await sub.close();
 
-        expect(sentMessages).toEqual([
-            { tag: 'DeleteDataSubscription', subscriptionId: 'subscription-id' },
-        ]);
-        expect(controller.dataSubscriptions).not.toContain(sub);
+        expect(closeNotifications).toBe(1);
+        expect(store.get('test')).toBe(replacement);
     });
 
     test('deletes a reconnect response that arrives after the subscription was closed', async () => {

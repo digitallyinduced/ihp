@@ -1,4 +1,11 @@
 import { recordMatchesQuery } from './ihp-querybuilder.js';
+import {
+    deleteDataSyncRecord,
+    detectNewRecordBehaviour,
+    insertDataSyncRecord,
+    updateDataSyncRecords,
+} from './query-subscription.js';
+import type { DataSyncQuerySubscription } from './query-subscription.js';
 import type {
     DynamicSQLQuery,
     DataRecord,
@@ -15,25 +22,11 @@ import type {
 } from './types.js';
 import { APPEND_NEW_RECORD, PREPEND_NEW_RECORD, NewRecordBehaviour } from './types.js';
 
+const UNUSED_SUBSCRIPTION_CLOSE_DELAY = 1000;
+
 type EventListeners = {
     [K in DataSyncEventType]: DataSyncEventMap[K][];
 };
-
-/**
- * A live query result that can receive optimistic CRUD updates.
- *
- * React's useQuery implements this interface directly, while DataSubscription
- * implements it for the imperative query(...).subscribe(...) API.
- */
-export interface DataSyncQuerySubscription {
-    query: DynamicSQLQuery;
-    optimisticUpdatedPendingRecordIds: Set<UUID>;
-    getRecords(): DataRecord[] | null;
-    onUpdate(id: UUID, changeSet: Record<string, unknown> | null, appendSet: Record<string, unknown> | null): void;
-    onCreate(newRecord: DataRecord): void;
-    onCreateOptimistic(newRecord: DataRecord): void;
-    onDelete(id: UUID): void;
-}
 
 class DataSyncController {
     static instance: DataSyncController | null = null;
@@ -69,7 +62,8 @@ class DataSyncController {
     outbox: string[];
     reconnectTimeout: ReturnType<typeof setTimeout> | null;
     pendingRequestTimeout: ReturnType<typeof setTimeout> | null;
-    dataSubscriptions: DataSyncQuerySubscription[];
+    dataSubscriptions: DataSubscription[];
+    private additionalDataSubscriptions: DataSyncQuerySubscription[];
     optimisticCreatedPendingRecordIds: UUID[];
     optimisticCreatedNeedsCreatedAtField: Set<string>;
     messageTimeout: number;
@@ -91,6 +85,7 @@ class DataSyncController {
         this.reconnectTimeout = null;
         this.pendingRequestTimeout = null;
         this.dataSubscriptions = [];
+        this.additionalDataSubscriptions = [];
         this.optimisticCreatedPendingRecordIds = [];
         this.optimisticCreatedNeedsCreatedAtField = new Set();
         this.messageTimeout = 5000;
@@ -269,6 +264,24 @@ class DataSyncController {
             this.onClose(null);
         }
     }
+
+    /** @internal Registers a non-DataSubscription query for optimistic CRUD updates. */
+    addOptimisticDataSubscription(dataSubscription: DataSyncQuerySubscription): void {
+        this.additionalDataSubscriptions.push(dataSubscription);
+    }
+
+    /** @internal Removes a non-DataSubscription query from optimistic CRUD updates. */
+    removeOptimisticDataSubscription(dataSubscription: DataSyncQuerySubscription): void {
+        const index = this.additionalDataSubscriptions.indexOf(dataSubscription);
+        if (index !== -1) {
+            this.additionalDataSubscriptions.splice(index, 1);
+        }
+    }
+
+    /** @internal Returns imperative and React queries that receive optimistic CRUD updates. */
+    getOptimisticDataSubscriptions(): DataSyncQuerySubscription[] {
+        return [...this.dataSubscriptions, ...this.additionalDataSubscriptions];
+    }
 }
 
 class DataSubscription implements DataSyncQuerySubscription {
@@ -282,12 +295,15 @@ class DataSubscription implements DataSyncQuerySubscription {
     subscriptionId: UUID | null;
     subscribers: Array<(records: DataRecord[] | null) => void>;
     records: DataRecord[] | null;
+    cache: Map<string, DataRecord[]> | null;
     newRecordBehaviour: number;
     optimisticCreatedPendingRecordIds: UUID[];
     optimisticUpdatedPendingRecordIds: Set<UUID>;
+    private closeNotificationSent: boolean;
+    private closeIfNotUsedTimeout: ReturnType<typeof setTimeout> | null;
     private createOnServerGeneration: number;
 
-    constructor(query: DynamicSQLQuery, options: DataSubscriptionOptions | null = null) {
+    constructor(query: DynamicSQLQuery, options: DataSubscriptionOptions | null = null, cache: Map<string, DataRecord[]> | null = null) {
         if (typeof query !== "object" || !('table' in query)) {
             throw new Error("Query passed to `new DataSubscription(..)` doesn't look like a query object. If you're using the `query()` functions to costruct the object, make sure you pass the `.query` property, like this: `new DataSubscription(query('my_table').orderBy('createdAt').query)`");
         }
@@ -302,7 +318,18 @@ class DataSubscription implements DataSyncQuerySubscription {
         this.connectError = null;
         this.subscriptionId = null;
         this.subscribers = [];
-        this.records = null;
+
+        if (cache) {
+            const cacheResults = cache.get(JSON.stringify(query));
+            if (cacheResults !== undefined) {
+                this.records = cacheResults;
+            } else {
+                this.records = null;
+            }
+        } else {
+            this.records = null;
+        }
+        this.cache = cache;
 
         this.getRecords = this.getRecords.bind(this);
         this.subscribe = this.subscribe.bind(this);
@@ -315,24 +342,13 @@ class DataSubscription implements DataSyncQuerySubscription {
 
         this.optimisticCreatedPendingRecordIds = [];
         this.optimisticUpdatedPendingRecordIds = new Set();
+        this.closeNotificationSent = false;
+        this.closeIfNotUsedTimeout = null;
         this.createOnServerGeneration = 0;
     }
 
     detectNewRecordBehaviour(): number {
-        // If the query is ordered by the createdAt column, and the latest is at the top
-        // we want to prepend new record
-        const firstOrderBy = this.query.orderByClause[0];
-        const isOrderByCreatedAtDesc = this.query.orderByClause.length > 0
-            && firstOrderBy
-            && 'orderByColumn' in firstOrderBy
-            && firstOrderBy.orderByColumn === 'createdAt'
-            && firstOrderBy.orderByDirection === 'Desc';
-
-        if (isOrderByCreatedAtDesc) {
-            return PREPEND_NEW_RECORD;
-        }
-
-        return APPEND_NEW_RECORD;
+        return detectNewRecordBehaviour(this.query);
     }
 
     async createOnServer(): Promise<void> {
@@ -398,12 +414,15 @@ class DataSubscription implements DataSyncQuerySubscription {
 
     async close(): Promise<void> {
         const dataSyncController = DataSyncController.getInstance();
+        this.cancelScheduledCloseIfNotUsed();
 
         if (this.isClosed) {
             this.createOnServerGeneration++;
-            // A dropped WebSocket leaves no server-side subscription to delete.
-            // The local subscription still needs to be removed from the
-            // optimistic-update registry and reconnect listeners.
+            // A dropped WebSocket marks every subscription as closed. There is
+            // no server-side subscription left to delete, but an unused React
+            // subscription still needs to be removed from the local store and
+            // reconnect list.
+            this.notifyClose();
             this.detachFromDataSyncController(dataSyncController);
             return;
         }
@@ -418,6 +437,7 @@ class DataSubscription implements DataSyncQuerySubscription {
         // also we don't want to receive any further messages, and onMessage will not process if isClosed == true
         this.createOnServerGeneration++;
         this.isClosed = true;
+        this.notifyClose();
 
         try {
             await dataSyncController.sendMessage({ tag: 'DeleteDataSubscription', subscriptionId: this.subscriptionId });
@@ -438,6 +458,15 @@ class DataSubscription implements DataSyncQuerySubscription {
         this.isConnected = false;
     }
 
+    private notifyClose(): void {
+        if (this.closeNotificationSent) {
+            return;
+        }
+
+        this.closeNotificationSent = true;
+        this.onClose();
+    }
+
     private async deleteStaleDataSubscription(dataSyncController: DataSyncController, subscriptionId: UUID): Promise<void> {
         try {
             await dataSyncController.sendMessage({ tag: 'DeleteDataSubscription', subscriptionId });
@@ -450,6 +479,11 @@ class DataSubscription implements DataSyncQuerySubscription {
         this.createOnServerGeneration++;
         this.isClosed = true;
         this.isConnected = false;
+
+        // The controller reconnects after one second. This timeout is registered
+        // before the reconnect timeout, so unused subscriptions are pruned first.
+        // A React commit that subscribes in the meantime cancels the cleanup.
+        this.scheduleCloseIfNotUsed();
     }
 
     async onDataSyncReconnect(): Promise<void> {
@@ -457,34 +491,26 @@ class DataSubscription implements DataSyncQuerySubscription {
     }
 
     onUpdate(id: UUID, changeSet: Record<string, unknown> | null, appendSet: Record<string, unknown> | null): void {
-        this.records = this.records!.map(record => {
-            if (record.id === id) {
-                const updated = Object.assign({}, record, changeSet);
-                if (appendSet && !this.optimisticUpdatedPendingRecordIds.has(id)) {
-                    for (const [key, value] of Object.entries(appendSet)) {
-                        (updated as Record<string, unknown>)[key] = (typeof updated[key] === 'string' ? updated[key] : '') + String(value);
-                    }
-                }
-                return updated;
-            }
-
-            return record;
-        });
+        this.records = updateDataSyncRecords(
+            this.records!,
+            id,
+            changeSet,
+            appendSet,
+            !this.optimisticUpdatedPendingRecordIds.has(id),
+        );
 
         this.optimisticUpdatedPendingRecordIds.delete(id);
         this.updateSubscribers();
     }
 
     onCreate(newRecord: DataRecord): void {
-        const shouldAppend = this.newRecordBehaviour === APPEND_NEW_RECORD;
-
         const newRecordId = newRecord.id;
         const isOptimisticallyCreatedAlready = this.optimisticCreatedPendingRecordIds.indexOf(newRecordId) !== -1;
         if (isOptimisticallyCreatedAlready) {
             this.onUpdate(newRecordId, newRecord, null);
             this.optimisticCreatedPendingRecordIds.splice(this.optimisticCreatedPendingRecordIds.indexOf(newRecordId), 1);
         } else {
-            this.records = shouldAppend ? [...this.records!, newRecord] : [newRecord, ...this.records!];
+            this.records = insertDataSyncRecord(this.records!, newRecord, this.newRecordBehaviour);
         }
 
         this.updateSubscribers();
@@ -500,11 +526,12 @@ class DataSubscription implements DataSyncQuerySubscription {
     }
 
     onDelete(id: UUID): void {
-        this.records = this.records!.filter(record => record.id !== id);
+        this.records = deleteDataSyncRecord(this.records!, id);
         this.updateSubscribers();
     }
 
     subscribe(callback: (records: DataRecord[] | null) => void): () => void {
+        this.cancelScheduledCloseIfNotUsed();
         this.subscribers.push(callback);
 
         return () => {
@@ -513,11 +540,31 @@ class DataSubscription implements DataSyncQuerySubscription {
                 this.subscribers.splice(index, 1);
             }
 
-            this.closeIfNotUsed();
+            // We delay the close as react could be re-rendering a component
+            // we garbage collect this connecetion once it's clearly not used anymore
+            this.scheduleCloseIfNotUsed();
         };
     }
 
+    scheduleCloseIfNotUsed(): void {
+        this.cancelScheduledCloseIfNotUsed();
+        this.closeIfNotUsedTimeout = setTimeout(() => {
+            this.closeIfNotUsedTimeout = null;
+            this.closeIfNotUsed();
+        }, UNUSED_SUBSCRIPTION_CLOSE_DELAY);
+    }
+
+    private cancelScheduledCloseIfNotUsed(): void {
+        if (this.closeIfNotUsedTimeout !== null) {
+            clearTimeout(this.closeIfNotUsedTimeout);
+            this.closeIfNotUsedTimeout = null;
+        }
+    }
+
     updateSubscribers(): void {
+        if (this.cache) {
+            this.cache.set(JSON.stringify(this.query), this.records!);
+        }
         for (const subscriber of this.subscribers) {
             subscriber(this.records);
         }
@@ -527,14 +574,20 @@ class DataSubscription implements DataSyncQuerySubscription {
         return this.records;
     }
 
-    /** Closes an imperative subscription after its last subscriber leaves. */
+    /**
+     * If there's no subscriber on this DataSubscription, we will close it.
+     */
     closeIfNotUsed(): void {
         const isUsed = this.subscribers.length > 0;
         if (isUsed) {
             return;
         }
 
-        void this.close();
+        this.close();
+    }
+
+    onClose(): void {
+        // Overriden by the react 18 integration to remove the closed connection from the DataSubscriptionStore
     }
 }
 
@@ -701,7 +754,7 @@ function createOptimisticRecord<T extends TableName>(table: T, record: NewRecord
         rec.createdAt = new Date();
     }
 
-    for (const dataSubscription of dataSyncController.dataSubscriptions) {
+    for (const dataSubscription of dataSyncController.getOptimisticDataSubscriptions()) {
         if (dataSubscription.query.table !== table) {
             continue;
         }
@@ -738,7 +791,7 @@ function randomUUID(): UUID {
 
 function undoCreateOptimisticRecord<T extends TableName>(table: T, record: NewRecord<T>): void {
     const dataSyncController = DataSyncController.getInstance();
-    for (const dataSubscription of dataSyncController.dataSubscriptions) {
+    for (const dataSubscription of dataSyncController.getOptimisticDataSubscriptions()) {
         if (dataSubscription.query.table !== table) {
             continue;
         }
@@ -761,7 +814,7 @@ function updateRecordOptimistic<T extends TableName>(table: T, id: UUID, patch: 
     const dataSyncController = DataSyncController.getInstance();
     const patchRecord = patch as Record<string, unknown>;
     const rollbackOperations: (() => void)[] = [];
-    for (const dataSubscription of dataSyncController.dataSubscriptions) {
+    for (const dataSubscription of dataSyncController.getOptimisticDataSubscriptions()) {
         if (dataSubscription.query.table !== table) {
             continue;
         }
@@ -821,7 +874,7 @@ function updateRecordOptimistic<T extends TableName>(table: T, id: UUID, patch: 
 function deleteRecordOptimistic<T extends TableName>(table: T, id: UUID): () => void {
     const dataSyncController = DataSyncController.getInstance();
     const undoOperations: (() => void)[] = [];
-    for (const dataSubscription of dataSyncController.dataSubscriptions) {
+    for (const dataSubscription of dataSyncController.getOptimisticDataSubscriptions()) {
         if (dataSubscription.query.table !== table) {
             continue;
         }
