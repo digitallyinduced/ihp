@@ -70,6 +70,7 @@ class DataSyncController {
     pendingOptimisticCreates: Map<UUID, PendingOptimisticCreate>;
     optimisticCreatedNeedsCreatedAtField: Set<string>;
     messageTimeout: number;
+    connectionAttemptTimeout: number;
     connectionRetryLimit: number;
     connectionRetryMaxDelayExponent: number;
     pendingConnection: Promise<WebSocket> | null;
@@ -93,6 +94,7 @@ class DataSyncController {
         this.pendingOptimisticCreates = new Map();
         this.optimisticCreatedNeedsCreatedAtField = new Set();
         this.messageTimeout = 5000;
+        this.connectionAttemptTimeout = 5000;
         this.connectionRetryLimit = 32;
         this.connectionRetryMaxDelayExponent = 6;
         this.pendingConnection = null;
@@ -111,15 +113,49 @@ class DataSyncController {
         pendingConnection = (async () => {
             const connect = (): Promise<{ socket: WebSocket; event: Event }> => new Promise((resolve, reject) => {
                 const socket = new WebSocket(DataSyncController.getWSUrl());
+                let settled = false;
+
+                const clearHandlers = () => {
+                    socket.onopen = null;
+                    socket.onerror = null;
+                    socket.onclose = null;
+                };
+                const closeSocket = () => {
+                    try {
+                        socket.close();
+                    } catch (_error) {
+                        // Test doubles and partially constructed sockets may not be closable.
+                    }
+                };
+                const fail = (error: unknown) => {
+                    if (settled) {
+                        return;
+                    }
+                    settled = true;
+                    clearTimeout(attemptTimeout);
+                    clearHandlers();
+                    closeSocket();
+                    reject(error);
+                };
+                const attemptTimeout = setTimeout(() => {
+                    fail(new Error(`DataSync WebSocket connection attempt timed out after ${this.connectionAttemptTimeout}ms`));
+                }, this.connectionAttemptTimeout);
 
                 socket.onopen = (event) => {
+                    if (settled) {
+                        closeSocket();
+                        return;
+                    }
+                    settled = true;
+                    clearTimeout(attemptTimeout);
                     this.connection = socket;
                     socket.onclose = (closeEvent) => this.onClose(closeEvent, socket);
                     socket.onmessage = this.onMessage.bind(this);
                     resolve({ socket, event });
                 };
 
-                socket.onerror = (event) => reject(event);
+                socket.onerror = (event) => fail(event);
+                socket.onclose = () => fail(new Error('DataSync WebSocket closed while the connection was opening'));
             });
             const wait = (timeout: number): Promise<void> => new Promise((resolve) => setTimeout(resolve, timeout));
             try {
@@ -358,6 +394,7 @@ class DataSubscription {
     private closeIfNotUsedTimeout: ReturnType<typeof setTimeout> | null;
     private refreshPromise: Promise<void> | null;
     private refreshRequested: boolean;
+    private createOnServerGeneration: number;
 
     constructor(query: DynamicSQLQuery, options: DataSubscriptionOptions | null = null, cache: Map<string, DataRecord[]> | null = null) {
         if (typeof query !== "object" || !('table' in query)) {
@@ -406,6 +443,7 @@ class DataSubscription {
         this.closeIfNotUsedTimeout = null;
         this.refreshPromise = null;
         this.refreshRequested = false;
+        this.createOnServerGeneration = 0;
     }
 
     detectNewRecordBehaviour(): number {
@@ -427,10 +465,16 @@ class DataSubscription {
 
     async createOnServer(): Promise<void> {
         const dataSyncController = DataSyncController.getInstance();
+        const createOnServerGeneration = this.createOnServerGeneration;
         try {
             const response = await dataSyncController.sendMessage({ tag: 'CreateDataSubscription', query: this.query });
             const subscriptionId = response.subscriptionId as UUID;
             const result = response.result as DataRecord[];
+
+            if (createOnServerGeneration !== this.createOnServerGeneration) {
+                await this.deleteStaleDataSubscription(dataSyncController, subscriptionId);
+                return;
+            }
 
             this.subscriptionId = subscriptionId;
 
@@ -488,6 +532,7 @@ class DataSubscription {
         this.cancelScheduledCloseIfNotUsed();
 
         if (this.isClosed) {
+            this.createOnServerGeneration++;
             // A dropped WebSocket marks every subscription as closed. There is
             // no server-side subscription left to delete, but an unused React
             // subscription still needs to be removed from the local store and
@@ -512,6 +557,7 @@ class DataSubscription {
 
         // Set isClosed early as we need to prevent a second close() from triggering another DeleteDataSubscription message
         // also we don't want to receive any further messages, and onMessage will not process if isClosed == true
+        this.createOnServerGeneration++;
         this.isClosed = true;
         this.notifyClose();
 
@@ -543,7 +589,16 @@ class DataSubscription {
         this.onClose();
     }
 
+    private async deleteStaleDataSubscription(dataSyncController: DataSyncController, subscriptionId: UUID): Promise<void> {
+        try {
+            await dataSyncController.sendMessage({ tag: 'DeleteDataSubscription', subscriptionId });
+        } catch (error) {
+            console.error('Failed to delete a DataSubscription created after it was closed:', error);
+        }
+    }
+
     onDataSyncClosed(): void {
+        this.createOnServerGeneration++;
         this.isClosed = true;
         this.isConnected = false;
 
@@ -553,17 +608,24 @@ class DataSubscription {
         this.scheduleCloseIfNotUsed();
     }
 
-    onDataSyncReconnect(): void {
-        void this.createOnServer().catch(() => {
+    async onDataSyncReconnect(): Promise<void> {
+        try {
+            await this.createOnServer();
+        } catch (_error) {
             // createOnServer stores the error and notifies React subscribers.
-        });
+        }
     }
 
-    onUpdate(id: UUID, changeSet: Record<string, unknown> | null, appendSet: Record<string, unknown> | null): void {
+    onUpdate(id: UUID, changeSet: Record<string, unknown> | null, appendSet: Record<string, unknown> | null, isOptimistic = false): void {
+        const wasOptimisticallyUpdated = this.optimisticUpdatedPendingRecordIds.has(id);
+        if (!isOptimistic) {
+            this.optimisticUpdatedPendingRecordIds.delete(id);
+        }
+
         this.records = this.normalizeRecords(this.records!.map(record => {
             if (record.id === id) {
                 const updated = Object.assign({}, record, changeSet);
-                if (appendSet && !this.optimisticUpdatedPendingRecordIds.has(id)) {
+                if (appendSet && !wasOptimisticallyUpdated) {
                     for (const [key, value] of Object.entries(appendSet)) {
                         (updated as Record<string, unknown>)[key] = (typeof updated[key] === 'string' ? updated[key] : '') + String(value);
                     }
@@ -572,29 +634,35 @@ class DataSubscription {
             }
 
             return record;
-        }));
+        }), this.hasPendingOptimisticChanges());
 
-        this.optimisticUpdatedPendingRecordIds.delete(id);
         this.updateSubscribers();
-        this.refreshAfterComplexMutation();
+        if (!isOptimistic) {
+            this.refreshAfterComplexMutation();
+        }
     }
 
-    onCreate(newRecord: DataRecord): void {
+    onCreate(newRecord: DataRecord, isOptimistic = false): void {
         const shouldAppend = this.newRecordBehaviour === APPEND_NEW_RECORD;
 
         const newRecordId = newRecord.id;
         const isOptimisticallyCreatedAlready = this.optimisticCreatedPendingRecordIds.indexOf(newRecordId) !== -1;
-        if (isOptimisticallyCreatedAlready) {
-            this.onUpdate(newRecordId, newRecord, null);
+        if (isOptimisticallyCreatedAlready && !isOptimistic) {
             this.optimisticCreatedPendingRecordIds.splice(this.optimisticCreatedPendingRecordIds.indexOf(newRecordId), 1);
+            this.onUpdate(newRecordId, newRecord, null);
             return;
         } else {
+            if (isOptimistic) {
+                this.optimisticCreatedPendingRecordIds.push(newRecordId);
+            }
             const records = shouldAppend ? [...this.records!, newRecord] : [newRecord, ...this.records!];
-            this.records = this.normalizeRecords(records);
+            this.records = this.normalizeRecords(records, this.hasPendingOptimisticChanges());
         }
 
         this.updateSubscribers();
-        this.refreshAfterComplexMutation();
+        if (!isOptimistic) {
+            this.refreshAfterComplexMutation();
+        }
     }
 
     onCreateOptimistic(newRecord: DataRecord): void {
@@ -602,18 +670,24 @@ class DataSubscription {
             throw new Error('Requires the record to have an id');
         }
 
-        this.onCreate(newRecord);
-        this.optimisticCreatedPendingRecordIds.push(newRecord.id);
+        this.onCreate(newRecord, true);
     }
 
-    onDelete(id: UUID): void {
-        this.records = this.records!.filter(record => record.id !== id);
-        const optimisticIndex = this.optimisticCreatedPendingRecordIds.indexOf(id);
-        if (optimisticIndex !== -1) {
-            this.optimisticCreatedPendingRecordIds.splice(optimisticIndex, 1);
+    onDelete(id: UUID, isOptimistic = false): void {
+        if (!isOptimistic) {
+            const optimisticIndex = this.optimisticCreatedPendingRecordIds.indexOf(id);
+            if (optimisticIndex !== -1) {
+                this.optimisticCreatedPendingRecordIds.splice(optimisticIndex, 1);
+            }
         }
+        this.records = this.normalizeRecords(
+            this.records!.filter(record => record.id !== id),
+            this.hasPendingOptimisticChanges()
+        );
         this.updateSubscribers();
-        this.refreshAfterComplexMutation();
+        if (!isOptimistic) {
+            this.refreshAfterComplexMutation();
+        }
     }
 
     subscribe(callback: (records: DataRecord[] | null) => void): () => void {
@@ -660,7 +734,12 @@ class DataSubscription {
         }
     }
 
-    private normalizeRecords(records: DataRecord[]): DataRecord[] {
+    private hasPendingOptimisticChanges(): boolean {
+        return this.optimisticCreatedPendingRecordIds.length > 0
+            || this.optimisticUpdatedPendingRecordIds.size > 0;
+    }
+
+    private normalizeRecords(records: DataRecord[], preserveCompleteSet = false): DataRecord[] {
         let normalized = [...records];
         const sortableClauses = this.query.orderByClause.filter(clause => 'orderByColumn' in clause);
 
@@ -676,7 +755,7 @@ class DataSubscription {
             });
         }
 
-        if (this.query.distinctOnColumn !== null) {
+        if (!preserveCompleteSet && this.query.distinctOnColumn !== null) {
             const seen = new Set<unknown>();
             normalized = normalized.filter(record => {
                 const value = record[this.query.distinctOnColumn!];
@@ -688,7 +767,7 @@ class DataSubscription {
             });
         }
 
-        if (this.query.limit !== null && this.query.limit >= 0) {
+        if (!preserveCompleteSet && this.query.limit !== null && this.query.limit >= 0) {
             normalized = normalized.slice(0, this.query.limit);
         }
 
@@ -1074,9 +1153,9 @@ function updateRecordOptimistic<T extends TableName>(table: T, id: UUID, patch: 
                 oldValues[key] = record[key];
             }
 
-            // Apply the patch optimistically
-            dataSubscription.onUpdate(id, patchRecord, null);
+            // Apply the patch optimistically without refreshing the pre-write server state.
             dataSubscription.optimisticUpdatedPendingRecordIds.add(id);
+            dataSubscription.onUpdate(id, patchRecord, null, true);
 
             rollbackOperations.push(() => {
                 dataSubscription.optimisticUpdatedPendingRecordIds.delete(id);
@@ -1120,7 +1199,7 @@ function deleteRecordOptimistic<T extends TableName>(table: T, id: UUID): () => 
 
         const deletedRecord = dataSubscription.records!.find(record => record.id === id);
         if (deletedRecord) {
-            dataSubscription.onDelete(id);
+            dataSubscription.onDelete(id, true);
             undoOperations.push(() => dataSubscription.onCreate(deletedRecord));
         }
     }

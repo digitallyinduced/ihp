@@ -1,4 +1,4 @@
-import { DataSubscription, DataSyncController, createRecord } from './ihp-datasync.js';
+import { DataSubscription, DataSyncController, createRecord, updateRecord, deleteRecord } from './ihp-datasync.js';
 import { withTransaction } from './transaction.js';
 import { jest } from '@jest/globals';
 
@@ -170,6 +170,54 @@ describe('DataSyncController pending requests', () => {
             }
         }
     });
+
+    test('times out a WebSocket connection attempt that never settles', async () => {
+        const originalWebSocket = globalThis.WebSocket;
+        const originalLocation = globalThis.location;
+        const originalDocument = globalThis.document;
+        let socket;
+        class HangingWebSocket {
+            close = jest.fn();
+
+            constructor() {
+                socket = this;
+            }
+        }
+
+        try {
+            const controller = DataSyncController.getInstance();
+            controller.connectionAttemptTimeout = 10;
+            controller.connectionRetryLimit = 1;
+            globalThis.location = { protocol: 'http:' };
+            globalThis.document = { location: { hostname: 'localhost', port: '8000' } };
+            globalThis.WebSocket = HangingWebSocket;
+
+            const request = controller.sendMessage({ tag: 'NeverConnects' });
+            jest.advanceTimersByTime(10);
+
+            await expect(request).rejects.toThrow('connection attempt timed out after 10ms');
+            expect(socket.close).toHaveBeenCalledTimes(1);
+            expect(controller.pendingConnection).toBeNull();
+            expect(controller.pendingRequests).toHaveLength(0);
+            expect(controller.outbox).toHaveLength(0);
+        } finally {
+            if (originalWebSocket === undefined) {
+                delete globalThis.WebSocket;
+            } else {
+                globalThis.WebSocket = originalWebSocket;
+            }
+            if (originalLocation === undefined) {
+                delete globalThis.location;
+            } else {
+                globalThis.location = originalLocation;
+            }
+            if (originalDocument === undefined) {
+                delete globalThis.document;
+            } else {
+                globalThis.document = originalDocument;
+            }
+        }
+    });
 });
 
 describe('Optimistic CRUD coordination', () => {
@@ -246,6 +294,96 @@ describe('Optimistic CRUD coordination', () => {
         })).rejects.toThrow('abort');
 
         expect(subscription.records).toEqual([originalRecord]);
+    });
+
+    test('does not refresh a limited query before an optimistic create reaches the server', async () => {
+        const controller = DataSyncController.getInstance();
+        const subscription = makeSubscription([
+            { id: 'a', title: 'A' },
+            { id: 'c', title: 'C' },
+        ]);
+        subscription.query.orderByClause = [{ orderByColumn: 'title', orderByDirection: 'Asc' }];
+        subscription.query.limit = 2;
+        controller.dataSubscriptions.push(subscription);
+        let resolveCreate;
+        controller.sendMessage = jest.fn(payload => {
+            if (payload.tag === 'CreateRecordMessage') {
+                return new Promise(resolve => { resolveCreate = resolve; });
+            }
+            return Promise.resolve({ tag: 'DataSyncResult', result: [
+                { id: 'a', title: 'A' },
+                { id: 'b', title: 'B' },
+            ] });
+        });
+
+        const create = createRecord('test', { id: 'b', title: 'B' });
+        await Promise.resolve();
+        await Promise.resolve();
+
+        expect(subscription.records.map(record => record.id)).toEqual(['a', 'b', 'c']);
+        expect(controller.sendMessage.mock.calls.map(([payload]) => payload.tag)).toEqual(['CreateRecordMessage']);
+
+        resolveCreate({ tag: 'DidCreateRecord', record: { id: 'b', title: 'B' } });
+        await create;
+        subscription.onCreate({ id: 'b', title: 'B' });
+
+        expect(subscription.records.map(record => record.id)).toEqual(['a', 'b']);
+        expect(controller.sendMessage.mock.calls.map(([payload]) => payload.tag)).toEqual([
+            'CreateRecordMessage',
+            'DataSyncQuery',
+        ]);
+    });
+
+    test('restores the complete limited window when an optimistic create fails offline', async () => {
+        const controller = DataSyncController.getInstance();
+        const subscription = makeSubscription([
+            { id: 'a', title: 'A' },
+            { id: 'c', title: 'C' },
+        ]);
+        subscription.query.orderByClause = [{ orderByColumn: 'title', orderByDirection: 'Asc' }];
+        subscription.query.limit = 2;
+        controller.dataSubscriptions.push(subscription);
+        controller.sendMessage = jest.fn(async payload => {
+            throw new Error(`${payload.tag} failed`);
+        });
+        const consoleError = jest.spyOn(console, 'error').mockImplementation(() => {});
+
+        try {
+            await expect(createRecord('test', { id: 'b', title: 'B' })).rejects.toThrow('CreateRecordMessage failed');
+            await Promise.resolve();
+
+            expect(subscription.records.map(record => record.id)).toEqual(['a', 'c']);
+            expect(controller.sendMessage.mock.calls.map(([payload]) => payload.tag)).toEqual([
+                'CreateRecordMessage',
+                'DataSyncQuery',
+            ]);
+        } finally {
+            consoleError.mockRestore();
+        }
+    });
+
+    test('does not refresh limited queries before optimistic updates and deletes are sent', async () => {
+        const controller = DataSyncController.getInstance();
+        const subscription = makeSubscription([
+            { id: 'a', title: 'A' },
+            { id: 'b', title: 'B' },
+        ]);
+        subscription.query.orderByClause = [{ orderByColumn: 'title', orderByDirection: 'Asc' }];
+        subscription.query.limit = 2;
+        controller.dataSubscriptions.push(subscription);
+        controller.sendMessage = jest.fn(async payload => {
+            if (payload.tag === 'UpdateRecordMessage') {
+                return { tag: 'DidUpdateRecord', record: { id: payload.id, ...payload.patch } };
+            }
+            return { tag: 'DidDeleteRecord' };
+        });
+
+        await updateRecord('test', 'a', { title: 'Z' });
+        expect(controller.sendMessage.mock.calls.map(([payload]) => payload.tag)).toEqual(['UpdateRecordMessage']);
+
+        controller.sendMessage.mockClear();
+        await deleteRecord('test', 'b');
+        expect(controller.sendMessage.mock.calls.map(([payload]) => payload.tag)).toEqual(['DeleteRecordMessage']);
     });
 });
 
@@ -376,5 +514,35 @@ describe('DataSubscription disconnect cleanup', () => {
 
         expect(closeNotifications).toBe(1);
         expect(store.get('test')).toBe(replacement);
+    });
+
+    test('deletes a reconnect response that arrives after the subscription was closed', async () => {
+        const controller = DataSyncController.getInstance();
+        const sub = makeSubscription([]);
+        const sentMessages = [];
+        let resolveCreateOnServer;
+        sub.isClosed = true;
+        controller.dataSubscriptions.push(sub);
+        controller.sendMessage = (message) => {
+            sentMessages.push(message);
+            if (message.tag === 'CreateDataSubscription') {
+                return new Promise(resolve => { resolveCreateOnServer = resolve; });
+            }
+            return Promise.resolve({});
+        };
+
+        const reconnect = sub.onDataSyncReconnect();
+        await sub.close();
+        resolveCreateOnServer({ subscriptionId: 'reconnected-id', result: [] });
+        await reconnect;
+
+        expect(sentMessages).toEqual([
+            { tag: 'CreateDataSubscription', query: sub.query },
+            { tag: 'DeleteDataSubscription', subscriptionId: 'reconnected-id' },
+        ]);
+        expect(controller.dataSubscriptions).not.toContain(sub);
+        expect(sub.isClosed).toBe(true);
+        expect(sub.isConnected).toBe(false);
+        expect(sub.subscriptionId).toBe(null);
     });
 });
