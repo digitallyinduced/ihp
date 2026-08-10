@@ -274,6 +274,7 @@ class DataSubscription {
     optimisticUpdatedPendingRecordIds: Set<UUID>;
     private closeNotificationSent: boolean;
     private closeIfNotUsedTimeout: ReturnType<typeof setTimeout> | null;
+    private createOnServerGeneration: number;
 
     constructor(query: DynamicSQLQuery, options: DataSubscriptionOptions | null = null, cache: Map<string, DataRecord[]> | null = null) {
         if (typeof query !== "object" || !('table' in query)) {
@@ -316,6 +317,7 @@ class DataSubscription {
         this.optimisticUpdatedPendingRecordIds = new Set();
         this.closeNotificationSent = false;
         this.closeIfNotUsedTimeout = null;
+        this.createOnServerGeneration = 0;
     }
 
     detectNewRecordBehaviour(): number {
@@ -337,10 +339,16 @@ class DataSubscription {
 
     async createOnServer(): Promise<void> {
         const dataSyncController = DataSyncController.getInstance();
+        const createOnServerGeneration = this.createOnServerGeneration;
         try {
             const response = await dataSyncController.sendMessage({ tag: 'CreateDataSubscription', query: this.query });
             const subscriptionId = response.subscriptionId as UUID;
             const result = response.result as DataRecord[];
+
+            if (createOnServerGeneration !== this.createOnServerGeneration) {
+                await this.deleteStaleDataSubscription(dataSyncController, subscriptionId);
+                return;
+            }
 
             this.subscriptionId = subscriptionId;
 
@@ -395,6 +403,7 @@ class DataSubscription {
         this.cancelScheduledCloseIfNotUsed();
 
         if (this.isClosed) {
+            this.createOnServerGeneration++;
             // A dropped WebSocket marks every subscription as closed. There is
             // no server-side subscription left to delete, but an unused React
             // subscription still needs to be removed from the local store and
@@ -412,6 +421,7 @@ class DataSubscription {
 
         // Set isClosed early as we need to prevent a second close() from triggering another DeleteDataSubscription message
         // also we don't want to receive any further messages, and onMessage will not process if isClosed == true
+        this.createOnServerGeneration++;
         this.isClosed = true;
         this.notifyClose();
 
@@ -443,7 +453,16 @@ class DataSubscription {
         this.onClose();
     }
 
+    private async deleteStaleDataSubscription(dataSyncController: DataSyncController, subscriptionId: UUID): Promise<void> {
+        try {
+            await dataSyncController.sendMessage({ tag: 'DeleteDataSubscription', subscriptionId });
+        } catch (error) {
+            console.error('Failed to delete a DataSubscription created after it was closed:', error);
+        }
+    }
+
     onDataSyncClosed(): void {
+        this.createOnServerGeneration++;
         this.isClosed = true;
         this.isConnected = false;
 
