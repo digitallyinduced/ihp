@@ -80,14 +80,12 @@ let
             ihp-hspec = localPackage "ihp-hspec";
             ihp-welcome = localPackage "ihp-welcome";
 
-            # Forks of wai-session / wai-session-clientsession with deferred
-            # session decryption and optional Set-Cookie (Maybe ByteString).
-            # https://hackage.haskell.org/package/wai-session-maybe
-            # https://hackage.haskell.org/package/wai-session-clientsession-deferred
-            wai-session-maybe = hackagePackage "wai-session-maybe";
-            wai-session-clientsession-deferred = hackagePackage "wai-session-clientsession-deferred";
+            # wai-session-maybe / wai-session-clientsession-deferred (deferred
+            # session decryption + optional Set-Cookie) are shipped by the pinned
+            # nixpkgs at 1.0.0, so we consume them from the default set verbatim
+            # for a cache hit instead of the previous hackagePackage forks.
 
-            # HsOpenSSL 0.11.7.10 fails to compile against openssl 3.6.1 on Linux
+            # HsOpenSSL 0.11.7.10 fails to compile against openssl 3.6.1+ on Linux
             # because the C compiler escalates `-Wpointer-sign` to an error (the
             # OpenSSL 3.6.1 headers tightened up `char*` vs `unsigned char*`).
             # nixpkgs already passes `-Wno-error=incompatible-pointer-types`; we
@@ -103,73 +101,36 @@ let
             # verbatim for a cache hit. Restore the override only if a reverted
             # nixpkgs pin no longer carries 0.3.2.
 
-            # Hasql 1.10 ecosystem.
-            #
-            # These attrs mirror the upstream `ihpHasqlScope` from
-            # NixOS/nixpkgs#519795 (configuration-common.nix) so that
-            # derivations are bit-identical to nixpkgs' Hydra-built
-            # `haskellPackages.ihp` closure and resolve straight from
-            # cache.nixos.org. Keep in sync with configuration-common.nix.
-            #
-            # Exception: hasql and hasql-pool are pinned to newer patch
-            # releases than the nixpkgs attrs (hasql_1_10_3 / hasql-pool_1_4_2)
-            # so async-timeout cleanup does not return closed connections to
-            # the pool (https://github.com/digitallyinduced/ihp/issues/2765).
-            # Drop the overrideCabal once nixpkgs ships >= these versions.
-            postgresql-connection-string = hackagePackage "postgresql-connection-string";
+            # Hasql 1.10 is the pinned nixpkgs default, including hasql 1.10.3.7
+            # and hasql-pool 1.4.2.3 with the poisoned-connection fixes from
+            # #2765. The surrounding ecosystem (including hasql-interpolate,
+            # postgresql-binary, text-builder and postgresql-connection-string)
+            # also needs no overrides.
 
-            # hasql-1.10.3.7: pipeline cleanup handles PipelineAborted (#311)
-            # Adds comonad vs 1.10.3 in nixpkgs.
-            hasql = final.haskell.lib.overrideCabal super.hasql_1_10_3 (old: {
-                version = "1.10.3.7";
-                sha256 = "0jj5243k77q7f3k2mw8crf3n5pdqbdzcj439ca1n4yvznwip9a3b";
-                revision = null;
-                editedCabalFile = null;
-                libraryHaskellDepends = (old.libraryHaskellDepends or []) ++ [ self.comonad ];
-            });
-            # hasql-pool-1.4.2.3: discard connections after driver errors (#55)
-            # plus later 1.4.2.x pool fixes; requires hasql >= 1.10.
-            hasql-pool = final.haskell.lib.overrideCabal super.hasql-pool_1_4_2 (old: {
-                version = "1.4.2.3";
-                sha256 = "1sizwh7lhdczny3lmjvxc07aa4f82h2qf22cs0cf66w5lky0yxkf";
-                revision = null;
-                editedCabalFile = null;
-            });
-            hasql-dynamic-statements = super.hasql-dynamic-statements_0_5_1;
-            hasql-transaction        = super.hasql-transaction_1_2_2;
-            hasql-notifications      = super.hasql-notifications_0_2_5_0;
-            postgresql-binary        = super.postgresql-binary_0_15_0_1;
-            # text-builder 1.0.0.5 is needed by postgresql-simple-postgresql-types
-            text-builder             = super.text-builder_1_0_0_5;
+            # temporary-ospath is shipped by the pinned nixpkgs at 1.3, so it
+            # also resolves from the default set with no override needed.
 
-            # hasql-interpolate: upstream 1.0.1.0 requires hasql <1.10; use fork with hasql 1.10 support
-            # https://github.com/awkward-squad/hasql-interpolate/pull/27
-            # Uses overrideCabal instead of callCabal2nix to avoid IFD and Hackage cabal revision fetch failures
-            hasql-interpolate = final.haskell.lib.dontCheck (final.haskell.lib.doJailbreak (final.haskell.lib.overrideCabal super.hasql-interpolate (old: {
-                src = builtins.fetchTarball {
-                    url = "https://github.com/ChrisPenner/hasql-interpolate/archive/bb4666fdb7e0fef9f67702cb198e45d0a1de0ab9.tar.gz";
-                    sha256 = "1v3i4n4szxpir28a4vlhd2a0sl04fxkiw9wlyxcvd3vbrd9s2b8c";
-                };
-                revision = null;
-                editedCabalFile = null;
-            })));
+            # postgresql-simple-postgresql-types and hasql-mapping are unbroken in
+            # the pinned nixpkgs, so no markUnbroken overrides are needed.
 
-            # Fork of temporary using OsPath instead of FilePath
-            temporary-ospath = hackagePackage "temporary-ospath";
-
-            # postgresql-simple-postgresql-types and hasql-mapping are marked
-            # broken in nixpkgs; unmark them to mirror upstream ihpHasqlScope's
-            # `unmarkBroken` (configuration-nix.nix applies dontCheck for
-            # postgresql-simple-postgresql-types).
-            postgresql-simple-postgresql-types = final.haskell.lib.markUnbroken super.postgresql-simple-postgresql-types;
-            hasql-mapping = final.haskell.lib.markUnbroken super.hasql-mapping;
+            # The PostGIS-enabled postgresql-types source below still requires
+            # postgresql-types-algebra <0.2. nixpkgs has moved to 0.2, so retain
+            # the compatible 0.1 release until that source updates its bounds.
+            postgresql-types-algebra = final.haskell.lib.doJailbreak
+                (hackagePackage "postgresql-types-algebra");
+            postgresql-simple-postgresql-types = final.haskell.lib.dontCheck
+                (hackagePackage "postgresql-simple-postgresql-types");
+            hasql-postgresql-types = final.haskell.lib.doJailbreak
+                (hackagePackage "hasql-postgresql-types");
 
             # postgresql-types with PostGIS Geometry (merged in
             # nikita-volkov/postgresql-types#69). Pin to git master until a
             # Hackage release ships Geometry; cabal version is still 0.1.3.2.
             # dontCheck: tests need a live PostgreSQL server.
             postgresql-types = final.haskell.lib.overrideCabal
-                (final.haskell.lib.dontCheck super.postgresql-types)
+                (final.haskell.lib.addBuildDepend
+                    (final.haskell.lib.dontCheck super.postgresql-types)
+                    self.postgresql-types-algebra)
                 (old: {
                     version = "0.1.3.2";
                     src = builtins.fetchTarball {
@@ -180,18 +141,16 @@ let
                     revision = null;
                     editedCabalFile = null;
                 });
-
-
         };
 in
 final: prev: {
-    # Default: GHC 9.10 (binary-cached via nixpkgs haskellPackages)
-    ghc = final.haskellPackages.override {
-        overrides = ihpOverrides final;
-    };
+    # nix-prefetch-darcs consumes the top-level darcs attribute directly. Keep it
+    # on the same bounds-relaxed build as the default GHC package set.
+    darcs = final.ghc.darcs;
 
-    # Experimental: GHC 9.12 (not yet binary-cached; builds from source)
-    ghc912 = final.haskell.packages.ghc912.override {
+    # Default: GHC 9.12 — the pinned nixpkgs `haskellPackages` compiler.
+    # The dontCheck overrides below apply to that default build.
+    ghc = final.haskellPackages.override {
         overrides = final.lib.composeManyExtensions [
             (ihpOverrides final)
             (self: super: {
@@ -203,9 +162,35 @@ final: prev: {
 
                 # cryptonite tests have a flaky failure (1 of 1548)
                 cryptonite = final.haskell.lib.dontCheck super.cryptonite;
+
+                # The GHC 9.12 RC package set builds HLS 2.14 against Cabal 3.16,
+                # while its ormolu/fourmolu/stylish-haskell plugins still use
+                # Cabal 3.14. These are isolated plugin dependencies, but Cabal's
+                # multiple-version warning is fatal in the nixpkgs Haskell
+                # builder unless explicitly allowed.
+                haskell-language-server = final.haskell.lib.allowInconsistentDependencies
+                    super.haskell-language-server;
+
+                # darcs 2.18.5 caps http-client-tls <0.4 and tls <2.2, while
+                # the RC3 package set provides newer compatible releases. A full
+                # doJailbreak conflicts with nixpkgs' patched darcs.cabal, so only
+                # relax these two bounds after the nixpkgs patches are applied.
+                darcs = super.darcs.overrideAttrs (old: {
+                    postPatch = (old.postPatch or "") + ''
+                        substituteInPlace darcs.cabal \
+                            --replace-fail "http-client-tls   >= 0.3.5 && < 0.4" "http-client-tls   >= 0.3.5" \
+                            --replace-fail "tls               >= 2.0.6 && < 2.2" "tls               >= 2.0.6"
+                    '';
+                });
             })
         ];
     };
+
+    # `ghc912` is an alias of the default `ghc` set: the pinned nixpkgs default
+    # compiler is already GHC 9.12, so a separate set would be an exact duplicate.
+    # The alias keeps `pkgs.ghc912.*` references working; drop it once they migrate
+    # to `pkgs.ghc`.
+    ghc912 = final.ghc;
 
     # GHC 9.14 — opt-in for apps using the digitallyinduced binary cache.
     # To use: set `ihp.ghcCompiler = pkgs.ghc914;` in your flake-module config.
@@ -213,6 +198,13 @@ final: prev: {
         if prev.haskell.packages ? ghc914
         then final.haskell.packages.ghc914.override {
             overrides = final.lib.composeManyExtensions [
+                # The RC3 nixpkgs snapshot updated ghc-exactprint to 1.14.1.0,
+                # while its GHC 9.14 configuration still references the removed
+                # 1.14.0.0 attribute. Keep the old name as a compatibility alias
+                # until nixpkgs updates configuration-ghc-9.14.x.nix.
+                (self: super: {
+                    ghc-exactprint_1_14_0_0 = final.haskell.lib.dontCheck super.ghc-exactprint_1_14_1_0;
+                })
                 (ihpOverrides final)
                 (self: super: {
                     say = final.haskell.lib.dontCheck super.say;
@@ -262,6 +254,9 @@ final: prev: {
                     # time <1.15 and fails on GHC 9.14's containers-0.8 / time-1.15.
                     # Jailbreaking lets that pinned version build on the new boot libs.
                     "Cabal-syntax_3_14_2_0"
+                    # darcs 2.18.5 caps http-client-tls <0.4 and tls <2.2, while
+                    # the RC3 package set provides newer compatible releases.
+                    "darcs"
                     "lucid" "lucid2" "clay" "tasty-hspec" "config-ini" "fsnotify"
                     "string-interpolate" "rebase" "rerebase" "with-utf8" "minio-hs"
                     "sandwich" "brick" "postgresql-simple" "hasql-dynamic-statements"

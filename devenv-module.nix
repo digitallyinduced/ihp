@@ -71,7 +71,11 @@ that is defined in flake-module.nix
             // {
                 ihp-hsx-bench = (pkgs.haskell.lib.doBenchmark pkgs.ghc.ihp-hsx).overrideAttrs (old: {
                     postCheck = (old.postCheck or "") + ''
-                        ./Setup bench --benchmark-options='+RTS -T -RTS --csv bench-results.csv'
+                        # The shared ARM runner concurrently builds the multi-GHC
+                        # checks. Keep tasty-bench's per-case timeout above its
+                        # 100s default so transient runner load does not turn an
+                        # allocation-regression check into a timing failure.
+                        ./Setup bench --benchmark-options='+RTS -T -RTS --timeout 300s --csv bench-results.csv'
 
                         # Compare allocations (column 4) against baseline.
                         # Allocations are deterministic — same code = same count — so
@@ -154,32 +158,8 @@ that is defined in flake-module.nix
                 };
             }
 
-            # GHC 9.12 compatibility checks (build and test all IHP packages)
-            // (let
-                ghc912 = pkgs.ghc912;
-                ihpPackageNames = [
-                    "ihp-ide" "ihp-hsx" "ihp-schema-compiler"
-                    "ihp-postgres-parser" "ihp-pagehead"
-                    "ihp-modal" "ihp-mail"
-                    "ihp-migrate" "ihp-openai" "ihp-ssc" "ihp-graphql"
-                    "ihp-datasync-typescript" "ihp-sitemap"
-                    "ihp-job-dashboard" "ihp-imagemagick"
-                    "ihp-hspec" "ihp-welcome" "ihp-zip"
-                    "wai-asset-path" "wai-flash-messages" "wai-request-params"
-                    "wai-session-maybe" "wai-session-clientsession-deferred"
-                ];
-            in lib.listToAttrs (map (name: {
-                name = "ghc912-${name}";
-                value = ghc912.${name};
-            }) ihpPackageNames))
-
-            # GHC 9.12 packages that need a running PostgreSQL for their tests
-            // {
-                ghc912-ihp = withTestPostgres pkgs.ghc912.ihp;
-                ghc912-ihp-datasync = withTestPostgres pkgs.ghc912.ihp-datasync;
-                ghc912-ihp-typed-sql = withTestPostgres pkgs.ghc912.ihp-typed-sql;
-                ghc912-ihp-pglistener = withTestPostgres pkgs.ghc912.ihp-pglistener;
-            }
+            # No separate GHC 9.12 checks: `pkgs.ghc912` aliases the default
+            # `pkgs.ghc` (GHC 9.12), so they would duplicate the default checks above.
 
             # GHC 9.14 compatibility checks (build and test all IHP packages)
             // (lib.optionalAttrs (pkgs.haskell.packages ? ghc914) (let
