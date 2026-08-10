@@ -15,6 +15,7 @@ import {
     whereLessThanOrEqual,
     whereGreaterThan,
     whereGreaterThanOrEqual,
+    recordMatchesQuery,
 } from './ihp-querybuilder';
 
 const tags = {
@@ -64,6 +65,15 @@ const expression = {
 	}
     }
 }
+
+describe('recordMatchesQuery', () => {
+    it('skips unsupported full-text optimism instead of throwing', () => {
+        const fullTextQuery = query('posts').whereTextSearchStartsWith('body', 'hello').query;
+
+        expect(() => recordMatchesQuery(fullTextQuery, { id: '1', body: 'hello world' })).not.toThrow();
+        expect(recordMatchesQuery(fullTextQuery, { id: '1', body: 'hello world' })).toBe(false);
+    });
+});
 
 describe('Value Transformations and basic use', () => {
     const suite = ([fnName, extractor, operator, where]) => {

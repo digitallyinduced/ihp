@@ -1,10 +1,12 @@
-import { DataSubscription, DataSyncController } from './ihp-datasync.js';
+import { DataSubscription, DataSyncController, createRecord } from './ihp-datasync.js';
+import { withTransaction } from './transaction.js';
 import { jest } from '@jest/globals';
 
 function makeSubscription(records) {
     const query = {
         table: 'test',
-        conditionExpression: [],
+        selectedColumns: { tag: 'SelectAll' },
+        whereCondition: null,
         orderByClause: [],
         distinctOnColumn: null,
         limit: null,
@@ -13,7 +15,6 @@ function makeSubscription(records) {
     const sub = new DataSubscription(query);
     sub.records = records;
     sub.subscribers = [];
-    sub.updateSubscribers = function () {};
     return sub;
 }
 
@@ -69,6 +70,236 @@ describe('DataSubscription.onUpdate', () => {
         // Subsequent append should work normally (flag cleared)
         sub.onUpdate('1', null, { name: '456' });
         expect(sub.records[0].name).toBe('Anrufbeantworter123456');
+    });
+});
+
+describe('DataSyncController pending requests', () => {
+    beforeEach(() => {
+        jest.useFakeTimers();
+        DataSyncController.instance = null;
+    });
+
+    afterEach(() => {
+        jest.clearAllTimers();
+        jest.useRealTimers();
+    });
+
+    test('an unrelated push message does not clear request timeouts', async () => {
+        const controller = DataSyncController.getInstance();
+        controller.connection = { send: jest.fn(), close: jest.fn() };
+
+        const first = controller.sendMessage({ tag: 'FirstRequest' });
+        const second = controller.sendMessage({ tag: 'SecondRequest' });
+        controller.onMessage({ data: JSON.stringify({ tag: 'DidInsert', subscriptionId: 'sub', record: { id: '1' } }) });
+
+        expect(controller.pendingRequests).toHaveLength(2);
+        expect(controller.pendingRequests.every(request => request.timeout !== null)).toBe(true);
+
+        controller.onMessage({ data: JSON.stringify({ tag: 'DataSyncResult', requestId: 0, result: [] }) });
+        await expect(first).resolves.toMatchObject({ requestId: 0 });
+        expect(controller.pendingRequests).toHaveLength(1);
+        expect(controller.pendingRequests[0].timeout).not.toBeNull();
+
+        controller.onClose(null);
+        await expect(second).rejects.toThrow('closed before the server responded');
+    });
+
+    test('a timed out request is rejected and removed', async () => {
+        const controller = DataSyncController.getInstance();
+        controller.messageTimeout = 10;
+        controller.connection = { send: jest.fn(), close: jest.fn() };
+
+        const request = controller.sendMessage({ tag: 'SlowRequest' });
+        jest.advanceTimersByTime(10);
+
+        await expect(request).rejects.toThrow('timed out after 10ms');
+        expect(controller.pendingRequests).toHaveLength(0);
+        expect(controller.connection.close).toHaveBeenCalledTimes(1);
+    });
+
+    test('clears a failed pending connection so a later call can reconnect', async () => {
+        const originalWebSocket = globalThis.WebSocket;
+        const originalLocation = globalThis.location;
+        const originalDocument = globalThis.document;
+        class FailingWebSocket {
+            constructor() {
+                queueMicrotask(() => this.onerror(new Event('error')));
+            }
+        }
+        class SuccessfulWebSocket {
+            send = jest.fn();
+            close = jest.fn();
+
+            constructor() {
+                queueMicrotask(() => this.onopen(new Event('open')));
+            }
+        }
+
+        try {
+            const controller = DataSyncController.getInstance();
+            controller.connectionRetryLimit = 1;
+            globalThis.location = { protocol: 'http:' };
+            globalThis.document = { location: { hostname: 'localhost', port: '8000' } };
+            globalThis.WebSocket = FailingWebSocket;
+
+            const failedConnection = controller.startConnection();
+            jest.runAllTicks();
+            await expect(failedConnection).rejects.toBeInstanceOf(Event);
+            expect(controller.pendingConnection).toBeNull();
+
+            globalThis.WebSocket = SuccessfulWebSocket;
+            const successfulConnection = controller.startConnection();
+            jest.runAllTicks();
+            await expect(successfulConnection).resolves.toBeInstanceOf(SuccessfulWebSocket);
+            expect(controller.connection).toBeInstanceOf(SuccessfulWebSocket);
+        } finally {
+            if (originalWebSocket === undefined) {
+                delete globalThis.WebSocket;
+            } else {
+                globalThis.WebSocket = originalWebSocket;
+            }
+            if (originalLocation === undefined) {
+                delete globalThis.location;
+            } else {
+                globalThis.location = originalLocation;
+            }
+            if (originalDocument === undefined) {
+                delete globalThis.document;
+            } else {
+                globalThis.document = originalDocument;
+            }
+        }
+    });
+});
+
+describe('Optimistic CRUD coordination', () => {
+    beforeEach(() => {
+        DataSyncController.instance = null;
+    });
+
+    test('a child waits for the referenced parent create, not for its own response', async () => {
+        const controller = DataSyncController.getInstance();
+        let resolveParent;
+        const sentIds = [];
+        controller.sendMessage = jest.fn(payload => {
+            sentIds.push(payload.record.id);
+            if (payload.record.id === 'parent') {
+                return new Promise(resolve => { resolveParent = resolve; });
+            }
+            return Promise.resolve({ tag: 'DidCreateRecord', record: payload.record });
+        });
+
+        const parent = createRecord('parents', { id: 'parent', name: 'Parent' });
+        await Promise.resolve();
+        const child = createRecord('children', { id: 'child', parentId: 'parent' });
+        await Promise.resolve();
+
+        expect(sentIds).toEqual(['parent']);
+        resolveParent({ tag: 'DidCreateRecord', record: { id: 'parent', name: 'Parent' } });
+        await parent;
+        await child;
+
+        expect(sentIds).toEqual(['parent', 'child']);
+    });
+
+    test('transaction rollback leaves subscriptions unchanged', async () => {
+        const controller = DataSyncController.getInstance();
+        const subscription = makeSubscription([]);
+        controller.dataSubscriptions.push(subscription);
+        controller.sendMessage = jest.fn(async payload => {
+            if (payload.tag === 'StartTransaction') {
+                return { tag: 'DidStartTransaction', transactionId: 'tx' };
+            }
+            if (payload.tag === 'CreateRecordMessage') {
+                return { tag: 'DidCreateRecord', record: payload.record };
+            }
+            return { tag: 'DidRollbackTransaction', transactionId: 'tx' };
+        });
+
+        await expect(withTransaction(async transaction => {
+            await transaction.createRecord('test', { id: 'ghost', title: 'Ghost' });
+            throw new Error('abort');
+        })).rejects.toThrow('abort');
+
+        expect(subscription.records).toEqual([]);
+        expect(subscription.optimisticCreatedPendingRecordIds).toEqual([]);
+    });
+
+    test('transactional updates and deletes are not applied optimistically', async () => {
+        const controller = DataSyncController.getInstance();
+        const originalRecord = { id: 'record', title: 'Original' };
+        const subscription = makeSubscription([originalRecord]);
+        controller.dataSubscriptions.push(subscription);
+        controller.sendMessage = jest.fn(async payload => {
+            switch (payload.tag) {
+                case 'StartTransaction': return { tag: 'DidStartTransaction', transactionId: 'tx' };
+                case 'UpdateRecordMessage': return { tag: 'DidUpdateRecord', record: { id: payload.id, ...payload.patch } };
+                case 'DeleteRecordMessage': return { tag: 'DidDeleteRecord' };
+                default: return { tag: 'DidRollbackTransaction', transactionId: 'tx' };
+            }
+        });
+
+        await expect(withTransaction(async transaction => {
+            await transaction.updateRecord('test', 'record', { title: 'Changed' });
+            await transaction.deleteRecord('test', 'record');
+            throw new Error('abort');
+        })).rejects.toThrow('abort');
+
+        expect(subscription.records).toEqual([originalRecord]);
+    });
+});
+
+describe('DataSubscription query semantics', () => {
+    beforeEach(() => {
+        DataSyncController.instance = null;
+    });
+
+    test('keeps records ordered after inserts and updates', () => {
+        const subscription = makeSubscription([
+            { id: 'a', title: 'A' },
+            { id: 'c', title: 'C' },
+        ]);
+        subscription.query.orderByClause = [{ orderByColumn: 'title', orderByDirection: 'Asc' }];
+
+        subscription.onCreate({ id: 'b', title: 'B' });
+        expect(subscription.records.map(record => record.id)).toEqual(['a', 'b', 'c']);
+
+        subscription.onUpdate('c', { title: '0' }, null);
+        expect(subscription.records.map(record => record.id)).toEqual(['c', 'a', 'b']);
+    });
+
+    test('enforces limit immediately and refreshes the exact server window', async () => {
+        const controller = DataSyncController.getInstance();
+        controller.sendMessage = jest.fn(async () => ({
+            tag: 'DataSyncResult',
+            result: [{ id: 'a', title: 'A' }, { id: 'b', title: 'B' }]
+        }));
+        const subscription = makeSubscription([
+            { id: 'a', title: 'A' },
+            { id: 'c', title: 'C' },
+        ]);
+        subscription.query.orderByClause = [{ orderByColumn: 'title', orderByDirection: 'Asc' }];
+        subscription.query.limit = 2;
+
+        subscription.onCreate({ id: 'b', title: 'B' });
+        expect(subscription.records.map(record => record.id)).toEqual(['a', 'b']);
+        await Promise.resolve();
+        expect(controller.sendMessage).toHaveBeenCalledWith(expect.objectContaining({ tag: 'DataSyncQuery' }));
+    });
+
+    test('subscription errors notify subscribers', async () => {
+        const controller = DataSyncController.getInstance();
+        controller.sendMessage = jest.fn().mockRejectedValue(new Error('denied'));
+        const subscription = makeSubscription([]);
+        const subscriber = jest.fn();
+        subscription.subscribers = [subscriber];
+        const createPromise = subscription.createOnServer();
+        const internalPromise = subscription.createOnServerPromise.catch(() => {});
+
+        await expect(createPromise).rejects.toThrow('denied while trying to subscribe');
+        await internalPromise;
+        expect(subscription.connectError).toBeInstanceOf(Error);
+        expect(subscriber).toHaveBeenCalled();
     });
 });
 

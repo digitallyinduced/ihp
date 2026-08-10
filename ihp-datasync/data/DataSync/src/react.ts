@@ -1,7 +1,10 @@
-import React, { useState, useEffect, useContext, useSyncExternalStore, useRef, useMemo } from 'react';
+import React, { useState, useEffect, useContext, useSyncExternalStore, useMemo } from 'react';
 import { DataSubscription, DataSyncController } from './ihp-datasync.js';
 import { QueryBuilder } from './ihp-querybuilder.js';
-import type { DataRecord, DynamicSQLQuery, DataSubscriptionOptions, DataSyncEventMap, ServerMessage, TableName } from './types.js';
+import { CountSubscription } from './count-subscription.js';
+import type { DataRecord, DynamicSQLQuery, DataSubscriptionOptions, DataSyncEventMap } from './types.js';
+
+export { CountSubscription } from './count-subscription.js';
 
 // Most IHP apps never use this context because they use session cookies for auth.
 // Therefore the default value is true.
@@ -38,7 +41,7 @@ export function useQuery<TTable extends string, TResult>(queryBuilder: QueryBuil
  */
 export function useQuerySingleResult<TTable extends string, TResult>(queryBuilder: QueryBuilder<TTable, TResult>): TResult | null {
     const result = useQuery(queryBuilder.limit(1));
-    return result === null ? null : result[0];
+    return result === null ? null : result[0] ?? null;
 }
 
 export function useIsConnected(): boolean {
@@ -82,7 +85,9 @@ export class DataSubscriptionStore {
         } else {
 
             const subscription = new DataSubscription(query, options, DataSubscriptionStore.cache);
-            subscription.createOnServer();
+            void subscription.createOnServer().catch(() => {
+                // The subscription stores the error and notifies useQuery.
+            });
             subscription.onClose = () => {
                 if (DataSubscriptionStore.queryMap.get(key) === subscription) {
                     DataSubscriptionStore.queryMap.delete(key);
@@ -104,43 +109,7 @@ export class DataSubscriptionStore {
 }
 
 export function useCount(queryBuilder: QueryBuilder): number | null {
-    const count = useRef<number | null>(null);
-    const getSnapshot = useMemo(() => () => count.current, []);
-    const subscribe = useMemo(() => (onStoreChange: () => void) => {
-        const controller = DataSyncController.getInstance();
-        let isActive = true;
-        let subscriptionId: string | null = null;
-        const onMessage: DataSyncEventMap['message'] = (message) => {
-            if (message.tag === 'DidChangeCount' && message.subscriptionId === subscriptionId) {
-                count.current = message.count as number;
-                onStoreChange();
-            }
-        };
-        controller.sendMessage({ tag: 'CreateCountSubscription', query: queryBuilder.query })
-            .then((response) => {
-                if (isActive) {
-                    subscriptionId = response.subscriptionId as string;
-                    count.current = response.count as number;
-                    onStoreChange();
-
-                    controller.addEventListener('message', onMessage);
-                } else {
-                    controller.sendMessage({ tag: 'DeleteDataSubscription', subscriptionId: response.subscriptionId });
-                }
-            })
-            .catch((error: unknown) => {
-                console.error('useCount: Failed to create count subscription', error);
-            });
-
-        return () => {
-            isActive = false;
-
-            if (subscriptionId) {
-                controller.sendMessage({ tag: 'DeleteDataSubscription', subscriptionId });
-            }
-            controller.removeEventListener('message', onMessage);
-        };
-    }, [JSON.stringify(queryBuilder.query)]);
-
-    return useSyncExternalStore(subscribe, getSnapshot);
+    const queryKey = JSON.stringify(queryBuilder.query);
+    const countSubscription = useMemo(() => new CountSubscription(queryBuilder.query), [queryKey]);
+    return useSyncExternalStore(countSubscription.subscribe, countSubscription.getCount);
 }

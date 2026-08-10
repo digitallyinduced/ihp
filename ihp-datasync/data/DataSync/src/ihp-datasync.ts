@@ -21,6 +21,17 @@ type EventListeners = {
     [K in DataSyncEventType]: DataSyncEventMap[K][];
 };
 
+type OutboxMessage = {
+    requestId: number;
+    payload: string;
+};
+
+type PendingOptimisticCreate = {
+    promise: Promise<void>;
+    resolve: () => void;
+    reject: (reason: Error) => void;
+};
+
 class DataSyncController {
     static instance: DataSyncController | null = null;
     static ihpBackendHost: string | null = null;
@@ -52,13 +63,15 @@ class DataSyncController {
     requestIdCounter: number;
     receivedFirstResponse: boolean;
     eventListeners: EventListeners;
-    outbox: string[];
+    outbox: OutboxMessage[];
     reconnectTimeout: ReturnType<typeof setTimeout> | null;
-    pendingRequestTimeout: ReturnType<typeof setTimeout> | null;
     dataSubscriptions: DataSubscription[];
     optimisticCreatedPendingRecordIds: UUID[];
+    pendingOptimisticCreates: Map<UUID, PendingOptimisticCreate>;
     optimisticCreatedNeedsCreatedAtField: Set<string>;
     messageTimeout: number;
+    connectionRetryLimit: number;
+    connectionRetryMaxDelayExponent: number;
     pendingConnection: Promise<WebSocket> | null;
 
     constructor() {
@@ -75,11 +88,13 @@ class DataSyncController {
 
         this.outbox = [];
         this.reconnectTimeout = null;
-        this.pendingRequestTimeout = null;
         this.dataSubscriptions = [];
         this.optimisticCreatedPendingRecordIds = [];
+        this.pendingOptimisticCreates = new Map();
         this.optimisticCreatedNeedsCreatedAtField = new Set();
         this.messageTimeout = 5000;
+        this.connectionRetryLimit = 32;
+        this.connectionRetryMaxDelayExponent = 6;
         this.pendingConnection = null;
     }
 
@@ -92,51 +107,58 @@ class DataSyncController {
             return await this.pendingConnection;
         }
 
-        const connect = (): Promise<WebSocket> => new Promise((resolve, reject) => {
-            const socket = new WebSocket(DataSyncController.getWSUrl());
+        let pendingConnection!: Promise<WebSocket>;
+        pendingConnection = (async () => {
+            const connect = (): Promise<{ socket: WebSocket; event: Event }> => new Promise((resolve, reject) => {
+                const socket = new WebSocket(DataSyncController.getWSUrl());
 
-            socket.onopen = (event) => {
-                socket.onclose = this.onClose.bind(this);
-                socket.onmessage = this.onMessage.bind(this);
+                socket.onopen = (event) => {
+                    this.connection = socket;
+                    socket.onclose = (closeEvent) => this.onClose(closeEvent, socket);
+                    socket.onmessage = this.onMessage.bind(this);
+                    resolve({ socket, event });
+                };
 
-                resolve(socket);
-
-                for (const listener of this.eventListeners.open) {
-                    listener(event);
-                }
-            };
-
-            socket.onerror = (event) => reject(event);
-        });
-        const wait = (timeout: number): Promise<void> => new Promise((resolve) => setTimeout(resolve, timeout));
-
-        const MAX_RETRIES = 32;
-        const MAX_DELAY_EXPONENT = 6; // 2 ^ 6 ~> 1 min
-
-        for (let i = 0; i < MAX_RETRIES; i++) {
-            this.pendingConnection = connect();
-
+                socket.onerror = (event) => reject(event);
+            });
+            const wait = (timeout: number): Promise<void> => new Promise((resolve) => setTimeout(resolve, timeout));
             try {
-                const socket = await this.pendingConnection;
-                this.pendingConnection = null;
-                this.connection = socket;
+                for (let i = 0; i < this.connectionRetryLimit; i++) {
+                    try {
+                        const { socket, event } = await connect();
+                        if (this.connection !== socket) {
+                            throw new Error('DataSync WebSocket closed while the connection was opening');
+                        }
+                        this.flushOutbox(socket);
 
-                // Flush outbox
-                for (let j = 0; j < this.outbox.length; j++) {
-                    this.connection.send(this.outbox[j]);
+                        for (const listener of this.eventListeners.open) {
+                            try {
+                                listener(event);
+                            } catch (error) {
+                                console.error('DataSync open listener failed:', error);
+                            }
+                        }
+
+                        return socket;
+                    } catch (error) {
+                        if (i === this.connectionRetryLimit - 1) {
+                            throw error;
+                        }
+                        const time = Math.pow(2, Math.min(i, this.connectionRetryMaxDelayExponent));
+                        console.log('Retrying in ', time, 'secs');
+                        await wait(time * 1000);
+                    }
                 }
 
-                this.outbox = [];
-
-                return this.connection;
-            } catch (error) {
-                const time = Math.pow(2, Math.min(i, MAX_DELAY_EXPONENT)); // 2, 4, 8, 16, 32, ...
-                console.log('Retrying in ', time, 'secs');
-                await wait(time * 1000);
+                throw new Error('Unable to connect to the DataSync Websocket');
+            } finally {
+                if (this.pendingConnection === pendingConnection) {
+                    this.pendingConnection = null;
+                }
             }
-        }
-
-        throw new Error('Unable to connect to the DataSync Websocket');
+        })();
+        this.pendingConnection = pendingConnection;
+        return await pendingConnection;
     }
 
     onMessage(event: MessageEvent): void {
@@ -144,18 +166,8 @@ class DataSyncController {
         const requestId = payload.requestId;
         const request = this.pendingRequests.find(request => request.requestId === requestId);
 
-        if (request !== undefined) {
-            this.pendingRequests.splice(this.pendingRequests.indexOf(request), 1);
-        }
-
-        this.receivedFirstResponse = true;
-
-        if (this.pendingRequestTimeout) {
-            clearTimeout(this.pendingRequestTimeout);
-            this.pendingRequestTimeout = null;
-        }
-
         if (request) {
+            this.removePendingRequest(request);
             const { resolve, reject } = request;
 
             if (payload.tag === 'DataSyncError') {
@@ -169,11 +181,17 @@ class DataSyncController {
             }
         }
 
+        this.receivedFirstResponse = true;
         this.eventListeners.message.slice(0).forEach(callback => callback(payload));
     }
 
-    onClose(_event: CloseEvent | null): void {
+    onClose(_event: CloseEvent | null, closedSocket: WebSocket | null = null): void {
+        if (closedSocket !== null && this.connection !== closedSocket) {
+            return;
+        }
+
         this.connection = null;
+        this.rejectSentPendingRequests(new Error('DataSync WebSocket closed before the server responded'));
 
         for (const listener of this.eventListeners.close) {
             listener(_event);
@@ -185,23 +203,77 @@ class DataSyncController {
     async sendMessage(payload: Record<string, unknown>): Promise<ServerMessage> {
         return new Promise((resolve, reject) => {
             payload.requestId = this.requestIdCounter++;
-            this.pendingRequests.push({ requestId: payload.requestId as number, resolve: resolve as (value: unknown) => void, reject });
+            const requestId = payload.requestId as number;
+            const pendingRequest: PendingRequest = { requestId, resolve, reject, timeout: null, sent: false };
+            const outboxMessage = { requestId, payload: JSON.stringify(payload) };
+            this.pendingRequests.push(pendingRequest);
 
             if (this.connection === null) {
-                this.outbox.push(JSON.stringify(payload));
+                this.outbox.push(outboxMessage);
 
-                const isFirstMessage = this.requestIdCounter === 1;
-                if (isFirstMessage) {
-                    this.startConnection();
+                if (this.reconnectTimeout === null) {
+                    void this.startConnection().catch((error: unknown) => {
+                        this.rejectPendingRequest(requestId, new Error(`Unable to connect to the DataSync WebSocket: ${String(error)}`));
+                    });
                 }
             } else {
-                this.connection.send(JSON.stringify(payload));
-
-                if (!this.pendingRequestTimeout) {
-                    this.pendingRequestTimeout = setTimeout(this.onPendingRequestTimeout.bind(this), this.messageTimeout);
-                }
+                this.sendPendingRequest(this.connection, outboxMessage);
             }
         });
+    }
+
+    private flushOutbox(connection: WebSocket): void {
+        const queuedMessages = this.outbox;
+        this.outbox = [];
+        for (const message of queuedMessages) {
+            this.sendPendingRequest(connection, message);
+        }
+    }
+
+    private sendPendingRequest(connection: WebSocket, message: OutboxMessage): void {
+        const request = this.pendingRequests.find(({ requestId }) => requestId === message.requestId);
+        if (!request) {
+            return;
+        }
+
+        try {
+            connection.send(message.payload);
+            request.sent = true;
+            request.timeout = setTimeout(() => this.onPendingRequestTimeout(request.requestId), this.messageTimeout);
+        } catch (error) {
+            this.rejectPendingRequest(request.requestId, error);
+        }
+    }
+
+    private removePendingRequest(request: PendingRequest): void {
+        if (request.timeout !== null) {
+            clearTimeout(request.timeout);
+        }
+        const index = this.pendingRequests.indexOf(request);
+        if (index !== -1) {
+            this.pendingRequests.splice(index, 1);
+        }
+        const outboxIndex = this.outbox.findIndex(({ requestId }) => requestId === request.requestId);
+        if (outboxIndex !== -1) {
+            this.outbox.splice(outboxIndex, 1);
+        }
+    }
+
+    private rejectPendingRequest(requestId: number, reason: unknown): void {
+        const request = this.pendingRequests.find(request => request.requestId === requestId);
+        if (!request) {
+            return;
+        }
+        this.removePendingRequest(request);
+        request.reject(reason);
+    }
+
+    private rejectSentPendingRequests(reason: Error): void {
+        for (const request of this.pendingRequests.slice()) {
+            if (request.sent) {
+                this.rejectPendingRequest(request.requestId, reason);
+            }
+        }
     }
 
     addEventListener<E extends DataSyncEventType>(event: E, callback: DataSyncEventMap[E]): void {
@@ -225,12 +297,17 @@ class DataSyncController {
             clearTimeout(this.reconnectTimeout);
         }
         this.reconnectTimeout = setTimeout(async () => {
+            this.reconnectTimeout = null;
             try {
                 console.log('Trying to reconnect DataSync ...');
                 await this.startConnection();
 
                 for (const listener of this.eventListeners.reconnect) {
-                    listener();
+                    try {
+                        listener();
+                    } catch (error) {
+                        console.error('DataSync reconnect listener failed:', error);
+                    }
                 }
             } catch (error) {
                 console.error('DataSync reconnection failed:', error);
@@ -248,11 +325,16 @@ class DataSyncController {
         }
     }
 
-    onPendingRequestTimeout(): void {
+    onPendingRequestTimeout(requestId: number): void {
+        const request = this.pendingRequests.find(request => request.requestId === requestId);
+        if (!request) {
+            return;
+        }
+
+        this.rejectPendingRequest(requestId, new Error(`DataSync request ${requestId} timed out after ${this.messageTimeout}ms`));
         if (this.connection) {
             console.log('Pending request timed out, closing WebSocket');
             this.connection.close();
-            this.onClose(null);
         }
     }
 }
@@ -274,6 +356,8 @@ class DataSubscription {
     optimisticUpdatedPendingRecordIds: Set<UUID>;
     private closeNotificationSent: boolean;
     private closeIfNotUsedTimeout: ReturnType<typeof setTimeout> | null;
+    private refreshPromise: Promise<void> | null;
+    private refreshRequested: boolean;
 
     constructor(query: DynamicSQLQuery, options: DataSubscriptionOptions | null = null, cache: Map<string, DataRecord[]> | null = null) {
         if (typeof query !== "object" || !('table' in query)) {
@@ -283,6 +367,10 @@ class DataSubscription {
         this.createOnServerPromise = new Promise((resolve, reject) => {
             this.resolveCreateOnServer = resolve;
             this.rejectCreateOnServer = reject;
+        });
+        void this.createOnServerPromise.catch(() => {
+            // close() observes the same promise when it needs to wait for setup;
+            // most subscriptions never need that path, so avoid an unhandled rejection.
         });
 
         this.isClosed = false;
@@ -316,6 +404,8 @@ class DataSubscription {
         this.optimisticUpdatedPendingRecordIds = new Set();
         this.closeNotificationSent = false;
         this.closeIfNotUsedTimeout = null;
+        this.refreshPromise = null;
+        this.refreshRequested = false;
     }
 
     detectNewRecordBehaviour(): number {
@@ -356,7 +446,8 @@ class DataSubscription {
 
             this.isConnected = true;
             this.isClosed = false;
-            this.records = result;
+            this.connectError = null;
+            this.records = this.normalizeRecords(result);
 
             this.resolveCreateOnServer(result);
             this.updateSubscribers();
@@ -364,8 +455,10 @@ class DataSubscription {
             dataSyncController.learnOptimisticShapeFromResult(this.query.table, result);
         } catch (e) {
             const error = e as Error;
+            this.isConnected = false;
             this.connectError = new Error(error.message + ' while trying to subscribe to:\n' + JSON.stringify(this.query, null, 4));
             this.rejectCreateOnServer(this.connectError);
+            this.notifySubscribers();
             throw this.connectError;
         }
     }
@@ -406,7 +499,14 @@ class DataSubscription {
 
         // We cannot close the DataSubscription when the subscriptionId is not assigned
         if (!this.isClosed && !this.isConnected) {
-            await this.createOnServerPromise;
+            try {
+                await this.createOnServerPromise;
+            } catch (_error) {
+                this.isClosed = true;
+                this.notifyClose();
+                this.detachFromDataSyncController(dataSyncController);
+                return;
+            }
             return this.close();
         }
 
@@ -453,12 +553,14 @@ class DataSubscription {
         this.scheduleCloseIfNotUsed();
     }
 
-    async onDataSyncReconnect(): Promise<void> {
-        await this.createOnServer();
+    onDataSyncReconnect(): void {
+        void this.createOnServer().catch(() => {
+            // createOnServer stores the error and notifies React subscribers.
+        });
     }
 
     onUpdate(id: UUID, changeSet: Record<string, unknown> | null, appendSet: Record<string, unknown> | null): void {
-        this.records = this.records!.map(record => {
+        this.records = this.normalizeRecords(this.records!.map(record => {
             if (record.id === id) {
                 const updated = Object.assign({}, record, changeSet);
                 if (appendSet && !this.optimisticUpdatedPendingRecordIds.has(id)) {
@@ -470,10 +572,11 @@ class DataSubscription {
             }
 
             return record;
-        });
+        }));
 
         this.optimisticUpdatedPendingRecordIds.delete(id);
         this.updateSubscribers();
+        this.refreshAfterComplexMutation();
     }
 
     onCreate(newRecord: DataRecord): void {
@@ -484,11 +587,14 @@ class DataSubscription {
         if (isOptimisticallyCreatedAlready) {
             this.onUpdate(newRecordId, newRecord, null);
             this.optimisticCreatedPendingRecordIds.splice(this.optimisticCreatedPendingRecordIds.indexOf(newRecordId), 1);
+            return;
         } else {
-            this.records = shouldAppend ? [...this.records!, newRecord] : [newRecord, ...this.records!];
+            const records = shouldAppend ? [...this.records!, newRecord] : [newRecord, ...this.records!];
+            this.records = this.normalizeRecords(records);
         }
 
         this.updateSubscribers();
+        this.refreshAfterComplexMutation();
     }
 
     onCreateOptimistic(newRecord: DataRecord): void {
@@ -502,7 +608,12 @@ class DataSubscription {
 
     onDelete(id: UUID): void {
         this.records = this.records!.filter(record => record.id !== id);
+        const optimisticIndex = this.optimisticCreatedPendingRecordIds.indexOf(id);
+        if (optimisticIndex !== -1) {
+            this.optimisticCreatedPendingRecordIds.splice(optimisticIndex, 1);
+        }
         this.updateSubscribers();
+        this.refreshAfterComplexMutation();
     }
 
     subscribe(callback: (records: DataRecord[] | null) => void): () => void {
@@ -537,11 +648,96 @@ class DataSubscription {
     }
 
     updateSubscribers(): void {
-        if (this.cache) {
-            this.cache.set(JSON.stringify(this.query), this.records!);
+        if (this.cache && this.records !== null) {
+            this.cache.set(JSON.stringify(this.query), this.records);
         }
+        this.notifySubscribers();
+    }
+
+    private notifySubscribers(): void {
         for (const subscriber of this.subscribers) {
             subscriber(this.records);
+        }
+    }
+
+    private normalizeRecords(records: DataRecord[]): DataRecord[] {
+        let normalized = [...records];
+        const sortableClauses = this.query.orderByClause.filter(clause => 'orderByColumn' in clause);
+
+        if (sortableClauses.length > 0) {
+            normalized.sort((left, right) => {
+                for (const clause of sortableClauses) {
+                    const comparison = compareQueryValues(left[clause.orderByColumn], right[clause.orderByColumn]);
+                    if (comparison !== 0) {
+                        return clause.orderByDirection === 'Desc' ? -comparison : comparison;
+                    }
+                }
+                return 0;
+            });
+        }
+
+        if (this.query.distinctOnColumn !== null) {
+            const seen = new Set<unknown>();
+            normalized = normalized.filter(record => {
+                const value = record[this.query.distinctOnColumn!];
+                if (seen.has(value)) {
+                    return false;
+                }
+                seen.add(value);
+                return true;
+            });
+        }
+
+        if (this.query.limit !== null && this.query.limit >= 0) {
+            normalized = normalized.slice(0, this.query.limit);
+        }
+
+        return normalized;
+    }
+
+    private refreshAfterComplexMutation(): void {
+        const selectedColumns = this.query.selectedColumns;
+        const hasUnprojectedOrderColumn = selectedColumns.tag === 'SelectSpecific'
+            && this.query.orderByClause.some(clause => 'orderByColumn' in clause
+                && !selectedColumns.contents.includes(clause.orderByColumn));
+        const requiresRefresh = this.query.limit !== null
+            || this.query.offset !== null
+            || this.query.distinctOnColumn !== null
+            || this.query.orderByClause.some(clause => 'tag' in clause && clause.tag === 'OrderByTSRank')
+            || hasUnprojectedOrderColumn;
+        if (!requiresRefresh || this.isClosed) {
+            return;
+        }
+
+        this.refreshRequested = true;
+        if (this.refreshPromise !== null) {
+            return;
+        }
+
+        this.refreshPromise = this.refreshRecordsFromServer();
+    }
+
+    private async refreshRecordsFromServer(): Promise<void> {
+        this.refreshRequested = false;
+        try {
+            const response = await DataSyncController.getInstance().sendMessage({
+                tag: 'DataSyncQuery',
+                query: this.query,
+                transactionId: null
+            });
+            if (!this.isClosed) {
+                this.records = this.normalizeRecords(response.result as DataRecord[]);
+                this.updateSubscribers();
+            }
+        } catch (error) {
+            if (!this.isClosed) {
+                console.error('Failed to refresh a complex DataSubscription:', error);
+            }
+        } finally {
+            this.refreshPromise = null;
+            if (this.refreshRequested) {
+                this.refreshAfterComplexMutation();
+            }
         }
     }
 
@@ -566,6 +762,31 @@ class DataSubscription {
     }
 }
 
+function compareQueryValues(left: unknown, right: unknown): number {
+    if (Object.is(left, right)) {
+        return 0;
+    }
+    // PostgreSQL's default is NULLS LAST for ASC and NULLS FIRST for DESC.
+    if (left === null || left === undefined) {
+        return 1;
+    }
+    if (right === null || right === undefined) {
+        return -1;
+    }
+
+    const normalizedLeft = left instanceof Date ? left.getTime() : left;
+    const normalizedRight = right instanceof Date ? right.getTime() : right;
+    if ((typeof normalizedLeft === 'number' && typeof normalizedRight === 'number')
+        || (typeof normalizedLeft === 'string' && typeof normalizedRight === 'string')
+        || (typeof normalizedLeft === 'boolean' && typeof normalizedRight === 'boolean')) {
+        return normalizedLeft < normalizedRight ? -1 : 1;
+    }
+
+    const leftText = String(normalizedLeft);
+    const rightText = String(normalizedRight);
+    return leftText < rightText ? -1 : leftText > rightText ? 1 : 0;
+}
+
 function initIHPBackend({ host }: { host: string }): void {
     if (typeof host !== "string" || (!host.startsWith("http://") && !host.startsWith("https://"))) {
         throw new Error("IHP Backend host url needs to start with \"http://\" or \"https://\", you passed \"" + host + "\"");
@@ -584,18 +805,25 @@ export async function createRecord<T extends TableName>(table: T, record: NewRec
         throw new Error(`Record needs to be an object, you passed ${JSON.stringify(record)} in a call to createRecord(${JSON.stringify(table)}, ${JSON.stringify(record, null, 4)})`);
     }
 
-    const transactionId = 'transactionId' in options ? options.transactionId : null;
+    const transactionId = options.transactionId ?? null;
     const request = { tag: 'CreateRecordMessage', table, record, transactionId };
+    const shouldUpdateOptimistically = transactionId === null;
 
     try {
-        createOptimisticRecord(table, record);
+        if (shouldUpdateOptimistically) {
+            createOptimisticRecord(table, record);
+        }
         await waitPendingChanges(table, record);
 
         const response = await DataSyncController.getInstance().sendMessage(request);
-        markCreateOptimisticRecordFinished(record);
+        if (shouldUpdateOptimistically) {
+            markCreateOptimisticRecordFinished(record);
+        }
         return response.record as IHPRecord<T>;
     } catch (e) {
-        undoCreateOptimisticRecord(table, record);
+        if (shouldUpdateOptimistically) {
+            undoCreateOptimisticRecord(table, record, e as Error);
+        }
 
         throw new Error(`${(e as Error).message} while calling:\n\ncreateRecord(${JSON.stringify(table)}, ${JSON.stringify(record, null, 4)})`);
     }
@@ -612,10 +840,12 @@ export async function updateRecord<T extends TableName>(table: T, id: UUID, patc
         throw new Error(`Patch needs to be an object, you passed ${JSON.stringify(patch)} in a call to updateRecord(${JSON.stringify(table)}, ${JSON.stringify(id)}, ${JSON.stringify(patch, null, 4)})`);
     }
 
-    const transactionId = 'transactionId' in options ? options.transactionId : null;
+    const transactionId = options.transactionId ?? null;
     const request = { tag: 'UpdateRecordMessage', table, id, patch, transactionId };
 
-    const undoUpdateRecordOptimistic = updateRecordOptimistic(table, id, patch);
+    const undoUpdateRecordOptimistic = transactionId === null
+        ? updateRecordOptimistic(table, id, patch)
+        : () => {};
 
     try {
         await waitPendingCreation(table, id);
@@ -640,7 +870,7 @@ export async function updateRecords<T extends TableName>(table: T, ids: UUID[], 
         throw new Error(`Patch needs to be an object, you passed ${JSON.stringify(patch)} in a call to updateRecords(${JSON.stringify(table)}, ${JSON.stringify(ids)}, ${JSON.stringify(patch, null, 4)})`);
     }
 
-    const transactionId = 'transactionId' in options ? options.transactionId : null;
+    const transactionId = options.transactionId ?? null;
     const request = { tag: 'UpdateRecordsMessage', table, ids, patch, transactionId };
 
     try {
@@ -660,10 +890,12 @@ export async function deleteRecord<T extends TableName>(table: T, id: UUID, opti
         throw new Error(`ID needs to be an UUID, you passed ${JSON.stringify(id)} in a call to deleteRecord(${JSON.stringify(table)}, ${JSON.stringify(id)})`);
     }
 
-    const transactionId = 'transactionId' in options ? options.transactionId : null;
+    const transactionId = options.transactionId ?? null;
     const request = { tag: 'DeleteRecordMessage', table, id, transactionId };
 
-    const undoOptimisticDeleteRecord = deleteRecordOptimistic(table, id);
+    const undoOptimisticDeleteRecord = transactionId === null
+        ? deleteRecordOptimistic(table, id)
+        : () => {};
     try {
         await waitPendingCreation(table, id);
         await DataSyncController.getInstance().sendMessage(request);
@@ -683,7 +915,7 @@ export async function deleteRecords<T extends TableName>(table: T, ids: UUID[], 
         throw new Error(`IDs needs to be an array, you passed ${JSON.stringify(ids)} in a call to deleteRecords(${JSON.stringify(table)}, ${JSON.stringify(ids)})`);
     }
 
-    const transactionId = 'transactionId' in options ? options.transactionId : null;
+    const transactionId = options.transactionId ?? null;
     const request = { tag: 'DeleteRecordsMessage', table, ids, transactionId };
 
     try {
@@ -703,7 +935,7 @@ export async function createRecords<T extends TableName>(table: T, records: NewR
         throw new Error(`Records need to be an array, you passed ${JSON.stringify(records)} in a call to createRecords(${JSON.stringify(table)}, ${JSON.stringify(records, null, 4)})`);
     }
 
-    const transactionId = 'transactionId' in options ? options.transactionId : null;
+    const transactionId = options.transactionId ?? null;
     const request = { tag: 'CreateRecordsMessage', table, records, transactionId };
 
     try {
@@ -722,6 +954,7 @@ function createOptimisticRecord<T extends TableName>(table: T, record: NewRecord
     if (record.id == null) {
         record.id = randomUUID();
     }
+    registerPendingOptimisticCreate(record.id);
 
     // Optimistically set createdAt if the table has this field (dynamic check)
     const rec = record as Record<string, unknown>;
@@ -741,6 +974,24 @@ function createOptimisticRecord<T extends TableName>(table: T, record: NewRecord
     }
 
     dataSyncController.optimisticCreatedPendingRecordIds.push(record.id!);
+}
+
+function registerPendingOptimisticCreate(id: UUID): void {
+    const dataSyncController = DataSyncController.getInstance();
+    if (dataSyncController.pendingOptimisticCreates.has(id)) {
+        return;
+    }
+
+    let resolve!: () => void;
+    let reject!: (reason: Error) => void;
+    const promise = new Promise<void>((resolvePromise, rejectPromise) => {
+        resolve = resolvePromise;
+        reject = rejectPromise;
+    });
+    // A create often has no dependent operation. Mark the rejection as handled
+    // while still keeping the original promise rejectable for actual dependants.
+    void promise.catch(() => {});
+    dataSyncController.pendingOptimisticCreates.set(id, { promise, resolve, reject });
 }
 
 function randomUUID(): UUID {
@@ -764,24 +1015,37 @@ function randomUUID(): UUID {
     }
 }
 
-function undoCreateOptimisticRecord<T extends TableName>(table: T, record: NewRecord<T>): void {
+function undoCreateOptimisticRecord<T extends TableName>(table: T, record: NewRecord<T>, reason: Error): void {
     const dataSyncController = DataSyncController.getInstance();
     for (const dataSubscription of dataSyncController.dataSubscriptions) {
         if (dataSubscription.query.table !== table) {
+            continue;
+        }
+        if (!dataSubscription.optimisticCreatedPendingRecordIds.includes(record.id!)) {
             continue;
         }
 
         dataSubscription.onDelete(record.id!);
     }
 
-    markCreateOptimisticRecordFinished(record);
+    markCreateOptimisticRecordFinished(record, reason);
 }
 
-function markCreateOptimisticRecordFinished<T extends TableName>(record: NewRecord<T>): void {
+function markCreateOptimisticRecordFinished<T extends TableName>(record: NewRecord<T>, error: Error | null = null): void {
     const dataSyncController = DataSyncController.getInstance();
     const index = dataSyncController.optimisticCreatedPendingRecordIds.indexOf(record.id!);
     if (index !== -1) {
         dataSyncController.optimisticCreatedPendingRecordIds.splice(index, 1);
+    }
+
+    const pendingCreate = dataSyncController.pendingOptimisticCreates.get(record.id!);
+    if (pendingCreate) {
+        dataSyncController.pendingOptimisticCreates.delete(record.id!);
+        if (error) {
+            pendingCreate.reject(error);
+        } else {
+            pendingCreate.resolve();
+        }
     }
 }
 
@@ -868,49 +1132,33 @@ function deleteRecordOptimistic<T extends TableName>(table: T, id: UUID): () => 
     };
 }
 
-function doesRecordReferencePendingOptimisticRecord<T extends TableName>(record: NewRecord<T> | Partial<NewRecord<T>>): boolean {
+function pendingOptimisticCreatesReferencedBy<T extends TableName>(record: NewRecord<T> | Partial<NewRecord<T>>): Promise<void>[] {
     const dataSyncController = DataSyncController.getInstance();
-    const optimisticIds = dataSyncController.optimisticCreatedPendingRecordIds;
     const rec = record as Record<string, unknown>;
+    const pendingCreates = new Set<Promise<void>>();
 
     for (const attribute in rec) {
         if (attribute === 'id') {
             continue; // The current record's id is always optimistic
         }
-        if (optimisticIds.indexOf(rec[attribute] as UUID) !== -1) {
-            return true;
+        const pendingCreate = dataSyncController.pendingOptimisticCreates.get(rec[attribute] as UUID);
+        if (pendingCreate) {
+            pendingCreates.add(pendingCreate.promise);
         }
     }
 
-    return false;
+    return Array.from(pendingCreates);
 }
 
 async function waitPendingChanges<T extends TableName>(_table: T, record: NewRecord<T> | Partial<NewRecord<T>>): Promise<void> {
-    if (doesRecordReferencePendingOptimisticRecord(record)) {
-        return waitForMessageMatching(message => message.tag === 'DidCreateRecord' && (message as ServerMessage).record != null && ((message as ServerMessage).record as DataRecord).id === record.id!);
-    }
+    await Promise.all(pendingOptimisticCreatesReferencedBy(record));
 }
 
 async function waitPendingCreation<T extends TableName>(_table: T, id: UUID): Promise<void> {
-    const optimisticIds = DataSyncController.getInstance().optimisticCreatedPendingRecordIds;
-    if (optimisticIds.indexOf(id) !== -1) {
-        return waitForMessageMatching(message => message.tag === 'DidCreateRecord' && (message as ServerMessage).record != null && ((message as ServerMessage).record as DataRecord).id === id);
+    const pendingCreate = DataSyncController.getInstance().pendingOptimisticCreates.get(id);
+    if (pendingCreate) {
+        await pendingCreate.promise;
     }
-}
-
-function waitForMessageMatching(condition: (message: ServerMessage) => boolean): Promise<void> {
-    const dataSyncController = DataSyncController.getInstance();
-
-    return new Promise((resolve) => {
-        const callback = (payload: ServerMessage) => {
-            if (condition(payload)) {
-                dataSyncController.removeEventListener('message', callback);
-                resolve();
-            }
-        };
-
-        dataSyncController.addEventListener('message', callback);
-    });
 }
 
 export { DataSyncController, DataSubscription, initIHPBackend, NewRecordBehaviour };

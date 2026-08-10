@@ -398,7 +398,9 @@ class QueryBuilder<TTable extends string = string, TResult = IHPRecord<TTable>> 
 
     subscribe(callback: (records: TResult[] | null) => void): () => void {
         const dataSubscription = new DataSubscription(this.query);
-        dataSubscription.createOnServer();
+        void dataSubscription.createOnServer().catch(() => {
+            // The subscription exposes the error through connectError.
+        });
         return dataSubscription.subscribe(callback as (records: DataRecord[] | null) => void);
     }
 }
@@ -428,12 +430,17 @@ export function recordMatchesQuery(query: DynamicSQLQuery, record: DataRecord): 
                         const right = evaluate(expression.right);
                         return Array.isArray(right) && right.includes(left);
                     }
-                    default: throw new Error('Unsupported operator ' + (expression as { op: string }).op);
+                    // Full-text matching depends on PostgreSQL dictionaries and stemming.
+                    // If it cannot be reproduced exactly in the browser, skip the
+                    // optimistic insertion and wait for the server notification.
+                    case 'OpTSMatch': return false;
+                    default: return false;
                 }
             }
             case 'LiteralExpression': return expression.value;
             case 'ListExpression': return expression.values;
-            default: throw new Error('Unsupported expression in evaluate: ' + (expression as { tag: string }).tag);
+            case 'CallExpression': return false;
+            default: return false;
         }
     }
 

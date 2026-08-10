@@ -23,7 +23,8 @@ export type TableName = [_TableName] extends [never] ? string : _TableName;
 export type IHPRecord<T extends string> = T extends keyof TableRegistry ? TableRegistry[T] : DataRecord;
 // Intersect with { id?: UUID } so TypeScript can prove id access in generic contexts.
 // Every IHP record has an id primary key with a default, so this is always true.
-export type NewRecord<T extends string> = (T extends keyof NewRecordRegistry ? NewRecordRegistry[T] : DataRecord) & { id?: UUID };
+type UnregisteredNewRecord = { id?: UUID; [key: string]: unknown };
+export type NewRecord<T extends string> = (T extends keyof NewRecordRegistry ? NewRecordRegistry[T] : UnregisteredNewRecord) & { id?: UUID };
 
 // Condition operators (matches Haskell ConditionOperator)
 export type ConditionOperator =
@@ -112,8 +113,10 @@ export type DataSyncEventCallback = (payload: never) => void;
 // Pending request tracking
 export interface PendingRequest {
     requestId: number;
-    resolve: (value: unknown) => void;
+    resolve: (value: ServerMessage) => void;
     reject: (reason: unknown) => void;
+    timeout: ReturnType<typeof setTimeout> | null;
+    sent: boolean;
 }
 
 // Server response tags (matches Haskell DataSyncResponse)
