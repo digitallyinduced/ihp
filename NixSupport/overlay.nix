@@ -163,6 +163,14 @@ final: prev: {
                 # cryptonite tests have a flaky failure (1 of 1548)
                 cryptonite = final.haskell.lib.dontCheck super.cryptonite;
 
+                # The GHC 9.12 RC package set builds HLS 2.14 against Cabal 3.16,
+                # while its ormolu/fourmolu/stylish-haskell plugins still use
+                # Cabal 3.14. These are isolated plugin dependencies, but Cabal's
+                # multiple-version warning is fatal in the nixpkgs Haskell
+                # builder unless explicitly allowed.
+                haskell-language-server = final.haskell.lib.allowInconsistentDependencies
+                    super.haskell-language-server;
+
                 # darcs 2.18.5 caps http-client-tls <0.4 and tls <2.2, while
                 # the RC3 package set provides newer compatible releases. A full
                 # doJailbreak conflicts with nixpkgs' patched darcs.cabal, so only
