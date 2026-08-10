@@ -83,7 +83,11 @@ export class DataSubscriptionStore {
 
             const subscription = new DataSubscription(query, options, DataSubscriptionStore.cache);
             subscription.createOnServer();
-            subscription.onClose = () => { DataSubscriptionStore.queryMap.delete(key); };
+            subscription.onClose = () => {
+                if (DataSubscriptionStore.queryMap.get(key) === subscription) {
+                    DataSubscriptionStore.queryMap.delete(key);
+                }
+            };
 
             DataSubscriptionStore.queryMap.set(key, subscription);
 
@@ -92,9 +96,7 @@ export class DataSubscriptionStore {
             // to many open connections laying around by trying to close them a second after opening them.
             // A second is enough time for react to call the subscribe function. If it's not called by then,
             // we most likely deal with a dead subscription, so we close it.
-            setTimeout(() => {
-                subscription.closeIfNotUsed();
-            }, 1000);
+            subscription.scheduleCloseIfNotUsed();
 
             return subscription;
         }
