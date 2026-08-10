@@ -1,4 +1,5 @@
 import { DataSubscription, DataSyncController } from './ihp-datasync.js';
+import { jest } from '@jest/globals';
 
 function makeSubscription(records) {
     const query = {
@@ -72,6 +73,16 @@ describe('DataSubscription.onUpdate', () => {
 });
 
 describe('DataSubscription disconnect cleanup', () => {
+    beforeEach(() => {
+        jest.useFakeTimers();
+        DataSyncController.instance = null;
+    });
+
+    afterEach(() => {
+        jest.clearAllTimers();
+        jest.useRealTimers();
+    });
+
     test('removes an unused subscription locally after its socket was closed', async () => {
         const controller = DataSyncController.getInstance();
         const sub = makeSubscription([]);
@@ -84,14 +95,55 @@ describe('DataSubscription disconnect cleanup', () => {
         expect(sub.isConnected).toBe(false);
     });
 
-    test('schedules unused-subscription pruning before reconnect', async () => {
+    test('prunes an unused subscription after the React commit grace period', async () => {
+        const controller = DataSyncController.getInstance();
         const sub = makeSubscription([]);
-        let pruned = false;
-        sub.closeIfNotUsed = () => { pruned = true; };
+        controller.dataSubscriptions.push(sub);
 
         sub.onDataSyncClosed();
-        await new Promise(resolve => setTimeout(resolve, 0));
 
-        expect(pruned).toBe(true);
+        jest.advanceTimersByTime(999);
+        expect(controller.dataSubscriptions).toContain(sub);
+
+        jest.advanceTimersByTime(1);
+        await Promise.resolve();
+        expect(controller.dataSubscriptions).not.toContain(sub);
+    });
+
+    test('keeps a subscription when React commits before reconnect', () => {
+        const controller = DataSyncController.getInstance();
+        const sub = makeSubscription([]);
+        controller.dataSubscriptions.push(sub);
+
+        sub.onDataSyncClosed();
+        jest.advanceTimersByTime(100);
+        const unsubscribe = sub.subscribe(() => {});
+        jest.advanceTimersByTime(900);
+
+        expect(controller.dataSubscriptions).toContain(sub);
+        expect(sub.subscribers).toHaveLength(1);
+
+        unsubscribe();
+    });
+
+    test('notifies local stores only once when close is repeated', async () => {
+        const controller = DataSyncController.getInstance();
+        const sub = makeSubscription([]);
+        const replacement = makeSubscription([]);
+        const store = new Map([['test', sub]]);
+        let closeNotifications = 0;
+        sub.isClosed = true;
+        sub.onClose = () => {
+            closeNotifications++;
+            store.delete('test');
+        };
+        controller.dataSubscriptions.push(sub);
+
+        await sub.close();
+        store.set('test', replacement);
+        await sub.close();
+
+        expect(closeNotifications).toBe(1);
+        expect(store.get('test')).toBe(replacement);
     });
 });

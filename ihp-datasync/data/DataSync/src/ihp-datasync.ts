@@ -15,6 +15,8 @@ import type {
 } from './types.js';
 import { APPEND_NEW_RECORD, PREPEND_NEW_RECORD, NewRecordBehaviour } from './types.js';
 
+const UNUSED_SUBSCRIPTION_CLOSE_DELAY = 1000;
+
 type EventListeners = {
     [K in DataSyncEventType]: DataSyncEventMap[K][];
 };
@@ -270,6 +272,8 @@ class DataSubscription {
     newRecordBehaviour: number;
     optimisticCreatedPendingRecordIds: UUID[];
     optimisticUpdatedPendingRecordIds: Set<UUID>;
+    private closeNotificationSent: boolean;
+    private closeIfNotUsedTimeout: ReturnType<typeof setTimeout> | null;
 
     constructor(query: DynamicSQLQuery, options: DataSubscriptionOptions | null = null, cache: Map<string, DataRecord[]> | null = null) {
         if (typeof query !== "object" || !('table' in query)) {
@@ -310,6 +314,8 @@ class DataSubscription {
 
         this.optimisticCreatedPendingRecordIds = [];
         this.optimisticUpdatedPendingRecordIds = new Set();
+        this.closeNotificationSent = false;
+        this.closeIfNotUsedTimeout = null;
     }
 
     detectNewRecordBehaviour(): number {
@@ -386,13 +392,14 @@ class DataSubscription {
 
     async close(): Promise<void> {
         const dataSyncController = DataSyncController.getInstance();
+        this.cancelScheduledCloseIfNotUsed();
 
         if (this.isClosed) {
             // A dropped WebSocket marks every subscription as closed. There is
             // no server-side subscription left to delete, but an unused React
             // subscription still needs to be removed from the local store and
             // reconnect list.
-            this.onClose();
+            this.notifyClose();
             this.detachFromDataSyncController(dataSyncController);
             return;
         }
@@ -406,7 +413,7 @@ class DataSubscription {
         // Set isClosed early as we need to prevent a second close() from triggering another DeleteDataSubscription message
         // also we don't want to receive any further messages, and onMessage will not process if isClosed == true
         this.isClosed = true;
-        this.onClose();
+        this.notifyClose();
 
         try {
             await dataSyncController.sendMessage({ tag: 'DeleteDataSubscription', subscriptionId: this.subscriptionId });
@@ -427,16 +434,23 @@ class DataSubscription {
         this.isConnected = false;
     }
 
+    private notifyClose(): void {
+        if (this.closeNotificationSent) {
+            return;
+        }
+
+        this.closeNotificationSent = true;
+        this.onClose();
+    }
+
     onDataSyncClosed(): void {
         this.isClosed = true;
         this.isConnected = false;
 
-        // The controller reconnects after one second. Prune subscriptions that
-        // React no longer uses before that reconnect replays dataSubscriptions.
-        // Deferring by one task lets an in-flight React commit subscribe first.
-        setTimeout(() => {
-            this.closeIfNotUsed();
-        }, 0);
+        // The controller reconnects after one second. This timeout is registered
+        // before the reconnect timeout, so unused subscriptions are pruned first.
+        // A React commit that subscribes in the meantime cancels the cleanup.
+        this.scheduleCloseIfNotUsed();
     }
 
     async onDataSyncReconnect(): Promise<void> {
@@ -492,6 +506,7 @@ class DataSubscription {
     }
 
     subscribe(callback: (records: DataRecord[] | null) => void): () => void {
+        this.cancelScheduledCloseIfNotUsed();
         this.subscribers.push(callback);
 
         return () => {
@@ -502,8 +517,23 @@ class DataSubscription {
 
             // We delay the close as react could be re-rendering a component
             // we garbage collect this connecetion once it's clearly not used anymore
-            setTimeout(this.closeIfNotUsed.bind(this), 1000);
+            this.scheduleCloseIfNotUsed();
         };
+    }
+
+    scheduleCloseIfNotUsed(): void {
+        this.cancelScheduledCloseIfNotUsed();
+        this.closeIfNotUsedTimeout = setTimeout(() => {
+            this.closeIfNotUsedTimeout = null;
+            this.closeIfNotUsed();
+        }, UNUSED_SUBSCRIPTION_CLOSE_DELAY);
+    }
+
+    private cancelScheduledCloseIfNotUsed(): void {
+        if (this.closeIfNotUsedTimeout !== null) {
+            clearTimeout(this.closeIfNotUsedTimeout);
+            this.closeIfNotUsedTimeout = null;
+        }
     }
 
     updateSubscribers(): void {
