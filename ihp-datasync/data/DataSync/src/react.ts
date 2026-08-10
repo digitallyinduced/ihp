@@ -1,7 +1,20 @@
 import React, { useState, useEffect, useContext, useSyncExternalStore, useRef, useMemo } from 'react';
-import { DataSubscription, DataSyncController } from './ihp-datasync.js';
+import { DataSyncController } from './ihp-datasync.js';
+import type { DataSyncQuerySubscription } from './ihp-datasync.js';
 import { QueryBuilder } from './ihp-querybuilder.js';
-import type { DataRecord, DynamicSQLQuery, DataSubscriptionOptions, DataSyncEventMap, ServerMessage, TableName } from './types.js';
+import { APPEND_NEW_RECORD, PREPEND_NEW_RECORD } from './types.js';
+import type { DataRecord, DynamicSQLQuery, DataSubscriptionOptions, DataSyncEventMap, ServerMessage, UUID } from './types.js';
+
+type QueryState = {
+    key: string;
+    records: DataRecord[] | null;
+    error: Error | null;
+};
+
+// Keep the last result around when navigating away from and back to a page.
+// The server result always replaces this potentially stale value after the
+// subscription has connected.
+const queryCache: Map<string, DataRecord[]> = new Map();
 
 // Most IHP apps never use this context because they use session cookies for auth.
 // Therefore the default value is true.
@@ -13,19 +26,215 @@ export const AuthCompletedContext = React.createContext<boolean>(true);
  * const messages = useQuery(query('messages').orderBy('createdAt'));
  */
 export function useQuery<TTable extends string, TResult>(queryBuilder: QueryBuilder<TTable, TResult>, options: DataSubscriptionOptions | null = null): TResult[] | null {
-    const dataSubscription = DataSubscriptionStore.get(queryBuilder.query, options);
     const isAuthCompleted = useContext(AuthCompletedContext);
-    const records = useSyncExternalStore(dataSubscription.subscribe, dataSubscription.getRecords);
+    const query = queryBuilder.query;
+    const queryKey = JSON.stringify(query);
+    const subscriptionKey = JSON.stringify([query, options]);
+    const cachedRecords = queryCache.get(queryKey) ?? null;
+    const [queryState, setQueryState] = useState<QueryState>(() => ({
+        key: subscriptionKey,
+        records: cachedRecords,
+        error: null,
+    }));
+    const currentQueryState = queryState.key === subscriptionKey
+        ? queryState
+        : { key: subscriptionKey, records: cachedRecords, error: null };
 
-    if (dataSubscription.connectError) {
-        throw dataSubscription.connectError;
+    useEffect(() => {
+        const controller = DataSyncController.getInstance();
+        const initialRecords = queryCache.get(queryKey) ?? null;
+        const optimisticCreatedPendingRecordIds: UUID[] = [];
+        const optimisticUpdatedPendingRecordIds = new Set<UUID>();
+        const newRecordBehaviour = options?.newRecordBehaviour ?? detectNewRecordBehaviour(query);
+        let records = initialRecords;
+        let subscriptionId: UUID | null = null;
+        let createGeneration = 0;
+        let isActive = true;
+        let isRegisteredForOptimisticUpdates = false;
+
+        const publish = (newRecords: DataRecord[] | null): void => {
+            records = newRecords;
+            if (newRecords !== null) {
+                queryCache.set(queryKey, newRecords);
+            }
+            if (isActive) {
+                setQueryState({ key: subscriptionKey, records: newRecords, error: null });
+            }
+        };
+
+        const onUpdate = (id: UUID, changeSet: Record<string, unknown> | null, appendSet: Record<string, unknown> | null): void => {
+            if (records === null) {
+                optimisticUpdatedPendingRecordIds.delete(id);
+                return;
+            }
+
+            const shouldApplyAppendSet = !optimisticUpdatedPendingRecordIds.has(id);
+            const updatedRecords = records.map(record => {
+                if (record.id !== id) {
+                    return record;
+                }
+
+                const updated = Object.assign({}, record, changeSet);
+                if (appendSet && shouldApplyAppendSet) {
+                    for (const [key, value] of Object.entries(appendSet)) {
+                        updated[key] = (typeof updated[key] === 'string' ? updated[key] : '') + String(value);
+                    }
+                }
+                return updated;
+            });
+
+            optimisticUpdatedPendingRecordIds.delete(id);
+            publish(updatedRecords);
+        };
+
+        const onCreate = (newRecord: DataRecord): void => {
+            if (records === null) {
+                return;
+            }
+
+            const pendingRecordIndex = optimisticCreatedPendingRecordIds.indexOf(newRecord.id);
+            if (pendingRecordIndex !== -1) {
+                onUpdate(newRecord.id, newRecord, null);
+                optimisticCreatedPendingRecordIds.splice(pendingRecordIndex, 1);
+                return;
+            }
+
+            const shouldAppend = newRecordBehaviour === APPEND_NEW_RECORD;
+            publish(shouldAppend ? [...records, newRecord] : [newRecord, ...records]);
+        };
+
+        const subscription: DataSyncQuerySubscription = {
+            query,
+            optimisticUpdatedPendingRecordIds,
+            getRecords: () => records,
+            onUpdate,
+            onCreate,
+            onCreateOptimistic: (newRecord: DataRecord): void => {
+                onCreate(newRecord);
+                optimisticCreatedPendingRecordIds.push(newRecord.id);
+            },
+            onDelete: (id: UUID): void => {
+                if (records !== null) {
+                    publish(records.filter(record => record.id !== id));
+                }
+            },
+        };
+
+        const removeFromOptimisticUpdateRegistry = (): void => {
+            if (!isRegisteredForOptimisticUpdates) {
+                return;
+            }
+
+            const index = controller.dataSubscriptions.indexOf(subscription);
+            if (index !== -1) {
+                controller.dataSubscriptions.splice(index, 1);
+            }
+            isRegisteredForOptimisticUpdates = false;
+        };
+
+        const deleteSubscriptionOnServer = async (id: UUID): Promise<void> => {
+            try {
+                await controller.sendMessage({ tag: 'DeleteDataSubscription', subscriptionId: id });
+            } catch (error) {
+                console.error('useQuery: Failed to delete data subscription', error);
+            }
+        };
+
+        const createSubscriptionOnServer = async (): Promise<void> => {
+            const generation = ++createGeneration;
+            try {
+                const response = await controller.sendMessage({ tag: 'CreateDataSubscription', query });
+                const createdSubscriptionId = response.subscriptionId as UUID;
+
+                if (!isActive || generation !== createGeneration) {
+                    await deleteSubscriptionOnServer(createdSubscriptionId);
+                    return;
+                }
+
+                subscriptionId = createdSubscriptionId;
+                publish(response.result as DataRecord[]);
+                controller.learnOptimisticShapeFromResult(query.table, response.result as DataRecord[]);
+
+                if (!isRegisteredForOptimisticUpdates) {
+                    controller.dataSubscriptions.push(subscription);
+                    isRegisteredForOptimisticUpdates = true;
+                }
+            } catch (error) {
+                if (!isActive || generation !== createGeneration) {
+                    return;
+                }
+
+                const connectError = error as Error;
+                setQueryState({
+                    key: subscriptionKey,
+                    records,
+                    error: new Error(connectError.message + ' while trying to subscribe to:\n' + JSON.stringify(query, null, 4)),
+                });
+            }
+        };
+
+        const onMessage: DataSyncEventMap['message'] = (message: ServerMessage) => {
+            if (message.subscriptionId !== subscriptionId) {
+                return;
+            }
+
+            if (message.tag === 'DidUpdate') {
+                onUpdate(message.id as UUID, message.changeSet as Record<string, unknown> | null, message.appendSet as Record<string, unknown> | null);
+            } else if (message.tag === 'DidInsert') {
+                onCreate(message.record as DataRecord);
+            } else if (message.tag === 'DidDelete') {
+                subscription.onDelete(message.id as UUID);
+            }
+        };
+        const onClose: DataSyncEventMap['close'] = () => {
+            createGeneration++;
+            subscriptionId = null;
+        };
+        const onReconnect: DataSyncEventMap['reconnect'] = () => {
+            void createSubscriptionOnServer();
+        };
+
+        setQueryState({ key: subscriptionKey, records: initialRecords, error: null });
+        controller.addEventListener('message', onMessage);
+        controller.addEventListener('close', onClose);
+        controller.addEventListener('reconnect', onReconnect);
+        void createSubscriptionOnServer();
+
+        return () => {
+            isActive = false;
+            createGeneration++;
+            controller.removeEventListener('message', onMessage);
+            controller.removeEventListener('close', onClose);
+            controller.removeEventListener('reconnect', onReconnect);
+            removeFromOptimisticUpdateRegistry();
+
+            if (subscriptionId !== null) {
+                const activeSubscriptionId = subscriptionId;
+                subscriptionId = null;
+                void deleteSubscriptionOnServer(activeSubscriptionId);
+            }
+        };
+    }, [subscriptionKey]);
+
+    if (currentQueryState.error) {
+        throw currentQueryState.error;
     }
 
     if (!isAuthCompleted) {
         return null;
     }
 
-    return records as TResult[] | null;
+    return currentQueryState.records as TResult[] | null;
+}
+
+function detectNewRecordBehaviour(query: DynamicSQLQuery): number {
+    const firstOrderBy = query.orderByClause[0];
+    const isOrderByCreatedAtDesc = firstOrderBy
+        && 'orderByColumn' in firstOrderBy
+        && firstOrderBy.orderByColumn === 'createdAt'
+        && firstOrderBy.orderByDirection === 'Desc';
+
+    return isOrderByCreatedAtDesc ? PREPEND_NEW_RECORD : APPEND_NEW_RECORD;
 }
 
 /**
@@ -61,46 +270,6 @@ export function useIsConnected(): boolean {
     }, [setConnected]);
 
     return isConnected;
-}
-
-export class DataSubscriptionStore {
-    static queryMap: Map<string, DataSubscription> = new Map();
-
-    // To avoid too many loading spinners when going backwards and forwards
-    // between pages, we cache the result of queries so we can already showing
-    // some data directly after a page transition. The data might be a bit
-    // outdated, but it will directly be overriden with the latest server state
-    // once it has arrived.
-    static cache: Map<string, DataRecord[]> = new Map();
-
-    static get(query: DynamicSQLQuery, options: DataSubscriptionOptions | null = null): DataSubscription {
-        const key = JSON.stringify(query) + JSON.stringify(options);
-        const existingSubscription = DataSubscriptionStore.queryMap.get(key);
-
-        if (existingSubscription) {
-            return existingSubscription;
-        } else {
-
-            const subscription = new DataSubscription(query, options, DataSubscriptionStore.cache);
-            subscription.createOnServer();
-            subscription.onClose = () => {
-                if (DataSubscriptionStore.queryMap.get(key) === subscription) {
-                    DataSubscriptionStore.queryMap.delete(key);
-                }
-            };
-
-            DataSubscriptionStore.queryMap.set(key, subscription);
-
-            // If the query changes very rapid in `useQuery` it can happen that the `dataSubscription.subscribe`
-            // is never called at all. In this case we have a unused DataSubscription laying around. We avoid
-            // to many open connections laying around by trying to close them a second after opening them.
-            // A second is enough time for react to call the subscribe function. If it's not called by then,
-            // we most likely deal with a dead subscription, so we close it.
-            subscription.scheduleCloseIfNotUsed();
-
-            return subscription;
-        }
-    }
 }
 
 export function useCount(queryBuilder: QueryBuilder): number | null {

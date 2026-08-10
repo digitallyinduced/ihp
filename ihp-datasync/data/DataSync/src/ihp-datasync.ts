@@ -15,11 +15,25 @@ import type {
 } from './types.js';
 import { APPEND_NEW_RECORD, PREPEND_NEW_RECORD, NewRecordBehaviour } from './types.js';
 
-const UNUSED_SUBSCRIPTION_CLOSE_DELAY = 1000;
-
 type EventListeners = {
     [K in DataSyncEventType]: DataSyncEventMap[K][];
 };
+
+/**
+ * A live query result that can receive optimistic CRUD updates.
+ *
+ * React's useQuery implements this interface directly, while DataSubscription
+ * implements it for the imperative query(...).subscribe(...) API.
+ */
+export interface DataSyncQuerySubscription {
+    query: DynamicSQLQuery;
+    optimisticUpdatedPendingRecordIds: Set<UUID>;
+    getRecords(): DataRecord[] | null;
+    onUpdate(id: UUID, changeSet: Record<string, unknown> | null, appendSet: Record<string, unknown> | null): void;
+    onCreate(newRecord: DataRecord): void;
+    onCreateOptimistic(newRecord: DataRecord): void;
+    onDelete(id: UUID): void;
+}
 
 class DataSyncController {
     static instance: DataSyncController | null = null;
@@ -55,7 +69,7 @@ class DataSyncController {
     outbox: string[];
     reconnectTimeout: ReturnType<typeof setTimeout> | null;
     pendingRequestTimeout: ReturnType<typeof setTimeout> | null;
-    dataSubscriptions: DataSubscription[];
+    dataSubscriptions: DataSyncQuerySubscription[];
     optimisticCreatedPendingRecordIds: UUID[];
     optimisticCreatedNeedsCreatedAtField: Set<string>;
     messageTimeout: number;
@@ -257,7 +271,7 @@ class DataSyncController {
     }
 }
 
-class DataSubscription {
+class DataSubscription implements DataSyncQuerySubscription {
     query: DynamicSQLQuery;
     createOnServerPromise: Promise<DataRecord[]>;
     resolveCreateOnServer!: (value: DataRecord[]) => void;
@@ -268,14 +282,12 @@ class DataSubscription {
     subscriptionId: UUID | null;
     subscribers: Array<(records: DataRecord[] | null) => void>;
     records: DataRecord[] | null;
-    cache: Map<string, DataRecord[]> | null;
     newRecordBehaviour: number;
     optimisticCreatedPendingRecordIds: UUID[];
     optimisticUpdatedPendingRecordIds: Set<UUID>;
-    private closeNotificationSent: boolean;
-    private closeIfNotUsedTimeout: ReturnType<typeof setTimeout> | null;
+    private createOnServerGeneration: number;
 
-    constructor(query: DynamicSQLQuery, options: DataSubscriptionOptions | null = null, cache: Map<string, DataRecord[]> | null = null) {
+    constructor(query: DynamicSQLQuery, options: DataSubscriptionOptions | null = null) {
         if (typeof query !== "object" || !('table' in query)) {
             throw new Error("Query passed to `new DataSubscription(..)` doesn't look like a query object. If you're using the `query()` functions to costruct the object, make sure you pass the `.query` property, like this: `new DataSubscription(query('my_table').orderBy('createdAt').query)`");
         }
@@ -290,18 +302,7 @@ class DataSubscription {
         this.connectError = null;
         this.subscriptionId = null;
         this.subscribers = [];
-
-        if (cache) {
-            const cacheResults = cache.get(JSON.stringify(query));
-            if (cacheResults !== undefined) {
-                this.records = cacheResults;
-            } else {
-                this.records = null;
-            }
-        } else {
-            this.records = null;
-        }
-        this.cache = cache;
+        this.records = null;
 
         this.getRecords = this.getRecords.bind(this);
         this.subscribe = this.subscribe.bind(this);
@@ -314,8 +315,7 @@ class DataSubscription {
 
         this.optimisticCreatedPendingRecordIds = [];
         this.optimisticUpdatedPendingRecordIds = new Set();
-        this.closeNotificationSent = false;
-        this.closeIfNotUsedTimeout = null;
+        this.createOnServerGeneration = 0;
     }
 
     detectNewRecordBehaviour(): number {
@@ -337,10 +337,16 @@ class DataSubscription {
 
     async createOnServer(): Promise<void> {
         const dataSyncController = DataSyncController.getInstance();
+        const createOnServerGeneration = this.createOnServerGeneration;
         try {
             const response = await dataSyncController.sendMessage({ tag: 'CreateDataSubscription', query: this.query });
             const subscriptionId = response.subscriptionId as UUID;
             const result = response.result as DataRecord[];
+
+            if (createOnServerGeneration !== this.createOnServerGeneration) {
+                await this.deleteStaleDataSubscription(dataSyncController, subscriptionId);
+                return;
+            }
 
             this.subscriptionId = subscriptionId;
 
@@ -392,14 +398,12 @@ class DataSubscription {
 
     async close(): Promise<void> {
         const dataSyncController = DataSyncController.getInstance();
-        this.cancelScheduledCloseIfNotUsed();
 
         if (this.isClosed) {
-            // A dropped WebSocket marks every subscription as closed. There is
-            // no server-side subscription left to delete, but an unused React
-            // subscription still needs to be removed from the local store and
-            // reconnect list.
-            this.notifyClose();
+            this.createOnServerGeneration++;
+            // A dropped WebSocket leaves no server-side subscription to delete.
+            // The local subscription still needs to be removed from the
+            // optimistic-update registry and reconnect listeners.
             this.detachFromDataSyncController(dataSyncController);
             return;
         }
@@ -412,8 +416,8 @@ class DataSubscription {
 
         // Set isClosed early as we need to prevent a second close() from triggering another DeleteDataSubscription message
         // also we don't want to receive any further messages, and onMessage will not process if isClosed == true
+        this.createOnServerGeneration++;
         this.isClosed = true;
-        this.notifyClose();
 
         try {
             await dataSyncController.sendMessage({ tag: 'DeleteDataSubscription', subscriptionId: this.subscriptionId });
@@ -434,23 +438,18 @@ class DataSubscription {
         this.isConnected = false;
     }
 
-    private notifyClose(): void {
-        if (this.closeNotificationSent) {
-            return;
+    private async deleteStaleDataSubscription(dataSyncController: DataSyncController, subscriptionId: UUID): Promise<void> {
+        try {
+            await dataSyncController.sendMessage({ tag: 'DeleteDataSubscription', subscriptionId });
+        } catch (error) {
+            console.error('Failed to delete a DataSubscription created after it was closed:', error);
         }
-
-        this.closeNotificationSent = true;
-        this.onClose();
     }
 
     onDataSyncClosed(): void {
+        this.createOnServerGeneration++;
         this.isClosed = true;
         this.isConnected = false;
-
-        // The controller reconnects after one second. This timeout is registered
-        // before the reconnect timeout, so unused subscriptions are pruned first.
-        // A React commit that subscribes in the meantime cancels the cleanup.
-        this.scheduleCloseIfNotUsed();
     }
 
     async onDataSyncReconnect(): Promise<void> {
@@ -506,7 +505,6 @@ class DataSubscription {
     }
 
     subscribe(callback: (records: DataRecord[] | null) => void): () => void {
-        this.cancelScheduledCloseIfNotUsed();
         this.subscribers.push(callback);
 
         return () => {
@@ -515,31 +513,11 @@ class DataSubscription {
                 this.subscribers.splice(index, 1);
             }
 
-            // We delay the close as react could be re-rendering a component
-            // we garbage collect this connecetion once it's clearly not used anymore
-            this.scheduleCloseIfNotUsed();
+            this.closeIfNotUsed();
         };
     }
 
-    scheduleCloseIfNotUsed(): void {
-        this.cancelScheduledCloseIfNotUsed();
-        this.closeIfNotUsedTimeout = setTimeout(() => {
-            this.closeIfNotUsedTimeout = null;
-            this.closeIfNotUsed();
-        }, UNUSED_SUBSCRIPTION_CLOSE_DELAY);
-    }
-
-    private cancelScheduledCloseIfNotUsed(): void {
-        if (this.closeIfNotUsedTimeout !== null) {
-            clearTimeout(this.closeIfNotUsedTimeout);
-            this.closeIfNotUsedTimeout = null;
-        }
-    }
-
     updateSubscribers(): void {
-        if (this.cache) {
-            this.cache.set(JSON.stringify(this.query), this.records!);
-        }
         for (const subscriber of this.subscribers) {
             subscriber(this.records);
         }
@@ -549,20 +527,14 @@ class DataSubscription {
         return this.records;
     }
 
-    /**
-     * If there's no subscriber on this DataSubscription, we will close it.
-     */
+    /** Closes an imperative subscription after its last subscriber leaves. */
     closeIfNotUsed(): void {
         const isUsed = this.subscribers.length > 0;
         if (isUsed) {
             return;
         }
 
-        this.close();
-    }
-
-    onClose(): void {
-        // Overriden by the react 18 integration to remove the closed connection from the DataSubscriptionStore
+        void this.close();
     }
 }
 
@@ -854,7 +826,7 @@ function deleteRecordOptimistic<T extends TableName>(table: T, id: UUID): () => 
             continue;
         }
 
-        const deletedRecord = dataSubscription.records!.find(record => record.id === id);
+        const deletedRecord = dataSubscription.getRecords()?.find(record => record.id === id);
         if (deletedRecord) {
             dataSubscription.onDelete(id);
             undoOperations.push(() => dataSubscription.onCreate(deletedRecord));
