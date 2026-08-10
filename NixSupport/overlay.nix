@@ -113,12 +113,20 @@ let
             # postgresql-simple-postgresql-types and hasql-mapping are unbroken in
             # the pinned nixpkgs, so no markUnbroken overrides are needed.
 
+            # The PostGIS-enabled postgresql-types source below still requires
+            # postgresql-types-algebra <0.2. nixpkgs has moved to 0.2, so retain
+            # the compatible 0.1 release until that source updates its bounds.
+            postgresql-types-algebra = final.haskell.lib.doJailbreak
+                (hackagePackage "postgresql-types-algebra");
+
             # postgresql-types with PostGIS Geometry (merged in
             # nikita-volkov/postgresql-types#69). Pin to git master until a
             # Hackage release ships Geometry; cabal version is still 0.1.3.2.
             # dontCheck: tests need a live PostgreSQL server.
             postgresql-types = final.haskell.lib.overrideCabal
-                (final.haskell.lib.dontCheck super.postgresql-types)
+                (final.haskell.lib.addBuildDepend
+                    (final.haskell.lib.dontCheck super.postgresql-types)
+                    self.postgresql-types-algebra)
                 (old: {
                     version = "0.1.3.2";
                     src = builtins.fetchTarball {
