@@ -118,6 +118,10 @@ let
             # the compatible 0.1 release until that source updates its bounds.
             postgresql-types-algebra = final.haskell.lib.doJailbreak
                 (hackagePackage "postgresql-types-algebra");
+            postgresql-simple-postgresql-types = final.haskell.lib.dontCheck
+                (hackagePackage "postgresql-simple-postgresql-types");
+            hasql-postgresql-types = final.haskell.lib.doJailbreak
+                (hackagePackage "hasql-postgresql-types");
 
             # postgresql-types with PostGIS Geometry (merged in
             # nikita-volkov/postgresql-types#69). Pin to git master until a
