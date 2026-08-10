@@ -70,7 +70,11 @@ that is defined in flake-module.nix
             // {
                 ihp-hsx-bench = (pkgs.haskell.lib.doBenchmark pkgs.ghc.ihp-hsx).overrideAttrs (old: {
                     postCheck = (old.postCheck or "") + ''
-                        ./Setup bench --benchmark-options='+RTS -T -RTS --csv bench-results.csv'
+                        # The shared ARM runner concurrently builds the multi-GHC
+                        # checks. Keep tasty-bench's per-case timeout above its
+                        # 100s default so transient runner load does not turn an
+                        # allocation-regression check into a timing failure.
+                        ./Setup bench --benchmark-options='+RTS -T -RTS --timeout 300s --csv bench-results.csv'
 
                         # Compare allocations (column 4) against baseline.
                         # Allocations are deterministic — same code = same count — so
