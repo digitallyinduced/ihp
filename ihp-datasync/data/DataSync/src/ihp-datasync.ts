@@ -385,7 +385,15 @@ class DataSubscription {
     }
 
     async close(): Promise<void> {
+        const dataSyncController = DataSyncController.getInstance();
+
         if (this.isClosed) {
+            // A dropped WebSocket marks every subscription as closed. There is
+            // no server-side subscription left to delete, but an unused React
+            // subscription still needs to be removed from the local store and
+            // reconnect list.
+            this.onClose();
+            this.detachFromDataSyncController(dataSyncController);
             return;
         }
 
@@ -400,9 +408,14 @@ class DataSubscription {
         this.isClosed = true;
         this.onClose();
 
-        const dataSyncController = DataSyncController.getInstance();
-        await dataSyncController.sendMessage({ tag: 'DeleteDataSubscription', subscriptionId: this.subscriptionId });
+        try {
+            await dataSyncController.sendMessage({ tag: 'DeleteDataSubscription', subscriptionId: this.subscriptionId });
+        } finally {
+            this.detachFromDataSyncController(dataSyncController);
+        }
+    }
 
+    private detachFromDataSyncController(dataSyncController: DataSyncController): void {
         dataSyncController.removeEventListener('message', this.onMessage);
         dataSyncController.removeEventListener('close', this.onDataSyncClosed);
         dataSyncController.removeEventListener('reconnect', this.onDataSyncReconnect);
@@ -417,6 +430,13 @@ class DataSubscription {
     onDataSyncClosed(): void {
         this.isClosed = true;
         this.isConnected = false;
+
+        // The controller reconnects after one second. Prune subscriptions that
+        // React no longer uses before that reconnect replays dataSubscriptions.
+        // Deferring by one task lets an in-flight React commit subscribe first.
+        setTimeout(() => {
+            this.closeIfNotUsed();
+        }, 0);
     }
 
     async onDataSyncReconnect(): Promise<void> {

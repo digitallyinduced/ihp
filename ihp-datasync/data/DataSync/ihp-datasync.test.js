@@ -1,4 +1,4 @@
-import { DataSubscription } from './ihp-datasync.js';
+import { DataSubscription, DataSyncController } from './ihp-datasync.js';
 
 function makeSubscription(records) {
     const query = {
@@ -68,5 +68,30 @@ describe('DataSubscription.onUpdate', () => {
         // Subsequent append should work normally (flag cleared)
         sub.onUpdate('1', null, { name: '456' });
         expect(sub.records[0].name).toBe('Anrufbeantworter123456');
+    });
+});
+
+describe('DataSubscription disconnect cleanup', () => {
+    test('removes an unused subscription locally after its socket was closed', async () => {
+        const controller = DataSyncController.getInstance();
+        const sub = makeSubscription([]);
+        sub.isClosed = true;
+        controller.dataSubscriptions.push(sub);
+
+        await sub.close();
+
+        expect(controller.dataSubscriptions).not.toContain(sub);
+        expect(sub.isConnected).toBe(false);
+    });
+
+    test('schedules unused-subscription pruning before reconnect', async () => {
+        const sub = makeSubscription([]);
+        let pruned = false;
+        sub.closeIfNotUsed = () => { pruned = true; };
+
+        sub.onDataSyncClosed();
+        await new Promise(resolve => setTimeout(resolve, 0));
+
+        expect(pruned).toBe(true);
     });
 });
