@@ -2,9 +2,11 @@
 
 ## Unreleased
 
-- Added ModelContext-free TypedSQL execution APIs for converting queries to
-  Hasql statements or sessions, or running them directly on an explicit Hasql
-  pool. The existing IHP-aware helpers remain unchanged.
+- Added `IHP.TypedSql.Hasql`, a request-context-independent API for converting
+  typed queries to Hasql statements, sessions, and pipelines, or running them
+  directly on a caller-managed Hasql pool. Pool runners expose Hasql's native
+  `Either UsageError` result, while the existing IHP-aware helpers remain
+  unchanged.
 
 - Each compiler process now uses a compact private compile-time PostgreSQL
   cluster under the worktree's `.devenv/state` directory. PostgreSQL stops after
