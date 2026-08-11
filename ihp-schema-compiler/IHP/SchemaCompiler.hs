@@ -363,7 +363,7 @@ defaultImports = [trimming|
     import qualified Control.DeepSeq as DeepSeq
     import qualified Data.Dynamic
     import Data.Scientific
-    import IHP.Hasql.FromRow (FromRowHasql(..))
+    import IHP.Hasql.FromRow (FromRowHasql(..), FromRowHasqlNullable(..))
     import qualified Hasql.Decoders as Decoders
     import qualified Hasql.Encoders
     import qualified Hasql.Implicits.Encoders
@@ -912,6 +912,9 @@ compileFromRowHasqlInstance table@(CreateTable { name, columns }) =
         rowDecoderModule = "Generated.Statements.RowDecoder" <> tableNameToModelName name
     in cs [i|instance FromRowHasql #{modelName} where
     hasqlRowDecoder = #{rowDecoderModule}.rowDecoder
+
+instance FromRowHasqlNullable #{modelName} where
+    hasqlNullableRowDecoder = #{rowDecoderModule}.nullableRowDecoder
 |]
 
 compileFromRowQueryBuilder :: (?schema :: Schema) => CreateTable -> (Text, Text, Maybe Text) -> Text
@@ -966,6 +969,24 @@ hasqlColumnDecoder table column@Column { name, columnType, notNull, generator } 
 
         baseDecoder = hasqlValueDecoder columnType
         decoder = if needsIdWrapper then "Mapping.decoder" else baseDecoder
+
+-- | Decode a model column on the nullable side of an outer join. PostgreSQL
+-- returns NULL for every column when the joined row is absent, including
+-- columns which are NOT NULL in the underlying table.
+hasqlNullableColumnDecoder :: (?schema :: Schema) => CreateTable -> Column -> Text
+hasqlNullableColumnDecoder table column@Column { name, columnType } =
+    "Decoders.column (Decoders.nullable " <> decoder <> ")"
+    where
+        -- A single-column primary key is represented as Id' table. Composite
+        -- key components keep their scalar types, matching hasqlColumnDecoder.
+        isPrimaryKey = [name] == primaryKeyColumnNames table.primaryKeyConstraint
+        isForeignKey = isJust (findForeignKeyConstraint table column)
+        decoder = if isPrimaryKey || isForeignKey then "Mapping.decoder" else hasqlValueDecoder columnType
+
+hasqlColumnIsNullable :: CreateTable -> Column -> Bool
+hasqlColumnIsNullable table Column { name, notNull, generator } =
+    let isPrimaryKey = name `elem` primaryKeyColumnNames table.primaryKeyConstraint
+    in not isPrimaryKey && (not notNull || isJust generator)
 
 hasqlValueDecoder :: PostgresType -> Text
 hasqlValueDecoder = \case
@@ -1431,20 +1452,45 @@ compileRowDecoderModule table@(CreateTable { name }) =
         isOneToManyField fieldName = fieldName `elem` (map fst referencingWithFieldNames)
 
         columnBindings = map (\col -> "    " <> columnNameToFieldName col.name <> " <- " <> hasqlColumnDecoder table col) columns
+        nullableColumnBindings = map (\col -> "    " <> columnNameToFieldName col.name <> " <- " <> hasqlNullableColumnDecoder table col) columns
         constructorArgs = intercalate " " (map compileField (dataFields table))
+        nullableCompileField (fieldName, _)
+            | Just column <- find (\column -> columnNameToFieldName column.name == fieldName) columns =
+                if hasqlColumnIsNullable table column then fieldName else fieldName <> "Value"
+            | isOneToManyField fieldName = let (Just (_, ref)) = find (\(n, _) -> n == fieldName) referencingWithFieldNames in compileFromRowQueryBuilder table ref
+            | fieldName == "meta" = "def { originalDatabaseRecord = Just (Data.Dynamic.toDyn theRecord) }"
+            | otherwise = "def"
+        nullableConstructorArgs = intercalate " " (map nullableCompileField (dataFields table))
+        requiredFieldNames = columns
+            |> filter (not . hasqlColumnIsNullable table)
+            |> map (columnNameToFieldName . (.name))
+        presentPattern = case requiredFieldNames of
+            [fieldName] -> "Just " <> fieldName <> "Value"
+            fieldNames -> "(" <> intercalate ", " (map (\fieldName -> "Just " <> fieldName <> "Value") fieldNames) <> ")"
+        presentExpression = case requiredFieldNames of
+            [fieldName] -> fieldName
+            fieldNames -> "(" <> intercalate ", " fieldNames <> ")"
         -- The recursive let (theRecord references itself via toDyn) must be inside
         -- the pure expression, not as a do-block let statement, because GHC's
         -- ApplicativeDo cannot desugar recursive do-block lets and Decoders.Row
         -- has no Monad instance. A let-in inside pure(...) is just a pure Haskell
         -- expression that ApplicativeDo doesn't need to analyze.
         pureExpr = "    pure (let theRecord = " <> qualifiedConstructorNameFromTableName name <> " " <> constructorArgs <> " in theRecord)"
+        nullablePureExpr = "    pure (case " <> presentExpression <> " of\n"
+            <> "        " <> presentPattern <> " -> Just (let theRecord = " <> qualifiedConstructorNameFromTableName name <> " " <> nullableConstructorArgs <> " in theRecord)\n"
+            <> "        _ -> Nothing)"
     in "{-# LANGUAGE ApplicativeDo, OverloadedLabels, TypeApplications, ScopedTypeVariables #-}\n"
-        <> statementModuleHeader table moduleName ["rowDecoder"] extraImports
+        <> statementModuleHeader table moduleName ["rowDecoder", "nullableRowDecoder"] extraImports
         <> Text.unlines
         ([ "rowDecoder :: Decoders.Row " <> qualifiedModelName
          , "rowDecoder = do"
          ] <> columnBindings <>
          [ pureExpr
+         , ""
+         , "nullableRowDecoder :: Decoders.Row (Maybe " <> qualifiedModelName <> ")"
+         , "nullableRowDecoder = do"
+         ] <> nullableColumnBindings <>
+         [ nullablePureExpr
          ])
 
 compileCreateStatement :: (?schema :: Schema, ?compilerOptions :: CompilerOptions) => CreateTable -> Text
@@ -1733,4 +1779,3 @@ compileDynamicCreateManyStatement moduleName qualifiedModelName tableName writab
         , "decoder :: Decoders.Result [" <> qualifiedModelName <> "]"
         , "decoder = Decoders.rowList RowDecoder.rowDecoder"
         ]
-

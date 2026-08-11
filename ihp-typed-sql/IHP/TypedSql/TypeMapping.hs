@@ -6,6 +6,9 @@ module IHP.TypedSql.TypeMapping
     , hsTypeForColumn
     , hsTypesForColumns
     , detectFullTable
+    , FullTableSelection (..)
+    , detectFullTableSelections
+    , hsTypeForFullTableSelections
     ) where
 
 import           Control.Monad            (guard, zipWithM)
@@ -27,6 +30,13 @@ import           PostgresqlTypes.Tsvector (Tsvector)
 import           PostgresqlTypes.Interval (Interval)
 
 import           IHP.TypedSql.Metadata    (ColumnMeta (..), DescribeColumn (..), PgTypeInfo (..), TableMeta (..))
+
+-- | One qualified @table.*@ result group.
+data FullTableSelection = FullTableSelection
+    { ftsTableName :: !Text
+    , ftsNullable  :: !Bool
+    , ftsColumns   :: ![DescribeColumn]
+    }
 
 -- | Build the Haskell type for a parameter, based on its OID.
 -- High-level: map a PG type OID into a TH Type.
@@ -74,6 +84,35 @@ detectFullTable tables cols = do
             TableMeta { tmName } <- Map.lookup tableOid tables
             pure tmName
         _ -> Nothing
+
+-- | Match qualified stars against the described PostgreSQL columns. The
+-- expected width of every table lets this distinguish aliases in a self join,
+-- even though libpq reports the same table OID for both result groups.
+detectFullTableSelections :: Map.Map PQ.Oid TableMeta -> [(Text, Bool)] -> [DescribeColumn] -> Maybe [FullTableSelection]
+detectFullTableSelections tables requested columns = go requested columns
+  where
+    go [] [] = Just []
+    go [] _ = Nothing
+    go ((tableName, nullable):rest) remaining = do
+        (tableOid, TableMeta { tmColumnOrder }) <-
+            find (\(_, TableMeta { tmName }) -> tmName == tableName) (Map.toList tables)
+        let (tableColumns, remainingColumns) = List.splitAt (length tmColumnOrder) remaining
+        guard (length tableColumns == length tmColumnOrder)
+        guard (all ((== tableOid) . dcTable) tableColumns)
+        guard (mapMaybe dcAttnum tableColumns == tmColumnOrder)
+        following <- go rest remainingColumns
+        pure (FullTableSelection tableName nullable tableColumns : following)
+
+-- | Build the model or model-tuple type represented by qualified stars.
+hsTypeForFullTableSelections :: [FullTableSelection] -> TH.Type
+hsTypeForFullTableSelections selections =
+    case map selectionType selections of
+        [single] -> single
+        types -> foldl TH.AppT (TH.TupleT (length types)) types
+  where
+    selectionType FullTableSelection { ftsTableName, ftsNullable } =
+        let modelType = TH.ConT (TH.mkName (CS.cs (tableNameToModelName ftsTableName)))
+        in if ftsNullable then TH.AppT (TH.ConT ''Maybe) modelType else modelType
 
 -- | Map a single column into a Haskell type, with key-aware rules.
 -- The @forceNonNull@ flag overrides the nullable fallback for computed columns

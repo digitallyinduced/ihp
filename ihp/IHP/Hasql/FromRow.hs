@@ -15,6 +15,7 @@ Also provides parser functions used by the generated decoders for custom Postgre
 -}
 module IHP.Hasql.FromRow
 ( FromRowHasql (..)
+, FromRowHasqlNullable (..)
 , HasqlDecodeColumn (..)
 ) where
 
@@ -34,6 +35,14 @@ import IHP.ModelSupport.Types (Id'(..), PrimaryKey)
 class FromRowHasql a where
     -- | Decoder for a single row
     hasqlRowDecoder :: Decoders.Row a
+
+-- | Decode a model selected from the nullable side of an outer join.
+--
+-- Generated model types provide this instance. Unlike 'FromRowHasql', every
+-- database column is accepted as nullable and an absent joined row becomes
+-- 'Nothing'.
+class FromRowHasqlNullable a where
+    hasqlNullableRowDecoder :: Decoders.Row (Maybe a)
 
 -- | Typeclass for building column-level row decoders, handling nullable/non-nullable.
 -- Uses 'Mapping.IsScalar' from hasql-mapping for value-level decoding.
@@ -94,5 +103,4 @@ instance (HasqlDecodeColumn a, HasqlDecodeColumn b, HasqlDecodeColumn c, HasqlDe
 
 instance (HasqlDecodeColumn a, HasqlDecodeColumn b, HasqlDecodeColumn c, HasqlDecodeColumn d, HasqlDecodeColumn e) => FromRowHasql (a, b, c, d, e) where
     hasqlRowDecoder = (,,,,) <$> hasqlColumnDecoder <*> hasqlColumnDecoder <*> hasqlColumnDecoder <*> hasqlColumnDecoder <*> hasqlColumnDecoder
-
 

@@ -8,6 +8,7 @@ module IHP.TypedSql.ParamHints
     , extractNonNullableComputedColumnsFromAst
     , resolveParamHintTypes
     , detectStarSelects
+    , extractQualifiedStarTablesFromAst
     , detectInsertWithoutColumns
     ) where
 
@@ -690,6 +691,94 @@ detectStarSelects :: Ast.PreparableStmt -> [String]
 detectStarSelects = \case
     Ast.SelectPreparableStmt selectStmt -> starFromSelectStmt selectStmt
     _ -> []
+
+-- | Resolve a select list made entirely from qualified table stars.
+--
+-- Each result contains the underlying table name and whether that particular
+-- table reference is on the nullable side of an outer join. Keeping the
+-- qualifier until after join analysis is important for self joins, where two
+-- aliases share the same PostgreSQL table OID.
+extractQualifiedStarTablesFromAst :: Ast.PreparableStmt -> Maybe [(Text, Bool)]
+extractQualifiedStarTablesFromAst stmt = do
+    aliases <- qualifiedStarAliasesFromStmt stmt
+    let aliasMap = buildAliasMapFromStmt stmt
+        nullableAliases = nullableQualifiersFromStmt stmt
+    mapM
+        (\alias -> (\tableName -> (tableName, alias `Set.member` nullableAliases)) <$> Map.lookup alias aliasMap)
+        aliases
+
+qualifiedStarAliasesFromStmt :: Ast.PreparableStmt -> Maybe [Text]
+qualifiedStarAliasesFromStmt = \case
+    Ast.SelectPreparableStmt selectStmt -> qualifiedStarAliasesFromSelectStmt selectStmt
+    _ -> Nothing
+
+qualifiedStarAliasesFromSelectStmt :: Ast.SelectStmt -> Maybe [Text]
+qualifiedStarAliasesFromSelectStmt = \case
+    Left (Ast.SelectNoParens _with selectClause _sort _limit _lock) ->
+        qualifiedStarAliasesFromSelectClause selectClause
+    Right selectWithParens -> qualifiedStarAliasesFromSelectWithParens selectWithParens
+
+qualifiedStarAliasesFromSelectWithParens :: Ast.SelectWithParens -> Maybe [Text]
+qualifiedStarAliasesFromSelectWithParens = \case
+    Ast.NoParensSelectWithParens (Ast.SelectNoParens _with selectClause _sort _limit _lock) ->
+        qualifiedStarAliasesFromSelectClause selectClause
+    Ast.WithParensSelectWithParens inner -> qualifiedStarAliasesFromSelectWithParens inner
+
+qualifiedStarAliasesFromSelectClause :: Ast.SelectClause -> Maybe [Text]
+qualifiedStarAliasesFromSelectClause = \case
+    Left (Ast.NormalSimpleSelect (Just targeting) _into _from _where _group _having _window) ->
+        case targeting of
+            Ast.NormalTargeting targets -> mapM qualifiedStarAliasFromTargetEl (toList targets)
+            Ast.DistinctTargeting _ targets -> mapM qualifiedStarAliasFromTargetEl (toList targets)
+            _ -> Nothing
+    Right selectWithParens -> qualifiedStarAliasesFromSelectWithParens selectWithParens
+    _ -> Nothing
+
+qualifiedStarAliasFromTargetEl :: Ast.TargetEl -> Maybe Text
+qualifiedStarAliasFromTargetEl = \case
+    Ast.ExprTargetEl (Ast.CExprAExpr (Ast.ColumnrefCExpr (Ast.Columnref ident (Just indirection)))) ->
+        case toList indirection of
+            [Ast.AllIndirectionEl] -> Just (identToText ident)
+            _ -> Nothing
+    _ -> Nothing
+
+nullableQualifiersFromStmt :: Ast.PreparableStmt -> Set.Set Text
+nullableQualifiersFromStmt = \case
+    Ast.SelectPreparableStmt (Left (Ast.SelectNoParens _with selectClause _sort _limit _lock)) ->
+        nullableQualifiersFromSelectClause selectClause
+    _ -> Set.empty
+
+nullableQualifiersFromSelectClause :: Ast.SelectClause -> Set.Set Text
+nullableQualifiersFromSelectClause = \case
+    Left (Ast.NormalSimpleSelect _targeting _into maybeFrom _where _group _having _window) ->
+        maybe Set.empty (foldMap nullableQualifiersFromTableRef . toList) maybeFrom
+    Right (Ast.NoParensSelectWithParens (Ast.SelectNoParens _with selectClause _sort _limit _lock)) ->
+        nullableQualifiersFromSelectClause selectClause
+    Right (Ast.WithParensSelectWithParens inner) -> nullableQualifiersFromSelectWithParens inner
+    _ -> Set.empty
+
+nullableQualifiersFromSelectWithParens :: Ast.SelectWithParens -> Set.Set Text
+nullableQualifiersFromSelectWithParens = \case
+    Ast.NoParensSelectWithParens (Ast.SelectNoParens _with selectClause _sort _limit _lock) ->
+        nullableQualifiersFromSelectClause selectClause
+    Ast.WithParensSelectWithParens inner -> nullableQualifiersFromSelectWithParens inner
+
+nullableQualifiersFromTableRef :: Ast.TableRef -> Set.Set Text
+nullableQualifiersFromTableRef = \case
+    Ast.JoinTableRef joinedTable _alias -> nullableQualifiersFromJoinedTable joinedTable
+    _ -> Set.empty
+
+nullableQualifiersFromJoinedTable :: Ast.JoinedTable -> Set.Set Text
+nullableQualifiersFromJoinedTable = \case
+    Ast.InParensJoinedTable inner -> nullableQualifiersFromJoinedTable inner
+    Ast.MethJoinedTable meth left right ->
+        let nested = Set.union (nullableQualifiersFromTableRef left) (nullableQualifiersFromTableRef right)
+            qualifiers = Map.keysSet . buildAliasMapFromTableRef
+        in case joinTypeFromMeth meth of
+            Just (Ast.LeftJoinType _)  -> Set.union nested (qualifiers right)
+            Just (Ast.RightJoinType _) -> Set.union nested (qualifiers left)
+            Just (Ast.FullJoinType _)  -> Set.union nested (Set.union (qualifiers left) (qualifiers right))
+            _ -> nested
 
 starFromSelectStmt :: Ast.SelectStmt -> [String]
 starFromSelectStmt (Left (Ast.SelectNoParens _with selectClause _sort _limit _lock)) =

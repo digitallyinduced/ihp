@@ -143,6 +143,23 @@ items <- sqlQueryTyped [typedSqlStar|
 |]
 ```
 
+When the select list consists entirely of qualified table stars, each star is
+decoded into that table's generated record type. Tables on the nullable side
+of an outer join are wrapped in `Maybe`:
+
+```haskell
+rows <- sqlQueryTyped [typedSqlStar|
+    SELECT i.*, a.*
+    FROM items i
+    LEFT JOIN authors a ON a.id = i.author_id
+|]
+
+-- rows :: [(Item, Maybe Author)]
+```
+
+This grouping applies only to complete qualified stars such as `i.*`. Mixed
+select lists such as `i.*, a.name` continue to produce a labeled `SqlRow`.
+
 ## Inserting Rows
 
 ### Why `INSERT … VALUES` without a column list is disallowed by default

@@ -3,6 +3,7 @@ module Test.TypedSqlSpec where
 import           Control.Concurrent                 (threadDelay)
 import qualified Control.Exception                 as Exception
 import qualified Data.List                         as List
+import qualified Data.Map.Strict                   as Map
 import qualified Data.Set                          as Set
 import qualified Data.Text                         as Text
 import qualified Data.Text.IO                      as Text
@@ -14,7 +15,11 @@ import           IHP.Prelude
 import           IHP.TypedSql.ParamHints           (parseSql, extractJoinNullableTables,
                                                     extractNonNullableComputedColumnsFromAst,
                                                     detectStarSelects,
+                                                    extractQualifiedStarTablesFromAst,
                                                     detectInsertWithoutColumns)
+import           IHP.TypedSql.Metadata             (DescribeColumn (..), TableMeta (..))
+import           IHP.TypedSql.TypeMapping          (FullTableSelection (..), detectFullTableSelections)
+import qualified Database.PostgreSQL.LibPQ         as PQ
 import           System.Directory                  (createDirectoryIfMissing,
                                                     doesDirectoryExist,
                                                     doesFileExist,
@@ -934,6 +939,43 @@ tests = do
             let Just ast = parseSql "(SELECT * FROM items)"
             detectStarSelects ast `shouldBe` ["*"]
 
+        it "resolves qualified stars and outer-join nullability" do
+            let Just ast = parseSql "SELECT i.*, a.* FROM items i LEFT JOIN authors a ON a.id = i.author_id"
+            extractQualifiedStarTablesFromAst ast
+                `shouldBe` Just [("items", False), ("authors", True)]
+
+        it "keeps self-join alias nullability separate" do
+            let Just ast = parseSql "SELECT parent.*, child.* FROM authors parent LEFT JOIN authors child ON child.id = parent.parent_id"
+            extractQualifiedStarTablesFromAst ast
+                `shouldBe` Just [("authors", False), ("authors", True)]
+
+        it "does not group mixed stars and expressions" do
+            let Just ast = parseSql "SELECT i.*, a.name FROM items i JOIN authors a ON a.id = i.author_id"
+            extractQualifiedStarTablesFromAst ast `shouldBe` Nothing
+
+        it "partitions repeated table metadata for self-join stars" do
+            let tableOid = PQ.Oid 42
+                tableMeta = TableMeta
+                    { tmOid = tableOid
+                    , tmName = "authors"
+                    , tmColumns = Map.empty
+                    , tmColumnOrder = [1, 2]
+                    , tmPrimaryKeys = Set.singleton 1
+                    , tmForeignKeys = Map.empty
+                    }
+                column attnum = DescribeColumn
+                    { dcName = "column"
+                    , dcType = tableOid
+                    , dcTable = tableOid
+                    , dcAttnum = Just attnum
+                    }
+                result = detectFullTableSelections
+                    (Map.singleton tableOid tableMeta)
+                    [("authors", False), ("authors", True)]
+                    [column 1, column 2, column 1, column 2]
+            fmap (map (\selection -> (selection.ftsTableName, selection.ftsNullable, length selection.ftsColumns))) result
+                `shouldBe` Just [("authors", False, 2), ("authors", True, 2)]
+
         it "detectInsertWithoutColumns detects INSERT VALUES without column list" do
             let Just ast = parseSql "INSERT INTO items VALUES (1, 'name')"
             detectInsertWithoutColumns ast `shouldBe` ["INSERT INTO items"]
@@ -1481,7 +1523,7 @@ compilePassModule = Text.unlines
     , "import IHP.Prelude"
     , "import GHC.Records (HasField)"
     , "import IHP.ModelSupport (Id'(..), PrimaryKey)"
-    , "import IHP.Hasql.FromRow (FromRowHasql (..))"
+    , "import IHP.Hasql.FromRow (FromRowHasql (..), FromRowHasqlNullable (..))"
     , "import IHP.TypedSql (QueryCardinality (..), QueryExecResult (..), TypedQuery, typedSql, typedSqlStar)"
     , "import IHP.TypedSql.RowType (SqlRow)"
     , "import qualified Data.Aeson as Aeson"
@@ -1509,6 +1551,37 @@ compilePassModule = Text.unlines
     , "            <*> HasqlDecoders.column (HasqlDecoders.nullable HasqlDecoders.float8)"
     , "            <*> HasqlDecoders.column (HasqlDecoders.nonNullable (HasqlDecoders.listArray (HasqlDecoders.nonNullable HasqlDecoders.text)))"
     , ""
+    , "instance FromRowHasqlNullable TypedSqlTestItem where"
+    , "    hasqlNullableRowDecoder ="
+    , "        buildItem"
+    , "            <$> (fmap (fmap Id) (HasqlDecoders.column (HasqlDecoders.nullable HasqlDecoders.uuid)))"
+    , "            <*> (fmap (fmap Id) (HasqlDecoders.column (HasqlDecoders.nullable HasqlDecoders.uuid)))"
+    , "            <*> HasqlDecoders.column (HasqlDecoders.nullable HasqlDecoders.text)"
+    , "            <*> (fmap (fmap fromIntegral) (HasqlDecoders.column (HasqlDecoders.nullable HasqlDecoders.int4)))"
+    , "            <*> HasqlDecoders.column (HasqlDecoders.nullable HasqlDecoders.float8)"
+    , "            <*> HasqlDecoders.column (HasqlDecoders.nullable (HasqlDecoders.listArray (HasqlDecoders.nonNullable HasqlDecoders.text)))"
+    , "      where"
+    , "        buildItem (Just itemId) authorId (Just name) (Just views) score (Just tags) = Just (TypedSqlTestItem itemId authorId name views score tags)"
+    , "        buildItem _ _ _ _ _ _ = Nothing"
+    , ""
+    , "data TypedSqlTestAuthor = TypedSqlTestAuthor"
+    , "    { typedSqlTestAuthorId :: Id' \"typed_sql_test_authors\""
+    , "    , typedSqlTestAuthorName :: Text"
+    , "    } deriving (Eq, Show)"
+    , ""
+    , "instance FromRowHasql TypedSqlTestAuthor where"
+    , "    hasqlRowDecoder = TypedSqlTestAuthor"
+    , "        <$> (fmap Id (HasqlDecoders.column (HasqlDecoders.nonNullable HasqlDecoders.uuid)))"
+    , "        <*> HasqlDecoders.column (HasqlDecoders.nonNullable HasqlDecoders.text)"
+    , ""
+    , "instance FromRowHasqlNullable TypedSqlTestAuthor where"
+    , "    hasqlNullableRowDecoder = buildAuthor"
+    , "        <$> (fmap (fmap Id) (HasqlDecoders.column (HasqlDecoders.nullable HasqlDecoders.uuid)))"
+    , "        <*> HasqlDecoders.column (HasqlDecoders.nullable HasqlDecoders.text)"
+    , "      where"
+    , "        buildAuthor (Just authorId) (Just name) = Just (TypedSqlTestAuthor authorId name)"
+    , "        buildAuthor _ _ = Nothing"
+    , ""
     , "qName :: TypedQuery 'AtMostOneRow 'ReturnsRows Text"
     , "qName = [typedSql| SELECT name FROM typed_sql_test_items LIMIT 1 |]"
     , ""
@@ -1517,6 +1590,21 @@ compilePassModule = Text.unlines
     , ""
     , "qAllFieldsAlias :: TypedQuery 'AtMostOneRow 'ReturnsRows TypedSqlTestItem"
     , "qAllFieldsAlias = [typedSqlStar| SELECT i.* FROM typed_sql_test_items i JOIN typed_sql_test_authors a ON a.id = i.author_id LIMIT 1 |]"
+    , ""
+    , "qInnerJoinStars :: TypedQuery 'AtMostOneRow 'ReturnsRows (TypedSqlTestItem, TypedSqlTestAuthor)"
+    , "qInnerJoinStars = [typedSqlStar| SELECT i.*, a.* FROM typed_sql_test_items i INNER JOIN typed_sql_test_authors a ON a.id = i.author_id LIMIT 1 |]"
+    , ""
+    , "qLeftJoinStars :: TypedQuery 'AtMostOneRow 'ReturnsRows (TypedSqlTestItem, Maybe TypedSqlTestAuthor)"
+    , "qLeftJoinStars = [typedSqlStar| SELECT i.*, a.* FROM typed_sql_test_items i LEFT JOIN typed_sql_test_authors a ON a.id = i.author_id LIMIT 1 |]"
+    , ""
+    , "qRightJoinStars :: TypedQuery 'AtMostOneRow 'ReturnsRows (Maybe TypedSqlTestItem, TypedSqlTestAuthor)"
+    , "qRightJoinStars = [typedSqlStar| SELECT i.*, a.* FROM typed_sql_test_items i RIGHT JOIN typed_sql_test_authors a ON a.id = i.author_id LIMIT 1 |]"
+    , ""
+    , "qFullJoinStars :: TypedQuery 'AtMostOneRow 'ReturnsRows (Maybe TypedSqlTestItem, Maybe TypedSqlTestAuthor)"
+    , "qFullJoinStars = [typedSqlStar| SELECT i.*, a.* FROM typed_sql_test_items i FULL JOIN typed_sql_test_authors a ON a.id = i.author_id LIMIT 1 |]"
+    , ""
+    , "qNullableSingleStar :: TypedQuery 'AtMostOneRow 'ReturnsRows (Maybe TypedSqlTestAuthor)"
+    , "qNullableSingleStar = [typedSqlStar| SELECT a.* FROM typed_sql_test_items i LEFT JOIN typed_sql_test_authors a ON a.id = i.author_id LIMIT 1 |]"
     , ""
     , "qPrimaryKey :: TypedQuery 'AtMostOneRow 'ReturnsRows (Id' \"typed_sql_test_items\")"
     , "qPrimaryKey = [typedSql| SELECT id FROM typed_sql_test_items LIMIT 1 |]"
