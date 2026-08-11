@@ -1105,6 +1105,26 @@ tests = do
                             _ -> Nothing)
                     |]
 
+            it "should use unwrapped keys for relations in nullable row decoders" do
+                let relationStatements = parseSqlStatements [trimming|
+                    CREATE TABLE users (
+                        id UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL
+                    );
+                    CREATE TABLE badges (
+                        id UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL,
+                        user_id UUID NOT NULL
+                    );
+                    ALTER TABLE badges ADD CONSTRAINT badges_ref_user_id FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE NO ACTION;
+                |]
+                let isUsersTable = \case
+                        StatementCreateTable CreateTable { name = "users" } -> True
+                        _ -> False
+                let Just (StatementCreateTable usersTable) = find isUsersTable relationStatements
+                let ?schema = Schema relationStatements
+                let output = compileRowDecoderModule usersTable
+
+                output `shouldSatisfy` ("QueryBuilder.filterWhere (#userId, idValue)" `Text.isInfixOf`)
+
             it "should generate nonNullable decoder for PRIMARY KEY column even without explicit NOT NULL (#2531)" do
                 let bugStatements =
                         [ StatementCreateTable CreateTable

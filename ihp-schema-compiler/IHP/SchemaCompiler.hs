@@ -918,12 +918,15 @@ instance FromRowHasql (Maybe #{modelName}) where
 |]
 
 compileFromRowQueryBuilder :: (?schema :: Schema) => CreateTable -> (Text, Text, Maybe Text) -> Text
-compileFromRowQueryBuilder table (refTableName, refFieldName, maybeRefColumn) = "(QueryBuilder.filterWhere (#" <> columnNameToFieldName refFieldName <> ", " <> primaryKeyField <> ") (QueryBuilder.query @" <> tableNameToModelName refTableName <> "))"
+compileFromRowQueryBuilder table ref = compileFromRowQueryBuilderWith table ref (\fieldName -> fieldName)
+
+compileFromRowQueryBuilderWith :: (?schema :: Schema) => CreateTable -> (Text, Text, Maybe Text) -> (Text -> Text) -> Text
+compileFromRowQueryBuilderWith table (refTableName, refFieldName, maybeRefColumn) transformPrimaryKeyField = "(QueryBuilder.filterWhere (#" <> columnNameToFieldName refFieldName <> ", " <> primaryKeyField <> ") (QueryBuilder.query @" <> tableNameToModelName refTableName <> "))"
     where
         primaryKeyField :: Text
         primaryKeyField = if refColumn.notNull then actualPrimaryKeyField else "Just " <> actualPrimaryKeyField
         actualPrimaryKeyField :: Text
-        actualPrimaryKeyField = case maybeRefColumn of
+        actualPrimaryKeyField = transformPrimaryKeyField $ case maybeRefColumn of
                 -- When the FK constraint specifies the referenced column, use it directly.
                 -- This handles composite PK tables where a FK references a specific column
                 -- (which must have a standalone UNIQUE constraint).
@@ -1457,9 +1460,13 @@ compileRowDecoderModule table@(CreateTable { name }) =
         nullableCompileField (fieldName, _)
             | Just column <- find (\column -> columnNameToFieldName column.name == fieldName) columns =
                 if hasqlColumnIsNullable table column then fieldName else fieldName <> "Value"
-            | isOneToManyField fieldName = let (Just (_, ref)) = find (\(n, _) -> n == fieldName) referencingWithFieldNames in compileFromRowQueryBuilder table ref
+            | isOneToManyField fieldName = let (Just (_, ref)) = find (\(n, _) -> n == fieldName) referencingWithFieldNames in compileFromRowQueryBuilderWith table ref nullableFieldName
             | fieldName == "meta" = "def { originalDatabaseRecord = Just (Data.Dynamic.toDyn theRecord) }"
             | otherwise = "def"
+        nullableFieldName fieldName =
+            case find (\column -> columnNameToFieldName column.name == fieldName) columns of
+                Just column | not (hasqlColumnIsNullable table column) -> fieldName <> "Value"
+                _ -> fieldName
         nullableConstructorArgs = intercalate " " (map nullableCompileField (dataFields table))
         requiredFieldNames = columns
             |> filter (not . hasqlColumnIsNullable table)

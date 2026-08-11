@@ -103,6 +103,7 @@ test-suite tests
             , filepath
             , hspec
             , process
+            , postgresql-libpq
             , string-conversions
             , temporary-ospath
             , text
