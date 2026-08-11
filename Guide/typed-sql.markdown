@@ -160,22 +160,6 @@ items <- sqlQueryTyped [typedSqlStar|
 |]
 ```
 
-The same model grouping also applies when the select list consists entirely of
-qualified table stars:
-
-```haskell
-rows <- sqlQueryTyped [typedSqlStar|
-    SELECT i.*, a.*
-    FROM items i
-    LEFT JOIN authors a ON a.id = i.author_id
-|]
-
--- rows :: [(Item, Maybe Author)]
-```
-
-Mixed select lists such as `i.*, a.name` continue to produce a labeled
-`SqlRow`.
-
 ## Inserting Rows
 
 ### Why `INSERT … VALUES` without a column list is disallowed by default

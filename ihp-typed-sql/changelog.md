@@ -2,11 +2,10 @@
 
 ## Unreleased
 
-- Complete qualified table records are now grouped into generated model types,
-  whether written as explicit named columns or as `table.*` with
-  `typedSqlStar`. Tables on the nullable side of an outer join are wrapped in
-  `Maybe`, so a complete `Item` and `Author` selection across a `LEFT JOIN`
-  produces `(Item, Maybe Author)` instead of one flat `SqlRow`
+- Complete qualified named-column table records are now grouped into generated
+  model types. Tables on the nullable side of an outer join are wrapped in
+  `Maybe`, so complete `Item` and `Author` column groups across a `LEFT JOIN`
+  produce `(Item, Maybe Author)` instead of one flat `SqlRow`
   ([#2781](https://github.com/digitallyinduced/ihp/issues/2781)).
 
 - Each compiler process now uses a compact private compile-time PostgreSQL
