@@ -240,8 +240,8 @@ tests = do
                     instance FromRowHasql Generated.ActualTypes.User where
                         hasqlRowDecoder = Generated.Statements.RowDecoderUser.rowDecoder
 
-                    instance FromRowHasqlNullable Generated.ActualTypes.User where
-                        hasqlNullableRowDecoder = Generated.Statements.RowDecoderUser.nullableRowDecoder
+                    instance FromRowHasql (Maybe Generated.ActualTypes.User) where
+                        hasqlRowDecoder = Generated.Statements.RowDecoderUser.nullableRowDecoder
 
                     type instance GetModelName (User') = "User"
 
@@ -345,8 +345,8 @@ tests = do
                     instance FromRowHasql Generated.ActualTypes.User where
                         hasqlRowDecoder = Generated.Statements.RowDecoderUser.rowDecoder
 
-                    instance FromRowHasqlNullable Generated.ActualTypes.User where
-                        hasqlNullableRowDecoder = Generated.Statements.RowDecoderUser.nullableRowDecoder
+                    instance FromRowHasql (Maybe Generated.ActualTypes.User) where
+                        hasqlRowDecoder = Generated.Statements.RowDecoderUser.nullableRowDecoder
 
                     type instance GetModelName (User') = "User"
 
@@ -448,8 +448,8 @@ tests = do
                     instance FromRowHasql Generated.ActualTypes.User where
                         hasqlRowDecoder = Generated.Statements.RowDecoderUser.rowDecoder
 
-                    instance FromRowHasqlNullable Generated.ActualTypes.User where
-                        hasqlNullableRowDecoder = Generated.Statements.RowDecoderUser.nullableRowDecoder
+                    instance FromRowHasql (Maybe Generated.ActualTypes.User) where
+                        hasqlRowDecoder = Generated.Statements.RowDecoderUser.nullableRowDecoder
 
                     type instance GetModelName (User') = "User"
 
@@ -585,8 +585,8 @@ tests = do
                     instance FromRowHasql Generated.ActualTypes.LandingPage where
                         hasqlRowDecoder = Generated.Statements.RowDecoderLandingPage.rowDecoder
 
-                    instance FromRowHasqlNullable Generated.ActualTypes.LandingPage where
-                        hasqlNullableRowDecoder = Generated.Statements.RowDecoderLandingPage.nullableRowDecoder
+                    instance FromRowHasql (Maybe Generated.ActualTypes.LandingPage) where
+                        hasqlRowDecoder = Generated.Statements.RowDecoderLandingPage.nullableRowDecoder
 
                     type instance GetModelName (LandingPage' _ _) = "LandingPage"
 
@@ -958,8 +958,8 @@ tests = do
                     instance FromRowHasql Generated.ActualTypes.Post where
                         hasqlRowDecoder = Generated.Statements.RowDecoderPost.rowDecoder
 
-                    instance FromRowHasqlNullable Generated.ActualTypes.Post where
-                        hasqlNullableRowDecoder = Generated.Statements.RowDecoderPost.nullableRowDecoder
+                    instance FromRowHasql (Maybe Generated.ActualTypes.Post) where
+                        hasqlRowDecoder = Generated.Statements.RowDecoderPost.nullableRowDecoder
 
                     type instance GetModelName (Post') = "Post"
 

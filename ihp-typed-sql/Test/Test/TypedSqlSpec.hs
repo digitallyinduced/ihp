@@ -16,9 +16,11 @@ import           IHP.TypedSql.ParamHints           (parseSql, extractJoinNullabl
                                                     extractNonNullableComputedColumnsFromAst,
                                                     detectStarSelects,
                                                     extractQualifiedStarTablesFromAst,
+                                                    extractQualifiedColumnTablesFromAst,
                                                     detectInsertWithoutColumns)
 import           IHP.TypedSql.Metadata             (DescribeColumn (..), TableMeta (..))
-import           IHP.TypedSql.TypeMapping          (FullTableSelection (..), detectFullTableSelections)
+import           IHP.TypedSql.TypeMapping          (FullTableSelection (..), detectFullTableSelections,
+                                                    detectNamedFullTableSelections)
 import qualified Database.PostgreSQL.LibPQ         as PQ
 import           System.Directory                  (createDirectoryIfMissing,
                                                     doesDirectoryExist,
@@ -953,6 +955,20 @@ tests = do
             let Just ast = parseSql "SELECT i.*, a.name FROM items i JOIN authors a ON a.id = i.author_id"
             extractQualifiedStarTablesFromAst ast `shouldBe` Nothing
 
+        it "resolves qualified named columns and outer-join nullability" do
+            let Just ast = parseSql "SELECT i.id, i.name, a.id, a.name FROM items i LEFT JOIN authors a ON a.id = i.author_id"
+            extractQualifiedColumnTablesFromAst ast
+                `shouldBe` Just
+                    [ ("i", "items", False)
+                    , ("i", "items", False)
+                    , ("a", "authors", True)
+                    , ("a", "authors", True)
+                    ]
+
+        it "does not group named columns mixed with expressions" do
+            let Just ast = parseSql "SELECT i.id, UPPER(i.name) FROM items i"
+            extractQualifiedColumnTablesFromAst ast `shouldBe` Nothing
+
         it "partitions repeated table metadata for self-join stars" do
             let tableOid = PQ.Oid 42
                 tableMeta = TableMeta
@@ -975,6 +991,30 @@ tests = do
                     [column 1, column 2, column 1, column 2]
             fmap (map (\selection -> (selection.ftsTableName, selection.ftsNullable, length selection.ftsColumns))) result
                 `shouldBe` Just [("authors", False, 2), ("authors", True, 2)]
+
+        it "groups complete named-column table records" do
+            let itemsOid = PQ.Oid 42
+                authorsOid = PQ.Oid 43
+                tableMeta tableOid tableName = TableMeta
+                    { tmOid = tableOid
+                    , tmName = tableName
+                    , tmColumns = Map.empty
+                    , tmColumnOrder = [1, 2]
+                    , tmPrimaryKeys = Set.singleton 1
+                    , tmForeignKeys = Map.empty
+                    }
+                column tableOid attnum = DescribeColumn
+                    { dcName = "column"
+                    , dcType = tableOid
+                    , dcTable = tableOid
+                    , dcAttnum = Just attnum
+                    }
+                result = detectNamedFullTableSelections
+                    (Map.fromList [(itemsOid, tableMeta itemsOid "items"), (authorsOid, tableMeta authorsOid "authors")])
+                    [("i", "items", False), ("i", "items", False), ("a", "authors", True), ("a", "authors", True)]
+                    [column itemsOid 1, column itemsOid 2, column authorsOid 1, column authorsOid 2]
+            fmap (map (\selection -> (selection.ftsTableName, selection.ftsNullable))) result
+                `shouldBe` Just [("items", False), ("authors", True)]
 
         it "detectInsertWithoutColumns detects INSERT VALUES without column list" do
             let Just ast = parseSql "INSERT INTO items VALUES (1, 'name')"
@@ -1523,7 +1563,7 @@ compilePassModule = Text.unlines
     , "import IHP.Prelude"
     , "import GHC.Records (HasField)"
     , "import IHP.ModelSupport (Id'(..), PrimaryKey)"
-    , "import IHP.Hasql.FromRow (FromRowHasql (..), FromRowHasqlNullable (..))"
+    , "import IHP.Hasql.FromRow (FromRowHasql (..))"
     , "import IHP.TypedSql (QueryCardinality (..), QueryExecResult (..), TypedQuery, typedSql, typedSqlStar)"
     , "import IHP.TypedSql.RowType (SqlRow)"
     , "import qualified Data.Aeson as Aeson"
@@ -1551,8 +1591,8 @@ compilePassModule = Text.unlines
     , "            <*> HasqlDecoders.column (HasqlDecoders.nullable HasqlDecoders.float8)"
     , "            <*> HasqlDecoders.column (HasqlDecoders.nonNullable (HasqlDecoders.listArray (HasqlDecoders.nonNullable HasqlDecoders.text)))"
     , ""
-    , "instance FromRowHasqlNullable TypedSqlTestItem where"
-    , "    hasqlNullableRowDecoder ="
+    , "instance FromRowHasql (Maybe TypedSqlTestItem) where"
+    , "    hasqlRowDecoder ="
     , "        buildItem"
     , "            <$> (fmap (fmap Id) (HasqlDecoders.column (HasqlDecoders.nullable HasqlDecoders.uuid)))"
     , "            <*> (fmap (fmap Id) (HasqlDecoders.column (HasqlDecoders.nullable HasqlDecoders.uuid)))"
@@ -1574,8 +1614,8 @@ compilePassModule = Text.unlines
     , "        <$> (fmap Id (HasqlDecoders.column (HasqlDecoders.nonNullable HasqlDecoders.uuid)))"
     , "        <*> HasqlDecoders.column (HasqlDecoders.nonNullable HasqlDecoders.text)"
     , ""
-    , "instance FromRowHasqlNullable TypedSqlTestAuthor where"
-    , "    hasqlNullableRowDecoder = buildAuthor"
+    , "instance FromRowHasql (Maybe TypedSqlTestAuthor) where"
+    , "    hasqlRowDecoder = buildAuthor"
     , "        <$> (fmap (fmap Id) (HasqlDecoders.column (HasqlDecoders.nullable HasqlDecoders.uuid)))"
     , "        <*> HasqlDecoders.column (HasqlDecoders.nullable HasqlDecoders.text)"
     , "      where"
@@ -1605,6 +1645,9 @@ compilePassModule = Text.unlines
     , ""
     , "qNullableSingleStar :: TypedQuery 'AtMostOneRow 'ReturnsRows (Maybe TypedSqlTestAuthor)"
     , "qNullableSingleStar = [typedSqlStar| SELECT a.* FROM typed_sql_test_items i LEFT JOIN typed_sql_test_authors a ON a.id = i.author_id LIMIT 1 |]"
+    , ""
+    , "qLeftJoinNamedColumns :: TypedQuery 'AtMostOneRow 'ReturnsRows (TypedSqlTestItem, Maybe TypedSqlTestAuthor)"
+    , "qLeftJoinNamedColumns = [typedSql| SELECT i.id, i.author_id, i.name, i.views, i.score, i.tags, a.id, a.name FROM typed_sql_test_items i LEFT JOIN typed_sql_test_authors a ON a.id = i.author_id LIMIT 1 |]"
     , ""
     , "qPrimaryKey :: TypedQuery 'AtMostOneRow 'ReturnsRows (Id' \"typed_sql_test_items\")"
     , "qPrimaryKey = [typedSql| SELECT id FROM typed_sql_test_items LIMIT 1 |]"

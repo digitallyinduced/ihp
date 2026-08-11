@@ -8,6 +8,7 @@ module IHP.TypedSql.TypeMapping
     , detectFullTable
     , FullTableSelection (..)
     , detectFullTableSelections
+    , detectNamedFullTableSelections
     , hsTypeForFullTableSelections
     ) where
 
@@ -98,6 +99,30 @@ detectFullTableSelections tables requested columns = go requested columns
             find (\(_, TableMeta { tmName }) -> tmName == tableName) (Map.toList tables)
         let (tableColumns, remainingColumns) = List.splitAt (length tmColumnOrder) remaining
         guard (length tableColumns == length tmColumnOrder)
+        guard (all ((== tableOid) . dcTable) tableColumns)
+        guard (mapMaybe dcAttnum tableColumns == tmColumnOrder)
+        following <- go rest remainingColumns
+        pure (FullTableSelection tableName nullable tableColumns : following)
+
+-- | Match explicit qualified column lists against complete table records.
+-- Columns must be contiguous and in schema order. Partial, reordered, or mixed
+-- groups deliberately fall back to SqlRow.
+detectNamedFullTableSelections :: Map.Map PQ.Oid TableMeta -> [(Text, Text, Bool)] -> [DescribeColumn] -> Maybe [FullTableSelection]
+detectNamedFullTableSelections tables requested columns =
+    go (List.groupBy sameQualifier requested) columns
+  where
+    sameQualifier (leftQualifier, _, _) (rightQualifier, _, _) = leftQualifier == rightQualifier
+
+    go [] [] = Just []
+    go [] _ = Nothing
+    go (requestGroup:rest) remaining = do
+        (_, tableName, nullable) <- listToMaybe requestGroup
+        guard (all (\(_, requestedTable, requestedNullable) -> requestedTable == tableName && requestedNullable == nullable) requestGroup)
+        (tableOid, TableMeta { tmColumnOrder }) <-
+            find (\(_, TableMeta { tmName }) -> tmName == tableName) (Map.toList tables)
+        guard (length requestGroup == length tmColumnOrder)
+        let (tableColumns, remainingColumns) = List.splitAt (length requestGroup) remaining
+        guard (length tableColumns == length requestGroup)
         guard (all ((== tableOid) . dcTable) tableColumns)
         guard (mapMaybe dcAttnum tableColumns == tmColumnOrder)
         following <- go rest remainingColumns

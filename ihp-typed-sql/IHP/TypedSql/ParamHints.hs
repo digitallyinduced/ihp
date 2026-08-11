@@ -9,6 +9,7 @@ module IHP.TypedSql.ParamHints
     , resolveParamHintTypes
     , detectStarSelects
     , extractQualifiedStarTablesFromAst
+    , extractQualifiedColumnTablesFromAst
     , detectInsertWithoutColumns
     ) where
 
@@ -707,6 +708,21 @@ extractQualifiedStarTablesFromAst stmt = do
         (\alias -> (\tableName -> (tableName, alias `Set.member` nullableAliases)) <$> Map.lookup alias aliasMap)
         aliases
 
+-- | Resolve a select list made entirely from qualified, named table columns.
+-- One entry is returned per selected column. The qualifier is retained so
+-- adjacent full-table groups remain distinguishable in self joins.
+extractQualifiedColumnTablesFromAst :: Ast.PreparableStmt -> Maybe [(Text, Text, Bool)]
+extractQualifiedColumnTablesFromAst stmt = do
+    qualifiers <- qualifiedColumnQualifiersFromStmt stmt
+    let aliasMap = buildAliasMapFromStmt stmt
+        nullableAliases = nullableQualifiersFromStmt stmt
+    mapM
+        (\qualifier ->
+            (\tableName -> (qualifier, tableName, qualifier `Set.member` nullableAliases))
+                <$> Map.lookup qualifier aliasMap
+        )
+        qualifiers
+
 qualifiedStarAliasesFromStmt :: Ast.PreparableStmt -> Maybe [Text]
 qualifiedStarAliasesFromStmt = \case
     Ast.SelectPreparableStmt selectStmt -> qualifiedStarAliasesFromSelectStmt selectStmt
@@ -739,6 +755,48 @@ qualifiedStarAliasFromTargetEl = \case
     Ast.ExprTargetEl (Ast.CExprAExpr (Ast.ColumnrefCExpr (Ast.Columnref ident (Just indirection)))) ->
         case toList indirection of
             [Ast.AllIndirectionEl] -> Just (identToText ident)
+            _ -> Nothing
+    _ -> Nothing
+
+qualifiedColumnQualifiersFromStmt :: Ast.PreparableStmt -> Maybe [Text]
+qualifiedColumnQualifiersFromStmt = \case
+    Ast.SelectPreparableStmt selectStmt -> qualifiedColumnQualifiersFromSelectStmt selectStmt
+    _ -> Nothing
+
+qualifiedColumnQualifiersFromSelectStmt :: Ast.SelectStmt -> Maybe [Text]
+qualifiedColumnQualifiersFromSelectStmt = \case
+    Left (Ast.SelectNoParens _with selectClause _sort _limit _lock) ->
+        qualifiedColumnQualifiersFromSelectClause selectClause
+    Right selectWithParens -> qualifiedColumnQualifiersFromSelectWithParens selectWithParens
+
+qualifiedColumnQualifiersFromSelectWithParens :: Ast.SelectWithParens -> Maybe [Text]
+qualifiedColumnQualifiersFromSelectWithParens = \case
+    Ast.NoParensSelectWithParens (Ast.SelectNoParens _with selectClause _sort _limit _lock) ->
+        qualifiedColumnQualifiersFromSelectClause selectClause
+    Ast.WithParensSelectWithParens inner -> qualifiedColumnQualifiersFromSelectWithParens inner
+
+qualifiedColumnQualifiersFromSelectClause :: Ast.SelectClause -> Maybe [Text]
+qualifiedColumnQualifiersFromSelectClause = \case
+    Left (Ast.NormalSimpleSelect (Just targeting) _into _from _where _group _having _window) ->
+        case targeting of
+            Ast.NormalTargeting targets -> mapM qualifiedColumnQualifierFromTargetEl (toList targets)
+            Ast.DistinctTargeting _ targets -> mapM qualifiedColumnQualifierFromTargetEl (toList targets)
+            _ -> Nothing
+    Right selectWithParens -> qualifiedColumnQualifiersFromSelectWithParens selectWithParens
+    _ -> Nothing
+
+qualifiedColumnQualifierFromTargetEl :: Ast.TargetEl -> Maybe Text
+qualifiedColumnQualifierFromTargetEl = \case
+    Ast.ExprTargetEl expr -> qualifiedColumnQualifierFromExpr expr
+    Ast.ImplicitlyAliasedExprTargetEl expr _alias -> qualifiedColumnQualifierFromExpr expr
+    Ast.AliasedExprTargetEl expr _alias -> qualifiedColumnQualifierFromExpr expr
+    _ -> Nothing
+
+qualifiedColumnQualifierFromExpr :: Ast.AExpr -> Maybe Text
+qualifiedColumnQualifierFromExpr = \case
+    Ast.CExprAExpr (Ast.ColumnrefCExpr (Ast.Columnref ident (Just indirection))) ->
+        case toList indirection of
+            [Ast.AttrNameIndirectionEl _column] -> Just (identToText ident)
             _ -> Nothing
     _ -> Nothing
 

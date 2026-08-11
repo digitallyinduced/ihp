@@ -46,9 +46,7 @@ resultDecoderForFullTableSelections selections =
                 withFirst = TH.AppE (TH.AppE (TH.VarE '(<$>)) tupleConstructor) firstDecoder
             pure (foldl (\acc nextDecoder -> TH.AppE (TH.AppE (TH.VarE '(<*>)) acc) nextDecoder) withFirst restDecoders)
   where
-    decoder FullTableSelection { ftsNullable }
-        | ftsNullable = TH.VarE 'HasqlFromRow.hasqlNullableRowDecoder
-        | otherwise = TH.VarE 'HasqlFromRow.hasqlRowDecoder
+    decoder _ = TH.VarE 'HasqlFromRow.hasqlRowDecoder
 
 tupleRowDecoderForColumns :: Map.Map PQ.Oid PgTypeInfo -> Map.Map PQ.Oid TableMeta -> Set.Set PQ.Oid -> Set.Set Int -> [DescribeColumn] -> TH.ExpQ
 tupleRowDecoderForColumns typeInfo tables joinNullableOids nonNullableColumns columns = do

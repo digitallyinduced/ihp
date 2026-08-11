@@ -2,9 +2,12 @@
 
 ## Unreleased
 
-- Qualified full-table stars are now grouped into generated model records.
-  For example, `SELECT i.*, a.*` across a `LEFT JOIN` produces
-  `(Item, Maybe Author)` instead of one flat `SqlRow` ([#2781](https://github.com/digitallyinduced/ihp/issues/2781)).
+- Complete qualified table records are now grouped into generated model types,
+  whether written as explicit named columns or as `table.*` with
+  `typedSqlStar`. Tables on the nullable side of an outer join are wrapped in
+  `Maybe`, so a complete `Item` and `Author` selection across a `LEFT JOIN`
+  produces `(Item, Maybe Author)` instead of one flat `SqlRow`
+  ([#2781](https://github.com/digitallyinduced/ihp/issues/2781)).
 
 - Each compiler process now uses a compact private compile-time PostgreSQL
   cluster under the worktree's `.devenv/state` directory. PostgreSQL stops after

@@ -363,7 +363,7 @@ defaultImports = [trimming|
     import qualified Control.DeepSeq as DeepSeq
     import qualified Data.Dynamic
     import Data.Scientific
-    import IHP.Hasql.FromRow (FromRowHasql(..), FromRowHasqlNullable(..))
+    import IHP.Hasql.FromRow (FromRowHasql(..))
     import qualified Hasql.Decoders as Decoders
     import qualified Hasql.Encoders
     import qualified Hasql.Implicits.Encoders
@@ -913,8 +913,8 @@ compileFromRowHasqlInstance table@(CreateTable { name, columns }) =
     in cs [i|instance FromRowHasql #{modelName} where
     hasqlRowDecoder = #{rowDecoderModule}.rowDecoder
 
-instance FromRowHasqlNullable #{modelName} where
-    hasqlNullableRowDecoder = #{rowDecoderModule}.nullableRowDecoder
+instance FromRowHasql (Maybe #{modelName}) where
+    hasqlRowDecoder = #{rowDecoderModule}.nullableRowDecoder
 |]
 
 compileFromRowQueryBuilder :: (?schema :: Schema) => CreateTable -> (Text, Text, Maybe Text) -> Text

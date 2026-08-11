@@ -35,13 +35,15 @@ import           IHP.TypedSql.ParamHints        (extractParamHintsFromAst, extra
                                                  extractNonNullableComputedColumnsFromAst,
                                                  parseSql, resolveParamHintTypes, detectStarSelects,
                                                  extractQualifiedStarTablesFromAst,
+                                                 extractQualifiedColumnTablesFromAst,
                                                  detectInsertWithoutColumns)
 import           IHP.TypedSql.ParamEncoder      (typedSqlParam)
 import           IHP.TypedSql.Placeholders      (PlaceholderPlan (..), parseExpr,
                                                  planPlaceholders)
 import           IHP.TypedSql.RowType           (SqlRow (..), sanitizeColumnName, deduplicateNames, sqlRowType)
 import           IHP.TypedSql.TypeMapping       (hsTypeForColumns, hsTypesForColumns, hsTypeForParam, detectFullTable,
-                                                 detectFullTableSelections, hsTypeForFullTableSelections)
+                                                 detectFullTableSelections, detectNamedFullTableSelections,
+                                                 hsTypeForFullTableSelections)
 import           IHP.TypedSql.Types             (QueryCardinality (..), QueryExecResult (..), TypedQuery (..))
 
 -- | QuasiQuoter entry point for typed SQL.
@@ -166,8 +168,11 @@ typedSqlExp allowStar rawSql = do
     let isMultiColumnAdhoc = not isFullTable && length drColumns > 1
     let fullTableSelections = do
             ast <- parsedAst
-            requestedTables <- extractQualifiedStarTablesFromAst ast
-            detectFullTableSelections drTables requestedTables drColumns
+            case extractQualifiedStarTablesFromAst ast of
+                Just requestedTables -> detectFullTableSelections drTables requestedTables drColumns
+                Nothing -> do
+                    requestedColumns <- extractQualifiedColumnTablesFromAst ast
+                    detectNamedFullTableSelections drTables requestedColumns drColumns
 
     (resultType, resultDecoder) <-
         case fullTableSelections of

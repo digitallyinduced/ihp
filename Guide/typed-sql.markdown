@@ -119,6 +119,23 @@ items <- sqlQueryTyped [typedSql|
 
 The compile error message will suggest the exact column names to use.
 
+When qualified named columns form complete table records in schema order, each
+record is decoded into its generated model type. A table on the nullable side
+of an outer join is wrapped in `Maybe`:
+
+```haskell
+rows <- sqlQueryTyped [typedSql|
+    SELECT i.id, i.name, i.views, a.id, a.name
+    FROM items i
+    LEFT JOIN authors a ON a.id = i.author_id
+|]
+
+-- rows :: [(Item, Maybe Author)]
+```
+
+Partial, reordered, unqualified, or expression-mixed selections continue to
+produce a labeled `SqlRow`.
+
 ### Opting in with `typedSqlStar`
 
 If you understand the risk and want to use `table.*` anyway (e.g., during rapid prototyping), use the `typedSqlStar` quasiquoter:
@@ -143,9 +160,8 @@ items <- sqlQueryTyped [typedSqlStar|
 |]
 ```
 
-When the select list consists entirely of qualified table stars, each star is
-decoded into that table's generated record type. Tables on the nullable side
-of an outer join are wrapped in `Maybe`:
+The same model grouping also applies when the select list consists entirely of
+qualified table stars:
 
 ```haskell
 rows <- sqlQueryTyped [typedSqlStar|
@@ -157,8 +173,8 @@ rows <- sqlQueryTyped [typedSqlStar|
 -- rows :: [(Item, Maybe Author)]
 ```
 
-This grouping applies only to complete qualified stars such as `i.*`. Mixed
-select lists such as `i.*, a.name` continue to produce a labeled `SqlRow`.
+Mixed select lists such as `i.*, a.name` continue to produce a labeled
+`SqlRow`.
 
 ## Inserting Rows
 
