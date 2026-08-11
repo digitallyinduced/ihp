@@ -491,7 +491,10 @@ class DataSubscription {
             this.isConnected = true;
             this.isClosed = false;
             this.connectError = null;
-            this.records = this.normalizeRecords(result);
+            // The server result already has the exact projection, ordering and
+            // window requested by the query. Reapplying parts of the query in
+            // the browser can corrupt projected DISTINCT/ORDER BY results.
+            this.records = result;
 
             this.resolveCreateOnServer(result);
             this.updateSubscribers();
@@ -622,6 +625,13 @@ class DataSubscription {
             this.optimisticUpdatedPendingRecordIds.delete(id);
         }
 
+        if (!this.supportsOptimisticUpdates()) {
+            if (!isOptimistic) {
+                this.refreshAfterComplexMutation();
+            }
+            return;
+        }
+
         this.records = this.normalizeRecords(this.records!.map(record => {
             if (record.id === id) {
                 const updated = Object.assign({}, record, changeSet);
@@ -634,35 +644,41 @@ class DataSubscription {
             }
 
             return record;
-        }), this.hasPendingOptimisticChanges());
+        }));
 
         this.updateSubscribers();
-        if (!isOptimistic) {
-            this.refreshAfterComplexMutation();
-        }
     }
 
     onCreate(newRecord: DataRecord, isOptimistic = false): void {
+        if (!this.supportsOptimisticUpdates()) {
+            if (!isOptimistic) {
+                this.refreshAfterComplexMutation();
+            }
+            return;
+        }
+
         const shouldAppend = this.newRecordBehaviour === APPEND_NEW_RECORD;
 
         const newRecordId = newRecord.id;
-        const isOptimisticallyCreatedAlready = this.optimisticCreatedPendingRecordIds.indexOf(newRecordId) !== -1;
-        if (isOptimisticallyCreatedAlready && !isOptimistic) {
-            this.optimisticCreatedPendingRecordIds.splice(this.optimisticCreatedPendingRecordIds.indexOf(newRecordId), 1);
-            this.onUpdate(newRecordId, newRecord, null);
-            return;
-        } else {
-            if (isOptimistic) {
-                this.optimisticCreatedPendingRecordIds.push(newRecordId);
+        const optimisticIndex = this.optimisticCreatedPendingRecordIds.indexOf(newRecordId);
+        const existingRecord = this.records!.find(record => record.id === newRecordId);
+        if (existingRecord) {
+            if (!isOptimistic && optimisticIndex !== -1) {
+                this.optimisticCreatedPendingRecordIds.splice(optimisticIndex, 1);
             }
-            const records = shouldAppend ? [...this.records!, newRecord] : [newRecord, ...this.records!];
-            this.records = this.normalizeRecords(records, this.hasPendingOptimisticChanges());
+            // The create response and DidInsert notification can both contain
+            // the same record. Reconcile by id instead of appending twice.
+            this.onUpdate(newRecordId, newRecord, null, isOptimistic);
+            return;
         }
 
-        this.updateSubscribers();
-        if (!isOptimistic) {
-            this.refreshAfterComplexMutation();
+        if (isOptimistic && optimisticIndex === -1) {
+            this.optimisticCreatedPendingRecordIds.push(newRecordId);
         }
+        const records = shouldAppend ? [...this.records!, newRecord] : [newRecord, ...this.records!];
+        this.records = this.normalizeRecords(records);
+
+        this.updateSubscribers();
     }
 
     onCreateOptimistic(newRecord: DataRecord): void {
@@ -680,14 +696,16 @@ class DataSubscription {
                 this.optimisticCreatedPendingRecordIds.splice(optimisticIndex, 1);
             }
         }
-        this.records = this.normalizeRecords(
-            this.records!.filter(record => record.id !== id),
-            this.hasPendingOptimisticChanges()
-        );
-        this.updateSubscribers();
-        if (!isOptimistic) {
-            this.refreshAfterComplexMutation();
+
+        if (!this.supportsOptimisticUpdates()) {
+            if (!isOptimistic) {
+                this.refreshAfterComplexMutation();
+            }
+            return;
         }
+
+        this.records = this.normalizeRecords(this.records!.filter(record => record.id !== id));
+        this.updateSubscribers();
     }
 
     subscribe(callback: (records: DataRecord[] | null) => void): () => void {
@@ -734,12 +752,7 @@ class DataSubscription {
         }
     }
 
-    private hasPendingOptimisticChanges(): boolean {
-        return this.optimisticCreatedPendingRecordIds.length > 0
-            || this.optimisticUpdatedPendingRecordIds.size > 0;
-    }
-
-    private normalizeRecords(records: DataRecord[], preserveCompleteSet = false): DataRecord[] {
+    private normalizeRecords(records: DataRecord[]): DataRecord[] {
         let normalized = [...records];
         const sortableClauses = this.query.orderByClause.filter(clause => 'orderByColumn' in clause);
 
@@ -755,36 +768,24 @@ class DataSubscription {
             });
         }
 
-        if (!preserveCompleteSet && this.query.distinctOnColumn !== null) {
-            const seen = new Set<unknown>();
-            normalized = normalized.filter(record => {
-                const value = record[this.query.distinctOnColumn!];
-                if (seen.has(value)) {
-                    return false;
-                }
-                seen.add(value);
-                return true;
-            });
-        }
-
-        if (!preserveCompleteSet && this.query.limit !== null && this.query.limit >= 0) {
-            normalized = normalized.slice(0, this.query.limit);
-        }
-
         return normalized;
     }
 
-    private refreshAfterComplexMutation(): void {
+    supportsOptimisticUpdates(): boolean {
         const selectedColumns = this.query.selectedColumns;
         const hasUnprojectedOrderColumn = selectedColumns.tag === 'SelectSpecific'
             && this.query.orderByClause.some(clause => 'orderByColumn' in clause
                 && !selectedColumns.contents.includes(clause.orderByColumn));
-        const requiresRefresh = this.query.limit !== null
-            || this.query.offset !== null
-            || this.query.distinctOnColumn !== null
-            || this.query.orderByClause.some(clause => 'tag' in clause && clause.tag === 'OrderByTSRank')
-            || hasUnprojectedOrderColumn;
-        if (!requiresRefresh || this.isClosed) {
+
+        return this.query.limit === null
+            && this.query.offset === null
+            && this.query.distinctOnColumn === null
+            && !this.query.orderByClause.some(clause => 'tag' in clause && clause.tag === 'OrderByTSRank')
+            && !hasUnprojectedOrderColumn;
+    }
+
+    private refreshAfterComplexMutation(): void {
+        if (this.supportsOptimisticUpdates() || this.isClosed) {
             return;
         }
 
@@ -805,7 +806,10 @@ class DataSubscription {
                 transactionId: null
             });
             if (!this.isClosed) {
-                this.records = this.normalizeRecords(response.result as DataRecord[]);
+                // DataSyncQuery returns the authoritative query window. Keep it
+                // verbatim so projected DISTINCT/ORDER BY columns are not read
+                // as undefined and collapsed locally.
+                this.records = response.result as DataRecord[];
                 this.updateSubscribers();
             }
         } catch (error) {
@@ -896,7 +900,7 @@ export async function createRecord<T extends TableName>(table: T, record: NewRec
 
         const response = await DataSyncController.getInstance().sendMessage(request);
         if (shouldUpdateOptimistically) {
-            markCreateOptimisticRecordFinished(record);
+            markCreateOptimisticRecordFinished(table, record, null, response.record as DataRecord);
         }
         return response.record as IHPRecord<T>;
     } catch (e) {
@@ -1045,6 +1049,9 @@ function createOptimisticRecord<T extends TableName>(table: T, record: NewRecord
         if (dataSubscription.query.table !== table) {
             continue;
         }
+        if (!dataSubscription.supportsOptimisticUpdates()) {
+            continue;
+        }
         if (!recordMatchesQuery(dataSubscription.query, rec as DataRecord)) {
             continue;
         }
@@ -1107,11 +1114,27 @@ function undoCreateOptimisticRecord<T extends TableName>(table: T, record: NewRe
         dataSubscription.onDelete(record.id!);
     }
 
-    markCreateOptimisticRecordFinished(record, reason);
+    markCreateOptimisticRecordFinished(table, record, reason);
 }
 
-function markCreateOptimisticRecordFinished<T extends TableName>(record: NewRecord<T>, error: Error | null = null): void {
+function markCreateOptimisticRecordFinished<T extends TableName>(table: T, record: NewRecord<T>, error: Error | null = null, canonicalRecord: DataRecord | null = null): void {
     const dataSyncController = DataSyncController.getInstance();
+
+    if (!error && canonicalRecord) {
+        for (const dataSubscription of dataSyncController.dataSubscriptions) {
+            if (dataSubscription.query.table !== table
+                || !dataSubscription.optimisticCreatedPendingRecordIds.includes(record.id!)) {
+                continue;
+            }
+
+            if (recordMatchesQuery(dataSubscription.query, canonicalRecord)) {
+                dataSubscription.onCreate(canonicalRecord);
+            } else {
+                dataSubscription.onDelete(record.id!);
+            }
+        }
+    }
+
     const index = dataSyncController.optimisticCreatedPendingRecordIds.indexOf(record.id!);
     if (index !== -1) {
         dataSyncController.optimisticCreatedPendingRecordIds.splice(index, 1);
@@ -1134,6 +1157,9 @@ function updateRecordOptimistic<T extends TableName>(table: T, id: UUID, patch: 
     const rollbackOperations: (() => void)[] = [];
     for (const dataSubscription of dataSyncController.dataSubscriptions) {
         if (dataSubscription.query.table !== table) {
+            continue;
+        }
+        if (!dataSubscription.supportsOptimisticUpdates()) {
             continue;
         }
 
@@ -1194,6 +1220,9 @@ function deleteRecordOptimistic<T extends TableName>(table: T, id: UUID): () => 
     const undoOperations: (() => void)[] = [];
     for (const dataSubscription of dataSyncController.dataSubscriptions) {
         if (dataSubscription.query.table !== table) {
+            continue;
+        }
+        if (!dataSubscription.supportsOptimisticUpdates()) {
             continue;
         }
 

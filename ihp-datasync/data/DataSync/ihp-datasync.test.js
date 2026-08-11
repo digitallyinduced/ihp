@@ -296,7 +296,7 @@ describe('Optimistic CRUD coordination', () => {
         expect(subscription.records).toEqual([originalRecord]);
     });
 
-    test('does not refresh a limited query before an optimistic create reaches the server', async () => {
+    test('keeps a limited query exact until a post-create server refresh', async () => {
         const controller = DataSyncController.getInstance();
         const subscription = makeSubscription([
             { id: 'a', title: 'A' },
@@ -320,12 +320,17 @@ describe('Optimistic CRUD coordination', () => {
         await Promise.resolve();
         await Promise.resolve();
 
-        expect(subscription.records.map(record => record.id)).toEqual(['a', 'b', 'c']);
+        expect(subscription.records.map(record => record.id)).toEqual(['a', 'c']);
+        expect(subscription.optimisticCreatedPendingRecordIds).toEqual([]);
         expect(controller.sendMessage.mock.calls.map(([payload]) => payload.tag)).toEqual(['CreateRecordMessage']);
 
         resolveCreate({ tag: 'DidCreateRecord', record: { id: 'b', title: 'B' } });
         await create;
+        expect(subscription.records.map(record => record.id)).toEqual(['a', 'c']);
+
         subscription.onCreate({ id: 'b', title: 'B' });
+        await Promise.resolve();
+        await Promise.resolve();
 
         expect(subscription.records.map(record => record.id)).toEqual(['a', 'b']);
         expect(controller.sendMessage.mock.calls.map(([payload]) => payload.tag)).toEqual([
@@ -334,7 +339,54 @@ describe('Optimistic CRUD coordination', () => {
         ]);
     });
 
-    test('restores the complete limited window when an optimistic create fails offline', async () => {
+    test('queues an exact refresh when a create event races an in-flight refresh', async () => {
+        const controller = DataSyncController.getInstance();
+        const subscription = makeSubscription([
+            { id: 'a', title: 'A' },
+            { id: 'c', title: 'C' },
+        ]);
+        subscription.query.orderByClause = [{ orderByColumn: 'title', orderByDirection: 'Asc' }];
+        subscription.query.limit = 2;
+        controller.dataSubscriptions.push(subscription);
+
+        let resolveFirstRefresh;
+        let refreshCount = 0;
+        controller.sendMessage = jest.fn(payload => {
+            if (payload.tag === 'CreateRecordMessage') {
+                return Promise.resolve({ tag: 'DidCreateRecord', record: payload.record });
+            }
+
+            refreshCount++;
+            if (refreshCount === 1) {
+                return new Promise(resolve => { resolveFirstRefresh = resolve; });
+            }
+            return Promise.resolve({
+                tag: 'DataSyncResult',
+                result: [{ id: 'a', title: 'A' }, { id: 'b', title: 'B' }],
+            });
+        });
+
+        subscription.onDelete('c');
+        await createRecord('test', { id: 'b', title: 'B' });
+        subscription.onCreate({ id: 'b', title: 'B' });
+
+        expect(subscription.records.map(record => record.id)).toEqual(['a', 'c']);
+        expect(refreshCount).toBe(1);
+
+        resolveFirstRefresh({
+            tag: 'DataSyncResult',
+            result: [{ id: 'a', title: 'A' }, { id: 'd', title: 'D' }],
+        });
+        await Promise.resolve();
+        await Promise.resolve();
+        await Promise.resolve();
+        await Promise.resolve();
+
+        expect(refreshCount).toBe(2);
+        expect(subscription.records.map(record => record.id)).toEqual(['a', 'b']);
+    });
+
+    test('leaves a limited query unchanged when a create fails offline', async () => {
         const controller = DataSyncController.getInstance();
         const subscription = makeSubscription([
             { id: 'a', title: 'A' },
@@ -355,7 +407,6 @@ describe('Optimistic CRUD coordination', () => {
             expect(subscription.records.map(record => record.id)).toEqual(['a', 'c']);
             expect(controller.sendMessage.mock.calls.map(([payload]) => payload.tag)).toEqual([
                 'CreateRecordMessage',
-                'DataSyncQuery',
             ]);
         } finally {
             consoleError.mockRestore();
@@ -379,11 +430,59 @@ describe('Optimistic CRUD coordination', () => {
         });
 
         await updateRecord('test', 'a', { title: 'Z' });
+        expect(subscription.records).toEqual([
+            { id: 'a', title: 'A' },
+            { id: 'b', title: 'B' },
+        ]);
         expect(controller.sendMessage.mock.calls.map(([payload]) => payload.tag)).toEqual(['UpdateRecordMessage']);
 
         controller.sendMessage.mockClear();
         await deleteRecord('test', 'b');
+        expect(subscription.records).toEqual([
+            { id: 'a', title: 'A' },
+            { id: 'b', title: 'B' },
+        ]);
         expect(controller.sendMessage.mock.calls.map(([payload]) => payload.tag)).toEqual(['DeleteRecordMessage']);
+    });
+
+    test('reconciles an optimistic create with the canonical server record', async () => {
+        const controller = DataSyncController.getInstance();
+        const subscription = makeSubscription([]);
+        subscription.query.whereCondition = {
+            tag: 'InfixOperatorExpression',
+            left: { tag: 'ColumnExpression', field: 'status' },
+            op: 'OpEqual',
+            right: { tag: 'LiteralExpression', value: 'draft' },
+        };
+        controller.dataSubscriptions.push(subscription);
+        controller.sendMessage = jest.fn(async payload => ({
+            tag: 'DidCreateRecord',
+            record: { ...payload.record, status: 'published' },
+        }));
+
+        const result = await createRecord('test', { id: 'post', status: 'draft' });
+
+        expect(result).toEqual({ id: 'post', status: 'published' });
+        expect(subscription.records).toEqual([]);
+        expect(subscription.optimisticCreatedPendingRecordIds).toEqual([]);
+        expect(controller.optimisticCreatedPendingRecordIds).toEqual([]);
+    });
+
+    test('deduplicates a DidInsert arriving after canonical create reconciliation', async () => {
+        const controller = DataSyncController.getInstance();
+        const subscription = makeSubscription([]);
+        controller.dataSubscriptions.push(subscription);
+        const canonicalRecord = { id: 'post', title: 'Canonical title' };
+        controller.sendMessage = jest.fn(async () => ({
+            tag: 'DidCreateRecord',
+            record: canonicalRecord,
+        }));
+
+        await createRecord('test', { id: 'post', title: 'Optimistic title' });
+        subscription.onCreate(canonicalRecord);
+
+        expect(subscription.records).toEqual([canonicalRecord]);
+        expect(subscription.optimisticCreatedPendingRecordIds).toEqual([]);
     });
 });
 
@@ -406,12 +505,10 @@ describe('DataSubscription query semantics', () => {
         expect(subscription.records.map(record => record.id)).toEqual(['c', 'a', 'b']);
     });
 
-    test('enforces limit immediately and refreshes the exact server window', async () => {
+    test('keeps the old limited window until the exact server refresh resolves', async () => {
         const controller = DataSyncController.getInstance();
-        controller.sendMessage = jest.fn(async () => ({
-            tag: 'DataSyncResult',
-            result: [{ id: 'a', title: 'A' }, { id: 'b', title: 'B' }]
-        }));
+        let resolveRefresh;
+        controller.sendMessage = jest.fn(() => new Promise(resolve => { resolveRefresh = resolve; }));
         const subscription = makeSubscription([
             { id: 'a', title: 'A' },
             { id: 'c', title: 'C' },
@@ -420,9 +517,45 @@ describe('DataSubscription query semantics', () => {
         subscription.query.limit = 2;
 
         subscription.onCreate({ id: 'b', title: 'B' });
-        expect(subscription.records.map(record => record.id)).toEqual(['a', 'b']);
-        await Promise.resolve();
+        expect(subscription.records.map(record => record.id)).toEqual(['a', 'c']);
         expect(controller.sendMessage).toHaveBeenCalledWith(expect.objectContaining({ tag: 'DataSyncQuery' }));
+
+        resolveRefresh({
+            tag: 'DataSyncResult',
+            result: [{ id: 'a', title: 'A' }, { id: 'b', title: 'B' }],
+        });
+        await Promise.resolve();
+        await Promise.resolve();
+
+        expect(subscription.records.map(record => record.id)).toEqual(['a', 'b']);
+    });
+
+    test('keeps projected DISTINCT results verbatim after refresh', async () => {
+        const controller = DataSyncController.getInstance();
+        let resolveRefresh;
+        controller.sendMessage = jest.fn(() => new Promise(resolve => { resolveRefresh = resolve; }));
+        const subscription = makeSubscription([
+            { id: 'a', title: 'A' },
+            { id: 'b', title: 'B' },
+        ]);
+        subscription.query.selectedColumns = { tag: 'SelectSpecific', contents: ['id', 'title'] };
+        subscription.query.distinctOnColumn = 'category';
+
+        subscription.onCreate({ id: 'c', title: 'C' });
+        expect(subscription.records.map(record => record.id)).toEqual(['a', 'b']);
+
+        resolveRefresh({
+            tag: 'DataSyncResult',
+            result: [
+                { id: 'a', title: 'A' },
+                { id: 'b', title: 'B' },
+                { id: 'c', title: 'C' },
+            ],
+        });
+        await Promise.resolve();
+        await Promise.resolve();
+
+        expect(subscription.records.map(record => record.id)).toEqual(['a', 'b', 'c']);
     });
 
     test('subscription errors notify subscribers', async () => {
