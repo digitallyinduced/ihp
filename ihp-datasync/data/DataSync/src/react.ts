@@ -1,15 +1,39 @@
 import React, { useCallback, useState, useEffect, useContext, useSyncExternalStore, useMemo } from 'react';
 import { DataSyncController } from './ihp-datasync.js';
 import { QueryBuilder } from './ihp-querybuilder.js';
+import { createExternalStoreRegistry } from './external-store-registry.js';
 import { DataSubscriptionStore } from './legacy-data-subscription-store.js';
-import { createReactCountSpec, ReactCountRegistry } from './react-count-registry.js';
-import { createReactQuerySpec, ReactQueryRegistry } from './react-query-registry.js';
-import type { DataSubscriptionOptions, DataSyncEventMap } from './types.js';
+import { createLiveCountStore } from './live-count-store.js';
+import { createLiveQueryStore } from './live-query-store.js';
+import type { QuerySnapshot } from './live-query-store.js';
+import type { DataSubscriptionOptions, DataSyncEventMap, DynamicSQLQuery } from './types.js';
 
 export { DataSubscriptionStore } from './legacy-data-subscription-store.js';
 
-const reactQueryRegistry = new ReactQueryRegistry(DataSubscriptionStore.cache);
-const reactCountRegistry = new ReactCountRegistry();
+type QuerySpec = {
+    key: string;
+    queryKey: string;
+    query: DynamicSQLQuery;
+    options: DataSubscriptionOptions | null;
+    initialSnapshot: QuerySnapshot;
+};
+
+const reactQueryRegistry = createExternalStoreRegistry<QuerySpec, QuerySnapshot>(
+    spec => createLiveQueryStore({
+        query: spec.query,
+        options: spec.options,
+        initialRecords: spec.initialSnapshot.records,
+        controller: DataSyncController.getInstance(),
+        onRecords: records => DataSubscriptionStore.cache.set(spec.queryKey, records),
+    }),
+    spec => spec.initialSnapshot,
+);
+
+type CountSpec = { key: string; query: DynamicSQLQuery };
+const reactCountRegistry = createExternalStoreRegistry<CountSpec, number | null>(
+    spec => createLiveCountStore({ query: spec.query, controller: DataSyncController.getInstance() }),
+    () => null,
+);
 
 // Most IHP apps never use this context because they use session cookies for auth.
 // Therefore the default value is true.
@@ -25,10 +49,13 @@ export function useQuery<TTable extends string, TResult>(queryBuilder: QueryBuil
     const query = queryBuilder.query;
     const queryKey = JSON.stringify(query);
     const subscriptionKey = JSON.stringify([query, options]);
-    const spec = useMemo(
-        () => createReactQuerySpec(query, options, DataSubscriptionStore.cache.get(queryKey) ?? null),
-        [subscriptionKey],
-    );
+    const spec = useMemo<QuerySpec>(() => ({
+        key: subscriptionKey,
+        queryKey,
+        query,
+        options,
+        initialSnapshot: { records: DataSubscriptionStore.cache.get(queryKey) ?? null, error: null },
+    }), [subscriptionKey]);
     const subscribe = useCallback(
         (listener: () => void) => isAuthCompleted
             ? reactQueryRegistry.subscribe(spec, listener)
@@ -88,7 +115,7 @@ export function useCount(queryBuilder: QueryBuilder): number | null {
     const isAuthCompleted = useContext(AuthCompletedContext);
     const query = queryBuilder.query;
     const queryKey = JSON.stringify(query);
-    const spec = useMemo(() => createReactCountSpec(query), [queryKey]);
+    const spec = useMemo<CountSpec>(() => ({ key: queryKey, query }), [queryKey]);
     const subscribe = useCallback(
         (listener: () => void) => isAuthCompleted
             ? reactCountRegistry.subscribe(spec, listener)

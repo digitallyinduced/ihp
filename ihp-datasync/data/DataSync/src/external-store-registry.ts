@@ -1,7 +1,6 @@
 export interface ManagedExternalStore<TSnapshot> {
     getSnapshot(): TSnapshot;
     subscribe(listener: () => void): () => void;
-    start(): void;
     dispose(): void;
 }
 
@@ -18,31 +17,27 @@ type RegistryEntry<TSnapshot> = {
 const STORE_DISPOSE_DELAY = 0;
 
 /** Owns commit-time acquisition, deduplication, refcounts and Strict Mode cleanup grace. */
-export class ExternalStoreRegistry<TSpec extends ExternalStoreSpec, TSnapshot> {
-    private readonly entries: Map<string, RegistryEntry<TSnapshot>> = new Map();
+export function createExternalStoreRegistry<TSpec extends ExternalStoreSpec, TSnapshot>(
+    createStore: (spec: TSpec) => ManagedExternalStore<TSnapshot>,
+    getInitialSnapshot: (spec: TSpec) => TSnapshot,
+) {
+    const entries = new Map<string, RegistryEntry<TSnapshot>>();
 
-    constructor(
-        private readonly createStore: (spec: TSpec) => ManagedExternalStore<TSnapshot>,
-        private readonly getInitialSnapshot: (spec: TSpec) => TSnapshot,
-    ) {}
+    const getSnapshot = (spec: TSpec): TSnapshot => {
+        const entry = entries.get(spec.key);
+        return entry ? entry.store.getSnapshot() : getInitialSnapshot(spec);
+    };
 
-    getSnapshot(spec: TSpec): TSnapshot {
-        const entry = this.entries.get(spec.key);
-        return entry?.store.getSnapshot() ?? this.getInitialSnapshot(spec);
-    }
-
-    subscribe(spec: TSpec, listener: () => void): () => void {
-        let entry = this.entries.get(spec.key);
-        let shouldStart = false;
+    const subscribe = (spec: TSpec, listener: () => void): (() => void) => {
+        let entry = entries.get(spec.key);
 
         if (!entry) {
             entry = {
-                store: this.createStore(spec),
+                store: createStore(spec),
                 retainCount: 0,
                 closeTimeout: null,
             };
-            this.entries.set(spec.key, entry);
-            shouldStart = true;
+            entries.set(spec.key, entry);
         }
 
         const retainedEntry = entry;
@@ -53,9 +48,6 @@ export class ExternalStoreRegistry<TSpec extends ExternalStoreSpec, TSnapshot> {
 
         retainedEntry.retainCount++;
         const unsubscribeFromStore = retainedEntry.store.subscribe(listener);
-        if (shouldStart) {
-            retainedEntry.store.start();
-        }
 
         let isReleased = false;
         return () => {
@@ -72,12 +64,14 @@ export class ExternalStoreRegistry<TSpec extends ExternalStoreSpec, TSnapshot> {
                     if (retainedEntry.retainCount > 0) {
                         return;
                     }
-                    if (this.entries.get(spec.key) === retainedEntry) {
-                        this.entries.delete(spec.key);
+                    if (entries.get(spec.key) === retainedEntry) {
+                        entries.delete(spec.key);
                     }
                     retainedEntry.store.dispose();
                 }, STORE_DISPOSE_DELAY);
             }
         };
-    }
+    };
+
+    return { getSnapshot, subscribe };
 }

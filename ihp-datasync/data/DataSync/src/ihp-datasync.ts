@@ -20,7 +20,7 @@ import type {
     DataSubscriptionOptions,
     CrudOptions,
 } from './types.js';
-import { APPEND_NEW_RECORD, PREPEND_NEW_RECORD, NewRecordBehaviour } from './types.js';
+import { NewRecordBehaviour } from './types.js';
 
 const UNUSED_SUBSCRIPTION_CLOSE_DELAY = 1000;
 
