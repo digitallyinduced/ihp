@@ -1,4 +1,5 @@
 import { DataSyncController } from './ihp-datasync.js';
+import { ExternalStoreRegistry } from './external-store-registry.js';
 import { LiveQueryStore } from './live-query-store.js';
 import type {
     LiveQueryStoreOptions,
@@ -15,15 +16,7 @@ export type ReactQuerySpec = {
     initialSnapshot: QuerySnapshot;
 };
 
-type RegistryEntry = {
-    store: LiveQueryStore;
-    retainCount: number;
-    closeTimeout: ReturnType<typeof setTimeout> | null;
-};
-
 type LiveQueryStoreFactory = (options: Omit<LiveQueryStoreOptions, 'controller'>) => LiveQueryStore;
-
-const QUERY_SUBSCRIPTION_DISPOSE_DELAY = 0;
 
 export function createReactQuerySpec(
     query: DynamicSQLQuery,
@@ -41,7 +34,7 @@ export function createReactQuerySpec(
 
 /** Deduplicates React query consumers and owns their commit-to-cleanup grace period. */
 export class ReactQueryRegistry {
-    private readonly entries: Map<string, RegistryEntry> = new Map();
+    private readonly registry: ExternalStoreRegistry<ReactQuerySpec, QuerySnapshot>;
 
     constructor(
         private readonly cache: Map<string, DataRecord[]>,
@@ -49,64 +42,24 @@ export class ReactQueryRegistry {
             ...options,
             controller: DataSyncController.getInstance(),
         }),
-    ) {}
-
-    getSnapshot(spec: ReactQuerySpec): QuerySnapshot {
-        const entry = this.entries.get(spec.key);
-        return entry?.store.getSnapshot() ?? spec.initialSnapshot;
-    }
-
-    subscribe(spec: ReactQuerySpec, listener: QuerySnapshotListener): () => void {
-        let entry = this.entries.get(spec.key);
-        let shouldStart = false;
-
-        if (!entry) {
-            const store = this.createStore({
+    ) {
+        this.registry = new ExternalStoreRegistry(
+            spec => this.createStore({
                 query: spec.query,
                 options: spec.options,
                 initialRecords: spec.initialSnapshot.records,
                 onRecords: records => this.cacheRecords(spec.queryKey, records),
-            });
-            entry = { store, retainCount: 0, closeTimeout: null };
-            this.entries.set(spec.key, entry);
-            shouldStart = true;
-        }
+            }),
+            spec => spec.initialSnapshot,
+        );
+    }
 
-        const retainedEntry = entry;
+    getSnapshot(spec: ReactQuerySpec): QuerySnapshot {
+        return this.registry.getSnapshot(spec);
+    }
 
-        if (retainedEntry.closeTimeout !== null) {
-            clearTimeout(retainedEntry.closeTimeout);
-            retainedEntry.closeTimeout = null;
-        }
-
-        retainedEntry.retainCount++;
-        const unsubscribeFromStore = retainedEntry.store.subscribe(listener);
-        if (shouldStart) {
-            retainedEntry.store.start();
-        }
-
-        let isReleased = false;
-        return () => {
-            if (isReleased) {
-                return;
-            }
-            isReleased = true;
-            unsubscribeFromStore();
-            retainedEntry.retainCount--;
-
-            if (retainedEntry.retainCount === 0) {
-                retainedEntry.closeTimeout = setTimeout(() => {
-                    retainedEntry.closeTimeout = null;
-                    if (retainedEntry.retainCount > 0) {
-                        return;
-                    }
-                    if (this.entries.get(spec.key) === retainedEntry) {
-                        this.entries.delete(spec.key);
-                    }
-                    retainedEntry.store.dispose();
-                }, QUERY_SUBSCRIPTION_DISPOSE_DELAY);
-            }
-        };
+    subscribe(spec: ReactQuerySpec, listener: QuerySnapshotListener): () => void {
+        return this.registry.subscribe(spec, listener);
     }
 
     private cacheRecords(queryKey: string, records: DataRecord[]): void {

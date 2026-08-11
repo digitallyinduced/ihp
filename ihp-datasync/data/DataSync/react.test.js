@@ -3,7 +3,7 @@ import TestRenderer from 'react-test-renderer';
 import { jest } from '@jest/globals';
 import { DataSyncController } from './ihp-datasync.js';
 import { query } from './ihp-querybuilder.js';
-import { DataSubscriptionStore, useQuery } from './react.js';
+import { AuthCompletedContext, DataSubscriptionStore, useCount, useQuery } from './react.js';
 
 const { act } = TestRenderer;
 
@@ -25,6 +25,12 @@ async function flushPromises() {
 function QueryProbe({ table, onRender }) {
     const records = useQuery(query(table));
     onRender(records);
+    return null;
+}
+
+function CountProbe({ table, onRender }) {
+    const count = useCount(query(table));
+    onRender(count);
     return null;
 }
 
@@ -124,6 +130,65 @@ describe('useQuery lifecycle', () => {
         expect(sentMessages.filter(message => message.tag === 'DeleteDataSubscription')).toEqual([
             { tag: 'DeleteDataSubscription', subscriptionId: 'remounted-subscription' },
         ]);
+    });
+
+    test('does not create query or count subscriptions before authentication completes', async () => {
+        const controller = DataSyncController.getInstance();
+        const sentMessages = [];
+        controller.sendMessage = jest.fn((message) => {
+            sentMessages.push(message);
+            if (message.tag === 'CreateDataSubscription') {
+                return Promise.resolve({ subscriptionId: 'authenticated-query', result: [{ id: '1' }] });
+            }
+            if (message.tag === 'CreateCountSubscription') {
+                return Promise.resolve({ subscriptionId: 'authenticated-count', count: 1 });
+            }
+            return Promise.resolve({});
+        });
+        const queryResults = [];
+        const countResults = [];
+        const app = isAuthCompleted => React.createElement(
+            AuthCompletedContext.Provider,
+            { value: isAuthCompleted },
+            React.createElement(QueryProbe, { table: 'authenticated_records', onRender: records => queryResults.push(records) }),
+            React.createElement(CountProbe, { table: 'authenticated_records', onRender: count => countResults.push(count) }),
+        );
+
+        let renderer;
+        await act(async () => {
+            renderer = TestRenderer.create(app(false));
+            await flushPromises();
+        });
+
+        expect(sentMessages).toHaveLength(0);
+        expect(queryResults.at(-1)).toBeNull();
+        expect(countResults.at(-1)).toBeNull();
+
+        await act(async () => {
+            renderer.update(app(true));
+            await flushPromises();
+        });
+
+        expect(sentMessages.filter(message => message.tag === 'CreateDataSubscription')).toHaveLength(1);
+        expect(sentMessages.filter(message => message.tag === 'CreateCountSubscription')).toHaveLength(1);
+        expect(queryResults.at(-1)).toEqual([{ id: '1' }]);
+        expect(countResults.at(-1)).toBe(1);
+
+        await act(async () => {
+            renderer.update(app(false));
+            await flushPromises();
+        });
+        await act(async () => {
+            jest.runOnlyPendingTimers();
+            await flushPromises();
+        });
+
+        expect(sentMessages.filter(message => message.tag === 'DeleteDataSubscription')).toEqual([
+            { tag: 'DeleteDataSubscription', subscriptionId: 'authenticated-query' },
+            { tag: 'DeleteDataSubscription', subscriptionId: 'authenticated-count' },
+        ]);
+
+        await unmount(renderer);
     });
 
     test('deletes a stale response after a rapid query change', async () => {
@@ -280,5 +345,108 @@ describe('useQuery lifecycle', () => {
         expect(results.at(-1)).toEqual([{ id: '1', title: 'Before!' }]);
 
         await unmount(renderer);
+    });
+
+    test('deduplicates count hooks and recreates their subscription after reconnect', async () => {
+        const controller = DataSyncController.getInstance();
+        const sentMessages = [];
+        let createCount = 0;
+        controller.sendMessage = jest.fn((message) => {
+            sentMessages.push(message);
+            if (message.tag === 'CreateCountSubscription') {
+                createCount++;
+                return Promise.resolve({
+                    subscriptionId: createCount === 1 ? 'initial-count' : 'reconnected-count',
+                    count: createCount === 1 ? 2 : 5,
+                });
+            }
+            return Promise.resolve({});
+        });
+        const firstResults = [];
+        const secondResults = [];
+        const app = React.createElement(
+            React.StrictMode,
+            null,
+            React.createElement(CountProbe, { table: 'counted_records', onRender: count => firstResults.push(count) }),
+            React.createElement(CountProbe, { table: 'counted_records', onRender: count => secondResults.push(count) }),
+        );
+
+        let renderer;
+        await act(async () => {
+            renderer = TestRenderer.create(app, { unstable_strictMode: true });
+            await flushPromises();
+        });
+
+        expect(sentMessages.filter(message => message.tag === 'CreateCountSubscription')).toHaveLength(1);
+        expect(firstResults.at(-1)).toBe(2);
+        expect(secondResults.at(-1)).toBe(2);
+
+        await act(async () => {
+            for (const listener of controller.eventListeners.message.slice()) {
+                listener({ tag: 'DidChangeCount', subscriptionId: 'initial-count', count: 3 });
+            }
+        });
+        expect(firstResults.at(-1)).toBe(3);
+        expect(secondResults.at(-1)).toBe(3);
+
+        await act(async () => {
+            for (const listener of controller.eventListeners.close.slice()) {
+                listener(null);
+            }
+            for (const listener of controller.eventListeners.reconnect.slice()) {
+                listener();
+            }
+            await flushPromises();
+        });
+
+        expect(sentMessages.filter(message => message.tag === 'CreateCountSubscription')).toHaveLength(2);
+        expect(firstResults.at(-1)).toBe(5);
+        expect(secondResults.at(-1)).toBe(5);
+
+        await unmount(renderer);
+
+        expect(sentMessages.filter(message => message.tag === 'DeleteDataSubscription')).toEqual([
+            { tag: 'DeleteDataSubscription', subscriptionId: 'reconnected-count' },
+        ]);
+    });
+
+    test('deletes a count reconnect response that arrives after unmount', async () => {
+        const controller = DataSyncController.getInstance();
+        const reconnectResponse = deferred();
+        const sentMessages = [];
+        let createCount = 0;
+        controller.sendMessage = jest.fn((message) => {
+            sentMessages.push(message);
+            if (message.tag === 'CreateCountSubscription') {
+                createCount++;
+                return createCount === 1
+                    ? Promise.resolve({ subscriptionId: 'initial-stale-count', count: 1 })
+                    : reconnectResponse.promise;
+            }
+            return Promise.resolve({});
+        });
+
+        let renderer;
+        await act(async () => {
+            renderer = TestRenderer.create(React.createElement(CountProbe, { table: 'stale_count_records', onRender: () => {} }));
+            await flushPromises();
+        });
+        await act(async () => {
+            for (const listener of controller.eventListeners.close.slice()) {
+                listener(null);
+            }
+            for (const listener of controller.eventListeners.reconnect.slice()) {
+                listener();
+            }
+            await flushPromises();
+        });
+
+        await unmount(renderer);
+        await act(async () => {
+            reconnectResponse.resolve({ subscriptionId: 'stale-count-reconnect', count: 2 });
+            await flushPromises();
+        });
+
+        expect(sentMessages).toContainEqual({ tag: 'DeleteDataSubscription', subscriptionId: 'stale-count-reconnect' });
     });
 });

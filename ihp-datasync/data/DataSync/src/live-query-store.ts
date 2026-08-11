@@ -1,4 +1,5 @@
 import type { DataSyncController } from './ihp-datasync.js';
+import type { ManagedExternalStore } from './external-store-registry.js';
 import {
     deleteDataSyncRecord,
     detectNewRecordBehaviour,
@@ -41,7 +42,7 @@ export type LiveQueryStoreOptions = {
 };
 
 /** Owns one backend subscription and exposes it as a React-compatible external store. */
-export class LiveQueryStore implements DataSyncQuerySubscription {
+export class LiveQueryStore implements DataSyncQuerySubscription, ManagedExternalStore<QuerySnapshot> {
     readonly query: DynamicSQLQuery;
     readonly optimisticUpdatedPendingRecordIds: Set<UUID> = new Set();
 
@@ -69,7 +70,9 @@ export class LiveQueryStore implements DataSyncQuerySubscription {
 
     subscribe = (listener: QuerySnapshotListener): (() => void) => {
         this.listeners.add(listener);
-        return () => this.listeners.delete(listener);
+        return () => {
+            this.listeners.delete(listener);
+        };
     };
 
     start(): void {

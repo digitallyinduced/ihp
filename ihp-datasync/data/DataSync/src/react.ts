@@ -1,13 +1,15 @@
-import React, { useCallback, useState, useEffect, useContext, useSyncExternalStore, useRef, useMemo } from 'react';
+import React, { useCallback, useState, useEffect, useContext, useSyncExternalStore, useMemo } from 'react';
 import { DataSyncController } from './ihp-datasync.js';
 import { QueryBuilder } from './ihp-querybuilder.js';
 import { DataSubscriptionStore } from './legacy-data-subscription-store.js';
+import { createReactCountSpec, ReactCountRegistry } from './react-count-registry.js';
 import { createReactQuerySpec, ReactQueryRegistry } from './react-query-registry.js';
 import type { DataSubscriptionOptions, DataSyncEventMap } from './types.js';
 
 export { DataSubscriptionStore } from './legacy-data-subscription-store.js';
 
 const reactQueryRegistry = new ReactQueryRegistry(DataSubscriptionStore.cache);
+const reactCountRegistry = new ReactCountRegistry();
 
 // Most IHP apps never use this context because they use session cookies for auth.
 // Therefore the default value is true.
@@ -28,18 +30,20 @@ export function useQuery<TTable extends string, TResult>(queryBuilder: QueryBuil
         [subscriptionKey],
     );
     const subscribe = useCallback(
-        (listener: () => void) => reactQueryRegistry.subscribe(spec, listener),
-        [spec],
+        (listener: () => void) => isAuthCompleted
+            ? reactQueryRegistry.subscribe(spec, listener)
+            : () => {},
+        [spec, isAuthCompleted],
     );
     const getSnapshot = useCallback(() => reactQueryRegistry.getSnapshot(spec), [spec]);
     const snapshot = useSyncExternalStore(subscribe, getSnapshot);
 
-    if (snapshot.error) {
-        throw snapshot.error;
-    }
-
     if (!isAuthCompleted) {
         return null;
+    }
+
+    if (snapshot.error) {
+        throw snapshot.error;
     }
 
     return snapshot.records as TResult[] | null;
@@ -81,43 +85,18 @@ export function useIsConnected(): boolean {
 }
 
 export function useCount(queryBuilder: QueryBuilder): number | null {
-    const count = useRef<number | null>(null);
-    const getSnapshot = useMemo(() => () => count.current, []);
-    const subscribe = useMemo(() => (onStoreChange: () => void) => {
-        const controller = DataSyncController.getInstance();
-        let isActive = true;
-        let subscriptionId: string | null = null;
-        const onMessage: DataSyncEventMap['message'] = (message) => {
-            if (message.tag === 'DidChangeCount' && message.subscriptionId === subscriptionId) {
-                count.current = message.count as number;
-                onStoreChange();
-            }
-        };
-        controller.sendMessage({ tag: 'CreateCountSubscription', query: queryBuilder.query })
-            .then((response) => {
-                if (isActive) {
-                    subscriptionId = response.subscriptionId as string;
-                    count.current = response.count as number;
-                    onStoreChange();
+    const isAuthCompleted = useContext(AuthCompletedContext);
+    const query = queryBuilder.query;
+    const queryKey = JSON.stringify(query);
+    const spec = useMemo(() => createReactCountSpec(query), [queryKey]);
+    const subscribe = useCallback(
+        (listener: () => void) => isAuthCompleted
+            ? reactCountRegistry.subscribe(spec, listener)
+            : () => {},
+        [spec, isAuthCompleted],
+    );
+    const getSnapshot = useCallback(() => reactCountRegistry.getSnapshot(spec), [spec]);
+    const count = useSyncExternalStore(subscribe, getSnapshot);
 
-                    controller.addEventListener('message', onMessage);
-                } else {
-                    controller.sendMessage({ tag: 'DeleteDataSubscription', subscriptionId: response.subscriptionId });
-                }
-            })
-            .catch((error: unknown) => {
-                console.error('useCount: Failed to create count subscription', error);
-            });
-
-        return () => {
-            isActive = false;
-
-            if (subscriptionId) {
-                controller.sendMessage({ tag: 'DeleteDataSubscription', subscriptionId });
-            }
-            controller.removeEventListener('message', onMessage);
-        };
-    }, [JSON.stringify(queryBuilder.query)]);
-
-    return useSyncExternalStore(subscribe, getSnapshot);
+    return isAuthCompleted ? count : null;
 }
