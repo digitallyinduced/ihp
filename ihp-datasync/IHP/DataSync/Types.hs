@@ -9,8 +9,8 @@ import Control.Concurrent.MVar as MVar
 
 data DataSyncMessage
     = DataSyncQuery { query :: !DynamicSQLQuery, requestId :: !Int, transactionId :: !(Maybe UUID) }
-    | CreateDataSubscription { query :: !DynamicSQLQuery, requestId :: !Int }
-    | CreateCountSubscription { query :: !DynamicSQLQuery, requestId :: !Int }
+    | CreateDataSubscription { query :: !DynamicSQLQuery, requestId :: !Int, clientSubscriptionId :: !(Maybe UUID) }
+    | CreateCountSubscription { query :: !DynamicSQLQuery, requestId :: !Int, clientSubscriptionId :: !(Maybe UUID) }
     | DeleteDataSubscription { subscriptionId :: !UUID, requestId :: !Int }
     | CreateRecordMessage { table :: !Text, record :: !(HashMap Text Value), requestId :: !Int, transactionId :: !(Maybe UUID) }
     | CreateRecordsMessage { table :: !Text, records :: ![HashMap Text Value], requestId :: !Int, transactionId :: !(Maybe UUID) }

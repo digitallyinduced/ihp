@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useContext, useSyncExternalStore, useRef, useMemo } from 'react';
-import { DataSubscription, DataSyncController } from './ihp-datasync.js';
+import { DataSubscription, DataSyncController, randomUUID } from './ihp-datasync.js';
 import { QueryBuilder } from './ihp-querybuilder.js';
 import type { DataRecord, DynamicSQLQuery, DataSubscriptionOptions, DataSyncEventMap, ServerMessage, TableName } from './types.js';
 
@@ -109,15 +109,17 @@ export function useCount(queryBuilder: QueryBuilder): number | null {
     const subscribe = useMemo(() => (onStoreChange: () => void) => {
         const controller = DataSyncController.getInstance();
         let isActive = true;
-        let subscriptionId: string | null = null;
+        let isCreated = false;
+        let subscriptionId: string | null = randomUUID();
         const onMessage: DataSyncEventMap['message'] = (message) => {
             if (message.tag === 'DidChangeCount' && message.subscriptionId === subscriptionId) {
                 count.current = message.count as number;
                 onStoreChange();
             }
         };
-        controller.sendMessage({ tag: 'CreateCountSubscription', query: queryBuilder.query })
+        controller.sendMessage({ tag: 'CreateCountSubscription', query: queryBuilder.query, clientSubscriptionId: subscriptionId })
             .then((response) => {
+                isCreated = true;
                 if (isActive) {
                     subscriptionId = response.subscriptionId as string;
                     count.current = response.count as number;
@@ -135,7 +137,7 @@ export function useCount(queryBuilder: QueryBuilder): number | null {
         return () => {
             isActive = false;
 
-            if (subscriptionId) {
+            if (isCreated && subscriptionId) {
                 controller.sendMessage({ tag: 'DeleteDataSubscription', subscriptionId });
             }
             controller.removeEventListener('message', onMessage);

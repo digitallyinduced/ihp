@@ -120,6 +120,14 @@ buildMessageHandler hasqlPool ensureRLSEnabled installTableChangeTriggers sendJS
     pure (handleMessage getRLSColumns)
     where
             pgListener = ?request.pgListener
+            registerSubscription subscriptionId close = do
+                inserted <- atomicModifyIORef' ?state \state -> case state of
+                    ready@DataSyncReady { subscriptions }
+                        | HashMap.member subscriptionId subscriptions -> (ready, False)
+                        | otherwise -> (ready |> modify #subscriptions (HashMap.insert subscriptionId close), True)
+                    notReady -> (notReady, False)
+                unless inserted (Exception.throwString ("DataSubscription id is already in use: " <> cs (tshow subscriptionId)))
+
             handleMessage :: (Text -> IO (Set.Set Text)) -> DataSyncMessage -> IO ()
             handleMessage getRLSColumns DataSyncQuery { query, requestId, transactionId } = do
                 ensureRLSEnabled (query.table)
@@ -132,18 +140,18 @@ buildMessageHandler hasqlPool ensureRLSEnabled installTableChangeTriggers sendJS
 
                 sendJSON DataSyncResult { result, requestId }
 
-            handleMessage getRLSColumns CreateDataSubscription { query, requestId } = do
+            handleMessage getRLSColumns CreateDataSubscription { query, requestId, clientSubscriptionId } = do
                 ensureBelowSubscriptionsLimit
 
                 tableNameRLS <- ensureRLSEnabled (query.table)
 
-                subscriptionId <- UUID.nextRandom
+                subscriptionId <- maybe UUID.nextRandom pure clientSubscriptionId
 
                 -- Allocate the close handle as early as possible
                 -- to make DeleteDataSubscription calls succeed even when the DataSubscription is
                 -- not fully set up yet
                 close <- MVar.newEmptyMVar
-                atomicModifyIORef'' ?state (\state -> state |> modify #subscriptions (HashMap.insert subscriptionId close))
+                registerSubscription subscriptionId close
 
                 columnTypes <- columnTypeLookup query.table
                 let querySnippet = compileQueryTyped (renamer query.table) columnTypes query
@@ -235,18 +243,18 @@ buildMessageHandler hasqlPool ensureRLSEnabled installTableChangeTriggers sendJS
 
                     MVar.takeMVar close
 
-            handleMessage getRLSColumns CreateCountSubscription { query, requestId } = do
+            handleMessage getRLSColumns CreateCountSubscription { query, requestId, clientSubscriptionId } = do
                 ensureBelowSubscriptionsLimit
 
                 tableNameRLS <- ensureRLSEnabled query.table
 
-                subscriptionId <- UUID.nextRandom
+                subscriptionId <- maybe UUID.nextRandom pure clientSubscriptionId
 
                 -- Allocate the close handle as early as possible
                 -- to make DeleteDataSubscription calls succeed even when the CountSubscription is
                 -- not fully set up yet
                 close <- MVar.newEmptyMVar
-                atomicModifyIORef'' ?state (\state -> state |> modify #subscriptions (HashMap.insert subscriptionId close))
+                registerSubscription subscriptionId close
 
                 columnTypes <- columnTypeLookup query.table
                 let querySnippet = compileQueryTyped (renamer query.table) columnTypes query

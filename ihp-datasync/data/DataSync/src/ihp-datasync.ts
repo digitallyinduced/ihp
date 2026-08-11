@@ -340,13 +340,18 @@ class DataSubscription {
     async createOnServer(): Promise<void> {
         const dataSyncController = DataSyncController.getInstance();
         const createOnServerGeneration = this.createOnServerGeneration;
+        const clientSubscriptionId = randomUUID();
+        this.subscriptionId = clientSubscriptionId;
         try {
-            const response = await dataSyncController.sendMessage({ tag: 'CreateDataSubscription', query: this.query });
+            const response = await dataSyncController.sendMessage({ tag: 'CreateDataSubscription', query: this.query, clientSubscriptionId });
             const subscriptionId = response.subscriptionId as UUID;
             const result = response.result as DataRecord[];
 
             if (createOnServerGeneration !== this.createOnServerGeneration) {
                 await this.deleteStaleDataSubscription(dataSyncController, subscriptionId);
+                if (this.subscriptionId === clientSubscriptionId) {
+                    this.subscriptionId = null;
+                }
                 return;
             }
 
@@ -371,6 +376,9 @@ class DataSubscription {
 
             dataSyncController.learnOptimisticShapeFromResult(this.query.table, result);
         } catch (e) {
+            if (this.subscriptionId === clientSubscriptionId) {
+                this.subscriptionId = null;
+            }
             const error = e as Error;
             this.connectError = new Error(error.message + ' while trying to subscribe to:\n' + JSON.stringify(this.query, null, 4));
             this.rejectCreateOnServer(this.connectError);
@@ -413,10 +421,14 @@ class DataSubscription {
             return;
         }
 
-        // We cannot close the DataSubscription when the subscriptionId is not assigned
+        // Close locally right away. The pending CreateDataSubscription response will
+        // delete the server-side subscription once the server has registered it.
         if (!this.isClosed && !this.isConnected) {
-            await this.createOnServerPromise;
-            return this.close();
+            this.createOnServerGeneration++;
+            this.isClosed = true;
+            this.notifyClose();
+            this.detachFromDataSyncController(dataSyncController);
+            return;
         }
 
         // Set isClosed early as we need to prevent a second close() from triggering another DeleteDataSubscription message
@@ -762,7 +774,7 @@ function createOptimisticRecord<T extends TableName>(table: T, record: NewRecord
     dataSyncController.optimisticCreatedPendingRecordIds.push(record.id!);
 }
 
-function randomUUID(): UUID {
+export function randomUUID(): UUID {
     // Some older browsers like firefox 91 ESR don't support crypto.randomUUID
     // So we have a fallback to keep the app working in these browsers
     try {
