@@ -410,25 +410,60 @@ function query<T extends TableName>(table: T, columns?: string[]): QueryBuilder<
 }
 
 export function recordMatchesQuery(query: DynamicSQLQuery, record: DataRecord): boolean {
+    type SQLBoolean = boolean | null;
+
+    const isNull = (value: unknown): boolean => value === null || value === undefined;
+    const asSQLBoolean = (value: unknown): SQLBoolean => isNull(value) ? null : Boolean(value);
+    const sqlAnd = (left: unknown, right: unknown): SQLBoolean => {
+        const leftBoolean = asSQLBoolean(left);
+        const rightBoolean = asSQLBoolean(right);
+        if (leftBoolean === false || rightBoolean === false) {
+            return false;
+        }
+        return leftBoolean === null || rightBoolean === null ? null : true;
+    };
+    const sqlOr = (left: unknown, right: unknown): SQLBoolean => {
+        const leftBoolean = asSQLBoolean(left);
+        const rightBoolean = asSQLBoolean(right);
+        if (leftBoolean === true || rightBoolean === true) {
+            return true;
+        }
+        return leftBoolean === null || rightBoolean === null ? null : false;
+    };
+
     function evaluate(expression: ConditionExpression): unknown {
         switch (expression.tag) {
             case 'ColumnExpression': return (expression.field in record) ? record[expression.field] : null;
             case 'InfixOperatorExpression': {
+                const left = evaluate(expression.left);
+                const right = evaluate(expression.right);
                 switch (expression.op) {
-                    case 'OpEqual': return evaluate(expression.left) === evaluate(expression.right);
-                    case 'OpGreaterThan': return (evaluate(expression.left) as number) > (evaluate(expression.right) as number);
-                    case 'OpLessThan': return (evaluate(expression.left) as number) < (evaluate(expression.right) as number);
-                    case 'OpGreaterThanOrEqual': return (evaluate(expression.left) as number) >= (evaluate(expression.right) as number);
-                    case 'OpLessThanOrEqual': return (evaluate(expression.left) as number) <= (evaluate(expression.right) as number);
-                    case 'OpNotEqual': return evaluate(expression.left) !== evaluate(expression.right);
-                    case 'OpAnd': return evaluate(expression.left) && evaluate(expression.right);
-                    case 'OpOr': return evaluate(expression.left) || evaluate(expression.right);
-                    case 'OpIs': return evaluate(expression.left) == evaluate(expression.right);
-                    case 'OpIsNot': return evaluate(expression.left) != evaluate(expression.right);
+                    case 'OpEqual':
+                        if (expression.right.tag === 'LiteralExpression' && isNull(right)) {
+                            return isNull(left);
+                        }
+                        return isNull(left) || isNull(right) ? null : left === right;
+                    case 'OpGreaterThan': return isNull(left) || isNull(right) ? null : (left as number) > (right as number);
+                    case 'OpLessThan': return isNull(left) || isNull(right) ? null : (left as number) < (right as number);
+                    case 'OpGreaterThanOrEqual': return isNull(left) || isNull(right) ? null : (left as number) >= (right as number);
+                    case 'OpLessThanOrEqual': return isNull(left) || isNull(right) ? null : (left as number) <= (right as number);
+                    case 'OpNotEqual':
+                        if (expression.right.tag === 'LiteralExpression' && isNull(right)) {
+                            return !isNull(left);
+                        }
+                        return isNull(left) || isNull(right) ? null : left !== right;
+                    case 'OpAnd': return sqlAnd(left, right);
+                    case 'OpOr': return sqlOr(left, right);
+                    case 'OpIs': return isNull(left) && isNull(right) || !isNull(left) && !isNull(right) && left === right;
+                    case 'OpIsNot': return !(isNull(left) && isNull(right) || !isNull(left) && !isNull(right) && left === right);
                     case 'OpIn': {
-                        const left = evaluate(expression.left);
-                        const right = evaluate(expression.right);
-                        return Array.isArray(right) && right.includes(left);
+                        if (!Array.isArray(right)) {
+                            return false;
+                        }
+                        if (isNull(left)) {
+                            return right.some(isNull) ? true : null;
+                        }
+                        return right.filter(value => !isNull(value)).includes(left);
                     }
                     // Full-text matching depends on PostgreSQL dictionaries and stemming.
                     // If it cannot be reproduced exactly in the browser, skip the
@@ -446,7 +481,7 @@ export function recordMatchesQuery(query: DynamicSQLQuery, record: DataRecord): 
 
     return query.whereCondition === null
             ? true
-            : !!evaluate(query.whereCondition);
+            : evaluate(query.whereCondition) === true;
 }
 
 export {

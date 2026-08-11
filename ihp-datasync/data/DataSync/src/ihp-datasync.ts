@@ -632,11 +632,13 @@ class DataSubscription {
             return;
         }
 
+        const projectedChangeSet = changeSet === null ? null : this.projectFields(changeSet);
+        const projectedAppendSet = appendSet === null ? null : this.projectFields(appendSet);
         this.records = this.normalizeRecords(this.records!.map(record => {
             if (record.id === id) {
-                const updated = Object.assign({}, record, changeSet);
-                if (appendSet && !wasOptimisticallyUpdated) {
-                    for (const [key, value] of Object.entries(appendSet)) {
+                const updated = Object.assign({}, record, projectedChangeSet);
+                if (projectedAppendSet && !wasOptimisticallyUpdated) {
+                    for (const [key, value] of Object.entries(projectedAppendSet)) {
                         (updated as Record<string, unknown>)[key] = (typeof updated[key] === 'string' ? updated[key] : '') + String(value);
                     }
                 }
@@ -658,6 +660,7 @@ class DataSubscription {
         }
 
         const shouldAppend = this.newRecordBehaviour === APPEND_NEW_RECORD;
+        const projectedRecord = this.projectFields(newRecord) as DataRecord;
 
         const newRecordId = newRecord.id;
         const optimisticIndex = this.optimisticCreatedPendingRecordIds.indexOf(newRecordId);
@@ -668,14 +671,14 @@ class DataSubscription {
             }
             // The create response and DidInsert notification can both contain
             // the same record. Reconcile by id instead of appending twice.
-            this.onUpdate(newRecordId, newRecord, null, isOptimistic);
+            this.onUpdate(newRecordId, projectedRecord, null, isOptimistic);
             return;
         }
 
         if (isOptimistic && optimisticIndex === -1) {
             this.optimisticCreatedPendingRecordIds.push(newRecordId);
         }
-        const records = shouldAppend ? [...this.records!, newRecord] : [newRecord, ...this.records!];
+        const records = shouldAppend ? [...this.records!, projectedRecord] : [projectedRecord, ...this.records!];
         this.records = this.normalizeRecords(records);
 
         this.updateSubscribers();
@@ -771,6 +774,20 @@ class DataSubscription {
         return normalized;
     }
 
+    private projectFields<T extends Record<string, unknown>>(fields: T): T {
+        if (this.query.selectedColumns.tag === 'SelectAll') {
+            return fields;
+        }
+
+        const projected: Record<string, unknown> = {};
+        for (const column of this.query.selectedColumns.contents) {
+            if (Object.prototype.hasOwnProperty.call(fields, column)) {
+                projected[column] = fields[column];
+            }
+        }
+        return projected as T;
+    }
+
     supportsOptimisticUpdates(): boolean {
         const selectedColumns = this.query.selectedColumns;
         const hasUnprojectedOrderColumn = selectedColumns.tag === 'SelectSpecific'
@@ -837,7 +854,29 @@ class DataSubscription {
             return;
         }
 
-        this.close();
+        void this.closeWhenUnused();
+    }
+
+    private async closeWhenUnused(): Promise<void> {
+        if (!this.isClosed && !this.isConnected) {
+            try {
+                await this.createOnServerPromise;
+            } catch (_error) {
+                // close() handles failed setup and removes the local subscription.
+            }
+        }
+
+        // A React commit can subscribe while setup is still pending. Recheck
+        // after the await so that the earlier cleanup request is cancellable.
+        if (this.subscribers.length > 0) {
+            return;
+        }
+
+        try {
+            await this.close();
+        } catch (error) {
+            console.error('Failed to close an unused DataSubscription:', error);
+        }
     }
 
     onClose(): void {
@@ -857,8 +896,19 @@ function compareQueryValues(left: unknown, right: unknown): number {
         return -1;
     }
 
-    const normalizedLeft = left instanceof Date ? left.getTime() : left;
-    const normalizedRight = right instanceof Date ? right.getTime() : right;
+    let normalizedLeft = left instanceof Date ? left.getTime() : left;
+    let normalizedRight = right instanceof Date ? right.getTime() : right;
+    if (left instanceof Date || right instanceof Date) {
+        const leftTimestamp = toTimestamp(left);
+        const rightTimestamp = toTimestamp(right);
+        if (leftTimestamp !== null && rightTimestamp !== null) {
+            normalizedLeft = leftTimestamp;
+            normalizedRight = rightTimestamp;
+        }
+    }
+    if (Object.is(normalizedLeft, normalizedRight)) {
+        return 0;
+    }
     if ((typeof normalizedLeft === 'number' && typeof normalizedRight === 'number')
         || (typeof normalizedLeft === 'string' && typeof normalizedRight === 'string')
         || (typeof normalizedLeft === 'boolean' && typeof normalizedRight === 'boolean')) {
@@ -868,6 +918,17 @@ function compareQueryValues(left: unknown, right: unknown): number {
     const leftText = String(normalizedLeft);
     const rightText = String(normalizedRight);
     return leftText < rightText ? -1 : leftText > rightText ? 1 : 0;
+}
+
+function toTimestamp(value: unknown): number | null {
+    const timestamp = value instanceof Date
+        ? value.getTime()
+        : typeof value === 'string'
+            ? Date.parse(value)
+            : typeof value === 'number'
+                ? value
+                : NaN;
+    return Number.isFinite(timestamp) ? timestamp : null;
 }
 
 function initIHPBackend({ host }: { host: string }): void {
@@ -976,11 +1037,12 @@ export async function deleteRecord<T extends TableName>(table: T, id: UUID, opti
     const transactionId = options.transactionId ?? null;
     const request = { tag: 'DeleteRecordMessage', table, id, transactionId };
 
-    const undoOptimisticDeleteRecord = transactionId === null
-        ? deleteRecordOptimistic(table, id)
-        : () => {};
+    let undoOptimisticDeleteRecord = () => {};
     try {
         await waitPendingCreation(table, id);
+        if (transactionId === null) {
+            undoOptimisticDeleteRecord = deleteRecordOptimistic(table, id);
+        }
         await DataSyncController.getInstance().sendMessage(request);
 
         return;

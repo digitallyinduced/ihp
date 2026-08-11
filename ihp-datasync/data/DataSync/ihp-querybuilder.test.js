@@ -73,6 +73,25 @@ describe('recordMatchesQuery', () => {
         expect(() => recordMatchesQuery(fullTextQuery, { id: '1', body: 'hello world' })).not.toThrow();
         expect(recordMatchesQuery(fullTextQuery, { id: '1', body: 'hello world' })).toBe(false);
     });
+
+    it('uses PostgreSQL NULL semantics for comparisons', () => {
+        const notDraft = query('posts').whereNot('status', 'draft').query;
+        const olderThanOne = query('posts').whereLessThan('position', 1).query;
+
+        expect(recordMatchesQuery(notDraft, { id: '1', status: null })).toBe(false);
+        expect(recordMatchesQuery(notDraft, { id: '2', status: 'published' })).toBe(true);
+        expect(recordMatchesQuery(olderThanOne, { id: '3', position: null })).toBe(false);
+    });
+
+    it('matches the compiler rewrites for NULL equality and IN lists', () => {
+        const nullStatus = query('posts').where('status', null).query;
+        const selectedStatuses = query('posts').whereIn('status', ['draft', null]).query;
+
+        expect(recordMatchesQuery(nullStatus, { id: '1', status: null })).toBe(true);
+        expect(recordMatchesQuery(nullStatus, { id: '2', status: 'draft' })).toBe(false);
+        expect(recordMatchesQuery(selectedStatuses, { id: '3', status: null })).toBe(true);
+        expect(recordMatchesQuery(selectedStatuses, { id: '4', status: 'published' })).toBe(false);
+    });
 });
 
 describe('Value Transformations and basic use', () => {

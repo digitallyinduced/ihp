@@ -250,6 +250,30 @@ describe('Optimistic CRUD coordination', () => {
         expect(sentIds).toEqual(['parent', 'child']);
     });
 
+    test('deleting a failed optimistic create does not restore a ghost record', async () => {
+        const controller = DataSyncController.getInstance();
+        const subscription = makeSubscription([]);
+        controller.dataSubscriptions.push(subscription);
+        let rejectCreate;
+        controller.sendMessage = jest.fn(payload => {
+            if (payload.tag === 'CreateRecordMessage') {
+                return new Promise((_resolve, reject) => { rejectCreate = reject; });
+            }
+            return Promise.resolve({ tag: 'DidDeleteRecord' });
+        });
+
+        const createOutcome = createRecord('test', { id: 'ghost', title: 'Ghost' }).catch(error => error);
+        await Promise.resolve();
+        const deleteOutcome = deleteRecord('test', 'ghost').catch(error => error);
+        await Promise.resolve();
+
+        rejectCreate(new Error('create failed'));
+        await Promise.all([createOutcome, deleteOutcome]);
+
+        expect(subscription.records).toEqual([]);
+        expect(controller.sendMessage.mock.calls.map(([payload]) => payload.tag)).toEqual(['CreateRecordMessage']);
+    });
+
     test('transaction rollback leaves subscriptions unchanged', async () => {
         const controller = DataSyncController.getInstance();
         const subscription = makeSubscription([]);
@@ -484,6 +508,32 @@ describe('Optimistic CRUD coordination', () => {
         expect(subscription.records).toEqual([canonicalRecord]);
         expect(subscription.optimisticCreatedPendingRecordIds).toEqual([]);
     });
+
+    test('keeps selected-column subscriptions projected during creates and updates', async () => {
+        const controller = DataSyncController.getInstance();
+        const subscription = makeSubscription([]);
+        subscription.query.selectedColumns = { tag: 'SelectSpecific', contents: ['id', 'title'] };
+        controller.dataSubscriptions.push(subscription);
+        let resolveCreate;
+        controller.sendMessage = jest.fn(payload => new Promise(resolve => {
+            resolveCreate = () => resolve({
+                tag: 'DidCreateRecord',
+                record: { ...payload.record, secret: 'canonical secret' },
+            });
+        }));
+
+        const create = createRecord('test', { id: 'projected', title: 'Title', secret: 'optimistic secret' });
+        await Promise.resolve();
+        await Promise.resolve();
+        expect(subscription.records).toEqual([{ id: 'projected', title: 'Title' }]);
+
+        resolveCreate();
+        await create;
+        subscription.onCreate({ id: 'projected', title: 'Title' });
+        subscription.onUpdate('projected', { secret: 'updated secret' }, null);
+
+        expect(subscription.records).toEqual([{ id: 'projected', title: 'Title' }]);
+    });
 });
 
 describe('DataSubscription query semantics', () => {
@@ -503,6 +553,17 @@ describe('DataSubscription query semantics', () => {
 
         subscription.onUpdate('c', { title: '0' }, null);
         expect(subscription.records.map(record => record.id)).toEqual(['c', 'a', 'b']);
+    });
+
+    test('orders optimistic Date values against server ISO timestamps', () => {
+        const subscription = makeSubscription([
+            { id: 'old', createdAt: '2025-01-01T00:00:00.000Z' },
+        ]);
+        subscription.query.orderByClause = [{ orderByColumn: 'createdAt', orderByDirection: 'Desc' }];
+
+        subscription.onCreateOptimistic({ id: 'new', createdAt: new Date('2026-01-01T00:00:00.000Z') });
+
+        expect(subscription.records.map(record => record.id)).toEqual(['new', 'old']);
     });
 
     test('keeps the old limited window until the exact server refresh resolves', async () => {
@@ -677,5 +738,36 @@ describe('DataSubscription disconnect cleanup', () => {
         expect(sub.isClosed).toBe(true);
         expect(sub.isConnected).toBe(false);
         expect(sub.subscriptionId).toBe(null);
+    });
+
+    test('does not close a subscription that becomes used while setup is pending', async () => {
+        const controller = DataSyncController.getInstance();
+        const sub = makeSubscription([]);
+        const sentMessages = [];
+        let resolveCreateOnServer;
+        controller.sendMessage = message => {
+            sentMessages.push(message);
+            if (message.tag === 'CreateDataSubscription') {
+                return new Promise(resolve => { resolveCreateOnServer = resolve; });
+            }
+            return Promise.resolve({ tag: 'DidDeleteDataSubscription' });
+        };
+
+        const setup = sub.createOnServer();
+        await Promise.resolve();
+        sub.closeIfNotUsed();
+        const unsubscribe = sub.subscribe(() => {});
+        resolveCreateOnServer({ subscriptionId: 'active-subscription', result: [] });
+        await setup;
+        await Promise.resolve();
+
+        expect(sentMessages).toEqual([
+            { tag: 'CreateDataSubscription', query: sub.query },
+        ]);
+        expect(sub.isClosed).toBe(false);
+        expect(sub.isConnected).toBe(true);
+        expect(controller.dataSubscriptions).toContain(sub);
+
+        unsubscribe();
     });
 });
