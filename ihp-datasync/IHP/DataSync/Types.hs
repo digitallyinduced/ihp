@@ -32,6 +32,8 @@ data DataSyncResponse
     | DataSyncError { requestId :: !Int, errorMessage :: !Text }
     | FailedToDecodeMessageError { errorMessage :: !Text }
     | DidCreateDataSubscription { requestId :: !Int, subscriptionId :: !UUID, result :: ![[Field]] }
+    | DidCreateDataSubscriptionV2 { requestId :: !Int, subscriptionId :: !UUID, revision :: !Int, result :: ![[Field]] }
+    | DidReplaceDataSubscription { subscriptionId :: !UUID, revision :: !Int, result :: ![[Field]] }
     | DidCreateCountSubscription { requestId :: !Int, subscriptionId :: !UUID, count :: !Int }
     | DidDeleteDataSubscription { requestId :: !Int, subscriptionId :: !UUID }
     | DidInsert { subscriptionId :: !UUID, record :: ![Field] }

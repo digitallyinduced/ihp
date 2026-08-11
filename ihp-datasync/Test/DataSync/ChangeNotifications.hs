@@ -3,7 +3,7 @@ module DataSync.ChangeNotifications where
 import Test.Hspec
 import IHP.Prelude
 import Data.Aeson
-import IHP.DataSync.ChangeNotifications (Change(..), makeCachedInstallTableChangeTriggers, installTableChangeTriggers)
+import IHP.DataSync.ChangeNotifications (Change(..), InvalidationPlan(..), makeCachedInstallTableChangeTriggers, makeCachedInstallGlobalInvalidationTriggers, makeInstallInvalidationPlan, resolveInvalidationPlan, installTableChangeTriggers, installGlobalInvalidationTriggers)
 import IHP.DataSync.ControllerImpl (changesToValue)
 import IHP.DataSync.DynamicQueryCompiler (Renamer(..))
 import IHP.DataSync.DynamicQuery (ConditionExpression(..), ConditionOperator(..), FunctionCall(..), conditionColumns)
@@ -154,6 +154,130 @@ tests = do
             it "returns empty set for LiteralExpression" do
                 let condition = LiteralExpression (String "hello")
                 conditionColumns condition `shouldBe` Set.empty
+
+        describe "global invalidation trigger" do
+            it "installs and fires on a relation without an id column" do
+                withDB \connStr -> do
+                    Exception.bracket (makePool connStr) Hasql.Pool.release \pool -> do
+                        tableUuid <- UUID.nextRandom
+                        let tableName = "test_idless_" <> Text.replace "-" "_" (UUID.toText tableUuid)
+                        execSQL pool (cs ("CREATE TABLE " <> tableName <> " (user_id UUID NOT NULL, resource_id UUID NOT NULL)"))
+
+                        installGlobalInvalidationTriggers pool
+                        triggerCount <- queryGlobalInvalidationTriggerCount pool tableName
+                        triggerCount `shouldBe` 1
+
+                        -- A row-level trigger would fail here by referencing NEW.id.
+                        -- The global trigger is statement-level and payload-free.
+                        userId <- UUID.nextRandom
+                        resourceId <- UUID.nextRandom
+                        execSQL pool (cs ("INSERT INTO " <> tableName <> " (user_id, resource_id) VALUES ('" <> UUID.toText userId <> "', '" <> UUID.toText resourceId <> "')"))
+
+            it "reconciles new relations outside the search path" do
+                withDB \connStr -> do
+                    Exception.bracket (makePool connStr) Hasql.Pool.release \pool -> do
+                        install <- makeCachedInstallGlobalInvalidationTriggers pool
+                        install
+
+                        execSQL pool "CREATE SCHEMA auth"
+                        execSQL pool "CREATE TABLE auth.memberships (user_id UUID NOT NULL, resource_id UUID NOT NULL)"
+
+                        -- The fingerprint must invalidate the prior successful
+                        -- reconciliation even on a long-lived controller/pool.
+                        install
+                        queryGlobalInvalidationTriggerCount pool "auth.memberships"
+                            `shouldReturn` 1
+
+            it "serializes first installs across controllers without exhausting the pool" do
+                withDB \connStr -> do
+                    Exception.bracket (makePoolWithTimeout 2 1 connStr) Hasql.Pool.release \pool -> do
+                        execSQL pool "CREATE TABLE global_install_lock_test (value TEXT NOT NULL)"
+                        lockPool <- makePoolN 1 connStr
+                        execSQL lockPool "BEGIN; INSERT INTO global_install_lock_test (value) VALUES ('lock holder')"
+
+                        installers <- replicateM 100 (makeCachedInstallGlobalInvalidationTriggers pool)
+                        installsAsync <- async
+                            (Exception.try (mapConcurrently_ id installers) :: IO (Either Exception.SomeException ()))
+
+                        -- Keep CREATE TRIGGER blocked beyond the pool acquisition
+                        -- timeout. Only the elected Haskell-side installer may own
+                        -- a pool connection while all other callers wait.
+                        threadDelay 1_200_000
+                        Hasql.Pool.release lockPool
+
+                        result <- wait installsAsync
+                        case result of
+                            Left exception -> expectationFailure
+                                ("Concurrent global trigger installation failed: " <> displayException exception)
+                            Right () -> pure ()
+
+            it "rejects a same-name trigger wired to the wrong function" do
+                withDB \connStr -> do
+                    Exception.bracket (makePool connStr) Hasql.Pool.release \pool -> do
+                        execSQL pool "CREATE TABLE conflicting_global_trigger (value TEXT NOT NULL)"
+                        execSQL pool "CREATE FUNCTION conflicting_global_trigger_fn() RETURNS TRIGGER AS $$ BEGIN RETURN NULL; END $$ LANGUAGE plpgsql"
+                        execSQL pool "CREATE TRIGGER ihp_datasync_invalidate AFTER INSERT ON conflicting_global_trigger FOR EACH STATEMENT EXECUTE PROCEDURE conflicting_global_trigger_fn()"
+
+                        result <- Exception.try (installGlobalInvalidationTriggers pool)
+                            :: IO (Either Exception.SomeException ())
+                        case result of
+                            Left exception -> displayException exception
+                                `shouldContain` "Incompatible pre-existing trigger"
+                            Right () -> expectationFailure "Accepted incompatible same-name invalidation trigger"
+
+            it "rejects a replica-only invalidation trigger" do
+                withDB \connStr -> do
+                    Exception.bracket (makePool connStr) Hasql.Pool.release \pool -> do
+                        execSQL pool "CREATE TABLE replica_only_trigger (id UUID NOT NULL)"
+                        execSQL pool "ALTER TABLE replica_only_trigger ENABLE ROW LEVEL SECURITY"
+                        execSQL pool "CREATE POLICY replica_only_trigger_policy ON replica_only_trigger USING (true)"
+
+                        installPlan <- makeInstallInvalidationPlan pool
+                        initialPlan <- resolveInvalidationPlan pool (TableWithRLS "replica_only_trigger")
+                        installPlan initialPlan
+                        execSQL pool "ALTER TABLE replica_only_trigger ENABLE REPLICA TRIGGER ihp_datasync_invalidate"
+
+                        replicaOnlyPlan <- resolveInvalidationPlan pool (TableWithRLS "replica_only_trigger")
+                        replicaOnlyPlan.missingRelationOids `shouldSatisfy` (not . null)
+                        result <- Exception.try (installPlan replicaOnlyPlan)
+                            :: IO (Either Exception.SomeException ())
+                        case result of
+                            Left exception -> displayException exception
+                                `shouldContain` "Incompatible pre-existing trigger"
+                            Right () -> expectationFailure "Accepted a trigger that does not fire for normal writes"
+
+            it "rejects relations excluded by the trigger installer namespace rules" do
+                withDB \connStr -> do
+                    Exception.bracket (makePool connStr) Hasql.Pool.release \pool -> do
+                        result <- Exception.try
+                            (resolveInvalidationPlan pool (TableWithRLS "pg_catalog.pg_authid"))
+                            :: IO (Either Exception.SomeException InvalidationPlan)
+                        case result of
+                            Left exception -> displayException exception
+                                `shouldContain` "cannot install a safe invalidation trigger"
+                            Right _ -> expectationFailure "Accepted a pg_catalog relation that the installer skips"
+
+            it "recreates a dropped function and skips an already complete exact plan" do
+                withDB \connStr -> do
+                    Exception.bracket (makePool connStr) Hasql.Pool.release \pool -> do
+                        execSQL pool "CREATE TABLE exact_reconcile_test (id UUID NOT NULL)"
+                        execSQL pool "ALTER TABLE exact_reconcile_test ENABLE ROW LEVEL SECURITY"
+                        execSQL pool "CREATE POLICY exact_reconcile_policy ON exact_reconcile_test USING (true)"
+
+                        installPlan <- makeInstallInvalidationPlan pool
+                        firstPlan <- resolveInvalidationPlan pool (TableWithRLS "exact_reconcile_test")
+                        installPlan firstPlan
+
+                        execSQL pool "DROP FUNCTION public.ihp_datasync_notify_invalidation() CASCADE"
+                        missingPlan <- resolveInvalidationPlan pool (TableWithRLS "exact_reconcile_test")
+                        missingPlan.missingRelationOids `shouldSatisfy` (not . null)
+                        installPlan missingPlan
+
+                        completePlan <- resolveInvalidationPlan pool (TableWithRLS "exact_reconcile_test")
+                        completePlan.missingRelationOids `shouldBe` []
+                        installPlan completePlan
+                        queryGlobalInvalidationTriggerCount pool "exact_reconcile_test"
+                            `shouldReturn` 1
 
         -- https://github.com/digitallyinduced/ihp/issues/2467
         describe "concurrent trigger installation" do
@@ -316,6 +440,14 @@ queryTriggerCount :: Hasql.Pool.Pool -> Text -> IO Int
 queryTriggerCount pool tableName = do
     let session = Session.statement (cs tableName) $ Statement.preparable
             "SELECT count(*)::int FROM pg_trigger WHERE tgrelid = $1::regclass AND tgname LIKE 'did_%'"
+            (Encoders.param (Encoders.nonNullable Encoders.text))
+            (Decoders.singleRow (Decoders.column (Decoders.nonNullable (fromIntegral <$> Decoders.int4))))
+    runSession pool session
+
+queryGlobalInvalidationTriggerCount :: Hasql.Pool.Pool -> Text -> IO Int
+queryGlobalInvalidationTriggerCount pool tableName = do
+    let session = Session.statement (cs tableName) $ Statement.preparable
+            "SELECT count(*)::int FROM pg_trigger WHERE tgrelid = $1::regclass AND tgname = 'ihp_datasync_invalidate'"
             (Encoders.param (Encoders.nonNullable Encoders.text))
             (Decoders.singleRow (Decoders.column (Decoders.nonNullable (fromIntegral <$> Decoders.int4))))
     runSession pool session

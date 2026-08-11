@@ -1,4 +1,5 @@
-import { DataSyncController, DataSubscription } from './ihp-datasync.js';
+import { DataSyncController } from './ihp-datasync.js';
+import { DataSubscriptionStore } from './data-subscription-store.js';
 import type { ConditionExpression, ConditionOperator, DynamicSQLQuery, DataRecord, UUID, TableName, IHPRecord } from './types.js';
 
 function fetchAuthenticated(path: string, params: RequestInit & { headers?: Record<string, string> }): Promise<Response> {
@@ -264,8 +265,9 @@ class ConditionBuilder extends ConditionBuildable {
 class QueryBuilder<TTable extends string = string, TResult = IHPRecord<TTable>> extends ConditionBuildable<TTable> {
     override query: DynamicSQLQuery;
     transactionId: UUID | null;
+    private readonly dataSyncController: DataSyncController | null;
 
-    constructor(table: string, columns?: string[]) {
+    constructor(table: string, columns?: string[], dataSyncController: DataSyncController | null = null) {
         super(null);
         // Maps to 'DynamicSQLQuery'
         this.query = {
@@ -278,6 +280,7 @@ class QueryBuilder<TTable extends string = string, TResult = IHPRecord<TTable>> 
             offset: null
         };
         this.transactionId = null;
+        this.dataSyncController = dataSyncController;
 
         if (columns !== undefined) {
             this.select(columns);
@@ -378,17 +381,17 @@ class QueryBuilder<TTable extends string = string, TResult = IHPRecord<TTable>> 
     }
 
     async fetch(): Promise<TResult[]> {
-        const dataSyncController = DataSyncController.getInstance();
+        // Transaction queries must stay on the controller that created their
+        // transaction id. Its transport-scope guard rejects after auth/backend
+        // rotation instead of leaking the id onto a replacement connection.
+        const dataSyncController = this.dataSyncController ?? DataSyncController.getInstance();
         const response = await dataSyncController.sendMessage({
             tag: 'DataSyncQuery',
             query: this.query,
             transactionId: this.transactionId
         });
 
-        const result = response.result as TResult[];
-        dataSyncController.learnOptimisticShapeFromResult(this.query.table, result as DataRecord[]);
-
-        return result;
+        return response.result as TResult[];
     }
 
     async fetchOne(): Promise<TResult | null> {
@@ -397,10 +400,10 @@ class QueryBuilder<TTable extends string = string, TResult = IHPRecord<TTable>> 
     }
 
     subscribe(callback: (records: TResult[] | null) => void): () => void {
-        const dataSubscription = new DataSubscription(this.query);
-        void dataSubscription.createOnServer().catch(() => {
-            // The subscription exposes the error through connectError.
-        });
+        if (this.transactionId !== null || this.dataSyncController !== null) {
+            throw new Error('DataSync subscriptions are not supported inside a transaction');
+        }
+        const dataSubscription = DataSubscriptionStore.get(this.query);
         return dataSubscription.subscribe(callback as (records: DataRecord[] | null) => void);
     }
 }
@@ -465,9 +468,8 @@ export function recordMatchesQuery(query: DynamicSQLQuery, record: DataRecord): 
                         }
                         return right.filter(value => !isNull(value)).includes(left);
                     }
-                    // Full-text matching depends on PostgreSQL dictionaries and stemming.
-                    // If it cannot be reproduced exactly in the browser, skip the
-                    // optimistic insertion and wait for the server notification.
+                    // Full-text matching depends on PostgreSQL dictionaries and stemming
+                    // and cannot be reproduced exactly in this standalone helper.
                     case 'OpTSMatch': return false;
                     default: return false;
                 }

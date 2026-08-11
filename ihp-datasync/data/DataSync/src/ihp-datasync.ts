@@ -1,4 +1,9 @@
-import { recordMatchesQuery } from './ihp-querybuilder.js';
+import {
+    initialResourceSnapshot,
+    reduceResourceSnapshot,
+    type ResourceSnapshot,
+    type ResourceSnapshotAction,
+} from './subscription-reducer.js';
 import type {
     DynamicSQLQuery,
     DataRecord,
@@ -15,8 +20,6 @@ import type {
 } from './types.js';
 import { APPEND_NEW_RECORD, PREPEND_NEW_RECORD, NewRecordBehaviour } from './types.js';
 
-const UNUSED_SUBSCRIPTION_CLOSE_DELAY = 1000;
-
 type EventListeners = {
     [K in DataSyncEventType]: DataSyncEventMap[K][];
 };
@@ -26,31 +29,158 @@ type OutboxMessage = {
     payload: string;
 };
 
-type PendingOptimisticCreate = {
+type PendingCreate = {
     promise: Promise<void>;
     resolve: () => void;
     reject: (reason: Error) => void;
 };
 
+type TransportScope = Readonly<{
+    backendHost: string | null;
+    jwt: string | null;
+    origin: string;
+    key: string;
+}>;
+
+const transportScopeChanged = Object.freeze({ type: 'transport-scope-changed' });
+
+function isTransportScopeChange(event: unknown): boolean {
+    return event === transportScopeChanged;
+}
+
 class DataSyncController {
     static instance: DataSyncController | null = null;
     static ihpBackendHost: string | null = null;
+    private static readonly instanceListeners = new Set<(controller: DataSyncController | null) => void>();
+    private static retiringCurrentTransport = false;
+    private static authSessionGeneration = 0;
 
     static getInstance(): DataSyncController {
-        if (!DataSyncController.instance) {
-            DataSyncController.instance = new DataSyncController();
+        if (DataSyncController.retiringCurrentTransport) {
+            throw new Error('Cannot acquire a DataSync controller while the current transport is being retired');
+        }
+        const scope = DataSyncController.currentTransportScope();
+        const current = DataSyncController.instance;
+        if (current === null || current.transportScope.key !== scope.key || current.retired) {
+            const next = new DataSyncController(scope);
+            DataSyncController.instance = next;
+            if (current !== null) {
+                current.retire();
+            }
+            DataSyncController.notifyInstanceListeners(next);
         }
 
-        return DataSyncController.instance;
+        return DataSyncController.instance!;
+    }
+
+    /** Returns the controller only if it belongs to the current auth/backend scope. */
+    static peekInstance(): DataSyncController | null {
+        const current = DataSyncController.instance;
+        if (current === null || current.retired) {
+            return null;
+        }
+        return current.transportScope.key === DataSyncController.currentTransportScope().key
+            ? current
+            : null;
+    }
+
+    static addInstanceListener(listener: (controller: DataSyncController | null) => void): () => void {
+        DataSyncController.instanceListeners.add(listener);
+        return () => DataSyncController.instanceListeners.delete(listener);
+    }
+
+    static currentTransportScopeKey(): string {
+        return DataSyncController.currentTransportScope().key;
+    }
+
+    /**
+     * Invalidates all DataSync resources belonging to the previous auth
+     * session and closes its transport. Call this after replacing or clearing
+     * a cookie-authenticated session, before rendering the next user's tree.
+     *
+     * Cookie contents (especially HttpOnly cookies) are intentionally opaque
+     * to JavaScript, so this explicit boundary is required even when the
+     * backend host and JWT have not changed.
+     */
+    static authSessionDidChange(): void {
+        DataSyncController.authSessionGeneration++;
+        DataSyncController.retireCurrentTransport();
+    }
+
+    /**
+     * Retires the current cookie/JWT transport without creating a replacement.
+     * Intended for explicit auth/config transitions in a commit or event phase.
+     */
+    static retireCurrentTransport(): void {
+        if (DataSyncController.retiringCurrentTransport || DataSyncController.instance === null) {
+            return;
+        }
+        DataSyncController.retiringCurrentTransport = true;
+        try {
+            const current = DataSyncController.instance;
+            DataSyncController.instance = null;
+            current?.retire();
+            // Notify while acquisition is still blocked. A re-entrant listener
+            // cannot install a replacement that would survive an auth reset.
+            DataSyncController.notifyInstanceListeners(null);
+            DataSyncController.instance = null;
+        } finally {
+            DataSyncController.retiringCurrentTransport = false;
+        }
+    }
+
+    private static notifyInstanceListeners(controller: DataSyncController | null): void {
+        for (const listener of Array.from(DataSyncController.instanceListeners)) {
+            try {
+                listener(controller);
+            } catch (error) {
+                console.error('DataSync controller instance listener failed:', error);
+            }
+        }
+    }
+
+    private static currentTransportScope(): TransportScope {
+        let jwt: string | null = null;
+        try {
+            if (typeof localStorage !== 'undefined') {
+                jwt = localStorage.getItem('ihp_jwt');
+            }
+        } catch (_error) {
+            // localStorage can be unavailable during SSR or in privacy modes.
+        }
+
+        let origin = 'same-origin';
+        try {
+            if (typeof location !== 'undefined' && typeof location.origin === 'string') {
+                origin = location.origin;
+            }
+        } catch (_error) {
+            // Keep the stable SSR fallback.
+        }
+
+        const backendHost = DataSyncController.ihpBackendHost;
+        return {
+            backendHost,
+            jwt,
+            origin,
+            key: JSON.stringify([
+                backendHost ?? origin,
+                jwt,
+                DataSyncController.authSessionGeneration,
+            ]),
+        };
     }
 
     static getWSUrl(): string {
-        if (DataSyncController.ihpBackendHost) {
-            const jwt = localStorage.getItem('ihp_jwt');
-            const host = DataSyncController.ihpBackendHost
+        return DataSyncController.webSocketUrl(DataSyncController.currentTransportScope());
+    }
+
+    private static webSocketUrl(scope: TransportScope): string {
+        if (scope.backendHost) {
+            const host = scope.backendHost
                 .replace('https://', 'wss://')
                 .replace('http://', 'ws://');
-            return host + '/DataSyncController' + (jwt !== null ? '?access_token=' + encodeURIComponent(jwt) : '');
+            return host + '/DataSyncController' + (scope.jwt !== null ? '?access_token=' + encodeURIComponent(scope.jwt) : '');
         }
 
         const socketProtocol = location.protocol === 'https:' ? 'wss' : 'ws';
@@ -66,16 +196,24 @@ class DataSyncController {
     outbox: OutboxMessage[];
     reconnectTimeout: ReturnType<typeof setTimeout> | null;
     dataSubscriptions: DataSubscription[];
+    pendingCreates: Map<UUID, PendingCreate>;
+    /** @deprecated Optimistic updates are disabled; retained as an empty compatibility field. */
     optimisticCreatedPendingRecordIds: UUID[];
-    pendingOptimisticCreates: Map<UUID, PendingOptimisticCreate>;
+    /** @deprecated Alias for pendingCreates. */
+    pendingOptimisticCreates: Map<UUID, PendingCreate>;
+    /** @deprecated Optimistic shape inference is disabled. */
     optimisticCreatedNeedsCreatedAtField: Set<string>;
     messageTimeout: number;
     connectionAttemptTimeout: number;
     connectionRetryLimit: number;
     connectionRetryMaxDelayExponent: number;
     pendingConnection: Promise<WebSocket> | null;
+    private readonly transportScope: TransportScope;
+    retired: boolean;
+    private readonly connectionAttemptAborters = new Set<(reason: Error) => void>();
 
-    constructor() {
+    constructor(scope: TransportScope = DataSyncController.currentTransportScope()) {
+        this.transportScope = scope;
         this.pendingRequests = [];
         this.connection = null;
         this.requestIdCounter = 0;
@@ -90,17 +228,43 @@ class DataSyncController {
         this.outbox = [];
         this.reconnectTimeout = null;
         this.dataSubscriptions = [];
+        this.pendingCreates = new Map();
         this.optimisticCreatedPendingRecordIds = [];
-        this.pendingOptimisticCreates = new Map();
+        this.pendingOptimisticCreates = this.pendingCreates;
         this.optimisticCreatedNeedsCreatedAtField = new Set();
         this.messageTimeout = 5000;
         this.connectionAttemptTimeout = 5000;
         this.connectionRetryLimit = 32;
         this.connectionRetryMaxDelayExponent = 6;
         this.pendingConnection = null;
+        this.retired = false;
+    }
+
+    isBoundToTransportScope(scopeKey: string): boolean {
+        return !this.retired && this.transportScope.key === scopeKey;
+    }
+
+    hasCurrentTransportScope(): boolean {
+        return this.isBoundToTransportScope(DataSyncController.currentTransportScope().key);
+    }
+
+    private rejectScopeMismatch(): Error {
+        const error = new Error('DataSync controller transport scope no longer matches the current authentication/backend scope');
+        if (DataSyncController.instance === this) {
+            DataSyncController.retireCurrentTransport();
+        } else {
+            this.retire();
+        }
+        return error;
     }
 
     async startConnection(): Promise<WebSocket> {
+        if (!this.hasCurrentTransportScope()) {
+            throw this.rejectScopeMismatch();
+        }
+        if (this.retired) {
+            throw new Error('DataSync controller transport scope is no longer active');
+        }
         if (this.connection) {
             return this.connection;
         }
@@ -112,7 +276,7 @@ class DataSyncController {
         let pendingConnection!: Promise<WebSocket>;
         pendingConnection = (async () => {
             const connect = (): Promise<{ socket: WebSocket; event: Event }> => new Promise((resolve, reject) => {
-                const socket = new WebSocket(DataSyncController.getWSUrl());
+                const socket = new WebSocket(DataSyncController.webSocketUrl(this.transportScope));
                 let settled = false;
 
                 const clearHandlers = () => {
@@ -133,21 +297,29 @@ class DataSyncController {
                     }
                     settled = true;
                     clearTimeout(attemptTimeout);
+                    this.connectionAttemptAborters.delete(abort);
                     clearHandlers();
                     closeSocket();
                     reject(error);
                 };
+                const abort = (reason: Error) => fail(reason);
                 const attemptTimeout = setTimeout(() => {
                     fail(new Error(`DataSync WebSocket connection attempt timed out after ${this.connectionAttemptTimeout}ms`));
                 }, this.connectionAttemptTimeout);
+                this.connectionAttemptAborters.add(abort);
 
                 socket.onopen = (event) => {
-                    if (settled) {
+                    if (settled || this.retired || !this.hasCurrentTransportScope()) {
+                        if (!settled && !this.retired) {
+                            fail(this.rejectScopeMismatch());
+                            return;
+                        }
                         closeSocket();
                         return;
                     }
                     settled = true;
                     clearTimeout(attemptTimeout);
+                    this.connectionAttemptAborters.delete(abort);
                     this.connection = socket;
                     socket.onclose = (closeEvent) => this.onClose(closeEvent, socket);
                     socket.onmessage = this.onMessage.bind(this);
@@ -160,14 +332,22 @@ class DataSyncController {
             const wait = (timeout: number): Promise<void> => new Promise((resolve) => setTimeout(resolve, timeout));
             try {
                 for (let i = 0; i < this.connectionRetryLimit; i++) {
+                    if (this.retired) {
+                        throw new Error('DataSync controller transport scope is no longer active');
+                    }
                     try {
                         const { socket, event } = await connect();
                         if (this.connection !== socket) {
                             throw new Error('DataSync WebSocket closed while the connection was opening');
                         }
                         this.flushOutbox(socket);
+                        if (this.retired
+                            || !this.hasCurrentTransportScope()
+                            || this.connection !== socket) {
+                            throw new Error('DataSync WebSocket became obsolete before it could be used');
+                        }
 
-                        for (const listener of this.eventListeners.open) {
+                        for (const listener of this.eventListeners.open.slice()) {
                             try {
                                 listener(event);
                             } catch (error) {
@@ -177,6 +357,9 @@ class DataSyncController {
 
                         return socket;
                     } catch (error) {
+                        if (this.retired) {
+                            throw error;
+                        }
                         if (i === this.connectionRetryLimit - 1) {
                             throw error;
                         }
@@ -198,6 +381,13 @@ class DataSyncController {
     }
 
     onMessage(event: MessageEvent): void {
+        if (!this.hasCurrentTransportScope()) {
+            this.rejectScopeMismatch();
+            return;
+        }
+        if (this.retired) {
+            return;
+        }
         const payload: ServerMessage = JSON.parse(event.data as string);
         const requestId = payload.requestId;
         const request = this.pendingRequests.find(request => request.requestId === requestId);
@@ -218,10 +408,19 @@ class DataSyncController {
         }
 
         this.receivedFirstResponse = true;
-        this.eventListeners.message.slice(0).forEach(callback => callback(payload));
+        for (const callback of this.eventListeners.message.slice()) {
+            try {
+                callback(payload);
+            } catch (error) {
+                console.error('DataSync message listener failed:', error);
+            }
+        }
     }
 
     onClose(_event: CloseEvent | null, closedSocket: WebSocket | null = null): void {
+        if (this.retired) {
+            return;
+        }
         if (closedSocket !== null && this.connection !== closedSocket) {
             return;
         }
@@ -229,14 +428,26 @@ class DataSyncController {
         this.connection = null;
         this.rejectSentPendingRequests(new Error('DataSync WebSocket closed before the server responded'));
 
-        for (const listener of this.eventListeners.close) {
-            listener(_event);
+        for (const listener of this.eventListeners.close.slice()) {
+            try {
+                listener(_event);
+            } catch (error) {
+                console.error('DataSync close listener failed:', error);
+            }
         }
 
-        this.retryToReconnect();
+        if (!this.retired) {
+            this.retryToReconnect();
+        }
     }
 
     async sendMessage(payload: Record<string, unknown>): Promise<ServerMessage> {
+        if (!this.hasCurrentTransportScope()) {
+            throw this.rejectScopeMismatch();
+        }
+        if (this.retired) {
+            throw new Error('DataSync controller transport scope is no longer active');
+        }
         return new Promise((resolve, reject) => {
             payload.requestId = this.requestIdCounter++;
             const requestId = payload.requestId as number;
@@ -269,6 +480,24 @@ class DataSyncController {
     private sendPendingRequest(connection: WebSocket, message: OutboxMessage): void {
         const request = this.pendingRequests.find(({ requestId }) => requestId === message.requestId);
         if (!request) {
+            return;
+        }
+        if (this.retired) {
+            this.rejectPendingRequest(
+                request.requestId,
+                new Error('DataSync controller transport scope is no longer active'),
+            );
+            return;
+        }
+        if (!this.hasCurrentTransportScope()) {
+            this.rejectPendingRequest(request.requestId, this.rejectScopeMismatch());
+            return;
+        }
+        if (connection !== this.connection) {
+            this.rejectPendingRequest(
+                request.requestId,
+                new Error('DataSync WebSocket closed before the request could be sent'),
+            );
             return;
         }
 
@@ -312,6 +541,55 @@ class DataSyncController {
         }
     }
 
+    private rejectAllPendingRequests(reason: Error): void {
+        for (const request of this.pendingRequests.slice()) {
+            this.rejectPendingRequest(request.requestId, reason);
+        }
+        this.outbox = [];
+    }
+
+    private retire(): void {
+        if (this.retired) {
+            return;
+        }
+        this.retired = true;
+        if (this.reconnectTimeout !== null) {
+            clearTimeout(this.reconnectTimeout);
+            this.reconnectTimeout = null;
+        }
+
+        const reason = new Error('DataSync transport scope changed');
+        for (const abort of Array.from(this.connectionAttemptAborters)) {
+            abort(reason);
+        }
+        this.connectionAttemptAborters.clear();
+        this.rejectAllPendingRequests(reason);
+        for (const pendingCreate of this.pendingCreates.values()) {
+            pendingCreate.reject(reason);
+        }
+        this.pendingCreates.clear();
+
+        const connection = this.connection;
+        this.connection = null;
+        if (connection !== null) {
+            connection.onmessage = null;
+            connection.onclose = null;
+            try {
+                connection.close();
+            } catch (_error) {
+                // Test doubles and already closed sockets need no further work.
+            }
+        }
+
+        for (const listener of this.eventListeners.close.slice()) {
+            try {
+                listener(transportScopeChanged);
+            } catch (error) {
+                console.error('DataSync close listener failed during transport rotation:', error);
+            }
+        }
+    }
+
     addEventListener<E extends DataSyncEventType>(event: E, callback: DataSyncEventMap[E]): void {
         (this.eventListeners[event] as DataSyncEventMap[E][]).push(callback);
     }
@@ -325,7 +603,7 @@ class DataSyncController {
     }
 
     retryToReconnect(): void {
-        if (this.connection) {
+        if (this.connection || this.retired) {
             return;
         }
 
@@ -334,11 +612,14 @@ class DataSyncController {
         }
         this.reconnectTimeout = setTimeout(async () => {
             this.reconnectTimeout = null;
+            if (this.retired) {
+                return;
+            }
             try {
                 console.log('Trying to reconnect DataSync ...');
                 await this.startConnection();
 
-                for (const listener of this.eventListeners.reconnect) {
+                for (const listener of this.eventListeners.reconnect.slice()) {
                     try {
                         listener();
                     } catch (error) {
@@ -352,14 +633,8 @@ class DataSyncController {
         }, 1000);
     }
 
-    learnOptimisticShapeFromResult(table: string, result: DataRecord[]): void {
-        if (result.length > 0) {
-            const hasCreatedAtField = 'createdAt' in result[0];
-            if (hasCreatedAtField) {
-                this.optimisticCreatedNeedsCreatedAtField.add(table);
-            }
-        }
-    }
+    /** @deprecated Server snapshots replaced optimistic shape inference. */
+    learnOptimisticShapeFromResult(_table: string, _result: DataRecord[]): void {}
 
     onPendingRequestTimeout(requestId: number): void {
         const request = this.pendingRequests.find(request => request.requestId === requestId);
@@ -377,558 +652,729 @@ class DataSyncController {
 
 class DataSubscription {
     query: DynamicSQLQuery;
-    createOnServerPromise: Promise<DataRecord[]>;
-    resolveCreateOnServer!: (value: DataRecord[]) => void;
-    rejectCreateOnServer!: (reason: Error) => void;
-    isClosed: boolean;
-    isConnected: boolean;
-    connectError: Error | null;
-    subscriptionId: UUID | null;
-    subscribers: Array<(records: DataRecord[] | null) => void>;
-    records: DataRecord[] | null;
     cache: Map<string, DataRecord[]> | null;
+    /** @deprecated Server snapshots make client-side insertion placement a no-op. */
     newRecordBehaviour: number;
-    optimisticCreatedPendingRecordIds: UUID[];
-    optimisticUpdatedPendingRecordIds: Set<UUID>;
-    private closeNotificationSent: boolean;
-    private closeIfNotUsedTimeout: ReturnType<typeof setTimeout> | null;
-    private refreshPromise: Promise<void> | null;
-    private refreshRequested: boolean;
-    private createOnServerGeneration: number;
+    subscriptionId: UUID | null = null;
+    createOnServerPromise: Promise<DataRecord[]>;
+    /** @deprecated Prefer createOnServerPromise; retained for source compatibility. */
+    resolveCreateOnServer!: (value: DataRecord[]) => void;
+    /** @deprecated Prefer createOnServerPromise; retained for source compatibility. */
+    rejectCreateOnServer!: (reason: Error) => void;
+    onClose: () => void = () => {};
+    onStoreClose: () => void = () => {};
+    /** @internal Promotes a render-only weak registry entry on first retain. */
+    onStoreRetain: () => void = () => {};
+    subscribers: Array<(records: DataRecord[] | null) => void> = [];
+    isClosed = false;
+    isConnected = false;
+    connectError: Error | null = null;
+    /** @deprecated Optimistic mutation is disabled; retained empty for compatibility. */
+    optimisticCreatedPendingRecordIds: UUID[] = [];
+    /** @deprecated Optimistic mutation is disabled; retained empty for compatibility. */
+    optimisticUpdatedPendingRecordIds: Set<UUID> = new Set();
 
-    constructor(query: DynamicSQLQuery, options: DataSubscriptionOptions | null = null, cache: Map<string, DataRecord[]> | null = null) {
-        if (typeof query !== "object" || !('table' in query)) {
-            throw new Error("Query passed to `new DataSubscription(..)` doesn't look like a query object. If you're using the `query()` functions to costruct the object, make sure you pass the `.query` property, like this: `new DataSubscription(query('my_table').orderBy('createdAt').query)`");
+    private controller: DataSyncController | null = null;
+    private readonly serverQuery: DynamicSQLQuery;
+    private readonly expectedTransportScopeKey: string;
+    private readonly scopedCache: Map<string, DataRecord[]> | null;
+    private readonly cacheKey: string;
+    private snapshot: ResourceSnapshot<DataRecord[]>;
+    private readonly subscriberEntries = new Map<number, (records: DataRecord[] | null) => void>();
+    private readonly snapshotSubscriberEntries = new Map<number, () => void>();
+    private nextSubscriberId = 0;
+    private nextSnapshotSubscriberId = 0;
+    private generation = 0;
+    private lastRevision = -1;
+    private started = false;
+    private listenersAttached = false;
+    private closeNotificationSent = false;
+    private disposalToken = 0;
+    private startPromise: Promise<void> | null = null;
+    private refreshPromise: Promise<void> | null = null;
+    private refreshRequested = false;
+    private supportsAuthoritativeSnapshots = false;
+    private initialCreateSettled = false;
+    private imperativelyOwned = false;
+    private resolveInitialCreate!: (records: DataRecord[]) => void;
+    private rejectInitialCreate!: (error: Error) => void;
+
+    constructor(
+        query: DynamicSQLQuery,
+        options: DataSubscriptionOptions | null = null,
+        cache: Map<string, DataRecord[]> | null = null,
+        cacheKey: string = JSON.stringify(query),
+        expectedTransportScopeKey: string = DataSyncController.currentTransportScopeKey(),
+    ) {
+        if (typeof query !== 'object' || query === null || !('table' in query)) {
+            throw new Error("Query passed to `new DataSubscription(..)` doesn't look like a query object. If you're using the `query()` functions to construct the object, pass the `.query` property, like this: `new DataSubscription(query('my_table').orderBy('createdAt').query)`");
         }
-        this.query = query;
-        this.createOnServerPromise = new Promise((resolve, reject) => {
-            this.resolveCreateOnServer = resolve;
-            this.rejectCreateOnServer = reject;
-        });
-        void this.createOnServerPromise.catch(() => {
-            // close() observes the same promise when it needs to wait for setup;
-            // most subscriptions never need that path, so avoid an unhandled rejection.
-        });
 
-        this.isClosed = false;
-        this.isConnected = false;
-        this.connectError = null;
-        this.subscriptionId = null;
-        this.subscribers = [];
-
-        if (cache) {
-            const cacheResults = cache.get(JSON.stringify(query));
-            if (cacheResults !== undefined) {
-                this.records = cacheResults;
-            } else {
-                this.records = null;
-            }
-        } else {
-            this.records = null;
-        }
+        // QueryBuilder is mutable. A live subscription must never change when a
+        // component reuses and mutates the builder after this point.
+        this.query = cloneQuery(query);
+        this.serverQuery = deepFreeze(cloneQuery(query));
+        this.expectedTransportScopeKey = expectedTransportScopeKey;
+        this.scopedCache = cache;
         this.cache = cache;
+        this.cacheKey = cacheKey;
+        const cachedRecords = cache?.get(cacheKey);
+        this.snapshot = initialResourceSnapshot(
+            cachedRecords?.map(record => ({ ...record })) as DataRecord[] | undefined,
+        );
+        this.createOnServerPromise = new Promise((resolve, reject) => {
+            this.resolveInitialCreate = resolve;
+            this.rejectInitialCreate = reject;
+        });
+        this.resolveCreateOnServer = records => this.resolveInitialCreateOnce(records);
+        this.rejectCreateOnServer = error => this.rejectInitialCreateOnce(error);
+        void this.createOnServerPromise.catch(() => {});
+        this.newRecordBehaviour = options?.newRecordBehaviour ?? this.detectNewRecordBehaviour();
 
-        this.getRecords = this.getRecords.bind(this);
         this.subscribe = this.subscribe.bind(this);
+        this.subscribeSnapshot = this.subscribeSnapshot.bind(this);
+        this.getRecords = this.getRecords.bind(this);
+        this.getSnapshot = this.getSnapshot.bind(this);
+        this.getServerSnapshot = this.getServerSnapshot.bind(this);
+        this.onMessage = this.onMessage.bind(this);
         this.onDataSyncClosed = this.onDataSyncClosed.bind(this);
         this.onDataSyncReconnect = this.onDataSyncReconnect.bind(this);
-        this.onMessage = this.onMessage.bind(this);
-
-        // When a new record is inserted, do we put it at the end or at the beginning?
-        this.newRecordBehaviour = (options && 'newRecordBehaviour' in options) ? options.newRecordBehaviour! : this.detectNewRecordBehaviour();
-
-        this.optimisticCreatedPendingRecordIds = [];
-        this.optimisticUpdatedPendingRecordIds = new Set();
-        this.closeNotificationSent = false;
-        this.closeIfNotUsedTimeout = null;
-        this.refreshPromise = null;
-        this.refreshRequested = false;
-        this.createOnServerGeneration = 0;
     }
 
-    detectNewRecordBehaviour(): number {
-        // If the query is ordered by the createdAt column, and the latest is at the top
-        // we want to prepend new record
-        const firstOrderBy = this.query.orderByClause[0];
-        const isOrderByCreatedAtDesc = this.query.orderByClause.length > 0
-            && firstOrderBy
-            && 'orderByColumn' in firstOrderBy
-            && firstOrderBy.orderByColumn === 'createdAt'
-            && firstOrderBy.orderByDirection === 'Desc';
+    get records(): DataRecord[] | null {
+        return this.snapshot.data;
+    }
 
-        if (isOrderByCreatedAtDesc) {
-            return PREPEND_NEW_RECORD;
+    /** @deprecated Query snapshots are server-owned; assigning is retained for compatibility only. */
+    set records(records: DataRecord[] | null) {
+        if (records === null) {
+            this.snapshot = initialResourceSnapshot();
+            this.notifySubscribers();
+            this.notifySnapshotSubscribers();
+        } else {
+            this.applyServerSnapshot(records, this.lastRevision + 1);
+        }
+    }
+
+    getSnapshot(): ResourceSnapshot<DataRecord[]> {
+        return this.snapshot;
+    }
+
+    getServerSnapshot(): ResourceSnapshot<DataRecord[]> {
+        return initialResourceSnapshot();
+    }
+
+    getRecords(): DataRecord[] | null {
+        return this.snapshot.data;
+    }
+
+    subscribe(callback: (records: DataRecord[] | null) => void): () => void {
+        // The first ref-counted consumer takes ownership from the imperative
+        // API. Its final release can then close the server resource normally.
+        this.imperativelyOwned = false;
+        this.retainInStore();
+        const shouldStart = this.trackedSubscriberCount() === 0;
+        const subscriberId = this.nextSubscriberId++;
+        this.subscriberEntries.set(subscriberId, callback);
+        this.subscribers.push(callback);
+        this.disposalToken++;
+        if (shouldStart) {
+            void this.start(false).catch(() => {
+                // The error is part of the immutable snapshot and is surfaced by React.
+            });
+        }
+        // Do not synchronously expose CONNECT/null lifecycle changes through
+        // the legacy record callback. A later subscriber to an already-live
+        // shared resource still receives its current server value immediately.
+        if (this.snapshot.status === 'live' && this.snapshot.data !== null) {
+            this.callSubscriber(callback, this.snapshot.data);
         }
 
-        return APPEND_NEW_RECORD;
+        let subscribed = true;
+        return () => {
+            if (!subscribed) {
+                return;
+            }
+            subscribed = false;
+            this.subscriberEntries.delete(subscriberId);
+            // subscribe() appends, so remove from the end to avoid consuming a
+            // matching callback that legacy code inserted directly beforehand.
+            const publicIndex = this.subscribers.lastIndexOf(callback);
+            if (publicIndex !== -1) {
+                this.subscribers.splice(publicIndex, 1);
+            }
+            this.scheduleCloseIfNotUsed();
+        };
     }
 
-    async createOnServer(): Promise<void> {
-        const dataSyncController = DataSyncController.getInstance();
-        const createOnServerGeneration = this.createOnServerGeneration;
-        try {
-            const response = await dataSyncController.sendMessage({ tag: 'CreateDataSubscription', query: this.query });
-            const subscriptionId = response.subscriptionId as UUID;
-            const result = response.result as DataRecord[];
+    /** Internal external-store subscription; observes every snapshot identity change. */
+    subscribeSnapshot(callback: () => void): () => void {
+        this.imperativelyOwned = false;
+        this.retainInStore();
+        const shouldStart = this.trackedSubscriberCount() === 0;
+        const subscriberId = this.nextSnapshotSubscriberId++;
+        this.snapshotSubscriberEntries.set(subscriberId, callback);
+        this.disposalToken++;
+        if (shouldStart) {
+            void this.start(false).catch(() => {
+                // The error is part of the immutable snapshot and is surfaced by React.
+            });
+        }
 
-            if (createOnServerGeneration !== this.createOnServerGeneration) {
-                await this.deleteStaleDataSubscription(dataSyncController, subscriptionId);
+        let subscribed = true;
+        return () => {
+            if (!subscribed) {
+                return;
+            }
+            subscribed = false;
+            this.snapshotSubscriberEntries.delete(subscriberId);
+            this.scheduleCloseIfNotUsed();
+        };
+    }
+
+    /** Starts a manually managed subscription. React and QueryBuilder do not need this. */
+    async createOnServer(): Promise<void> {
+        this.retainInStore();
+        if (this.trackedSubscriberCount() === 0) {
+            this.imperativelyOwned = true;
+        }
+        await this.start(false);
+        // Scope-change and explicit-close paths settle the same public promise;
+        // imperative callers must not observe a successful create when the
+        // server resource was discarded before its first snapshot.
+        await this.createOnServerPromise;
+    }
+
+    private start(reconnect: boolean): Promise<void> {
+        this.disposalToken++;
+        if (this.startPromise !== null) {
+            return this.startPromise;
+        }
+        if (this.started && this.subscriptionId !== null) {
+            return Promise.resolve();
+        }
+
+        if (!this.hasExpectedTransportScope()) {
+            this.closeForTransportScopeChange('before the subscription could commit');
+            return Promise.resolve();
+        }
+
+        const controller = DataSyncController.getInstance();
+        if (!controller.isBoundToTransportScope(this.expectedTransportScopeKey)) {
+            this.closeForTransportScopeChange('before the subscription could acquire its controller');
+            return Promise.resolve();
+        }
+        // A render may retain an object that was fully released between render
+        // and commit. Reopening is supported, and its next final release must
+        // notify the store again instead of leaving a closed registry entry.
+        this.closeNotificationSent = false;
+        this.attachControllerListeners(controller);
+        this.started = true;
+        const generation = ++this.generation;
+        this.lastRevision = -1;
+        this.supportsAuthoritativeSnapshots = false;
+        this.dispatch({ type: 'CONNECT', reconnect });
+
+        const startPromise = this.createServerSubscription(generation, controller);
+        this.startPromise = startPromise;
+        void startPromise.finally(() => {
+            if (this.startPromise === startPromise) {
+                this.startPromise = null;
+            }
+        }).catch(() => {});
+        return startPromise;
+    }
+
+    private async createServerSubscription(generation: number, controller: DataSyncController): Promise<void> {
+        try {
+            const response = await controller.sendMessage({
+                tag: 'CreateDataSubscription',
+                query: this.serverQuery,
+                protocolVersion: 1,
+            });
+            const subscriptionId = response.subscriptionId as UUID;
+
+            if (!this.started
+                || generation !== this.generation
+                || this.controller !== controller
+                || !this.hasExpectedTransportScope()
+                || !controller.isBoundToTransportScope(this.expectedTransportScopeKey)) {
+                if (!this.hasExpectedTransportScope()) {
+                    this.closeForTransportScopeChange('while the subscription was being created');
+                }
+                await this.deleteStaleDataSubscription(controller, subscriptionId);
                 return;
             }
 
             this.subscriptionId = subscriptionId;
-
-            // This condition ensure that the event listeners are only installed on first
-            // run. This function could be called multiple times (e.g. a second time on internet reconnect).
-            // In those cases we already did register the event listener.
-            if (this.isClosed === false) {
-                dataSyncController.addEventListener('message', this.onMessage);
-                dataSyncController.addEventListener('close', this.onDataSyncClosed);
-                dataSyncController.addEventListener('reconnect', this.onDataSyncReconnect);
-                dataSyncController.dataSubscriptions.push(this);
+            this.supportsAuthoritativeSnapshots = response.tag === 'DidCreateDataSubscriptionV2';
+            const result = response.result as DataRecord[];
+            // The V2 tag explicitly acknowledges snapshot support. An old
+            // DidCreate response remains delta-compatible even when that server
+            // silently ignored the protocolVersion request field.
+            const initialRevision = this.supportsAuthoritativeSnapshots && typeof response.revision === 'number'
+                ? response.revision
+                : 0;
+            this.applyServerSnapshot(result, initialRevision);
+            this.resolveInitialCreateOnce(result);
+        } catch (unknownError) {
+            if (!this.started || generation !== this.generation || this.controller !== controller) {
+                return;
             }
 
-            this.isConnected = true;
-            this.isClosed = false;
-            this.connectError = null;
-            // The server result already has the exact projection, ordering and
-            // window requested by the query. Reapplying parts of the query in
-            // the browser can corrupt projected DISTINCT/ORDER BY results.
-            this.records = result;
-
-            this.resolveCreateOnServer(result);
-            this.updateSubscribers();
-
-            dataSyncController.learnOptimisticShapeFromResult(this.query.table, result);
-        } catch (e) {
-            const error = e as Error;
-            this.isConnected = false;
-            this.connectError = new Error(error.message + ' while trying to subscribe to:\n' + JSON.stringify(this.query, null, 4));
-            this.rejectCreateOnServer(this.connectError);
-            this.notifySubscribers();
-            throw this.connectError;
+            const error = unknownError instanceof Error ? unknownError : new Error(String(unknownError));
+            const connectionError = new Error(error.message + ' while trying to subscribe to:\n' + JSON.stringify(this.serverQuery, null, 4));
+            this.dispatch({ type: 'FAIL', error: connectionError });
+            this.rejectInitialCreateOnce(connectionError);
+            throw connectionError;
         }
+    }
+
+    private attachControllerListeners(controller: DataSyncController): void {
+        if (this.listenersAttached && this.controller === controller) {
+            return;
+        }
+        this.detachControllerListeners();
+        this.controller = controller;
+        this.listenersAttached = true;
+        controller.addEventListener('message', this.onMessage);
+        controller.addEventListener('close', this.onDataSyncClosed);
+        controller.addEventListener('reconnect', this.onDataSyncReconnect);
+        if (!controller.dataSubscriptions.includes(this)) {
+            controller.dataSubscriptions.push(this);
+        }
+    }
+
+    private detachControllerListeners(): void {
+        const controller = this.controller;
+        if (controller === null) {
+            this.listenersAttached = false;
+            return;
+        }
+        if (this.listenersAttached) {
+            controller.removeEventListener('message', this.onMessage);
+            controller.removeEventListener('close', this.onDataSyncClosed);
+            controller.removeEventListener('reconnect', this.onDataSyncReconnect);
+            this.listenersAttached = false;
+        }
+        const index = controller.dataSubscriptions.indexOf(this);
+        if (index !== -1) {
+            controller.dataSubscriptions.splice(index, 1);
+        }
+        this.controller = null;
     }
 
     onMessage(message: ServerMessage): void {
-        if (this.isClosed) {
+        if (!this.started || message.subscriptionId !== this.subscriptionId) {
             return;
         }
-        if (message.subscriptionId === this.subscriptionId) {
-            this.receiveUpdate(message);
-        }
+        this.receiveUpdate(message);
     }
 
     receiveUpdate(message: ServerMessage): void {
-        const tag = message.tag;
-        if (tag === 'DidUpdate') {
-            this.onUpdate(message.id as UUID, message.changeSet as Record<string, unknown> | null, message.appendSet as Record<string, unknown> | null);
-        } else if (tag === 'DidInsert') {
-            this.onCreate(message.record as DataRecord);
-        } else if (tag === 'DidDelete') {
-            this.onDelete(message.id as UUID);
+        if (!this.hasExpectedTransportScope()) {
+            this.closeForTransportScopeChange('before a server update was applied');
+            return;
         }
-    }
-
-    async close(): Promise<void> {
-        const dataSyncController = DataSyncController.getInstance();
-        this.cancelScheduledCloseIfNotUsed();
-
-        if (this.isClosed) {
-            this.createOnServerGeneration++;
-            // A dropped WebSocket marks every subscription as closed. There is
-            // no server-side subscription left to delete, but an unused React
-            // subscription still needs to be removed from the local store and
-            // reconnect list.
-            this.notifyClose();
-            this.detachFromDataSyncController(dataSyncController);
+        if (message.tag === 'DidReplaceDataSubscription') {
+            const isFirstReplacement = !this.supportsAuthoritativeSnapshots;
+            this.supportsAuthoritativeSnapshots = true;
+            const revision = typeof message.revision === 'number'
+                ? message.revision
+                : this.lastRevision + 1;
+            if (isFirstReplacement && revision <= this.lastRevision) {
+                this.lastRevision = revision - 1;
+            }
+            this.applyServerSnapshot(message.result as DataRecord[], revision);
             return;
         }
 
-        // We cannot close the DataSubscription when the subscriptionId is not assigned
-        if (!this.isClosed && !this.isConnected) {
-            try {
-                await this.createOnServerPromise;
-            } catch (_error) {
-                this.isClosed = true;
-                this.notifyClose();
-                this.detachFromDataSyncController(dataSyncController);
-                return;
-            }
-            return this.close();
-        }
-
-        // Set isClosed early as we need to prevent a second close() from triggering another DeleteDataSubscription message
-        // also we don't want to receive any further messages, and onMessage will not process if isClosed == true
-        this.createOnServerGeneration++;
-        this.isClosed = true;
-        this.notifyClose();
-
-        try {
-            await dataSyncController.sendMessage({ tag: 'DeleteDataSubscription', subscriptionId: this.subscriptionId });
-        } finally {
-            this.detachFromDataSyncController(dataSyncController);
+        // Compatibility with older servers: delta messages are invalidations,
+        // never instructions to emulate PostgreSQL query semantics in the browser.
+        if (!this.supportsAuthoritativeSnapshots
+            && (message.tag === 'DidInsert' || message.tag === 'DidUpdate' || message.tag === 'DidDelete')) {
+            this.requestAuthoritativeRefresh();
         }
     }
 
-    private detachFromDataSyncController(dataSyncController: DataSyncController): void {
-        dataSyncController.removeEventListener('message', this.onMessage);
-        dataSyncController.removeEventListener('close', this.onDataSyncClosed);
-        dataSyncController.removeEventListener('reconnect', this.onDataSyncReconnect);
-        const index = dataSyncController.dataSubscriptions.indexOf(this);
-        if (index !== -1) {
-            dataSyncController.dataSubscriptions.splice(index, 1);
+    private applyServerSnapshot(records: DataRecord[], revision: number): void {
+        if (revision <= this.lastRevision) {
+            return;
+        }
+        this.lastRevision = revision;
+        // Keep the public mutable `DataRecord[]` contract. The snapshot wrapper
+        // is immutable, while callers remain free to use normal array methods.
+        const snapshotRecords = records.map(record => ({ ...record })) as DataRecord[];
+        if (this.scopedCache !== null
+            && this.hasExpectedTransportScope()
+            && this.controller?.isBoundToTransportScope(this.expectedTransportScopeKey) === true) {
+            this.scopedCache.delete(this.cacheKey);
+            this.scopedCache.set(
+                this.cacheKey,
+                snapshotRecords.map(record => ({ ...record })) as DataRecord[],
+            );
+            trimOldestMapEntries(this.scopedCache, 100);
+        }
+        this.dispatch({ type: 'SNAPSHOT', data: snapshotRecords });
+    }
+
+    private requestAuthoritativeRefresh(): void {
+        if (!this.started) {
+            return;
+        }
+        this.refreshRequested = true;
+        if (this.refreshPromise !== null) {
+            return;
+        }
+        const generation = this.generation;
+        const refreshPromise = this.refreshUntilClean(generation);
+        this.refreshPromise = refreshPromise;
+        void refreshPromise.finally(() => {
+            if (this.refreshPromise === refreshPromise) {
+                this.refreshPromise = null;
+            }
+        }).catch(() => {});
+    }
+
+    private async refreshUntilClean(generation: number): Promise<void> {
+        do {
+            this.refreshRequested = false;
+            if (this.supportsAuthoritativeSnapshots) {
+                return;
+            }
+            try {
+                const controller = this.controller;
+                if (controller === null
+                    || !this.hasExpectedTransportScope()
+                    || !controller.isBoundToTransportScope(this.expectedTransportScopeKey)) {
+                    if (!this.hasExpectedTransportScope()) {
+                        this.closeForTransportScopeChange('before a legacy refresh was sent');
+                    }
+                    return;
+                }
+                const response = await controller.sendMessage({
+                    tag: 'DataSyncQuery',
+                    query: this.serverQuery,
+                    transactionId: null,
+                });
+                // A replacement received while this legacy refetch was in
+                // flight upgrades the resource to revisioned snapshots. The
+                // unrevisioned query response can then be older and must not
+                // overwrite that authoritative replacement.
+                if (this.started
+                    && generation === this.generation
+                    && !this.supportsAuthoritativeSnapshots) {
+                    this.applyServerSnapshot(response.result as DataRecord[], this.lastRevision + 1);
+                }
+            } catch (error) {
+                if (this.started && generation === this.generation) {
+                    console.error('Failed to refresh a legacy DataSubscription:', error);
+                }
+            }
+        } while (this.refreshRequested && this.started && generation === this.generation);
+    }
+
+    onDataSyncClosed(event: unknown = null): void {
+        if (!this.started) {
+            return;
+        }
+        if (isTransportScopeChange(event)) {
+            this.closeForTransportScopeChange('because the controller transport changed');
+            return;
+        }
+        this.generation++;
+        this.subscriptionId = null;
+        this.lastRevision = -1;
+        this.startPromise = null;
+        this.refreshPromise = null;
+        this.refreshRequested = false;
+        this.dispatch({ type: 'DISCONNECT' });
+    }
+
+    async onDataSyncReconnect(): Promise<void> {
+        if (!this.started || this.startPromise !== null || this.subscriptionId !== null) {
+            return;
+        }
+        await this.start(true).catch(() => {
+            // The failure is observable through getSnapshot().
+        });
+    }
+
+    /** @deprecated Delta mutation now triggers an exact server refresh. */
+    onUpdate(
+        _id: UUID,
+        _changeSet: Record<string, unknown> | null,
+        _appendSet: Record<string, unknown> | null,
+        _isOptimistic = false,
+    ): void {
+        this.requestAuthoritativeRefresh();
+    }
+
+    /** @deprecated Delta mutation now triggers an exact server refresh. */
+    onCreate(_newRecord: DataRecord, _isOptimistic = false): void {
+        this.requestAuthoritativeRefresh();
+    }
+
+    /** @deprecated Optimistic mutation is disabled and triggers an exact refresh. */
+    onCreateOptimistic(newRecord: DataRecord): void {
+        if (!('id' in newRecord)) {
+            throw new Error('Requires the record to have an id');
+        }
+        this.requestAuthoritativeRefresh();
+    }
+
+    /** @deprecated Delta mutation now triggers an exact server refresh. */
+    onDelete(_id: UUID, _isOptimistic = false): void {
+        this.requestAuthoritativeRefresh();
+    }
+
+    /** @deprecated Optimistic updates are intentionally disabled. */
+    supportsOptimisticUpdates(): boolean {
+        return false;
+    }
+
+    /** @deprecated Snapshots notify automatically; retained for compatibility. */
+    updateSubscribers(): void {
+        this.notifySubscribers();
+    }
+
+    scheduleCloseIfNotUsed(): void {
+        const token = ++this.disposalToken;
+        queueMicrotask(() => {
+            if (token === this.disposalToken) {
+                this.closeIfNotUsed();
+            }
+        });
+    }
+
+    closeIfNotUsed(): void {
+        if (this.subscribers.length !== 0
+            || this.snapshotSubscriberEntries.size !== 0
+            || this.imperativelyOwned) {
+            return;
+        }
+        void this.stop().catch(error => {
+            console.error('Failed to close an unused DataSubscription:', error);
+        });
+    }
+
+    async close(): Promise<void> {
+        this.imperativelyOwned = false;
+        this.subscriberEntries.clear();
+        this.snapshotSubscriberEntries.clear();
+        this.subscribers.length = 0;
+        this.disposalToken++;
+        await this.stop();
+    }
+
+    private async stop(): Promise<void> {
+        if (!this.started && this.snapshot.status === 'closed') {
+            return;
         }
 
-        this.isConnected = false;
+        this.started = false;
+        this.generation++;
+        this.startPromise = null;
+        this.refreshPromise = null;
+        this.refreshRequested = false;
+        const subscriptionId = this.subscriptionId;
+        const controller = this.controller;
+        this.subscriptionId = null;
+        this.detachControllerListeners();
+        this.dispatch({ type: 'CLOSE' });
+        this.rejectInitialCreateOnce(new Error('DataSubscription closed before its initial server snapshot arrived'));
+        this.notifyClose();
+
+        if (subscriptionId !== null && controller !== null) {
+            await this.deleteStaleDataSubscription(controller, subscriptionId);
+        }
     }
 
     private notifyClose(): void {
         if (this.closeNotificationSent) {
             return;
         }
-
         this.closeNotificationSent = true;
-        this.onClose();
-    }
-
-    private async deleteStaleDataSubscription(dataSyncController: DataSyncController, subscriptionId: UUID): Promise<void> {
         try {
-            await dataSyncController.sendMessage({ tag: 'DeleteDataSubscription', subscriptionId });
+            this.onStoreClose();
         } catch (error) {
-            console.error('Failed to delete a DataSubscription created after it was closed:', error);
+            console.error('DataSubscription store-close listener failed:', error);
         }
-    }
-
-    onDataSyncClosed(): void {
-        this.createOnServerGeneration++;
-        this.isClosed = true;
-        this.isConnected = false;
-
-        // The controller reconnects after one second. This timeout is registered
-        // before the reconnect timeout, so unused subscriptions are pruned first.
-        // A React commit that subscribes in the meantime cancels the cleanup.
-        this.scheduleCloseIfNotUsed();
-    }
-
-    async onDataSyncReconnect(): Promise<void> {
         try {
-            await this.createOnServer();
-        } catch (_error) {
-            // createOnServer stores the error and notifies React subscribers.
+            this.onClose();
+        } catch (error) {
+            console.error('DataSubscription close listener failed:', error);
         }
     }
 
-    onUpdate(id: UUID, changeSet: Record<string, unknown> | null, appendSet: Record<string, unknown> | null, isOptimistic = false): void {
-        const wasOptimisticallyUpdated = this.optimisticUpdatedPendingRecordIds.has(id);
-        if (!isOptimistic) {
-            this.optimisticUpdatedPendingRecordIds.delete(id);
-        }
-
-        if (!this.supportsOptimisticUpdates()) {
-            if (!isOptimistic) {
-                this.refreshAfterComplexMutation();
+    private async deleteStaleDataSubscription(controller: DataSyncController, subscriptionId: UUID): Promise<void> {
+        try {
+            await controller.sendMessage({ tag: 'DeleteDataSubscription', subscriptionId });
+        } catch (error) {
+            if (!controller.retired && controller.connection !== null) {
+                console.error('Failed to delete a stale DataSubscription:', error);
             }
+        }
+    }
+
+    private closeForTransportScopeChange(reason: string): void {
+        if (!this.started && this.snapshot.status === 'closed' && this.closeNotificationSent) {
             return;
         }
+        this.imperativelyOwned = false;
+        this.started = false;
+        this.generation++;
+        this.subscriptionId = null;
+        this.lastRevision = -1;
+        this.startPromise = null;
+        this.refreshPromise = null;
+        this.refreshRequested = false;
+        this.supportsAuthoritativeSnapshots = false;
+        this.detachControllerListeners();
+        this.snapshot = initialResourceSnapshot();
+        this.dispatch({ type: 'CLOSE' });
+        this.rejectInitialCreateOnce(new Error(`DataSubscription closed because its authentication/backend scope changed ${reason}`));
+        this.notifyClose();
+    }
 
-        const projectedChangeSet = changeSet === null ? null : this.projectFields(changeSet);
-        const projectedAppendSet = appendSet === null ? null : this.projectFields(appendSet);
-        this.records = this.normalizeRecords(this.records!.map(record => {
-            if (record.id === id) {
-                const updated = Object.assign({}, record, projectedChangeSet);
-                if (projectedAppendSet && !wasOptimisticallyUpdated) {
-                    for (const [key, value] of Object.entries(projectedAppendSet)) {
-                        (updated as Record<string, unknown>)[key] = (typeof updated[key] === 'string' ? updated[key] : '') + String(value);
-                    }
+    private hasExpectedTransportScope(): boolean {
+        return this.expectedTransportScopeKey === DataSyncController.currentTransportScopeKey();
+    }
+
+    private resolveInitialCreateOnce(records: DataRecord[]): void {
+        if (this.initialCreateSettled) {
+            return;
+        }
+        this.initialCreateSettled = true;
+        this.resolveInitialCreate(records);
+    }
+
+    private rejectInitialCreateOnce(error: Error): void {
+        if (this.initialCreateSettled) {
+            return;
+        }
+        this.initialCreateSettled = true;
+        this.rejectInitialCreate(error);
+    }
+
+    private dispatch(action: ResourceSnapshotAction<DataRecord[]>): void {
+        const nextSnapshot = reduceResourceSnapshot(this.snapshot, action);
+        if (nextSnapshot === this.snapshot) {
+            return;
+        }
+        this.snapshot = nextSnapshot;
+        switch (action.type) {
+            case 'CONNECT':
+                this.isConnected = false;
+                if (!action.reconnect) {
+                    this.isClosed = false;
                 }
-                return updated;
-            }
-
-            return record;
-        }));
-
-        this.updateSubscribers();
+                this.connectError = null;
+                break;
+            case 'SNAPSHOT':
+                this.isClosed = false;
+                this.isConnected = true;
+                this.connectError = null;
+                break;
+            case 'DISCONNECT':
+                this.isClosed = true;
+                this.isConnected = false;
+                break;
+            case 'FAIL':
+                this.isConnected = false;
+                this.connectError = action.error;
+                break;
+            case 'CLOSE':
+                this.isClosed = true;
+                this.isConnected = false;
+                this.connectError = null;
+                break;
+        }
+        this.notifySnapshotSubscribers();
+        if (action.type === 'SNAPSHOT' || action.type === 'FAIL') {
+            this.notifySubscribers();
+        }
     }
 
-    onCreate(newRecord: DataRecord, isOptimistic = false): void {
-        if (!this.supportsOptimisticUpdates()) {
-            if (!isOptimistic) {
-                this.refreshAfterComplexMutation();
-            }
+    private trackedSubscriberCount(): number {
+        return this.subscriberEntries.size + this.snapshotSubscriberEntries.size;
+    }
+
+    private retainInStore(): void {
+        // Never promote a stale render handle back into the active registry.
+        // Its commit-time snapshot check will make React resolve a resource for
+        // the current scope instead.
+        if (!this.hasExpectedTransportScope()) {
             return;
         }
-
-        const shouldAppend = this.newRecordBehaviour === APPEND_NEW_RECORD;
-        const projectedRecord = this.projectFields(newRecord) as DataRecord;
-
-        const newRecordId = newRecord.id;
-        const optimisticIndex = this.optimisticCreatedPendingRecordIds.indexOf(newRecordId);
-        const existingRecord = this.records!.find(record => record.id === newRecordId);
-        if (existingRecord) {
-            if (!isOptimistic && optimisticIndex !== -1) {
-                this.optimisticCreatedPendingRecordIds.splice(optimisticIndex, 1);
-            }
-            // The create response and DidInsert notification can both contain
-            // the same record. Reconcile by id instead of appending twice.
-            this.onUpdate(newRecordId, projectedRecord, null, isOptimistic);
-            return;
+        try {
+            this.onStoreRetain();
+        } catch (error) {
+            console.error('DataSubscription store-retain listener failed:', error);
         }
-
-        if (isOptimistic && optimisticIndex === -1) {
-            this.optimisticCreatedPendingRecordIds.push(newRecordId);
-        }
-        const records = shouldAppend ? [...this.records!, projectedRecord] : [projectedRecord, ...this.records!];
-        this.records = this.normalizeRecords(records);
-
-        this.updateSubscribers();
     }
 
-    onCreateOptimistic(newRecord: DataRecord): void {
-        if (!('id' in newRecord)) {
-            throw new Error('Requires the record to have an id');
-        }
-
-        this.onCreate(newRecord, true);
-    }
-
-    onDelete(id: UUID, isOptimistic = false): void {
-        if (!isOptimistic) {
-            const optimisticIndex = this.optimisticCreatedPendingRecordIds.indexOf(id);
-            if (optimisticIndex !== -1) {
-                this.optimisticCreatedPendingRecordIds.splice(optimisticIndex, 1);
+    private notifySnapshotSubscribers(): void {
+        for (const subscriber of Array.from(this.snapshotSubscriberEntries.values())) {
+            try {
+                subscriber();
+            } catch (error) {
+                console.error('DataSubscription snapshot subscriber failed:', error);
             }
         }
-
-        if (!this.supportsOptimisticUpdates()) {
-            if (!isOptimistic) {
-                this.refreshAfterComplexMutation();
-            }
-            return;
-        }
-
-        this.records = this.normalizeRecords(this.records!.filter(record => record.id !== id));
-        this.updateSubscribers();
-    }
-
-    subscribe(callback: (records: DataRecord[] | null) => void): () => void {
-        this.cancelScheduledCloseIfNotUsed();
-        this.subscribers.push(callback);
-
-        return () => {
-            const index = this.subscribers.indexOf(callback);
-            if (index !== -1) {
-                this.subscribers.splice(index, 1);
-            }
-
-            // We delay the close as react could be re-rendering a component
-            // we garbage collect this connecetion once it's clearly not used anymore
-            this.scheduleCloseIfNotUsed();
-        };
-    }
-
-    scheduleCloseIfNotUsed(): void {
-        this.cancelScheduledCloseIfNotUsed();
-        this.closeIfNotUsedTimeout = setTimeout(() => {
-            this.closeIfNotUsedTimeout = null;
-            this.closeIfNotUsed();
-        }, UNUSED_SUBSCRIPTION_CLOSE_DELAY);
-    }
-
-    private cancelScheduledCloseIfNotUsed(): void {
-        if (this.closeIfNotUsedTimeout !== null) {
-            clearTimeout(this.closeIfNotUsedTimeout);
-            this.closeIfNotUsedTimeout = null;
-        }
-    }
-
-    updateSubscribers(): void {
-        if (this.cache && this.records !== null) {
-            this.cache.set(JSON.stringify(this.query), this.records);
-        }
-        this.notifySubscribers();
     }
 
     private notifySubscribers(): void {
-        for (const subscriber of this.subscribers) {
-            subscriber(this.records);
+        for (const subscriber of this.subscribers.slice()) {
+            this.callSubscriber(subscriber, this.snapshot.data);
         }
     }
 
-    private normalizeRecords(records: DataRecord[]): DataRecord[] {
-        let normalized = [...records];
-        const sortableClauses = this.query.orderByClause.filter(clause => 'orderByColumn' in clause);
-
-        if (sortableClauses.length > 0) {
-            normalized.sort((left, right) => {
-                for (const clause of sortableClauses) {
-                    const comparison = compareQueryValues(left[clause.orderByColumn], right[clause.orderByColumn]);
-                    if (comparison !== 0) {
-                        return clause.orderByDirection === 'Desc' ? -comparison : comparison;
-                    }
-                }
-                return 0;
-            });
-        }
-
-        return normalized;
-    }
-
-    private projectFields<T extends Record<string, unknown>>(fields: T): T {
-        if (this.query.selectedColumns.tag === 'SelectAll') {
-            return fields;
-        }
-
-        const projected: Record<string, unknown> = {};
-        for (const column of this.query.selectedColumns.contents) {
-            if (Object.prototype.hasOwnProperty.call(fields, column)) {
-                projected[column] = fields[column];
-            }
-        }
-        return projected as T;
-    }
-
-    supportsOptimisticUpdates(): boolean {
-        const selectedColumns = this.query.selectedColumns;
-        const hasUnprojectedOrderColumn = selectedColumns.tag === 'SelectSpecific'
-            && this.query.orderByClause.some(clause => 'orderByColumn' in clause
-                && !selectedColumns.contents.includes(clause.orderByColumn));
-
-        return this.query.limit === null
-            && this.query.offset === null
-            && this.query.distinctOnColumn === null
-            && !this.query.orderByClause.some(clause => 'tag' in clause && clause.tag === 'OrderByTSRank')
-            && !hasUnprojectedOrderColumn;
-    }
-
-    private refreshAfterComplexMutation(): void {
-        if (this.supportsOptimisticUpdates() || this.isClosed) {
-            return;
-        }
-
-        this.refreshRequested = true;
-        if (this.refreshPromise !== null) {
-            return;
-        }
-
-        this.refreshPromise = this.refreshRecordsFromServer();
-    }
-
-    private async refreshRecordsFromServer(): Promise<void> {
-        this.refreshRequested = false;
+    private callSubscriber(
+        subscriber: (records: DataRecord[] | null) => void,
+        records: DataRecord[] | null,
+    ): void {
         try {
-            const response = await DataSyncController.getInstance().sendMessage({
-                tag: 'DataSyncQuery',
-                query: this.query,
-                transactionId: null
-            });
-            if (!this.isClosed) {
-                // DataSyncQuery returns the authoritative query window. Keep it
-                // verbatim so projected DISTINCT/ORDER BY columns are not read
-                // as undefined and collapsed locally.
-                this.records = response.result as DataRecord[];
-                this.updateSubscribers();
-            }
+            subscriber(records);
         } catch (error) {
-            if (!this.isClosed) {
-                console.error('Failed to refresh a complex DataSubscription:', error);
-            }
-        } finally {
-            this.refreshPromise = null;
-            if (this.refreshRequested) {
-                this.refreshAfterComplexMutation();
-            }
+            console.error('DataSubscription subscriber failed:', error);
         }
     }
 
-    getRecords(): DataRecord[] | null {
-        return this.records;
-    }
-
-    /**
-     * If there's no subscriber on this DataSubscription, we will close it.
-     */
-    closeIfNotUsed(): void {
-        const isUsed = this.subscribers.length > 0;
-        if (isUsed) {
-            return;
-        }
-
-        void this.closeWhenUnused();
-    }
-
-    private async closeWhenUnused(): Promise<void> {
-        if (!this.isClosed && !this.isConnected) {
-            try {
-                await this.createOnServerPromise;
-            } catch (_error) {
-                // close() handles failed setup and removes the local subscription.
-            }
-        }
-
-        // A React commit can subscribe while setup is still pending. Recheck
-        // after the await so that the earlier cleanup request is cancellable.
-        if (this.subscribers.length > 0) {
-            return;
-        }
-
-        try {
-            await this.close();
-        } catch (error) {
-            console.error('Failed to close an unused DataSubscription:', error);
-        }
-    }
-
-    onClose(): void {
-        // Overriden by the react 18 integration to remove the closed connection from the DataSubscriptionStore
+    /** @deprecated Server snapshots make local record placement irrelevant. */
+    detectNewRecordBehaviour(): number {
+        const firstOrderBy = this.query.orderByClause[0];
+        return firstOrderBy
+            && 'orderByColumn' in firstOrderBy
+            && firstOrderBy.orderByColumn === 'createdAt'
+            && firstOrderBy.orderByDirection === 'Desc'
+            ? PREPEND_NEW_RECORD
+            : APPEND_NEW_RECORD;
     }
 }
 
-function compareQueryValues(left: unknown, right: unknown): number {
-    if (Object.is(left, right)) {
-        return 0;
-    }
-    // PostgreSQL's default is NULLS LAST for ASC and NULLS FIRST for DESC.
-    if (left === null || left === undefined) {
-        return 1;
-    }
-    if (right === null || right === undefined) {
-        return -1;
-    }
-
-    let normalizedLeft = left instanceof Date ? left.getTime() : left;
-    let normalizedRight = right instanceof Date ? right.getTime() : right;
-    if (left instanceof Date || right instanceof Date) {
-        const leftTimestamp = toTimestamp(left);
-        const rightTimestamp = toTimestamp(right);
-        if (leftTimestamp !== null && rightTimestamp !== null) {
-            normalizedLeft = leftTimestamp;
-            normalizedRight = rightTimestamp;
-        }
-    }
-    if (Object.is(normalizedLeft, normalizedRight)) {
-        return 0;
-    }
-    if ((typeof normalizedLeft === 'number' && typeof normalizedRight === 'number')
-        || (typeof normalizedLeft === 'string' && typeof normalizedRight === 'string')
-        || (typeof normalizedLeft === 'boolean' && typeof normalizedRight === 'boolean')) {
-        return normalizedLeft < normalizedRight ? -1 : 1;
-    }
-
-    const leftText = String(normalizedLeft);
-    const rightText = String(normalizedRight);
-    return leftText < rightText ? -1 : leftText > rightText ? 1 : 0;
+function cloneQuery(query: DynamicSQLQuery): DynamicSQLQuery {
+    return JSON.parse(JSON.stringify(query)) as DynamicSQLQuery;
 }
 
-function toTimestamp(value: unknown): number | null {
-    const timestamp = value instanceof Date
-        ? value.getTime()
-        : typeof value === 'string'
-            ? Date.parse(value)
-            : typeof value === 'number'
-                ? value
-                : NaN;
-    return Number.isFinite(timestamp) ? timestamp : null;
+function deepFreeze<T>(value: T): T {
+    if (typeof value !== 'object' || value === null || Object.isFrozen(value)) {
+        return value;
+    }
+    for (const nestedValue of Object.values(value as Record<string, unknown>)) {
+        deepFreeze(nestedValue);
+    }
+    return Object.freeze(value);
+}
+
+function trimOldestMapEntries<K, V>(map: Map<K, V>, maximumSize: number): void {
+    while (map.size > maximumSize) {
+        const oldestKey = map.keys().next().value as K | undefined;
+        if (oldestKey === undefined) {
+            return;
+        }
+        map.delete(oldestKey);
+    }
 }
 
 function initIHPBackend({ host }: { host: string }): void {
@@ -938,42 +1384,63 @@ function initIHPBackend({ host }: { host: string }): void {
     if (host.endsWith('/')) {
         throw new Error('IHP Backend host url should not have a trailing slash, please remove the last "/" from "' + host + '"');
     }
+    const previousHost = DataSyncController.ihpBackendHost;
     DataSyncController.ihpBackendHost = host;
+    // Configuration is an explicit imperative operation. Rotate an already
+    // existing controller now; a later render-only store lookup stays inert.
+    if (DataSyncController.instance !== null && previousHost !== host) {
+        DataSyncController.retireCurrentTransport();
+    }
 }
 
-export async function createRecord<T extends TableName>(table: T, record: NewRecord<T>, options: CrudOptions = {}): Promise<IHPRecord<T>> {
+export async function createRecord<T extends TableName>(
+    table: T,
+    record: NewRecord<T>,
+    options: CrudOptions = {},
+    boundController?: DataSyncController,
+): Promise<IHPRecord<T>> {
     if (typeof table !== "string") {
         throw new Error(`Table name needs to be a string, you passed ${JSON.stringify(table)} in a call to createRecord(${JSON.stringify(table)}, ${JSON.stringify(record, null, 4)})`);
     }
     if (record !== Object(record)) {
         throw new Error(`Record needs to be an object, you passed ${JSON.stringify(record)} in a call to createRecord(${JSON.stringify(table)}, ${JSON.stringify(record, null, 4)})`);
     }
+    const dataSyncController = boundController ?? DataSyncController.getInstance();
 
     const transactionId = options.transactionId ?? null;
     const request = { tag: 'CreateRecordMessage', table, record, transactionId };
-    const shouldUpdateOptimistically = transactionId === null;
+    const coordinatesDependentWrites = transactionId === null;
+
+    if (coordinatesDependentWrites) {
+        if (record.id == null) {
+            record.id = randomUUID();
+        }
+        registerPendingCreate(dataSyncController, record.id);
+    }
 
     try {
-        if (shouldUpdateOptimistically) {
-            createOptimisticRecord(table, record);
-        }
-        await waitPendingChanges(table, record);
-
-        const response = await DataSyncController.getInstance().sendMessage(request);
-        if (shouldUpdateOptimistically) {
-            markCreateOptimisticRecordFinished(table, record, null, response.record as DataRecord);
+        await waitPendingChanges(dataSyncController, table, record);
+        const response = await dataSyncController.sendMessage(request);
+        if (coordinatesDependentWrites) {
+            finishPendingCreate(dataSyncController, record.id!, null);
         }
         return response.record as IHPRecord<T>;
     } catch (e) {
-        if (shouldUpdateOptimistically) {
-            undoCreateOptimisticRecord(table, record, e as Error);
+        if (coordinatesDependentWrites) {
+            finishPendingCreate(dataSyncController, record.id!, e as Error);
         }
 
         throw new Error(`${(e as Error).message} while calling:\n\ncreateRecord(${JSON.stringify(table)}, ${JSON.stringify(record, null, 4)})`);
     }
 }
 
-export async function updateRecord<T extends TableName>(table: T, id: UUID, patch: Partial<NewRecord<T>>, options: CrudOptions = {}): Promise<IHPRecord<T>> {
+export async function updateRecord<T extends TableName>(
+    table: T,
+    id: UUID,
+    patch: Partial<NewRecord<T>>,
+    options: CrudOptions = {},
+    boundController?: DataSyncController,
+): Promise<IHPRecord<T>> {
     if (typeof table !== "string") {
         throw new Error(`Table name needs to be a string, you passed ${JSON.stringify(table)} in a call to updateRecord(${JSON.stringify(table)}, ${JSON.stringify(id)}, ${JSON.stringify(patch, null, 4)})`);
     }
@@ -983,27 +1450,29 @@ export async function updateRecord<T extends TableName>(table: T, id: UUID, patc
     if (patch !== Object(patch)) {
         throw new Error(`Patch needs to be an object, you passed ${JSON.stringify(patch)} in a call to updateRecord(${JSON.stringify(table)}, ${JSON.stringify(id)}, ${JSON.stringify(patch, null, 4)})`);
     }
+    const dataSyncController = boundController ?? DataSyncController.getInstance();
 
     const transactionId = options.transactionId ?? null;
     const request = { tag: 'UpdateRecordMessage', table, id, patch, transactionId };
 
-    const undoUpdateRecordOptimistic = transactionId === null
-        ? updateRecordOptimistic(table, id, patch)
-        : () => {};
-
     try {
-        await waitPendingCreation(table, id);
-        await waitPendingChanges(table, patch);
-        const response = await DataSyncController.getInstance().sendMessage(request);
+        await waitPendingCreation(dataSyncController, table, id);
+        await waitPendingChanges(dataSyncController, table, patch);
+        const response = await dataSyncController.sendMessage(request);
 
         return response.record as IHPRecord<T>;
     } catch (e) {
-        undoUpdateRecordOptimistic();
         throw new Error((e as Error).message);
     }
 }
 
-export async function updateRecords<T extends TableName>(table: T, ids: UUID[], patch: Partial<NewRecord<T>>, options: CrudOptions = {}): Promise<IHPRecord<T>[]> {
+export async function updateRecords<T extends TableName>(
+    table: T,
+    ids: UUID[],
+    patch: Partial<NewRecord<T>>,
+    options: CrudOptions = {},
+    boundController?: DataSyncController,
+): Promise<IHPRecord<T>[]> {
     if (typeof table !== "string") {
         throw new Error(`Table name needs to be a string, you passed ${JSON.stringify(table)} in a call to updateRecords(${JSON.stringify(table)}, ${JSON.stringify(ids)}, ${JSON.stringify(patch, null, 4)})`);
     }
@@ -1013,12 +1482,13 @@ export async function updateRecords<T extends TableName>(table: T, ids: UUID[], 
     if (patch !== Object(patch)) {
         throw new Error(`Patch needs to be an object, you passed ${JSON.stringify(patch)} in a call to updateRecords(${JSON.stringify(table)}, ${JSON.stringify(ids)}, ${JSON.stringify(patch, null, 4)})`);
     }
+    const dataSyncController = boundController ?? DataSyncController.getInstance();
 
     const transactionId = options.transactionId ?? null;
     const request = { tag: 'UpdateRecordsMessage', table, ids, patch, transactionId };
 
     try {
-        const response = await DataSyncController.getInstance().sendMessage(request);
+        const response = await dataSyncController.sendMessage(request);
 
         return response.records as IHPRecord<T>[];
     } catch (e) {
@@ -1026,45 +1496,52 @@ export async function updateRecords<T extends TableName>(table: T, ids: UUID[], 
     }
 }
 
-export async function deleteRecord<T extends TableName>(table: T, id: UUID, options: CrudOptions = {}): Promise<void> {
+export async function deleteRecord<T extends TableName>(
+    table: T,
+    id: UUID,
+    options: CrudOptions = {},
+    boundController?: DataSyncController,
+): Promise<void> {
     if (typeof table !== "string") {
         throw new Error(`Table name needs to be a string, you passed ${JSON.stringify(table)} in a call to deleteRecord(${JSON.stringify(table)}, ${JSON.stringify(id)})`);
     }
     if (typeof id !== "string") {
         throw new Error(`ID needs to be an UUID, you passed ${JSON.stringify(id)} in a call to deleteRecord(${JSON.stringify(table)}, ${JSON.stringify(id)})`);
     }
+    const dataSyncController = boundController ?? DataSyncController.getInstance();
 
     const transactionId = options.transactionId ?? null;
     const request = { tag: 'DeleteRecordMessage', table, id, transactionId };
 
-    let undoOptimisticDeleteRecord = () => {};
     try {
-        await waitPendingCreation(table, id);
-        if (transactionId === null) {
-            undoOptimisticDeleteRecord = deleteRecordOptimistic(table, id);
-        }
-        await DataSyncController.getInstance().sendMessage(request);
+        await waitPendingCreation(dataSyncController, table, id);
+        await dataSyncController.sendMessage(request);
 
         return;
     } catch (e) {
-        undoOptimisticDeleteRecord();
         throw new Error((e as Error).message);
     }
 }
 
-export async function deleteRecords<T extends TableName>(table: T, ids: UUID[], options: CrudOptions = {}): Promise<void> {
+export async function deleteRecords<T extends TableName>(
+    table: T,
+    ids: UUID[],
+    options: CrudOptions = {},
+    boundController?: DataSyncController,
+): Promise<void> {
     if (typeof table !== "string") {
         throw new Error(`Table name needs to be a string, you passed ${JSON.stringify(table)} in a call to deleteRecords(${JSON.stringify(table)}, ${JSON.stringify(ids)})`);
     }
     if (!Array.isArray(ids)) {
         throw new Error(`IDs needs to be an array, you passed ${JSON.stringify(ids)} in a call to deleteRecords(${JSON.stringify(table)}, ${JSON.stringify(ids)})`);
     }
+    const dataSyncController = boundController ?? DataSyncController.getInstance();
 
     const transactionId = options.transactionId ?? null;
     const request = { tag: 'DeleteRecordsMessage', table, ids, transactionId };
 
     try {
-        await DataSyncController.getInstance().sendMessage(request);
+        await dataSyncController.sendMessage(request);
 
         return;
     } catch (e) {
@@ -1072,19 +1549,25 @@ export async function deleteRecords<T extends TableName>(table: T, ids: UUID[], 
     }
 }
 
-export async function createRecords<T extends TableName>(table: T, records: NewRecord<T>[], options: CrudOptions = {}): Promise<IHPRecord<T>[]> {
+export async function createRecords<T extends TableName>(
+    table: T,
+    records: NewRecord<T>[],
+    options: CrudOptions = {},
+    boundController?: DataSyncController,
+): Promise<IHPRecord<T>[]> {
     if (typeof table !== "string") {
         throw new Error(`Table name needs to be a string, you passed ${JSON.stringify(table)} in a call to createRecords(${JSON.stringify(table)}, ${JSON.stringify(records, null, 4)})`);
     }
     if (!Array.isArray(records)) {
         throw new Error(`Records need to be an array, you passed ${JSON.stringify(records)} in a call to createRecords(${JSON.stringify(table)}, ${JSON.stringify(records, null, 4)})`);
     }
+    const dataSyncController = boundController ?? DataSyncController.getInstance();
 
     const transactionId = options.transactionId ?? null;
     const request = { tag: 'CreateRecordsMessage', table, records, transactionId };
 
     try {
-        const response = await DataSyncController.getInstance().sendMessage(request);
+        const response = await dataSyncController.sendMessage(request);
 
         return response.records as IHPRecord<T>[];
     } catch (e) {
@@ -1092,41 +1575,8 @@ export async function createRecords<T extends TableName>(table: T, records: NewR
     }
 }
 
-function createOptimisticRecord<T extends TableName>(table: T, record: NewRecord<T>): void {
-    const dataSyncController = DataSyncController.getInstance();
-
-    // Ensure that the record has an ID
-    if (record.id == null) {
-        record.id = randomUUID();
-    }
-    registerPendingOptimisticCreate(record.id);
-
-    // Optimistically set createdAt if the table has this field (dynamic check)
-    const rec = record as Record<string, unknown>;
-    if (dataSyncController.optimisticCreatedNeedsCreatedAtField.has(table) && rec.createdAt == null) {
-        rec.createdAt = new Date();
-    }
-
-    for (const dataSubscription of dataSyncController.dataSubscriptions) {
-        if (dataSubscription.query.table !== table) {
-            continue;
-        }
-        if (!dataSubscription.supportsOptimisticUpdates()) {
-            continue;
-        }
-        if (!recordMatchesQuery(dataSubscription.query, rec as DataRecord)) {
-            continue;
-        }
-
-        dataSubscription.onCreateOptimistic(rec as DataRecord);
-    }
-
-    dataSyncController.optimisticCreatedPendingRecordIds.push(record.id!);
-}
-
-function registerPendingOptimisticCreate(id: UUID): void {
-    const dataSyncController = DataSyncController.getInstance();
-    if (dataSyncController.pendingOptimisticCreates.has(id)) {
+function registerPendingCreate(dataSyncController: DataSyncController, id: UUID): void {
+    if (dataSyncController.pendingCreates.has(id)) {
         return;
     }
 
@@ -1136,10 +1586,10 @@ function registerPendingOptimisticCreate(id: UUID): void {
         resolve = resolvePromise;
         reject = rejectPromise;
     });
-    // A create often has no dependent operation. Mark the rejection as handled
-    // while still keeping the original promise rejectable for actual dependants.
+    // Most creates have no dependent operation. Mark rejection as observed while
+    // keeping the same promise rejectable for writes that reference this ID.
     void promise.catch(() => {});
-    dataSyncController.pendingOptimisticCreates.set(id, { promise, resolve, reject });
+    dataSyncController.pendingCreates.set(id, { promise, resolve, reject });
 }
 
 function randomUUID(): UUID {
@@ -1163,48 +1613,10 @@ function randomUUID(): UUID {
     }
 }
 
-function undoCreateOptimisticRecord<T extends TableName>(table: T, record: NewRecord<T>, reason: Error): void {
-    const dataSyncController = DataSyncController.getInstance();
-    for (const dataSubscription of dataSyncController.dataSubscriptions) {
-        if (dataSubscription.query.table !== table) {
-            continue;
-        }
-        if (!dataSubscription.optimisticCreatedPendingRecordIds.includes(record.id!)) {
-            continue;
-        }
-
-        dataSubscription.onDelete(record.id!);
-    }
-
-    markCreateOptimisticRecordFinished(table, record, reason);
-}
-
-function markCreateOptimisticRecordFinished<T extends TableName>(table: T, record: NewRecord<T>, error: Error | null = null, canonicalRecord: DataRecord | null = null): void {
-    const dataSyncController = DataSyncController.getInstance();
-
-    if (!error && canonicalRecord) {
-        for (const dataSubscription of dataSyncController.dataSubscriptions) {
-            if (dataSubscription.query.table !== table
-                || !dataSubscription.optimisticCreatedPendingRecordIds.includes(record.id!)) {
-                continue;
-            }
-
-            if (recordMatchesQuery(dataSubscription.query, canonicalRecord)) {
-                dataSubscription.onCreate(canonicalRecord);
-            } else {
-                dataSubscription.onDelete(record.id!);
-            }
-        }
-    }
-
-    const index = dataSyncController.optimisticCreatedPendingRecordIds.indexOf(record.id!);
-    if (index !== -1) {
-        dataSyncController.optimisticCreatedPendingRecordIds.splice(index, 1);
-    }
-
-    const pendingCreate = dataSyncController.pendingOptimisticCreates.get(record.id!);
+function finishPendingCreate(dataSyncController: DataSyncController, id: UUID, error: Error | null): void {
+    const pendingCreate = dataSyncController.pendingCreates.get(id);
     if (pendingCreate) {
-        dataSyncController.pendingOptimisticCreates.delete(record.id!);
+        dataSyncController.pendingCreates.delete(id);
         if (error) {
             pendingCreate.reject(error);
         } else {
@@ -1213,105 +1625,18 @@ function markCreateOptimisticRecordFinished<T extends TableName>(table: T, recor
     }
 }
 
-function updateRecordOptimistic<T extends TableName>(table: T, id: UUID, patch: Partial<NewRecord<T>>): () => void {
-    const dataSyncController = DataSyncController.getInstance();
-    const patchRecord = patch as Record<string, unknown>;
-    const rollbackOperations: (() => void)[] = [];
-    for (const dataSubscription of dataSyncController.dataSubscriptions) {
-        if (dataSubscription.query.table !== table) {
-            continue;
-        }
-        if (!dataSubscription.supportsOptimisticUpdates()) {
-            continue;
-        }
-
-        const dataSubscriptionRecords = dataSubscription.getRecords();
-        if (!dataSubscriptionRecords) {
-            continue;
-        }
-
-        for (const record of dataSubscriptionRecords) {
-            if (!record || record.id !== id) {
-                continue;
-            }
-
-            // Store values before we apply the patch to the record
-            const oldValues: Record<string, unknown> = {};
-            for (const key of Object.keys(patchRecord)) {
-                oldValues[key] = record[key];
-            }
-
-            // Apply the patch optimistically without refreshing the pre-write server state.
-            dataSubscription.optimisticUpdatedPendingRecordIds.add(id);
-            dataSubscription.onUpdate(id, patchRecord, null, true);
-
-            rollbackOperations.push(() => {
-                dataSubscription.optimisticUpdatedPendingRecordIds.delete(id);
-
-                const records = dataSubscription.getRecords();
-                if (!records) {
-                    return;
-                }
-
-                const currentRecord = records.find(record => record.id === id);
-                if (!currentRecord) {
-                    return;
-                }
-
-                const undoPatch: Record<string, unknown> = {};
-                for (const key of Object.keys(patchRecord)) {
-                    if (currentRecord[key] === patchRecord[key]) {
-                        undoPatch[key] = oldValues[key];
-                    }
-                }
-
-                dataSubscription.onUpdate(id, undoPatch, null);
-            });
-        }
-    }
-
-    return () => {
-        for (const rollbackOperation of rollbackOperations) {
-            rollbackOperation();
-        }
-    };
-}
-
-function deleteRecordOptimistic<T extends TableName>(table: T, id: UUID): () => void {
-    const dataSyncController = DataSyncController.getInstance();
-    const undoOperations: (() => void)[] = [];
-    for (const dataSubscription of dataSyncController.dataSubscriptions) {
-        if (dataSubscription.query.table !== table) {
-            continue;
-        }
-        if (!dataSubscription.supportsOptimisticUpdates()) {
-            continue;
-        }
-
-        const deletedRecord = dataSubscription.records!.find(record => record.id === id);
-        if (deletedRecord) {
-            dataSubscription.onDelete(id, true);
-            undoOperations.push(() => dataSubscription.onCreate(deletedRecord));
-        }
-    }
-
-    return () => {
-        for (const undoOperation of undoOperations) {
-            undoOperation();
-        }
-    };
-}
-
-function pendingOptimisticCreatesReferencedBy<T extends TableName>(record: NewRecord<T> | Partial<NewRecord<T>>): Promise<void>[] {
-    const dataSyncController = DataSyncController.getInstance();
+function pendingCreatesReferencedBy<T extends TableName>(
+    dataSyncController: DataSyncController,
+    record: NewRecord<T> | Partial<NewRecord<T>>,
+): Promise<void>[] {
     const rec = record as Record<string, unknown>;
     const pendingCreates = new Set<Promise<void>>();
 
     for (const attribute in rec) {
         if (attribute === 'id') {
-            continue; // The current record's id is always optimistic
+            continue; // Never treat the record's own id as a create dependency.
         }
-        const pendingCreate = dataSyncController.pendingOptimisticCreates.get(rec[attribute] as UUID);
+        const pendingCreate = dataSyncController.pendingCreates.get(rec[attribute] as UUID);
         if (pendingCreate) {
             pendingCreates.add(pendingCreate.promise);
         }
@@ -1320,12 +1645,20 @@ function pendingOptimisticCreatesReferencedBy<T extends TableName>(record: NewRe
     return Array.from(pendingCreates);
 }
 
-async function waitPendingChanges<T extends TableName>(_table: T, record: NewRecord<T> | Partial<NewRecord<T>>): Promise<void> {
-    await Promise.all(pendingOptimisticCreatesReferencedBy(record));
+async function waitPendingChanges<T extends TableName>(
+    dataSyncController: DataSyncController,
+    _table: T,
+    record: NewRecord<T> | Partial<NewRecord<T>>,
+): Promise<void> {
+    await Promise.all(pendingCreatesReferencedBy(dataSyncController, record));
 }
 
-async function waitPendingCreation<T extends TableName>(_table: T, id: UUID): Promise<void> {
-    const pendingCreate = DataSyncController.getInstance().pendingOptimisticCreates.get(id);
+async function waitPendingCreation<T extends TableName>(
+    dataSyncController: DataSyncController,
+    _table: T,
+    id: UUID,
+): Promise<void> {
+    const pendingCreate = dataSyncController.pendingCreates.get(id);
     if (pendingCreate) {
         await pendingCreate.promise;
     }

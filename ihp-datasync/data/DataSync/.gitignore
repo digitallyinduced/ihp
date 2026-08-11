@@ -7,3 +7,4 @@
 # Keep test files and config
 !*.test.js
 !jest.config.js
+!src/*.typetest.d.ts

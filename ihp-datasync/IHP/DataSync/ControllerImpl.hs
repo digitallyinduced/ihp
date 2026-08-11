@@ -6,6 +6,8 @@ import qualified Control.Exception.Safe as Exception
 import System.Log.FastLogger (toLogStr)
 import qualified Data.Aeson as Aeson
 import qualified Data.Aeson.Key as Aeson
+import qualified Data.Aeson.KeyMap as Aeson
+import qualified Data.Scientific as Scientific
 
 import Data.Aeson.TH
 import qualified Hasql.Decoders as Decoders
@@ -15,7 +17,9 @@ import qualified Hasql.Session as Session
 import IHP.DataSync.Hasql (runSession, runSessionOnConnection, withDedicatedConnection)
 import qualified Data.HashMap.Strict as HashMap
 import qualified Data.UUID.V4 as UUID
+import qualified Control.Concurrent as Concurrent
 import qualified Control.Concurrent.MVar as MVar
+import Control.Monad (void)
 import IHP.DataSync.Types
 import IHP.DataSync.RowLevelSecurity
 import IHP.DataSync.DynamicQuery
@@ -33,6 +37,22 @@ import qualified Data.List as List
 
 $(deriveFromJSON defaultOptions ''DataSyncMessage)
 $(deriveToJSON defaultOptions { omitNothingFields = True } 'DataSyncResult)
+
+-- | The transport envelope deliberately lives outside 'DataSyncMessage'. Older
+-- Haskell callers can keep constructing @CreateDataSubscription query requestId@
+-- while newer wire clients advertise snapshot support with an extra JSON field.
+decodeDataSyncMessageEnvelope :: ByteString -> Either String (Maybe Int, DataSyncMessage)
+decodeDataSyncMessageEnvelope input = do
+    value <- Aeson.eitherDecodeStrict' input
+    message <- case Aeson.fromJSON value of
+        Aeson.Success decoded -> Right decoded
+        Aeson.Error errorMessage -> Left errorMessage
+    let protocolVersion = case value of
+            Aeson.Object fields -> case Aeson.lookup "protocolVersion" fields of
+                Just (Aeson.Number version) -> Scientific.toBoundedInteger version
+                _ -> Nothing
+            _ -> Nothing
+    pure (protocolVersion, message)
 
 type EnsureRLSEnabledFn = Text -> IO TableWithRLS
 type InstallTableChangeTriggerFn = TableWithRLS -> IO ()
@@ -53,7 +73,7 @@ runDataSyncController hasqlPool ensureRLSEnabled installTableChangeTriggers rece
     setState DataSyncReady { subscriptions = HashMap.empty, transactions = HashMap.empty }
 
     columnTypeLookup <- makeCachedColumnTypeLookup hasqlPool
-    handleMessage :: DataSyncMessage -> IO () <- buildMessageHandler hasqlPool ensureRLSEnabled installTableChangeTriggers sendJSON handleCustomMessage renamer columnTypeLookup
+    handleMessage :: Maybe Int -> DataSyncMessage -> IO () <- buildMessageHandlerWithProtocolVersion hasqlPool ensureRLSEnabled installTableChangeTriggers sendJSON handleCustomMessage renamer columnTypeLookup
 
 
     sem  <- newQSemN (maxSubscriptionsPerConnection * 2) -- needs to be larger than the subscriptions limit to trigger an error on overload. otherwise an overflow of connections might queue up silently
@@ -61,17 +81,20 @@ runDataSyncController hasqlPool ensureRLSEnabled installTableChangeTriggers rece
     -- Track Asyncs so we can cancel/wait on socket close
     childrenVar <- newTVarIO (HashMap.empty :: HashMap ThreadId (Async ()))
 
-    let spawnWorker decodedMessage = do
+    let spawnWorker protocolVersion decodedMessage = Exception.mask \restoreParent -> do
             tidReady <- MVar.newEmptyMVar
+            startGate <- MVar.newEmptyMVar
             a <- asyncWithUnmask \unmask -> do
-                -- Register myself
                 tid <- myThreadId
                 MVar.putMVar tidReady tid
+                -- The handler cannot finish and self-delete before the parent has
+                -- inserted this Async into childrenVar.
+                MVar.takeMVar startGate
                 -- Take/release concurrency slot entirely inside the worker
                 Exception.bracket_ (waitQSemN sem 1) (signalQSemN sem 1) do
                     Exception.finally
                         (unmask do
-                            result <- Exception.try (handleMessage decodedMessage)
+                            result <- Exception.try (handleMessage protocolVersion decodedMessage)
                             case result of
                                 Left (e :: Exception.SomeException) -> do
                                     let requestId    = decodedMessage.requestId
@@ -85,14 +108,17 @@ runDataSyncController hasqlPool ensureRLSEnabled installTableChangeTriggers rece
                             tid' <- myThreadId
                             atomically $ modifyTVar' childrenVar (HashMap.delete tid')
                         )
-            -- Parent stores the Async by ThreadId (no race thanks to tidReady)
-            tid <- MVar.takeMVar tidReady
-            atomically $ modifyTVar' childrenVar (HashMap.insert tid a)
+            let register = do
+                    tid <- MVar.takeMVar tidReady
+                    atomically $ modifyTVar' childrenVar (HashMap.insert tid a)
+                    MVar.putMVar startGate ()
+            register `Exception.onException` cancel a
+            restoreParent (pure ())
 
     let loop = forever do
-            msg <- Aeson.eitherDecodeStrict' <$> receiveData
+            msg <- decodeDataSyncMessageEnvelope <$> receiveData
             case msg of
-                Right decoded -> spawnWorker decoded
+                Right (protocolVersion, decoded) -> spawnWorker protocolVersion decoded
                 Left err      -> sendJSON FailedToDecodeMessageError { errorMessage = cs err }
 
     -- On websocket close: cancel and drain all children
@@ -116,12 +142,36 @@ buildMessageHandler ::
     )
     => Hasql.Pool.Pool -> EnsureRLSEnabledFn -> InstallTableChangeTriggerFn -> SendJSONFn -> HandleCustomMessageFn -> (Text -> Renamer) -> (Text -> IO ColumnTypeInfo) -> IO (DataSyncMessage -> IO ())
 buildMessageHandler hasqlPool ensureRLSEnabled installTableChangeTriggers sendJSON handleCustomMessage renamer columnTypeLookup = do
+    handleMessage <- buildMessageHandlerWithProtocolVersion hasqlPool ensureRLSEnabled installTableChangeTriggers sendJSON handleCustomMessage renamer columnTypeLookup
+    pure (handleMessage Nothing)
+
+-- | Internal wire-aware variant. The optional protocol version is kept out of
+-- the public 'DataSyncMessage' constructors for source compatibility.
+buildMessageHandlerWithProtocolVersion ::
+    ( HasField "id" CurrentUserRecord (Id' (GetTableName CurrentUserRecord))
+    , ?context :: Request
+    , ?request :: Request
+    , ?modelContext :: ModelContext
+    , ?state :: IORef DataSyncController
+    , Typeable CurrentUserRecord
+    , HasNewSessionUrl CurrentUserRecord
+    , Show (PrimaryKey (GetTableName CurrentUserRecord))
+    )
+    => Hasql.Pool.Pool -> EnsureRLSEnabledFn -> InstallTableChangeTriggerFn -> SendJSONFn -> HandleCustomMessageFn -> (Text -> Renamer) -> (Text -> IO ColumnTypeInfo) -> IO (Maybe Int -> DataSyncMessage -> IO ())
+buildMessageHandlerWithProtocolVersion hasqlPool ensureRLSEnabled _installTableChangeTriggers sendJSON handleCustomMessage renamer columnTypeLookup = do
     getRLSColumns <- makeCachedRLSPolicyColumns hasqlPool
+    subscriptionClosedSignals <- newIORef HashMap.empty
+    installInvalidationPlan <- ChangeNotifications.makeInstallInvalidationPlan hasqlPool
+    let ?subscriptionClosedSignals = subscriptionClosedSignals
+    let ?installInvalidationPlan = installInvalidationPlan
     pure (handleMessage getRLSColumns)
     where
             pgListener = ?request.pgListener
-            handleMessage :: (Text -> IO (Set.Set Text)) -> DataSyncMessage -> IO ()
-            handleMessage getRLSColumns DataSyncQuery { query, requestId, transactionId } = do
+            handleMessage ::
+                ( ?subscriptionClosedSignals :: IORef (HashMap UUID (MVar.MVar ()))
+                , ?installInvalidationPlan :: ChangeNotifications.InvalidationPlan -> IO ()
+                ) => (Text -> IO (Set.Set Text)) -> Maybe Int -> DataSyncMessage -> IO ()
+            handleMessage getRLSColumns _protocolVersion DataSyncQuery { query, requestId, transactionId } = do
                 ensureRLSEnabled (query.table)
 
                 columnTypes <- columnTypeLookup query.table
@@ -132,121 +182,145 @@ buildMessageHandler hasqlPool ensureRLSEnabled installTableChangeTriggers sendJS
 
                 sendJSON DataSyncResult { result, requestId }
 
-            handleMessage getRLSColumns CreateDataSubscription { query, requestId } = do
+            handleMessage _getRLSColumns protocolVersion CreateDataSubscription { query, requestId } = do
                 ensureBelowSubscriptionsLimit
 
                 tableNameRLS <- ensureRLSEnabled (query.table)
+                columnTypes <- columnTypeLookup query.table
+                let queryRenamer = renamer query.table
+                let tableHasUuidId = HashMap.lookup "id" columnTypes.typeMap == Just "uuid"
+                let supportsSnapshots = maybe False (>= 1) protocolVersion
+                let selectsId = case query.selectedColumns of
+                        SelectAll -> tableHasUuidId
+                        SelectSpecific columns -> any ((== "id") . queryRenamer.fieldToColumn) columns
+                when (not supportsSnapshots && (not tableHasUuidId || not selectsId)) do
+                    Exception.throwIO (userError "Legacy DataSubscriptions require the id column to be selected with UUID type; use protocolVersion 1 for projections without id")
 
                 subscriptionId <- UUID.nextRandom
 
-                -- Allocate the close handle as early as possible
-                -- to make DeleteDataSubscription calls succeed even when the DataSubscription is
-                -- not fully set up yet
                 close <- MVar.newEmptyMVar
-                atomicModifyIORef'' ?state (\state -> state |> modify #subscriptions (HashMap.insert subscriptionId close))
+                closed <- MVar.newEmptyMVar
 
-                columnTypes <- columnTypeLookup query.table
-                let querySnippet = compileQueryTyped (renamer query.table) columnTypes query
+                let querySnippet = compileQueryTyped queryRenamer columnTypes query
                 let stmt = compiledQueryStatement querySnippet
 
-                result :: [[Field]] <- sqlQueryWithRLS hasqlPool stmt
+                invalidationPlan <- ChangeNotifications.resolveInvalidationPlan hasqlPool tableNameRLS
+                ?installInvalidationPlan invalidationPlan
+                let subscriptionChannels = invalidationPlan.channels
 
-                let tableName = query.table
+                snapshotStateRef <- newIORef (Nothing :: Maybe (Int, [[Field]]))
+                initialReady <- MVar.newEmptyMVar
+                refreshSignal <- MVar.newEmptyMVar
 
-                -- Compute "sensitive columns": the union of columns referenced in the
-                -- WHERE clause and columns referenced in RLS policies. When an UPDATE
-                -- only touches columns outside this set, the record cannot leave the
-                -- result set or change RLS visibility, so we can skip the EXISTS check.
-                rlsCols <- getRLSColumns tableName
-                let whereColumns = maybe Set.empty conditionColumns (query.whereCondition)
-                let whereColumnsDb = Set.map (renamer tableName).fieldToColumn whereColumns
-                let sensitiveColumns = Set.union whereColumnsDb rlsCols
+                -- Legacy deltas are derived exclusively from two complete RLS-filtered
+                -- snapshots. Notification payloads can therefore never reveal a value
+                -- that is no longer visible to the current user. Re-deleting both the old
+                -- and new id sets also makes a retry safe after a partial socket write.
+                let sendLegacyReplacement previousResult nextResult = do
+                        let idsToClear = Set.fromList (recordIds previousResult <> recordIds nextResult)
+                        forM_ idsToClear \id ->
+                            sendJSON DidDelete { subscriptionId, id }
+                        forM_ nextResult \record ->
+                            sendJSON DidInsert { subscriptionId, record }
 
-                -- We need to keep track of all the ids of entities we're watching to make
-                -- sure that we only send update notifications to clients that can actually
-                -- access the record (e.g. if a RLS policy denies access)
-                let watchedRecordIds = recordIds result
+                let refreshSnapshot = do
+                        Just (revision, previousResult) <- readIORef snapshotStateRef
+                        nextResult :: [[Field]] <- sqlQueryWithRLS hasqlPool stmt
+                        let resultChanged = Aeson.toJSON nextResult /= Aeson.toJSON previousResult
+                        when resultChanged do
+                            let nextRevision = revision + 1
+                            if supportsSnapshots
+                                then sendJSON DidReplaceDataSubscription
+                                    { subscriptionId
+                                    , revision = nextRevision
+                                    , result = nextResult
+                                    }
+                                else sendLegacyReplacement previousResult nextResult
+                            -- Advance only after every wire message was sent. A transient
+                            -- send failure retries from the last fully delivered snapshot.
+                            writeIORef snapshotStateRef (Just (nextRevision, nextResult))
 
-                -- Store it in IORef as an INSERT requires us to add an id
-                watchedRecordIdsRef <- newIORef (Set.fromList watchedRecordIds)
+                let retryRefresh delay = do
+                        result <- Exception.tryAny refreshSnapshot
+                        case result of
+                            Right () -> pure ()
+                            Left exception -> do
+                                ?modelContext.logger (toLogStr ("DataSync subscription refresh failed: " <> displayException exception))
+                                Concurrent.threadDelay delay
+                                retryRefresh (min 5_000_000 (delay * 2))
 
-                -- Make sure the database triggers are there
-                installTableChangeTriggers tableNameRLS
+                let refreshWorker = forever do
+                        MVar.takeMVar refreshSignal
+                        MVar.readMVar initialReady
+                        retryRefresh 50_000
 
-                let handleUpdate id getChanges = do
-                        isWatchingRecord <- Set.member id <$> readIORef watchedRecordIdsRef
-                        when isWatchingRecord do
-                            changes <- getChanges
-                            let changedCols = Set.fromList (map (.col) changes)
-                            let affectsFilterOrRLS = not (Set.disjoint changedCols sensitiveColumns)
-                            let (changeSetVal, appendSetVal) = changesToValue (renamer tableName) changes
-                            if affectsFilterOrRLS
-                                then do
-                                    let existsSnippet = Snippet.sql "SELECT EXISTS(SELECT * FROM (" <> querySnippet <> Snippet.sql ") AS records WHERE records.id = " <> uuidParam id <> Snippet.sql " LIMIT 1)"
-                                    let existsStmt = Snippet.toPreparableStatement existsSnippet (Decoders.singleRow (Decoders.column (Decoders.nonNullable Decoders.bool)))
-                                    isRecordInResultSet :: Bool <- sqlQueryScalarWithRLS hasqlPool existsStmt
-                                    if isRecordInResultSet
-                                        then sendJSON DidUpdate { subscriptionId, id, changeSet = changeSetVal, appendSet = appendSetVal }
-                                        else do
-                                            modifyIORef' watchedRecordIdsRef (Set.delete id)
-                                            sendJSON DidDelete { subscriptionId, id }
-                                else
-                                    sendJSON DidUpdate { subscriptionId, id, changeSet = changeSetVal, appendSet = appendSetVal }
+                let signalRefresh = void (MVar.tryPutMVar refreshSignal ())
+                let subscribe = subscribeToInvalidationChannels pgListener subscriptionChannels signalRefresh
+                let unsubscribe = unsubscribeAll pgListener
 
-                let callback notification = case notification of
-                            ChangeNotifications.DidInsert { id } -> do
-                                -- The new record could not be accessible to the current user with a RLS policy
-                                -- E.g. it could be a new record in a 'projects' table, but the project belongs
-                                -- to a different user, and thus the current user should not be able to see it.
-                                --
-                                -- The new record could also be not part of the WHERE condition of the initial query.
-                                -- Therefore we need to use the subscriptions WHERE condition to fetch the new record here.
-                                --
-                                -- To honor the RLS policies we therefore need to fetch the record as the current user
-                                -- If the result set is empty, we know the record is not accesible to us
-                                let filterSnippet = Snippet.sql "SELECT * FROM (" <> querySnippet <> Snippet.sql ") AS records WHERE records.id = " <> uuidParam id <> Snippet.sql " LIMIT 1"
-                                let filterStmt = Snippet.toPreparableStatement (wrapDynamicQuery filterSnippet) dynamicRowDecoder
-                                newRecord :: [[Field]] <- sqlQueryWithRLS hasqlPool filterStmt
+                let reserveSubscription = do
+                        atomicModifyIORef' ?subscriptionClosedSignals \signals ->
+                            (HashMap.insert subscriptionId closed signals, ())
+                        reserved <- atomicModifyIORef' ?state \state ->
+                            if HashMap.size state.subscriptions >= maxSubscriptionsPerConnection
+                                then (state, False)
+                                else (state |> modify #subscriptions (HashMap.insert subscriptionId close), True)
+                        unless reserved do
+                            atomicModifyIORef' ?subscriptionClosedSignals \signals ->
+                                (HashMap.delete subscriptionId signals, ())
+                            Exception.throwIO (userError ("You've reached the subscriptions limit of " <> cs (tshow maxSubscriptionsPerConnection) <> " subscriptions"))
 
-                                case headMay newRecord of
-                                    Just record -> do
-                                        -- Add the new record to 'watchedRecordIdsRef'
-                                        -- Otherwise the updates and deletes will not be dispatched to the client
-                                        modifyIORef' watchedRecordIdsRef (Set.insert id)
+                let releaseSubscription = do
+                        wasStillRegistered <- atomicModifyIORef' ?state \state ->
+                            let wasRegistered = HashMap.member subscriptionId state.subscriptions
+                            in (state |> modify #subscriptions (HashMap.delete subscriptionId), wasRegistered)
+                        void (MVar.tryPutMVar closed ())
+                        -- If DeleteDataSubscription removed the state entry, it owns
+                        -- this completion MVar until it has observed cleanup.
+                        when wasStillRegistered do
+                            atomicModifyIORef' ?subscriptionClosedSignals \signals ->
+                                (HashMap.delete subscriptionId signals, ())
 
-                                        sendJSON DidInsert { subscriptionId, record }
-                                    Nothing -> pure ()
-                            ChangeNotifications.DidUpdate { id, changeSet } ->
-                                handleUpdate id (ChangeNotifications.retrieveChanges hasqlPool changeSet)
-                            ChangeNotifications.DidUpdateLarge { id, payloadId } ->
-                                handleUpdate id (ChangeNotifications.retrieveChanges hasqlPool (ChangeNotifications.ExternalChangeSet { largePgNotificationId = payloadId }))
-                            ChangeNotifications.DidDelete { id } -> do
-                                -- Only send the notifcation if the deleted record was part of the initial
-                                -- results set
-                                isWatchingRecord <- Set.member id <$> readIORef watchedRecordIdsRef
-                                when isWatchingRecord do
-                                    sendJSON DidDelete { subscriptionId, id }
+                Exception.bracket_
+                    reserveSubscription
+                    releaseSubscription
+                    (Exception.bracket subscribe unsubscribe \_channelSubscriptions ->
+                        Exception.bracket (async refreshWorker) cancel \_refreshWorker ->
+                            Exception.finally
+                                (do
+                                    isListening <- PGListener.waitUntilListeningTo 10_000_000 subscriptionChannels pgListener
+                                    unless isListening do
+                                        Exception.throwIO (userError "Timed out waiting for PostgreSQL LISTEN while creating DataSubscription")
 
-                let subscribe = PGListener.subscribeJSON (ChangeNotifications.channelName tableNameRLS) callback pgListener
-                let unsubscribe subscription = PGListener.unsubscribe subscription pgListener
+                                    result :: [[Field]] <- sqlQueryWithRLS hasqlPool stmt
+                                    if supportsSnapshots
+                                        then sendJSON DidCreateDataSubscriptionV2
+                                            { subscriptionId
+                                            , requestId
+                                            , revision = 0
+                                            , result
+                                            }
+                                        else sendJSON DidCreateDataSubscription
+                                            { subscriptionId
+                                            , requestId
+                                            , result
+                                            }
+                                    writeIORef snapshotStateRef (Just (0, result))
+                                    MVar.putMVar initialReady ()
+                                    MVar.takeMVar close
+                                )
+                                (void (MVar.tryPutMVar initialReady ()))
+                    )
 
-                Exception.bracket subscribe unsubscribe \channelSubscription -> do
-                    sendJSON DidCreateDataSubscription { subscriptionId, requestId, result }
-
-                    MVar.takeMVar close
-
-            handleMessage getRLSColumns CreateCountSubscription { query, requestId } = do
+            handleMessage _getRLSColumns _protocolVersion CreateCountSubscription { query, requestId } = do
                 ensureBelowSubscriptionsLimit
 
                 tableNameRLS <- ensureRLSEnabled query.table
 
                 subscriptionId <- UUID.nextRandom
 
-                -- Allocate the close handle as early as possible
-                -- to make DeleteDataSubscription calls succeed even when the CountSubscription is
-                -- not fully set up yet
                 close <- MVar.newEmptyMVar
-                atomicModifyIORef'' ?state (\state -> state |> modify #subscriptions (HashMap.insert subscriptionId close))
+                closed <- MVar.newEmptyMVar
 
                 columnTypes <- columnTypeLookup query.table
                 let querySnippet = compileQueryTyped (renamer query.table) columnTypes query
@@ -255,42 +329,100 @@ buildMessageHandler hasqlPool ensureRLSEnabled installTableChangeTriggers sendJS
                 let countDecoder = Decoders.singleRow (Decoders.column (Decoders.nonNullable (fromIntegral <$> Decoders.int8)))
                 let countStmt = Snippet.toPreparableStatement countSnippet countDecoder
 
-                count :: Int <- sqlQueryScalarWithRLS hasqlPool countStmt
-                countRef <- newIORef count
+                invalidationPlan <- ChangeNotifications.resolveInvalidationPlan hasqlPool tableNameRLS
+                ?installInvalidationPlan invalidationPlan
+                let subscriptionChannels = invalidationPlan.channels
 
-                installTableChangeTriggers tableNameRLS
+                countRef <- newIORef (Nothing :: Maybe Int)
+                initialReady <- MVar.newEmptyMVar
+                refreshSignal <- MVar.newEmptyMVar
 
-                let
-                    callback :: ChangeNotifications.ChangeNotification -> IO ()
-                    callback _ = do
+                let refreshCount = do
+                        Just lastCount <- readIORef countRef
                         newCount :: Int <- sqlQueryScalarWithRLS hasqlPool countStmt
-                        lastCount <- readIORef countRef
-
                         when (newCount /= lastCount) do
-                            writeIORef countRef newCount
                             sendJSON DidChangeCount { subscriptionId, count = newCount }
+                            writeIORef countRef (Just newCount)
 
-                let subscribe = PGListener.subscribeJSON (ChangeNotifications.channelName tableNameRLS) callback pgListener
-                let unsubscribe subscription = PGListener.unsubscribe subscription pgListener
+                let retryRefresh delay = do
+                        result <- Exception.tryAny refreshCount
+                        case result of
+                            Right () -> pure ()
+                            Left exception -> do
+                                ?modelContext.logger (toLogStr ("DataSync count refresh failed: " <> displayException exception))
+                                Concurrent.threadDelay delay
+                                retryRefresh (min 5_000_000 (delay * 2))
 
-                Exception.bracket subscribe unsubscribe \channelSubscription -> do
-                    sendJSON DidCreateCountSubscription { subscriptionId, requestId, count }
+                let refreshWorker = forever do
+                        MVar.takeMVar refreshSignal
+                        MVar.readMVar initialReady
+                        retryRefresh 50_000
 
-                    MVar.takeMVar close
+                let signalRefresh = void (MVar.tryPutMVar refreshSignal ())
+                let subscribe = subscribeToInvalidationChannels pgListener subscriptionChannels signalRefresh
+                let unsubscribe = unsubscribeAll pgListener
 
-            handleMessage getRLSColumns DeleteDataSubscription { requestId, subscriptionId } = do
-                DataSyncReady { subscriptions } <- getState
-                case HashMap.lookup subscriptionId subscriptions of
-                    Just closeSignalMVar -> do
-                        -- Cancel table watcher
-                        MVar.putMVar closeSignalMVar ()
+                let reserveSubscription = do
+                        atomicModifyIORef' ?subscriptionClosedSignals \signals ->
+                            (HashMap.insert subscriptionId closed signals, ())
+                        reserved <- atomicModifyIORef' ?state \state ->
+                            if HashMap.size state.subscriptions >= maxSubscriptionsPerConnection
+                                then (state, False)
+                                else (state |> modify #subscriptions (HashMap.insert subscriptionId close), True)
+                        unless reserved do
+                            atomicModifyIORef' ?subscriptionClosedSignals \signals ->
+                                (HashMap.delete subscriptionId signals, ())
+                            Exception.throwIO (userError ("You've reached the subscriptions limit of " <> cs (tshow maxSubscriptionsPerConnection) <> " subscriptions"))
 
-                        atomicModifyIORef'' ?state (\state -> state |> modify #subscriptions (HashMap.delete subscriptionId))
+                let releaseSubscription = do
+                        wasStillRegistered <- atomicModifyIORef' ?state \state ->
+                            let wasRegistered = HashMap.member subscriptionId state.subscriptions
+                            in (state |> modify #subscriptions (HashMap.delete subscriptionId), wasRegistered)
+                        void (MVar.tryPutMVar closed ())
+                        when wasStillRegistered do
+                            atomicModifyIORef' ?subscriptionClosedSignals \signals ->
+                                (HashMap.delete subscriptionId signals, ())
+
+                Exception.bracket_
+                    reserveSubscription
+                    releaseSubscription
+                    (Exception.bracket subscribe unsubscribe \_channelSubscriptions ->
+                        Exception.bracket (async refreshWorker) cancel \_refreshWorker ->
+                            Exception.finally
+                                (do
+                                    isListening <- PGListener.waitUntilListeningTo 10_000_000 subscriptionChannels pgListener
+                                    unless isListening do
+                                        Exception.throwIO (userError "Timed out waiting for PostgreSQL LISTEN while creating CountSubscription")
+
+                                    count :: Int <- sqlQueryScalarWithRLS hasqlPool countStmt
+                                    sendJSON DidCreateCountSubscription { subscriptionId, requestId, count }
+                                    writeIORef countRef (Just count)
+                                    MVar.putMVar initialReady ()
+                                    MVar.takeMVar close
+                                )
+                                (void (MVar.tryPutMVar initialReady ()))
+                    )
+
+            handleMessage _getRLSColumns _protocolVersion DeleteDataSubscription { requestId, subscriptionId } = do
+                closeSignal <- atomicModifyIORef' ?state \state ->
+                    let signal = HashMap.lookup subscriptionId state.subscriptions
+                    in (state |> modify #subscriptions (HashMap.delete subscriptionId), signal)
+                case closeSignal of
+                    Just close -> do
+                        closedSignals <- readIORef ?subscriptionClosedSignals
+                        closed <- case HashMap.lookup subscriptionId closedSignals of
+                            Just signal -> pure signal
+                            Nothing -> Exception.throwIO (userError "DataSubscription lifecycle completion signal is missing")
+
+                        void (MVar.tryPutMVar close ())
+                        MVar.readMVar closed
+                        atomicModifyIORef' ?subscriptionClosedSignals \signals ->
+                            (HashMap.delete subscriptionId signals, ())
 
                         sendJSON DidDeleteDataSubscription { subscriptionId, requestId }
                     Nothing -> sendJSON DataSyncError { requestId, errorMessage = "Failed to delete DataSubscription, could not find DataSubscription with id " <> tshow subscriptionId }
 
-            handleMessage getRLSColumns CreateRecordMessage { table, record, requestId, transactionId }  = do
+            handleMessage getRLSColumns _protocolVersion CreateRecordMessage { table, record, requestId, transactionId }  = do
                 ensureRLSEnabled table
 
                 columnTypes <- columnTypeLookup table
@@ -316,7 +448,7 @@ buildMessageHandler hasqlPool ensureRLSEnabled installTableChangeTriggers sendJS
 
                 pure ()
 
-            handleMessage getRLSColumns CreateRecordsMessage { table, records, requestId, transactionId }  = do
+            handleMessage getRLSColumns _protocolVersion CreateRecordsMessage { table, records, requestId, transactionId }  = do
                 ensureRLSEnabled table
 
                 columnTypes <- columnTypeLookup table
@@ -341,7 +473,7 @@ buildMessageHandler hasqlPool ensureRLSEnabled installTableChangeTriggers sendJS
 
                         pure ()
 
-            handleMessage getRLSColumns UpdateRecordMessage { table, id, patch, requestId, transactionId } = do
+            handleMessage getRLSColumns _protocolVersion UpdateRecordMessage { table, id, patch, requestId, transactionId } = do
                 ensureRLSEnabled table
 
                 columnTypes <- columnTypeLookup table
@@ -359,7 +491,7 @@ buildMessageHandler hasqlPool ensureRLSEnabled installTableChangeTriggers sendJS
 
                 pure ()
 
-            handleMessage getRLSColumns UpdateRecordsMessage { table, ids, patch, requestId, transactionId } = do
+            handleMessage getRLSColumns _protocolVersion UpdateRecordsMessage { table, ids, patch, requestId, transactionId } = do
                 ensureRLSEnabled table
 
                 columnTypes <- columnTypeLookup table
@@ -375,7 +507,7 @@ buildMessageHandler hasqlPool ensureRLSEnabled installTableChangeTriggers sendJS
 
                 pure ()
 
-            handleMessage getRLSColumns DeleteRecordMessage { table, id, requestId, transactionId } = do
+            handleMessage getRLSColumns _protocolVersion DeleteRecordMessage { table, id, requestId, transactionId } = do
                 ensureRLSEnabled table
 
                 let deleteSnippet = Snippet.sql ("DELETE FROM " <> quoteIdentifier table <> " WHERE id = ") <> uuidParam id
@@ -384,7 +516,7 @@ buildMessageHandler hasqlPool ensureRLSEnabled installTableChangeTriggers sendJS
 
                 sendJSON DidDeleteRecord { requestId }
 
-            handleMessage getRLSColumns DeleteRecordsMessage { table, ids, requestId, transactionId } = do
+            handleMessage getRLSColumns _protocolVersion DeleteRecordsMessage { table, ids, requestId, transactionId } = do
                 ensureRLSEnabled table
 
                 let inList = mconcat $ List.intersperse (Snippet.sql ", ") (map uuidParam ids)
@@ -393,7 +525,7 @@ buildMessageHandler hasqlPool ensureRLSEnabled installTableChangeTriggers sendJS
 
                 sendJSON DidDeleteRecords { requestId }
 
-            handleMessage getRLSColumns StartTransaction { requestId } = do
+            handleMessage getRLSColumns _protocolVersion StartTransaction { requestId } = do
                 ensureBelowTransactionLimit
 
                 transactionId <- UUID.nextRandom
@@ -419,7 +551,7 @@ buildMessageHandler hasqlPool ensureRLSEnabled installTableChangeTriggers sendJS
 
                     atomicModifyIORef'' ?state (\state -> state |> modify #transactions (HashMap.delete transactionId))
 
-            handleMessage getRLSColumns RollbackTransaction { requestId, id } = do
+            handleMessage getRLSColumns _protocolVersion RollbackTransaction { requestId, id } = do
                 DataSyncTransaction { id, close, connection } <- findTransactionById id
 
                 runSessionOnConnection connection (Session.script "ROLLBACK")
@@ -427,7 +559,7 @@ buildMessageHandler hasqlPool ensureRLSEnabled installTableChangeTriggers sendJS
 
                 sendJSON DidRollbackTransaction { requestId, transactionId = id }
 
-            handleMessage getRLSColumns CommitTransaction { requestId, id } = do
+            handleMessage getRLSColumns _protocolVersion CommitTransaction { requestId, id } = do
                 DataSyncTransaction { id, close, connection } <- findTransactionById id
 
                 runSessionOnConnection connection (Session.script "COMMIT")
@@ -435,7 +567,30 @@ buildMessageHandler hasqlPool ensureRLSEnabled installTableChangeTriggers sendJS
 
                 sendJSON DidCommitTransaction { requestId, transactionId = id }
 
-            handleMessage _getRLSColumns otherwise = handleCustomMessage sendJSON otherwise
+            handleMessage _getRLSColumns _protocolVersion otherwise = handleCustomMessage sendJSON otherwise
+
+-- | Register all relation invalidation channels as one exception-safe resource.
+-- Async exceptions are restored while each PGListener subscription is created,
+-- then masked again before its handle is added to the cleanup list.
+subscribeToInvalidationChannels :: PGListener.PGListener -> Set.Set ByteString -> IO () -> IO [PGListener.Subscription]
+subscribeToInvalidationChannels pgListener channels signalRefresh = Exception.mask \restore -> do
+    acquiredRef <- newIORef []
+    let cleanup = readIORef acquiredRef >>= unsubscribeAll pgListener
+    let acquire (isFirst, channel) = do
+            let reconnectCallback = if isFirst then signalRefresh else pure ()
+            subscription <- restore
+                (PGListener.subscribeWithReconnect channel (const signalRefresh) reconnectCallback pgListener)
+            modifyIORef' acquiredRef (subscription :)
+            pure subscription
+    let channelList = Set.toList channels
+    let markedChannels = zip (True : repeat False) channelList
+    mapM acquire markedChannels `Exception.onException` cleanup
+
+unsubscribeAll :: PGListener.PGListener -> [PGListener.Subscription] -> IO ()
+unsubscribeAll _pgListener [] = pure ()
+unsubscribeAll pgListener (subscription : remaining) =
+    PGListener.unsubscribe subscription pgListener
+        `Exception.finally` unsubscribeAll pgListener remaining
 
 changesToValue :: Renamer -> [ChangeNotifications.Change] -> (Maybe Value, Maybe Value)
 changesToValue renamer changes = (maybeObject replacePairs, maybeObject appendPairs)

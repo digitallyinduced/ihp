@@ -90,6 +90,7 @@ export const NewRecordBehaviour = {
 } as const;
 
 export interface DataSubscriptionOptions {
+    /** @deprecated Exact server snapshots determine membership and ordering. */
     newRecordBehaviour?: typeof APPEND_NEW_RECORD | typeof PREPEND_NEW_RECORD;
 }
 
@@ -122,7 +123,8 @@ export interface PendingRequest {
 // Server response tags (matches Haskell DataSyncResponse)
 export type ServerMessageTag =
     | 'DataSyncResult' | 'DataSyncError' | 'FailedToDecodeMessageError'
-    | 'DidCreateDataSubscription' | 'DidCreateCountSubscription' | 'DidDeleteDataSubscription'
+    | 'DidCreateDataSubscription' | 'DidCreateDataSubscriptionV2' | 'DidReplaceDataSubscription'
+    | 'DidCreateCountSubscription' | 'DidDeleteDataSubscription'
     | 'DidInsert' | 'DidUpdate' | 'DidDelete' | 'DidChangeCount'
     | 'DidCreateRecord' | 'DidCreateRecords' | 'DidUpdateRecord' | 'DidUpdateRecords'
     | 'DidDeleteRecord' | 'DidDeleteRecords'
