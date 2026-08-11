@@ -145,7 +145,7 @@ buildMessageHandler hasqlPool ensureRLSEnabled installTableChangeTriggers sendJS
 
                 tableNameRLS <- ensureRLSEnabled (query.table)
 
-                subscriptionId <- maybe UUID.nextRandom pure clientSubscriptionId
+                let subscriptionId = fromMaybe requestId clientSubscriptionId
 
                 -- Allocate the close handle as early as possible
                 -- to make DeleteDataSubscription calls succeed even when the DataSubscription is
@@ -248,7 +248,7 @@ buildMessageHandler hasqlPool ensureRLSEnabled installTableChangeTriggers sendJS
 
                 tableNameRLS <- ensureRLSEnabled query.table
 
-                subscriptionId <- maybe UUID.nextRandom pure clientSubscriptionId
+                let subscriptionId = fromMaybe requestId clientSubscriptionId
 
                 -- Allocate the close handle as early as possible
                 -- to make DeleteDataSubscription calls succeed even when the CountSubscription is
@@ -566,7 +566,7 @@ sqlExecWithRLSAndTransactionId _pool (Just transactionId) statement = do
 sqlExecWithRLSAndTransactionId pool Nothing statement = runSession pool (sqlExecWithRLSSession statement)
 
 
-instance SetField "subscriptions" DataSyncController (HashMap UUID (MVar.MVar ())) where
+instance SetField "subscriptions" DataSyncController (HashMap Int (MVar.MVar ())) where
     setField subscriptions record = record { subscriptions }
 
 instance SetField "transactions" DataSyncController (HashMap UUID DataSyncTransaction) where

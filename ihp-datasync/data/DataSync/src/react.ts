@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useContext, useSyncExternalStore, useRef, useMemo } from 'react';
-import { DataSubscription, DataSyncController, randomUUID } from './ihp-datasync.js';
+import { DataSubscription, DataSyncController } from './ihp-datasync.js';
 import { QueryBuilder } from './ihp-querybuilder.js';
 import type { DataRecord, DynamicSQLQuery, DataSubscriptionOptions, DataSyncEventMap, ServerMessage, TableName } from './types.js';
 
@@ -110,7 +110,7 @@ export function useCount(queryBuilder: QueryBuilder): number | null {
         const controller = DataSyncController.getInstance();
         let isActive = true;
         let isCreated = false;
-        let subscriptionId: string | null = randomUUID();
+        let subscriptionId: number | null = controller.nextSubscriptionId();
         const onMessage: DataSyncEventMap['message'] = (message) => {
             if (message.tag === 'DidChangeCount' && message.subscriptionId === subscriptionId) {
                 count.current = message.count as number;
@@ -121,7 +121,7 @@ export function useCount(queryBuilder: QueryBuilder): number | null {
             .then((response) => {
                 isCreated = true;
                 if (isActive) {
-                    subscriptionId = response.subscriptionId as string;
+                    subscriptionId = response.subscriptionId as number;
                     count.current = response.count as number;
                     onStoreChange();
 

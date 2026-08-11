@@ -50,6 +50,7 @@ class DataSyncController {
     pendingRequests: PendingRequest[];
     connection: WebSocket | null;
     requestIdCounter: number;
+    subscriptionIdCounter: number;
     receivedFirstResponse: boolean;
     eventListeners: EventListeners;
     outbox: string[];
@@ -65,6 +66,7 @@ class DataSyncController {
         this.pendingRequests = [];
         this.connection = null;
         this.requestIdCounter = 0;
+        this.subscriptionIdCounter = 0;
         this.receivedFirstResponse = false;
         this.eventListeners = {
             message: [],
@@ -204,6 +206,10 @@ class DataSyncController {
         });
     }
 
+    nextSubscriptionId(): number {
+        return this.subscriptionIdCounter++;
+    }
+
     addEventListener<E extends DataSyncEventType>(event: E, callback: DataSyncEventMap[E]): void {
         (this.eventListeners[event] as DataSyncEventMap[E][]).push(callback);
     }
@@ -265,7 +271,7 @@ class DataSubscription {
     isClosed: boolean;
     isConnected: boolean;
     connectError: Error | null;
-    subscriptionId: UUID | null;
+    subscriptionId: number | null;
     subscribers: Array<(records: DataRecord[] | null) => void>;
     records: DataRecord[] | null;
     cache: Map<string, DataRecord[]> | null;
@@ -340,11 +346,11 @@ class DataSubscription {
     async createOnServer(): Promise<void> {
         const dataSyncController = DataSyncController.getInstance();
         const createOnServerGeneration = this.createOnServerGeneration;
-        const clientSubscriptionId = randomUUID();
+        const clientSubscriptionId = dataSyncController.nextSubscriptionId();
         this.subscriptionId = clientSubscriptionId;
         try {
             const response = await dataSyncController.sendMessage({ tag: 'CreateDataSubscription', query: this.query, clientSubscriptionId });
-            const subscriptionId = response.subscriptionId as UUID;
+            const subscriptionId = response.subscriptionId as number;
             const result = response.result as DataRecord[];
 
             if (createOnServerGeneration !== this.createOnServerGeneration) {
@@ -465,7 +471,7 @@ class DataSubscription {
         this.onClose();
     }
 
-    private async deleteStaleDataSubscription(dataSyncController: DataSyncController, subscriptionId: UUID): Promise<void> {
+    private async deleteStaleDataSubscription(dataSyncController: DataSyncController, subscriptionId: number): Promise<void> {
         try {
             await dataSyncController.sendMessage({ tag: 'DeleteDataSubscription', subscriptionId });
         } catch (error) {
@@ -774,7 +780,7 @@ function createOptimisticRecord<T extends TableName>(table: T, record: NewRecord
     dataSyncController.optimisticCreatedPendingRecordIds.push(record.id!);
 }
 
-export function randomUUID(): UUID {
+function randomUUID(): UUID {
     // Some older browsers like firefox 91 ESR don't support crypto.randomUUID
     // So we have a fallback to keep the app working in these browsers
     try {

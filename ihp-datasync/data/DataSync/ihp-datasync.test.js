@@ -83,6 +83,13 @@ describe('DataSubscription disconnect cleanup', () => {
         jest.useRealTimers();
     });
 
+    test('allocates monotonically increasing subscription ids', () => {
+        const controller = DataSyncController.getInstance();
+
+        expect(controller.nextSubscriptionId()).toBe(0);
+        expect(controller.nextSubscriptionId()).toBe(1);
+    });
+
     test('removes an unused subscription locally after its socket was closed', async () => {
         const controller = DataSyncController.getInstance();
         const sub = makeSubscription([]);
@@ -192,15 +199,15 @@ describe('DataSubscription disconnect cleanup', () => {
 
         const reconnect = sub.onDataSyncReconnect();
         await sub.close();
-        resolveCreateOnServer({ subscriptionId: 'reconnected-id', result: [] });
+        resolveCreateOnServer({ subscriptionId: 123, result: [] });
         await reconnect;
 
         expect(sentMessages[0]).toMatchObject({
             tag: 'CreateDataSubscription',
             query: sub.query,
-            clientSubscriptionId: expect.stringMatching(/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/),
+            clientSubscriptionId: expect.any(Number),
         });
-        expect(sentMessages[1]).toEqual({ tag: 'DeleteDataSubscription', subscriptionId: 'reconnected-id' });
+        expect(sentMessages[1]).toEqual({ tag: 'DeleteDataSubscription', subscriptionId: 123 });
         expect(controller.dataSubscriptions).not.toContain(sub);
         expect(sub.isClosed).toBe(true);
         expect(sub.isConnected).toBe(false);

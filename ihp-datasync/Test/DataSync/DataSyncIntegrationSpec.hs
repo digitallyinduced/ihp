@@ -241,7 +241,7 @@ encodeDeleteRecord table recordId requestId transactionId = cs $ Aeson.encode $ 
     ]
 
 -- | Encode a CreateDataSubscription as JSON
-encodeCreateDataSubscription :: Text -> Int -> Maybe UUID -> ByteString
+encodeCreateDataSubscription :: Text -> Int -> Maybe Int -> ByteString
 encodeCreateDataSubscription table requestId clientSubscriptionId = cs $ Aeson.encode $ object $
     [ "tag" .= ("CreateDataSubscription" :: Text)
     , "query" .= object
@@ -257,7 +257,7 @@ encodeCreateDataSubscription table requestId clientSubscriptionId = cs $ Aeson.e
     ] <> maybe [] (\subscriptionId -> ["clientSubscriptionId" .= subscriptionId]) clientSubscriptionId
 
 -- | Encode a DeleteDataSubscription as JSON
-encodeDeleteDataSubscription :: UUID -> Int -> ByteString
+encodeDeleteDataSubscription :: Int -> Int -> ByteString
 encodeDeleteDataSubscription subscriptionId requestId = cs $ Aeson.encode $ object
     [ "tag" .= ("DeleteDataSubscription" :: Text)
     , "subscriptionId" .= subscriptionId
@@ -436,7 +436,7 @@ tests = do
                         (userId, _) <- insertTestData pool
 
                         withDataSyncController connStr userId \(send, recv, _) -> do
-                            clientSubscriptionId <- UUID.nextRandom
+                            let clientSubscriptionId = 42
                             send (encodeCreateDataSubscription "messages" 8 (Just clientSubscriptionId))
                             response <- recv
                             case response of
