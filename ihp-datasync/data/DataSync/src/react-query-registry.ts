@@ -1,7 +1,8 @@
 import { DataSyncController } from './ihp-datasync.js';
 import { ExternalStoreRegistry } from './external-store-registry.js';
-import { LiveQueryStore } from './live-query-store.js';
+import { createLiveQueryStore } from './live-query-store.js';
 import type {
+    LiveQueryStore,
     LiveQueryStoreOptions,
     QuerySnapshot,
     QuerySnapshotListener,
@@ -38,7 +39,7 @@ export class ReactQueryRegistry {
 
     constructor(
         private readonly cache: Map<string, DataRecord[]>,
-        private readonly createStore: LiveQueryStoreFactory = options => new LiveQueryStore({
+        private readonly createStore: LiveQueryStoreFactory = options => createLiveQueryStore({
             ...options,
             controller: DataSyncController.getInstance(),
         }),

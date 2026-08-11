@@ -1,7 +1,7 @@
 import { DataSyncController } from './ihp-datasync.js';
 import { ExternalStoreRegistry } from './external-store-registry.js';
-import { LiveCountStore } from './live-count-store.js';
-import type { LiveCountStoreOptions } from './live-count-store.js';
+import { createLiveCountStore } from './live-count-store.js';
+import type { LiveCountStore, LiveCountStoreOptions } from './live-count-store.js';
 import type { DynamicSQLQuery } from './types.js';
 
 export type ReactCountSpec = {
@@ -19,7 +19,7 @@ export class ReactCountRegistry {
     private readonly registry: ExternalStoreRegistry<ReactCountSpec, number | null>;
 
     constructor(
-        private readonly createStore: LiveCountStoreFactory = options => new LiveCountStore({
+        private readonly createStore: LiveCountStoreFactory = options => createLiveCountStore({
             ...options,
             controller: DataSyncController.getInstance(),
         }),

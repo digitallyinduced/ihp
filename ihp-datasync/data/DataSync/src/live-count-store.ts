@@ -12,111 +12,113 @@ export type LiveCountStoreOptions = {
     controller: LiveCountController;
 };
 
+export type LiveCountStore = ManagedExternalStore<number | null>;
+
 /** Owns one backend count subscription and keeps it alive across reconnects. */
-export class LiveCountStore implements ManagedExternalStore<number | null> {
-    private readonly query: DynamicSQLQuery;
-    private readonly controller: LiveCountController;
-    private readonly listeners: Set<() => void> = new Set();
-    private count: number | null = null;
-    private subscriptionId: UUID | null = null;
-    private createGeneration = 0;
-    private isActive = true;
-    private isStarted = false;
+export function createLiveCountStore({ query, controller }: LiveCountStoreOptions): LiveCountStore {
+    const listeners = new Set<() => void>();
+    let count: number | null = null;
+    let subscriptionId: UUID | null = null;
+    let createGeneration = 0;
+    let isActive = true;
+    let isStarted = false;
 
-    constructor({ query, controller }: LiveCountStoreOptions) {
-        this.query = query;
-        this.controller = controller;
-    }
+    const getSnapshot = (): number | null => count;
 
-    getSnapshot = (): number | null => this.count;
-
-    subscribe = (listener: () => void): (() => void) => {
-        this.listeners.add(listener);
+    const subscribe = (listener: () => void): (() => void) => {
+        listeners.add(listener);
         return () => {
-            this.listeners.delete(listener);
+            listeners.delete(listener);
         };
     };
 
-    start(): void {
-        if (this.isStarted || !this.isActive) {
-            return;
-        }
-
-        this.isStarted = true;
-        this.controller.addEventListener('message', this.onMessage);
-        this.controller.addEventListener('close', this.onClose);
-        this.controller.addEventListener('reconnect', this.onReconnect);
-        void this.createSubscriptionOnServer();
-    }
-
-    dispose(): void {
-        if (!this.isActive) {
-            return;
-        }
-
-        this.isActive = false;
-        this.createGeneration++;
-        if (this.isStarted) {
-            this.controller.removeEventListener('message', this.onMessage);
-            this.controller.removeEventListener('close', this.onClose);
-            this.controller.removeEventListener('reconnect', this.onReconnect);
-        }
-        this.listeners.clear();
-
-        if (this.subscriptionId !== null) {
-            const activeSubscriptionId = this.subscriptionId;
-            this.subscriptionId = null;
-            void this.deleteSubscriptionOnServer(activeSubscriptionId);
-        }
-    }
-
-    private publish(count: number): void {
-        this.count = count;
-        for (const listener of this.listeners) {
+    const publish = (nextCount: number): void => {
+        count = nextCount;
+        for (const listener of listeners) {
             listener();
         }
-    }
-
-    private readonly onMessage: DataSyncEventMap['message'] = (message: ServerMessage) => {
-        if (message.tag === 'DidChangeCount' && message.subscriptionId === this.subscriptionId) {
-            this.publish(message.count as number);
-        }
     };
 
-    private readonly onClose: DataSyncEventMap['close'] = () => {
-        this.createGeneration++;
-        this.subscriptionId = null;
-    };
-
-    private readonly onReconnect: DataSyncEventMap['reconnect'] = () => {
-        void this.createSubscriptionOnServer();
-    };
-
-    private async createSubscriptionOnServer(): Promise<void> {
-        const generation = ++this.createGeneration;
+    const deleteSubscriptionOnServer = async (subscriptionId: UUID): Promise<void> => {
         try {
-            const response = await this.controller.sendMessage({ tag: 'CreateCountSubscription', query: this.query });
-            const createdSubscriptionId = response.subscriptionId as UUID;
-
-            if (!this.isActive || generation !== this.createGeneration) {
-                await this.deleteSubscriptionOnServer(createdSubscriptionId);
-                return;
-            }
-
-            this.subscriptionId = createdSubscriptionId;
-            this.publish(response.count as number);
-        } catch (error) {
-            if (this.isActive && generation === this.createGeneration) {
-                console.error('useCount: Failed to create count subscription', error);
-            }
-        }
-    }
-
-    private async deleteSubscriptionOnServer(subscriptionId: UUID): Promise<void> {
-        try {
-            await this.controller.sendMessage({ tag: 'DeleteDataSubscription', subscriptionId });
+            await controller.sendMessage({ tag: 'DeleteDataSubscription', subscriptionId });
         } catch (error) {
             console.error('useCount: Failed to delete count subscription', error);
         }
-    }
+    };
+
+    const createSubscriptionOnServer = async (): Promise<void> => {
+        const generation = ++createGeneration;
+        try {
+            const response = await controller.sendMessage({ tag: 'CreateCountSubscription', query });
+            const createdSubscriptionId = response.subscriptionId as UUID;
+
+            if (!isActive || generation !== createGeneration) {
+                await deleteSubscriptionOnServer(createdSubscriptionId);
+                return;
+            }
+
+            subscriptionId = createdSubscriptionId;
+            publish(response.count as number);
+        } catch (error) {
+            if (isActive && generation === createGeneration) {
+                console.error('useCount: Failed to create count subscription', error);
+            }
+        }
+    };
+
+    const onMessage: DataSyncEventMap['message'] = (message: ServerMessage) => {
+        if (message.tag === 'DidChangeCount' && message.subscriptionId === subscriptionId) {
+            publish(message.count as number);
+        }
+    };
+
+    const onClose: DataSyncEventMap['close'] = () => {
+        createGeneration++;
+        subscriptionId = null;
+    };
+
+    const onReconnect: DataSyncEventMap['reconnect'] = () => {
+        void createSubscriptionOnServer();
+    };
+
+    const start = (): void => {
+        if (isStarted || !isActive) {
+            return;
+        }
+
+        isStarted = true;
+        controller.addEventListener('message', onMessage);
+        controller.addEventListener('close', onClose);
+        controller.addEventListener('reconnect', onReconnect);
+        void createSubscriptionOnServer();
+    };
+
+    const dispose = (): void => {
+        if (!isActive) {
+            return;
+        }
+
+        isActive = false;
+        createGeneration++;
+        if (isStarted) {
+            controller.removeEventListener('message', onMessage);
+            controller.removeEventListener('close', onClose);
+            controller.removeEventListener('reconnect', onReconnect);
+        }
+        listeners.clear();
+
+        if (subscriptionId !== null) {
+            const activeSubscriptionId = subscriptionId;
+            subscriptionId = null;
+            void deleteSubscriptionOnServer(activeSubscriptionId);
+        }
+    };
+
+    return {
+        getSnapshot,
+        subscribe,
+        start,
+        dispose,
+    };
 }

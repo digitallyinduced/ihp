@@ -41,82 +41,63 @@ export type LiveQueryStoreOptions = {
     onRecords: (records: DataRecord[]) => void;
 };
 
+export type LiveQueryStore = DataSyncQuerySubscription & ManagedExternalStore<QuerySnapshot>;
+
 /** Owns one backend subscription and exposes it as a React-compatible external store. */
-export class LiveQueryStore implements DataSyncQuerySubscription, ManagedExternalStore<QuerySnapshot> {
-    readonly query: DynamicSQLQuery;
-    readonly optimisticUpdatedPendingRecordIds: Set<UUID> = new Set();
+export function createLiveQueryStore({
+    query,
+    options,
+    initialRecords,
+    controller,
+    onRecords,
+}: LiveQueryStoreOptions): LiveQueryStore {
+    const listeners = new Set<QuerySnapshotListener>();
+    const optimisticCreatedPendingRecordIds: UUID[] = [];
+    const optimisticUpdatedPendingRecordIds = new Set<UUID>();
+    const newRecordBehaviour = options?.newRecordBehaviour ?? detectNewRecordBehaviour(query);
+    let snapshot: QuerySnapshot = { records: initialRecords, error: null };
+    let subscriptionId: UUID | null = null;
+    let createGeneration = 0;
+    let isActive = true;
+    let isStarted = false;
+    let isRegisteredForOptimisticUpdates = false;
 
-    private readonly controller: LiveQueryController;
-    private readonly listeners: Set<QuerySnapshotListener> = new Set();
-    private readonly optimisticCreatedPendingRecordIds: UUID[] = [];
-    private readonly newRecordBehaviour: number;
-    private readonly onRecords: (records: DataRecord[]) => void;
-    private snapshot: QuerySnapshot;
-    private subscriptionId: UUID | null = null;
-    private createGeneration = 0;
-    private isActive = true;
-    private isStarted = false;
-    private isRegisteredForOptimisticUpdates = false;
+    const getSnapshot = (): QuerySnapshot => snapshot;
 
-    constructor({ query, options, initialRecords, controller, onRecords }: LiveQueryStoreOptions) {
-        this.query = query;
-        this.controller = controller;
-        this.onRecords = onRecords;
-        this.newRecordBehaviour = options?.newRecordBehaviour ?? detectNewRecordBehaviour(query);
-        this.snapshot = { records: initialRecords, error: null };
-    }
-
-    getSnapshot = (): QuerySnapshot => this.snapshot;
-
-    subscribe = (listener: QuerySnapshotListener): (() => void) => {
-        this.listeners.add(listener);
+    const subscribe = (listener: QuerySnapshotListener): (() => void) => {
+        listeners.add(listener);
         return () => {
-            this.listeners.delete(listener);
+            listeners.delete(listener);
         };
     };
 
-    start(): void {
-        if (this.isStarted || !this.isActive) {
-            return;
+    const getRecords = (): DataRecord[] | null => snapshot.records;
+
+    const notify = (): void => {
+        for (const listener of listeners) {
+            listener();
         }
+    };
 
-        this.isStarted = true;
-        this.controller.addEventListener('message', this.onMessage);
-        this.controller.addEventListener('close', this.onClose);
-        this.controller.addEventListener('reconnect', this.onReconnect);
-        void this.createSubscriptionOnServer();
-    }
+    const publishRecords = (records: DataRecord[]): void => {
+        snapshot = { records, error: null };
+        onRecords(records);
+        notify();
+    };
 
-    dispose(): void {
-        if (!this.isActive) {
-            return;
-        }
+    const publishError = (error: Error): void => {
+        snapshot = { records: snapshot.records, error };
+        notify();
+    };
 
-        this.isActive = false;
-        this.createGeneration++;
-        if (this.isStarted) {
-            this.controller.removeEventListener('message', this.onMessage);
-            this.controller.removeEventListener('close', this.onClose);
-            this.controller.removeEventListener('reconnect', this.onReconnect);
-        }
-        this.removeFromOptimisticUpdateRegistry();
-        this.listeners.clear();
-
-        if (this.subscriptionId !== null) {
-            const activeSubscriptionId = this.subscriptionId;
-            this.subscriptionId = null;
-            void this.deleteSubscriptionOnServer(activeSubscriptionId);
-        }
-    }
-
-    getRecords(): DataRecord[] | null {
-        return this.snapshot.records;
-    }
-
-    onUpdate(id: UUID, changeSet: Record<string, unknown> | null, appendSet: Record<string, unknown> | null): void {
-        const records = this.snapshot.records;
+    const onUpdate = (
+        id: UUID,
+        changeSet: Record<string, unknown> | null,
+        appendSet: Record<string, unknown> | null,
+    ): void => {
+        const records = snapshot.records;
         if (records === null) {
-            this.optimisticUpdatedPendingRecordIds.delete(id);
+            optimisticUpdatedPendingRecordIds.delete(id);
             return;
         }
 
@@ -125,123 +106,162 @@ export class LiveQueryStore implements DataSyncQuerySubscription, ManagedExterna
             id,
             changeSet,
             appendSet,
-            !this.optimisticUpdatedPendingRecordIds.has(id),
+            !optimisticUpdatedPendingRecordIds.has(id),
         );
-        this.optimisticUpdatedPendingRecordIds.delete(id);
-        this.publishRecords(updatedRecords);
-    }
+        optimisticUpdatedPendingRecordIds.delete(id);
+        publishRecords(updatedRecords);
+    };
 
-    onCreate(newRecord: DataRecord): void {
-        const records = this.snapshot.records;
+    const onCreate = (newRecord: DataRecord): void => {
+        const records = snapshot.records;
         if (records === null) {
             return;
         }
 
-        const pendingRecordIndex = this.optimisticCreatedPendingRecordIds.indexOf(newRecord.id);
+        const pendingRecordIndex = optimisticCreatedPendingRecordIds.indexOf(newRecord.id);
         if (pendingRecordIndex !== -1) {
-            this.onUpdate(newRecord.id, newRecord, null);
-            this.optimisticCreatedPendingRecordIds.splice(pendingRecordIndex, 1);
+            onUpdate(newRecord.id, newRecord, null);
+            optimisticCreatedPendingRecordIds.splice(pendingRecordIndex, 1);
             return;
         }
 
-        this.publishRecords(insertDataSyncRecord(records, newRecord, this.newRecordBehaviour));
-    }
+        publishRecords(insertDataSyncRecord(records, newRecord, newRecordBehaviour));
+    };
 
-    onCreateOptimistic(newRecord: DataRecord): void {
-        this.onCreate(newRecord);
-        this.optimisticCreatedPendingRecordIds.push(newRecord.id);
-    }
+    const onCreateOptimistic = (newRecord: DataRecord): void => {
+        onCreate(newRecord);
+        optimisticCreatedPendingRecordIds.push(newRecord.id);
+    };
 
-    onDelete(id: UUID): void {
-        const records = this.snapshot.records;
+    const onDelete = (id: UUID): void => {
+        const records = snapshot.records;
         if (records !== null) {
-            this.publishRecords(deleteDataSyncRecord(records, id));
+            publishRecords(deleteDataSyncRecord(records, id));
         }
-    }
+    };
 
-    private publishRecords(records: DataRecord[]): void {
-        this.snapshot = { records, error: null };
-        this.onRecords(records);
-        this.notify();
-    }
+    const optimisticSubscription: DataSyncQuerySubscription = {
+        query,
+        optimisticUpdatedPendingRecordIds,
+        getRecords,
+        onUpdate,
+        onCreate,
+        onCreateOptimistic,
+        onDelete,
+    };
 
-    private publishError(error: Error): void {
-        this.snapshot = { records: this.snapshot.records, error };
-        this.notify();
-    }
-
-    private notify(): void {
-        for (const listener of this.listeners) {
-            listener();
-        }
-    }
-
-    private readonly onMessage: DataSyncEventMap['message'] = (message: ServerMessage) => {
-        if (message.subscriptionId !== this.subscriptionId) {
+    const onMessage: DataSyncEventMap['message'] = (message: ServerMessage) => {
+        if (message.subscriptionId !== subscriptionId) {
             return;
         }
 
         if (message.tag === 'DidUpdate') {
-            this.onUpdate(message.id as UUID, message.changeSet as Record<string, unknown> | null, message.appendSet as Record<string, unknown> | null);
+            onUpdate(
+                message.id as UUID,
+                message.changeSet as Record<string, unknown> | null,
+                message.appendSet as Record<string, unknown> | null,
+            );
         } else if (message.tag === 'DidInsert') {
-            this.onCreate(message.record as DataRecord);
+            onCreate(message.record as DataRecord);
         } else if (message.tag === 'DidDelete') {
-            this.onDelete(message.id as UUID);
+            onDelete(message.id as UUID);
         }
     };
 
-    private readonly onClose: DataSyncEventMap['close'] = () => {
-        this.createGeneration++;
-        this.subscriptionId = null;
+    const onClose: DataSyncEventMap['close'] = () => {
+        createGeneration++;
+        subscriptionId = null;
     };
 
-    private readonly onReconnect: DataSyncEventMap['reconnect'] = () => {
-        void this.createSubscriptionOnServer();
-    };
-
-    private async createSubscriptionOnServer(): Promise<void> {
-        const generation = ++this.createGeneration;
+    const deleteSubscriptionOnServer = async (subscriptionId: UUID): Promise<void> => {
         try {
-            const response = await this.controller.sendMessage({ tag: 'CreateDataSubscription', query: this.query });
+            await controller.sendMessage({ tag: 'DeleteDataSubscription', subscriptionId });
+        } catch (deleteError) {
+            console.error('useQuery: Failed to delete data subscription', deleteError);
+        }
+    };
+
+    const createSubscriptionOnServer = async (): Promise<void> => {
+        const generation = ++createGeneration;
+        try {
+            const response = await controller.sendMessage({ tag: 'CreateDataSubscription', query });
             const createdSubscriptionId = response.subscriptionId as UUID;
 
-            if (!this.isActive || generation !== this.createGeneration) {
-                await this.deleteSubscriptionOnServer(createdSubscriptionId);
+            if (!isActive || generation !== createGeneration) {
+                await deleteSubscriptionOnServer(createdSubscriptionId);
                 return;
             }
 
-            this.subscriptionId = createdSubscriptionId;
+            subscriptionId = createdSubscriptionId;
             const records = response.result as DataRecord[];
-            this.publishRecords(records);
-            this.controller.learnOptimisticShapeFromResult(this.query.table, records);
-            if (!this.isRegisteredForOptimisticUpdates) {
-                this.controller.addOptimisticDataSubscription(this);
-                this.isRegisteredForOptimisticUpdates = true;
+            publishRecords(records);
+            controller.learnOptimisticShapeFromResult(query.table, records);
+            if (!isRegisteredForOptimisticUpdates) {
+                controller.addOptimisticDataSubscription(optimisticSubscription);
+                isRegisteredForOptimisticUpdates = true;
             }
         } catch (connectError) {
-            if (!this.isActive || generation !== this.createGeneration) {
+            if (!isActive || generation !== createGeneration) {
                 return;
             }
 
             const error = connectError as Error;
-            this.publishError(new Error(error.message + ' while trying to subscribe to:\n' + JSON.stringify(this.query, null, 4)));
+            publishError(new Error(error.message + ' while trying to subscribe to:\n' + JSON.stringify(query, null, 4)));
         }
-    }
+    };
 
-    private removeFromOptimisticUpdateRegistry(): void {
-        if (!this.isRegisteredForOptimisticUpdates) {
+    const onReconnect: DataSyncEventMap['reconnect'] = () => {
+        void createSubscriptionOnServer();
+    };
+
+    const removeFromOptimisticUpdateRegistry = (): void => {
+        if (!isRegisteredForOptimisticUpdates) {
             return;
         }
 
-        this.controller.removeOptimisticDataSubscription(this);
-        this.isRegisteredForOptimisticUpdates = false;
-    }
+        controller.removeOptimisticDataSubscription(optimisticSubscription);
+        isRegisteredForOptimisticUpdates = false;
+    };
 
-    private async deleteSubscriptionOnServer(subscriptionId: UUID): Promise<void> {
-        try {
-            await this.controller.sendMessage({ tag: 'DeleteDataSubscription', subscriptionId });
-        } catch (deleteError) {
-            console.error('useQuery: Failed to delete data subscription', deleteError);
+    const start = (): void => {
+        if (isStarted || !isActive) {
+            return;
         }
-    }
+
+        isStarted = true;
+        controller.addEventListener('message', onMessage);
+        controller.addEventListener('close', onClose);
+        controller.addEventListener('reconnect', onReconnect);
+        void createSubscriptionOnServer();
+    };
+
+    const dispose = (): void => {
+        if (!isActive) {
+            return;
+        }
+
+        isActive = false;
+        createGeneration++;
+        if (isStarted) {
+            controller.removeEventListener('message', onMessage);
+            controller.removeEventListener('close', onClose);
+            controller.removeEventListener('reconnect', onReconnect);
+        }
+        removeFromOptimisticUpdateRegistry();
+        listeners.clear();
+
+        if (subscriptionId !== null) {
+            const activeSubscriptionId = subscriptionId;
+            subscriptionId = null;
+            void deleteSubscriptionOnServer(activeSubscriptionId);
+        }
+    };
+
+    return {
+        ...optimisticSubscription,
+        getSnapshot,
+        subscribe,
+        start,
+        dispose,
+    };
 }
