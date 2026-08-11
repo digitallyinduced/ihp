@@ -14,7 +14,7 @@ import type {
     Transaction,
     UUID,
 } from './index.js';
-import type { CountSubscription } from './react.js';
+import type { CountSubscription, CountSubscriptionStore } from './react.js';
 import type { DataSubscriptionStore as ReactDataSubscriptionStore } from './react.js';
 import type { DataSubscriptionStore } from './data-subscription-store.js';
 
@@ -108,6 +108,11 @@ type StableCountSubscription = {
     subscribe(callback: () => void): () => void;
 };
 
+type StableCountSubscriptionStore = {
+    queryMap: Map<string, CountSubscription>;
+    get(query: DynamicSQLQuery): CountSubscription;
+};
+
 type StableQueryBuilderSubscription = {
     subscribe(callback: (records: DataRecord[] | null) => void): () => void;
 };
@@ -117,6 +122,7 @@ type StableReactEntrypoint = {
     AuthCompletedProvider: unknown;
     DataSubscriptionStore: typeof DataSubscriptionStore;
     CountSubscription: new(query: DynamicSQLQuery) => CountSubscription;
+    CountSubscriptionStore: typeof CountSubscriptionStore;
     useQuery(
         queryBuilder: QueryBuilder<string, DataRecord>,
         options?: DataSubscriptionOptions | null,
@@ -139,6 +145,7 @@ type _dataSubscriptionConstructorCompatibility = Assert<Implements<
 type _storeCompatibility = Assert<Implements<typeof DataSubscriptionStore, StableDataSubscriptionStore>>;
 type _reactStoreCompatibility = Assert<Implements<typeof ReactDataSubscriptionStore, StableDataSubscriptionStore>>;
 type _countCompatibility = Assert<Implements<CountSubscription, StableCountSubscription>>;
+type _countStoreCompatibility = Assert<Implements<typeof CountSubscriptionStore, StableCountSubscriptionStore>>;
 type _queryBuilderCompatibility = Assert<Implements<QueryBuilder<string, DataRecord>, StableQueryBuilderSubscription>>;
 type _reactEntrypointCompatibility = Assert<Implements<typeof import('./react.js'), StableReactEntrypoint>>;
 type _legacyReactEntrypointCompatibility = Assert<Implements<
@@ -172,3 +179,4 @@ type _writableTransactionController = Assert<IsWritable<Transaction, 'dataSyncCo
 type _writableControllerConnection = Assert<IsWritable<DataSyncController, 'connection'>>;
 type _writableControllerSubscriptions = Assert<IsWritable<DataSyncController, 'dataSubscriptions'>>;
 type _writableStoreQueryMap = Assert<IsWritable<typeof DataSubscriptionStore, 'queryMap'>>;
+type _writableCountStoreQueryMap = Assert<IsWritable<typeof CountSubscriptionStore, 'queryMap'>>;

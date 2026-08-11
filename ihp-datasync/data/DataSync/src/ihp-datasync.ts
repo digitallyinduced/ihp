@@ -1,9 +1,16 @@
 import {
     initialResourceSnapshot,
-    reduceResourceSnapshot,
     type ResourceSnapshot,
-    type ResourceSnapshotAction,
 } from './subscription-reducer.js';
+import { createControllerSubscriptionTransport } from './controller-subscription-transport.js';
+import { cloneDataRecords, createDataSubscriptionProtocol } from './data-subscription-protocol.js';
+import {
+    rowSubscriptionPolicy,
+    type SubscriptionEvent,
+    type SubscriptionPublication,
+    type SubscriptionState,
+} from './subscription-machine.js';
+import { createSubscriptionResource, type SubscriptionResource } from './subscription-resource.js';
 import type {
     DynamicSQLQuery,
     DataRecord,
@@ -658,9 +665,9 @@ class DataSubscription {
     subscriptionId: UUID | null = null;
     createOnServerPromise: Promise<DataRecord[]>;
     /** @deprecated Prefer createOnServerPromise; retained for source compatibility. */
-    resolveCreateOnServer!: (value: DataRecord[]) => void;
+    resolveCreateOnServer: (value: DataRecord[]) => void;
     /** @deprecated Prefer createOnServerPromise; retained for source compatibility. */
-    rejectCreateOnServer!: (reason: Error) => void;
+    rejectCreateOnServer: (reason: Error) => void;
     onClose: () => void = () => {};
     onStoreClose: () => void = () => {};
     /** @internal Promotes a render-only weak registry entry on first retain. */
@@ -674,30 +681,18 @@ class DataSubscription {
     /** @deprecated Optimistic mutation is disabled; retained empty for compatibility. */
     optimisticUpdatedPendingRecordIds: Set<UUID> = new Set();
 
-    private controller: DataSyncController | null = null;
     private readonly serverQuery: DynamicSQLQuery;
     private readonly expectedTransportScopeKey: string;
     private readonly scopedCache: Map<string, DataRecord[]> | null;
     private readonly cacheKey: string;
-    private snapshot: ResourceSnapshot<DataRecord[]>;
+    private readonly resource: SubscriptionResource<DataRecord[]>;
     private readonly subscriberEntries = new Map<number, (records: DataRecord[] | null) => void>();
     private readonly snapshotSubscriberEntries = new Map<number, () => void>();
     private nextSubscriberId = 0;
     private nextSnapshotSubscriberId = 0;
-    private generation = 0;
-    private lastRevision = -1;
-    private started = false;
-    private listenersAttached = false;
-    private closeNotificationSent = false;
-    private disposalToken = 0;
-    private startPromise: Promise<void> | null = null;
-    private refreshPromise: Promise<void> | null = null;
-    private refreshRequested = false;
-    private supportsAuthoritativeSnapshots = false;
-    private initialCreateSettled = false;
     private imperativelyOwned = false;
-    private resolveInitialCreate!: (records: DataRecord[]) => void;
-    private rejectInitialCreate!: (error: Error) => void;
+    private closeNotificationSent = false;
+    private compatibilityController: DataSyncController | null = null;
 
     constructor(
         query: DynamicSQLQuery,
@@ -710,27 +705,54 @@ class DataSubscription {
             throw new Error("Query passed to `new DataSubscription(..)` doesn't look like a query object. If you're using the `query()` functions to construct the object, pass the `.query` property, like this: `new DataSubscription(query('my_table').orderBy('createdAt').query)`");
         }
 
-        // QueryBuilder is mutable. A live subscription must never change when a
-        // component reuses and mutates the builder after this point.
         this.query = cloneQuery(query);
         this.serverQuery = deepFreeze(cloneQuery(query));
         this.expectedTransportScopeKey = expectedTransportScopeKey;
         this.scopedCache = cache;
         this.cache = cache;
         this.cacheKey = cacheKey;
-        const cachedRecords = cache?.get(cacheKey);
-        this.snapshot = initialResourceSnapshot(
-            cachedRecords?.map(record => ({ ...record })) as DataRecord[] | undefined,
-        );
-        this.createOnServerPromise = new Promise((resolve, reject) => {
-            this.resolveInitialCreate = resolve;
-            this.rejectInitialCreate = reject;
-        });
-        this.resolveCreateOnServer = records => this.resolveInitialCreateOnce(records);
-        this.rejectCreateOnServer = error => this.rejectInitialCreateOnce(error);
-        void this.createOnServerPromise.catch(() => {});
         this.newRecordBehaviour = options?.newRecordBehaviour ?? this.detectNewRecordBehaviour();
 
+        const cachedRecords = cache?.get(cacheKey);
+        this.resource = createSubscriptionResource<DataRecord[]>(
+            createDataSubscriptionProtocol(this.serverQuery),
+            {
+                expectedScopeKey: this.expectedTransportScopeKey,
+                currentScopeKey: () => DataSyncController.currentTransportScopeKey(),
+                acquireTransport: () => {
+                    const controller = DataSyncController.getInstance();
+                    this.attachCompatibilityController(controller);
+                    return createControllerSubscriptionTransport(
+                        controller,
+                        this.expectedTransportScopeKey,
+                    );
+                },
+                policy: rowSubscriptionPolicy,
+                initialData: cachedRecords === undefined ? null : cloneDataRecords(cachedRecords),
+                cloneInitialResult: cloneDataRecords,
+                writeCache: records => this.writeCache(records),
+                onState: (state, event) => this.mirrorState(state, event),
+                publish: publication => this.publish(publication),
+                evict: () => {
+                    this.detachCompatibilityController();
+                    this.notifyClose();
+                },
+                reportError: (message, error) => {
+                    if (
+                        message === 'Failed to delete a stale subscription:'
+                        && (this.compatibilityController?.retired === true
+                            || this.compatibilityController?.connection === null)
+                    ) {
+                        return;
+                    }
+                    console.error(message, error);
+                },
+            },
+        );
+
+        this.createOnServerPromise = this.resource.initialResult;
+        this.resolveCreateOnServer = records => this.resource.resolveInitial(records);
+        this.rejectCreateOnServer = error => this.resource.rejectInitial(error);
         this.subscribe = this.subscribe.bind(this);
         this.subscribeSnapshot = this.subscribeSnapshot.bind(this);
         this.getRecords = this.getRecords.bind(this);
@@ -742,22 +764,18 @@ class DataSubscription {
     }
 
     get records(): DataRecord[] | null {
-        return this.snapshot.data;
+        return this.resource.getSnapshot().data;
     }
 
     /** @deprecated Query snapshots are server-owned; assigning is retained for compatibility only. */
     set records(records: DataRecord[] | null) {
-        if (records === null) {
-            this.snapshot = initialResourceSnapshot();
-            this.notifySubscribers();
-            this.notifySnapshotSubscribers();
-        } else {
-            this.applyServerSnapshot(records, this.lastRevision + 1);
-        }
+        this.resource.dispatchCompatibilityValue(
+            records === null ? null : cloneDataRecords(records),
+        );
     }
 
     getSnapshot(): ResourceSnapshot<DataRecord[]> {
-        return this.snapshot;
+        return this.resource.getSnapshot();
     }
 
     getServerSnapshot(): ResourceSnapshot<DataRecord[]> {
@@ -765,29 +783,20 @@ class DataSubscription {
     }
 
     getRecords(): DataRecord[] | null {
-        return this.snapshot.data;
+        return this.resource.getSnapshot().data;
     }
 
     subscribe(callback: (records: DataRecord[] | null) => void): () => void {
-        // The first ref-counted consumer takes ownership from the imperative
-        // API. Its final release can then close the server resource normally.
         this.imperativelyOwned = false;
         this.retainInStore();
-        const shouldStart = this.trackedSubscriberCount() === 0;
         const subscriberId = this.nextSubscriberId++;
         this.subscriberEntries.set(subscriberId, callback);
         this.subscribers.push(callback);
-        this.disposalToken++;
-        if (shouldStart) {
-            void this.start(false).catch(() => {
-                // The error is part of the immutable snapshot and is surfaced by React.
-            });
-        }
-        // Do not synchronously expose CONNECT/null lifecycle changes through
-        // the legacy record callback. A later subscriber to an already-live
-        // shared resource still receives its current server value immediately.
-        if (this.snapshot.status === 'live' && this.snapshot.data !== null) {
-            this.callSubscriber(callback, this.snapshot.data);
+        this.updateDemand();
+
+        const snapshot = this.resource.getSnapshot();
+        if (snapshot.status === 'live' && snapshot.data !== null) {
+            this.callSubscriber(callback, snapshot.data);
         }
 
         let subscribed = true;
@@ -797,8 +806,6 @@ class DataSubscription {
             }
             subscribed = false;
             this.subscriberEntries.delete(subscriberId);
-            // subscribe() appends, so remove from the end to avoid consuming a
-            // matching callback that legacy code inserted directly beforehand.
             const publicIndex = this.subscribers.lastIndexOf(callback);
             if (publicIndex !== -1) {
                 this.subscribers.splice(publicIndex, 1);
@@ -811,15 +818,9 @@ class DataSubscription {
     subscribeSnapshot(callback: () => void): () => void {
         this.imperativelyOwned = false;
         this.retainInStore();
-        const shouldStart = this.trackedSubscriberCount() === 0;
         const subscriberId = this.nextSnapshotSubscriberId++;
         this.snapshotSubscriberEntries.set(subscriberId, callback);
-        this.disposalToken++;
-        if (shouldStart) {
-            void this.start(false).catch(() => {
-                // The error is part of the immutable snapshot and is surfaced by React.
-            });
-        }
+        this.updateDemand();
 
         let subscribed = true;
         return () => {
@@ -835,268 +836,44 @@ class DataSubscription {
     /** Starts a manually managed subscription. React and QueryBuilder do not need this. */
     async createOnServer(): Promise<void> {
         this.retainInStore();
-        if (this.trackedSubscriberCount() === 0) {
+        if (this.subscriberDemand() === 0) {
             this.imperativelyOwned = true;
         }
-        await this.start(false);
-        // Scope-change and explicit-close paths settle the same public promise;
-        // imperative callers must not observe a successful create when the
-        // server resource was discarded before its first snapshot.
+        this.updateDemand();
+        await this.resource.ensureCreated();
         await this.createOnServerPromise;
     }
 
-    private start(reconnect: boolean): Promise<void> {
-        this.disposalToken++;
-        if (this.startPromise !== null) {
-            return this.startPromise;
-        }
-        if (this.started && this.subscriptionId !== null) {
-            return Promise.resolve();
-        }
-
-        if (!this.hasExpectedTransportScope()) {
-            this.closeForTransportScopeChange('before the subscription could commit');
-            return Promise.resolve();
-        }
-
-        const controller = DataSyncController.getInstance();
-        if (!controller.isBoundToTransportScope(this.expectedTransportScopeKey)) {
-            this.closeForTransportScopeChange('before the subscription could acquire its controller');
-            return Promise.resolve();
-        }
-        // A render may retain an object that was fully released between render
-        // and commit. Reopening is supported, and its next final release must
-        // notify the store again instead of leaving a closed registry entry.
-        this.closeNotificationSent = false;
-        this.attachControllerListeners(controller);
-        this.started = true;
-        const generation = ++this.generation;
-        this.lastRevision = -1;
-        this.supportsAuthoritativeSnapshots = false;
-        this.dispatch({ type: 'CONNECT', reconnect });
-
-        const startPromise = this.createServerSubscription(generation, controller);
-        this.startPromise = startPromise;
-        void startPromise.finally(() => {
-            if (this.startPromise === startPromise) {
-                this.startPromise = null;
-            }
-        }).catch(() => {});
-        return startPromise;
-    }
-
-    private async createServerSubscription(generation: number, controller: DataSyncController): Promise<void> {
-        try {
-            const response = await controller.sendMessage({
-                tag: 'CreateDataSubscription',
-                query: this.serverQuery,
-                protocolVersion: 1,
-            });
-            const subscriptionId = response.subscriptionId as UUID;
-
-            if (!this.started
-                || generation !== this.generation
-                || this.controller !== controller
-                || !this.hasExpectedTransportScope()
-                || !controller.isBoundToTransportScope(this.expectedTransportScopeKey)) {
-                if (!this.hasExpectedTransportScope()) {
-                    this.closeForTransportScopeChange('while the subscription was being created');
-                }
-                await this.deleteStaleDataSubscription(controller, subscriptionId);
-                return;
-            }
-
-            this.subscriptionId = subscriptionId;
-            this.supportsAuthoritativeSnapshots = response.tag === 'DidCreateDataSubscriptionV2';
-            const result = response.result as DataRecord[];
-            // The V2 tag explicitly acknowledges snapshot support. An old
-            // DidCreate response remains delta-compatible even when that server
-            // silently ignored the protocolVersion request field.
-            const initialRevision = this.supportsAuthoritativeSnapshots && typeof response.revision === 'number'
-                ? response.revision
-                : 0;
-            this.applyServerSnapshot(result, initialRevision);
-            this.resolveInitialCreateOnce(result);
-        } catch (unknownError) {
-            if (!this.started || generation !== this.generation || this.controller !== controller) {
-                return;
-            }
-
-            const error = unknownError instanceof Error ? unknownError : new Error(String(unknownError));
-            const connectionError = new Error(error.message + ' while trying to subscribe to:\n' + JSON.stringify(this.serverQuery, null, 4));
-            this.dispatch({ type: 'FAIL', error: connectionError });
-            this.rejectInitialCreateOnce(connectionError);
-            throw connectionError;
-        }
-    }
-
-    private attachControllerListeners(controller: DataSyncController): void {
-        if (this.listenersAttached && this.controller === controller) {
-            return;
-        }
-        this.detachControllerListeners();
-        this.controller = controller;
-        this.listenersAttached = true;
-        controller.addEventListener('message', this.onMessage);
-        controller.addEventListener('close', this.onDataSyncClosed);
-        controller.addEventListener('reconnect', this.onDataSyncReconnect);
-        if (!controller.dataSubscriptions.includes(this)) {
-            controller.dataSubscriptions.push(this);
-        }
-    }
-
-    private detachControllerListeners(): void {
-        const controller = this.controller;
-        if (controller === null) {
-            this.listenersAttached = false;
-            return;
-        }
-        if (this.listenersAttached) {
-            controller.removeEventListener('message', this.onMessage);
-            controller.removeEventListener('close', this.onDataSyncClosed);
-            controller.removeEventListener('reconnect', this.onDataSyncReconnect);
-            this.listenersAttached = false;
-        }
-        const index = controller.dataSubscriptions.indexOf(this);
-        if (index !== -1) {
-            controller.dataSubscriptions.splice(index, 1);
-        }
-        this.controller = null;
-    }
-
     onMessage(message: ServerMessage): void {
-        if (!this.started || message.subscriptionId !== this.subscriptionId) {
+        if (
+            this.resource.getState().phase.tag !== 'live'
+            || message.subscriptionId !== this.subscriptionId
+        ) {
             return;
         }
         this.receiveUpdate(message);
     }
 
     receiveUpdate(message: ServerMessage): void {
-        if (!this.hasExpectedTransportScope()) {
-            this.closeForTransportScopeChange('before a server update was applied');
-            return;
-        }
         if (message.tag === 'DidReplaceDataSubscription') {
-            const isFirstReplacement = !this.supportsAuthoritativeSnapshots;
-            this.supportsAuthoritativeSnapshots = true;
-            const revision = typeof message.revision === 'number'
-                ? message.revision
-                : this.lastRevision + 1;
-            if (isFirstReplacement && revision <= this.lastRevision) {
-                this.lastRevision = revision - 1;
-            }
-            this.applyServerSnapshot(message.result as DataRecord[], revision);
-            return;
-        }
-
-        // Compatibility with older servers: delta messages are invalidations,
-        // never instructions to emulate PostgreSQL query semantics in the browser.
-        if (!this.supportsAuthoritativeSnapshots
-            && (message.tag === 'DidInsert' || message.tag === 'DidUpdate' || message.tag === 'DidDelete')) {
-            this.requestAuthoritativeRefresh();
-        }
-    }
-
-    private applyServerSnapshot(records: DataRecord[], revision: number): void {
-        if (revision <= this.lastRevision) {
-            return;
-        }
-        this.lastRevision = revision;
-        // Keep the public mutable `DataRecord[]` contract. The snapshot wrapper
-        // is immutable, while callers remain free to use normal array methods.
-        const snapshotRecords = records.map(record => ({ ...record })) as DataRecord[];
-        if (this.scopedCache !== null
-            && this.hasExpectedTransportScope()
-            && this.controller?.isBoundToTransportScope(this.expectedTransportScopeKey) === true) {
-            this.scopedCache.delete(this.cacheKey);
-            this.scopedCache.set(
-                this.cacheKey,
-                snapshotRecords.map(record => ({ ...record })) as DataRecord[],
+            this.resource.dispatchCompatibilitySnapshot(
+                cloneDataRecords(message.result as DataRecord[]),
+                typeof message.revision === 'number' ? message.revision : undefined,
             );
-            trimOldestMapEntries(this.scopedCache, 100);
-        }
-        this.dispatch({ type: 'SNAPSHOT', data: snapshotRecords });
-    }
-
-    private requestAuthoritativeRefresh(): void {
-        if (!this.started) {
             return;
         }
-        this.refreshRequested = true;
-        if (this.refreshPromise !== null) {
-            return;
+        if (message.tag === 'DidInsert' || message.tag === 'DidUpdate' || message.tag === 'DidDelete') {
+            this.resource.invalidateLegacy();
         }
-        const generation = this.generation;
-        const refreshPromise = this.refreshUntilClean(generation);
-        this.refreshPromise = refreshPromise;
-        void refreshPromise.finally(() => {
-            if (this.refreshPromise === refreshPromise) {
-                this.refreshPromise = null;
-            }
-        }).catch(() => {});
-    }
-
-    private async refreshUntilClean(generation: number): Promise<void> {
-        do {
-            this.refreshRequested = false;
-            if (this.supportsAuthoritativeSnapshots) {
-                return;
-            }
-            try {
-                const controller = this.controller;
-                if (controller === null
-                    || !this.hasExpectedTransportScope()
-                    || !controller.isBoundToTransportScope(this.expectedTransportScopeKey)) {
-                    if (!this.hasExpectedTransportScope()) {
-                        this.closeForTransportScopeChange('before a legacy refresh was sent');
-                    }
-                    return;
-                }
-                const response = await controller.sendMessage({
-                    tag: 'DataSyncQuery',
-                    query: this.serverQuery,
-                    transactionId: null,
-                });
-                // A replacement received while this legacy refetch was in
-                // flight upgrades the resource to revisioned snapshots. The
-                // unrevisioned query response can then be older and must not
-                // overwrite that authoritative replacement.
-                if (this.started
-                    && generation === this.generation
-                    && !this.supportsAuthoritativeSnapshots) {
-                    this.applyServerSnapshot(response.result as DataRecord[], this.lastRevision + 1);
-                }
-            } catch (error) {
-                if (this.started && generation === this.generation) {
-                    console.error('Failed to refresh a legacy DataSubscription:', error);
-                }
-            }
-        } while (this.refreshRequested && this.started && generation === this.generation);
     }
 
     onDataSyncClosed(event: unknown = null): void {
-        if (!this.started) {
-            return;
-        }
-        if (isTransportScopeChange(event)) {
-            this.closeForTransportScopeChange('because the controller transport changed');
-            return;
-        }
-        this.generation++;
-        this.subscriptionId = null;
-        this.lastRevision = -1;
-        this.startPromise = null;
-        this.refreshPromise = null;
-        this.refreshRequested = false;
-        this.dispatch({ type: 'DISCONNECT' });
+        this.resource.transportClosed(isTransportScopeChange(event));
     }
 
     async onDataSyncReconnect(): Promise<void> {
-        if (!this.started || this.startPromise !== null || this.subscriptionId !== null) {
-            return;
-        }
-        await this.start(true).catch(() => {
-            // The failure is observable through getSnapshot().
+        await this.resource.transportReconnected().catch(() => {
+            // The failed snapshot remains observable to external-store readers.
         });
     }
 
@@ -1107,12 +884,12 @@ class DataSubscription {
         _appendSet: Record<string, unknown> | null,
         _isOptimistic = false,
     ): void {
-        this.requestAuthoritativeRefresh();
+        this.resource.invalidateLegacy();
     }
 
     /** @deprecated Delta mutation now triggers an exact server refresh. */
     onCreate(_newRecord: DataRecord, _isOptimistic = false): void {
-        this.requestAuthoritativeRefresh();
+        this.resource.invalidateLegacy();
     }
 
     /** @deprecated Optimistic mutation is disabled and triggers an exact refresh. */
@@ -1120,12 +897,12 @@ class DataSubscription {
         if (!('id' in newRecord)) {
             throw new Error('Requires the record to have an id');
         }
-        this.requestAuthoritativeRefresh();
+        this.resource.invalidateLegacy();
     }
 
     /** @deprecated Delta mutation now triggers an exact server refresh. */
     onDelete(_id: UUID, _isOptimistic = false): void {
-        this.requestAuthoritativeRefresh();
+        this.resource.invalidateLegacy();
     }
 
     /** @deprecated Optimistic updates are intentionally disabled. */
@@ -1139,21 +916,18 @@ class DataSubscription {
     }
 
     scheduleCloseIfNotUsed(): void {
-        const token = ++this.disposalToken;
-        queueMicrotask(() => {
-            if (token === this.disposalToken) {
-                this.closeIfNotUsed();
-            }
-        });
+        const previousDemand = this.resource.getState().demand;
+        this.updateDemand();
+        if (previousDemand.subscribers === 0 && !previousDemand.imperative) {
+            this.resource.scheduleCloseIfUnused();
+        }
     }
 
     closeIfNotUsed(): void {
-        if (this.subscribers.length !== 0
-            || this.snapshotSubscriberEntries.size !== 0
-            || this.imperativelyOwned) {
+        if (this.subscriberDemand() !== 0 || this.imperativelyOwned) {
             return;
         }
-        void this.stop().catch(error => {
+        void this.resource.close().catch(error => {
             console.error('Failed to close an unused DataSubscription:', error);
         });
     }
@@ -1163,30 +937,148 @@ class DataSubscription {
         this.subscriberEntries.clear();
         this.snapshotSubscriberEntries.clear();
         this.subscribers.length = 0;
-        this.disposalToken++;
-        await this.stop();
+        await this.resource.close();
     }
 
-    private async stop(): Promise<void> {
-        if (!this.started && this.snapshot.status === 'closed') {
+    /** @deprecated Server snapshots make local record placement irrelevant. */
+    detectNewRecordBehaviour(): number {
+        const firstOrderBy = this.query.orderByClause[0];
+        return firstOrderBy
+            && 'orderByColumn' in firstOrderBy
+            && firstOrderBy.orderByColumn === 'createdAt'
+            && firstOrderBy.orderByDirection === 'Desc'
+            ? PREPEND_NEW_RECORD
+            : APPEND_NEW_RECORD;
+    }
+
+    private mirrorState(
+        state: SubscriptionState<DataRecord[]>,
+        event: SubscriptionEvent<DataRecord[]>,
+    ): void {
+        if (event.type === 'COMPAT_VALUE_SET') {
+            if (event.value !== null) {
+                this.isClosed = false;
+                this.isConnected = true;
+                this.connectError = null;
+            }
             return;
         }
+        if (state.phase.tag !== 'live') {
+            this.subscriptionId = null;
+        } else if (event.type === 'CREATE_SUCCEEDED') {
+            this.subscriptionId = state.phase.subscriptionId;
+        }
+        this.connectError = state.snapshot.error;
+        switch (state.phase.tag) {
+            case 'idle':
+                this.isConnected = false;
+                break;
+            case 'creating':
+                this.closeNotificationSent = false;
+                this.isConnected = false;
+                if (!state.phase.reconnect) {
+                    this.isClosed = false;
+                }
+                break;
+            case 'live':
+                this.isClosed = false;
+                this.isConnected = true;
+                break;
+            case 'offline':
+            case 'closed':
+                this.isClosed = true;
+                this.isConnected = false;
+                break;
+            case 'failed':
+                this.isConnected = false;
+                break;
+        }
+    }
 
-        this.started = false;
-        this.generation++;
-        this.startPromise = null;
-        this.refreshPromise = null;
-        this.refreshRequested = false;
-        const subscriptionId = this.subscriptionId;
-        const controller = this.controller;
-        this.subscriptionId = null;
-        this.detachControllerListeners();
-        this.dispatch({ type: 'CLOSE' });
-        this.rejectInitialCreateOnce(new Error('DataSubscription closed before its initial server snapshot arrived'));
-        this.notifyClose();
+    private writeCache(records: DataRecord[]): void {
+        if (this.scopedCache === null) {
+            return;
+        }
+        this.scopedCache.delete(this.cacheKey);
+        this.scopedCache.set(this.cacheKey, cloneDataRecords(records));
+        trimOldestMapEntries(this.scopedCache, 100);
+    }
 
-        if (subscriptionId !== null && controller !== null) {
-            await this.deleteStaleDataSubscription(controller, subscriptionId);
+    private updateDemand(): void {
+        this.resource.updateDemand(this.subscriberDemand(), this.imperativelyOwned);
+    }
+
+    private subscriberDemand(): number {
+        return this.subscribers.length + this.snapshotSubscriberEntries.size;
+    }
+
+    private retainInStore(): void {
+        if (this.expectedTransportScopeKey !== DataSyncController.currentTransportScopeKey()) {
+            return;
+        }
+        try {
+            this.onStoreRetain();
+        } catch (error) {
+            console.error('DataSubscription store-retain listener failed:', error);
+        }
+    }
+
+    private attachCompatibilityController(controller: DataSyncController): void {
+        if (this.compatibilityController === controller) {
+            return;
+        }
+        this.detachCompatibilityController();
+        this.compatibilityController = controller;
+        if (!controller.dataSubscriptions.includes(this)) {
+            controller.dataSubscriptions.push(this);
+        }
+    }
+
+    private detachCompatibilityController(): void {
+        const controller = this.compatibilityController;
+        this.compatibilityController = null;
+        if (controller === null) {
+            return;
+        }
+        const index = controller.dataSubscriptions.indexOf(this);
+        if (index !== -1) {
+            controller.dataSubscriptions.splice(index, 1);
+        }
+    }
+
+    private publish(publication: SubscriptionPublication): void {
+        if (publication === 'snapshot' || publication === 'both') {
+            this.notifySnapshotSubscribers();
+        }
+        if (publication === 'legacy' || publication === 'both') {
+            this.notifySubscribers();
+        }
+    }
+
+    private notifySnapshotSubscribers(): void {
+        for (const subscriber of Array.from(this.snapshotSubscriberEntries.values())) {
+            try {
+                subscriber();
+            } catch (error) {
+                console.error('DataSubscription snapshot subscriber failed:', error);
+            }
+        }
+    }
+
+    private notifySubscribers(): void {
+        for (const subscriber of this.subscribers.slice()) {
+            this.callSubscriber(subscriber, this.resource.getSnapshot().data);
+        }
+    }
+
+    private callSubscriber(
+        subscriber: (records: DataRecord[] | null) => void,
+        records: DataRecord[] | null,
+    ): void {
+        try {
+            subscriber(records);
+        } catch (error) {
+            console.error('DataSubscription subscriber failed:', error);
         }
     }
 
@@ -1205,151 +1097,6 @@ class DataSubscription {
         } catch (error) {
             console.error('DataSubscription close listener failed:', error);
         }
-    }
-
-    private async deleteStaleDataSubscription(controller: DataSyncController, subscriptionId: UUID): Promise<void> {
-        try {
-            await controller.sendMessage({ tag: 'DeleteDataSubscription', subscriptionId });
-        } catch (error) {
-            if (!controller.retired && controller.connection !== null) {
-                console.error('Failed to delete a stale DataSubscription:', error);
-            }
-        }
-    }
-
-    private closeForTransportScopeChange(reason: string): void {
-        if (!this.started && this.snapshot.status === 'closed' && this.closeNotificationSent) {
-            return;
-        }
-        this.imperativelyOwned = false;
-        this.started = false;
-        this.generation++;
-        this.subscriptionId = null;
-        this.lastRevision = -1;
-        this.startPromise = null;
-        this.refreshPromise = null;
-        this.refreshRequested = false;
-        this.supportsAuthoritativeSnapshots = false;
-        this.detachControllerListeners();
-        this.snapshot = initialResourceSnapshot();
-        this.dispatch({ type: 'CLOSE' });
-        this.rejectInitialCreateOnce(new Error(`DataSubscription closed because its authentication/backend scope changed ${reason}`));
-        this.notifyClose();
-    }
-
-    private hasExpectedTransportScope(): boolean {
-        return this.expectedTransportScopeKey === DataSyncController.currentTransportScopeKey();
-    }
-
-    private resolveInitialCreateOnce(records: DataRecord[]): void {
-        if (this.initialCreateSettled) {
-            return;
-        }
-        this.initialCreateSettled = true;
-        this.resolveInitialCreate(records);
-    }
-
-    private rejectInitialCreateOnce(error: Error): void {
-        if (this.initialCreateSettled) {
-            return;
-        }
-        this.initialCreateSettled = true;
-        this.rejectInitialCreate(error);
-    }
-
-    private dispatch(action: ResourceSnapshotAction<DataRecord[]>): void {
-        const nextSnapshot = reduceResourceSnapshot(this.snapshot, action);
-        if (nextSnapshot === this.snapshot) {
-            return;
-        }
-        this.snapshot = nextSnapshot;
-        switch (action.type) {
-            case 'CONNECT':
-                this.isConnected = false;
-                if (!action.reconnect) {
-                    this.isClosed = false;
-                }
-                this.connectError = null;
-                break;
-            case 'SNAPSHOT':
-                this.isClosed = false;
-                this.isConnected = true;
-                this.connectError = null;
-                break;
-            case 'DISCONNECT':
-                this.isClosed = true;
-                this.isConnected = false;
-                break;
-            case 'FAIL':
-                this.isConnected = false;
-                this.connectError = action.error;
-                break;
-            case 'CLOSE':
-                this.isClosed = true;
-                this.isConnected = false;
-                this.connectError = null;
-                break;
-        }
-        this.notifySnapshotSubscribers();
-        if (action.type === 'SNAPSHOT' || action.type === 'FAIL') {
-            this.notifySubscribers();
-        }
-    }
-
-    private trackedSubscriberCount(): number {
-        return this.subscriberEntries.size + this.snapshotSubscriberEntries.size;
-    }
-
-    private retainInStore(): void {
-        // Never promote a stale render handle back into the active registry.
-        // Its commit-time snapshot check will make React resolve a resource for
-        // the current scope instead.
-        if (!this.hasExpectedTransportScope()) {
-            return;
-        }
-        try {
-            this.onStoreRetain();
-        } catch (error) {
-            console.error('DataSubscription store-retain listener failed:', error);
-        }
-    }
-
-    private notifySnapshotSubscribers(): void {
-        for (const subscriber of Array.from(this.snapshotSubscriberEntries.values())) {
-            try {
-                subscriber();
-            } catch (error) {
-                console.error('DataSubscription snapshot subscriber failed:', error);
-            }
-        }
-    }
-
-    private notifySubscribers(): void {
-        for (const subscriber of this.subscribers.slice()) {
-            this.callSubscriber(subscriber, this.snapshot.data);
-        }
-    }
-
-    private callSubscriber(
-        subscriber: (records: DataRecord[] | null) => void,
-        records: DataRecord[] | null,
-    ): void {
-        try {
-            subscriber(records);
-        } catch (error) {
-            console.error('DataSubscription subscriber failed:', error);
-        }
-    }
-
-    /** @deprecated Server snapshots make local record placement irrelevant. */
-    detectNewRecordBehaviour(): number {
-        const firstOrderBy = this.query.orderByClause[0];
-        return firstOrderBy
-            && 'orderByColumn' in firstOrderBy
-            && firstOrderBy.orderByColumn === 'createdAt'
-            && firstOrderBy.orderByDirection === 'Desc'
-            ? PREPEND_NEW_RECORD
-            : APPEND_NEW_RECORD;
     }
 }
 

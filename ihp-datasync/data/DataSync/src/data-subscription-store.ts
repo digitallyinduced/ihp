@@ -1,17 +1,35 @@
 import { DataSubscription, DataSyncController } from './ihp-datasync.js';
-import { WeakValueMap } from './weak-value-map.js';
+import { dataResourceKeyForScope } from './resource-key.js';
+import { createResourceRegistry } from './resource-registry.js';
 import type { DataRecord, DataSubscriptionOptions, DynamicSQLQuery } from './types.js';
 
-class ResettableMap<K, V> extends Map<K, V> {
-    constructor(private readonly resetPendingEntries: () => void) {
-        super();
-    }
+type DataSubscriptionRegistryInput = Readonly<{
+    key: string;
+    scope: string;
+    query: DynamicSQLQuery;
+    options: DataSubscriptionOptions | null;
+    cache: Map<string, DataRecord[]> | null;
+}>;
 
-    override clear(): void {
-        super.clear();
-        this.resetPendingEntries();
-    }
-}
+const dataSubscriptionRegistry = createResourceRegistry<
+    DataSubscriptionRegistryInput,
+    string,
+    DataSubscription
+>({
+    key: input => input.key,
+    create: (input, lifecycle) => {
+        const subscription = new DataSubscription(
+            input.query,
+            input.options,
+            input.cache,
+            input.key,
+            input.scope,
+        );
+        subscription.onStoreRetain = () => lifecycle.retain(subscription);
+        subscription.onStoreClose = () => lifecycle.close(subscription);
+        return subscription;
+    },
+});
 
 /**
  * React-independent registry for shared query resources.
@@ -20,45 +38,35 @@ class ResettableMap<K, V> extends Map<K, V> {
  * starts the transport, so abandoned React renders cannot open WebSockets.
  */
 export class DataSubscriptionStore {
-    private static readonly pendingQueryMap = new WeakValueMap<string, DataSubscription>();
-    // Keep the historical public `Map` type so downstream code can replace
-    // this test/debug registry without depending on the internal reset hook.
-    static queryMap: Map<string, DataSubscription> = new ResettableMap<string, DataSubscription>(() => {
-        DataSubscriptionStore.pendingQueryMap.clear();
-    });
     static cache = new Map<string, DataRecord[]>();
+
+    // Keep the historical writable Map surface while the functional registry
+    // owns canonical pending and active values internally.
+    static get queryMap(): Map<string, DataSubscription> {
+        return dataSubscriptionRegistry.active;
+    }
+
+    static set queryMap(next: Map<string, DataSubscription>) {
+        dataSubscriptionRegistry.replaceActive(next);
+    }
 
     static get(
         query: DynamicSQLQuery,
         options: DataSubscriptionOptions | null = null,
     ): DataSubscription {
         const scope = backendScope();
-        const key = dataSubscriptionKeyForScope(scope, query, options);
-        const existingSubscription = this.queryMap.get(key);
-        if (existingSubscription !== undefined) {
-            return existingSubscription;
-        }
-        const pendingSubscription = this.pendingQueryMap.get(key);
-        if (pendingSubscription !== undefined) {
-            return pendingSubscription;
-        }
-
+        const key = dataResourceKeyForScope(scope, query, options);
         // A session-cookie user id is intentionally invisible to JavaScript, so
         // it cannot be part of a safe cache key. Cache only JWT-scoped sessions;
         // otherwise a logout/login could briefly expose the previous user's rows.
         const scopedCache = currentJWT() === null ? null : this.cache;
-        const subscription = new DataSubscription(query, options, scopedCache, key, scope);
-        subscription.onStoreRetain = () => {
-            this.queryMap.set(key, subscription);
-        };
-        subscription.onStoreClose = () => {
-            if (this.queryMap.get(key) === subscription) {
-                this.queryMap.delete(key);
-            }
-            this.pendingQueryMap.delete(key, subscription);
-        };
-        this.pendingQueryMap.set(key, subscription);
-        return subscription;
+        return dataSubscriptionRegistry.getOrCreate({
+            key,
+            scope,
+            query,
+            options,
+            cache: scopedCache,
+        });
     }
 }
 
@@ -66,15 +74,7 @@ export function dataSubscriptionKey(
     query: DynamicSQLQuery,
     options: DataSubscriptionOptions | null = null,
 ): string {
-    return dataSubscriptionKeyForScope(backendScope(), query, options);
-}
-
-function dataSubscriptionKeyForScope(
-    scope: string,
-    query: DynamicSQLQuery,
-    options: DataSubscriptionOptions | null,
-): string {
-    return JSON.stringify([scope, query, options]);
+    return dataResourceKeyForScope(backendScope(), query, options);
 }
 
 function backendScope(): string {

@@ -125,29 +125,64 @@ export function useIsConnected(): boolean {
     );
 }
 
-class ConnectionResource {
-    private readonly listeners = new Map<number, () => void>();
-    private nextListenerId = 0;
-    private controller: DataSyncController | null = null;
-    private removeInstanceListener: (() => void) | null = null;
+type ConnectionExternalStore = Readonly<{
+    subscribe(listener: () => void): () => void;
+    getSnapshot(): boolean;
+    getServerSnapshot(): boolean;
+}>;
 
-    constructor() {
-        this.subscribe = this.subscribe.bind(this);
-        this.getSnapshot = this.getSnapshot.bind(this);
-        this.getServerSnapshot = this.getServerSnapshot.bind(this);
-        this.onInstanceChanged = this.onInstanceChanged.bind(this);
-        this.onOpen = this.onOpen.bind(this);
-        this.onClose = this.onClose.bind(this);
-    }
+function createConnectionExternalStore(): ConnectionExternalStore {
+    const listeners = new Map<number, () => void>();
+    let nextListenerId = 0;
+    let controller: DataSyncController | null = null;
+    let removeInstanceListener: (() => void) | null = null;
 
-    subscribe(listener: () => void): () => void {
-        const id = this.nextListenerId++;
-        this.listeners.set(id, listener);
-        if (this.listeners.size === 1) {
-            this.removeInstanceListener = DataSyncController.addInstanceListener(this.onInstanceChanged);
+    const notify = (): void => {
+        for (const listener of Array.from(listeners.values())) {
+            try {
+                listener();
+            } catch (error) {
+                console.error('DataSync connection subscriber failed:', error);
+            }
+        }
+    };
+
+    const onOpen = (_event: Parameters<DataSyncEventMap['open']>[0]): void => {
+        notify();
+    };
+
+    const onClose = (_event: Parameters<DataSyncEventMap['close']>[0]): void => {
+        notify();
+    };
+
+    const attachController = (nextController: DataSyncController | null): void => {
+        if (controller === nextController) {
+            return;
+        }
+        if (controller !== null) {
+            controller.removeEventListener('open', onOpen);
+            controller.removeEventListener('close', onClose);
+        }
+        controller = nextController;
+        if (controller !== null) {
+            controller.addEventListener('open', onOpen);
+            controller.addEventListener('close', onClose);
+        }
+    };
+
+    const onInstanceChanged = (nextController: DataSyncController | null): void => {
+        attachController(nextController);
+        notify();
+    };
+
+    const subscribe = (listener: () => void): (() => void) => {
+        const id = nextListenerId++;
+        listeners.set(id, listener);
+        if (listeners.size === 1) {
+            removeInstanceListener = DataSyncController.addInstanceListener(onInstanceChanged);
             // Subscription happens during commit, so rotating an obsolete auth
             // scope here cannot cause a render-phase side effect.
-            this.attachController(DataSyncController.getInstance());
+            attachController(DataSyncController.getInstance());
         }
 
         let subscribed = true;
@@ -156,61 +191,25 @@ class ConnectionResource {
                 return;
             }
             subscribed = false;
-            this.listeners.delete(id);
-            if (this.listeners.size === 0) {
-                this.removeInstanceListener?.();
-                this.removeInstanceListener = null;
-                this.attachController(null);
+            listeners.delete(id);
+            if (listeners.size === 0) {
+                removeInstanceListener?.();
+                removeInstanceListener = null;
+                attachController(null);
             }
         };
-    }
+    };
 
-    getSnapshot(): boolean {
+    const getSnapshot = (): boolean => {
         const controller = DataSyncController.peekInstance();
         return controller !== null && controller.connection !== null;
-    }
+    };
 
-    getServerSnapshot(): boolean {
+    const getServerSnapshot = (): boolean => {
         return false;
-    }
+    };
 
-    private onOpen(_event: Parameters<DataSyncEventMap['open']>[0]): void {
-        this.notify();
-    }
-
-    private onClose(_event: Parameters<DataSyncEventMap['close']>[0]): void {
-        this.notify();
-    }
-
-    private onInstanceChanged(controller: DataSyncController | null): void {
-        this.attachController(controller);
-        this.notify();
-    }
-
-    private attachController(controller: DataSyncController | null): void {
-        if (this.controller === controller) {
-            return;
-        }
-        if (this.controller !== null) {
-            this.controller.removeEventListener('open', this.onOpen);
-            this.controller.removeEventListener('close', this.onClose);
-        }
-        this.controller = controller;
-        if (controller !== null) {
-            controller.addEventListener('open', this.onOpen);
-            controller.addEventListener('close', this.onClose);
-        }
-    }
-
-    private notify(): void {
-        for (const listener of Array.from(this.listeners.values())) {
-            try {
-                listener();
-            } catch (error) {
-                console.error('DataSync connection subscriber failed:', error);
-            }
-        }
-    }
+    return Object.freeze({ subscribe, getSnapshot, getServerSnapshot });
 }
 
-const connectionResource = new ConnectionResource();
+const connectionResource = createConnectionExternalStore();

@@ -29,6 +29,16 @@ async function flushMicrotasks(rounds = 8) {
     }
 }
 
+function deferred() {
+    let resolve;
+    let reject;
+    const promise = new Promise((resolvePromise, rejectPromise) => {
+        resolve = resolvePromise;
+        reject = rejectPromise;
+    });
+    return { promise, resolve, reject };
+}
+
 describe('DataSubscription external store', () => {
     beforeEach(() => {
         DataSyncController.instance = null;
@@ -44,6 +54,53 @@ describe('DataSubscription external store', () => {
         expect(DataSyncController.instance).toBeNull();
         expect(direct.getSnapshot().status).toBe('idle');
         expect(stored.getSnapshot().status).toBe('idle');
+    });
+
+    test('the writable records facade mirrors its historical connected flags', () => {
+        const resource = new DataSubscription(query());
+
+        resource.records = [{ id: 'assigned' }];
+
+        expect(resource.getSnapshot()).toEqual({
+            data: [{ id: 'assigned' }],
+            status: 'live',
+            error: null,
+        });
+        expect(resource.isConnected).toBe(true);
+        expect(resource.isClosed).toBe(false);
+        resource.records = null;
+        expect(resource.getSnapshot()).toEqual({
+            data: null,
+            status: 'idle',
+            error: null,
+        });
+        expect(resource.isConnected).toBe(true);
+        expect(resource.isClosed).toBe(false);
+        const compatibilitySubscriber = jest.fn();
+        resource.subscribers.push(compatibilitySubscriber);
+        resource.records = null;
+        expect(compatibilitySubscriber).toHaveBeenCalledWith(null);
+        resource.subscribers.length = 0;
+        expect(DataSyncController.instance).toBeNull();
+    });
+
+    test('scheduleCloseIfNotUsed closes an inert resource in the next microtask', async () => {
+        const resource = new DataSubscription(query());
+        const onClose = jest.fn();
+        resource.onClose = onClose;
+        const initialResult = resource.createOnServerPromise.catch(error => error);
+
+        resource.scheduleCloseIfNotUsed();
+        expect(resource.getSnapshot().status).toBe('idle');
+        await flushMicrotasks();
+
+        expect(resource.getSnapshot().status).toBe('closed');
+        expect(resource.isClosed).toBe(true);
+        expect(onClose).toHaveBeenCalledTimes(1);
+        await expect(initialResult).resolves.toEqual(expect.objectContaining({
+            message: expect.stringContaining('became unused'),
+        }));
+        expect(DataSyncController.instance).toBeNull();
     });
 
     test('registry lookup is render-pure and snapshots the mutable query', () => {
@@ -380,6 +437,23 @@ describe('DataSubscription external store', () => {
             result: [{ id: 'next' }],
         });
         expect(externallyAdded).toHaveBeenCalledWith([{ id: 'next' }]);
+
+        resource.subscriptionId = 'compatibility-id';
+        resource.onMessage({
+            tag: 'DidReplaceDataSubscription',
+            subscriptionId: 'compatibility-id',
+            revision: 2,
+            result: [{ id: 'routed-through-public-field' }],
+        });
+        expect(resource.records).toEqual([{ id: 'routed-through-public-field' }]);
+        expect(resource.subscriptionId).toBe('compatibility-id');
+        resource.onMessage({
+            tag: 'DidReplaceDataSubscription',
+            subscriptionId: 'compatibility-id',
+            revision: 3,
+            result: [{ id: 'routed-again' }],
+        });
+        expect(resource.records).toEqual([{ id: 'routed-again' }]);
         release();
         await flushMicrotasks();
         expect(resource.getSnapshot().status).toBe('live');
@@ -423,6 +497,83 @@ describe('DataSubscription external store', () => {
             'CreateDataSubscription',
             'DeleteDataSubscription',
         ]);
+    });
+
+    test('manual create awaits recreates after disconnect and explicit close', async () => {
+        const controller = DataSyncController.getInstance();
+        const reconnectCreate = deferred();
+        const reopenedCreate = deferred();
+        let createNumber = 0;
+        controller.sendMessage = jest.fn(payload => {
+            if (payload.tag !== 'CreateDataSubscription') {
+                return Promise.resolve({});
+            }
+            createNumber++;
+            if (createNumber === 1) {
+                return Promise.resolve({
+                    tag: 'DidCreateDataSubscriptionV2',
+                    subscriptionId: 'manual-initial',
+                    revision: 0,
+                    result: [],
+                });
+            }
+            return createNumber === 2 ? reconnectCreate.promise : reopenedCreate.promise;
+        });
+        const resource = new DataSubscription(query());
+        await resource.createOnServer();
+
+        resource.onDataSyncClosed();
+        let reconnectSettled = false;
+        const reconnect = resource.createOnServer().then(() => {
+            reconnectSettled = true;
+        });
+        expect(createNumber).toBe(2);
+        expect(reconnectSettled).toBe(false);
+        reconnectCreate.resolve({
+            tag: 'DidCreateDataSubscriptionV2',
+            subscriptionId: 'manual-reconnected',
+            revision: 0,
+            result: [],
+        });
+        await reconnect;
+        expect(resource.subscriptionId).toBe('manual-reconnected');
+
+        await resource.close();
+        let reopenSettled = false;
+        const reopen = resource.createOnServer().then(() => {
+            reopenSettled = true;
+        });
+        expect(createNumber).toBe(3);
+        expect(reopenSettled).toBe(false);
+        reopenedCreate.resolve({
+            tag: 'DidCreateDataSubscriptionV2',
+            subscriptionId: 'manual-reopened',
+            revision: 0,
+            result: [],
+        });
+        await reopen;
+        expect(resource.subscriptionId).toBe('manual-reopened');
+        await resource.close();
+    });
+
+    test('the initial promise result cannot mutate the live records array', async () => {
+        const controller = DataSyncController.getInstance();
+        controller.sendMessage = jest.fn(async payload => payload.tag === 'CreateDataSubscription'
+            ? {
+                tag: 'DidCreateDataSubscriptionV2',
+                subscriptionId: 'initial-result-clone',
+                revision: 0,
+                result: [{ id: 'server-record' }],
+            }
+            : {});
+        const resource = new DataSubscription(query());
+
+        await resource.createOnServer();
+        const initialResult = await resource.createOnServerPromise;
+        initialResult.push({ id: 'caller-only' });
+
+        expect(resource.records).toEqual([{ id: 'server-record' }]);
+        await resource.close();
     });
 
     test('closing before the first response settles createOnServerPromise', async () => {
@@ -545,12 +696,21 @@ describe('DataSubscription external store', () => {
 
             jwt = 'render-user-b';
             const callback = jest.fn();
+            const snapshotObservations = [];
+            const releaseSnapshot = oldResource.subscribeSnapshot(() => {
+                snapshotObservations.push(oldResource.getSnapshot());
+            });
             const release = oldResource.subscribe(callback);
             const releaseAgain = oldResource.subscribe(() => {});
 
             expect(DataSyncController.instance).toBeNull();
             expect(oldResource.getRecords()).toBeNull();
             expect(oldResource.getSnapshot().status).toBe('closed');
+            expect(snapshotObservations).toEqual([{
+                data: null,
+                status: 'closed',
+                error: null,
+            }]);
             expect(callback).not.toHaveBeenCalled();
             expect(DataSubscriptionStore.queryMap.has(oldKey)).toBe(false);
             await expect(staleImperative.createOnServer()).rejects.toThrow('scope changed');
@@ -559,8 +719,46 @@ describe('DataSubscription external store', () => {
             const newResource = DataSubscriptionStore.get(resourceQuery);
             expect(newResource).not.toBe(oldResource);
             expect(newResource.getRecords()).toBeNull();
+            releaseSnapshot();
             release();
             releaseAgain();
+        } finally {
+            if (originalLocalStorage === undefined) delete globalThis.localStorage;
+            else globalThis.localStorage = originalLocalStorage;
+        }
+    });
+
+    test('the public receiveUpdate facade retires stale auth-scoped resources', async () => {
+        const originalLocalStorage = globalThis.localStorage;
+        let jwt = 'receive-user-a';
+        globalThis.localStorage = { getItem: key => key === 'ihp_jwt' ? jwt : null };
+        try {
+            const controller = DataSyncController.getInstance();
+            controller.sendMessage = jest.fn(async payload => payload.tag === 'CreateDataSubscription'
+                ? {
+                    tag: 'DidCreateDataSubscriptionV2',
+                    subscriptionId: 'receive-old-scope',
+                    revision: 0,
+                    result: [{ id: 'old-visible' }],
+                }
+                : {});
+            const resource = new DataSubscription(query());
+            const release = resource.subscribe(() => {});
+            await flushMicrotasks();
+            expect(resource.records).toEqual([{ id: 'old-visible' }]);
+
+            jwt = 'receive-user-b';
+            resource.receiveUpdate({
+                tag: 'DidReplaceDataSubscription',
+                subscriptionId: 'receive-old-scope',
+                revision: 1,
+                result: [{ id: 'must-not-publish' }],
+            });
+
+            expect(resource.records).toBeNull();
+            expect(resource.getSnapshot().status).toBe('closed');
+            expect(resource.isConnected).toBe(false);
+            release();
         } finally {
             if (originalLocalStorage === undefined) delete globalThis.localStorage;
             else globalThis.localStorage = originalLocalStorage;
@@ -675,6 +873,48 @@ describe('DataSubscription external store', () => {
             result: [{ id: 'obsolete' }],
         });
         expect(resource.getRecords()).toEqual([{ id: 'snapshot-2' }]);
+        release();
+        await flushMicrotasks();
+    });
+
+    test('the public reconnect promise waits for the replacement subscription', async () => {
+        const controller = DataSyncController.getInstance();
+        let createNumber = 0;
+        let resolveReconnect;
+        controller.sendMessage = jest.fn(payload => {
+            if (payload.tag !== 'CreateDataSubscription') {
+                return Promise.resolve({});
+            }
+            createNumber++;
+            if (createNumber === 1) {
+                return Promise.resolve({
+                    subscriptionId: 'before-reconnect',
+                    result: [],
+                });
+            }
+            return new Promise(resolve => { resolveReconnect = resolve; });
+        });
+        const resource = new DataSubscription(query());
+        const release = resource.subscribe(() => {});
+        await flushMicrotasks();
+
+        for (const listener of [...controller.eventListeners.close]) listener(null);
+        let reconnectSettled = false;
+        const reconnect = resource.onDataSyncReconnect().then(() => {
+            reconnectSettled = true;
+        });
+
+        expect(createNumber).toBe(2);
+        expect(reconnectSettled).toBe(false);
+        expect(resource.subscriptionId).toBeNull();
+        resolveReconnect({
+            subscriptionId: 'after-reconnect',
+            result: [],
+        });
+        await reconnect;
+        expect(reconnectSettled).toBe(true);
+        expect(resource.subscriptionId).toBe('after-reconnect');
+
         release();
         await flushMicrotasks();
     });
