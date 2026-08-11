@@ -457,6 +457,28 @@ tests = do
                                     expectationFailure (cs $ "Unexpected error: " <> errorMessage)
                                 _ -> expectationFailure "Expected DidCreateDataSubscription"
 
+            it "uses negative subscription ids for older clients" do
+                withDB \connStr -> do
+                    withHasqlPool connStr \pool -> do
+                        setupTestSchema pool
+                        (userId, _) <- insertTestData pool
+
+                        withDataSyncController connStr userId \(send, recv, _) -> do
+                            send (encodeCreateDataSubscription "messages" 10 Nothing)
+                            response <- recv
+                            case response of
+                                DidCreateDataSubscription { subscriptionId } -> do
+                                    subscriptionId `shouldBe` (-11)
+                                    send (encodeDeleteDataSubscription subscriptionId 11)
+                                    response2 <- recv
+                                    case response2 of
+                                        DidDeleteDataSubscription { subscriptionId = deletedId } ->
+                                            deletedId `shouldBe` subscriptionId
+                                        _ -> expectationFailure "Expected DidDeleteDataSubscription"
+                                DataSyncError { errorMessage } ->
+                                    expectationFailure (cs $ "Unexpected error: " <> errorMessage)
+                                _ -> expectationFailure "Expected DidCreateDataSubscription"
+
         describe "Transactions" do
             it "starts, uses, and commits a transaction" do
                 withDB \connStr -> do

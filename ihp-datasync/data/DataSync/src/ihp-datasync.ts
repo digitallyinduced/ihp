@@ -66,7 +66,8 @@ class DataSyncController {
         this.pendingRequests = [];
         this.connection = null;
         this.requestIdCounter = 0;
-        this.subscriptionIdCounter = 0;
+        // Start at 1 because older DataSync clients treat 0 as an unassigned id.
+        this.subscriptionIdCounter = 1;
         this.receivedFirstResponse = false;
         this.eventListeners = {
             message: [],

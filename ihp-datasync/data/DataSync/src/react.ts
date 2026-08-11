@@ -137,7 +137,7 @@ export function useCount(queryBuilder: QueryBuilder): number | null {
         return () => {
             isActive = false;
 
-            if (isCreated && subscriptionId) {
+            if (isCreated && subscriptionId !== null) {
                 controller.sendMessage({ tag: 'DeleteDataSubscription', subscriptionId });
             }
             controller.removeEventListener('message', onMessage);

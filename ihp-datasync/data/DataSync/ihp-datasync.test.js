@@ -86,8 +86,8 @@ describe('DataSubscription disconnect cleanup', () => {
     test('allocates monotonically increasing subscription ids', () => {
         const controller = DataSyncController.getInstance();
 
-        expect(controller.nextSubscriptionId()).toBe(0);
         expect(controller.nextSubscriptionId()).toBe(1);
+        expect(controller.nextSubscriptionId()).toBe(2);
     });
 
     test('removes an unused subscription locally after its socket was closed', async () => {
