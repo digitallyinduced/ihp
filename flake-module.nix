@@ -484,7 +484,7 @@ ihpFlake:
                 languages.haskell.enable = true;
                 languages.haskell.package = (if cfg.withHoogle
                                              then ghcCompiler.ghc.withHoogle
-                                             else ghcCompiler.ghc.withPackages) devGhcPackages
+                                             else ghcCompiler.ghc.withPackages) devGhcPackages;
 
                 languages.haskell.stack.enable = false; # Stack is not used in IHP
                 # Use the package-set HLS. devenv's default override rejects GHC RC version strings.
