@@ -304,6 +304,8 @@ that is defined in flake-module.nix
 
             languages.haskell.stack.enable = false; # Stack is not used in IHP
             languages.haskell.lsp.package = pkgs.ghc.haskell-language-server;
+            # Off until hie-compat / apply-refact support GHC 9.14.1.
+            languages.haskell.lsp.enable = false;
         };
 
         packages = {
