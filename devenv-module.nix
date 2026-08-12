@@ -164,8 +164,6 @@ that is defined in flake-module.nix
             # GHC 9.14 compatibility checks (build and test all IHP packages)
             // (lib.optionalAttrs (pkgs.haskell.packages ? ghc914) (let
                 ghc914 = pkgs.ghc914;
-                # pkgs.ghc914.haskell-language-server evaluates (2.14.0.0).
-                hlsBuilds = true;
                 ihpPackageNames = [
                     "ihp-ide" "ihp-hsx" "ihp-schema-compiler"
                     "ihp-postgres-parser" "ihp-pagehead"
@@ -189,7 +187,7 @@ that is defined in flake-module.nix
                 ghc914-ihp-datasync = withTestPostgres pkgs.ghc914.ihp-datasync;
                 ghc914-ihp-typed-sql = withTestPostgres pkgs.ghc914.ihp-typed-sql;
                 ghc914-ihp-pglistener = withTestPostgres pkgs.ghc914.ihp-pglistener;
-                # Cache-warm a 9.14 devenv-shaped GHC env. Lives in checks, not packages.
+                # Include package-set HLS so the 9.14 app-shell closure is cached.
                 ghc914-dev-env = pkgs.ghc914.ghc.withPackages (p: [
                     p.ihp
                     p.ihp-ide
@@ -197,7 +195,8 @@ that is defined in flake-module.nix
                     p.cabal-install
                     p.hlint
                     p.hoogle
-                ] ++ lib.optional hlsBuilds p.haskell-language-server);
+                    p.haskell-language-server
+                ]);
             }))
         ;
 
