@@ -11,6 +11,7 @@ in
     imports = [
         ihp.nixosModules.options
         ihp.nixosModules.binaryCache
+        ihp.nixosModules.ghcBuildCache
         ihp.nixosModules.services_app
         ihp.nixosModules.services_appKeygen
         ihp.nixosModules.services_worker

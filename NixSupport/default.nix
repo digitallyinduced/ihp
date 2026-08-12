@@ -21,9 +21,12 @@
 , ihpSchemaSql ? null       # Path to IHPSchema.sql (required when buildWithPostgres = true)
 , migrationCheck ? null     # Optional derivation that validates Application/Migration before building the app
 , previousIntermediates ? null # Optional intermediate output from a previous optimized app library build
+, impureIntermediatesCache ? null # Optional mutable host cache, intentionally invisible to the Nix dependency graph
 , buildStaticLibraries ? true # Build static Haskell libraries in addition to shared libraries
 , ghcAllocationArea ? null # Optional GHC compile-time RTS allocation area, e.g. "128M"
 }:
+
+assert impureIntermediatesCache == null || previousIntermediates == null;
 
 let
     splitSections = if !pkgs.stdenv.hostPlatform.isDarwin then "-split-sections" else "";
@@ -437,18 +440,69 @@ CABAL_EOF
                     ];
             });
 
-    mkAppLibPackage = withIntermediates: configureHaskellBuild (pkgs.haskell.lib.disableLibraryProfiling (pkgs.haskell.lib.dontHaddock (
-        ghc.callPackage ({ mkDerivation, base }: mkDerivation {
-            pname = "${appName}-lib";
-            version = "0.1.0";
-            src = appLibSrc;
-            libraryHaskellDepends = [ base modelsPackage ] ++ builtins.filter (p: p != null) (haskellDeps ghc);
-            doInstallIntermediates = withIntermediates;
-            enableSeparateIntermediatesOutput = withIntermediates;
-            inherit previousIntermediates;
-            license = pkgs.lib.licenses.free;
-        }) {}
-    )));
+    appLibIntermediatesDir = "share/haskell/${ghc.ghc.version}/${appName}-lib-0.1.0/dist";
+
+    withImpureIntermediatesCache = pkg:
+        if impureIntermediatesCache == null
+        then pkg
+        else
+            let
+                cachedPackage = pkgs.haskell.lib.overrideCabal pkg (old: {
+                    # This path is deliberately a plain string without Nix store
+                    # context. The cached derivation runs without a chroot, so its
+                    # contents can speed up GHC without changing the derivation.
+                    previousIntermediates = "${impureIntermediatesCache}/current";
+                    libraryToolDepends = (old.libraryToolDepends or []) ++ [ pkgs.flock pkgs.rsync ];
+                    preBuild = (old.preBuild or "") + ''
+                        impure_cache_root=${pkgs.lib.escapeShellArg impureIntermediatesCache}
+                        impure_cache_parent="$(dirname "$impure_cache_root")"
+                        impure_cache_intermediates="$impure_cache_root/current/${appLibIntermediatesDir}"
+
+                        if [[ ! -d "$impure_cache_parent" || ! -w "$impure_cache_parent" ]]; then
+                            echo "IHP GHC cache is not writable: $impure_cache_parent" >&2
+                            echo "Configure the builder host's ihp.nixosModules.ghcBuildCache module." >&2
+                            exit 1
+                        fi
+
+                        umask 0002
+                        mkdir -p "$impure_cache_root"
+                        exec 9>"$impure_cache_root/cache.lock"
+                        flock 9
+                        mkdir -p "$impure_cache_intermediates/build"
+                    '';
+                    postBuild = (old.postBuild or "") + ''
+                        # GHC has successfully validated and updated dist/build. Keep
+                        # it as a mutable compiler cache; it is not a build output and
+                        # must never become a Nix dependency.
+                        rsync -a --delete --chmod=Dg+rws,Fg+rw \
+                            dist/build/ "$impure_cache_intermediates/build/"
+                        flock -u 9
+                    '';
+                });
+            in cachedPackage.overrideAttrs (old: {
+                # With sandbox=relaxed, only derivations carrying this flag run
+                # outside the sandbox. This is required for a writable cache;
+                # sandbox-paths are intentionally mounted read-only.
+                __noChroot = true;
+                requiredSystemFeatures = (old.requiredSystemFeatures or []) ++ [ "ihp-ghc-cache" ];
+            });
+
+    mkAppLibPackage = { withIntermediates, useImpureCache ? false }:
+        let
+            package = configureHaskellBuild (pkgs.haskell.lib.disableLibraryProfiling (pkgs.haskell.lib.dontHaddock (
+                ghc.callPackage ({ mkDerivation, base }: mkDerivation {
+                    pname = "${appName}-lib";
+                    version = "0.1.0";
+                    src = appLibSrc;
+                    libraryHaskellDepends = [ base modelsPackage ] ++ builtins.filter (p: p != null) (haskellDeps ghc);
+                    doInstallIntermediates = withIntermediates;
+                    enableSeparateIntermediatesOutput = withIntermediates;
+                    inherit previousIntermediates;
+                    license = pkgs.lib.licenses.free;
+                }) {}
+            )));
+        in
+            if useImpureCache then withImpureIntermediatesCache package else package;
 
     withAppLibPostgres = pkg:
         if buildWithPostgres
@@ -464,8 +518,13 @@ CABAL_EOF
     # .intermediates (the optimized-app-lib-intermediates output consumed via
     # the prevBuild input, including older revisions of consuming repos) keep
     # evaluating unchanged.
-    appLibPackage = withAppLibPostgres (mkAppLibPackage false);
-    appLibPackageWithIntermediates = withAppLibPostgres (mkAppLibPackage optimized);
+    appLibPackage = withAppLibPostgres (mkAppLibPackage {
+        withIntermediates = false;
+        useImpureCache = impureIntermediatesCache != null;
+    });
+    appLibPackageWithIntermediates = withAppLibPostgres (mkAppLibPackage {
+        withIntermediates = optimized;
+    });
 
     allHaskellPackagesWithAppLib = ghc.ghcWithPackages (p: [ appLibPackage ]);
 

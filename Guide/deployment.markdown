@@ -1467,9 +1467,12 @@ reproducible, but it also means that GHC cannot see the `.hi` and `.o` files
 from the previous production build. Large applications may therefore spend
 most of a deployment recompiling modules that have not changed.
 
-IHP can retain these files in a persistent Nix profile and pass them to the
-next optimized build. Enable the incremental production build runner in your
-project's `flake.nix`:
+IHP can use a mutable directory on the build host as an intentionally impure
+compiler cache. The directory is not a derivation input: source and declared
+dependencies still determine the normal Nix output path, while GHC can reuse
+validated files left by an earlier build.
+
+Enable the cached production package in your project's `flake.nix`:
 
 ```nix
 perSystem = { pkgs, ... }: {
@@ -1481,24 +1484,46 @@ perSystem = { pkgs, ... }: {
             # Recommended when multiple projects share the same build user.
             # Defaults to ihp.appName.
             cacheNamespace = "my-company/my-app";
+
+            # This is the default and normally does not need to be set.
+            cacheDirectory = "/var/cache/ihp-ghc";
         };
     };
 };
 ```
 
-Build the application with:
+On a NixOS build host that imports `ihp.nixosModules.app` or
+`ihp.nixosModules.appWithPostgres`, enable the matching host configuration:
+
+```nix
+services.ihp.ghcBuildCache.enable = true;
+```
+
+For a standalone build host, import `ihp.nixosModules.ghcBuildCache` and enable
+the same option. Its `cacheDirectory` must match the flake setting. The module
+creates the group-writable directory, sets Nix sandboxing to `relaxed`, and
+advertises the `ihp-ghc-cache` system feature so cached builds are only sent to
+configured builders. The cached app-library derivation carries `__noChroot`;
+ordinary derivations remain sandboxed.
+
+Build the application with either:
 
 ```bash
 nix run .#production-build-cached
+# or
+nix build .#optimized-prod-server-cached
 ```
 
-The first run is a normal cold build. After a successful compilation the
-runner atomically advances a Nix profile under
-`$XDG_STATE_HOME/ihp` (or `$HOME/.local/state/ihp`). Later runs select that
-immutable store path during an impure inner evaluation. GHC validates the
-cached files and recompiles only affected modules. A failed compilation leaves
-the previous cache untouched, and concurrent runs sharing a namespace are
-serialized.
+The first run is a normal cold build. Later application-library builds copy the
+host cache into their fresh build directory, and GHC validates the `.hi` and
+`.o` files before reusing them. After compilation, IHP synchronizes the updated
+files back to the host cache. Builds sharing the same cache are serialized.
+
+Because the cache is invisible to Nix, rebuilding unchanged source remains a
+normal Nix cache hit and does not execute the compiler at all. For any given
+source and build configuration, the cached package has a stable derivation path
+that is independent of the mutable cache contents. Application modules are
+compiled once and used directly by the production executables.
 
 The cache identity includes IHP, GHC, the Haskell package environment, target
 platform, optimization level, static-library setting, and relation-support
@@ -1506,22 +1531,23 @@ setting. Changes to any of these start with a fresh cache automatically. Use a
 stable, project-specific `cacheNamespace` if multiple applications build as
 the same user; otherwise its default value, `ihp.appName`, is sufficient.
 
-Only selection of the previous store path is impure. Once selected, it is a
-declared derivation input and compilation still runs in the Nix sandbox. The
-profile is merely an optimization: deleting it makes the next build cold and
-does not affect deployed releases or binary-cache entries.
+This deliberately weakens Nix's hermeticity. The cached app-library derivation
+runs outside the filesystem sandbox and can access the build host, so enable it
+only for trusted application source on a dedicated builder. Treat the cache as
+disposable: deleting it makes the next build cold and does not affect deployed
+releases or binary-cache entries. Keep pure CI builds as a correctness check.
 
-For CI or production, keep the profile on the machine that performs the GHC
-build. This avoids transferring the comparatively large intermediates output
-between a remote builder and the deployment server. Regular `nix build`
-options can be passed after `--`, for example:
+The cache always lives on the machine that performs the GHC build. This avoids
+transferring the comparatively large intermediates tree between a remote
+builder and the deployment server. Regular `nix build` options can be passed
+after `--`, for example:
 
 ```bash
 nix run .#production-build-cached -- --builders '' --cores 8
 ```
 
-Advanced deployment systems can manage the profile themselves via the
-low-level `ihp.previousAppLibIntermediates` option and the
+Advanced deployment systems that prefer immutable store paths can still use
+the low-level `ihp.previousAppLibIntermediates` option together with the
 `optimized-app-lib-intermediates` package output. Do not combine that option
 with `incrementalProductionBuild.enable`.
 
