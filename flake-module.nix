@@ -26,7 +26,7 @@ ihpFlake:
                     description = ''
                         The GHC compiler to use for IHP.
 
-                        Defaults to `pkgs.ghc` (GHC 9.14.1). Set `pkgs.ghc912`
+                        Defaults to `pkgs.ghc` (GHC 9.14.1). Set to `pkgs.ghc912`
                         to stay on GHC 9.12.
                     '';
                     default = pkgs.ghc;

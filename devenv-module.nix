@@ -158,9 +158,8 @@ that is defined in flake-module.nix
                 };
             }
 
-            # Default checks are GHC 9.14. Fold first-party packages that were
-            # only on the former ghc914-* extra list and are not already in
-            # packages.* so 9.14 first-party CI does not shrink.
+            # First-party packages that are not packages.* outputs still need a
+            # default-compiler check.
             // {
                 ihp-hsx = pkgs.ghc.ihp-hsx;
                 ihp-postgres-parser = pkgs.ghc.ihp-postgres-parser;
@@ -176,7 +175,6 @@ that is defined in flake-module.nix
             }
 
             # Keep this check name: build.yml's ghc914-dev-env job builds it.
-            # pkgs.ghc914 aliases pkgs.ghc (now 9.14).
             // {
                 ghc914-dev-env = pkgs.ghc914.ghc.withPackages (p: [
                     p.ihp

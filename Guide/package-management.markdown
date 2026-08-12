@@ -680,7 +680,13 @@ We highly recommend only using nixpkgs versions which are provided by IHP becaus
 
 IHP's default compiler is GHC 9.14.1 (`pkgs.ghc`). To stay on GHC 9.12:
 
-    ihp.ghcCompiler = pkgs.ghc912;
+```nix
+perSystem = { pkgs, ... }: {
+    ihp = {
+        ghcCompiler = pkgs.ghc912;
+    };
+};
+```
 
 Then `direnv reload`. Do not remap `pkgs.ghc` with a `final: prev: { ghc = prev.ghc912; }`
 overlay — older Guide revisions suggested that, and it now silently overrides the default.
