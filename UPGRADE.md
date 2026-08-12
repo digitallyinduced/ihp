@@ -51,9 +51,10 @@ switch is `ihp.ghcCompiler`.
 
 ## HLS
 
-IHP's devenv shell uses HLS from the same GHC package set as the app
-(`languages.haskell.lsp.package = ghcCompiler.haskell-language-server`).
-Do not install GHCup HLS. VS Code: `haskell.manageHLS = PATH`.
+App devenv ships with `languages.haskell.lsp.enable = false`. GHC 9.14.1's
+package-set HLS does not configure (`hie-compat` requires `base < 4.22`).
+Do not install GHCup HLS as a workaround; keep LSP off until IHP turns it
+back on. Stay on 9.12 (`ihp.ghcCompiler = pkgs.ghc912`) if you need HLS now.
 
 # Upgrade to 1.6.0 from 1.5.0
 

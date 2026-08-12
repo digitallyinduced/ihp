@@ -166,6 +166,9 @@ let
         # relude doctests fail due to changed GHC error messages in 9.14
         relude = final.haskell.lib.dontCheck super.relude;
 
+        # HLS pulls this in; its tests import a hidden containers-0.8 module.
+        enummapset = final.haskell.lib.dontCheck super.enummapset;
+
         # 0.19 supports GHC 9.14; nixpkgs still pins an older release.
         ghc-tcplugin-api = self.callPackage "${flakeRoot}/NixSupport/hackage/ghc-tcplugin-api.nix" {};
 
