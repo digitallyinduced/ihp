@@ -1467,143 +1467,63 @@ reproducible, but it also means that GHC cannot see the `.hi` and `.o` files
 from the previous production build. Large applications may therefore spend
 most of a deployment recompiling modules that have not changed.
 
-Optimized IHP application packages have a separate `intermediates` output for
-these files. Set `ihp.previousAppLibIntermediates` to the `intermediates`
-output of a successful earlier build and GHC will validate the files itself,
-reuse the compatible ones, and rebuild the affected modules.
-
-The previous output cannot be discovered during a pure Nix evaluation: it is
-state that changes after every successful deployment. The following example
-uses a Nix profile as an atomic pointer to the latest successful output and
-selects that pointer with `builtins.getEnv` during an impure evaluation.
-
-Add the `let` bindings, the `previousAppLibIntermediates` option, and the
-supporting flake outputs below to your existing `perSystem` block:
+IHP can retain these files in a persistent Nix profile and pass them to the
+next optimized build. Enable the incremental production build runner in your
+project's `flake.nix`:
 
 ```nix
-perSystem = { config, self', pkgs, system, ... }:
-    let
-        # The key changes when the compiler, Haskell package set, platform, or
-        # production build flags change. Incompatible caches therefore start
-        # with a new profile instead of being passed to GHC.
-        appHaskellEnvironment =
-            config.ihp.ghcCompiler.ghcWithPackages
-                config.ihp.haskellPackages;
-        intermediatesCacheKey = builtins.substring 0 24 (
-            builtins.hashString "sha256" (
-                "${system}:${appHaskellEnvironment}:"
-                + "optimized:${config.ihp.optimizationLevel}:"
-                + "static=${if config.ihp.buildStaticLibraries then "1" else "0"}"
-            )
-        );
-    in
-    {
-        ihp = {
-            # Keep the rest of your existing IHP configuration here.
+perSystem = { pkgs, ... }: {
+    ihp = {
+        # Keep the rest of your existing IHP configuration here.
+        incrementalProductionBuild = {
             enable = true;
-            appName = "app";
-            projectPath = ./.;
 
-            previousAppLibIntermediates =
-                let
-                    cachePath = builtins.getEnv
-                        "IHP_PREVIOUS_APP_LIB_INTERMEDIATES";
-                in
-                    if cachePath == "" then
-                        null
-                    else if builtins.pathExists cachePath then
-                        builtins.storePath cachePath
-                    else
-                        throw "IHP_PREVIOUS_APP_LIB_INTERMEDIATES does not exist: ${cachePath}";
-        };
-
-        packages.optimized-app-lib-intermediates =
-            self'.packages.optimized-prod-server.passthru.appLibPackage.intermediates;
-
-        packages.production-build-cached = pkgs.writeShellApplication {
-            name = "ihp-production-build-cached";
-            runtimeInputs = [ pkgs.coreutils pkgs.flock pkgs.nix ];
-            text = ''
-                set -euo pipefail
-
-                state_root="''${XDG_STATE_HOME:-$HOME/.local/state}/ihp"
-                cache_profile="''${IHP_GHC_CACHE_PROFILE:-$state_root/ghc-intermediates-${intermediatesCacheKey}}"
-                mkdir -p "$(dirname "$cache_profile")"
-
-                # A profile is one shared cache head. Serializing the whole
-                # read/build/update sequence prevents concurrent deployments
-                # from replacing a newer cache with an older one.
-                exec 9>"$cache_profile.lock"
-                flock 9
-
-                if [[ -e "$cache_profile" ]]; then
-                    previous_intermediates="$(realpath "$cache_profile")"
-                    if nix store path-info "$previous_intermediates" >/dev/null 2>&1; then
-                        export IHP_PREVIOUS_APP_LIB_INTERMEDIATES="$previous_intermediates"
-                        echo "GHC intermediates cache: $previous_intermediates"
-                    else
-                        echo "GHC intermediates cache is stale; starting cold" >&2
-                        unset IHP_PREVIOUS_APP_LIB_INTERMEDIATES
-                    fi
-                else
-                    echo "GHC intermediates cache: cold (${intermediatesCacheKey})"
-                fi
-
-                # Build before moving the profile. A compiler error leaves the
-                # last successful cache untouched.
-                nix build --impure --no-write-lock-file "$@" \
-                    .#optimized-app-lib-intermediates
-                nix build --impure --no-write-lock-file \
-                    --profile "$cache_profile" \
-                    .#optimized-app-lib-intermediates
-                nix-env --profile "$cache_profile" --delete-generations old
-
-                # Re-evaluate with the cache for the current source revision,
-                # then build the complete production package from it.
-                export IHP_PREVIOUS_APP_LIB_INTERMEDIATES="$(realpath "$cache_profile")"
-                nix build --impure --no-write-lock-file "$@" \
-                    .#optimized-prod-server
-            '';
-        };
-
-        apps.production-build-cached = {
-            type = "app";
-            program = "${self'.packages.production-build-cached}/bin/ihp-production-build-cached";
+            # Recommended when multiple projects share the same build user.
+            # Defaults to ihp.appName.
+            cacheNamespace = "my-company/my-app";
         };
     };
+};
 ```
 
-Build the application through the wrapper instead of calling the production
-package directly:
+Build the application with:
 
 ```bash
-nix run --impure .#production-build-cached
+nix run .#production-build-cached
 ```
 
-The first run is a normal cold build. Later runs use the profile selected for
-the current compiler and build configuration. Source changes do not change the
-profile namespace; GHC decides which individual modules remain valid. A GHC,
-dependency, platform, optimization, or static-library change selects a new
-namespace and intentionally starts cold.
+The first run is a normal cold build. After a successful compilation the
+runner atomically advances a Nix profile under
+`$XDG_STATE_HOME/ihp` (or `$HOME/.local/state/ihp`). Later runs select that
+immutable store path during an impure inner evaluation. GHC validates the
+cached files and recompiles only affected modules. A failed compilation leaves
+the previous cache untouched, and concurrent runs sharing a namespace are
+serialized.
 
-Only the selection of the previous store path is impure. After evaluation that
-path is an ordinary declared derivation input, and the actual compilation still
-runs in the Nix sandbox. Do not point
-`IHP_PREVIOUS_APP_LIB_INTERMEDIATES` at a writable directory or at output from
-an untrusted build host.
+The cache identity includes IHP, GHC, the Haskell package environment, target
+platform, optimization level, static-library setting, and relation-support
+setting. Changes to any of these start with a fresh cache automatically. Use a
+stable, project-specific `cacheNamespace` if multiple applications build as
+the same user; otherwise its default value, `ihp.appName`, is sufficient.
+
+Only selection of the previous store path is impure. Once selected, it is a
+declared derivation input and compilation still runs in the Nix sandbox. The
+profile is merely an optimization: deleting it makes the next build cold and
+does not affect deployed releases or binary-cache entries.
 
 For CI or production, keep the profile on the machine that performs the GHC
 build. This avoids transferring the comparatively large intermediates output
-between a remote builder and the deployment server. Pass regular `nix build`
-options after the app name, for example:
+between a remote builder and the deployment server. Regular `nix build`
+options can be passed after `--`, for example:
 
 ```bash
-nix run --impure .#production-build-cached -- --builders '' --cores 8
+nix run .#production-build-cached -- --builders '' --cores 8
 ```
 
-The cache is an optimization, not a release artifact. Keep your normal binary
-cache and deployment rollback mechanism; deleting the profile merely makes the
-next build cold.
+Advanced deployment systems can manage the profile themselves via the
+low-level `ihp.previousAppLibIntermediates` option and the
+`optimized-app-lib-intermediates` package output. Do not combine that option
+with `incrementalProductionBuild.enable`.
 
 ### Starting the app
 

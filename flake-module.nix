@@ -155,9 +155,29 @@ ihpFlake:
                         Intermediate output from a previous optimized application build.
                         When set, GHC reuses still-valid object and interface files and
                         recompiles only modules affected by source changes.
+
+                        This is the low-level interface for custom build orchestration.
+                        For the profile-backed IHP runner, use
+                        `incrementalProductionBuild.enable` instead.
                     '';
                     type = lib.types.nullOr lib.types.package;
                     default = null;
+                };
+
+                incrementalProductionBuild = {
+                    enable = lib.mkEnableOption ''
+                        a profile-backed production build command that reuses GHC
+                        object and interface files from the last successful build
+                    '';
+
+                    cacheNamespace = lib.mkOption {
+                        description = ''
+                            Stable project identifier used to separate persistent GHC
+                            caches on a shared builder. Defaults to `ihp.appName`.
+                        '';
+                        type = lib.types.nullOr lib.types.str;
+                        default = null;
+                    };
                 };
 
                 scripts.optimized = lib.mkOption {
@@ -210,6 +230,33 @@ ihpFlake:
             ihp = ihpFlake.inputs.self;
             ghcCompiler = cfg.ghcCompiler;
             ihpLib = ihpFlake.inputs.self.packages.${system}.ihp-env-var-backwards-compat;
+            incrementalBuild = cfg.incrementalProductionBuild;
+            incrementalCacheNamespace =
+                if incrementalBuild.cacheNamespace == null
+                then cfg.appName
+                else incrementalBuild.cacheNamespace;
+            incrementalCacheNamespaceKey = builtins.substring 0 24
+                (builtins.hashString "sha256" incrementalCacheNamespace);
+            appHaskellEnvironment = ghcCompiler.ghcWithPackages cfg.haskellPackages;
+            incrementalIntermediatesCacheKey = builtins.substring 0 24 (builtins.hashString "sha256" (
+                "${system}:${ihp}:${appHaskellEnvironment}:"
+                + "optimized:${cfg.optimizationLevel}:"
+                + "static=${if cfg.buildStaticLibraries then "1" else "0"}:"
+                + "relations=${if cfg.relationSupport then "1" else "0"}"
+            ));
+            incrementalPreviousIntermediates =
+                let cachePath = builtins.getEnv "IHP_PREVIOUS_APP_LIB_INTERMEDIATES";
+                in if cachePath == ""
+                    then null
+                    else if builtins.pathExists cachePath
+                        then builtins.storePath cachePath
+                        else throw "IHP_PREVIOUS_APP_LIB_INTERMEDIATES does not exist: ${cachePath}";
+            effectivePreviousIntermediates =
+                if incrementalBuild.enable
+                then if cfg.previousAppLibIntermediates == null
+                    then incrementalPreviousIntermediates
+                    else throw "ihp.previousAppLibIntermediates and ihp.incrementalProductionBuild.enable cannot be used together"
+                else cfg.previousAppLibIntermediates;
             # Auto-detect whether a build-time PostgreSQL is needed (e.g. ihp-typed-sql)
             buildWithPostgres = builtins.any (p: (p.pname or "") == "ihp-typed-sql") (cfg.haskellPackages ghcCompiler);
             mkProdServer = { optimized, optimizationLevel }: import "${ihp}/NixSupport/default.nix" {
@@ -229,7 +276,7 @@ ihpFlake:
                 ihp-static = ihpFlake.inputs.self.packages.${system}.ihp-static;
                 static = self'.packages.static;
                 inherit buildWithPostgres;
-                previousIntermediates = if optimized then cfg.previousAppLibIntermediates else null;
+                previousIntermediates = if optimized then effectivePreviousIntermediates else null;
                 inherit (cfg) buildStaticLibraries ghcAllocationArea;
                 appSchemaSql = "${self'.packages.schema}/Schema.sql";
                 ihpSchemaSql = "${self'.packages.ihp-schema}/IHPSchema.sql";
@@ -260,13 +307,20 @@ ihpFlake:
         in lib.mkIf cfg.enable {
             _module.args.pkgs = lib.mkDefault (import inputs.nixpkgs { inherit system; overlays = config.devenv.shells.default.overlays; config = { }; });
 
-            apps = scriptApps;
+            apps = scriptApps // lib.optionalAttrs incrementalBuild.enable {
+                production-build-cached = {
+                    type = "app";
+                    program = "${self'.packages.production-build-cached}/bin/ihp-production-build-cached";
+                };
+            };
 
             # release build package
             packages = {
                 default = unoptimizedProdServer;
 
                 optimized-prod-server = optimizedProdServer;
+
+                optimized-app-lib-intermediates = optimizedProdServer.passthru.appLibPackage.intermediates;
 
                 unoptimized-prod-server = unoptimizedProdServer;
 
@@ -332,6 +386,61 @@ ihpFlake:
                     '';
                 };
             } // scriptPackages
+            // lib.optionalAttrs incrementalBuild.enable {
+                production-build-cached = pkgs.writeShellApplication {
+                    name = "ihp-production-build-cached";
+                    runtimeInputs = [ pkgs.coreutils pkgs.flock pkgs.nix ];
+                    text = ''
+                        set -euo pipefail
+
+                        state_root="''${XDG_STATE_HOME:-$HOME/.local/state}/ihp"
+                        cache_profile="''${IHP_GHC_CACHE_PROFILE:-$state_root/ghc-intermediates-${incrementalCacheNamespaceKey}-${incrementalIntermediatesCacheKey}}"
+                        mkdir -p "$(dirname "$cache_profile")"
+
+                        # A profile is one shared cache head. Serialize the
+                        # read/build/update sequence so concurrent builds cannot
+                        # replace a newer cache with an older one.
+                        exec 9>"$cache_profile.lock"
+                        flock 9
+
+                        if [[ -e "$cache_profile" ]]; then
+                            previous_intermediates="$(realpath "$cache_profile")"
+                            if nix store path-info "$previous_intermediates" >/dev/null 2>&1; then
+                                export IHP_PREVIOUS_APP_LIB_INTERMEDIATES="$previous_intermediates"
+                                echo "GHC intermediates cache: $previous_intermediates"
+                            else
+                                echo "GHC intermediates cache is stale; starting cold" >&2
+                                unset IHP_PREVIOUS_APP_LIB_INTERMEDIATES
+                            fi
+                        else
+                            echo "GHC intermediates cache: cold (${incrementalIntermediatesCacheKey})"
+                        fi
+
+                        # Do not advance the profile until compilation succeeds.
+                        mapfile -t current_outputs < <(
+                            nix build --impure --no-write-lock-file \
+                                --no-link --print-out-paths "$@" \
+                                .#optimized-app-lib-intermediates
+                        )
+                        [[ ''${#current_outputs[@]} -eq 1 ]] || {
+                            echo "expected one intermediates output, got ''${#current_outputs[@]}" >&2
+                            exit 1
+                        }
+                        current_intermediates="''${current_outputs[0]}"
+                        [[ $current_intermediates == /nix/store/*-intermediates ]] || {
+                            echo "unexpected intermediates output: $current_intermediates" >&2
+                            exit 1
+                        }
+
+                        nix-env --profile "$cache_profile" --set "$current_intermediates"
+                        nix-env --profile "$cache_profile" --delete-generations old
+
+                        export IHP_PREVIOUS_APP_LIB_INTERMEDIATES="$current_intermediates"
+                        nix build --impure --no-write-lock-file "$@" \
+                            .#optimized-prod-server
+                    '';
+                };
+            }
             // (if cfg.static.makeBundling then {
                 staticFilesCompiledByMake = pkgs.stdenv.mkDerivation {
                     name = "${config.ihp.appName}-staticFilesCompiledByMake";
