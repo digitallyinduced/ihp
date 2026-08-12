@@ -214,26 +214,16 @@ final: prev: {
                     # relude doctests fail due to changed GHC error messages in 9.14
                     relude = final.haskell.lib.dontCheck super.relude;
 
-                    # Upgrade ghc-tcplugin-api to 0.19 (supports GHC 9.14)
-                    ghc-tcplugin-api = self.callCabal2nix "ghc-tcplugin-api"
-                        (final.fetchzip {
-                            url = "https://hackage.haskell.org/package/ghc-tcplugin-api-0.19.0.0/ghc-tcplugin-api-0.19.0.0.tar.gz";
-                            sha256 = "sha256-2jm1Q2lmaG6vtRnxcvxf4U2gvQdVkDL0h8PWaTpDWJA=";
-                        }) {};
+                    # 0.19 supports GHC 9.14; nixpkgs still pins an older release.
+                    ghc-tcplugin-api = self.callPackage "${flakeRoot}/NixSupport/hackage/ghc-tcplugin-api.nix" {};
 
-                    # Upgrade ghc-typelits-natnormalise to 0.9.6 (supports GHC 9.14)
-                    ghc-typelits-natnormalise = final.haskell.lib.dontCheck (self.callCabal2nix "ghc-typelits-natnormalise"
-                        (final.fetchzip {
-                            url = "https://hackage.haskell.org/package/ghc-typelits-natnormalise-0.9.6/ghc-typelits-natnormalise-0.9.6.tar.gz";
-                            sha256 = "sha256-a1afS4iJrB9hVp3FK+fozbWVxIt75H/gO6Q+PeoV53k=";
-                        }) {});
+                    # 0.9.6 supports GHC 9.14; nixpkgs still pins an older release.
+                    ghc-typelits-natnormalise = final.haskell.lib.dontCheck
+                        (self.callPackage "${flakeRoot}/NixSupport/hackage/ghc-typelits-natnormalise.nix" {});
 
-                    # Upgrade ghc-typelits-knownnat to 0.8.4 (supports GHC 9.14)
-                    ghc-typelits-knownnat = final.haskell.lib.dontCheck (self.callCabal2nix "ghc-typelits-knownnat"
-                        (final.fetchzip {
-                            url = "https://hackage.haskell.org/package/ghc-typelits-knownnat-0.8.4/ghc-typelits-knownnat-0.8.4.tar.gz";
-                            sha256 = "sha256-PyYMUvJ8/miqusNl7+xay8OJqtK1/uHNQEiLr1utieg=";
-                        }) {});
+                    # 0.8.4 supports GHC 9.14; nixpkgs still pins an older release.
+                    ghc-typelits-knownnat = final.haskell.lib.dontCheck
+                        (self.callPackage "${flakeRoot}/NixSupport/hackage/ghc-typelits-knownnat.nix" {});
                 })
                 # GHC 9.14 ships base-4.22, containers-0.8, template-haskell-2.24.
                 # Many nixpkgs packages have tight upper bounds on these boot libraries.
@@ -265,7 +255,7 @@ final: prev: {
                     "ghc-lib-parser" "ghc-lib-parser-ex" "ghc-syntax-highlighter"
                     "colourista" "extensions" "trial" "trial-optparse-applicative"
                     "trial-tomland" "tomland" "validation-selective" "slist"
-                    "ihp-zip" "warp-systemd"
+                    "ihp-zip"
                 ])
             ];
         }
