@@ -210,11 +210,15 @@ ihpFlake:
             ihp = ihpFlake.inputs.self;
             ghcCompiler = cfg.ghcCompiler;
             # apply-refact 0.15 (hlint) does not compile on GHC 9.14.
+            # Completions wrappers may omit pname, so match name too.
+            isHlint = x:
+                let n = lib.toLower (x.pname or x.name or "");
+                in n == "hlint" || lib.hasPrefix "hlint-" n;
             devGhcPackages = p:
                 let requested = cfg.haskellPackages p ++ cfg.devHaskellPackages p;
                 in if lib.versionOlder ghcCompiler.ghc.version "9.14"
                    then requested
-                   else lib.filter (x: (x.pname or "") != "hlint") requested;
+                   else lib.filter (x: !(isHlint x)) requested;
             ihpLib = ihpFlake.inputs.self.packages.${system}.ihp-env-var-backwards-compat;
             # Auto-detect whether a build-time PostgreSQL is needed (e.g. ihp-typed-sql)
             buildWithPostgres = builtins.any (p: (p.pname or "") == "ihp-typed-sql") (cfg.haskellPackages ghcCompiler);
