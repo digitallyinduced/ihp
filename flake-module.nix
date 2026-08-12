@@ -26,8 +26,8 @@ ihpFlake:
                     description = ''
                         The GHC compiler to use for IHP.
 
-                        Defaults to `pkgs.ghc` (GHC 9.10, binary-cached). Set to
-                        `pkgs.ghc914` to opt into GHC 9.14 (built from source).
+                        Defaults to `pkgs.ghc` (GHC 9.14.1). Set `pkgs.ghc912`
+                        to stay on GHC 9.12.
                     '';
                     default = pkgs.ghc;
                 };

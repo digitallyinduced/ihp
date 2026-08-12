@@ -14,6 +14,7 @@
 
 ### Breaking Changes
 
+- Default GHC is now 9.14.1. Stay on 9.12 with `ihp.ghcCompiler = pkgs.ghc912`. Delete any old `ghc = prev.ghc912` overlay.
 - `DefaultScope` has been removed. `query @Model` now always starts without
   implicit filters; define and use explicit query functions for reusable scopes.
 - `typedSql` now tracks conservative query cardinality and statement result
