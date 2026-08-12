@@ -248,7 +248,7 @@ let
 in {
     # nix-prefetch-darcs consumes the top-level darcs attribute directly. Keep it
     # on the same bounds-relaxed build as the default GHC package set.
-    darcs = final.ghc.darcs;
+    darcs = final.ghc912.darcs;
 
     # Default: GHC 9.14.1. The default path requires haskell.packages.ghc914.
     ghc =
