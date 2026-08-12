@@ -177,12 +177,12 @@ that is defined in flake-module.nix
             # Keep this check name: build.yml's ghc914-dev-env job builds it.
             // {
                 # HLS omitted: hie-compat-0.3.1.2 requires base <4.22 and does not configure on 9.14.1.
+                # hlint omitted: apply-refact 0.15 does not compile on GHC 9.14.
                 ghc914-dev-env = pkgs.ghc914.ghc.withPackages (p: [
                     p.ihp
                     p.ihp-ide
                     p.ihp-schema-compiler
                     p.cabal-install
-                    p.hlint
                     p.hoogle
                 ]);
             }

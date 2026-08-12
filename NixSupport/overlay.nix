@@ -201,8 +201,6 @@ let
             # time <1.15 and fails on GHC 9.14's containers-0.8 / time-1.15.
             # Jailbreaking lets that pinned version build on the new boot libs.
             "Cabal-syntax_3_14_2_0"
-            # hlint -> apply-refact 0.15 caps containers <0.8 and ghc-exactprint <1.13.
-            "apply-refact"
             # darcs 2.18.5 caps http-client-tls <0.4 and tls <2.2, while
             # the RC3 package set provides newer compatible releases.
             "darcs"

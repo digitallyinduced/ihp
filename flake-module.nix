@@ -478,7 +478,14 @@ ihpFlake:
                 languages.haskell.enable = true;
                 languages.haskell.package = (if cfg.withHoogle
                                              then ghcCompiler.ghc.withHoogle
-                                             else ghcCompiler.ghc.withPackages) (p: cfg.haskellPackages p ++ cfg.devHaskellPackages p);
+                                             else ghcCompiler.ghc.withPackages) (p:
+                    let
+                        requested = cfg.haskellPackages p ++ cfg.devHaskellPackages p;
+                    # apply-refact 0.15 (hlint) does not compile on GHC 9.14.
+                    in if lib.versionOlder ghcCompiler.ghc.version "9.14"
+                       then requested
+                       else lib.filter (x: (x.pname or "") != "hlint") requested
+                );
 
                 languages.haskell.stack.enable = false; # Stack is not used in IHP
                 # Use the package-set HLS. devenv's default override rejects GHC RC version strings.
