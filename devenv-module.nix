@@ -187,6 +187,15 @@ that is defined in flake-module.nix
                 ghc914-ihp-datasync = withTestPostgres pkgs.ghc914.ihp-datasync;
                 ghc914-ihp-typed-sql = withTestPostgres pkgs.ghc914.ihp-typed-sql;
                 ghc914-ihp-pglistener = withTestPostgres pkgs.ghc914.ihp-pglistener;
+                # HLS omitted: hie-compat-0.3.1.2 requires base <4.22 and does not configure on 9.14.1.
+                ghc914-dev-env = pkgs.ghc914.ghc.withPackages (p: [
+                    p.ihp
+                    p.ihp-ide
+                    p.ihp-schema-compiler
+                    p.cabal-install
+                    p.hlint
+                    p.hoogle
+                ]);
             }))
         ;
 

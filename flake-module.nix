@@ -481,13 +481,9 @@ ihpFlake:
                                              else ghcCompiler.ghc.withPackages) (p: cfg.haskellPackages p ++ cfg.devHaskellPackages p);
 
                 languages.haskell.stack.enable = false; # Stack is not used in IHP
-                # devenv defaults to `pkgs.haskell-language-server.override {
-                #   supportedGhcVersions = [ ghcVersion ] }` with ghcVersion =
-                # package.version dots-stripped. That breaks on GHC RCs
-                # (9.12.4.20260713 → "912420260713", not in the allowlist) and
-                # takes the boilerplate-devShell check down with it. Disable HLS
-                # until we're on a release GHC / devenv that accepts the version.
-                languages.haskell.lsp.enable = false;
+                # Use the package-set HLS. devenv's default override rejects GHC RC version strings.
+                languages.haskell.lsp.package = ghcCompiler.haskell-language-server;
+                languages.haskell.lsp.enable = true;
 
                 scripts.start.exec = ''
                     exec env IHP_STATIC=${ihpFlake.inputs.self.packages.${system}.ihp-static} ${ghcCompiler.ihp-ide}/bin/RunDevServer
