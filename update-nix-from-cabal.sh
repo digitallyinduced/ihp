@@ -37,7 +37,10 @@ hackage_packages=(
   "postgresql-types 0.1.2"
   "hasql-mapping 0.1"
   "hasql-postgresql-types 0.2"
-  "ihp-zip 0.1.1"
+  "ihp-zip 0.1.2"
+  "ghc-tcplugin-api 0.19.0.0"
+  "ghc-typelits-natnormalise 0.9.6"
+  "ghc-typelits-knownnat 0.8.4"
 )
 # Note: hasql/postgresql-binary/postgresql-types/hasql-mapping and friends
 # are pulled directly from nixpkgs via versioned attributes (hasql_1_10_3
