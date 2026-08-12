@@ -187,7 +187,7 @@ that is defined in flake-module.nix
                 ghc914-ihp-datasync = withTestPostgres pkgs.ghc914.ihp-datasync;
                 ghc914-ihp-typed-sql = withTestPostgres pkgs.ghc914.ihp-typed-sql;
                 ghc914-ihp-pglistener = withTestPostgres pkgs.ghc914.ihp-pglistener;
-                # Include package-set HLS so the 9.14 app-shell closure is cached.
+                # HLS omitted: hie-compat-0.3.1.2 requires base <4.22 and does not configure on 9.14.1.
                 ghc914-dev-env = pkgs.ghc914.ghc.withPackages (p: [
                     p.ihp
                     p.ihp-ide
@@ -195,7 +195,6 @@ that is defined in flake-module.nix
                     p.cabal-install
                     p.hlint
                     p.hoogle
-                    p.haskell-language-server
                 ]);
 
                 # Same allocation check as ihp-hsx-bench, on the 9.14 package set.
