@@ -69,3 +69,40 @@ jobs:
       env:
         ATTIC_TOKEN: ${{ secrets.ATTIC_CI_TOKEN }}
       if: matrix.os != 'ARM64'
+
+  # Separate ubuntu job so 9.14 devenv-shaped deps are cache-warmed without
+  # adding a packages.* output or extra work on the existing packages loop.
+  ghc914-dev-env:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v7
+    - uses: wimpysworld/nothing-but-nix@main
+      with:
+        hatchet-protocol: 'rampage'
+    - uses: DeterminateSystems/nix-installer-action@main
+      with:
+        determinate: true
+        extra-conf: |
+          lazy-trees = true
+          extra-substituters = https://cache.digitallyinduced.com/public
+          extra-trusted-public-keys = public:kR6JCoqAIMaO4s+EdDGh+jsHEHnoLq4ZLJPMCo0hcIQ=
+    - uses: DeterminateSystems/magic-nix-cache-action@main
+    - uses: cachix/cachix-action@v17
+      with:
+        name: digitallyinduced
+        signingKey: '${{ secrets.CACHIX_SIGNING_KEY }}'
+        authToken: '${{ secrets.CACHIX_AUTH_TOKEN }}'
+    - run: |
+        system=$(nix eval --impure --expr builtins.currentSystem --raw)
+        override="--override-input ihp-boilerplate/ihp github:${{ github.event.repository.full_name }}/${{ github.sha }}"
+        nix build --impure --max-jobs 1 $override -L --print-out-paths \
+          ".#checks.$system.ghc914-dev-env" > built-paths.txt
+        cat built-paths.txt
+    - name: Push to Attic cache
+      run: |
+        if [ ! -s built-paths.txt ]; then echo "no built paths to push"; exit 0; fi
+        nix profile install nixpkgs#attic-client
+        attic login di https://cache.digitallyinduced.com "$ATTIC_TOKEN"
+        xargs attic push public < built-paths.txt
+      env:
+        ATTIC_TOKEN: ${{ secrets.ATTIC_CI_TOKEN }}
