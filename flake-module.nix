@@ -155,9 +155,39 @@ ihpFlake:
                         Intermediate output from a previous optimized application build.
                         When set, GHC reuses still-valid object and interface files and
                         recompiles only modules affected by source changes.
+
+                        This is the low-level interface for custom build orchestration.
+                        For the host-local mutable IHP cache, use
+                        `incrementalProductionBuild.enable` instead.
                     '';
                     type = lib.types.nullOr lib.types.package;
                     default = null;
+                };
+
+                incrementalProductionBuild = {
+                    enable = lib.mkEnableOption ''
+                        an unsafe host-local compiler cache that reuses GHC object
+                        and interface files without adding them to the Nix dependency graph
+                    '';
+
+                    cacheNamespace = lib.mkOption {
+                        description = ''
+                            Stable project identifier used to separate persistent GHC
+                            caches on a shared builder. Defaults to `ihp.appName`.
+                        '';
+                        type = lib.types.nullOr lib.types.str;
+                        default = null;
+                    };
+
+                    cacheDirectory = lib.mkOption {
+                        description = ''
+                            Absolute host directory used by the deliberately
+                            unsandboxed cached app-library derivation. Its contents
+                            are intentionally not Nix inputs.
+                        '';
+                        type = lib.types.addCheck lib.types.str (path: lib.hasPrefix "/" path);
+                        default = "/var/cache/ihp-ghc";
+                    };
                 };
 
                 scripts.optimized = lib.mkOption {
@@ -210,9 +240,27 @@ ihpFlake:
             ihp = ihpFlake.inputs.self;
             ghcCompiler = cfg.ghcCompiler;
             ihpLib = ihpFlake.inputs.self.packages.${system}.ihp-env-var-backwards-compat;
+            incrementalBuild = cfg.incrementalProductionBuild;
+            incrementalCacheNamespace =
+                if incrementalBuild.cacheNamespace == null
+                then cfg.appName
+                else incrementalBuild.cacheNamespace;
+            incrementalCacheNamespaceKey = builtins.substring 0 24
+                (builtins.hashString "sha256" incrementalCacheNamespace);
+            appHaskellEnvironment = ghcCompiler.ghcWithPackages cfg.haskellPackages;
+            incrementalIntermediatesCacheKey = builtins.substring 0 24 (builtins.hashString "sha256" (
+                "${system}:${ihp}:${appHaskellEnvironment}:"
+                + "optimized:${cfg.optimizationLevel}:"
+                + "static=${if cfg.buildStaticLibraries then "1" else "0"}:"
+                + "relations=${if cfg.relationSupport then "1" else "0"}"
+            ));
+            incrementalIntermediatesCache =
+                if cfg.previousAppLibIntermediates != null
+                then throw "ihp.previousAppLibIntermediates and ihp.incrementalProductionBuild.enable cannot be used together"
+                else "${incrementalBuild.cacheDirectory}/${incrementalCacheNamespaceKey}-${incrementalIntermediatesCacheKey}";
             # Auto-detect whether a build-time PostgreSQL is needed (e.g. ihp-typed-sql)
             buildWithPostgres = builtins.any (p: (p.pname or "") == "ihp-typed-sql") (cfg.haskellPackages ghcCompiler);
-            mkProdServer = { optimized, optimizationLevel }: import "${ihp}/NixSupport/default.nix" {
+            mkProdServer = { optimized, optimizationLevel, impureIntermediatesCache ? null }: import "${ihp}/NixSupport/default.nix" {
                 ihp = ihp;
                 haskellDeps = cfg.haskellPackages;
                 otherDeps = p: cfg.packages;
@@ -230,6 +278,7 @@ ihpFlake:
                 static = self'.packages.static;
                 inherit buildWithPostgres;
                 previousIntermediates = if optimized then cfg.previousAppLibIntermediates else null;
+                inherit impureIntermediatesCache;
                 inherit (cfg) buildStaticLibraries ghcAllocationArea;
                 appSchemaSql = "${self'.packages.schema}/Schema.sql";
                 ihpSchemaSql = "${self'.packages.ihp-schema}/IHPSchema.sql";
@@ -237,6 +286,11 @@ ihpFlake:
             optimizedProdServer = mkProdServer {
                 optimized = true;
                 optimizationLevel = cfg.optimizationLevel;
+            };
+            cachedOptimizedProdServer = mkProdServer {
+                optimized = true;
+                optimizationLevel = cfg.optimizationLevel;
+                impureIntermediatesCache = incrementalIntermediatesCache;
             };
             unoptimizedProdServer = mkProdServer {
                 optimized = false;
@@ -260,13 +314,20 @@ ihpFlake:
         in lib.mkIf cfg.enable {
             _module.args.pkgs = lib.mkDefault (import inputs.nixpkgs { inherit system; overlays = config.devenv.shells.default.overlays; config = { }; });
 
-            apps = scriptApps;
+            apps = scriptApps // lib.optionalAttrs incrementalBuild.enable {
+                production-build-cached = {
+                    type = "app";
+                    program = "${self'.packages.production-build-cached}/bin/ihp-production-build-cached";
+                };
+            };
 
             # release build package
             packages = {
                 default = unoptimizedProdServer;
 
                 optimized-prod-server = optimizedProdServer;
+
+                optimized-app-lib-intermediates = optimizedProdServer.passthru.appLibPackage.intermediates;
 
                 unoptimized-prod-server = unoptimizedProdServer;
 
@@ -332,6 +393,18 @@ ihpFlake:
                     '';
                 };
             } // scriptPackages
+            // lib.optionalAttrs incrementalBuild.enable {
+                optimized-prod-server-cached = cachedOptimizedProdServer;
+
+                production-build-cached = pkgs.writeShellApplication {
+                    name = "ihp-production-build-cached";
+                    runtimeInputs = [ pkgs.nix ];
+                    text = ''
+                        exec nix build --no-write-lock-file "$@" \
+                            .#optimized-prod-server-cached
+                    '';
+                };
+            }
             // (if cfg.static.makeBundling then {
                 staticFilesCompiledByMake = pkgs.stdenv.mkDerivation {
                     name = "${config.ihp.appName}-staticFilesCompiledByMake";

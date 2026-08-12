@@ -6,6 +6,7 @@ in
     imports = [
         ihp.nixosModules.options
         ihp.nixosModules.binaryCache
+        ihp.nixosModules.ghcBuildCache
         ihp.nixosModules.services_app
         ihp.nixosModules.services_worker
         ihp.nixosModules.services_migrate
@@ -15,4 +16,3 @@ in
     # Pin the nixpkgs to the IHP nixpkgs
     nix.registry.nixpkgs.flake = nixpkgs;
 }
-

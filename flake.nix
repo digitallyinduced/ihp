@@ -57,6 +57,7 @@
                     services_appKeygen = ./NixSupport/nixosModules/services/app-keygen.nix;
                     options = ./NixSupport/nixosModules/options.nix;
                     binaryCache = ./NixSupport/nixosModules/binaryCache.nix;
+                    ghcBuildCache = ./NixSupport/nixosModules/ghcBuildCache.nix;
                 };
             };
         }
