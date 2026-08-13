@@ -240,6 +240,9 @@ tests = do
                     instance FromRowHasql Generated.ActualTypes.User where
                         hasqlRowDecoder = Generated.Statements.RowDecoderUser.rowDecoder
 
+                    instance FromRowHasql (Maybe Generated.ActualTypes.User) where
+                        hasqlRowDecoder = Generated.Statements.RowDecoderUser.nullableRowDecoder
+
                     type instance GetModelName (User') = "User"
 
                     instance CanCreate Generated.ActualTypes.User where
@@ -342,6 +345,9 @@ tests = do
                     instance FromRowHasql Generated.ActualTypes.User where
                         hasqlRowDecoder = Generated.Statements.RowDecoderUser.rowDecoder
 
+                    instance FromRowHasql (Maybe Generated.ActualTypes.User) where
+                        hasqlRowDecoder = Generated.Statements.RowDecoderUser.nullableRowDecoder
+
                     type instance GetModelName (User') = "User"
 
                     instance CanCreate Generated.ActualTypes.User where
@@ -441,6 +447,9 @@ tests = do
 
                     instance FromRowHasql Generated.ActualTypes.User where
                         hasqlRowDecoder = Generated.Statements.RowDecoderUser.rowDecoder
+
+                    instance FromRowHasql (Maybe Generated.ActualTypes.User) where
+                        hasqlRowDecoder = Generated.Statements.RowDecoderUser.nullableRowDecoder
 
                     type instance GetModelName (User') = "User"
 
@@ -575,6 +584,9 @@ tests = do
 
                     instance FromRowHasql Generated.ActualTypes.LandingPage where
                         hasqlRowDecoder = Generated.Statements.RowDecoderLandingPage.rowDecoder
+
+                    instance FromRowHasql (Maybe Generated.ActualTypes.LandingPage) where
+                        hasqlRowDecoder = Generated.Statements.RowDecoderLandingPage.nullableRowDecoder
 
                     type instance GetModelName (LandingPage' _ _) = "LandingPage"
 
@@ -946,6 +958,9 @@ tests = do
                     instance FromRowHasql Generated.ActualTypes.Post where
                         hasqlRowDecoder = Generated.Statements.RowDecoderPost.rowDecoder
 
+                    instance FromRowHasql (Maybe Generated.ActualTypes.Post) where
+                        hasqlRowDecoder = Generated.Statements.RowDecoderPost.nullableRowDecoder
+
                     type instance GetModelName (Post') = "Post"
 
                     instance CanCreate Generated.ActualTypes.Post where
@@ -1079,7 +1094,36 @@ tests = do
                         title <- Decoders.column (Decoders.nonNullable Decoders.text)
                         body <- Decoders.column (Decoders.nonNullable Decoders.text)
                         pure (let theRecord = Generated.ActualTypes.Post id title body def { originalDatabaseRecord = Just (Data.Dynamic.toDyn theRecord) } in theRecord)
+
+                    nullableRowDecoder :: Decoders.Row (Maybe Generated.ActualTypes.Post)
+                    nullableRowDecoder = do
+                        id <- Decoders.column (Decoders.nullable Mapping.decoder)
+                        title <- Decoders.column (Decoders.nullable Decoders.text)
+                        body <- Decoders.column (Decoders.nullable Decoders.text)
+                        pure (case (id, title, body) of
+                            (Just idValue, Just titleValue, Just bodyValue) -> Just (let theRecord = Generated.ActualTypes.Post idValue titleValue bodyValue def { originalDatabaseRecord = Just (Data.Dynamic.toDyn theRecord) } in theRecord)
+                            _ -> Nothing)
                     |]
+
+            it "should use unwrapped keys for relations in nullable row decoders" do
+                let relationStatements = parseSqlStatements [trimming|
+                    CREATE TABLE users (
+                        id UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL
+                    );
+                    CREATE TABLE badges (
+                        id UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL,
+                        user_id UUID NOT NULL
+                    );
+                    ALTER TABLE badges ADD CONSTRAINT badges_ref_user_id FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE NO ACTION;
+                |]
+                let isUsersTable = \case
+                        StatementCreateTable CreateTable { name = "users" } -> True
+                        _ -> False
+                let Just (StatementCreateTable usersTable) = find isUsersTable relationStatements
+                let ?schema = Schema relationStatements
+                let output = compileRowDecoderModule usersTable
+
+                output `shouldSatisfy` ("QueryBuilder.filterWhere (#userId, idValue)" `Text.isInfixOf`)
 
             it "should generate nonNullable decoder for PRIMARY KEY column even without explicit NOT NULL (#2531)" do
                 let bugStatements =
@@ -1106,6 +1150,15 @@ tests = do
                         ticker <- Decoders.column (Decoders.nonNullable Decoders.text)
                         date <- Decoders.column (Decoders.nonNullable Decoders.date)
                         pure (let theRecord = Generated.ActualTypes.Bar id ticker date def { originalDatabaseRecord = Just (Data.Dynamic.toDyn theRecord) } in theRecord)
+
+                    nullableRowDecoder :: Decoders.Row (Maybe Generated.ActualTypes.Bar)
+                    nullableRowDecoder = do
+                        id <- Decoders.column (Decoders.nullable Mapping.decoder)
+                        ticker <- Decoders.column (Decoders.nullable Decoders.text)
+                        date <- Decoders.column (Decoders.nullable Decoders.date)
+                        pure (case (id, ticker, date) of
+                            (Just idValue, Just tickerValue, Just dateValue) -> Just (let theRecord = Generated.ActualTypes.Bar idValue tickerValue dateValue def { originalDatabaseRecord = Just (Data.Dynamic.toDyn theRecord) } in theRecord)
+                            _ -> Nothing)
                     |]
 
             it "should generate a BIGSERIAL PRIMARY KEY row decoder (#2648)" do
@@ -1135,6 +1188,14 @@ tests = do
                         id <- Decoders.column (Decoders.nonNullable Mapping.decoder)
                         validity <- Decoders.column (Decoders.nonNullable Mapping.decoder)
                         pure (let theRecord = Generated.ActualTypes.Validity id validity def { originalDatabaseRecord = Just (Data.Dynamic.toDyn theRecord) } in theRecord)
+
+                    nullableRowDecoder :: Decoders.Row (Maybe Generated.ActualTypes.Validity)
+                    nullableRowDecoder = do
+                        id <- Decoders.column (Decoders.nullable Mapping.decoder)
+                        validity <- Decoders.column (Decoders.nullable Mapping.decoder)
+                        pure (case (id, validity) of
+                            (Just idValue, Just validityValue) -> Just (let theRecord = Generated.ActualTypes.Validity idValue validityValue def { originalDatabaseRecord = Just (Data.Dynamic.toDyn theRecord) } in theRecord)
+                            _ -> Nothing)
                     |]
 
             it "should generate correct Create statement module" do

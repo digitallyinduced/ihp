@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+- Complete qualified named-column table records are now grouped into generated
+  model types. Tables on the nullable side of an outer join are wrapped in
+  `Maybe`, so complete `Item` and `Author` column groups across a `LEFT JOIN`
+  produce `(Item, Maybe Author)` instead of one flat `SqlRow`
+  ([#2781](https://github.com/digitallyinduced/ihp/issues/2781)).
+
 - Each compiler process now uses a compact private compile-time PostgreSQL
   cluster under the worktree's `.devenv/state` directory. PostgreSQL stops after
   metadata operations become idle, the disposable cluster is rebuilt on schema

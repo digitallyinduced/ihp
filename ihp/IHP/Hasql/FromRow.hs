@@ -94,5 +94,3 @@ instance (HasqlDecodeColumn a, HasqlDecodeColumn b, HasqlDecodeColumn c, HasqlDe
 
 instance (HasqlDecodeColumn a, HasqlDecodeColumn b, HasqlDecodeColumn c, HasqlDecodeColumn d, HasqlDecodeColumn e) => FromRowHasql (a, b, c, d, e) where
     hasqlRowDecoder = (,,,,) <$> hasqlColumnDecoder <*> hasqlColumnDecoder <*> hasqlColumnDecoder <*> hasqlColumnDecoder <*> hasqlColumnDecoder
-
-

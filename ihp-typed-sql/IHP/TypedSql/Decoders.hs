@@ -3,6 +3,7 @@
 
 module IHP.TypedSql.Decoders
     ( resultDecoderForColumns
+    , resultDecoderForFullTableSelections
     ) where
 
 import           Control.Monad                     (zipWithM)
@@ -18,7 +19,7 @@ import           IHP.ModelSupport.Types           (Id' (..))
 import           IHP.Prelude
 
 import           IHP.TypedSql.Metadata            (ColumnMeta (..), DescribeColumn (..), PgTypeInfo (..), TableMeta (..))
-import           IHP.TypedSql.TypeMapping        (detectFullTable)
+import           IHP.TypedSql.TypeMapping        (FullTableSelection (..), detectFullTable)
 
 -- | Build a hasql result decoder for the described SQL columns.
 -- For full-table selections we reuse FromRowHasql; otherwise we decode a scalar/tuple.
@@ -33,6 +34,19 @@ resultDecoderForColumns typeInfo tables joinNullableOids nonNullableColumns colu
                 [column] -> rowDecoderForColumn typeInfo tables joinNullableOids (0 `Set.member` nonNullableColumns) column
                 _ -> tupleRowDecoderForColumns typeInfo tables joinNullableOids nonNullableColumns columns
             pure rowDecoder
+
+-- | Decode one or more qualified full-table stars into generated models.
+resultDecoderForFullTableSelections :: [FullTableSelection] -> TH.ExpQ
+resultDecoderForFullTableSelections selections =
+    case map decoder selections of
+        [] -> pure (TH.AppE (TH.VarE 'pure) (TH.ConE '()))
+        [single] -> pure single
+        firstDecoder:restDecoders -> do
+            let tupleConstructor = TH.ConE (TH.tupleDataName (length selections))
+                withFirst = TH.AppE (TH.AppE (TH.VarE '(<$>)) tupleConstructor) firstDecoder
+            pure (foldl (\acc nextDecoder -> TH.AppE (TH.AppE (TH.VarE '(<*>)) acc) nextDecoder) withFirst restDecoders)
+  where
+    decoder _ = TH.VarE 'HasqlFromRow.hasqlRowDecoder
 
 tupleRowDecoderForColumns :: Map.Map PQ.Oid PgTypeInfo -> Map.Map PQ.Oid TableMeta -> Set.Set PQ.Oid -> Set.Set Int -> [DescribeColumn] -> TH.ExpQ
 tupleRowDecoderForColumns typeInfo tables joinNullableOids nonNullableColumns columns = do

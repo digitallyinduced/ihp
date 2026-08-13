@@ -28,18 +28,22 @@ import           IHP.Hasql.Encoders              ()
 
 import           IHP.TypedSql.Cardinality      (inferCardinality)
 import           IHP.TypedSql.CompileTimeDatabase (dependentSchemaFiles)
-import           IHP.TypedSql.Decoders          (resultDecoderForColumns)
+import           IHP.TypedSql.Decoders          (resultDecoderForColumns, resultDecoderForFullTableSelections)
 import           IHP.TypedSql.Metadata          (DescribeColumn (..), DescribeResult (..), PgTypeInfo (..), TableMeta (..),
                                                  describeStatement)
 import           IHP.TypedSql.ParamHints        (extractParamHintsFromAst, extractJoinNullableTablesFromAst,
                                                  extractNonNullableComputedColumnsFromAst,
                                                  parseSql, resolveParamHintTypes, detectStarSelects,
+                                                 extractQualifiedStarTablesFromAst,
+                                                 extractQualifiedColumnTablesFromAst,
                                                  detectInsertWithoutColumns)
 import           IHP.TypedSql.ParamEncoder      (typedSqlParam)
 import           IHP.TypedSql.Placeholders      (PlaceholderPlan (..), parseExpr,
                                                  planPlaceholders)
 import           IHP.TypedSql.RowType           (SqlRow (..), sanitizeColumnName, deduplicateNames, sqlRowType)
-import           IHP.TypedSql.TypeMapping       (hsTypeForColumns, hsTypesForColumns, hsTypeForParam, detectFullTable)
+import           IHP.TypedSql.TypeMapping       (hsTypeForColumns, hsTypesForColumns, hsTypeForParam, detectFullTable,
+                                                 detectFullTableSelections, detectNamedFullTableSelections,
+                                                 hsTypeForFullTableSelections)
 import           IHP.TypedSql.Types             (QueryCardinality (..), QueryExecResult (..), TypedQuery (..))
 
 -- | QuasiQuoter entry point for typed SQL.
@@ -162,10 +166,20 @@ typedSqlExp allowStar rawSql = do
 
     let isFullTable = isJust (detectFullTable drTables drColumns)
     let isMultiColumnAdhoc = not isFullTable && length drColumns > 1
+    let fullTableSelections = do
+            ast <- parsedAst
+            case extractQualifiedStarTablesFromAst ast of
+                Just requestedTables -> detectFullTableSelections drTables requestedTables drColumns
+                Nothing -> do
+                    requestedColumns <- extractQualifiedColumnTablesFromAst ast
+                    detectNamedFullTableSelections drTables requestedColumns drColumns
 
     (resultType, resultDecoder) <-
-        if isMultiColumnAdhoc
-            then do
+        case fullTableSelections of
+            Just selections -> do
+                decoder <- resultDecoderForFullTableSelections selections
+                pure (hsTypeForFullTableSelections selections, decoder)
+            Nothing | isMultiColumnAdhoc -> do
                 -- Wrap the tuple in SqlRow for labeled field access
                 columnTypes <- hsTypesForColumns drTypes drTables joinNullableOids nonNullableColumns drColumns
                 let colNames = deduplicateNames (map (sanitizeColumnName . dcName) drColumns)
@@ -175,7 +189,7 @@ typedSqlExp allowStar rawSql = do
                 -- fmap SqlRow tupleDecoder
                 let wrappedDecoder = TH.AppE (TH.AppE (TH.VarE 'fmap) (TH.ConE 'SqlRow)) tupleDecoder
                 pure (rowType, wrappedDecoder)
-            else do
+            Nothing -> do
                 rt <- hsTypeForColumns drTypes drTables joinNullableOids nonNullableColumns drColumns
                 decoder <- resultDecoderForColumns drTypes drTables joinNullableOids nonNullableColumns drColumns
                 pure (rt, decoder)
