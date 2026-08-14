@@ -21,6 +21,9 @@
 , ihpSchemaSql ? null       # Path to IHPSchema.sql (required when buildWithPostgres = true)
 , migrationCheck ? null     # Optional derivation that validates Application/Migration before building the app
 , previousIntermediates ? null # Optional combined intermediate output from a previous optimized app build
+, reuseAppLibWithIntermediatesForExecutables ? false # Reuse the cache-producing app lib when builds stay on one machine
+, appLibCompileCores ? null # Optional fixed GHC module parallelism for the optimized application library
+, appLibGhcAllocationArea ? null # Optional app-library-specific compile-time RTS allocation area
 , buildStaticLibraries ? true # Build static Haskell libraries in addition to shared libraries
 , ghcAllocationArea ? null # Optional GHC compile-time RTS allocation area, e.g. "128M"
 }:
@@ -457,7 +460,27 @@ CABAL_EOF
                     ];
             });
 
-    mkAppLibPackage = withIntermediates: configureHaskellBuild (pkgs.haskell.lib.disableLibraryProfiling (pkgs.haskell.lib.dontHaddock (
+    configureAppLibBuild = pkg:
+        let configured = configureHaskellBuild pkg;
+        in if appLibCompileCores == null && appLibGhcAllocationArea == null
+            then configured
+            else pkgs.haskell.lib.overrideCabal configured (old: ({
+                configureFlags = (old.configureFlags or [])
+                    ++ pkgs.lib.optionals (appLibCompileCores != null) [
+                        "--ghc-option=-j${toString appLibCompileCores}"
+                    ]
+                    ++ pkgs.lib.optionals (appLibGhcAllocationArea != null) [
+                        "--ghc-option=+RTS"
+                        "--ghc-option=-A${appLibGhcAllocationArea}"
+                        "--ghc-option=-RTS"
+                    ];
+            } // pkgs.lib.optionalAttrs (appLibCompileCores != null) {
+                # Avoid a second, daemon-derived parallelism flag alongside the
+                # explicit GHC module-job count above.
+                enableParallelBuilding = false;
+            }));
+
+    mkAppLibPackage = withIntermediates: configureAppLibBuild (pkgs.haskell.lib.disableLibraryProfiling (pkgs.haskell.lib.dontHaddock (
         ghc.callPackage ({ mkDerivation, base }: mkDerivation {
             pname = "${appName}-lib";
             version = "0.1.0";
@@ -491,11 +514,15 @@ CABAL_EOF
         then withBuildTimePostgres pkg
         else pkg;
 
-    # The executables link against a lib variant WITHOUT the multi-GB library
-    # intermediates output. Their own small object trees are separate outputs
-    # of the executable derivations below.
-    appLibPackage = withAppLibPostgres (mkAppLibPackage false);
     appLibPackageWithIntermediates = withAppLibPostgres (mkAppLibPackage optimized);
+    # Remote builders copy every output of a derivation back to the requesting
+    # host. Keep the smaller, separate executable dependency by default, but
+    # allow single-host build pipelines to reuse the cache-producing package's
+    # `out` and avoid realizing the application library twice.
+    appLibPackage =
+        if reuseAppLibWithIntermediatesForExecutables
+        then appLibPackageWithIntermediates
+        else withAppLibPostgres (mkAppLibPackage false);
 
     allHaskellPackagesWithAppLib = ghc.ghcWithPackages (p: [ appLibPackage ]);
 

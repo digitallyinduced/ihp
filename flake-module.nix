@@ -161,6 +161,39 @@ ihpFlake:
                     default = null;
                 };
 
+                reuseAppLibWithIntermediatesForExecutables = lib.mkOption {
+                    description = ''
+                        Reuse the optimized application's cache-producing library
+                        package when linking the production server, job runner, and
+                        scripts. This avoids realizing a second library package and
+                        is intended for build pipelines that keep the intermediate
+                        output on the machine performing the build. Leave disabled
+                        for remote builders where transferring every derivation
+                        output would copy the multi-gigabyte intermediate tree.
+                    '';
+                    type = lib.types.bool;
+                    default = false;
+                };
+
+                appLibCompileCores = lib.mkOption {
+                    description = ''
+                        Optional fixed GHC module parallelism for optimized
+                        application-library builds. When set, IHP passes -jN to
+                        GHC instead of relying on the builder daemon's core count.
+                    '';
+                    type = lib.types.nullOr lib.types.ints.positive;
+                    default = null;
+                };
+
+                appLibGhcAllocationArea = lib.mkOption {
+                    description = ''
+                        Optional compile-time GHC RTS allocation area used only
+                        for the application library, such as "64M".
+                    '';
+                    type = lib.types.nullOr lib.types.str;
+                    default = null;
+                };
+
                 scripts.optimized = lib.mkOption {
                     description = ''
                         Whether packages.script-<Name> flake outputs are compiled with optimizations.
@@ -231,6 +264,10 @@ ihpFlake:
                 static = self'.packages.static;
                 inherit buildWithPostgres;
                 previousIntermediates = if optimized then cfg.previousAppLibIntermediates else null;
+                reuseAppLibWithIntermediatesForExecutables =
+                    optimized && cfg.reuseAppLibWithIntermediatesForExecutables;
+                appLibCompileCores = if optimized then cfg.appLibCompileCores else null;
+                appLibGhcAllocationArea = if optimized then cfg.appLibGhcAllocationArea else null;
                 inherit (cfg) buildStaticLibraries ghcAllocationArea;
                 appSchemaSql = "${self'.packages.schema}/Schema.sql";
                 ihpSchemaSql = "${self'.packages.ihp-schema}/IHPSchema.sql";
