@@ -44,6 +44,7 @@ library
     hs-source-dirs: .
     exposed-modules:
         IHP.TypedSql
+        IHP.TypedSql.Hasql
         IHP.TypedSql.Types
         IHP.TypedSql.Pagination
         IHP.TypedSql.Quoter
