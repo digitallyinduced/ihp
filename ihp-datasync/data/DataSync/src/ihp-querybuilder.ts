@@ -1,4 +1,5 @@
-import { DataSyncController, DataSubscription } from './ihp-datasync.js';
+import { DataSyncController } from './ihp-datasync.js';
+import { DataSubscriptionStore } from './data-subscription-store.js';
 import type { ConditionExpression, ConditionOperator, DynamicSQLQuery, DataRecord, UUID, TableName, IHPRecord } from './types.js';
 
 function fetchAuthenticated(path: string, params: RequestInit & { headers?: Record<string, string> }): Promise<Response> {
@@ -264,8 +265,9 @@ class ConditionBuilder extends ConditionBuildable {
 class QueryBuilder<TTable extends string = string, TResult = IHPRecord<TTable>> extends ConditionBuildable<TTable> {
     override query: DynamicSQLQuery;
     transactionId: UUID | null;
+    private readonly dataSyncController: DataSyncController | null;
 
-    constructor(table: string, columns?: string[]) {
+    constructor(table: string, columns?: string[], dataSyncController: DataSyncController | null = null) {
         super(null);
         // Maps to 'DynamicSQLQuery'
         this.query = {
@@ -278,6 +280,7 @@ class QueryBuilder<TTable extends string = string, TResult = IHPRecord<TTable>> 
             offset: null
         };
         this.transactionId = null;
+        this.dataSyncController = dataSyncController;
 
         if (columns !== undefined) {
             this.select(columns);
@@ -378,17 +381,17 @@ class QueryBuilder<TTable extends string = string, TResult = IHPRecord<TTable>> 
     }
 
     async fetch(): Promise<TResult[]> {
-        const dataSyncController = DataSyncController.getInstance();
+        // Transaction queries must stay on the controller that created their
+        // transaction id. Its transport-scope guard rejects after auth/backend
+        // rotation instead of leaking the id onto a replacement connection.
+        const dataSyncController = this.dataSyncController ?? DataSyncController.getInstance();
         const response = await dataSyncController.sendMessage({
             tag: 'DataSyncQuery',
             query: this.query,
             transactionId: this.transactionId
         });
 
-        const result = response.result as TResult[];
-        dataSyncController.learnOptimisticShapeFromResult(this.query.table, result as DataRecord[]);
-
-        return result;
+        return response.result as TResult[];
     }
 
     async fetchOne(): Promise<TResult | null> {
@@ -397,8 +400,10 @@ class QueryBuilder<TTable extends string = string, TResult = IHPRecord<TTable>> 
     }
 
     subscribe(callback: (records: TResult[] | null) => void): () => void {
-        const dataSubscription = new DataSubscription(this.query);
-        dataSubscription.createOnServer();
+        if (this.transactionId !== null || this.dataSyncController !== null) {
+            throw new Error('DataSync subscriptions are not supported inside a transaction');
+        }
+        const dataSubscription = DataSubscriptionStore.get(this.query);
         return dataSubscription.subscribe(callback as (records: DataRecord[] | null) => void);
     }
 }
@@ -408,38 +413,77 @@ function query<T extends TableName>(table: T, columns?: string[]): QueryBuilder<
 }
 
 export function recordMatchesQuery(query: DynamicSQLQuery, record: DataRecord): boolean {
+    type SQLBoolean = boolean | null;
+
+    const isNull = (value: unknown): boolean => value === null || value === undefined;
+    const asSQLBoolean = (value: unknown): SQLBoolean => isNull(value) ? null : Boolean(value);
+    const sqlAnd = (left: unknown, right: unknown): SQLBoolean => {
+        const leftBoolean = asSQLBoolean(left);
+        const rightBoolean = asSQLBoolean(right);
+        if (leftBoolean === false || rightBoolean === false) {
+            return false;
+        }
+        return leftBoolean === null || rightBoolean === null ? null : true;
+    };
+    const sqlOr = (left: unknown, right: unknown): SQLBoolean => {
+        const leftBoolean = asSQLBoolean(left);
+        const rightBoolean = asSQLBoolean(right);
+        if (leftBoolean === true || rightBoolean === true) {
+            return true;
+        }
+        return leftBoolean === null || rightBoolean === null ? null : false;
+    };
+
     function evaluate(expression: ConditionExpression): unknown {
         switch (expression.tag) {
             case 'ColumnExpression': return (expression.field in record) ? record[expression.field] : null;
             case 'InfixOperatorExpression': {
+                const left = evaluate(expression.left);
+                const right = evaluate(expression.right);
                 switch (expression.op) {
-                    case 'OpEqual': return evaluate(expression.left) === evaluate(expression.right);
-                    case 'OpGreaterThan': return (evaluate(expression.left) as number) > (evaluate(expression.right) as number);
-                    case 'OpLessThan': return (evaluate(expression.left) as number) < (evaluate(expression.right) as number);
-                    case 'OpGreaterThanOrEqual': return (evaluate(expression.left) as number) >= (evaluate(expression.right) as number);
-                    case 'OpLessThanOrEqual': return (evaluate(expression.left) as number) <= (evaluate(expression.right) as number);
-                    case 'OpNotEqual': return evaluate(expression.left) !== evaluate(expression.right);
-                    case 'OpAnd': return evaluate(expression.left) && evaluate(expression.right);
-                    case 'OpOr': return evaluate(expression.left) || evaluate(expression.right);
-                    case 'OpIs': return evaluate(expression.left) == evaluate(expression.right);
-                    case 'OpIsNot': return evaluate(expression.left) != evaluate(expression.right);
+                    case 'OpEqual':
+                        if (expression.right.tag === 'LiteralExpression' && isNull(right)) {
+                            return isNull(left);
+                        }
+                        return isNull(left) || isNull(right) ? null : left === right;
+                    case 'OpGreaterThan': return isNull(left) || isNull(right) ? null : (left as number) > (right as number);
+                    case 'OpLessThan': return isNull(left) || isNull(right) ? null : (left as number) < (right as number);
+                    case 'OpGreaterThanOrEqual': return isNull(left) || isNull(right) ? null : (left as number) >= (right as number);
+                    case 'OpLessThanOrEqual': return isNull(left) || isNull(right) ? null : (left as number) <= (right as number);
+                    case 'OpNotEqual':
+                        if (expression.right.tag === 'LiteralExpression' && isNull(right)) {
+                            return !isNull(left);
+                        }
+                        return isNull(left) || isNull(right) ? null : left !== right;
+                    case 'OpAnd': return sqlAnd(left, right);
+                    case 'OpOr': return sqlOr(left, right);
+                    case 'OpIs': return isNull(left) && isNull(right) || !isNull(left) && !isNull(right) && left === right;
+                    case 'OpIsNot': return !(isNull(left) && isNull(right) || !isNull(left) && !isNull(right) && left === right);
                     case 'OpIn': {
-                        const left = evaluate(expression.left);
-                        const right = evaluate(expression.right);
-                        return Array.isArray(right) && right.includes(left);
+                        if (!Array.isArray(right)) {
+                            return false;
+                        }
+                        if (isNull(left)) {
+                            return right.some(isNull) ? true : null;
+                        }
+                        return right.filter(value => !isNull(value)).includes(left);
                     }
-                    default: throw new Error('Unsupported operator ' + (expression as { op: string }).op);
+                    // Full-text matching depends on PostgreSQL dictionaries and stemming
+                    // and cannot be reproduced exactly in this standalone helper.
+                    case 'OpTSMatch': return false;
+                    default: return false;
                 }
             }
             case 'LiteralExpression': return expression.value;
             case 'ListExpression': return expression.values;
-            default: throw new Error('Unsupported expression in evaluate: ' + (expression as { tag: string }).tag);
+            case 'CallExpression': return false;
+            default: return false;
         }
     }
 
     return query.whereCondition === null
             ? true
-            : !!evaluate(query.whereCondition);
+            : evaluate(query.whereCondition) === true;
 }
 
 export {

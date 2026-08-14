@@ -1,14 +1,23 @@
 module IHP.DataSync.ChangeNotifications
 ( channelName
+, globalInvalidationChannel
+, relationInvalidationChannel
+, invalidationChannelsForTable
+, InvalidationPlan (..)
+, resolveInvalidationPlan
+, makeInstallInvalidationPlan
 , ChangeNotification (..)
 , Change (..)
 , ChangeSet (..)
 , createNotificationFunction
 , installTableChangeTriggers
+, installGlobalInvalidationTriggers
+, makeCachedInstallGlobalInvalidationTriggers
 , makeCachedInstallTableChangeTriggers
 , makeInstallTableChangeTriggers
 , retrieveChanges
 , installTableChangeTriggersSession
+, installGlobalInvalidationTriggersSession
 , retrieveChangesSession
 ) where
 
@@ -30,6 +39,9 @@ import IHP.DataSync.Hasql (runSession)
 import IHP.PGVersion (defaultUuidFunction)
 import IHP.Environment (Environment(..))
 import System.IO.Unsafe (unsafePerformIO)
+import System.Mem.StableName (StableName, makeStableName)
+import qualified Data.List as List
+import qualified Data.Set as Set
 
 data ChangeNotification
     = DidInsert { id :: !UUID }
@@ -47,6 +59,18 @@ data Change
     = Change { col :: !Text, new :: !Value }
     | AppendChange { col :: !Text, append :: !Text }
     deriving (Eq, Show)
+
+data InvalidationPlan = InvalidationPlan
+    { channels :: !(Set.Set ByteString)
+    , relationOids :: ![Int64]
+    , missingRelationOids :: ![Int64]
+    , requiresGlobalFallback :: !Bool
+    } deriving (Eq, Show)
+
+data InvalidationInstallState = InvalidationInstallState
+    { globalFingerprint :: !(Maybe Text)
+    , functionReconciled :: !Bool
+    }
 
 -- | Returns the sql code to set up a database trigger. Mainly used by 'watchInsertOrUpdateTable'.
 --
@@ -180,6 +204,109 @@ createNotificationFunction uuidFunction table = [i|
         updateTriggerName = "did_update_" <> tableName
         deleteTriggerName = "did_delete_" <> tableName
 
+-- | Creates the payload-free trigger function. Relation triggers are installed
+-- separately so each table lock is released before attempting the next table.
+createGlobalInvalidationFunction :: Text
+createGlobalInvalidationFunction = [i|
+    DO $$
+    BEGIN
+        PERFORM pg_advisory_xact_lock(hashtext('#{functionName}'));
+
+        CREATE OR REPLACE FUNCTION public."#{functionName}"() RETURNS TRIGGER AS $BODY$
+        DECLARE
+            affected_relation OID;
+        BEGIN
+            -- Direct writes to an inherited/partition child use the child's
+            -- TG_RELID. Also notify every ancestor so a subscription querying
+            -- the parent relation cannot miss that change.
+            FOR affected_relation IN
+                WITH RECURSIVE affected_relations(oid) AS (
+                    SELECT TG_RELID
+                    UNION
+                    SELECT inheritance.inhparent
+                    FROM pg_catalog.pg_inherits inheritance
+                    JOIN affected_relations ON inheritance.inhrelid = affected_relations.oid
+                )
+                SELECT oid FROM affected_relations
+            LOOP
+                PERFORM pg_notify('#{relationInvalidationChannelPrefix}' || affected_relation::text, '');
+            END LOOP;
+            PERFORM pg_notify('#{globalInvalidationChannel}', '');
+            RETURN NULL;
+        END;
+        $BODY$ language plpgsql;
+    END; $$
+|]
+    where
+        functionName = "ihp_datasync_notify_invalidation"
+
+-- | Install the global statement trigger on one relation OID. The catalog row
+-- is revalidated inside the block because a migration may have dropped it
+-- after the initial scan. Each invocation is a separate implicit transaction,
+-- avoiding an accumulating schema-wide set of ShareRowExclusive locks.
+createGlobalInvalidationTrigger :: Int64 -> Text
+createGlobalInvalidationTrigger relationOid = [i|
+    DO $$
+    DECLARE
+        relation_schema TEXT;
+        relation_name TEXT;
+    BEGIN
+        PERFORM pg_advisory_xact_lock(hashtext('#{triggerName}:' || #{relationOid}::text));
+
+        SELECT n.nspname, c.relname
+        INTO relation_schema, relation_name
+        FROM pg_catalog.pg_class c
+        JOIN pg_catalog.pg_namespace n ON n.oid = c.relnamespace
+        WHERE c.oid = #{relationOid}::oid
+          AND c.relkind IN ('r', 'p')
+          AND n.nspname <> 'information_schema'
+          AND n.nspname NOT LIKE 'pg\\_%' ESCAPE '\\'
+          AND has_table_privilege(c.oid, 'TRIGGER')
+          AND NOT EXISTS (
+              SELECT 1 FROM pg_catalog.pg_depend extension_dependency
+              WHERE extension_dependency.classid = 'pg_catalog.pg_class'::regclass
+                AND extension_dependency.objid = c.oid
+                AND extension_dependency.deptype = 'e'
+          );
+
+        IF NOT FOUND THEN
+            RETURN;
+        END IF;
+
+        IF NOT EXISTS (
+            SELECT 1
+            FROM pg_catalog.pg_trigger installed_trigger
+            WHERE installed_trigger.tgname = '#{triggerName}'
+              AND installed_trigger.tgrelid = #{relationOid}::oid
+              AND NOT installed_trigger.tgisinternal
+              AND installed_trigger.tgfoid = 'public.#{functionName}()'::regprocedure
+              AND installed_trigger.tgtype = 60
+              AND installed_trigger.tgenabled IN ('O', 'A')
+        ) THEN
+            IF EXISTS (
+                SELECT 1 FROM pg_catalog.pg_trigger conflicting_trigger
+                WHERE conflicting_trigger.tgname = '#{triggerName}'
+                  AND conflicting_trigger.tgrelid = #{relationOid}::oid
+                  AND NOT conflicting_trigger.tgisinternal
+            ) THEN
+                RAISE EXCEPTION 'Incompatible pre-existing trigger % on %.%',
+                    '#{triggerName}', relation_schema, relation_name;
+            END IF;
+            PERFORM set_config('lock_timeout', '5s', true);
+            EXECUTE format(
+                'CREATE TRIGGER %I AFTER INSERT OR UPDATE OR DELETE OR TRUNCATE ON %I.%I FOR EACH STATEMENT EXECUTE PROCEDURE public.%I()',
+                '#{triggerName}',
+                relation_schema,
+                relation_name,
+                '#{functionName}'
+            );
+        END IF;
+    END; $$
+|]
+    where
+        functionName = "ihp_datasync_notify_invalidation"
+        triggerName = "ihp_datasync_invalidate"
+
 -- Statements
 
 retrieveChangesStatement :: Statement.Statement UUID Text
@@ -188,11 +315,48 @@ retrieveChangesStatement = Statement.preparable
     (Encoders.param (Encoders.nonNullable Encoders.uuid))
     (Decoders.singleRow (Decoders.column (Decoders.nonNullable Decoders.text)))
 
+eligibleGlobalInvalidationRelationsStatement :: Statement.Statement () [Int64]
+eligibleGlobalInvalidationRelationsStatement = Statement.preparable
+    "SELECT c.oid::bigint FROM pg_catalog.pg_class c JOIN pg_catalog.pg_namespace n ON n.oid = c.relnamespace WHERE c.relkind IN ('r', 'p') AND n.nspname <> 'information_schema' AND n.nspname NOT LIKE 'pg\\_%' ESCAPE '\\' AND has_table_privilege(c.oid, 'TRIGGER') AND NOT EXISTS (SELECT 1 FROM pg_catalog.pg_depend extension_dependency WHERE extension_dependency.classid = 'pg_catalog.pg_class'::regclass AND extension_dependency.objid = c.oid AND extension_dependency.deptype = 'e') ORDER BY c.oid"
+    Encoders.noParams
+    (Decoders.rowList (Decoders.column (Decoders.nonNullable Decoders.int8)))
+
+globalInvalidationSchemaFingerprintStatement :: Statement.Statement () Text
+globalInvalidationSchemaFingerprintStatement = Statement.preparable
+    "SELECT COALESCE(string_agg(c.oid::text || ':' || CASE WHEN EXISTS (SELECT 1 FROM pg_catalog.pg_trigger installed_trigger WHERE installed_trigger.tgrelid = c.oid AND installed_trigger.tgname = 'ihp_datasync_invalidate' AND NOT installed_trigger.tgisinternal AND installed_trigger.tgfoid = to_regprocedure('public.ihp_datasync_notify_invalidation()') AND installed_trigger.tgtype = 60 AND installed_trigger.tgenabled IN ('O', 'A')) THEN '1' ELSE '0' END, ',' ORDER BY c.oid), '') FROM pg_catalog.pg_class c JOIN pg_catalog.pg_namespace n ON n.oid = c.relnamespace WHERE c.relkind IN ('r', 'p') AND n.nspname <> 'information_schema' AND n.nspname NOT LIKE 'pg\\_%' ESCAPE '\\' AND has_table_privilege(c.oid, 'TRIGGER') AND NOT EXISTS (SELECT 1 FROM pg_catalog.pg_depend extension_dependency WHERE extension_dependency.classid = 'pg_catalog.pg_class'::regclass AND extension_dependency.objid = c.oid AND extension_dependency.deptype = 'e')"
+    Encoders.noParams
+    (Decoders.singleRow (Decoders.column (Decoders.nonNullable Decoders.text)))
+
+invalidationDependenciesStatement :: Statement.Statement Text [(Int64, Bool, Bool, Bool, Bool)]
+invalidationDependenciesStatement = Statement.preparable
+    "WITH RECURSIVE selected_table AS (SELECT $1::regclass::oid AS relation_oid), policies AS (SELECT p.oid FROM pg_catalog.pg_policy p WHERE p.polrelid = (SELECT relation_oid FROM selected_table) AND p.polcmd IN ('r', '*')), policy_dependencies AS (SELECT dependency.* FROM policies JOIN pg_catalog.pg_depend dependency ON dependency.classid = 'pg_catalog.pg_policy'::regclass AND dependency.objid = policies.oid), root_dependencies AS (SELECT relation_oid FROM selected_table UNION SELECT dependency.refobjid FROM policy_dependencies dependency WHERE dependency.refclassid = 'pg_catalog.pg_class'::regclass), expanded_dependencies(relation_oid, is_root) AS (SELECT relation_oid, true FROM root_dependencies UNION SELECT inheritance.inhrelid, false FROM pg_catalog.pg_inherits inheritance JOIN expanded_dependencies ON inheritance.inhparent = expanded_dependencies.relation_oid), relation_dependencies AS (SELECT relation_oid, bool_or(is_root) AS is_root FROM expanded_dependencies GROUP BY relation_oid), opaque_policy AS (SELECT (EXISTS (SELECT 1 FROM policy_dependencies dependency JOIN pg_catalog.pg_proc referenced_function ON dependency.refclassid = 'pg_catalog.pg_proc'::regclass AND dependency.refobjid = referenced_function.oid JOIN pg_catalog.pg_namespace function_namespace ON function_namespace.oid = referenced_function.pronamespace WHERE function_namespace.nspname <> 'pg_catalog' AND NOT (function_namespace.nspname = 'public' AND referenced_function.proname = 'ihp_user_id' AND referenced_function.pronargs = 0 AND referenced_function.prolang = (SELECT oid FROM pg_catalog.pg_language WHERE lanname = 'sql') AND trim(trailing ';' from lower(regexp_replace(referenced_function.prosrc, '[[:space:]]+', '', 'g'))) = 'selectnullif(current_setting(''rls.ihp_user_id''),'''')::uuid')) OR EXISTS (SELECT 1 FROM policy_dependencies dependency JOIN pg_catalog.pg_class referenced_relation ON dependency.refclassid = 'pg_catalog.pg_class'::regclass AND dependency.refobjid = referenced_relation.oid WHERE referenced_relation.relkind = 'v') OR EXISTS (SELECT 1 FROM policy_dependencies dependency JOIN pg_catalog.pg_class referenced_relation ON dependency.refclassid = 'pg_catalog.pg_class'::regclass AND dependency.refobjid = referenced_relation.oid, selected_table WHERE referenced_relation.oid <> selected_table.relation_oid AND referenced_relation.relrowsecurity) OR EXISTS (SELECT 1 FROM policy_dependencies dependency JOIN pg_catalog.pg_operator referenced_operator ON dependency.refclassid = 'pg_catalog.pg_operator'::regclass AND dependency.refobjid = referenced_operator.oid JOIN pg_catalog.pg_namespace operator_namespace ON operator_namespace.oid = referenced_operator.oprnamespace WHERE operator_namespace.nspname <> 'pg_catalog')) AS required, EXISTS (SELECT 1 FROM policy_dependencies dependency JOIN pg_catalog.pg_class referenced_relation ON dependency.refclassid = 'pg_catalog.pg_class'::regclass AND dependency.refobjid = referenced_relation.oid WHERE referenced_relation.relkind NOT IN ('r', 'p', 'v')) AS has_unobservable_dependency) SELECT relation_dependencies.relation_oid::bigint, relation_dependencies.is_root, opaque_policy.required, (NOT opaque_policy.has_unobservable_dependency AND relation_namespace.nspname <> 'information_schema' AND relation_namespace.nspname NOT LIKE 'pg\\_%' ESCAPE '\\' AND has_table_privilege(relation.oid, 'TRIGGER') AND NOT EXISTS (SELECT 1 FROM pg_catalog.pg_depend extension_dependency WHERE extension_dependency.classid = 'pg_catalog.pg_class'::regclass AND extension_dependency.objid = relation.oid AND extension_dependency.deptype = 'e')), EXISTS (SELECT 1 FROM pg_catalog.pg_trigger installed_trigger WHERE installed_trigger.tgrelid = relation.oid AND installed_trigger.tgname = 'ihp_datasync_invalidate' AND NOT installed_trigger.tgisinternal AND installed_trigger.tgfoid = to_regprocedure('public.ihp_datasync_notify_invalidation()') AND installed_trigger.tgtype = 60 AND installed_trigger.tgenabled IN ('O', 'A')) FROM relation_dependencies JOIN pg_catalog.pg_class relation ON relation.oid = relation_dependencies.relation_oid JOIN pg_catalog.pg_namespace relation_namespace ON relation_namespace.oid = relation.relnamespace CROSS JOIN opaque_policy WHERE relation.relkind IN ('r', 'p') ORDER BY relation_dependencies.relation_oid"
+    (Encoders.param (Encoders.nonNullable Encoders.text))
+    (Decoders.rowList ((,,,,) <$> Decoders.column (Decoders.nonNullable Decoders.int8) <*> Decoders.column (Decoders.nonNullable Decoders.bool) <*> Decoders.column (Decoders.nonNullable Decoders.bool) <*> Decoders.column (Decoders.nonNullable Decoders.bool) <*> Decoders.column (Decoders.nonNullable Decoders.bool)))
+
 -- Sessions
 
 installTableChangeTriggersSession :: Text -> RLS.TableWithRLS -> Session.Session ()
 installTableChangeTriggersSession uuidFunction table =
     Session.script (createNotificationFunction uuidFunction table)
+
+installGlobalInvalidationTriggersSession :: Session.Session ()
+installGlobalInvalidationTriggersSession = do
+    Session.script createGlobalInvalidationFunction
+    relationOids <- Session.statement () eligibleGlobalInvalidationRelationsStatement
+    forM_ relationOids (Session.script . createGlobalInvalidationTrigger)
+
+installInvalidationTriggersSession :: [Int64] -> Session.Session ()
+installInvalidationTriggersSession relationOids = do
+    Session.script createGlobalInvalidationFunction
+    forM_ relationOids (Session.script . createGlobalInvalidationTrigger)
+
+globalInvalidationSchemaFingerprintSession :: Session.Session Text
+globalInvalidationSchemaFingerprintSession =
+    Session.statement () globalInvalidationSchemaFingerprintStatement
+
+invalidationDependenciesSession :: Text -> Session.Session [(Int64, Bool, Bool, Bool, Bool)]
+invalidationDependenciesSession tableName =
+    Session.statement tableName invalidationDependenciesStatement
 
 retrieveChangesSession :: UUID -> Session.Session Text
 retrieveChangesSession uuid = Session.statement uuid retrieveChangesStatement
@@ -204,6 +368,115 @@ installTableChangeTriggers pool tableNameRLS = do
     uuidFunction <- defaultUuidFunction
     runSession pool (installTableChangeTriggersSession uuidFunction tableNameRLS)
     pure ()
+
+installGlobalInvalidationTriggers :: Hasql.Pool.Pool -> IO ()
+installGlobalInvalidationTriggers pool =
+    runSession pool installGlobalInvalidationTriggersSession
+
+-- | One reconciliation state per shared Hasql pool. The MVar prevents first
+-- subscriptions on many WebSockets from consuming the pool while they wait on
+-- database DDL locks. A catalog fingerprint detects newly created/recreated
+-- relations and manually removed triggers, so long-lived controllers do not
+-- retain a stale one-shot cache. Failed reconciliation leaves the old
+-- fingerprint in place and the next subscription retries.
+{-# NOINLINE globalInvalidationInstallStates #-}
+globalInvalidationInstallStates :: MVar [(StableName Hasql.Pool.Pool, MVar InvalidationInstallState)]
+globalInvalidationInstallStates = unsafePerformIO (newMVar [])
+
+invalidationInstallStateForPool :: Hasql.Pool.Pool -> IO (MVar InvalidationInstallState)
+invalidationInstallStateForPool pool = do
+    poolName <- makeStableName pool
+    modifyMVar globalInvalidationInstallStates \states ->
+        case List.find (\(existingPoolName, _) -> existingPoolName == poolName) states of
+            Just (_, existingState) -> pure (states, existingState)
+            Nothing -> do
+                state <- newMVar InvalidationInstallState
+                    { globalFingerprint = Nothing
+                    , functionReconciled = False
+                    }
+                pure ((poolName, state) : states, state)
+
+makeCachedInstallGlobalInvalidationTriggers :: Hasql.Pool.Pool -> IO (IO ())
+makeCachedInstallGlobalInvalidationTriggers pool = do
+    installState <- invalidationInstallStateForPool pool
+    pure $ modifyMVar_ installState \state -> do
+        currentFingerprint <- runSession pool globalInvalidationSchemaFingerprintSession
+        if state.functionReconciled && Just currentFingerprint == state.globalFingerprint
+            then pure state
+            else do
+                installGlobalInvalidationTriggers pool
+                reconciledFingerprint <- runSession pool globalInvalidationSchemaFingerprintSession
+                pure state
+                    { globalFingerprint = Just reconciledFingerprint
+                    , functionReconciled = True
+                    }
+
+-- | Build a serialized installer for a resolved subscription plan. Normal
+-- plans install only the base/RLS dependency relations (plus partition
+-- descendants). Schema-wide reconciliation is reserved for opaque policies
+-- whose function/view dependencies cannot be represented precisely.
+makeInstallInvalidationPlan :: Hasql.Pool.Pool -> IO (InvalidationPlan -> IO ())
+makeInstallInvalidationPlan pool = do
+    installState <- invalidationInstallStateForPool pool
+    pure \plan -> modifyMVar_ installState \state ->
+        if plan.requiresGlobalFallback
+            then do
+                currentFingerprint <- runSession pool globalInvalidationSchemaFingerprintSession
+                if state.functionReconciled && Just currentFingerprint == state.globalFingerprint
+                    then pure state
+                    else do
+                        installGlobalInvalidationTriggers pool
+                        reconciledFingerprint <- runSession pool globalInvalidationSchemaFingerprintSession
+                        pure state
+                            { globalFingerprint = Just reconciledFingerprint
+                            , functionReconciled = True
+                            }
+            else if state.functionReconciled && null plan.missingRelationOids
+                then pure state
+                else do
+                    -- Missing exact triggers can also mean the shared function
+                    -- was dropped CASCADE while this process-local state stayed
+                    -- warm. Reconcile the function whenever any trigger is missing.
+                    runSession pool (installInvalidationTriggersSession plan.missingRelationOids)
+                    pure state
+                        { globalFingerprint = Nothing
+                        , functionReconciled = True
+                        }
+
+-- | Resolve the relation-scoped invalidation channels required by a query on
+-- this RLS table. PostgreSQL records direct table references in policy
+-- expressions in @pg_depend@, including membership tables used by @EXISTS@.
+-- Policies that call an application-defined function are conservatively also
+-- subscribed to the global channel because dependencies hidden in a function
+-- body are not necessarily represented on the policy itself. The framework's
+-- relation-free @public.ihp_user_id()@ helper is explicitly safe-listed.
+--
+-- The global fallback observes DML on eligible ordinary and partitioned
+-- application relations. It cannot make time-dependent policy expressions or
+-- external state hidden inside an opaque function observable. Known direct
+-- dependencies that cannot be instrumented are therefore rejected instead of
+-- silently accepting a subscription that could become stale.
+resolveInvalidationPlan :: Hasql.Pool.Pool -> RLS.TableWithRLS -> IO InvalidationPlan
+resolveInvalidationPlan pool table = do
+    dependencies <- runSession pool (invalidationDependenciesSession table.tableName)
+    when (null dependencies || any (not . fourth) dependencies) do
+        throwIO (userError ("DataSync cannot install a safe invalidation trigger for every RLS dependency of " <> cs table.tableName))
+    let rootRelationOids = [relationOid | (relationOid, isRoot, _, _, _) <- dependencies, isRoot]
+    let relationOids = [relationOid | (relationOid, _, _, _, _) <- dependencies]
+    let missingRelationOids = [relationOid | (relationOid, _, _, _, isInstalled) <- dependencies, not isInstalled]
+    let relationChannels = Set.fromList (map relationInvalidationChannel rootRelationOids)
+    let requiresGlobalFallback = any third dependencies
+    let channels = if requiresGlobalFallback
+            then Set.insert globalInvalidationChannel relationChannels
+            else relationChannels
+    pure InvalidationPlan { channels, relationOids, missingRelationOids, requiresGlobalFallback }
+    where
+        third (_, _, value, _, _) = value
+        fourth (_, _, _, value, _) = value
+
+invalidationChannelsForTable :: Hasql.Pool.Pool -> RLS.TableWithRLS -> IO (Set.Set ByteString)
+invalidationChannelsForTable pool table =
+    (.channels) <$> resolveInvalidationPlan pool table
 
 -- | In development, always re-run trigger SQL because @make db@ drops and
 -- recreates the database, destroying previously installed triggers.
@@ -259,6 +532,19 @@ makeCachedInstallTableChangeTriggers pool = do
 -- | Returns the event name of the event that the pg notify trigger dispatches
 channelName :: RLS.TableWithRLS -> ByteString
 channelName table = "did_change_" <> (cs $ Text.replace "\"" "\"\"" table.tableName)
+
+-- | Payload-free channel used to invalidate queries affected by writes to
+-- relations other than the selected table (for example RLS membership tables).
+globalInvalidationChannel :: ByteString
+globalInvalidationChannel = "ihp_datasync_invalidate"
+
+relationInvalidationChannelPrefix :: ByteString
+relationInvalidationChannelPrefix = "ihp_datasync_invalidate_"
+
+-- | Payload-free invalidation channel emitted only for writes to one relation.
+relationInvalidationChannel :: Int64 -> ByteString
+relationInvalidationChannel relationOid =
+    relationInvalidationChannelPrefix <> cs (tshow relationOid)
 
 
 instance FromJSON ChangeNotification where

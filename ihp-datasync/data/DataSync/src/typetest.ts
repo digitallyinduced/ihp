@@ -2,7 +2,7 @@
 // This file is compiled as part of tsc --noEmit but produces no runtime output.
 // All @ts-expect-error directives must suppress real errors or tsc will fail.
 import { query, createRecord, updateRecord, deleteRecord } from './index.js';
-import type { UUID } from './types.js';
+import type { UUID, NewRecord } from './types.js';
 
 declare module './types.js' {
     interface TableRegistry {
@@ -19,6 +19,7 @@ declare module './types.js' {
 const q1 = query('tasks');
 const q2 = query('tasks').where('title', 'hello');
 const q3 = query('tasks').orderBy('title');
+const unregisteredRecordWithoutId: NewRecord<'unregistered_table'> = { title: 'works without generated types' };
 async function goodCrud() {
     await createRecord('tasks', { title: 'hello' });
     await createRecord('tasks', { title: 'hello', done: true });

@@ -1,146 +1,215 @@
-import React, { useState, useEffect, useContext, useSyncExternalStore, useRef, useMemo } from 'react';
-import { DataSubscription, DataSyncController } from './ihp-datasync.js';
+import React, { useCallback, useContext, useSyncExternalStore } from 'react';
+import { DataSyncController } from './ihp-datasync.js';
 import { QueryBuilder } from './ihp-querybuilder.js';
-import type { DataRecord, DynamicSQLQuery, DataSubscriptionOptions, DataSyncEventMap, ServerMessage, TableName } from './types.js';
+import { DataSubscriptionStore } from './data-subscription-store.js';
+import { CountSubscription, CountSubscriptionStore } from './count-subscription.js';
+import { initialResourceSnapshot, type ResourceSnapshot } from './subscription-reducer.js';
+import type { DataRecord, DataSubscriptionOptions, DataSyncEventMap } from './types.js';
+
+export { CountSubscription, CountSubscriptionStore } from './count-subscription.js';
+export { DataSubscriptionStore } from './data-subscription-store.js';
 
 // Most IHP apps never use this context because they use session cookies for auth.
 // Therefore the default value is true.
 export const AuthCompletedContext = React.createContext<boolean>(true);
 
-/**
- * Returns the result of the current query in real-time. Returns `null` while the data is still being fetched from the server.
- * @example
- * const messages = useQuery(query('messages').orderBy('createdAt'));
- */
-export function useQuery<TTable extends string, TResult>(queryBuilder: QueryBuilder<TTable, TResult>, options: DataSubscriptionOptions | null = null): TResult[] | null {
-    const dataSubscription = DataSubscriptionStore.get(queryBuilder.query, options);
-    const isAuthCompleted = useContext(AuthCompletedContext);
-    const records = useSyncExternalStore(dataSubscription.subscribe, dataSubscription.getRecords);
+export type AuthCompletedProviderProps = React.PropsWithChildren<{
+    value: boolean;
+}>;
 
-    if (dataSubscription.connectError) {
-        throw dataSubscription.connectError;
-    }
+const disabledQuerySnapshot = initialResourceSnapshot<DataRecord[]>();
+const disabledCountSnapshot = initialResourceSnapshot<number>();
+const getDisabledQuerySnapshot = (): ResourceSnapshot<DataRecord[]> => disabledQuerySnapshot;
+const getDisabledCountSnapshot = (): ResourceSnapshot<number> => disabledCountSnapshot;
+const getDisconnectedSnapshot = (): boolean => false;
 
-    if (!isAuthCompleted) {
-        return null;
-    }
-
-    return records as TResult[] | null;
-}
+const subscribeWhileAuthIncomplete = (_listener: () => void): (() => void) => {
+    // This runs in useSyncExternalStore's commit-phase subscription. Repeating
+    // the reset is intentional: no resource created for the previous opaque
+    // cookie-auth session may survive for the next authenticated user.
+    DataSyncController.authSessionDidChange();
+    return () => {};
+};
 
 /**
- * A version of `useQuery` when you only want to fetch a single record.
- *
- * Automatically adds a `.limit(1)` to the query and returns the single result instead of a list.
- *
- * @example
- * const message = useQuerySingleresult(query('messages').filterWhere('id', '1f290b39-c6d1-4dff-8404-0581f470253c'));
+ * Provides the auth-completion state and invalidates the previous DataSync
+ * auth scope whenever auth is incomplete. Unlike using
+ * `AuthCompletedContext.Provider` directly, this reset also runs when the
+ * provider has no mounted DataSync hooks.
  */
-export function useQuerySingleResult<TTable extends string, TResult>(queryBuilder: QueryBuilder<TTable, TResult>): TResult | null {
-    const result = useQuery(queryBuilder.limit(1));
-    return result === null ? null : result[0];
-}
-
-export function useIsConnected(): boolean {
-    const dataSyncController = DataSyncController.getInstance();
-    const isConnectedDefault = dataSyncController.connection !== null;
-
-    const [isConnected, setConnected] = useState(isConnectedDefault);
-
-    useEffect(() => {
-        const setConnectedTrue: DataSyncEventMap['open'] = () => setConnected(true);
-        const setConnectedFalse: DataSyncEventMap['close'] = () => setConnected(false);
-
-        dataSyncController.addEventListener('open', setConnectedTrue);
-        dataSyncController.addEventListener('close', setConnectedFalse);
-
-        return () => {
-            dataSyncController.removeEventListener('open', setConnectedTrue);
-            dataSyncController.removeEventListener('close', setConnectedFalse);
-        };
-    }, [setConnected]);
-
-    return isConnected;
-}
-
-export class DataSubscriptionStore {
-    static queryMap: Map<string, DataSubscription> = new Map();
-
-    // To avoid too many loading spinners when going backwards and forwards
-    // between pages, we cache the result of queries so we can already showing
-    // some data directly after a page transition. The data might be a bit
-    // outdated, but it will directly be overriden with the latest server state
-    // once it has arrived.
-    static cache: Map<string, DataRecord[]> = new Map();
-
-    static get(query: DynamicSQLQuery, options: DataSubscriptionOptions | null = null): DataSubscription {
-        const key = JSON.stringify(query) + JSON.stringify(options);
-        const existingSubscription = DataSubscriptionStore.queryMap.get(key);
-
-        if (existingSubscription) {
-            return existingSubscription;
-        } else {
-
-            const subscription = new DataSubscription(query, options, DataSubscriptionStore.cache);
-            subscription.createOnServer();
-            subscription.onClose = () => {
-                if (DataSubscriptionStore.queryMap.get(key) === subscription) {
-                    DataSubscriptionStore.queryMap.delete(key);
-                }
-            };
-
-            DataSubscriptionStore.queryMap.set(key, subscription);
-
-            // If the query changes very rapid in `useQuery` it can happen that the `dataSubscription.subscribe`
-            // is never called at all. In this case we have a unused DataSubscription laying around. We avoid
-            // to many open connections laying around by trying to close them a second after opening them.
-            // A second is enough time for react to call the subscribe function. If it's not called by then,
-            // we most likely deal with a dead subscription, so we close it.
-            subscription.scheduleCloseIfNotUsed();
-
-            return subscription;
+export function AuthCompletedProvider({ value, children }: AuthCompletedProviderProps): React.ReactElement {
+    // Deliberately recreated on each render so a committed auth-incomplete
+    // tree reasserts the boundary even if imperative code acquired a controller
+    // between two commits.
+    const subscribeToAuthLifecycle = (_listener: () => void): (() => void) => {
+        if (!value) {
+            DataSyncController.authSessionDidChange();
         }
+        return () => {};
+    };
+    useSyncExternalStore(
+        subscribeToAuthLifecycle,
+        getDisconnectedSnapshot,
+        getDisconnectedSnapshot,
+    );
+
+    return React.createElement(AuthCompletedContext.Provider, { value }, children);
+}
+
+/**
+ * Returns the exact server result of the current query in real time. It returns
+ * `null` until the first server snapshot is available.
+ */
+export function useQuery<TTable extends string, TResult>(
+    queryBuilder: QueryBuilder<TTable, TResult>,
+    options: DataSubscriptionOptions | null = null,
+): TResult[] | null {
+    const isAuthCompleted = useContext(AuthCompletedContext);
+    const resource = isAuthCompleted
+        ? DataSubscriptionStore.get(queryBuilder.query, options)
+        : null;
+    const snapshot = useSyncExternalStore(
+        resource !== null
+            ? resource.subscribeSnapshot
+            : listener => subscribeWhileAuthIncomplete(listener),
+        resource !== null ? resource.getSnapshot : getDisabledQuerySnapshot,
+        getDisabledQuerySnapshot,
+    );
+
+    if (snapshot.error !== null) {
+        throw snapshot.error;
     }
+    return snapshot.data as TResult[] | null;
+}
+
+/** Adds `limit(1)` and returns the first result instead of a list. */
+export function useQuerySingleResult<TTable extends string, TResult>(
+    queryBuilder: QueryBuilder<TTable, TResult>,
+): TResult | null {
+    const result = useQuery(queryBuilder.limit(1));
+    return result === null ? null : result[0] ?? null;
 }
 
 export function useCount(queryBuilder: QueryBuilder): number | null {
-    const count = useRef<number | null>(null);
-    const getSnapshot = useMemo(() => () => count.current, []);
-    const subscribe = useMemo(() => (onStoreChange: () => void) => {
-        const controller = DataSyncController.getInstance();
-        let isActive = true;
-        let subscriptionId: string | null = null;
-        const onMessage: DataSyncEventMap['message'] = (message) => {
-            if (message.tag === 'DidChangeCount' && message.subscriptionId === subscriptionId) {
-                count.current = message.count as number;
-                onStoreChange();
-            }
-        };
-        controller.sendMessage({ tag: 'CreateCountSubscription', query: queryBuilder.query })
-            .then((response) => {
-                if (isActive) {
-                    subscriptionId = response.subscriptionId as string;
-                    count.current = response.count as number;
-                    onStoreChange();
+    const isAuthCompleted = useContext(AuthCompletedContext);
+    const resource = isAuthCompleted
+        ? CountSubscriptionStore.get(queryBuilder.query)
+        : null;
+    const snapshot = useSyncExternalStore(
+        resource !== null
+            ? resource.subscribeSnapshot
+            : listener => subscribeWhileAuthIncomplete(listener),
+        resource !== null ? resource.getSnapshot : getDisabledCountSnapshot,
+        getDisabledCountSnapshot,
+    );
 
-                    controller.addEventListener('message', onMessage);
-                } else {
-                    controller.sendMessage({ tag: 'DeleteDataSubscription', subscriptionId: response.subscriptionId });
-                }
-            })
-            .catch((error: unknown) => {
-                console.error('useCount: Failed to create count subscription', error);
-            });
-
-        return () => {
-            isActive = false;
-
-            if (subscriptionId) {
-                controller.sendMessage({ tag: 'DeleteDataSubscription', subscriptionId });
-            }
-            controller.removeEventListener('message', onMessage);
-        };
-    }, [JSON.stringify(queryBuilder.query)]);
-
-    return useSyncExternalStore(subscribe, getSnapshot);
+    if (snapshot.error !== null) {
+        throw snapshot.error;
+    }
+    return snapshot.data;
 }
+
+export function useIsConnected(): boolean {
+    const isAuthCompleted = useContext(AuthCompletedContext);
+    const transportScopeKey = DataSyncController.currentTransportScopeKey();
+    const subscribeToCurrentScope = useCallback(
+        (listener: () => void) => connectionResource.subscribe(listener),
+        [transportScopeKey],
+    );
+    return useSyncExternalStore(
+        isAuthCompleted
+            ? subscribeToCurrentScope
+            : listener => subscribeWhileAuthIncomplete(listener),
+        isAuthCompleted ? connectionResource.getSnapshot : getDisconnectedSnapshot,
+        getDisconnectedSnapshot,
+    );
+}
+
+type ConnectionExternalStore = Readonly<{
+    subscribe(listener: () => void): () => void;
+    getSnapshot(): boolean;
+    getServerSnapshot(): boolean;
+}>;
+
+function createConnectionExternalStore(): ConnectionExternalStore {
+    const listeners = new Map<number, () => void>();
+    let nextListenerId = 0;
+    let controller: DataSyncController | null = null;
+    let removeInstanceListener: (() => void) | null = null;
+
+    const notify = (): void => {
+        for (const listener of Array.from(listeners.values())) {
+            try {
+                listener();
+            } catch (error) {
+                console.error('DataSync connection subscriber failed:', error);
+            }
+        }
+    };
+
+    const onOpen = (_event: Parameters<DataSyncEventMap['open']>[0]): void => {
+        notify();
+    };
+
+    const onClose = (_event: Parameters<DataSyncEventMap['close']>[0]): void => {
+        notify();
+    };
+
+    const attachController = (nextController: DataSyncController | null): void => {
+        if (controller === nextController) {
+            return;
+        }
+        if (controller !== null) {
+            controller.removeEventListener('open', onOpen);
+            controller.removeEventListener('close', onClose);
+        }
+        controller = nextController;
+        if (controller !== null) {
+            controller.addEventListener('open', onOpen);
+            controller.addEventListener('close', onClose);
+        }
+    };
+
+    const onInstanceChanged = (nextController: DataSyncController | null): void => {
+        attachController(nextController);
+        notify();
+    };
+
+    const subscribe = (listener: () => void): (() => void) => {
+        const id = nextListenerId++;
+        listeners.set(id, listener);
+        if (listeners.size === 1) {
+            removeInstanceListener = DataSyncController.addInstanceListener(onInstanceChanged);
+            // Subscription happens during commit, so rotating an obsolete auth
+            // scope here cannot cause a render-phase side effect.
+            attachController(DataSyncController.getInstance());
+        }
+
+        let subscribed = true;
+        return () => {
+            if (!subscribed) {
+                return;
+            }
+            subscribed = false;
+            listeners.delete(id);
+            if (listeners.size === 0) {
+                removeInstanceListener?.();
+                removeInstanceListener = null;
+                attachController(null);
+            }
+        };
+    };
+
+    const getSnapshot = (): boolean => {
+        const controller = DataSyncController.peekInstance();
+        return controller !== null && controller.connection !== null;
+    };
+
+    const getServerSnapshot = (): boolean => {
+        return false;
+    };
+
+    return Object.freeze({ subscribe, getSnapshot, getServerSnapshot });
+}
+
+const connectionResource = createConnectionExternalStore();
