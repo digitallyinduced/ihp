@@ -152,9 +152,10 @@ ihpFlake:
 
                 previousAppLibIntermediates = lib.mkOption {
                     description = ''
-                        Intermediate output from a previous optimized application build.
-                        When set, GHC reuses still-valid object and interface files and
-                        recompiles only modules affected by source changes.
+                        Combined intermediate output from a previous optimized application
+                        build. When set, GHC reuses still-valid objects and interfaces for
+                        generated models, the application library, the production server,
+                        the job runner, and optimized script binaries.
                     '';
                     type = lib.types.nullOr lib.types.package;
                     default = null;
