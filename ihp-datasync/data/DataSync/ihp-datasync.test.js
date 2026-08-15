@@ -72,6 +72,28 @@ describe('DataSubscription.onUpdate', () => {
     });
 });
 
+describe('DataSubscription legacy cache', () => {
+    test('restores and updates records through the constructor cache', () => {
+        const query = {
+            table: 'test',
+            conditionExpression: [],
+            orderByClause: [],
+            distinctOnColumn: null,
+            limit: null,
+            offset: null,
+        };
+        const queryKey = JSON.stringify(query);
+        const cache = new Map([[queryKey, [{ id: '1', name: 'Cached' }]]]);
+        const sub = new DataSubscription(query, null, cache);
+
+        expect(sub.records).toEqual([{ id: '1', name: 'Cached' }]);
+
+        sub.onUpdate('1', { name: 'Updated' }, null);
+
+        expect(cache.get(queryKey)).toEqual([{ id: '1', name: 'Updated' }]);
+    });
+});
+
 describe('DataSubscription disconnect cleanup', () => {
     beforeEach(() => {
         jest.useFakeTimers();

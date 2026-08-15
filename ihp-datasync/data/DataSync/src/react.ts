@@ -1,7 +1,39 @@
-import React, { useState, useEffect, useContext, useSyncExternalStore, useRef, useMemo } from 'react';
-import { DataSubscription, DataSyncController } from './ihp-datasync.js';
+import React, { useCallback, useState, useEffect, useContext, useSyncExternalStore, useMemo } from 'react';
+import { DataSyncController } from './ihp-datasync.js';
 import { QueryBuilder } from './ihp-querybuilder.js';
-import type { DataRecord, DynamicSQLQuery, DataSubscriptionOptions, DataSyncEventMap, ServerMessage, TableName } from './types.js';
+import { createExternalStoreRegistry } from './external-store-registry.js';
+import { DataSubscriptionStore } from './legacy-data-subscription-store.js';
+import { createLiveCountStore } from './live-count-store.js';
+import { createLiveQueryStore } from './live-query-store.js';
+import type { QuerySnapshot } from './live-query-store.js';
+import type { DataSubscriptionOptions, DataSyncEventMap, DynamicSQLQuery } from './types.js';
+
+export { DataSubscriptionStore } from './legacy-data-subscription-store.js';
+
+type QuerySpec = {
+    key: string;
+    queryKey: string;
+    query: DynamicSQLQuery;
+    options: DataSubscriptionOptions | null;
+    initialSnapshot: QuerySnapshot;
+};
+
+const reactQueryRegistry = createExternalStoreRegistry<QuerySpec, QuerySnapshot>(
+    spec => createLiveQueryStore({
+        query: spec.query,
+        options: spec.options,
+        initialRecords: spec.initialSnapshot.records,
+        controller: DataSyncController.getInstance(),
+        onRecords: records => DataSubscriptionStore.cache.set(spec.queryKey, records),
+    }),
+    spec => spec.initialSnapshot,
+);
+
+type CountSpec = { key: string; query: DynamicSQLQuery };
+const reactCountRegistry = createExternalStoreRegistry<CountSpec, number | null>(
+    spec => createLiveCountStore({ query: spec.query, controller: DataSyncController.getInstance() }),
+    () => null,
+);
 
 // Most IHP apps never use this context because they use session cookies for auth.
 // Therefore the default value is true.
@@ -13,19 +45,35 @@ export const AuthCompletedContext = React.createContext<boolean>(true);
  * const messages = useQuery(query('messages').orderBy('createdAt'));
  */
 export function useQuery<TTable extends string, TResult>(queryBuilder: QueryBuilder<TTable, TResult>, options: DataSubscriptionOptions | null = null): TResult[] | null {
-    const dataSubscription = DataSubscriptionStore.get(queryBuilder.query, options);
     const isAuthCompleted = useContext(AuthCompletedContext);
-    const records = useSyncExternalStore(dataSubscription.subscribe, dataSubscription.getRecords);
-
-    if (dataSubscription.connectError) {
-        throw dataSubscription.connectError;
-    }
+    const query = queryBuilder.query;
+    const queryKey = JSON.stringify(query);
+    const subscriptionKey = JSON.stringify([query, options]);
+    const spec = useMemo<QuerySpec>(() => ({
+        key: subscriptionKey,
+        queryKey,
+        query,
+        options,
+        initialSnapshot: { records: DataSubscriptionStore.cache.get(queryKey) ?? null, error: null },
+    }), [subscriptionKey]);
+    const subscribe = useCallback(
+        (listener: () => void) => isAuthCompleted
+            ? reactQueryRegistry.subscribe(spec, listener)
+            : () => {},
+        [spec, isAuthCompleted],
+    );
+    const getSnapshot = useCallback(() => reactQueryRegistry.getSnapshot(spec), [spec]);
+    const snapshot = useSyncExternalStore(subscribe, getSnapshot);
 
     if (!isAuthCompleted) {
         return null;
     }
 
-    return records as TResult[] | null;
+    if (snapshot.error) {
+        throw snapshot.error;
+    }
+
+    return snapshot.records as TResult[] | null;
 }
 
 /**
@@ -63,84 +111,19 @@ export function useIsConnected(): boolean {
     return isConnected;
 }
 
-export class DataSubscriptionStore {
-    static queryMap: Map<string, DataSubscription> = new Map();
-
-    // To avoid too many loading spinners when going backwards and forwards
-    // between pages, we cache the result of queries so we can already showing
-    // some data directly after a page transition. The data might be a bit
-    // outdated, but it will directly be overriden with the latest server state
-    // once it has arrived.
-    static cache: Map<string, DataRecord[]> = new Map();
-
-    static get(query: DynamicSQLQuery, options: DataSubscriptionOptions | null = null): DataSubscription {
-        const key = JSON.stringify(query) + JSON.stringify(options);
-        const existingSubscription = DataSubscriptionStore.queryMap.get(key);
-
-        if (existingSubscription) {
-            return existingSubscription;
-        } else {
-
-            const subscription = new DataSubscription(query, options, DataSubscriptionStore.cache);
-            subscription.createOnServer();
-            subscription.onClose = () => {
-                if (DataSubscriptionStore.queryMap.get(key) === subscription) {
-                    DataSubscriptionStore.queryMap.delete(key);
-                }
-            };
-
-            DataSubscriptionStore.queryMap.set(key, subscription);
-
-            // If the query changes very rapid in `useQuery` it can happen that the `dataSubscription.subscribe`
-            // is never called at all. In this case we have a unused DataSubscription laying around. We avoid
-            // to many open connections laying around by trying to close them a second after opening them.
-            // A second is enough time for react to call the subscribe function. If it's not called by then,
-            // we most likely deal with a dead subscription, so we close it.
-            subscription.scheduleCloseIfNotUsed();
-
-            return subscription;
-        }
-    }
-}
-
 export function useCount(queryBuilder: QueryBuilder): number | null {
-    const count = useRef<number | null>(null);
-    const getSnapshot = useMemo(() => () => count.current, []);
-    const subscribe = useMemo(() => (onStoreChange: () => void) => {
-        const controller = DataSyncController.getInstance();
-        let isActive = true;
-        let subscriptionId: string | null = null;
-        const onMessage: DataSyncEventMap['message'] = (message) => {
-            if (message.tag === 'DidChangeCount' && message.subscriptionId === subscriptionId) {
-                count.current = message.count as number;
-                onStoreChange();
-            }
-        };
-        controller.sendMessage({ tag: 'CreateCountSubscription', query: queryBuilder.query })
-            .then((response) => {
-                if (isActive) {
-                    subscriptionId = response.subscriptionId as string;
-                    count.current = response.count as number;
-                    onStoreChange();
+    const isAuthCompleted = useContext(AuthCompletedContext);
+    const query = queryBuilder.query;
+    const queryKey = JSON.stringify(query);
+    const spec = useMemo<CountSpec>(() => ({ key: queryKey, query }), [queryKey]);
+    const subscribe = useCallback(
+        (listener: () => void) => isAuthCompleted
+            ? reactCountRegistry.subscribe(spec, listener)
+            : () => {},
+        [spec, isAuthCompleted],
+    );
+    const getSnapshot = useCallback(() => reactCountRegistry.getSnapshot(spec), [spec]);
+    const count = useSyncExternalStore(subscribe, getSnapshot);
 
-                    controller.addEventListener('message', onMessage);
-                } else {
-                    controller.sendMessage({ tag: 'DeleteDataSubscription', subscriptionId: response.subscriptionId });
-                }
-            })
-            .catch((error: unknown) => {
-                console.error('useCount: Failed to create count subscription', error);
-            });
-
-        return () => {
-            isActive = false;
-
-            if (subscriptionId) {
-                controller.sendMessage({ tag: 'DeleteDataSubscription', subscriptionId });
-            }
-            controller.removeEventListener('message', onMessage);
-        };
-    }, [JSON.stringify(queryBuilder.query)]);
-
-    return useSyncExternalStore(subscribe, getSnapshot);
+    return isAuthCompleted ? count : null;
 }

@@ -1,4 +1,11 @@
 import { recordMatchesQuery } from './ihp-querybuilder.js';
+import {
+    deleteDataSyncRecord,
+    detectNewRecordBehaviour,
+    insertDataSyncRecord,
+    updateDataSyncRecords,
+} from './query-subscription.js';
+import type { DataSyncQuerySubscription } from './query-subscription.js';
 import type {
     DynamicSQLQuery,
     DataRecord,
@@ -13,7 +20,7 @@ import type {
     DataSubscriptionOptions,
     CrudOptions,
 } from './types.js';
-import { APPEND_NEW_RECORD, PREPEND_NEW_RECORD, NewRecordBehaviour } from './types.js';
+import { NewRecordBehaviour } from './types.js';
 
 const UNUSED_SUBSCRIPTION_CLOSE_DELAY = 1000;
 
@@ -56,6 +63,7 @@ class DataSyncController {
     reconnectTimeout: ReturnType<typeof setTimeout> | null;
     pendingRequestTimeout: ReturnType<typeof setTimeout> | null;
     dataSubscriptions: DataSubscription[];
+    private additionalDataSubscriptions: DataSyncQuerySubscription[];
     optimisticCreatedPendingRecordIds: UUID[];
     optimisticCreatedNeedsCreatedAtField: Set<string>;
     messageTimeout: number;
@@ -77,6 +85,7 @@ class DataSyncController {
         this.reconnectTimeout = null;
         this.pendingRequestTimeout = null;
         this.dataSubscriptions = [];
+        this.additionalDataSubscriptions = [];
         this.optimisticCreatedPendingRecordIds = [];
         this.optimisticCreatedNeedsCreatedAtField = new Set();
         this.messageTimeout = 5000;
@@ -255,9 +264,27 @@ class DataSyncController {
             this.onClose(null);
         }
     }
+
+    /** @internal Registers a non-DataSubscription query for optimistic CRUD updates. */
+    addOptimisticDataSubscription(dataSubscription: DataSyncQuerySubscription): void {
+        this.additionalDataSubscriptions.push(dataSubscription);
+    }
+
+    /** @internal Removes a non-DataSubscription query from optimistic CRUD updates. */
+    removeOptimisticDataSubscription(dataSubscription: DataSyncQuerySubscription): void {
+        const index = this.additionalDataSubscriptions.indexOf(dataSubscription);
+        if (index !== -1) {
+            this.additionalDataSubscriptions.splice(index, 1);
+        }
+    }
+
+    /** @internal Returns imperative and React queries that receive optimistic CRUD updates. */
+    getOptimisticDataSubscriptions(): DataSyncQuerySubscription[] {
+        return [...this.dataSubscriptions, ...this.additionalDataSubscriptions];
+    }
 }
 
-class DataSubscription {
+class DataSubscription implements DataSyncQuerySubscription {
     query: DynamicSQLQuery;
     createOnServerPromise: Promise<DataRecord[]>;
     resolveCreateOnServer!: (value: DataRecord[]) => void;
@@ -321,20 +348,7 @@ class DataSubscription {
     }
 
     detectNewRecordBehaviour(): number {
-        // If the query is ordered by the createdAt column, and the latest is at the top
-        // we want to prepend new record
-        const firstOrderBy = this.query.orderByClause[0];
-        const isOrderByCreatedAtDesc = this.query.orderByClause.length > 0
-            && firstOrderBy
-            && 'orderByColumn' in firstOrderBy
-            && firstOrderBy.orderByColumn === 'createdAt'
-            && firstOrderBy.orderByDirection === 'Desc';
-
-        if (isOrderByCreatedAtDesc) {
-            return PREPEND_NEW_RECORD;
-        }
-
-        return APPEND_NEW_RECORD;
+        return detectNewRecordBehaviour(this.query);
     }
 
     async createOnServer(): Promise<void> {
@@ -477,34 +491,26 @@ class DataSubscription {
     }
 
     onUpdate(id: UUID, changeSet: Record<string, unknown> | null, appendSet: Record<string, unknown> | null): void {
-        this.records = this.records!.map(record => {
-            if (record.id === id) {
-                const updated = Object.assign({}, record, changeSet);
-                if (appendSet && !this.optimisticUpdatedPendingRecordIds.has(id)) {
-                    for (const [key, value] of Object.entries(appendSet)) {
-                        (updated as Record<string, unknown>)[key] = (typeof updated[key] === 'string' ? updated[key] : '') + String(value);
-                    }
-                }
-                return updated;
-            }
-
-            return record;
-        });
+        this.records = updateDataSyncRecords(
+            this.records!,
+            id,
+            changeSet,
+            appendSet,
+            !this.optimisticUpdatedPendingRecordIds.has(id),
+        );
 
         this.optimisticUpdatedPendingRecordIds.delete(id);
         this.updateSubscribers();
     }
 
     onCreate(newRecord: DataRecord): void {
-        const shouldAppend = this.newRecordBehaviour === APPEND_NEW_RECORD;
-
         const newRecordId = newRecord.id;
         const isOptimisticallyCreatedAlready = this.optimisticCreatedPendingRecordIds.indexOf(newRecordId) !== -1;
         if (isOptimisticallyCreatedAlready) {
             this.onUpdate(newRecordId, newRecord, null);
             this.optimisticCreatedPendingRecordIds.splice(this.optimisticCreatedPendingRecordIds.indexOf(newRecordId), 1);
         } else {
-            this.records = shouldAppend ? [...this.records!, newRecord] : [newRecord, ...this.records!];
+            this.records = insertDataSyncRecord(this.records!, newRecord, this.newRecordBehaviour);
         }
 
         this.updateSubscribers();
@@ -520,7 +526,7 @@ class DataSubscription {
     }
 
     onDelete(id: UUID): void {
-        this.records = this.records!.filter(record => record.id !== id);
+        this.records = deleteDataSyncRecord(this.records!, id);
         this.updateSubscribers();
     }
 
@@ -748,7 +754,7 @@ function createOptimisticRecord<T extends TableName>(table: T, record: NewRecord
         rec.createdAt = new Date();
     }
 
-    for (const dataSubscription of dataSyncController.dataSubscriptions) {
+    for (const dataSubscription of dataSyncController.getOptimisticDataSubscriptions()) {
         if (dataSubscription.query.table !== table) {
             continue;
         }
@@ -785,7 +791,7 @@ function randomUUID(): UUID {
 
 function undoCreateOptimisticRecord<T extends TableName>(table: T, record: NewRecord<T>): void {
     const dataSyncController = DataSyncController.getInstance();
-    for (const dataSubscription of dataSyncController.dataSubscriptions) {
+    for (const dataSubscription of dataSyncController.getOptimisticDataSubscriptions()) {
         if (dataSubscription.query.table !== table) {
             continue;
         }
@@ -808,7 +814,7 @@ function updateRecordOptimistic<T extends TableName>(table: T, id: UUID, patch: 
     const dataSyncController = DataSyncController.getInstance();
     const patchRecord = patch as Record<string, unknown>;
     const rollbackOperations: (() => void)[] = [];
-    for (const dataSubscription of dataSyncController.dataSubscriptions) {
+    for (const dataSubscription of dataSyncController.getOptimisticDataSubscriptions()) {
         if (dataSubscription.query.table !== table) {
             continue;
         }
@@ -868,12 +874,12 @@ function updateRecordOptimistic<T extends TableName>(table: T, id: UUID, patch: 
 function deleteRecordOptimistic<T extends TableName>(table: T, id: UUID): () => void {
     const dataSyncController = DataSyncController.getInstance();
     const undoOperations: (() => void)[] = [];
-    for (const dataSubscription of dataSyncController.dataSubscriptions) {
+    for (const dataSubscription of dataSyncController.getOptimisticDataSubscriptions()) {
         if (dataSubscription.query.table !== table) {
             continue;
         }
 
-        const deletedRecord = dataSubscription.records!.find(record => record.id === id);
+        const deletedRecord = dataSubscription.getRecords()?.find(record => record.id === id);
         if (deletedRecord) {
             dataSubscription.onDelete(id);
             undoOperations.push(() => dataSubscription.onCreate(deletedRecord));
