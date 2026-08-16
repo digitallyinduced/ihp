@@ -241,8 +241,8 @@ encodeDeleteRecord table recordId requestId transactionId = cs $ Aeson.encode $ 
     ]
 
 -- | Encode a CreateDataSubscription as JSON
-encodeCreateDataSubscription :: Text -> Int -> ByteString
-encodeCreateDataSubscription table requestId = cs $ Aeson.encode $ object
+encodeCreateDataSubscription :: Text -> Int -> Maybe Int -> ByteString
+encodeCreateDataSubscription table requestId clientSubscriptionId = cs $ Aeson.encode $ object $
     [ "tag" .= ("CreateDataSubscription" :: Text)
     , "query" .= object
         [ "table" .= table
@@ -254,10 +254,10 @@ encodeCreateDataSubscription table requestId = cs $ Aeson.encode $ object
         , "offset" .= Null
         ]
     , "requestId" .= requestId
-    ]
+    ] <> maybe [] (\subscriptionId -> ["clientSubscriptionId" .= subscriptionId]) clientSubscriptionId
 
 -- | Encode a DeleteDataSubscription as JSON
-encodeDeleteDataSubscription :: UUID -> Int -> ByteString
+encodeDeleteDataSubscription :: Int -> Int -> ByteString
 encodeDeleteDataSubscription subscriptionId requestId = cs $ Aeson.encode $ object
     [ "tag" .= ("DeleteDataSubscription" :: Text)
     , "subscriptionId" .= subscriptionId
@@ -295,6 +295,13 @@ findField name fields = case filter (\f -> f.fieldName == name) fields of
 
 tests :: Spec
 tests = do
+    describe "DataSyncMessage" do
+        it "accepts CreateDataSubscription from clients without a client-generated id" do
+            case Aeson.eitherDecodeStrict' (encodeCreateDataSubscription "messages" 1 Nothing) of
+                Right CreateDataSubscription { clientSubscriptionId } -> clientSubscriptionId `shouldBe` Nothing
+                Right _ -> expectationFailure "Expected CreateDataSubscription"
+                Left errorMessage -> expectationFailure errorMessage
+
     describe "IHP.DataSync Integration" do
         describe "DataSyncQuery" do
             it "returns rows from a table with RLS" do
@@ -429,11 +436,13 @@ tests = do
                         (userId, _) <- insertTestData pool
 
                         withDataSyncController connStr userId \(send, recv, _) -> do
-                            send (encodeCreateDataSubscription "messages" 8)
+                            let clientSubscriptionId = 42
+                            send (encodeCreateDataSubscription "messages" 8 (Just clientSubscriptionId))
                             response <- recv
                             case response of
                                 DidCreateDataSubscription { requestId, subscriptionId, result } -> do
                                     requestId `shouldBe` 8
+                                    subscriptionId `shouldBe` clientSubscriptionId
                                     length result `shouldBe` 1
 
                                     -- Now delete the subscription
@@ -442,6 +451,28 @@ tests = do
                                     case response2 of
                                         DidDeleteDataSubscription { requestId, subscriptionId = deletedId } -> do
                                             requestId `shouldBe` 9
+                                            deletedId `shouldBe` subscriptionId
+                                        _ -> expectationFailure "Expected DidDeleteDataSubscription"
+                                DataSyncError { errorMessage } ->
+                                    expectationFailure (cs $ "Unexpected error: " <> errorMessage)
+                                _ -> expectationFailure "Expected DidCreateDataSubscription"
+
+            it "uses negative subscription ids for older clients" do
+                withDB \connStr -> do
+                    withHasqlPool connStr \pool -> do
+                        setupTestSchema pool
+                        (userId, _) <- insertTestData pool
+
+                        withDataSyncController connStr userId \(send, recv, _) -> do
+                            send (encodeCreateDataSubscription "messages" 10 Nothing)
+                            response <- recv
+                            case response of
+                                DidCreateDataSubscription { subscriptionId } -> do
+                                    subscriptionId `shouldBe` (-11)
+                                    send (encodeDeleteDataSubscription subscriptionId 11)
+                                    response2 <- recv
+                                    case response2 of
+                                        DidDeleteDataSubscription { subscriptionId = deletedId } ->
                                             deletedId `shouldBe` subscriptionId
                                         _ -> expectationFailure "Expected DidDeleteDataSubscription"
                                 DataSyncError { errorMessage } ->
