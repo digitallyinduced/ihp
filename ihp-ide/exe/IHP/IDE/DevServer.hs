@@ -244,6 +244,12 @@ runAppGhci mainThreadId ghciIsLoadingVar startStatusServer stopStatusServer stat
                             -- Clear any stale reload signal (e.g. from tryCompileSchema triggering
                             -- a reload after recovering from a previous schema error)
                             void $ tryTakeMVar reloadGhciVar
+                            -- The app is about to connect to the database, so this is where
+                            -- waiting for postgres belongs: the compile above already ran in
+                            -- parallel with postgres starting up, so in practice postgres has
+                            -- long been ready by now and this returns immediately.
+                            waitPostgres
+
                             -- Catch any exceptions from withRunningApp (e.g., startup timeout)
                             -- so we can return to the status server gracefully
                             result <- Exception.tryAny $ withoutStatusServer do
