@@ -18,8 +18,10 @@ import Data.Time.Clock (UTCTime)
 import Data.Time.LocalTime (LocalTime, TimeOfDay)
 import Data.Time.Calendar (Day)
 import Data.ByteString (ByteString)
+import qualified Data.ByteString as ByteString
 import Data.Text (Text)
 import qualified Data.Text as Text
+import qualified Data.Text.Encoding as TextEncoding
 import Data.UUID (UUID)
 import Data.String.Conversions (cs)
 import Data.Maybe (fromJust)
@@ -216,6 +218,12 @@ spec = do
             describe "Text" $ do
                 it "should handle text input" $ do
                     (readParameter @Text "test") `shouldBe` (Right "test")
+
+                it "should decode UTF-8 input" $ do
+                    (readParameter @Text (TextEncoding.encodeUtf8 "Max Verkäufer")) `shouldBe` (Right "Max Verkäufer")
+
+                it "should reject invalid UTF-8 input" $ do
+                    (readParameter @Text (ByteString.pack [0xE4])) `shouldBe` (Left "has to be valid UTF-8")
 
                 it "should handle JSON strings" $ do
                     (readParameterJSON @Text (json "\"test\"")) `shouldBe` (Right ("test"))
