@@ -507,18 +507,6 @@ ihpFlake:
                 processes.web.exec = "start";
                 processes.worker.exec = "start-worker";
 
-                # Both processes talk to the devenv-managed Postgres, so they must not
-                # start before it is initialized. devenv's postgres process only reports
-                # healthy once `$PGDATA/.devenv_initialized` exists, i.e. after
-                # `initialDatabases` has imported IHPSchema.sql, Schema.sql and
-                # Fixtures.sql. Without this, a first start or a `direnv reload` lets the
-                # dev server query a table the schema import hasn't reached yet. The
-                # resulting error poisons the pooled connection's prepared-statement
-                # cache, and every later request on it fails with
-                # `prepared statement "…" does not exist` until the app is restarted.
-                processes.web.process-compose.depends_on.postgres.condition = "process_healthy";
-                processes.worker.process-compose.depends_on.postgres.condition = "process_healthy";
-
                 # Disabled for now
                 # Can be re-enabled once postgres is provided by devenv instead of IHP
                 env.IHP_DEVENV = "1";
