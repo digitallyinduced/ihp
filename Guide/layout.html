@@ -237,6 +237,24 @@
       }
       .source-code pre::-webkit-scrollbar{height:10px}
       .source-code pre::-webkit-scrollbar-thumb{background:var(--code-border);border-radius:8px}
+
+      /* Fenced blocks without a language are emitted as a bare <pre><code>, without
+         the .source-code wrapper. Without this they fall back to Bootstrap's
+         `pre{color:#212529}`, which is unreadable on the dark mode background. */
+      .doc pre:not(.source-code pre){
+        background:var(--code-bg); color:var(--sx-base);
+        border:1px solid var(--code-border); border-radius:var(--r);
+        margin:1.6rem 0 1.9rem; padding:18px 20px; overflow-x:auto;
+        box-shadow:var(--shadow-code);
+        font-family:"JetBrains Mono",ui-monospace,monospace; font-size:14px; line-height:1.7;
+      }
+      .doc pre:not(.source-code pre)>code{
+        background:transparent; color:inherit; border:0; padding:0;
+        font-family:inherit; font-size:inherit; white-space:pre;
+      }
+      .doc pre:not(.source-code pre)::-webkit-scrollbar{height:10px}
+      .doc pre:not(.source-code pre)::-webkit-scrollbar-thumb{background:var(--code-border);border-radius:8px}
+
       .copy-btn{
         position:absolute; top:7px; right:10px; z-index:3;
         font:500 11px/1 "JetBrains Mono",monospace; letter-spacing:.04em;
