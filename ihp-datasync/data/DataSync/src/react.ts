@@ -1,11 +1,7 @@
-import React, { useState, useEffect, useContext, useSyncExternalStore, useRef, useMemo } from 'react';
+import { useState, useEffect, useSyncExternalStore, useRef, useMemo } from 'react';
 import { DataSubscription, DataSyncController } from './ihp-datasync.js';
 import { QueryBuilder } from './ihp-querybuilder.js';
 import type { DataRecord, DynamicSQLQuery, DataSubscriptionOptions, DataSyncEventMap, ServerMessage, TableName } from './types.js';
-
-// Most IHP apps never use this context because they use session cookies for auth.
-// Therefore the default value is true.
-export const AuthCompletedContext = React.createContext<boolean>(true);
 
 /**
  * Returns the result of the current query in real-time. Returns `null` while the data is still being fetched from the server.
@@ -14,15 +10,10 @@ export const AuthCompletedContext = React.createContext<boolean>(true);
  */
 export function useQuery<TTable extends string, TResult>(queryBuilder: QueryBuilder<TTable, TResult>, options: DataSubscriptionOptions | null = null): TResult[] | null {
     const dataSubscription = DataSubscriptionStore.get(queryBuilder.query, options);
-    const isAuthCompleted = useContext(AuthCompletedContext);
     const records = useSyncExternalStore(dataSubscription.subscribe, dataSubscription.getRecords);
 
     if (dataSubscription.connectError) {
         throw dataSubscription.connectError;
-    }
-
-    if (!isAuthCompleted) {
-        return null;
     }
 
     return records as TResult[] | null;
