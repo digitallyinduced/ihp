@@ -598,12 +598,12 @@ tests = do
 
         it "should parse a CREATE TABLE statement with a PostGIS geometry column" do
             parseSql "CREATE TABLE locations (\n    geom GEOMETRY\n);\n" `shouldBe` StatementCreateTable (table "locations")
-                    { columns = [ col "geom" (PGeometryWithModifier "Point, 4326") ]
+                    { columns = [ col "geom" PGeometry ]
                     }
 
         it "should parse a CREATE TABLE statement with a PostGIS geometry(subtype, srid) column" do
             parseSql "CREATE TABLE locations (\n    geom geometry(Point, 4326)\n);\n" `shouldBe` StatementCreateTable (table "locations")
-                    { columns = [ col "geom" PGeometry ]
+                    { columns = [ col "geom" (PGeometryWithModifier "Point, 4326") ]
                     }
 
         it "should parse a CREATE TABLE statement with a PostGIS geometry(subtype) column" do
