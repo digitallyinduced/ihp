@@ -713,7 +713,7 @@ varExpr :: Parser Expression
 varExpr = VarExpression <$> identifier
 
 doubleExpr :: Parser Expression
-doubleExpr = NumericExpression . fst <$> match (Lexer.signed spaceConsumer Lexer.float)
+doubleExpr = NumericExpression . fst <$> lexeme (match (Lexer.signed spaceConsumer Lexer.float))
 
 intExpr :: Parser Expression
 intExpr = IntExpression <$> (Lexer.signed spaceConsumer Lexer.decimal)
