@@ -755,7 +755,7 @@ textExpr' = cs <$> do
     let emptyByteString = do
             string "'\\x'"
             pure ""
-    (try (char '\'' *> many (try (string "''" $> '\'') <|> Lexer.charLiteral) <* char '\'')) <|> emptyByteString
+    (try (char '\'' *> many (try (string "''" $> '\'') <|> (notFollowedBy (char '\'') *> Lexer.charLiteral)) <* char '\'')) <|> emptyByteString
 
 selectExpr :: Parser Expression
 selectExpr = do
