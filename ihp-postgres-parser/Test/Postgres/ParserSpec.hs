@@ -100,6 +100,27 @@ spec = do
         it "should parse a CREATE TABLE with quoted identifiers" do
             parseSql "CREATE TABLE \"quoted name\" ();" `shouldBe` StatementCreateTable (table "quoted name")
 
+        it "should preserve non-public schema-qualified table names" do
+            parseSql "CREATE TABLE private.users ();" `shouldBe`
+                StatementCreateTable (table "private.users")
+            parseSql "CREATE TABLE public.users ();" `shouldBe`
+                StatementCreateTable (table "users")
+
+        it "should preserve non-public schemas across foreign keys" do
+            parseSql "CREATE TABLE private.tokens (user_id UUID REFERENCES auth.users(id));" `shouldBe`
+                StatementCreateTable (table "private.tokens")
+                    { columns = [col "user_id" PUUID]
+                    , constraints =
+                        [ ForeignKeyConstraint
+                            { name = Nothing
+                            , columnName = "user_id"
+                            , referenceTable = "auth.users"
+                            , referenceColumn = Just "id"
+                            , onDelete = Nothing
+                            }
+                        ]
+                    }
+
         it "should parse a CREATE TABLE with public schema prefix" do
             parseSql "CREATE TABLE public.users ();" `shouldBe` StatementCreateTable (table "users")
 

@@ -233,6 +233,10 @@ spec = do
                     }
             compileSql [statement] `shouldBe` sql
 
+        it "should round-trip non-public schema-qualified table names" do
+            let statement = StatementCreateTable (table "private.users")
+            parseSql (compileSql [statement]) `shouldBe` statement
+
         it "should round-trip a schema-qualified CREATE FUNCTION" do
             -- parse -> compile -> parse must preserve a non-public schema like `private.`
             let statement = CreateFunction
