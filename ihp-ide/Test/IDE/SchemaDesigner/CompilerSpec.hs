@@ -792,6 +792,7 @@ tests = do
                     { name = "Messages are public"
                     , action = Just PolicyForSelect
                     , tableName = "messages"
+                    , roles = []
                     , using = Just (VarExpression "true")
                     , check = Nothing
                     }

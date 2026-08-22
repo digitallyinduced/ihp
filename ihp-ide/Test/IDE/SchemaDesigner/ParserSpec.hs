@@ -1061,6 +1061,7 @@ COMMENT ON EXTENSION "uuid-ossp" IS 'generate universally unique identifiers (UU
                     { name = "Messages are public"
                     , action = Just PolicyForSelect
                     , tableName = "messages"
+                    , roles = []
                     , using = Just (VarExpression "true")
                     , check = Nothing
                     }
