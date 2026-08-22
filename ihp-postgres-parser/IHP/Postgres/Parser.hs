@@ -256,7 +256,7 @@ createExtension = do
 -- discarding them would change schema permissions or metadata. Keep their body.
 opaqueStatement :: Parser Statement
 opaqueStatement = do
-    keyword <- choice (map (\value -> lexeme value $> value) ["GRANT", "REVOKE", "COMMENT"])
+    keyword <- choice (map symbol' ["GRANT", "REVOKE", "COMMENT"])
     raw <- cs <$> someTill anySingle (char ';')
     pure UnknownStatement { raw = Text.stripEnd (keyword <> " " <> raw) }
 
