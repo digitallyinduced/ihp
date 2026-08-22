@@ -1279,7 +1279,7 @@ createSequence = do
             , lexeme "CACHE" >> (SequenceCache <$> sequenceValue)
             , lexeme "CYCLE" $> SequenceCycle True
             ]
-        sequenceValue = try doubleExpr <|> intExpr
+        sequenceValue = lexeme (try doubleExpr <|> intExpr)
 
 addValue typeName = do
     lexeme "ADD"
