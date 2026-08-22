@@ -444,6 +444,10 @@ spec = do
         it "should parse 'CREATE SEQUENCE ..' statements" do
             parseSql "CREATE SEQUENCE a;" `shouldBe` CreateSequence { name = "a" }
 
+        it "should not read INCREMENT as the IN expression operator" do
+            parseSql "CREATE SEQUENCE a START WITH 1 INCREMENT BY 1 NO MINVALUE NO MAXVALUE CACHE 1;"
+                `shouldBe` CreateSequence { name = "a" }
+
         it "should parse 'BEGIN' statements" do
             parseSql "BEGIN;" `shouldBe` Begin
 

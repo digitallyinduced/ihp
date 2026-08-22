@@ -698,9 +698,11 @@ table = [
 
         -- | Same, for operators spelled as words, which need a word boundary so
         -- that e.g. `LIKE` does not match the start of a `likelihood` column.
-        keywordOperator name = InfixL (BinaryOperatorExpression name <$ try do
+        keywordOperator name = InfixL (BinaryOperatorExpression name <$ keyword name)
+
+        keyword name = try do
             symbol' name
-            notFollowedBy (satisfy isIdentifierCharacter))
+            notFollowedBy (satisfy isIdentifierCharacter)
 
         -- Cannot be implemented as a infix operator as that requires two expression operands,
         -- but the second is the type-cast type which is not an expression
@@ -715,20 +717,20 @@ table = [
             pure $ \expr -> DotExpression expr name
 
         inOp = do
-            lexeme "IN"
+            keyword "IN"
             right <- try inArrayExpression <|> expression
             pure $ \expr -> InExpression expr right
 
         notInOp = do
-            lexeme "NOT"
-            lexeme "IN"
+            keyword "NOT"
+            keyword "IN"
             right <- try inArrayExpression <|> expression
             pure $ \expr -> BinaryOperatorExpression "NOT IN" expr right
 
         betweenOp = do
-            lexeme "BETWEEN"
+            keyword "BETWEEN"
             lower <- term
-            lexeme "AND"
+            keyword "AND"
             upper <- term
             pure $ \expr -> AndExpression (GreaterThanOrEqualToExpression expr lower) (LessThanOrEqualToExpression expr upper)
 
