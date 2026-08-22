@@ -375,7 +375,12 @@ spec = do
 
 parseSql :: Text -> Statement
 parseSql sql =
+    case parseSqlStatements sql of
+        [statement] -> statement
+        statements -> error $ "Expected single statement but got: " <> show (length statements)
+
+parseSqlStatements :: Text -> [Statement]
+parseSqlStatements sql =
     case Megaparsec.runParser parseDDL "input" sql of
             Left parserError -> error (cs $ Megaparsec.errorBundlePretty parserError)
-            Right [statement] -> statement
-            Right statements -> error $ "Expected single statement but got: " <> show (length statements)
+            Right statements -> statements
