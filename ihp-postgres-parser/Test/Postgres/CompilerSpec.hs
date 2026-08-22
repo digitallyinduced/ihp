@@ -372,10 +372,10 @@ spec = do
                 roundTrip "CREATE TABLE locations (\n    geom GEOMETRY(Point, 4326)\n);"
 
             it "escapes apostrophes in string literals" do
-                roundTrip "ALTER TABLE fees ADD CHECK (label <> 'owner''s fee');"
+                roundTrip "ALTER TABLE fees ADD CONSTRAINT fees_label_check CHECK (label <> 'owner''s fee');"
 
             it "keeps POSITION's SQL-standard IN syntax" do
-                roundTrip "ALTER TABLE users ADD CHECK (POSITION('@' IN email) > 1);"
+                roundTrip "ALTER TABLE users ADD CONSTRAINT users_email_position_check CHECK (POSITION('@' IN email) > 1);"
 
 parseSql :: Text -> Statement
 parseSql sql =
