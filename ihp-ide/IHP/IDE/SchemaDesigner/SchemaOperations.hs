@@ -27,6 +27,7 @@ addTable tableName uuidFunction list = list <> [StatementCreateTable CreateTable
             , columnType = PUUID
             , defaultValue = Just (CallExpression uuidFunction [])
             , notNull = True
+            , notNullConstraintName = Nothing
             , isUnique = False
             , generator = Nothing
             }]
@@ -205,6 +206,7 @@ newColumn AddColumnOptions { .. } = Column
     , columnType = arrayifytype isArray columnType
     , defaultValue = defaultValue
     , notNull = (not allowNull)
+    , notNullConstraintName = Nothing
     , isUnique = isUnique
     , generator = Nothing
     }

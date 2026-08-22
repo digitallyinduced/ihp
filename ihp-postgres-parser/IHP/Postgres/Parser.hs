@@ -398,6 +398,7 @@ parseColumn = do
             , columnType
             , defaultValue = Nothing
             , notNull = False
+            , notNullConstraintName = Nothing
             , isUnique = False
             , generator = Nothing
             }
@@ -428,10 +429,10 @@ parseColumn = do
             -- constraint names for columns, but it must accept this spelling.
             , do
                 lexeme "CONSTRAINT"
-                _constraintName <- identifier
+                constraintName <- identifier
                 lexeme "NOT"
                 lexeme "NULL"
-                parseColumnAttributes column { notNull = True } primaryKey
+                parseColumnAttributes column { notNull = True, notNullConstraintName = Just constraintName } primaryKey
             , do
                 lexeme "UNIQUE"
                 parseColumnAttributes column { isUnique = True } primaryKey
