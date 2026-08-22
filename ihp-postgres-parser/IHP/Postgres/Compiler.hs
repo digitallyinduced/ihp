@@ -34,7 +34,7 @@ compileSql statements = statements
 compileStatement :: Statement -> Text
 compileStatement (StatementCreateTable CreateTable { name, columns, primaryKeyConstraint, constraints, unlogged, inherits }) = "CREATE" <> (if unlogged then " UNLOGGED" else "") <> " TABLE " <> compileIdentifier name <> " (\n" <> intercalate ",\n" (map (\col -> "    " <> compileColumn primaryKeyConstraint col) columns <> maybe [] ((:[]) . indent) (compilePrimaryKeyConstraint primaryKeyConstraint) <> map (indent . compileConstraint) constraints) <> "\n)" <> maybe "" (\parent -> " INHERITS (" <> compileIdentifier parent <> ")") inherits <> ";"
 compileStatement CreateEnumType { name, values } = "CREATE TYPE " <> compileIdentifier name <> " AS ENUM (" <> intercalate ", " (values & map TextExpression & map compileExpression) <> ");"
-compileStatement CreateExtension { name, ifNotExists } = "CREATE EXTENSION " <> (if ifNotExists then "IF NOT EXISTS " else "") <> compileIdentifier name <> ";"
+compileStatement CreateExtension { name, ifNotExists, extensionOptions } = "CREATE EXTENSION " <> (if ifNotExists then "IF NOT EXISTS " else "") <> compileIdentifier name <> mconcat (map ((" " <>) . compileExtensionOption) extensionOptions) <> ";"
 compileStatement AddConstraint { tableName, constraint = UniqueConstraint { name = Nothing, columnNames } } = "ALTER TABLE " <> compileIdentifier tableName <> " ADD UNIQUE (" <> intercalate ", " columnNames <> ")" <> ";"
 compileStatement AddConstraint { tableName, constraint, deferrable, deferrableType } = "ALTER TABLE " <> compileIdentifier tableName <> " ADD CONSTRAINT " <> compileIdentifier (fromMaybe (error "compileStatement: Expected constraint name") (constraint.name)) <> " " <> compileConstraint constraint <> compileDeferrable deferrable deferrableType <> ";"
 compileStatement AddColumn { tableName, column } = "ALTER TABLE " <> compileIdentifier tableName <> " ADD COLUMN " <> (compileColumn (PrimaryKeyConstraint []) column) <> ";"
@@ -46,7 +46,7 @@ compileStatement CreateIndex { indexName, unique, tableName, columns, whereClaus
 compileStatement CreateFunction { functionName, functionArguments, functionBody, orReplace, returns, language, securityDefiner, functionSettings } = "CREATE " <> (if orReplace then "OR REPLACE " else "") <> "FUNCTION " <> functionName <> "(" <> (functionArguments & map (\(argName, argType) -> argName <> " " <> compilePostgresType argType) & intercalate  ", ") <> ")" <> " RETURNS " <> compilePostgresType returns <> (if securityDefiner then " SECURITY DEFINER" else "") <> mconcat (map compileFunctionSetting functionSettings) <> " AS $$" <> functionBody <> "$$ language " <> language <> ";"
 compileStatement EnableRowLevelSecurity { tableName } = "ALTER TABLE " <> compileIdentifier tableName <> " ENABLE ROW LEVEL SECURITY;"
 compileStatement CreatePolicy { name, action, tableName, using, check } = "CREATE POLICY " <> compileIdentifier name <> " ON " <> compileIdentifier tableName <> maybe "" (\action -> " FOR " <> compilePolicyAction action) action  <> maybe "" (\expr -> " USING (" <> compileExpression expr <> ")") using <> maybe "" (\expr -> " WITH CHECK (" <> compileExpression expr <> ")") check <> ";"
-compileStatement CreateSequence { name } = "CREATE SEQUENCE " <> compileIdentifier name <> ";"
+compileStatement CreateSequence { name, sequenceOptions } = "CREATE SEQUENCE " <> compileIdentifier name <> (if null sequenceOptions then "" else " " <> intercalate " " (map compileSequenceOption sequenceOptions)) <> ";"
 compileStatement DropConstraint { tableName, constraintName } = "ALTER TABLE " <> compileIdentifier tableName <> " DROP CONSTRAINT " <> compileIdentifier constraintName <> ";"
 compileStatement DropEnumType { name } = "DROP TYPE " <> compileIdentifier name <> ";"
 compileStatement DropIndex { indexName } = "DROP INDEX " <> compileIdentifier indexName <> ";"
@@ -521,6 +521,22 @@ compileIndexType Ivfflat = "IVFFLAT"
 
 compileFunctionSetting :: FunctionSetting -> Text
 compileFunctionSetting FunctionSetting { settingName, settingValue } = " SET " <> settingName <> " = " <> settingValue
+
+compileSequenceOption :: SequenceOption -> Text
+compileSequenceOption (SequenceAs type_) = "AS " <> compilePostgresType type_
+compileSequenceOption (SequenceStart value) = "START WITH " <> compileExpression value
+compileSequenceOption (SequenceIncrement value) = "INCREMENT BY " <> compileExpression value
+compileSequenceOption SequenceNoMinValue = "NO MINVALUE"
+compileSequenceOption SequenceNoMaxValue = "NO MAXVALUE"
+compileSequenceOption (SequenceMinValue value) = "MINVALUE " <> compileExpression value
+compileSequenceOption (SequenceMaxValue value) = "MAXVALUE " <> compileExpression value
+compileSequenceOption (SequenceCache value) = "CACHE " <> compileExpression value
+compileSequenceOption (SequenceCycle enabled) = if enabled then "CYCLE" else "NO CYCLE"
+
+compileExtensionOption :: ExtensionOption -> Text
+compileExtensionOption (ExtensionSchema schema) = "WITH SCHEMA " <> compileIdentifier schema
+compileExtensionOption (ExtensionVersion version) = "VERSION " <> compileExpression (TextExpression version)
+compileExtensionOption ExtensionCascade = "CASCADE"
 
 compileIndexColumn :: IndexColumn -> Text
 compileIndexColumn IndexColumn { column, columnOperatorClass, columnOrder } =

@@ -21,7 +21,7 @@ spec = do
             compileSql [StatementCreateTable (table "users")] `shouldBe` "CREATE TABLE users (\n\n);\n"
 
         it "should compile a CREATE EXTENSION for the UUID extension" do
-            compileSql [CreateExtension { name = "uuid-ossp", ifNotExists = True }] `shouldBe` "CREATE EXTENSION IF NOT EXISTS \"uuid-ossp\";\n"
+            compileSql [CreateExtension { name = "uuid-ossp", ifNotExists = True, extensionOptions = [] }] `shouldBe` "CREATE EXTENSION IF NOT EXISTS \"uuid-ossp\";\n"
 
         it "should compile a line comment" do
             compileSql [Comment { content = " Comment value" }] `shouldBe` "-- Comment value\n"
@@ -325,7 +325,7 @@ spec = do
 
         it "should compile 'CREATE SEQUENCE ..' statements" do
             let sql = "CREATE SEQUENCE a;\n"
-            let statements = [ CreateSequence { name = "a" } ]
+            let statements = [ CreateSequence { name = "a", sequenceOptions = [] } ]
             compileSql statements `shouldBe` sql
 
         it "should compile 'DROP TYPE ..;' statements" do

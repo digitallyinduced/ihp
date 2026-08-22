@@ -17,7 +17,7 @@ data Statement
     -- | DROP TYPE name;
     | DropEnumType { name :: Text }
     -- | CREATE EXTENSION IF NOT EXISTS "name";
-    | CreateExtension { name :: Text, ifNotExists :: Bool }
+    | CreateExtension { name :: Text, ifNotExists :: Bool, extensionOptions :: [ExtensionOption] }
     -- | ALTER TABLE tableName ADD CONSTRAINT constraint;
     | AddConstraint { tableName :: Text, constraint :: Constraint, deferrable :: Maybe Bool, deferrableType :: Maybe DeferrableType }
     -- | ALTER TABLE tableName DROP CONSTRAINT constraintName;
@@ -46,7 +46,7 @@ data Statement
     -- SELECT query;
     | SelectStatement { query :: Text }
     -- CREATE SEQUENCE name;
-    | CreateSequence { name :: Text }
+    | CreateSequence { name :: Text, sequenceOptions :: [SequenceOption] }
     -- ALTER TABLE tableName RENAME COLUMN from TO to;
     | RenameColumn { tableName :: Text, from :: Text, to :: Text }
     -- ALTER TYPE enumName ADD VALUE newValue;
@@ -87,6 +87,24 @@ data FunctionSetting = FunctionSetting
     { settingName :: Text
     , settingValue :: Text
     }
+    deriving (Eq, Show)
+
+data SequenceOption
+    = SequenceAs PostgresType
+    | SequenceStart Expression
+    | SequenceIncrement Expression
+    | SequenceNoMinValue
+    | SequenceNoMaxValue
+    | SequenceMinValue Expression
+    | SequenceMaxValue Expression
+    | SequenceCache Expression
+    | SequenceCycle Bool
+    deriving (Eq, Show)
+
+data ExtensionOption
+    = ExtensionSchema Text
+    | ExtensionVersion Text
+    | ExtensionCascade
     deriving (Eq, Show)
 
 data CreateTable

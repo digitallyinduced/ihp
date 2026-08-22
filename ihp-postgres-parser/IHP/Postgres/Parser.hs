@@ -86,15 +86,16 @@ createExtensionForMigration = do
         extensionKeyword "EXISTS"
     name <- extensionIdentifier
     optional (extensionKeyword "WITH")
-    optional do
+    schema <- optional do
         extensionKeyword "SCHEMA"
         extensionIdentifier
-    optional do
+    version <- optional do
         extensionKeyword "VERSION"
-        extensionVersion
-    optional (extensionKeyword "CASCADE")
+        extensionVersionText
+    cascade <- isJust <$> optional (extensionKeyword "CASCADE")
     extensionSymbol ";"
-    pure CreateExtension { name, ifNotExists }
+    let extensionOptions = maybe [] ((:[]) . ExtensionSchema) schema <> maybe [] ((:[]) . ExtensionVersion) version <> [ExtensionCascade | cascade]
+    pure CreateExtension { name, ifNotExists, extensionOptions }
 
 extensionSpaceConsumer :: Parser ()
 extensionSpaceConsumer = Lexer.space
@@ -121,12 +122,12 @@ extensionIdentifier = extensionLexeme (quotedIdentifier <|> unquotedIdentifier)
             remainingCharacters <- many (satisfy isIdentifierCharacter)
             pure (Text.toLower (Text.pack (firstCharacter : remainingCharacters)))
 
-extensionVersion :: Parser ()
-extensionVersion = extensionLexeme (quotedVersion <|> unquotedVersion) $> ()
+extensionVersionText :: Parser Text
+extensionVersionText = extensionLexeme (quotedVersion <|> unquotedVersion)
     where
-        quotedVersion = between (char '\'') (char '\'') (many quotedVersionCharacter)
+        quotedVersion = Text.pack <$> between (char '\'') (char '\'') (many quotedVersionCharacter)
         quotedVersionCharacter = try (string "''" $> '\'') <|> satisfy (/= '\'')
-        unquotedVersion = some (satisfy isIdentifierCharacter)
+        unquotedVersion = Text.pack <$> some (satisfy isIdentifierCharacter)
 
 isIdentifierCharacter :: Char -> Bool
 isIdentifierCharacter character = isAlphaNum character || character == '_' || character == '$'
@@ -244,13 +245,13 @@ createExtension = do
     lexeme "EXTENSION"
     ifNotExists <- isJust <$> optional (lexeme "IF" >> lexeme "NOT" >> lexeme "EXISTS")
     name <- qualifiedIdentifier
-    optional do
-        space
-        lexeme "WITH"
-        lexeme "SCHEMA"
-        lexeme "public"
+    optional (lexeme "WITH")
+    schema <- optional (lexeme "SCHEMA" >> identifier)
+    version <- optional (lexeme "VERSION" >> (textExpr' <|> identifier))
+    cascade <- isJust <$> optional (lexeme "CASCADE")
     char ';'
-    pure CreateExtension { name, ifNotExists }
+    let extensionOptions = maybe [] ((:[]) . ExtensionSchema) schema <> maybe [] ((:[]) . ExtensionVersion) version <> [ExtensionCascade | cascade]
+    pure CreateExtension { name, ifNotExists, extensionOptions }
 
 createTable = do
     lexeme "CREATE"
@@ -1264,37 +1265,21 @@ createSequence = do
     lexeme "CREATE"
     lexeme "SEQUENCE"
     name <- qualifiedIdentifier
-
-    -- We accept all the following SEQUENCE attributes, but don't save them
-    -- This is mostly to void issues in migrations when parsing the pg_dump output
-    optional do
-        lexeme "AS"
-        sqlType
-
-    optional do
-        lexeme "START"
-        lexeme "WITH"
-        expression
-
-    optional do
-        lexeme "INCREMENT"
-        lexeme "BY"
-        expression
-
-    optional do
-        lexeme "NO"
-        lexeme "MINVALUE"
-
-    optional do
-        lexeme "NO"
-        lexeme "MAXVALUE"
-
-    optional do
-        lexeme "CACHE"
-        expression
-
+    sequenceOptions <- many sequenceOption
     char ';'
-    pure CreateSequence { name }
+    pure CreateSequence { name, sequenceOptions }
+    where
+        sequenceOption = choice
+            [ lexeme "AS" >> (SequenceAs <$> sqlType)
+            , lexeme "START" >> optional (lexeme "WITH") >> (SequenceStart <$> sequenceValue)
+            , lexeme "INCREMENT" >> optional (lexeme "BY") >> (SequenceIncrement <$> sequenceValue)
+            , lexeme "NO" >> ((lexeme "MINVALUE" $> SequenceNoMinValue) <|> (lexeme "MAXVALUE" $> SequenceNoMaxValue) <|> (lexeme "CYCLE" $> SequenceCycle False))
+            , lexeme "MINVALUE" >> (SequenceMinValue <$> sequenceValue)
+            , lexeme "MAXVALUE" >> (SequenceMaxValue <$> sequenceValue)
+            , lexeme "CACHE" >> (SequenceCache <$> sequenceValue)
+            , lexeme "CYCLE" $> SequenceCycle True
+            ]
+        sequenceValue = try doubleExpr <|> intExpr
 
 addValue typeName = do
     lexeme "ADD"
