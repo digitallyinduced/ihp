@@ -466,7 +466,7 @@ sqlType = choice $ map optionalArray
                     pure PTimestampWithTimezone
 
                 timestampZ' = do
-                    try (symbol' "TIMESTAMPZ")
+                    try (symbol' "TIMESTAMPTZ") <|> try (symbol' "TIMESTAMPZ")
                     pure PTimestampWithTimezone
 
                 timestamp' = do
