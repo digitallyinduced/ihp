@@ -65,6 +65,8 @@ data Statement
     | DropDefaultValue { tableName :: Text, columnName :: Text }
     -- | CREATE TRIGGER ..;
     | CreateTrigger { name :: !Text, eventWhen :: !TriggerEventWhen, event :: ![TriggerEvent], tableName :: !Text, for :: !TriggerFor, whenCondition :: Maybe Expression, functionName :: !Text, arguments :: ![Expression] }
+    -- | CREATE CONSTRAINT TRIGGER ..;
+    | CreateConstraintTrigger { name :: !Text, eventWhen :: !TriggerEventWhen, event :: ![TriggerEvent], tableName :: !Text, deferrable :: Maybe Bool, deferrableType :: Maybe DeferrableType, for :: !TriggerFor, whenCondition :: Maybe Expression, functionName :: !Text, arguments :: ![Expression] }
     -- | CREATE EVENT TRIGGER ..;
     | CreateEventTrigger { name :: !Text, eventOn :: !Text, whenCondition :: Maybe Expression, functionName :: !Text, arguments :: ![Expression] }
     -- | DROP TRIGGER .. ON ..;
@@ -113,8 +115,8 @@ data Column = Column
 data OnDelete
     = NoAction
     | Restrict
-    | SetNull
-    | SetDefault
+    | SetNull [Text]
+    | SetDefault [Text]
     | Cascade
     deriving (Show, Eq)
 
@@ -136,6 +138,14 @@ data Constraint
         , referenceTable :: !Text
         , referenceColumn :: !(Maybe Text)
         , onDelete :: !(Maybe OnDelete)
+        }
+    | CompositeForeignKeyConstraint
+        { name :: !(Maybe Text)
+        , columnNames :: ![Text]
+        , referenceTable :: !Text
+        , referenceColumns :: ![Text]
+        , onDelete :: !(Maybe OnDelete)
+        , onUpdate :: !(Maybe OnDelete)
         }
     | UniqueConstraint
         { name :: !(Maybe Text)
@@ -257,6 +267,7 @@ data TriggerEventWhen
 data TriggerEvent
     = TriggerOnInsert
     | TriggerOnUpdate
+    | TriggerOnUpdateOf ![Text]
     | TriggerOnDelete
     | TriggerOnTruncate
     deriving (Eq, Show)

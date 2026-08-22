@@ -233,6 +233,24 @@ spec = do
                     }
             compileSql [statement] `shouldBe` sql
 
+        describe "pg_dump constraint and trigger round trips" do
+            let roundTrip sql = compileSql [parseSql sql] `shouldBe` (sql <> "\n")
+
+            it "keeps a single-column primary key added by ALTER TABLE" do
+                roundTrip "ALTER TABLE ai_chat_accesses ADD CONSTRAINT ai_chat_accesses_pkey PRIMARY KEY(chat_id);"
+
+            it "keeps named constraints inside CREATE TABLE" do
+                roundTrip "CREATE TABLE users (\n    age INT,\n    CONSTRAINT users_age_check CHECK (age > 0)\n);"
+
+            it "keeps composite foreign keys with restricted actions" do
+                roundTrip "ALTER TABLE items ADD CONSTRAINT items_ref_ticket FOREIGN KEY (ticket_id, organization_id) REFERENCES tickets (id, organization_id) ON UPDATE CASCADE ON DELETE SET NULL (ticket_id);"
+
+            it "keeps constraint triggers" do
+                roundTrip "CREATE CONSTRAINT TRIGGER entry_lines_balance AFTER INSERT OR DELETE ON entry_lines DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION entry_is_balanced();"
+
+            it "keeps UPDATE OF triggers" do
+                roundTrip "CREATE TRIGGER sync_signature AFTER UPDATE OF organization_id, domain ON documents FOR EACH ROW EXECUTE FUNCTION sync_signature();"
+
         it "should round-trip a schema-qualified CREATE FUNCTION" do
             -- parse -> compile -> parse must preserve a non-public schema like `private.`
             let statement = CreateFunction

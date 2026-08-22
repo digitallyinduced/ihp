@@ -110,7 +110,7 @@ tests = do
                         , columnName = "company_id"
                         , referenceTable = "companies"
                         , referenceColumn = "id"
-                        , onDelete = Just SetDefault
+                        , onDelete = Just (SetDefault [])
                         }
                     , deferrable = Nothing
                     , deferrableType = Nothing
@@ -124,7 +124,7 @@ tests = do
                         , columnName = "company_id"
                         , referenceTable = "companies"
                         , referenceColumn = "id"
-                        , onDelete = Just SetNull
+                        , onDelete = Just (SetNull [])
                         }
                     , deferrable = Nothing
                     , deferrableType = Nothing

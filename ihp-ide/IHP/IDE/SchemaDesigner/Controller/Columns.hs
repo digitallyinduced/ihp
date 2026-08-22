@@ -138,8 +138,8 @@ instance Controller ColumnsController where
         onDelete <- case statement.constraint.onDelete of
             Just NoAction -> do pure "NoAction"
             Just Restrict -> do pure "Restrict"
-            Just SetNull -> do pure "SetNull"
-            Just SetDefault -> do pure "SetDefault"
+            Just (SetNull _) -> do pure "SetNull"
+            Just (SetDefault _) -> do pure "SetDefault"
             Just Cascade -> do pure "Cascade"
             Nothing -> do pure "NoAction"
         render EditForeignKeyView { .. }
@@ -157,8 +157,8 @@ instance Controller ColumnsController where
         let onDeleteParam = param @Text "onDelete"
         let onDelete = case onDeleteParam of
                 "Restrict" -> Restrict
-                "SetNull" -> SetNull
-                "SetDefault" -> SetDefault
+                "SetNull" -> SetNull []
+                "SetDefault" -> SetDefault []
                 "Cascade" -> Cascade
                 _ -> NoAction
         case constraintId of

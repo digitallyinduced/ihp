@@ -468,6 +468,50 @@ spec = do
         it "should parse negative DoubleExpression's" do
             parseExpression "-1.337" `shouldBe` (DoubleExpression (-1.337))
 
+        it "should parse composite foreign keys and both referential actions" do
+            parseSql "ALTER TABLE ONLY items ADD CONSTRAINT items_ref_ticket FOREIGN KEY (ticket_id, organization_id) REFERENCES tickets(id, organization_id) ON UPDATE CASCADE ON DELETE SET NULL (ticket_id) DEFERRABLE INITIALLY DEFERRED;" `shouldBe`
+                AddConstraint
+                    { tableName = "items"
+                    , constraint = CompositeForeignKeyConstraint
+                        { name = Just "items_ref_ticket"
+                        , columnNames = ["ticket_id", "organization_id"]
+                        , referenceTable = "tickets"
+                        , referenceColumns = ["id", "organization_id"]
+                        , onDelete = Just (SetNull ["ticket_id"])
+                        , onUpdate = Just Cascade
+                        }
+                    , deferrable = Just True
+                    , deferrableType = Just InitiallyDeferred
+                    }
+
+        it "should parse constraint triggers" do
+            parseSql "CREATE CONSTRAINT TRIGGER entry_lines_balance AFTER INSERT OR DELETE OR UPDATE ON entry_lines DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION entry_is_balanced();" `shouldBe`
+                CreateConstraintTrigger
+                    { name = "entry_lines_balance"
+                    , eventWhen = After
+                    , event = [TriggerOnInsert, TriggerOnDelete, TriggerOnUpdate]
+                    , tableName = "entry_lines"
+                    , deferrable = Just True
+                    , deferrableType = Just InitiallyDeferred
+                    , for = ForEachRow
+                    , whenCondition = Nothing
+                    , functionName = "entry_is_balanced"
+                    , arguments = []
+                    }
+
+        it "should parse UPDATE OF triggers" do
+            parseSql "CREATE TRIGGER sync_signature AFTER UPDATE OF organization_id, domain ON documents FOR EACH ROW EXECUTE FUNCTION sync_signature();" `shouldBe`
+                CreateTrigger
+                    { name = "sync_signature"
+                    , eventWhen = After
+                    , event = [TriggerOnUpdateOf ["organization_id", "domain"]]
+                    , tableName = "documents"
+                    , for = ForEachRow
+                    , whenCondition = Nothing
+                    , functionName = "sync_signature"
+                    , arguments = []
+                    }
+
 parseSql :: Text -> Statement
 parseSql sql = let [statement] = parseSqlStatements sql in statement
 

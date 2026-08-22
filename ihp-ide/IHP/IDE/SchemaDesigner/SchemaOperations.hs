@@ -469,6 +469,7 @@ deleteTable tableName statements =
         EnableRowLevelSecurity { tableName = rlsTable } | rlsTable == tableName        -> False
         CreatePolicy { tableName = policyTable }        | policyTable == tableName     -> False
         CreateTrigger { tableName = triggerTable }      | triggerTable == tableName    -> False
+        CreateConstraintTrigger { tableName = triggerTable } | triggerTable == tableName -> False
         otherwise -> True
 
 updateTable :: Int -> Text -> Schema -> Schema
@@ -484,6 +485,7 @@ updateTable tableId tableName statements =
             rls@(EnableRowLevelSecurity { tableName = rlsTable }) | rlsTable == oldTableName -> (rls :: Statement) { tableName }
             policy@(CreatePolicy { tableName = policyTable, name }) | policyTable == oldTableName -> (policy :: Statement) { tableName, name = Text.replace oldTableName tableName name }
             trigger@(CreateTrigger { tableName = triggerTable, name }) | triggerTable == oldTableName -> (trigger :: Statement) { tableName, name = Text.replace oldTableName tableName name }
+            trigger@(CreateConstraintTrigger { tableName = triggerTable, name }) | triggerTable == oldTableName -> (trigger :: Statement) { tableName, name = Text.replace oldTableName tableName name }
             otherwise -> otherwise  
 
 
@@ -541,6 +543,7 @@ deleteTriggerIfExists :: Text -> [Statement] -> [Statement]
 deleteTriggerIfExists triggerName statements = filter (not . isTheTriggerToBeDeleted) statements
     where
         isTheTriggerToBeDeleted CreateTrigger { name } = triggerName == name
+        isTheTriggerToBeDeleted CreateConstraintTrigger { name } = triggerName == name
         isTheTriggerToBeDeleted _                      = False
 
 data DeleteColumnOptions

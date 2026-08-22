@@ -22,7 +22,7 @@ import qualified Data.Text as Text
 import qualified Data.Text.IO as Text
 import Data.ByteString (ByteString)
 import Data.String.Conversions (cs)
-import Data.Maybe (isJust, catMaybes, isNothing, listToMaybe)
+import Data.Maybe (isJust, catMaybes, isNothing, listToMaybe, fromMaybe)
 import Data.Either (lefts, rights)
 import Data.Functor (($>))
 import Data.Char (isAlpha, isAlphaNum, isSpace, toLower)
@@ -335,15 +335,22 @@ parsePrimaryKeyConstraint = do
 parseForeignKeyConstraint name = do
     lexeme "FOREIGN"
     lexeme "KEY"
-    columnName <- between (char '(' >> space) (char ')' >> space) identifier
+    columnNames <- between (char '(' >> space) (char ')' >> space) (identifier `sepBy1` (char ',' >> space))
     lexeme "REFERENCES"
     referenceTable <- qualifiedIdentifier
-    referenceColumn <- optional $ between (char '(' >> space) (char ')' >> space) identifier
-    onDelete <- optional do
+    referenceColumns <- optional $ between (char '(' >> space) (char ')' >> space) (identifier `sepBy1` (char ',' >> space))
+    referentialActions <- many $ try do
         lexeme "ON"
-        lexeme "DELETE"
-        parseOnDelete
-    pure ForeignKeyConstraint { name, columnName, referenceTable, referenceColumn, onDelete }
+        (lexeme "DELETE" >> (Left <$> parseOnDelete)) <|> (lexeme "UPDATE" >> (Right <$> parseOnDelete))
+    let onDelete = listToMaybe (lefts referentialActions)
+    let onUpdate = listToMaybe (rights referentialActions)
+    case (columnNames, referenceColumns, onUpdate) of
+        ([columnName], Nothing, Nothing) ->
+            pure ForeignKeyConstraint { name, columnName, referenceTable, referenceColumn = Nothing, onDelete }
+        ([columnName], Just [referenceColumn], Nothing) ->
+            pure ForeignKeyConstraint { name, columnName, referenceTable, referenceColumn = Just referenceColumn, onDelete }
+        _ ->
+            pure CompositeForeignKeyConstraint { name, columnNames, referenceTable, referenceColumns = fromMaybe [] referenceColumns, onDelete, onUpdate }
 
 parseUniqueConstraint name = do
     lexeme "UNIQUE"
@@ -383,9 +390,13 @@ parseExcludeConstraint name = do
 parseOnDelete = choice
         [ (lexeme "NO" >> lexeme "ACTION") >> pure NoAction
         , (lexeme "RESTRICT" >> pure Restrict)
-        , (lexeme "SET" >> ((lexeme "NULL" >> pure SetNull) <|> (lexeme "DEFAULT" >> pure SetDefault)))
+        , (lexeme "SET" >> ((lexeme "NULL" >> (SetNull <$> referentialActionColumns)) <|> (lexeme "DEFAULT" >> (SetDefault <$> referentialActionColumns))))
         , (lexeme "CASCADE" >> pure Cascade)
         ]
+
+referentialActionColumns :: Parser [Text]
+referentialActionColumns =
+    fromMaybe [] <$> optional (between (char '(' >> space) (char ')' >> space) (identifier `sepBy1` (char ',' >> space)))
 
 parseColumn :: Parser (Bool, Column)
 parseColumn = do
@@ -944,7 +955,28 @@ functionOptionBoundaryKeyword keyword = do
 
 createTrigger = do
     lexeme "CREATE"
-    createEventTrigger <|> createTrigger'
+    createEventTrigger <|> createConstraintTrigger <|> createTrigger'
+
+createConstraintTrigger :: Parser Statement
+createConstraintTrigger = do
+    lexeme "CONSTRAINT"
+    lexeme "TRIGGER"
+    name <- qualifiedIdentifier
+    eventWhen <- (lexeme "AFTER" >> pure After) <|> (lexeme "BEFORE" >> pure Before) <|> (lexeme "INSTEAD OF" >> pure InsteadOf)
+    event <- triggerEvent `sepBy1` lexeme "OR"
+    lexeme "ON"
+    tableName <- qualifiedIdentifier
+    deferrable <- optional parseDeferrable
+    deferrableType <- optional parseDeferrableType
+    lexeme "FOR"
+    optional (lexeme "EACH")
+    for <- (lexeme "ROW" >> pure ForEachRow) <|> (lexeme "STATEMENT" >> pure ForEachStatement)
+    whenCondition <- optional (lexeme "WHEN" >> expression)
+    lexeme "EXECUTE"
+    optional (lexeme "FUNCTION" <|> lexeme "PROCEDURE")
+    (CallExpression functionName arguments) <- callExpr
+    char ';'
+    pure CreateConstraintTrigger { name, eventWhen, event, tableName, deferrable, deferrableType, for, whenCondition, functionName, arguments }
 
 createEventTrigger = do
     lexeme "EVENT"
@@ -1013,7 +1045,13 @@ createTrigger' = do
         }
 
 triggerEvent :: Parser TriggerEvent
-triggerEvent = (lexeme "INSERT" >> pure TriggerOnInsert) <|> (lexeme "UPDATE" >> pure TriggerOnUpdate) <|> (lexeme "DELETE" >> pure TriggerOnDelete) <|> (lexeme "TRUNCATE" >> pure TriggerOnTruncate)
+triggerEvent = (lexeme "INSERT" >> pure TriggerOnInsert) <|> (lexeme "UPDATE" >> triggerUpdateEvent) <|> (lexeme "DELETE" >> pure TriggerOnDelete) <|> (lexeme "TRUNCATE" >> pure TriggerOnTruncate)
+    where
+        triggerUpdateEvent = do
+            columns <- optional do
+                lexeme "OF"
+                identifier `sepBy1` (char ',' >> space)
+            pure (maybe TriggerOnUpdate TriggerOnUpdateOf columns)
 
 alterTable = do
     lexeme "TABLE"
