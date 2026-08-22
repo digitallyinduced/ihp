@@ -365,20 +365,12 @@ parseExcludeConstraint name = do
     pure ExcludeConstraint { name, excludeElements, predicate, indexType }
     where
         excludeElement = do
-            element <- identifier
-            space
-            lexeme "WITH"
-            space
+            element <- Text.stripEnd . cs <$> someTill anySingle (try (space >> string' "WITH" >> space))
             operator <- parseCommutativeInfixOperator
             pure ExcludeConstraintElement { element, operator }
 
-        parseCommutativeInfixOperator = choice $ map lexeme
-            [ "="
-            , "<>"
-            , "!="
-            , "AND"
-            , "OR"
-            ]
+        parseCommutativeInfixOperator = lexeme do
+            try identifier <|> takeWhile1P (Just "operator") (`elem` ("+-*/<>=~!@#%^&|`?" :: String))
 
 parseOnDelete = choice
         [ (lexeme "NO" >> lexeme "ACTION") >> pure NoAction
@@ -655,7 +647,7 @@ intervalFields =  [ "YEAR TO MONTH", "DAY TO HOUR", "DAY TO MINUTE", "DAY TO SEC
                    , "YEAR",  "MONTH", "DAY", "HOUR", "MINUTE", "SECOND"]
 
 
-term = parens expression <|> try variadicExpr <|> try arrayExpr <|> try callExpr <|> try doubleExpr <|> try intExpr <|> selectExpr <|> varExpr <|> (textExpr <* optional space)
+term = parens expression <|> try variadicExpr <|> try arrayExpr <|> try typedLiteralExpr <|> try callExpr <|> try doubleExpr <|> try intExpr <|> selectExpr <|> varExpr <|> (textExpr <* optional space)
     where
         parens f = between (char '(' >> space) (char ')' >> space) f
 
@@ -665,8 +657,9 @@ table = [
             -- with their table name and `makeExprParser`'s `Postfix` only
             -- applies one postfix per term. They bind tighter than every infix
             -- operator so that e.g. `a::integer + 1` casts `a` and not the sum.
-            [ Postfix (foldl1 (flip (.)) <$> some (typeCastOp <|> dotOp <|> inOp))
+            [ Postfix (foldl1 (flip (.)) <$> some (typeCastOp <|> dotOp <|> try notInOp <|> try betweenOp <|> inOp))
             ],
+            [ operator "->>", operator "->" ],
             [ operator "*", operator "/", operator "%" ],
             [ operator "+", operator "-" ],
             [ binary  "<>"  NotEqExpression
@@ -684,6 +677,8 @@ table = [
             -- Regular expression matching. Longest operator first, otherwise
             -- `~` would match the prefix of `~*` and leave a stray `*`.
             , operator "!~*", operator "!~", operator "~*", operator "~"
+            , operator "?", operator "&&"
+            , keywordOperator "AT TIME ZONE"
             , keywordOperator "NOT LIKE", keywordOperator "NOT ILIKE"
             , keywordOperator "LIKE", keywordOperator "ILIKE"
 
@@ -724,6 +719,19 @@ table = [
             right <- try inArrayExpression <|> expression
             pure $ \expr -> InExpression expr right
 
+        notInOp = do
+            lexeme "NOT"
+            lexeme "IN"
+            right <- try inArrayExpression <|> expression
+            pure $ \expr -> BinaryOperatorExpression "NOT IN" expr right
+
+        betweenOp = do
+            lexeme "BETWEEN"
+            lower <- term
+            lexeme "AND"
+            upper <- term
+            pure $ \expr -> AndExpression (GreaterThanOrEqualToExpression expr lower) (LessThanOrEqualToExpression expr upper)
+
 -- | Parses a SQL expression
 --
 -- This parser makes use of makeExprParser as described in https://hackage.haskell.org/package/parser-combinators-1.2.0/docs/Control-Monad-Combinators-Expr.html
@@ -744,6 +752,13 @@ doubleExpr = DoubleExpression <$> lexeme (Lexer.signed spaceConsumer Lexer.float
 
 intExpr :: Parser Expression
 intExpr = IntExpression <$> lexeme (Lexer.signed spaceConsumer Lexer.decimal)
+
+-- | PostgreSQL's @TYPE 'value'@ syntax, normalized to the equivalent cast.
+typedLiteralExpr :: Parser Expression
+typedLiteralExpr = do
+    literalType <- sqlType
+    value <- textExpr <* space
+    pure (TypeCastExpression value literalType)
 
 callExpr :: Parser Expression
 callExpr = do

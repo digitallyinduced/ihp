@@ -141,7 +141,7 @@ compileExpression (VarExpression name) =
         nameContainsSpaces = Text.any (== ' ') name
 compileExpression (CallExpression func args) = func <> "(" <> intercalate ", " (map compileExpressionWithOptionalParenthese args) <> ")"
 compileExpression (NotEqExpression a b) = compileExpression a <> " <> " <> compileExpression b
-compileExpression (EqExpression a b) = compileExpressionWithOptionalParenthese a <> " = " <> compileExpressionWithOptionalParenthese b
+compileExpression (EqExpression a b) = compileEqualityOperand a <> " = " <> compileEqualityOperand b
 compileExpression (IsExpression a (NotExpression b)) = compileExpressionWithOptionalParenthese a <> " IS NOT " <> compileExpressionWithOptionalParenthese b -- 'IS (NOT NULL)' => 'IS NOT NULL'
 compileExpression (IsExpression a b) = compileExpressionWithOptionalParenthese a <> " IS " <> compileExpressionWithOptionalParenthese b
 compileExpression (InExpression a b) = compileExpressionWithOptionalParenthese a <> " IN " <> compileExpressionWithOptionalParenthese b
@@ -163,6 +163,10 @@ compileExpression (ExistsExpression a) = "EXISTS " <> compileExpressionWithOptio
 compileExpression (DotExpression a b) = compileExpressionWithOptionalParenthese a <> "." <> compileIdentifier b
 compileExpression (ConcatenationExpression a b) = compileExpressionWithOptionalParenthese a <> " || " <> compileExpressionWithOptionalParenthese b
 compileExpression (BinaryOperatorExpression operator a b) = compileExpressionWithOptionalParenthese a <> " " <> operator <> " " <> compileExpressionWithOptionalParenthese b
+
+compileEqualityOperand :: Expression -> Text
+compileEqualityOperand expression@(IsExpression {}) = "(" <> compileExpression expression <> ")"
+compileEqualityOperand expression = compileExpressionWithOptionalParenthese expression
 
 compileExpressionWithOptionalParenthese :: Expression -> Text
 compileExpressionWithOptionalParenthese expr@(VarExpression {}) = compileExpression expr

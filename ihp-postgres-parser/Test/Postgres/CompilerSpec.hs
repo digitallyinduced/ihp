@@ -233,6 +233,10 @@ spec = do
                     }
             compileSql [statement] `shouldBe` sql
 
+        it "should keep boolean IS expressions grouped inside equality" do
+            let sql = "ALTER TABLE t ADD CONSTRAINT t_pair CHECK ((a IS NULL) = (b IS NULL));"
+            compileSql [parseSql sql] `shouldBe` (sql <> "\n")
+
         it "should round-trip a schema-qualified CREATE FUNCTION" do
             -- parse -> compile -> parse must preserve a non-public schema like `private.`
             let statement = CreateFunction

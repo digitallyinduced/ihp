@@ -496,6 +496,51 @@ spec = do
             parseExpression "code ~ '^[A-Z]{3}$'" `shouldBe`
                 BinaryOperatorExpression "~" (VarExpression "code") (TextExpression "^[A-Z]{3}$")
 
+        it "should parse PostgreSQL JSON operators" do
+            parseExpression "metadata ->> 'kind' = 'invoice'" `shouldBe`
+                EqExpression
+                    (BinaryOperatorExpression "->>" (VarExpression "metadata") (TextExpression "kind"))
+                    (TextExpression "invoice")
+            parseExpression "metadata ? 'kind'" `shouldBe`
+                BinaryOperatorExpression "?" (VarExpression "metadata") (TextExpression "kind")
+
+        it "should parse BETWEEN and NOT IN" do
+            parseExpression "month BETWEEN 1 AND 12" `shouldBe`
+                AndExpression
+                    (GreaterThanOrEqualToExpression (VarExpression "month") (IntExpression 1))
+                    (LessThanOrEqualToExpression (VarExpression "month") (IntExpression 12))
+            parseExpression "kind NOT IN ('draft', 'void')" `shouldBe`
+                BinaryOperatorExpression "NOT IN"
+                    (VarExpression "kind")
+                    (InArrayExpression [TextExpression "draft", TextExpression "void"])
+
+        it "should parse typed PostgreSQL literals" do
+            parseExpression "closed_at - INTERVAL '30 days' > opened_at" `shouldBe`
+                GreaterThanExpression
+                    (BinaryOperatorExpression "-"
+                        (VarExpression "closed_at")
+                        (TypeCastExpression (TextExpression "30 days") (PInterval Nothing)))
+                    (VarExpression "opened_at")
+            parseExpression "TIMESTAMPTZ '2026-08-09 18:00:00+00'" `shouldBe`
+                TypeCastExpression (TextExpression "2026-08-09 18:00:00+00") PTimestampWithTimezone
+
+        it "should parse expression-based EXCLUDE constraints" do
+            parseSql "ALTER TABLE bookings ADD CONSTRAINT bookings_no_overlap EXCLUDE USING gist (room_id WITH =, daterange(starts_on, ends_on) WITH &&);" `shouldBe`
+                AddConstraint
+                    { tableName = "bookings"
+                    , constraint = ExcludeConstraint
+                        { name = Just "bookings_no_overlap"
+                        , excludeElements =
+                            [ ExcludeConstraintElement { element = "room_id", operator = "=" }
+                            , ExcludeConstraintElement { element = "daterange(starts_on, ends_on)", operator = "&&" }
+                            ]
+                        , predicate = Nothing
+                        , indexType = Just Gist
+                        }
+                    , deferrable = Nothing
+                    , deferrableType = Nothing
+                    }
+
         it "should prefer the longest regular expression operator" do
             parseExpression "code !~* 'x'" `shouldBe`
                 BinaryOperatorExpression "!~*" (VarExpression "code") (TextExpression "x")
