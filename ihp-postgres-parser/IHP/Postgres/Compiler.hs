@@ -43,7 +43,7 @@ compileStatement RenameColumn { tableName, from, to } = "ALTER TABLE " <> compil
 compileStatement DropTable { tableName } = "DROP TABLE " <> compileIdentifier tableName <> ";"
 compileStatement Comment { content } = "--" <> content
 compileStatement CreateIndex { indexName, unique, tableName, columns, whereClause, indexType, nullsDistinct } = "CREATE" <> (if unique then " UNIQUE " else " ") <> "INDEX " <> compileIdentifier indexName <> " ON " <> compileIdentifier tableName <> (maybe "" (\indexType -> " USING " <> compileIndexType indexType) indexType) <> " (" <> (intercalate ", " (map compileIndexColumn columns)) <> ")" <> (if nullsDistinct then "" else " NULLS NOT DISTINCT") <> (case whereClause of Just expression -> " WHERE " <> compileExpression expression; Nothing -> "") <> ";"
-compileStatement CreateFunction { functionName, functionArguments, functionBody, orReplace, returns, language, securityDefiner, functionSettings } = "CREATE " <> (if orReplace then "OR REPLACE " else "") <> "FUNCTION " <> functionName <> "(" <> (functionArguments & map (\(argName, argType) -> argName <> " " <> compilePostgresType argType) & intercalate  ", ") <> ")" <> " RETURNS " <> compilePostgresType returns <> (if securityDefiner then " SECURITY DEFINER" else "") <> mconcat (map compileFunctionSetting functionSettings) <> " AS $$" <> functionBody <> "$$ language " <> language <> ";"
+compileStatement CreateFunction { functionName, functionArguments, functionBody, orReplace, returns, language, securityDefiner, functionSettings } = "CREATE " <> (if orReplace then "OR REPLACE " else "") <> "FUNCTION " <> functionName <> "(" <> (functionArguments & map (\(argName, argType) -> argName <> " " <> compilePostgresType argType) & intercalate  ", ") <> ")" <> " RETURNS " <> compilePostgresType returns <> (if securityDefiner then " SECURITY DEFINER" else "") <> mconcat (map compileFunctionSetting functionSettings) <> " AS " <> dollarQuote functionBody <> functionBody <> dollarQuote functionBody <> " language " <> language <> ";"
 compileStatement EnableRowLevelSecurity { tableName } = "ALTER TABLE " <> compileIdentifier tableName <> " ENABLE ROW LEVEL SECURITY;"
 compileStatement CreatePolicy { name, action, tableName, using, check } = "CREATE POLICY " <> compileIdentifier name <> " ON " <> compileIdentifier tableName <> maybe "" (\action -> " FOR " <> compilePolicyAction action) action  <> maybe "" (\expr -> " USING (" <> compileExpression expr <> ")") using <> maybe "" (\expr -> " WITH CHECK (" <> compileExpression expr <> ")") check <> ";"
 compileStatement CreateSequence { name } = "CREATE SEQUENCE " <> compileIdentifier name <> ";"
@@ -130,6 +130,14 @@ compileColumn primaryKeyConstraint Column { name, columnType, defaultValue, notN
 
 compileDefaultValue :: Expression -> Text
 compileDefaultValue value = "DEFAULT " <> compileExpression value
+
+-- | Choose the shortest delimiter that does not occur in the body.
+dollarQuote :: Text -> Text
+dollarQuote body = go 0
+    where
+        go underscores =
+            let delimiter = "$" <> Text.replicate underscores "_" <> "$"
+            in if delimiter `Text.isInfixOf` body then go (underscores + 1) else delimiter
 
 compileExpression :: Expression -> Text
 compileExpression (TextExpression value) = "'" <> value <> "'"

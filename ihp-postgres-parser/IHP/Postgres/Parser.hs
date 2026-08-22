@@ -234,7 +234,7 @@ statement = do
     let alter = do
             lexeme "ALTER"
             alterTable <|> alterType <|> alterSequence
-    s <- setStatement <|> create <|> alter <|> selectStatement <|> try dropTable <|> try dropIndex <|> try dropPolicy <|> try dropFunction <|> try dropType <|> dropTrigger <|> commentStatement <|> comment <|> begin <|> commit <|> restrict <|> unrestrict
+    s <- setStatement <|> create <|> alter <|> selectStatement <|> try grantOrRevoke <|> try doStatement <|> try dropTable <|> try dropIndex <|> try dropPolicy <|> try dropFunction <|> try dropType <|> dropTrigger <|> commentStatement <|> comment <|> begin <|> commit <|> restrict <|> unrestrict
     space
     pure s
 
@@ -251,6 +251,41 @@ createExtension = do
         lexeme "public"
     char ';'
     pure CreateExtension { name, ifNotExists }
+
+-- | Privilege statements are not modeled structurally, but discarding them
+-- would change the schema's permissions. Keep their exact body for compilation.
+grantOrRevoke :: Parser Statement
+grantOrRevoke = do
+    keyword <- (lexeme "GRANT" $> "GRANT") <|> (lexeme "REVOKE" $> "REVOKE")
+    raw <- cs <$> someTill anySingle (char ';')
+    pure UnknownStatement { raw = Text.stripEnd (keyword <> " " <> raw) }
+
+-- | An anonymous DO block. Its body can contain semicolons, so parse through
+-- the matching dollar-quote delimiter before consuming the statement terminator.
+doStatement :: Parser Statement
+doStatement = do
+    lexeme "DO"
+    languageBefore <- optional (lexeme "LANGUAGE" >> identifier)
+    body <- dollarQuoted
+    space
+    languageAfter <- optional (lexeme "LANGUAGE" >> identifier)
+    char ';'
+    let language = maybe "" (\name -> "LANGUAGE " <> name <> " ") (languageBefore <|> languageAfter)
+    pure UnknownStatement { raw = "DO " <> language <> body }
+
+-- | A dollar-quoted string including its delimiter.
+dollarQuoted :: Parser Text
+dollarQuoted = do
+    delimiter <- dollarQuoteTag
+    body <- cs <$> manyTill anySingle (try (string delimiter))
+    pure (delimiter <> body <> delimiter)
+
+dollarQuoteTag :: Parser Text
+dollarQuoteTag = do
+    char '$'
+    tag <- takeWhileP (Just "dollar quote tag") (\c -> isAlphaNum c || c == '_')
+    char '$'
+    pure ("$" <> tag <> "$")
 
 createTable = do
     lexeme "CREATE"
@@ -882,7 +917,7 @@ createFunction = do
 
     lexeme "AS"
     space
-    functionBody <- cs <$> between (char '$' >> char '$') (char '$' >> char '$') (many (anySingleBut '$'))
+    functionBody <- functionBodyText
     space
 
     language <- case languageBeforeBody of
@@ -900,6 +935,13 @@ createFunction = do
             pure (argumentName, argumentType)
         isSecurityDefiner FunctionSecurityDefiner = True
         isSecurityDefiner _ = False
+
+-- | Parse the function body without assuming the delimiter is exactly $$ or
+-- that the body contains no dollar sign (for example a $1 parameter reference).
+functionBodyText :: Parser Text
+functionBodyText = do
+    delimiter <- dollarQuoteTag
+    cs <$> manyTill anySingle (try (string delimiter))
 
 parseFunctionOption :: Parser FunctionOption
 parseFunctionOption =

@@ -468,6 +468,24 @@ spec = do
         it "should parse negative DoubleExpression's" do
             parseExpression "-1.337" `shouldBe` (DoubleExpression (-1.337))
 
+        it "should preserve GRANT and REVOKE statements" do
+            parseSql "GRANT SELECT ON TABLE users TO ihp_authenticated;" `shouldBe`
+                UnknownStatement { raw = "GRANT SELECT ON TABLE users TO ihp_authenticated" }
+            parseSql "REVOKE ALL ON FUNCTION public.touch_updated_at() FROM PUBLIC;" `shouldBe`
+                UnknownStatement { raw = "REVOKE ALL ON FUNCTION public.touch_updated_at() FROM PUBLIC" }
+
+        it "should preserve a DO block whose body contains semicolons" do
+            parseSql "DO $$\nBEGIN\n    PERFORM 1;\nEND\n$$;" `shouldBe`
+                UnknownStatement { raw = "DO $$\nBEGIN\n    PERFORM 1;\nEND\n$$" }
+
+        it "should parse tagged function dollar quotes" do
+            parseSql "CREATE FUNCTION f() RETURNS trigger AS $_$ BEGIN RETURN NEW; END; $_$ language plpgsql;" `shouldBe`
+                (function "f") { functionBody = " BEGIN RETURN NEW; END; " }
+
+        it "should parse dollar signs inside a function body" do
+            parseSql "CREATE FUNCTION f(a TEXT) RETURNS text AS $$ SELECT $1; $$ language sql;" `shouldBe`
+                (function "f") { functionArguments = [("a", PText)], returns = PText, functionBody = " SELECT $1; ", language = "sql" }
+
 parseSql :: Text -> Statement
 parseSql sql = let [statement] = parseSqlStatements sql in statement
 
