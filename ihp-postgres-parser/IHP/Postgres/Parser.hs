@@ -701,8 +701,7 @@ table = [
         keywordOperator name = InfixL (BinaryOperatorExpression name <$ keyword name)
 
         keyword name = try do
-            symbol' name
-            notFollowedBy (satisfy isIdentifierCharacter)
+            lexeme (string' name <* notFollowedBy (satisfy isIdentifierCharacter))
 
         -- Cannot be implemented as a infix operator as that requires two expression operands,
         -- but the second is the type-cast type which is not an expression
