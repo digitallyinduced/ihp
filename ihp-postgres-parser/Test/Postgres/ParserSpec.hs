@@ -107,18 +107,18 @@ spec = do
                 StatementCreateTable (table "users")
 
         it "should preserve non-public schemas across foreign keys" do
-            parseSql "CREATE TABLE private.tokens (user_id UUID REFERENCES auth.users(id));" `shouldBe`
-                StatementCreateTable (table "private.tokens")
-                    { columns = [col "user_id" PUUID]
-                    , constraints =
-                        [ ForeignKeyConstraint
-                            { name = Nothing
-                            , columnName = "user_id"
-                            , referenceTable = "auth.users"
-                            , referenceColumn = Just "id"
-                            , onDelete = Nothing
-                            }
-                        ]
+            parseSql "ALTER TABLE private.tokens ADD CONSTRAINT tokens_user_fk FOREIGN KEY (user_id) REFERENCES auth.users (id);" `shouldBe`
+                AddConstraint
+                    { tableName = "private.tokens"
+                    , constraint = ForeignKeyConstraint
+                        { name = Just "tokens_user_fk"
+                        , columnName = "user_id"
+                        , referenceTable = "auth.users"
+                        , referenceColumn = Just "id"
+                        , onDelete = Nothing
+                        }
+                    , deferrable = Nothing
+                    , deferrableType = Nothing
                     }
 
         it "should parse a CREATE TABLE with public schema prefix" do
