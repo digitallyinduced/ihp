@@ -468,6 +468,18 @@ spec = do
         it "should parse negative DoubleExpression's" do
             parseExpression "-1.337" `shouldBe` (DoubleExpression (-1.337))
 
+        it "should preserve policy roles" do
+            parseSql "CREATE POLICY access ON tickets FOR SELECT TO ihp_authenticated, PUBLIC USING (active);" `shouldBe`
+                (policy "access" "tickets")
+                    { action = Just PolicyForSelect
+                    , roles = ["ihp_authenticated", "PUBLIC"]
+                    , using = Just (VarExpression "active")
+                    }
+
+        it "should parse FORCE ROW LEVEL SECURITY" do
+            parseSql "ALTER TABLE tickets FORCE ROW LEVEL SECURITY;" `shouldBe`
+                ForceRowLevelSecurity { tableName = "tickets" }
+
 parseSql :: Text -> Statement
 parseSql sql = let [statement] = parseSqlStatements sql in statement
 

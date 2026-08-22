@@ -39,8 +39,9 @@ data Statement
     | CreateFunction { functionName :: Text, functionArguments :: [(Text, PostgresType)], functionBody :: Text, orReplace :: Bool, returns :: PostgresType, language :: Text, securityDefiner :: Bool, functionSettings :: [FunctionSetting] }
     -- | ALTER TABLE tableName ENABLE ROW LEVEL SECURITY;
     | EnableRowLevelSecurity { tableName :: Text }
+    | ForceRowLevelSecurity { tableName :: Text }
     -- CREATE POLICY name ON tableName USING using WITH CHECK check;
-    | CreatePolicy { name :: Text, tableName :: Text, action :: Maybe PolicyAction, using :: Maybe Expression, check :: Maybe Expression }
+    | CreatePolicy { name :: Text, tableName :: Text, action :: Maybe PolicyAction, roles :: [Text], using :: Maybe Expression, check :: Maybe Expression }
     -- SET name = value;
     | Set { name :: Text, value :: Expression }
     -- SELECT query;
@@ -330,6 +331,7 @@ policy name tableName = CreatePolicy
     { name = name
     , tableName = tableName
     , action = Nothing
+    , roles = []
     , using = Nothing
     , check = Nothing
     }

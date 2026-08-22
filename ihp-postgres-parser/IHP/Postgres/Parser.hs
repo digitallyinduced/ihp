@@ -22,7 +22,7 @@ import qualified Data.Text as Text
 import qualified Data.Text.IO as Text
 import Data.ByteString (ByteString)
 import Data.String.Conversions (cs)
-import Data.Maybe (isJust, catMaybes, isNothing, listToMaybe)
+import Data.Maybe (isJust, catMaybes, isNothing, listToMaybe, fromMaybe)
 import Data.Either (lefts, rights)
 import Data.Functor (($>))
 import Data.Char (isAlpha, isAlphaNum, isSpace, toLower)
@@ -1037,7 +1037,7 @@ alterTable = do
     let alter = do
             lexeme "ALTER"
             alterColumn tableName
-    enableRowLevelSecurity tableName <|> add <|> drop <|> rename <|> alter
+    enableRowLevelSecurity tableName <|> forceRowLevelSecurity tableName <|> add <|> drop <|> rename <|> alter
 
 alterType = do
     lexeme "TYPE"
@@ -1097,6 +1097,14 @@ enableRowLevelSecurity tableName = do
     char ';'
     pure EnableRowLevelSecurity { tableName }
 
+forceRowLevelSecurity tableName = do
+    lexeme "FORCE"
+    lexeme "ROW"
+    lexeme "LEVEL"
+    lexeme "SECURITY"
+    char ';'
+    pure ForceRowLevelSecurity { tableName }
+
 createPolicy = do
     lexeme "CREATE"
     lexeme "POLICY"
@@ -1105,6 +1113,10 @@ createPolicy = do
     tableName <- qualifiedIdentifier
 
     action <- optional (lexeme "FOR" >> policyAction)
+
+    roles <- fromMaybe [] <$> optional do
+        lexeme "TO"
+        identifier `sepBy1` (char ',' >> space)
 
     using <- optional do
         lexeme "USING"
@@ -1117,7 +1129,7 @@ createPolicy = do
 
     char ';'
 
-    pure CreatePolicy { name, action, tableName, using, check }
+    pure CreatePolicy { name, action, tableName, roles, using, check }
 
 policyAction =
     (lexeme "ALL" >> pure PolicyForAll)

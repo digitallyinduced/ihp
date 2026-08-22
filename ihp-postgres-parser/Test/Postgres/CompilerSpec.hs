@@ -233,6 +233,17 @@ spec = do
                     }
             compileSql [statement] `shouldBe` sql
 
+        it "should round-trip RLS policy roles and FORCE" do
+            let statements =
+                    [ ForceRowLevelSecurity { tableName = "tickets" }
+                    , (policy "access" "tickets")
+                        { action = Just PolicyForSelect
+                        , roles = ["ihp_authenticated", "PUBLIC"]
+                        , using = Just (VarExpression "active")
+                        }
+                    ]
+            parseSqlStatements (compileSql statements) `shouldBe` statements
+
         it "should round-trip a schema-qualified CREATE FUNCTION" do
             -- parse -> compile -> parse must preserve a non-public schema like `private.`
             let statement = CreateFunction
