@@ -1036,7 +1036,7 @@ COMMENT ON EXTENSION "uuid-ossp" IS 'generate universally unique identifiers (UU
                     , Comment {content = ""}
                     , Comment {content = " Name: uuid-ossp; Type: EXTENSION; Schema: -; Owner: -"}
                     , Comment {content = ""}
-                    , CreateExtension {name = "uuid-ossp", ifNotExists = True, extensionOptions = []}
+                    , CreateExtension {name = "uuid-ossp", ifNotExists = True, extensionOptions = [ExtensionSchema "public"]}
                     , Comment {content = ""}
                     , Comment {content = " Name: EXTENSION \"uuid-ossp\"; Type: COMMENT; Schema: -; Owner: -"}
                     , Comment {content = ""}
