@@ -275,13 +275,14 @@ createTable = do
     let
         columns = map snd taggedColumns
         constraints = rights allConstraints
+        primaryKeyConstraints = map snd (lefts allConstraints)
 
     primaryKeyConstraint <- case filter fst taggedColumns of
-        [] -> case lefts allConstraints of
+        [] -> case primaryKeyConstraints of
             [] -> pure $ PrimaryKeyConstraint []
             [primaryKeyConstraint] -> pure primaryKeyConstraint
             _ -> fail ("Multiple PRIMARY KEY constraints on table " <> cs name)
-        [(_, Column { name })] -> case lefts allConstraints of
+        [(_, Column { name })] -> case primaryKeyConstraints of
             [] -> pure $ PrimaryKeyConstraint [name]
             _ -> fail ("Primary key defined in both column and table constraints on table " <> cs name)
         _ -> fail "Multiple columns with PRIMARY KEY constraint"
@@ -304,7 +305,7 @@ createEnumType = do
 
 addConstraint tableName = do
     constraint <- parseTableConstraint >>= \case
-      Left primaryKeyConstraint -> pure AlterTableAddPrimaryKey { name = Nothing, primaryKeyConstraint }
+      Left (name, primaryKeyConstraint) -> pure AlterTableAddPrimaryKey { name, primaryKeyConstraint }
       Right constraint -> pure constraint
     deferrable <- optional parseDeferrable
     deferrableType <- optional parseDeferrableType
@@ -323,7 +324,9 @@ parseTableConstraint = do
     name <- optional do
         lexeme "CONSTRAINT"
         identifier
-    (Left <$> parsePrimaryKeyConstraint) <|>
+    (do
+        primaryKeyConstraint <- parsePrimaryKeyConstraint
+        pure (Left (name, primaryKeyConstraint))) <|>
       (Right <$> (parseForeignKeyConstraint name <|> parseUniqueConstraint name <|> parseCheckConstraint name <|> parseExcludeConstraint name))
 
 parsePrimaryKeyConstraint = do

@@ -249,7 +249,7 @@ spec = do
                 roundTrip "CREATE CONSTRAINT TRIGGER entry_lines_balance AFTER INSERT OR DELETE ON entry_lines DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION entry_is_balanced();"
 
             it "keeps UPDATE OF triggers" do
-                roundTrip "CREATE TRIGGER sync_signature AFTER UPDATE OF organization_id, domain ON documents FOR EACH ROW EXECUTE FUNCTION sync_signature();"
+                roundTrip "CREATE TRIGGER sync_signature AFTER UPDATE OF organization_id, \"domain\" ON documents FOR EACH ROW EXECUTE FUNCTION sync_signature();"
 
             it "keeps trigger WHEN conditions" do
                 roundTrip "CREATE TRIGGER sync_signature BEFORE UPDATE ON documents FOR EACH ROW WHEN (OLD.signature <> NEW.signature) EXECUTE FUNCTION sync_signature();"
