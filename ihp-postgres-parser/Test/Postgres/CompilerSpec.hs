@@ -29,6 +29,10 @@ spec = do
         it "should compile a empty line comments" do
             compileSql [Comment { content = "" }, Comment { content = "" }] `shouldBe` "--\n--\n"
 
+        it "should round-trip executable SQL COMMENT statements" do
+            let sql = "COMMENT ON TABLE users IS 'owner records';"
+            compileSql [parseSql sql] `shouldBe` (sql <> "\n")
+
         it "should compile a CREATE TABLE with columns" do
             let sql = "CREATE TABLE users (\n    id UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL,\n    firstname TEXT NOT NULL,\n    lastname TEXT NOT NULL,\n    password_hash TEXT NOT NULL,\n    email TEXT NOT NULL,\n    company_id UUID NOT NULL,\n    picture_url TEXT,\n    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL\n);\n"
             let statement = StatementCreateTable (table "users")

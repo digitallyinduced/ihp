@@ -474,6 +474,10 @@ spec = do
             parseSql "REVOKE ALL ON FUNCTION public.touch_updated_at() FROM PUBLIC;" `shouldBe`
                 UnknownStatement { raw = "REVOKE ALL ON FUNCTION public.touch_updated_at() FROM PUBLIC" }
 
+        it "should preserve executable SQL COMMENT statements" do
+            parseSql "COMMENT ON TABLE users IS 'owner records';" `shouldBe`
+                UnknownStatement { raw = "COMMENT ON TABLE users IS 'owner records'" }
+
         it "should preserve a DO block whose body contains semicolons" do
             parseSql "DO $$\nBEGIN\n    PERFORM 1;\nEND\n$$;" `shouldBe`
                 UnknownStatement { raw = "DO $$\nBEGIN\n    PERFORM 1;\nEND\n$$" }

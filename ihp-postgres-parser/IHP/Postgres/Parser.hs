@@ -234,7 +234,7 @@ statement = do
     let alter = do
             lexeme "ALTER"
             alterTable <|> alterType <|> alterSequence
-    s <- setStatement <|> create <|> alter <|> selectStatement <|> try grantOrRevoke <|> try doStatement <|> try dropTable <|> try dropIndex <|> try dropPolicy <|> try dropFunction <|> try dropType <|> dropTrigger <|> commentStatement <|> comment <|> begin <|> commit <|> restrict <|> unrestrict
+    s <- setStatement <|> create <|> alter <|> selectStatement <|> try opaqueStatement <|> try doStatement <|> try dropTable <|> try dropIndex <|> try dropPolicy <|> try dropFunction <|> try dropType <|> dropTrigger <|> commentStatement <|> comment <|> begin <|> commit <|> restrict <|> unrestrict
     space
     pure s
 
@@ -252,11 +252,11 @@ createExtension = do
     char ';'
     pure CreateExtension { name, ifNotExists }
 
--- | Privilege statements are not modeled structurally, but discarding them
--- would change the schema's permissions. Keep their exact body for compilation.
-grantOrRevoke :: Parser Statement
-grantOrRevoke = do
-    keyword <- (lexeme "GRANT" $> "GRANT") <|> (lexeme "REVOKE" $> "REVOKE")
+-- | Privilege and SQL COMMENT statements are not modeled structurally, but
+-- discarding them would change schema permissions or metadata. Keep their body.
+opaqueStatement :: Parser Statement
+opaqueStatement = do
+    keyword <- choice (map (\value -> lexeme value $> value) ["GRANT", "REVOKE", "COMMENT"])
     raw <- cs <$> someTill anySingle (char ';')
     pure UnknownStatement { raw = Text.stripEnd (keyword <> " " <> raw) }
 
