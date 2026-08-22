@@ -233,6 +233,12 @@ spec = do
                     }
             compileSql [statement] `shouldBe` sql
 
+        it "should round-trip function-only return types" do
+            let setReturning = (function "search_ids") { returns = PSetOf PUUID, language = "sql" }
+            let tableReturning = (function "search_rows") { returns = PReturnTable [("id", PUUID), ("label", PText)], language = "sql" }
+            parseSql (compileSql [setReturning]) `shouldBe` setReturning
+            parseSql (compileSql [tableReturning]) `shouldBe` tableReturning
+
         it "should round-trip a schema-qualified CREATE FUNCTION" do
             -- parse -> compile -> parse must preserve a non-public schema like `private.`
             let statement = CreateFunction

@@ -259,6 +259,25 @@ spec = do
                         ]
                     }
 
+        it "should parse CREATE FUNCTION returning SETOF" do
+            let sql = "CREATE FUNCTION search_ids(query text) RETURNS SETOF uuid LANGUAGE sql AS $$SELECT 1;$$;"
+            parseSql sql `shouldBe`
+                (function "search_ids")
+                    { functionArguments = [("query", PText)]
+                    , functionBody = "SELECT 1;"
+                    , returns = PSetOf PUUID
+                    , language = "sql"
+                    }
+
+        it "should parse CREATE FUNCTION returning TABLE" do
+            let sql = "CREATE FUNCTION search_rows() RETURNS TABLE(id uuid, label text) LANGUAGE sql AS $$SELECT 1;$$;"
+            parseSql sql `shouldBe`
+                (function "search_rows")
+                    { functionBody = "SELECT 1;"
+                    , returns = PReturnTable [("id", PUUID), ("label", PText)]
+                    , language = "sql"
+                    }
+
         it "should not stop CREATE FUNCTION SET values at keyword prefixes" do
             let sql = "CREATE OR REPLACE FUNCTION set_tz()\nRETURNS TRIGGER\nSET TimeZone = 'Asia/Tokyo'\nAS $$BEGIN\n    RETURN NEW;\nEND;$$ language plpgsql;"
             parseSql sql `shouldBe` CreateFunction

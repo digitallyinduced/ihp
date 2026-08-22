@@ -872,7 +872,7 @@ createFunction = do
     functionArguments <- between (char '(') (char ')') (functionArgument `sepBy` (char ',' >> space))
     space
     lexeme "RETURNS"
-    returns <- sqlType
+    returns <- functionReturnType
     space
 
     functionOptions <- many parseFunctionOption
@@ -900,6 +900,23 @@ createFunction = do
             pure (argumentName, argumentType)
         isSecurityDefiner FunctionSecurityDefiner = True
         isSecurityDefiner _ = False
+
+-- | Function return positions accept shapes that table columns do not.
+functionReturnType :: Parser PostgresType
+functionReturnType = choice
+    [ try (lexeme "SETOF" >> (PSetOf <$> sqlType))
+    , try do
+        lexeme "TABLE"
+        columns <- between (char '(' >> space) (space >> char ')') (returnTableColumn `sepBy` (char ',' >> space))
+        pure (PReturnTable columns)
+    , sqlType
+    ]
+    where
+        returnTableColumn = do
+            space
+            columnName <- identifier
+            columnType <- sqlType
+            pure (columnName, columnType)
 
 parseFunctionOption :: Parser FunctionOption
 parseFunctionOption =

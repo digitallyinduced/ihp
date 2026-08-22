@@ -215,5 +215,7 @@ postgresTypeToGraphQLType PTSVector = NamedType "String"
 postgresTypeToGraphQLType (PArray type_) = ListType (postgresTypeToGraphQLType type_)
 postgresTypeToGraphQLType PTrigger = error "Trigger cannot be converted to a GraphQL type"
 postgresTypeToGraphQLType PEventTrigger = error "Trigger cannot be converted to a GraphQL type"
+postgresTypeToGraphQLType (PSetOf _) = error "Function return types cannot be converted to a GraphQL type"
+postgresTypeToGraphQLType (PReturnTable _) = error "Function return types cannot be converted to a GraphQL type"
 postgresTypeToGraphQLType (PInterval _) = NamedType "String"
 postgresTypeToGraphQLType (PCustomType theType) = NamedType "String"

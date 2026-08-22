@@ -221,6 +221,8 @@ atomicType = \case
     PTSVector -> "Tsvector"
     PSingleChar -> "Text"
     PTrigger -> error "atomicType: PTrigger not supported"
+    PSetOf _ -> error "atomicType: PSetOf is a function return type"
+    PReturnTable _ -> error "atomicType: PReturnTable is a function return type"
     PEventTrigger -> error "atomicType: PEventTrigger not supported"
 
 haskellType :: (?schema :: Schema) => CreateTable -> Column -> Text
@@ -782,6 +784,8 @@ generatedTypesImports table = Text.unlines (ownImports <> referencingImports)
 hasqlSupportsColumnType :: PostgresType -> Bool
 hasqlSupportsColumnType = \case
     PTrigger -> False
+    PSetOf _ -> False
+    PReturnTable _ -> False
     PEventTrigger -> False
     (PArray inner) -> hasqlSupportsColumnType inner
     _ -> True
@@ -998,6 +1002,8 @@ hasqlValueDecoder = \case
     PCustomType _ -> "Mapping.decoder"
     PSingleChar -> "Decoders.char"
     PTrigger -> "Decoders.text"  -- Trigger types shouldn't appear in table columns
+    PSetOf _ -> "Decoders.text"  -- Function return types shouldn't appear in table columns
+    PReturnTable _ -> "Decoders.text"  -- Function return types shouldn't appear in table columns
     PEventTrigger -> "Decoders.text"  -- Event trigger types shouldn't appear in table columns
 
 hasqlArrayElementDecoder :: PostgresType -> Text
@@ -1369,6 +1375,8 @@ hasqlValueEncoder = \case
     PCustomType _ -> "Mapping.encoder"
     PSingleChar -> "Encoders.char"
     PTrigger -> error "hasqlValueEncoder: PTrigger not supported"
+    PSetOf _ -> error "hasqlValueEncoder: PSetOf is a function return type"
+    PReturnTable _ -> error "hasqlValueEncoder: PReturnTable is a function return type"
     PEventTrigger -> error "hasqlValueEncoder: PEventTrigger not supported"
 
 formatEncoderBlock :: [Text] -> Text
@@ -1733,4 +1741,3 @@ compileDynamicCreateManyStatement moduleName qualifiedModelName tableName writab
         , "decoder :: Decoders.Result [" <> qualifiedModelName <> "]"
         , "decoder = Decoders.rowList RowDecoder.rowDecoder"
         ]
-
