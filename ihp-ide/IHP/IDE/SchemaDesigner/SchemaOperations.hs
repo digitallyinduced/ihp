@@ -380,6 +380,7 @@ suggestPolicy schema (StatementCreateTable CreateTable { name = tableName, colum
         { name = "Users can manage their " <> tableName
         , action = Nothing
         , tableName
+        , roles = []
         , using = Just compareUserId
         , check = Just compareUserId
         }
@@ -398,6 +399,7 @@ suggestPolicy schema (StatementCreateTable CreateTable { name = tableName, colum
                     { name = "Users can manage the " <> tableName <> " if they can see the " <> tableNameToModelName refTableName
                     , action = Nothing
                     , tableName
+                    , roles = []
                     , using = Just delegateCheck
                     , check = Just delegateCheck
                     }
