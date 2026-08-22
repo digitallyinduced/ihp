@@ -201,7 +201,7 @@ tests = do
                         { columns =
                             [ (col "id" PUUID) { notNull = True, isUnique = True }
                             , col "ids" (PArray PUUID)
-                            , (col "electricity_unit_price" PDouble) { defaultValue = Just (TypeCastExpression (DoubleExpression 0.17) PDouble), notNull = True }
+                            , (col "electricity_unit_price" PDouble) { defaultValue = Just (TypeCastExpression (NumericExpression "0.17") PDouble), notNull = True }
                             ]
                         , primaryKeyConstraint = PrimaryKeyConstraint ["id"]
                         }

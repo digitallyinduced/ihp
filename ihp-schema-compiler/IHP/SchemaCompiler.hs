@@ -217,6 +217,7 @@ atomicType = \case
     PPoint -> "Point"
     PPolygon -> "Polygon"
     PGeometry -> "Geometry"
+    PGeometryWithModifier _ -> "Geometry"
     PInet -> "Inet"
     PTSVector -> "Tsvector"
     PSingleChar -> "Text"
@@ -992,6 +993,7 @@ hasqlValueDecoder = \case
     PPoint -> "Mapping.decoder"
     PPolygon -> "Mapping.decoder"
     PGeometry -> "Mapping.decoder"
+    PGeometryWithModifier _ -> "Mapping.decoder"
     PInet -> "Mapping.decoder"
     PTSVector -> "Mapping.decoder"
     PArray innerType -> "(Decoders.listArray (" <> hasqlArrayElementDecoder innerType <> "))"
@@ -1045,6 +1047,7 @@ toDefaultValueExpr Column { columnType, notNull, defaultValue = Just theDefaultV
                                 otherwise           -> error ("toDefaultValueExpr: BOOL column needs to have a VarExpression as default value. Got: " <> show otherwise)
                             PDouble -> case theNormalizedDefaultValue of
                                 DoubleExpression value -> wrapNull notNull (tshow value)
+                                NumericExpression value -> wrapNull notNull value
                                 IntExpression value -> wrapNull notNull (tshow value)
                                 otherwise           -> error ("toDefaultValueExpr: DOUBLE column needs to have a DoubleExpression as default value. Got: " <> show otherwise)
                             _ -> "def"
@@ -1363,6 +1366,7 @@ hasqlValueEncoder = \case
     PPoint -> "Mapping.encoder"
     PPolygon -> "Mapping.encoder"
     PGeometry -> "Mapping.encoder"
+    PGeometryWithModifier _ -> "Mapping.encoder"
     PInet -> "Mapping.encoder"
     PTSVector -> "Mapping.encoder"
     PArray innerType -> "(Encoders.foldableArray (Encoders.nonNullable " <> hasqlValueEncoder innerType <> "))"
@@ -1733,4 +1737,3 @@ compileDynamicCreateManyStatement moduleName qualifiedModelName tableName writab
         , "decoder :: Decoders.Result [" <> qualifiedModelName <> "]"
         , "decoder = Decoders.rowList RowDecoder.rowDecoder"
         ]
-
