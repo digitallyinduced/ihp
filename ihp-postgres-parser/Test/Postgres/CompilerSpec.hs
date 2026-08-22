@@ -251,6 +251,9 @@ spec = do
             it "keeps UPDATE OF triggers" do
                 roundTrip "CREATE TRIGGER sync_signature AFTER UPDATE OF organization_id, domain ON documents FOR EACH ROW EXECUTE FUNCTION sync_signature();"
 
+            it "keeps trigger WHEN conditions" do
+                roundTrip "CREATE TRIGGER sync_signature BEFORE UPDATE ON documents FOR EACH ROW WHEN (OLD.signature <> NEW.signature) EXECUTE FUNCTION sync_signature();"
+
         it "should round-trip a schema-qualified CREATE FUNCTION" do
             -- parse -> compile -> parse must preserve a non-public schema like `private.`
             let statement = CreateFunction
