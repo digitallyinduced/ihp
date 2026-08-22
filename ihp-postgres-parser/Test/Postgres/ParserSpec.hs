@@ -251,10 +251,30 @@ spec = do
                     , returns = PTrigger
                     , language = "plpgsql"
                     , securityDefiner = True
+                    , functionAttributes = []
                     , functionSettings =
                         [ FunctionSetting
                             { settingName = "search_path"
                             , settingValue = "public, private, pg_temp"
+                            }
+                        ]
+                    }
+
+        it "should preserve pg_dump function attributes" do
+            let sql = "CREATE FUNCTION current_organization_id() RETURNS uuid\n    LANGUAGE sql STABLE PARALLEL SAFE SECURITY DEFINER COST 2.5\n    SET search_path = public, pg_temp\n    AS $$SELECT 1;$$;"
+            parseSql sql `shouldBe` CreateFunction
+                    { functionName = "current_organization_id"
+                    , functionArguments = []
+                    , functionBody = "SELECT 1;"
+                    , orReplace = False
+                    , returns = PUUID
+                    , language = "sql"
+                    , securityDefiner = True
+                    , functionAttributes = ["STABLE", "PARALLEL SAFE", "COST 2.5"]
+                    , functionSettings =
+                        [ FunctionSetting
+                            { settingName = "search_path"
+                            , settingValue = "public, pg_temp"
                             }
                         ]
                     }
@@ -269,6 +289,7 @@ spec = do
                     , returns = PTrigger
                     , language = "plpgsql"
                     , securityDefiner = False
+                    , functionAttributes = []
                     , functionSettings =
                         [ FunctionSetting
                             { settingName = "TimeZone"
@@ -287,6 +308,7 @@ spec = do
                     , returns = PTrigger
                     , language = "plpgsql"
                     , securityDefiner = True
+                    , functionAttributes = []
                     , functionSettings =
                         [ FunctionSetting
                             { settingName = "search_path"
@@ -306,6 +328,7 @@ spec = do
                     , returns = PTrigger
                     , language = "plpgsql"
                     , securityDefiner = True
+                    , functionAttributes = []
                     , functionSettings =
                         [ FunctionSetting
                             { settingName = "search_path"
@@ -325,6 +348,7 @@ spec = do
                     , returns = PTrigger
                     , language = "plpgsql"
                     , securityDefiner = True
+                    , functionAttributes = []
                     , functionSettings =
                         [ FunctionSetting
                             { settingName = "search_path"
@@ -345,6 +369,7 @@ spec = do
                     , returns = PTrigger
                     , language = "plpgsql"
                     , securityDefiner = False
+                    , functionAttributes = []
                     , functionSettings = []
                     }
 

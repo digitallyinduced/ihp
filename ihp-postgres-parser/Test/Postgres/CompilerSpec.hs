@@ -224,6 +224,7 @@ spec = do
                     , returns = PTrigger
                     , language = "plpgsql"
                     , securityDefiner = True
+                    , functionAttributes = []
                     , functionSettings =
                         [ FunctionSetting
                             { settingName = "search_path"
@@ -232,6 +233,20 @@ spec = do
                         ]
                     }
             compileSql [statement] `shouldBe` sql
+
+        it "should round-trip CREATE FUNCTION attributes" do
+            let statement = CreateFunction
+                    { functionName = "current_organization_id"
+                    , functionArguments = []
+                    , functionBody = "SELECT 1;"
+                    , orReplace = False
+                    , returns = PUUID
+                    , language = "sql"
+                    , securityDefiner = True
+                    , functionAttributes = ["STABLE", "PARALLEL SAFE", "COST 2.5"]
+                    , functionSettings = []
+                    }
+            parseSql (compileSql [statement]) `shouldBe` statement
 
         it "should round-trip a schema-qualified CREATE FUNCTION" do
             -- parse -> compile -> parse must preserve a non-public schema like `private.`
@@ -243,6 +258,7 @@ spec = do
                     , returns = PTrigger
                     , language = "plpgsql"
                     , securityDefiner = True
+                    , functionAttributes = []
                     , functionSettings =
                         [ FunctionSetting
                             { settingName = "search_path"

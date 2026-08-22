@@ -25,7 +25,7 @@ import Data.String.Conversions (cs)
 import Data.Maybe (isJust, catMaybes, isNothing, listToMaybe)
 import Data.Either (lefts, rights)
 import Data.Functor (($>))
-import Data.Char (isAlpha, isAlphaNum, isSpace, toLower)
+import Data.Char (isAlpha, isAlphaNum, isDigit, isSpace, toLower)
 import qualified Data.List as List
 import Control.Monad (when)
 import Text.Megaparsec
@@ -863,6 +863,7 @@ data FunctionOption
     = FunctionLanguage Text
     | FunctionSecurityDefiner
     | FunctionSettingOption FunctionSetting
+    | FunctionAttribute Text
 
 createFunction = do
     lexeme "CREATE"
@@ -878,6 +879,7 @@ createFunction = do
     functionOptions <- many parseFunctionOption
     let languageBeforeBody = listToMaybe [language | FunctionLanguage language <- functionOptions]
     let securityDefiner = any isSecurityDefiner functionOptions
+    let functionAttributes = [attribute | FunctionAttribute attribute <- functionOptions]
     let functionSettings = [functionSetting | FunctionSettingOption functionSetting <- functionOptions]
 
     lexeme "AS"
@@ -891,7 +893,7 @@ createFunction = do
             symbol' "language"
             symbol' "plpgsql" <|> symbol' "SQL"
     char ';'
-    pure CreateFunction { functionName, functionArguments, functionBody, orReplace, returns, language, securityDefiner, functionSettings }
+    pure CreateFunction { functionName, functionArguments, functionBody, orReplace, returns, language, securityDefiner, functionAttributes, functionSettings }
     where
         functionArgument = do
             argumentName <- qualifiedIdentifier
@@ -906,6 +908,7 @@ parseFunctionOption =
     try parseFunctionLanguage
     <|> try parseFunctionSecurityDefiner
     <|> try parseFunctionSetting
+    <|> try parseFunctionAttribute
 
 parseFunctionLanguage :: Parser FunctionOption
 parseFunctionLanguage = do
@@ -927,6 +930,39 @@ parseFunctionSetting = do
     space
     pure (FunctionSettingOption FunctionSetting { settingName, settingValue })
 
+-- | Volatility, strictness, parallelism and cost attributes as printed by pg_dump.
+-- They affect function behaviour, so keep their canonical spelling in the AST
+-- and emit them again when compiling the schema.
+parseFunctionAttribute :: Parser FunctionOption
+parseFunctionAttribute = do
+    FunctionAttribute <$> choice
+        [ keyword "IMMUTABLE"
+        , keyword "STABLE"
+        , keyword "VOLATILE"
+        , keyword "LEAKPROOF"
+        , keyword "WINDOW"
+        , keyword "STRICT"
+        , phrase ["NOT", "LEAKPROOF"]
+        , phrase ["CALLED", "ON", "NULL", "INPUT"]
+        , phrase ["RETURNS", "NULL", "ON", "NULL", "INPUT"]
+        , phrase ["SECURITY", "INVOKER"]
+        , try do
+            keywordPrefix "PARALLEL"
+            mode <- keyword "SAFE" <|> keyword "RESTRICTED" <|> keyword "UNSAFE"
+            pure ("PARALLEL " <> mode)
+        , numericAttribute "COST"
+        , numericAttribute "ROWS"
+        ]
+    where
+        keyword value = try (functionOptionBoundaryKeyword value) $> value
+        phrase values = try (mapM_ functionOptionBoundaryKeyword values) $> Text.unwords values
+        keywordPrefix value = try (functionOptionBoundaryKeyword value)
+        numericAttribute name = try do
+            functionOptionBoundaryKeyword name
+            value <- takeWhile1P (Just "number") (\c -> isDigit c || c == '.')
+            space
+            pure (name <> " " <> value)
+
 functionOptionBoundary :: Parser ()
 functionOptionBoundary =
     choice
@@ -934,7 +970,14 @@ functionOptionBoundary =
         , try (space1 >> functionOptionBoundaryKeyword "SECURITY")
         , try (space1 >> functionOptionBoundaryKeyword "SET")
         , try (space1 >> functionOptionBoundaryKeyword "AS")
+        , try (space1 >> functionAttributeBoundary)
         ]
+
+functionAttributeBoundary :: Parser ()
+functionAttributeBoundary = choice (map (try . functionOptionBoundaryKeyword)
+    [ "IMMUTABLE", "STABLE", "VOLATILE", "LEAKPROOF", "WINDOW", "STRICT"
+    , "NOT", "CALLED", "RETURNS", "PARALLEL", "COST", "ROWS"
+    ])
 
 functionOptionBoundaryKeyword :: Text -> Parser ()
 functionOptionBoundaryKeyword keyword = do
