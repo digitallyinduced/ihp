@@ -660,7 +660,19 @@ term = parens expression <|> try variadicExpr <|> try arrayExpr <|> try callExpr
         parens f = between (char '(' >> space) (char ')' >> space) f
 
 table = [
+            -- Chain multiple postfix operators at the same precedence so we can
+            -- parse e.g. `table.col IN (SELECT …)` — pg_dump qualifies columns
+            -- with their table name and `makeExprParser`'s `Postfix` only
+            -- applies one postfix per term. They bind tighter than every infix
+            -- operator so that e.g. `a::integer + 1` casts `a` and not the sum.
+            [ Postfix (foldl1 (flip (.)) <$> some (typeCastOp <|> dotOp <|> inOp))
+            ],
+            [ operator "*", operator "/", operator "%" ],
+            [ operator "+", operator "-" ],
             [ binary  "<>"  NotEqExpression
+            -- `!=` is PostgreSQL's spelling of `<>`; the compiler prints the
+            -- canonical `<>` back, which is what pg_dump emits.
+            , binary  "!="  NotEqExpression
             , binary "="  EqExpression
 
             , binary "<=" LessThanOrEqualToExpression
@@ -669,14 +681,15 @@ table = [
             , binary ">"  GreaterThanExpression
             , binary "||" ConcatenationExpression
 
+            -- Regular expression matching. Longest operator first, otherwise
+            -- `~` would match the prefix of `~*` and leave a stray `*`.
+            , operator "!~*", operator "!~", operator "~*", operator "~"
+            , keywordOperator "NOT LIKE", keywordOperator "NOT ILIKE"
+            , keywordOperator "LIKE", keywordOperator "ILIKE"
+
             , binary "IS" IsExpression
             , prefix "NOT" NotExpression
             , prefix "EXISTS" ExistsExpression
-            -- Chain multiple postfix operators at the same precedence so we can
-            -- parse e.g. `table.col IN (SELECT …)` — pg_dump qualifies columns
-            -- with their table name and `makeExprParser`'s `Postfix` only
-            -- applies one postfix per term.
-            , Postfix (foldl1 (flip (.)) <$> some (typeCastOp <|> dotOp <|> inOp))
             ],
             [ binary "AND" AndExpression, binary "OR" OrExpression ]
         ]
@@ -684,6 +697,15 @@ table = [
         binary  name f = InfixL  (f <$ try (symbol name))
         prefix  name f = Prefix  (f <$ symbol name)
         postfix name f = Postfix (f <$ symbol name)
+
+        -- | An operator kept verbatim in 'BinaryOperatorExpression'.
+        operator name = InfixL (BinaryOperatorExpression name <$ try (symbol name))
+
+        -- | Same, for operators spelled as words, which need a word boundary so
+        -- that e.g. `LIKE` does not match the start of a `likelihood` column.
+        keywordOperator name = InfixL (BinaryOperatorExpression name <$ try do
+            symbol' name
+            notFollowedBy (satisfy isIdentifierCharacter))
 
         -- Cannot be implemented as a infix operator as that requires two expression operands,
         -- but the second is the type-cast type which is not an expression
@@ -714,11 +736,14 @@ expression = do
 varExpr :: Parser Expression
 varExpr = VarExpression <$> identifier
 
+-- | Numeric literals are lexemes: without consuming the whitespace that follows
+-- them, `makeExprParser` cannot see the operator behind it and
+-- @CHECK (a > 0 AND b > 0)@ fails where @CHECK (a > 'x' AND …)@ succeeds.
 doubleExpr :: Parser Expression
-doubleExpr = DoubleExpression <$> (Lexer.signed spaceConsumer Lexer.float)
+doubleExpr = DoubleExpression <$> lexeme (Lexer.signed spaceConsumer Lexer.float)
 
 intExpr :: Parser Expression
-intExpr = IntExpression <$> (Lexer.signed spaceConsumer Lexer.decimal)
+intExpr = IntExpression <$> lexeme (Lexer.signed spaceConsumer Lexer.decimal)
 
 callExpr :: Parser Expression
 callExpr = do

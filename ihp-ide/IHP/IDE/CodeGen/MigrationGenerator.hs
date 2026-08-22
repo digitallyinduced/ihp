@@ -579,6 +579,7 @@ normalizeExpression (GreaterThanOrEqualToExpression a b) = GreaterThanOrEqualToE
 normalizeExpression e@(DoubleExpression {}) = e
 normalizeExpression e@(IntExpression {}) = e
 normalizeExpression (ConcatenationExpression a b) = ConcatenationExpression (normalizeExpression a) (normalizeExpression b)
+normalizeExpression (BinaryOperatorExpression operator a b) = BinaryOperatorExpression operator (normalizeExpression a) (normalizeExpression b)
 -- Enum default values from pg_dump always have an explicit type cast. Inside the Schema.sql they typically don't have those.
 -- Therefore we remove these typecasts here
 --
@@ -627,6 +628,7 @@ unqualifyExpression scope expression = doUnqualify expression
         doUnqualify e@(DoubleExpression {}) = e
         doUnqualify e@(IntExpression {}) = e
         doUnqualify (ConcatenationExpression a b) = ConcatenationExpression (doUnqualify a) (doUnqualify b)
+        doUnqualify (BinaryOperatorExpression operator a b) = BinaryOperatorExpression operator (doUnqualify a) (doUnqualify b)
         doUnqualify (TypeCastExpression a b) = TypeCastExpression (doUnqualify a) b
         doUnqualify e@(SelectExpression Select { columns, from, whereClause, alias }) =
             let recurse = case from of
@@ -671,6 +673,7 @@ resolveAlias (Just alias) fromExpression expression =
         e@(DotExpression a b) -> DotExpression (rec a) b
         e@(ExistsExpression a) -> ExistsExpression (rec a)
         e@(ConcatenationExpression a b) -> ConcatenationExpression (rec a) (rec b)
+        e@(BinaryOperatorExpression operator a b) -> BinaryOperatorExpression operator (rec a) (rec b)
         e@(InArrayExpression exprs) -> InArrayExpression (map rec exprs)
         e@(ArrayLiteralExpression exprs) -> ArrayLiteralExpression (map rec exprs)
         e@(VariadicExpression expr) -> VariadicExpression (rec expr)

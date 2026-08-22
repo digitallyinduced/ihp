@@ -468,6 +468,67 @@ spec = do
         it "should parse negative DoubleExpression's" do
             parseExpression "-1.337" `shouldBe` (DoubleExpression (-1.337))
 
+        it "should parse an operator behind an integer literal" do
+            parseExpression "a > 0 AND b > 0" `shouldBe`
+                AndExpression
+                    (GreaterThanExpression (VarExpression "a") (IntExpression 0))
+                    (GreaterThanExpression (VarExpression "b") (IntExpression 0))
+
+        it "should parse an operator behind a double literal" do
+            parseExpression "a > 0.5 AND b > 0.5" `shouldBe`
+                AndExpression
+                    (GreaterThanExpression (VarExpression "a") (DoubleExpression 0.5))
+                    (GreaterThanExpression (VarExpression "b") (DoubleExpression 0.5))
+
+        it "should parse arithmetic operators" do
+            parseExpression "a + b <= 100" `shouldBe`
+                LessThanOrEqualToExpression
+                    (BinaryOperatorExpression "+" (VarExpression "a") (VarExpression "b"))
+                    (IntExpression 100)
+
+        it "should give multiplication a tighter precedence than addition" do
+            parseExpression "a + b * c" `shouldBe`
+                BinaryOperatorExpression "+"
+                    (VarExpression "a")
+                    (BinaryOperatorExpression "*" (VarExpression "b") (VarExpression "c"))
+
+        it "should parse regular expression operators" do
+            parseExpression "code ~ '^[A-Z]{3}$'" `shouldBe`
+                BinaryOperatorExpression "~" (VarExpression "code") (TextExpression "^[A-Z]{3}$")
+
+        it "should prefer the longest regular expression operator" do
+            parseExpression "code !~* 'x'" `shouldBe`
+                BinaryOperatorExpression "!~*" (VarExpression "code") (TextExpression "x")
+
+        it "should parse LIKE without consuming an identifier that starts with it" do
+            parseExpression "name LIKE 'a%'" `shouldBe`
+                BinaryOperatorExpression "LIKE" (VarExpression "name") (TextExpression "a%")
+            parseExpression "likelihood" `shouldBe` VarExpression "likelihood"
+
+        it "should read != as the canonical <> operator" do
+            parseExpression "a != b" `shouldBe` NotEqExpression (VarExpression "a") (VarExpression "b")
+
+        it "should cast the operand rather than the sum" do
+            parseExpression "a::integer + 1" `shouldBe`
+                BinaryOperatorExpression "+"
+                    (TypeCastExpression (VarExpression "a") PInt)
+                    (IntExpression 1)
+
+        it "should parse a CHECK constraint combining comparisons with AND" do
+            parseSql "CREATE TABLE t (a INT, b INT, CONSTRAINT t_positive CHECK (a > 0 AND b > 0));" `shouldBe`
+                StatementCreateTable (table "t")
+                    { columns = [col "a" PInt, col "b" PInt]
+                    , constraints =
+                        [ CheckConstraint
+                            { name = Just "t_positive"
+                            , checkExpression =
+                                AndExpression
+                                    (GreaterThanExpression (VarExpression "a") (IntExpression 0))
+                                    (GreaterThanExpression (VarExpression "b") (IntExpression 0))
+                            }
+                        ]
+                    }
+
 parseSql :: Text -> Statement
 parseSql sql = let [statement] = parseSqlStatements sql in statement
 
