@@ -79,6 +79,7 @@ let
             ihp-imagemagick = localPackage "ihp-imagemagick";
             ihp-hspec = localPackage "ihp-hspec";
             ihp-welcome = localPackage "ihp-welcome";
+            wai-csp = localPackage "wai-csp";
 
             # wai-session-maybe / wai-session-clientsession-deferred (deferred
             # session decryption + optional Set-Cookie) are shipped by the pinned
