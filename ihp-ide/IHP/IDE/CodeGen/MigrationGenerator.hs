@@ -467,7 +467,7 @@ normalizeStatement statement@UnknownStatement { raw }
     | firstKeyword `elem` ["DO", "GRANT", "REVOKE"] = []
     | otherwise = [statement]
     where
-        firstKeyword = Text.toUpper (Text.takeWhile (not . Char.isSpace) (Text.stripStart raw))
+        firstKeyword = Text.toUpper (Text.takeWhile Char.isAlpha (Text.stripStart raw))
 normalizeStatement otherwise = [otherwise]
 
 normalizePolicyAction (Just PolicyForAll) = Nothing

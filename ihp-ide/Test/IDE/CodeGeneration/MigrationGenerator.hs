@@ -79,6 +79,11 @@ tests = do
 
                 diffSchemas targetSchema [] `shouldBe` []
 
+            it "does not repeatedly migrate ACL statements followed by comments" do
+                let targetSchema = sql "GRANT/* rationale */ SELECT ON users TO reader; REVOKE-- rationale\n INSERT ON users FROM reader;"
+
+                diffSchemas targetSchema [] `shouldBe` []
+
             it "should handle a new table" do
                 let targetSchema = sql [i|
                     CREATE TABLE users (
