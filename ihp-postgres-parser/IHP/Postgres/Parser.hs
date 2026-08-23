@@ -768,7 +768,7 @@ table = highPrecedenceTable <> genericOperatorTable <>
 
         escapeOp = do
             keyword "ESCAPE"
-            escapeCharacter <- term
+            escapeCharacter <- boundExpression
             pure (\patternExpression -> BinaryOperatorExpression "ESCAPE" patternExpression escapeCharacter)
 
         -- Cannot be implemented as a infix operator as that requires two expression operands,
@@ -840,6 +840,9 @@ typedLiteralExpr :: Parser Expression
 typedLiteralExpr = do
     literalType <- sqlType
     value <- textExpr <* space
+    literalType <- case literalType of
+        PInterval Nothing -> PInterval <$> optional (choice (map symbol' intervalFields))
+        _ -> pure literalType
     pure (TypeCastExpression value literalType)
 
 callExpr :: Parser Expression

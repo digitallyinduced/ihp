@@ -628,6 +628,10 @@ spec = do
                     (VarExpression "opened_at")
             parseExpression "TIMESTAMPTZ '2026-08-09 18:00:00+00'" `shouldBe`
                 TypeCastExpression (TextExpression "2026-08-09 18:00:00+00") PTimestampWithTimezone
+            parseExpression "created_at + INTERVAL '1' DAY" `shouldBe`
+                BinaryOperatorExpression "+"
+                    (VarExpression "created_at")
+                    (TypeCastExpression (TextExpression "1") (PInterval (Just "DAY")))
 
         it "should parse expression-based EXCLUDE constraints" do
             parseSql "ALTER TABLE bookings ADD CONSTRAINT bookings_no_overlap EXCLUDE USING gist (room_id WITH =, daterange(starts_on, ends_on) WITH &&);" `shouldBe`
@@ -660,6 +664,10 @@ spec = do
                 BinaryOperatorExpression "ESCAPE"
                     (BinaryOperatorExpression "LIKE" (VarExpression "code") (TextExpression "A!_%"))
                     (TextExpression "!")
+            parseExpression "code LIKE pattern ESCAPE escape_prefix || ''" `shouldBe`
+                BinaryOperatorExpression "ESCAPE"
+                    (BinaryOperatorExpression "LIKE" (VarExpression "code") (VarExpression "pattern"))
+                    (ConcatenationExpression (VarExpression "escape_prefix") (TextExpression ""))
 
         it "should bind LIKE before prefix NOT and allow trivia in NOT LIKE" do
             parseExpression "NOT name LIKE 'a%'" `shouldBe`
