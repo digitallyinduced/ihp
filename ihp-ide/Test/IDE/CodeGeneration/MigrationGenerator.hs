@@ -659,6 +659,11 @@ tests = do
 
                 diffSchemas (resolveContextDependentPolicyRoles context targetSchema) actualSchema `shouldBe` []
 
+            it "preserves trailing whitespace in resolved policy roles" do
+                let Right context = parsePolicyRoleContextOutput "[\"migration_role\",\"app_user\",\"app \\t\\n\"]"
+
+                context.policySessionUser `shouldBe` "app \t\n"
+
             it "preserves quotes when contextual roles resolve to special-looking names" do
                 let targetSchema = sql "CREATE POLICY access ON tickets TO CURRENT_ROLE, CURRENT_USER, SESSION_USER;"
                 let actualSchema = sql "CREATE POLICY access ON tickets TO \"public\", \"current_user\", \"session_user\";"

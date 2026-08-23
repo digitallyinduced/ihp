@@ -15,6 +15,7 @@ import qualified IHP.NameSupport as NameSupport
 import qualified Data.Char as Char
 import qualified Text.Read as Read
 import qualified System.Process as Process
+import qualified Data.Aeson as Aeson
 import qualified IHP.Postgres.Parser as Parser
 import qualified IHP.SchemaCompiler.Parser as SchemaDesignerParser
 import IHP.Postgres.Types
@@ -139,18 +140,23 @@ data PolicyRoleContext = PolicyRoleContext
 
 getPolicyRoleContext :: Text -> IO PolicyRoleContext
 getPolicyRoleContext databaseUrl = do
-    output <- Text.stripEnd . cs <$> Process.readProcess "psql"
+    output <- cs <$> Process.readProcess "psql"
         [ "--no-psqlrc"
         , "--tuples-only"
         , "--no-align"
-        , "--field-separator=\t"
         , cs databaseUrl
         , "--command"
-        , "SELECT current_role, current_user, session_user"
+        , "SELECT json_build_array(current_role, current_user, session_user)"
         ] []
-    case Text.splitOn "\t" output of
-        [policyCurrentRole, policyCurrentUser, policySessionUser] -> pure PolicyRoleContext { policyCurrentRole, policyCurrentUser, policySessionUser }
-        _ -> fail "Could not resolve PostgreSQL policy role context"
+    either fail pure (parsePolicyRoleContextOutput output)
+
+parsePolicyRoleContextOutput :: ByteString -> Either String PolicyRoleContext
+parsePolicyRoleContextOutput output = do
+    roles <- Aeson.eitherDecodeStrict' output
+    case roles of
+        [policyCurrentRole, policyCurrentUser, policySessionUser] ->
+            pure PolicyRoleContext { policyCurrentRole, policyCurrentUser, policySessionUser }
+        _ -> Left "Could not resolve PostgreSQL policy role context"
 
 resolveContextDependentPolicyRoles :: PolicyRoleContext -> [Statement] -> [Statement]
 resolveContextDependentPolicyRoles context = map \case
