@@ -85,6 +85,12 @@ tests = do
                 diffSchemas [] actualSchema `shouldBe`
                     [UnknownStatement { raw = "COMMENT ON TABLE users IS NULL" }]
 
+            it "normalizes equivalent qualified COMMENT metadata" do
+                let targetSchema = sql "comment on table users is 'application users';"
+                let actualSchema = sql "COMMENT ON TABLE public.users IS 'application users';"
+
+                diffSchemas targetSchema actualSchema `shouldBe` []
+
             it "does not repeatedly migrate ACL statements followed by comments" do
                 let targetSchema = sql "GRANT/* rationale */ SELECT ON users TO reader; REVOKE-- rationale\n INSERT ON users FROM reader;"
 

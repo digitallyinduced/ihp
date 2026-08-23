@@ -467,6 +467,7 @@ normalizeStatement CreateFunction { .. } = [ CreateFunction { orReplace = False,
 normalizeStatement statement@UnknownStatement { raw }
     | firstKeyword `elem` ["DO", "GRANT", "REVOKE"] = []
     | "COMMENT ON EXTENSION " `Text.isPrefixOf` Text.toUpper (Text.stripStart raw) = []
+    | Just normalizedComment <- Parser.normalizeComment raw = [UnknownStatement { raw = normalizedComment }]
     | otherwise = [statement]
     where
         firstKeyword = Text.toUpper (Text.takeWhile Char.isAlpha (Text.stripStart raw))

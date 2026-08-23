@@ -14,6 +14,7 @@ module IHP.Postgres.Parser
 , removeTypeCasts
 , parseIndexColumns
 , unsetComment
+, normalizeComment
 ) where
 
 import Prelude
@@ -305,6 +306,58 @@ unsetComment = parseMaybe do
             string' "IS"
             notFollowedBy (satisfy isIdentifierCharacter)
             space1
+
+-- | Canonicalizes an executable COMMENT for schema comparison. PostgreSQL
+-- folds unquoted identifiers and pg_dump qualifies public objects, while a
+-- hand-written Schema.sql commonly keeps their shorter unqualified spelling.
+normalizeComment :: Text -> Maybe Text
+normalizeComment = parseMaybe do
+    string' "COMMENT"
+    notFollowedBy (satisfy isIdentifierCharacter)
+    space1
+    string' "ON"
+    notFollowedBy (satisfy isIdentifierCharacter)
+    space1
+    targetChunks <- manyTill normalizedTargetChunk commentValueDelimiter
+    value <- Text.pack <$> some anySingle
+    eof
+    pure ("COMMENT ON " <> normalizeTarget targetChunks <> " IS " <> Text.strip value)
+    where
+        commentValueDelimiter = try do
+            space1
+            string' "IS"
+            notFollowedBy (satisfy isIdentifierCharacter)
+            space1
+
+        normalizedTargetChunk =
+            try publicQualification
+            <|> try escapeStringChunk
+            <|> quotedChunk '\''
+            <|> quotedChunk '"'
+            <|> try dollarQuoted
+            <|> (Text.toLower <$> identifierChunk)
+            <|> (space1 $> " ")
+            <|> (Lexer.skipLineComment "--" $> " ")
+            <|> (Lexer.skipBlockCommentNested "/*" "*/" $> " ")
+            <|> (Text.singleton <$> anySingle)
+
+        publicQualification = try do
+            schema <- identifierChunk
+            when (Text.toLower schema /= "public") (fail "not the public schema")
+            char '.'
+            pure ""
+
+        normalizeTarget :: [Text] -> Text
+        normalizeTarget chunks = Text.toUpper objectType <> rest
+            where
+                target = Text.strip (List.foldl' appendChunk "" chunks)
+                (objectType, rest) = Text.break isSpace target
+
+        appendChunk :: Text -> Text -> Text
+        appendChunk normalized " "
+            | " " `Text.isSuffixOf` normalized = normalized
+            | otherwise = normalized <> " "
+        appendChunk normalized chunk = normalized <> chunk
 
 opaqueChunk :: Parser Text
 opaqueChunk =
