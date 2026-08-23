@@ -150,7 +150,11 @@ diffSchemas targetSchema' actualSchema' = (drop <> create)
             |> applyReplaceFunction
     where
         create :: [Statement]
-        create = targetSchema \\ actualSchema
+        create = map restoreExtensionOptions (targetSchema \\ actualSchema)
+
+        restoreExtensionOptions statement@CreateExtension { name } =
+            fromMaybe statement (find (\case CreateExtension { name = targetName } -> targetName == name; _ -> False) targetSchema')
+        restoreExtensionOptions statement = statement
 
         drop :: [Statement]
         drop = (actualSchema \\ targetSchema)

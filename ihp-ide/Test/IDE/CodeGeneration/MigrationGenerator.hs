@@ -186,6 +186,11 @@ tests = do
 
                 diffSchemas targetSchema actualSchema `shouldBe` []
 
+            it "preserves options when creating a missing extension" do
+                let targetSchema = sql "CREATE EXTENSION IF NOT EXISTS postgis WITH SCHEMA geo VERSION '3.4.2' CASCADE;"
+
+                diffSchemas targetSchema [] `shouldBe` targetSchema
+
             it "should handle a new table" do
                 let targetSchema = sql [i|
                     CREATE TABLE users (
