@@ -301,7 +301,7 @@ doStatement :: Parser Statement
 doStatement = do
     sqlLexeme (string' "DO")
     languageBefore <- optional (sqlLexeme (string' "LANGUAGE") >> languageIdentifier)
-    body <- sqlLexeme (dollarQuoted <|> try unicodeEscapeStringLiteral <|> try escapeStringLiteral <|> standardStringLiteral)
+    body <- sqlLexeme (dollarQuoted <|> try unicodeEscapeStringLiteral <|> try prefixedStandardStringLiteral <|> try escapeStringLiteral <|> standardStringLiteral)
     languageAfter <- optional (sqlLexeme (string' "LANGUAGE") >> languageIdentifier)
     char ';'
     let language = maybe "" (\name -> "LANGUAGE " <> name <> " ") (languageBefore <|> languageAfter)
@@ -324,6 +324,11 @@ doStatement = do
             oneOf ['e', 'E']
             char '\''
             many (try (char '\'' >> char '\'') <|> try (char '\\' >> anySingle) <|> anySingleBut '\'')
+            char '\''
+        prefixedStandardStringLiteral = fst <$> match do
+            oneOf ['n', 'N']
+            char '\''
+            many (try (char '\'' >> char '\'') <|> anySingleBut '\'')
             char '\''
         standardStringLiteral = fst <$> match do
             char '\''

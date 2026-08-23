@@ -463,6 +463,11 @@ normalizeStatement CreateEnumType { name, values } = [ CreateEnumType { name = T
 normalizeStatement CreatePolicy { name, action, tableName, using, check } = [ CreatePolicy { name = truncateIdentifier name, tableName, using = (unqualifyExpression tableName . normalizeExpression) <$> using, check = (unqualifyExpression tableName . normalizeExpression) <$> check, action = normalizePolicyAction action } ]
 normalizeStatement CreateIndex { columns, indexType, indexName, .. } = [ CreateIndex { columns = map normalizeIndexColumn columns, indexType = normalizeIndexType indexType, indexName = truncateIdentifier indexName, .. } ]
 normalizeStatement CreateFunction { .. } = [ CreateFunction { orReplace = False, language = Text.toUpper language, functionBody = removeIndentation $ normalizeNewLines functionBody, .. } ]
+normalizeStatement statement@UnknownStatement { raw }
+    | firstKeyword `elem` ["DO", "GRANT", "REVOKE"] = []
+    | otherwise = [statement]
+    where
+        firstKeyword = Text.toUpper (Text.takeWhile (not . Char.isSpace) (Text.stripStart raw))
 normalizeStatement otherwise = [otherwise]
 
 normalizePolicyAction (Just PolicyForAll) = Nothing

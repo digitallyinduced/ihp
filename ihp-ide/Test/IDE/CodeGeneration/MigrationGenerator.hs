@@ -74,6 +74,11 @@ tests = do
             it "should handle an empty schema" do
                 diffSchemas [] [] `shouldBe` []
 
+            it "does not repeatedly migrate non-persistent opaque statements" do
+                let targetSchema = sql "GRANT SELECT ON users TO reader; REVOKE INSERT ON users FROM reader; DO $$ BEGIN NULL; END $$;"
+
+                diffSchemas targetSchema [] `shouldBe` []
+
             it "should handle a new table" do
                 let targetSchema = sql [i|
                     CREATE TABLE users (

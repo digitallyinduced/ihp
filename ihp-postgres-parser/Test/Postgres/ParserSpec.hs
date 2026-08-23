@@ -518,6 +518,10 @@ spec = do
             parseSql "DO U&'BEGIN PERFORM \\0061; END' UESCAPE '\\';" `shouldBe`
                 UnknownStatement { raw = "DO U&'BEGIN PERFORM \\0061; END' UESCAPE '\\'" }
 
+        it "should preserve a DO block with a national-character string body" do
+            parseSql "DO N'BEGIN NULL; END';" `shouldBe`
+                UnknownStatement { raw = "DO N'BEGIN NULL; END'" }
+
         it "should accept PostgreSQL comments around DO clauses" do
             parseSql "DO -- rationale\n/* outer /* inner */ outer */ $$ BEGIN NULL; END $$;" `shouldBe`
                 UnknownStatement { raw = "DO $$ BEGIN NULL; END $$" }
