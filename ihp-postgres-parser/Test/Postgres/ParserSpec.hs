@@ -337,13 +337,13 @@ spec = do
                     }
 
         it "should parse exponent notation in numeric function attributes" do
-            let sql = "CREATE FUNCTION estimated() RETURNS uuid LANGUAGE sql COST 1e-6 ROWS 1E6 AS $$SELECT 1;$$;"
+            let sql = "CREATE FUNCTION estimated() RETURNS SETOF uuid LANGUAGE sql COST 1e-6 ROWS 1E6 AS $$SELECT 1;$$;"
             parseSql sql `shouldBe` CreateFunction
                     { functionName = "estimated"
                     , functionArguments = []
                     , functionBody = "SELECT 1;"
                     , orReplace = False
-                    , returns = PUUID
+                    , returns = PSetOf PUUID
                     , language = "sql"
                     , securityDefiner = False
                     , functionAttributes = ["COST 1e-6", "ROWS 1E6"]
@@ -351,8 +351,16 @@ spec = do
                     }
 
         it "should parse leading-dot numeric function attributes" do
-            let parsed = parseSql "CREATE FUNCTION estimated() RETURNS uuid LANGUAGE sql COST .5 ROWS .25 AS $$SELECT 1;$$;"
+            let parsed = parseSql "CREATE FUNCTION estimated() RETURNS SETOF uuid LANGUAGE sql COST .5 ROWS .25 AS $$SELECT 1;$$;"
             parsed.functionAttributes `shouldBe` ["COST .5", "ROWS .25"]
+
+        it "should parse trailing-dot numeric function attributes" do
+            let parsed = parseSql "CREATE FUNCTION estimated() RETURNS SETOF uuid LANGUAGE sql COST 5. ROWS 10. AS $$SELECT 1;$$;"
+            parsed.functionAttributes `shouldBe` ["COST 5.", "ROWS 10."]
+
+        it "should parse table-returning function signatures" do
+            let parsed = parseSql "CREATE FUNCTION estimated() RETURNS TABLE (id uuid, label text) LANGUAGE sql ROWS 10 AS $$SELECT NULL, NULL;$$;"
+            parsed.returns `shouldBe` PTable [("id", PUUID), ("label", PText)]
 
         it "should parse escape-string function settings containing whitespace" do
             let sql = "CREATE FUNCTION configured_path() RETURNS uuid LANGUAGE sql SET application_name = E'C:\\\\Program Files' AS $$SELECT 1;$$;"

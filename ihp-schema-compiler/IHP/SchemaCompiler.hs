@@ -214,6 +214,8 @@ atomicType = \case
     (PVaryingN _) -> "Text"
     (PCharacterN _) -> "Text"
     PArray type_ -> "[" <> atomicType type_ <> "]"
+    PSetOf _ -> error "atomicType: PSetOf not supported for table columns"
+    PTable _ -> error "atomicType: PTable not supported for table columns"
     PPoint -> "Point"
     PPolygon -> "Polygon"
     PGeometry -> "Geometry"
@@ -995,6 +997,8 @@ hasqlValueDecoder = \case
     PInet -> "Mapping.decoder"
     PTSVector -> "Mapping.decoder"
     PArray innerType -> "(Decoders.listArray (" <> hasqlArrayElementDecoder innerType <> "))"
+    PSetOf _ -> error "hasqlValueDecoder: PSetOf not supported for table columns"
+    PTable _ -> error "hasqlValueDecoder: PTable not supported for table columns"
     PCustomType _ -> "Mapping.decoder"
     PSingleChar -> "Decoders.char"
     PTrigger -> "Decoders.text"  -- Trigger types shouldn't appear in table columns
@@ -1366,6 +1370,8 @@ hasqlValueEncoder = \case
     PInet -> "Mapping.encoder"
     PTSVector -> "Mapping.encoder"
     PArray innerType -> "(Encoders.foldableArray (Encoders.nonNullable " <> hasqlValueEncoder innerType <> "))"
+    PSetOf _ -> error "hasqlValueEncoder: PSetOf not supported for table columns"
+    PTable _ -> error "hasqlValueEncoder: PTable not supported for table columns"
     PCustomType _ -> "Mapping.encoder"
     PSingleChar -> "Encoders.char"
     PTrigger -> error "hasqlValueEncoder: PTrigger not supported"
@@ -1687,6 +1693,7 @@ compileStaticCreateManyStatement moduleName qualifiedModelName tableName writabl
         , "decoder = Decoders.rowList RowDecoder.rowDecoder"
         ]
 
+
 compileDynamicCreateManyStatement :: (?schema :: Schema, ?compilerOptions :: CompilerOptions) => Text -> Text -> Text -> [Column] -> Text -> CreateTable -> [Column] -> Text -> Text
 compileDynamicCreateManyStatement moduleName qualifiedModelName tableName writableColumns allColumnNames table columns rowDecoderImport =
     let columnBitIndices = columnsWithBitIndices columns writableColumns
@@ -1733,4 +1740,3 @@ compileDynamicCreateManyStatement moduleName qualifiedModelName tableName writab
         , "decoder :: Decoders.Result [" <> qualifiedModelName <> "]"
         , "decoder = Decoders.rowList RowDecoder.rowDecoder"
         ]
-

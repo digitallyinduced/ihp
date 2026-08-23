@@ -248,6 +248,20 @@ spec = do
                     }
             parseSql (compileSql [statement]) `shouldBe` statement
 
+        it "should round-trip set-returning function signatures" do
+            let statement = CreateFunction
+                    { functionName = "estimated"
+                    , functionArguments = []
+                    , functionBody = "SELECT NULL, NULL;"
+                    , orReplace = False
+                    , returns = PTable [("id", PUUID), ("label", PText)]
+                    , language = "sql"
+                    , securityDefiner = False
+                    , functionAttributes = ["ROWS 10"]
+                    , functionSettings = []
+                    }
+            parseSql (compileSql [statement]) `shouldBe` statement
+
         it "should round-trip a quoted SUPPORT function identifier" do
             let statement = CreateFunction
                     { functionName = "supported"

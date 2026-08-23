@@ -873,7 +873,7 @@ createFunction = do
     functionArguments <- between (char '(') (char ')') (functionArgument `sepBy` (char ',' >> space))
     space
     lexeme "RETURNS"
-    returns <- sqlType
+    returns <- functionReturnType
     space
 
     functionOptions <- many parseFunctionOption
@@ -900,6 +900,12 @@ createFunction = do
             space
             argumentType <- sqlType
             pure (argumentName, argumentType)
+        functionReturnType =
+            try (lexeme "SETOF" >> (PSetOf <$> sqlType))
+            <|> try do
+                lexeme "TABLE"
+                PTable <$> between (char '(' >> space) (char ')' >> space) (functionArgument `sepBy1` (char ',' >> space))
+            <|> sqlType
         isSecurityDefiner FunctionSecurityDefiner = True
         isSecurityDefiner _ = False
 
@@ -976,7 +982,7 @@ parseFunctionAttribute = do
         numericAttribute name = try do
             functionOptionBoundaryKeyword name
             value <- fst <$> match do
-                _ <- try (some digitChar >> optional (char '.' >> some digitChar) $> ())
+                _ <- try (some digitChar >> optional (char '.' >> many digitChar) $> ())
                     <|> (char '.' >> some digitChar $> ())
                 optional do
                     oneOf ['e', 'E']

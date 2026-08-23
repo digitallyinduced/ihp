@@ -243,6 +243,8 @@ data PostgresType
     | PInet
     | PTSVector
     | PArray PostgresType
+    | PSetOf PostgresType
+    | PTable [(Text, PostgresType)]
     | PTrigger
     | PEventTrigger
     | PCustomType Text

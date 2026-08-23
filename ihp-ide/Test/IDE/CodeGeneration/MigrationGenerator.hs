@@ -97,8 +97,8 @@ tests = do
                 diffSchemas targetSchema actualSchema `shouldBe` []
 
             it "canonicalizes numeric function attribute values" do
-                let targetSchema = sql "CREATE FUNCTION estimate() RETURNS uuid LANGUAGE sql COST 2.50 ROWS 1E6 AS $$SELECT NULL;$$;"
-                let actualSchema = sql "CREATE FUNCTION estimate() RETURNS uuid LANGUAGE sql COST 2.5 ROWS 1000000 AS $$SELECT NULL;$$;"
+                let targetSchema = sql "CREATE FUNCTION estimate() RETURNS SETOF uuid LANGUAGE sql COST 2.50 ROWS 1E6 AS $$SELECT NULL;$$;"
+                let actualSchema = sql "CREATE FUNCTION estimate() RETURNS SETOF uuid LANGUAGE sql COST 2.5 ROWS 1000000 AS $$SELECT NULL;$$;"
 
                 diffSchemas targetSchema actualSchema `shouldBe` []
 
