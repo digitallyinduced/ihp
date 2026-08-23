@@ -42,6 +42,10 @@ spec = do
             parseSql "CREATE EXTENSION pg_trgm VERSION '1.6' CASCADE;" `shouldBe`
                 CreateExtension { name = "pg_trgm", ifNotExists = False, extensionOptions = [ExtensionVersion "1.6", ExtensionCascade] }
 
+        it "should decode doubled quotes in extension versions" do
+            parseSql "CREATE EXTENSION extension_name VERSION '1''beta';" `shouldBe`
+                CreateExtension { name = "extension_name", ifNotExists = False, extensionOptions = [ExtensionVersion "1'beta"] }
+
         describe "parseCreateExtensionMigration" do
             it "accepts one or more extension statements and comments" do
                 parseCreateExtensionMigration "-- Required for earthdistance\nCREATE EXTENSION IF NOT EXISTS cube;\nCREATE EXTENSION IF NOT EXISTS \"earthdistance\" WITH SCHEMA public;"
@@ -60,6 +64,9 @@ spec = do
 
                 parseCreateExtensionMigration "CREATE EXTENSION IF NOT EXISTS postgis WITH VERSION stable CASCADE;"
                     `shouldBe` Right [CreateExtension { name = "postgis", ifNotExists = True, extensionOptions = [ExtensionVersion "stable", ExtensionCascade] }]
+
+                parseCreateExtensionMigration "CREATE EXTENSION IF NOT EXISTS postgis CASCADE VERSION '3.4.2' SCHEMA geo;"
+                    `shouldBe` Right [CreateExtension { name = "postgis", ifNotExists = True, extensionOptions = [ExtensionCascade, ExtensionVersion "3.4.2", ExtensionSchema "geo"] }]
 
             it "preserves quoted extension names" do
                 parseCreateExtensionMigration "CREATE EXTENSION IF NOT EXISTS \"MixedCase\";"

@@ -86,16 +86,16 @@ createExtensionForMigration = do
         extensionKeyword "EXISTS"
     name <- extensionIdentifier
     optional (extensionKeyword "WITH")
-    schema <- optional do
-        extensionKeyword "SCHEMA"
-        extensionIdentifier
-    version <- optional do
-        extensionKeyword "VERSION"
-        extensionVersionText
-    cascade <- isJust <$> optional (extensionKeyword "CASCADE")
+    extensionOptions <- many extensionOption
+    when (hasDuplicateExtensionOptions extensionOptions) (fail "duplicate CREATE EXTENSION option")
     extensionSymbol ";"
-    let extensionOptions = maybe [] ((:[]) . ExtensionSchema) schema <> maybe [] ((:[]) . ExtensionVersion) version <> [ExtensionCascade | cascade]
     pure CreateExtension { name, ifNotExists, extensionOptions }
+    where
+        extensionOption = choice
+            [ extensionKeyword "SCHEMA" >> (ExtensionSchema <$> extensionIdentifier)
+            , extensionKeyword "VERSION" >> (ExtensionVersion <$> extensionVersionText)
+            , extensionKeyword "CASCADE" $> ExtensionCascade
+            ]
 
 extensionSpaceConsumer :: Parser ()
 extensionSpaceConsumer = Lexer.space
@@ -246,12 +246,21 @@ createExtension = do
     ifNotExists <- isJust <$> optional (lexeme "IF" >> lexeme "NOT" >> lexeme "EXISTS")
     name <- qualifiedIdentifier
     optional (lexeme "WITH")
-    schema <- optional (lexeme "SCHEMA" >> extensionIdentifier)
-    version <- optional (lexeme "VERSION" >> (lexeme textExpr' <|> identifier))
-    cascade <- isJust <$> optional (lexeme "CASCADE")
+    extensionOptions <- many extensionOption
+    when (hasDuplicateExtensionOptions extensionOptions) (fail "duplicate CREATE EXTENSION option")
     char ';'
-    let extensionOptions = maybe [] ((:[]) . ExtensionSchema) schema <> maybe [] ((:[]) . ExtensionVersion) version <> [ExtensionCascade | cascade]
     pure CreateExtension { name, ifNotExists, extensionOptions }
+    where
+        extensionOption = choice
+            [ lexeme "SCHEMA" >> (ExtensionSchema <$> extensionIdentifier)
+            , lexeme "VERSION" >> (ExtensionVersion <$> extensionVersionText)
+            , lexeme "CASCADE" $> ExtensionCascade
+            ]
+
+hasDuplicateExtensionOptions :: [ExtensionOption] -> Bool
+hasDuplicateExtensionOptions options = length optionKinds /= length (List.nub optionKinds)
+    where
+        optionKinds = map (\case ExtensionSchema {} -> (0 :: Int); ExtensionVersion {} -> 1; ExtensionCascade -> 2) options
 
 createTable = do
     lexeme "CREATE"
