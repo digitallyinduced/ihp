@@ -904,14 +904,16 @@ createFunction = do
 -- | Function return positions accept shapes that table columns do not.
 functionReturnType :: Parser PostgresType
 functionReturnType = choice
-    [ try (lexeme "SETOF" >> (PSetOf <$> sqlType))
+    [ try (returnKeyword "SETOF" >> (PSetOf <$> sqlType))
     , try do
-        lexeme "TABLE"
+        returnKeyword "TABLE"
         columns <- between (char '(' >> space) (space >> char ')') (returnTableColumn `sepBy` (char ',' >> space))
         pure (PReturnTable columns)
     , sqlType
     ]
     where
+        returnKeyword keyword = lexeme (string' keyword <* notFollowedBy (satisfy \c -> isAlphaNum c || c == '_'))
+
         returnTableColumn = do
             space
             columnName <- identifier

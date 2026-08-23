@@ -260,7 +260,7 @@ spec = do
                     }
 
         it "should parse CREATE FUNCTION returning SETOF" do
-            let sql = "CREATE FUNCTION search_ids(query text) RETURNS SETOF uuid LANGUAGE sql AS $$SELECT 1;$$;"
+            let sql = "CREATE FUNCTION search_ids(query text) RETURNS setof uuid LANGUAGE sql AS $$SELECT 1;$$;"
             parseSql sql `shouldBe`
                 (function "search_ids")
                     { functionArguments = [("query", PText)]
@@ -270,7 +270,7 @@ spec = do
                     }
 
         it "should parse CREATE FUNCTION returning TABLE" do
-            let sql = "CREATE FUNCTION search_rows() RETURNS TABLE(id uuid, label text) LANGUAGE sql AS $$SELECT 1;$$;"
+            let sql = "CREATE FUNCTION search_rows() RETURNS table(id uuid, label text) LANGUAGE sql AS $$SELECT 1;$$;"
             parseSql sql `shouldBe`
                 (function "search_rows")
                     { functionBody = "SELECT 1;"
