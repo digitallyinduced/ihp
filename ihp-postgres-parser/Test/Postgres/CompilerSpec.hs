@@ -233,6 +233,40 @@ spec = do
                     }
             compileSql [statement] `shouldBe` sql
 
+        it "should round-trip non-public schema-qualified table names" do
+            let statement = StatementCreateTable (table "private.users")
+            parseSql (compileSql [statement]) `shouldBe` statement
+
+        it "should quote qualified identifier components independently" do
+            let statement = StatementCreateTable (table "tenant-a.MixedUsers")
+            compileSql [statement] `shouldBe` "CREATE TABLE \"tenant-a\".\"MixedUsers\" (\n\n);\n"
+            parseSql (compileSql [statement]) `shouldBe` statement
+
+        it "does not split dots in ordinary quoted identifiers" do
+            let statement = StatementCreateTable (table "users")
+                    { columns = [(col "A.b" PText)] }
+            compileSql [statement] `shouldBe` "CREATE TABLE users (\n    \"A.b\" TEXT\n);\n"
+
+        it "round-trips schema-qualified enum types" do
+            let statement = CreateEnumType { name = "private.status", values = ["active"] }
+            parseSql (compileSql [statement]) `shouldBe` statement
+
+        it "keeps dotted CREATE INDEX names as single identifiers" do
+            let statement = CreateIndex
+                    { indexName = "audit.v1"
+                    , unique = False
+                    , tableName = "users"
+                    , columns = [indexCol (VarExpression "id")]
+                    , whereClause = Nothing
+                    , indexType = Nothing
+                    , nullsDistinct = True
+                    }
+            compileSql [statement] `shouldBe` "CREATE INDEX \"audit.v1\" ON users (id);\n"
+
+        it "should round-trip a schema-qualified DROP TABLE" do
+            let statement = DropTable { tableName = "private.users" }
+            parseSql (compileSql [statement]) `shouldBe` statement
+
         it "should round-trip a schema-qualified CREATE FUNCTION" do
             -- parse -> compile -> parse must preserve a non-public schema like `private.`
             let statement = CreateFunction

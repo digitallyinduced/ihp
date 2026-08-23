@@ -309,10 +309,7 @@ createTable = do
 createEnumType = do
     lexeme "CREATE"
     lexeme "TYPE"
-    optional do
-        lexeme "public"
-        char '.'
-    name <- identifier
+    name <- qualifiedIdentifier
     lexeme "AS"
     lexeme "ENUM"
     values <- between (char '(' >> space) (space >> char ')' >> space) (textExpr' `sepBy` (char ',' >> space))
@@ -1161,11 +1158,17 @@ commentStatement = do
     char ';'
     pure Comment { content }
 
+-- | Parse a possibly schema-qualified identifier. The default public schema is
+-- normalized away for backward compatibility; every other schema is preserved.
+qualifiedIdentifier :: Parser Text
 qualifiedIdentifier = do
-    optional $ try do
-        lexeme "public"
-        char '.'
-    identifier
+    schemaOrName <- identifier
+    maybeName <- optional (char '.' >> identifier)
+    pure $ case maybeName of
+        Nothing -> schemaOrName
+        Just name
+            | schemaOrName == "public" -> name
+            | otherwise -> schemaOrName <> "." <> name
 
 -- | Parses a (possibly schema-qualified) function name.
 --
@@ -1219,7 +1222,7 @@ renameTable tableName = do
 dropTable = do
     lexeme "DROP"
     lexeme "TABLE"
-    tableName <- identifier
+    tableName <- qualifiedIdentifier
     char ';'
     pure DropTable { tableName }
 
