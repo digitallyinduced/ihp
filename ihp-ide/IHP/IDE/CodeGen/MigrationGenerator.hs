@@ -513,6 +513,14 @@ normalizeTable table@(CreateTable { .. }) = ( CreateTable { columns = fst normal
 
 normalizeConstraint :: Text -> Constraint -> Constraint
 normalizeConstraint _ ForeignKeyConstraint { name, columnName, referenceTable, referenceColumn, onDelete } = ForeignKeyConstraint { name = truncateIdentifier <$> name, columnName = Text.toLower columnName, referenceTable = Text.toLower referenceTable, referenceColumn = fmap Text.toLower referenceColumn, onDelete = Just (fromMaybe NoAction onDelete) }
+normalizeConstraint _ CompositeForeignKeyConstraint { name, columnNames, referenceTable, referenceColumns, onDelete, onUpdate } = CompositeForeignKeyConstraint
+    { name = truncateIdentifier <$> name
+    , columnNames = map Text.toLower columnNames
+    , referenceTable = Text.toLower referenceTable
+    , referenceColumns = map Text.toLower referenceColumns
+    , onDelete = Just (fromMaybe NoAction onDelete)
+    , onUpdate = Just (fromMaybe NoAction onUpdate)
+    }
 normalizeConstraint tableName constraint@(UniqueConstraint { name = Just uniqueName, columnNames }) | length columnNames > 1 =
         -- Single column UNIQUE constraints like:
         --

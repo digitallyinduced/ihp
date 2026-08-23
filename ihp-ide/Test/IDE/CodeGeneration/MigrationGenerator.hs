@@ -74,6 +74,16 @@ tests = do
             it "should handle an empty schema" do
                 diffSchemas [] [] `shouldBe` []
 
+            it "normalizes omitted referential actions on composite foreign keys" do
+                let targetSchema = sql [i|
+                    ALTER TABLE items ADD CONSTRAINT items_ref_ticket FOREIGN KEY (ticket_id, organization_id) REFERENCES tickets (id, organization_id);
+                |]
+                let actualSchema = sql [i|
+                    ALTER TABLE items ADD CONSTRAINT items_ref_ticket FOREIGN KEY (ticket_id, organization_id) REFERENCES tickets (id, organization_id) ON UPDATE NO ACTION ON DELETE NO ACTION;
+                |]
+
+                diffSchemas targetSchema actualSchema `shouldBe` []
+
             it "should handle a new table" do
                 let targetSchema = sql [i|
                     CREATE TABLE users (

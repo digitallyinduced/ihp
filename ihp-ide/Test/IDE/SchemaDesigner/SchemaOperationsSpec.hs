@@ -271,6 +271,22 @@ tests = do
                 (SchemaOperations.addColumn options inputSchema) `shouldBe` expectedSchema
 
         describe "deleteColumn" do
+            it "deletes a composite foreign key containing the column" do
+                let inputSchema = parseSqlStatements [trimming|
+                    CREATE TABLE items (ticket_id UUID, organization_id UUID);
+                    ALTER TABLE items ADD CONSTRAINT items_ref_ticket FOREIGN KEY (ticket_id, organization_id) REFERENCES tickets (id, organization_id);
+                |]
+                let expectedSchema = parseSqlStatements [trimming|
+                    CREATE TABLE items (organization_id UUID);
+                |]
+                let options = SchemaOperations.DeleteColumnOptions
+                        { tableName = "items"
+                        , columnName = "ticket_id"
+                        , columnId = 0
+                        }
+
+                SchemaOperations.deleteColumn options inputSchema `shouldBe` expectedSchema
+
             it "should delete an referenced index" do
                 let tableAWithCreatedAt = StatementCreateTable (table "a")
                             { columns = [
@@ -341,6 +357,29 @@ tests = do
 
                 (SchemaOperations.deleteColumn options inputSchema) `shouldBe` expectedSchema
         describe "update" do
+            it "updates composite foreign key columns" do
+                let inputSchema = parseSqlStatements [trimming|
+                    CREATE TABLE items (ticket_id UUID, organization_id UUID);
+                    ALTER TABLE items ADD CONSTRAINT items_ticket_id_organization_id_fkey FOREIGN KEY (ticket_id, organization_id) REFERENCES tickets (id, organization_id);
+                |]
+                let expectedSchema = parseSqlStatements [trimming|
+                    CREATE TABLE items (parent_ticket_id UUID, organization_id UUID);
+                    ALTER TABLE items ADD CONSTRAINT items_parent_ticket_id_organization_id_fkey FOREIGN KEY (parent_ticket_id, organization_id) REFERENCES tickets (id, organization_id);
+                |]
+                let options = SchemaOperations.UpdateColumnOptions
+                        { tableName = "items"
+                        , columnName = "parent_ticket_id"
+                        , columnType = PUUID
+                        , defaultValue = Nothing
+                        , isArray = False
+                        , allowNull = True
+                        , isUnique = False
+                        , primaryKey = False
+                        , columnId = 0
+                        }
+
+                SchemaOperations.updateColumn options inputSchema `shouldBe` expectedSchema
+
             it "update a column's name, type, default value and not null" do
                 let tableAWithCreatedAt = StatementCreateTable (table "a")
                             { columns = [

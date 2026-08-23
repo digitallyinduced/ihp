@@ -169,6 +169,11 @@ updateColumn options@(UpdateColumnOptions { .. }) schema =
                 statement@(AddConstraint { tableName = constraintTable, constraint = constraint@(ForeignKeyConstraint { name = fkName, columnName = fkColumnName  })  }) | constraintTable == tableName && fkColumnName == (oldColumn.name) ->
                     let newName = Text.replace (oldColumn.name) columnName <$> fkName
                     in statement { constraint = constraint { columnName, name = newName } }
+                statement@(AddConstraint { tableName = constraintTable, constraint = constraint@(CompositeForeignKeyConstraint { name = fkName, columnNames }) }) | constraintTable == tableName && oldColumn.name `elem` columnNames ->
+                    let
+                        newName = Text.replace oldColumn.name columnName <$> fkName
+                        newColumnNames = map (\name -> if name == oldColumn.name then columnName else name) columnNames
+                    in statement { constraint = constraint { columnNames = newColumnNames, name = newName } }
                 index@(CreateIndex { indexName, tableName = indexTable, columns = indexColumns }) | indexTable == tableName ->
                     let
                         updateIndexColumn :: IndexColumn -> IndexColumn
@@ -559,6 +564,7 @@ deleteColumn DeleteColumnOptions { .. } schema =
         |> map deleteColumnInTable
         |> (filter \case
                 AddConstraint { tableName = fkTable, constraint = ForeignKeyConstraint { columnName = fkColumn } } | fkTable == tableName && fkColumn == columnName -> False
+                AddConstraint { tableName = fkTable, constraint = CompositeForeignKeyConstraint { columnNames = fkColumns } } | fkTable == tableName && columnName `elem` fkColumns -> False
                 index@(CreateIndex {}) | isIndexStatementReferencingTableColumn index tableName columnName -> False
                 otherwise -> True
             )
