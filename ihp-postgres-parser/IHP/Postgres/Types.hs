@@ -90,6 +90,7 @@ data FunctionSetting = FunctionSetting
     }
     deriving (Eq, Show)
 
+-- | PostgreSQL sequence parameters preserved for schema comparison and ALTER SEQUENCE generation.
 data SequenceOption
     = SequenceAs PostgresType
     | SequenceStart Expression
@@ -102,6 +103,7 @@ data SequenceOption
     | SequenceCycle Bool
     deriving (Eq, Show)
 
+-- | CREATE EXTENSION installation options. Schema diffs intentionally ignore these; use an explicit migration to relocate or update an installed extension.
 data ExtensionOption
     = ExtensionSchema Text
     | ExtensionVersion Text

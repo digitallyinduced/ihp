@@ -31,6 +31,9 @@ spec = do
         it "should parse an CREATE EXTENSION with schema suffix" do
             parseSql "CREATE EXTENSION IF NOT EXISTS \"uuid-ossp\" WITH SCHEMA public;" `shouldBe` CreateExtension { name = "uuid-ossp", ifNotExists = True, extensionOptions = [ExtensionSchema "public"] }
 
+        it "should fold an unquoted extension schema to lowercase" do
+            parseSql "CREATE EXTENSION IF NOT EXISTS postgis WITH SCHEMA Geo;" `shouldBe` CreateExtension { name = "postgis", ifNotExists = True, extensionOptions = [ExtensionSchema "geo"] }
+
         it "should parse CREATE EXTENSION version and cascade options" do
             parseSql "CREATE EXTENSION pg_trgm VERSION '1.6' CASCADE;" `shouldBe`
                 CreateExtension { name = "pg_trgm", ifNotExists = False, extensionOptions = [ExtensionVersion "1.6", ExtensionCascade] }

@@ -246,7 +246,7 @@ createExtension = do
     ifNotExists <- isJust <$> optional (lexeme "IF" >> lexeme "NOT" >> lexeme "EXISTS")
     name <- qualifiedIdentifier
     optional (lexeme "WITH")
-    schema <- optional (lexeme "SCHEMA" >> identifier)
+    schema <- optional (lexeme "SCHEMA" >> extensionIdentifier)
     version <- optional (lexeme "VERSION" >> (lexeme textExpr' <|> identifier))
     cascade <- isJust <$> optional (lexeme "CASCADE")
     char ';'

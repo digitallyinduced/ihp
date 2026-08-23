@@ -507,8 +507,19 @@ normalizeStatement statement@CreateExtension { extensionOptions } = [statement {
 normalizeStatement otherwise = [otherwise]
 
 normalizeSequenceOptions :: [SequenceOption] -> [SequenceOption]
-normalizeSequenceOptions options = sortOn sequenceOptionKind (filter (not . isImplicitSequenceOption implicitStart) options)
+normalizeSequenceOptions options = sortOn sequenceOptionKind (filter (not . isImplicitSequenceOption implicitStart defaultMinValue defaultMaxValue) options)
     where
+        sequenceType = fromMaybe PBigInt (listToMaybe [postgresType | SequenceAs postgresType <- options])
+        typeMinValue = IntExpression case sequenceType of
+            PSmallInt -> -32768
+            PInt -> -2147483648
+            _ -> -9223372036854775808
+        typeMaxValue = IntExpression case sequenceType of
+            PSmallInt -> 32767
+            PInt -> 2147483647
+            _ -> 9223372036854775807
+        defaultMinValue = if any isDescendingIncrement options then typeMinValue else IntExpression 1
+        defaultMaxValue = if any isDescendingIncrement options then IntExpression (-1) else typeMaxValue
         implicitStart
             | any isDescendingIncrement options = fromMaybe (IntExpression (-1)) (listToMaybe [value | SequenceMaxValue value <- options])
             | otherwise = fromMaybe (IntExpression 1) (listToMaybe [value | SequenceMinValue value <- options])
@@ -527,21 +538,22 @@ sequenceOptionKind = \case
     SequenceCache {} -> 5
     SequenceCycle {} -> 6
 
-isImplicitSequenceOption :: Expression -> SequenceOption -> Bool
-isImplicitSequenceOption implicitStart (SequenceStart value) = value == implicitStart
-isImplicitSequenceOption _ (SequenceAs PBigInt) = True
-isImplicitSequenceOption _ (SequenceIncrement (IntExpression 1)) = True
-isImplicitSequenceOption _ SequenceNoMinValue = True
-isImplicitSequenceOption _ SequenceNoMaxValue = True
-isImplicitSequenceOption _ (SequenceCache (IntExpression 1)) = True
-isImplicitSequenceOption _ (SequenceCycle False) = True
-isImplicitSequenceOption _ _ = False
+isImplicitSequenceOption :: Expression -> Expression -> Expression -> SequenceOption -> Bool
+isImplicitSequenceOption implicitStart _ _ (SequenceStart value) = value == implicitStart
+isImplicitSequenceOption _ _ _ (SequenceAs PBigInt) = True
+isImplicitSequenceOption _ _ _ (SequenceIncrement (IntExpression 1)) = True
+isImplicitSequenceOption _ _ _ SequenceNoMinValue = True
+isImplicitSequenceOption _ _ _ SequenceNoMaxValue = True
+isImplicitSequenceOption _ defaultMinValue _ (SequenceMinValue value) = value == defaultMinValue
+isImplicitSequenceOption _ _ defaultMaxValue (SequenceMaxValue value) = value == defaultMaxValue
+isImplicitSequenceOption _ _ _ (SequenceCache (IntExpression 1)) = True
+isImplicitSequenceOption _ _ _ (SequenceCycle False) = True
+isImplicitSequenceOption _ _ _ _ = False
 
 isImplicitExtensionOption :: ExtensionOption -> Bool
-isImplicitExtensionOption (ExtensionSchema "public") = True
+isImplicitExtensionOption ExtensionSchema {} = True
 isImplicitExtensionOption ExtensionVersion {} = True
 isImplicitExtensionOption ExtensionCascade = True
-isImplicitExtensionOption _ = False
 
 normalizePolicyAction (Just PolicyForAll) = Nothing
 normalizePolicyAction otherwise = otherwise

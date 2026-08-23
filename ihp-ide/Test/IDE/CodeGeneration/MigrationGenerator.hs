@@ -132,6 +132,12 @@ tests = do
 
                 diffSchemas targetSchema actualSchema `shouldBe` []
 
+            it "normalizes explicitly spelled default sequence bounds" do
+                let targetSchema = sql "CREATE SEQUENCE events_id_seq MINVALUE 1 MAXVALUE 9223372036854775807;"
+                let actualSchema = sql "CREATE SEQUENCE events_id_seq NO MINVALUE NO MAXVALUE;"
+
+                diffSchemas targetSchema actualSchema `shouldBe` []
+
             it "resets a removed sequence start to the target bound" do
                 let targetSchema = sql "CREATE SEQUENCE events_id_seq MINVALUE 10;"
                 let actualSchema = sql "CREATE SEQUENCE events_id_seq START WITH 20 MINVALUE 10;"
@@ -165,6 +171,12 @@ tests = do
             it "normalizes the default extension schema" do
                 let targetSchema = sql "CREATE EXTENSION IF NOT EXISTS pg_trgm;"
                 let actualSchema = sql "CREATE EXTENSION IF NOT EXISTS pg_trgm WITH SCHEMA public;"
+
+                diffSchemas targetSchema actualSchema `shouldBe` []
+
+            it "leaves extension relocation to explicit migrations" do
+                let targetSchema = sql "CREATE EXTENSION IF NOT EXISTS postgis WITH SCHEMA new_schema;"
+                let actualSchema = sql "CREATE EXTENSION IF NOT EXISTS postgis WITH SCHEMA old_schema;"
 
                 diffSchemas targetSchema actualSchema `shouldBe` []
 
