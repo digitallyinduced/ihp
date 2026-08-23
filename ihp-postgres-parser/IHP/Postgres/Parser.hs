@@ -264,6 +264,7 @@ opaqueStatement = do
             try escapeStringChunk
             <|> quotedChunk '\''
             <|> quotedChunk '"'
+            <|> identifierChunk
             <|> try dollarQuoted
             <|> (fst <$> match (Lexer.skipLineComment "--"))
             <|> (fst <$> match (Lexer.skipBlockCommentNested "/*" "*/"))
@@ -280,19 +281,28 @@ opaqueStatement = do
             many (try (char '\'' >> char '\'') <|> try (char '\\' >> anySingle) <|> anySingleBut '\'')
             char '\''
 
+        identifierChunk = fst <$> match do
+            _ <- satisfy (\character -> isAlpha character || character == '_')
+            takeWhileP Nothing (\character -> isAlphaNum character || character == '_' || character == '$')
+
 -- | An anonymous DO block. Its body can contain semicolons, so parse through
 -- the matching dollar-quote delimiter before consuming the statement terminator.
 doStatement :: Parser Statement
 doStatement = do
     lexeme "DO"
     languageBefore <- optional (lexeme "LANGUAGE" >> identifier)
-    body <- dollarQuoted <|> standardStringLiteral
+    body <- dollarQuoted <|> try escapeStringLiteral <|> standardStringLiteral
     space
     languageAfter <- optional (lexeme "LANGUAGE" >> identifier)
     char ';'
     let language = maybe "" (\name -> "LANGUAGE " <> name <> " ") (languageBefore <|> languageAfter)
     pure UnknownStatement { raw = "DO " <> language <> body }
     where
+        escapeStringLiteral = fst <$> match do
+            oneOf ['e', 'E']
+            char '\''
+            many (try (char '\'' >> char '\'') <|> try (char '\\' >> anySingle) <|> anySingleBut '\'')
+            char '\''
         standardStringLiteral = fst <$> match do
             char '\''
             many (try (char '\'' >> char '\'') <|> anySingleBut '\'')

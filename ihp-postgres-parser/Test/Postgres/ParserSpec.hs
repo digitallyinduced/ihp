@@ -496,6 +496,16 @@ spec = do
             parseSql "DO 'BEGIN PERFORM 1; END';" `shouldBe`
                 UnknownStatement { raw = "DO 'BEGIN PERFORM 1; END'" }
 
+        it "should preserve a DO block with an escape-string body" do
+            parseSql "DO E'BEGIN PERFORM 1; END';" `shouldBe`
+                UnknownStatement { raw = "DO E'BEGIN PERFORM 1; END'" }
+
+        it "should not treat dollar signs inside identifiers as quote delimiters" do
+            parseSqlStatements "GRANT SELECT ON foo$tag$ TO role; CREATE FUNCTION f() RETURNS trigger AS $tag$BEGIN RETURN NEW; END;$tag$ language plpgsql;" `shouldBe`
+                [ UnknownStatement { raw = "GRANT SELECT ON foo$tag$ TO role" }
+                , (function "f") { functionBody = "BEGIN RETURN NEW; END;" }
+                ]
+
         it "should parse tagged function dollar quotes" do
             parseSql "CREATE FUNCTION f() RETURNS trigger AS $_$ BEGIN RETURN NEW; END; $_$ language plpgsql;" `shouldBe`
                 (function "f") { functionBody = " BEGIN RETURN NEW; END; " }
