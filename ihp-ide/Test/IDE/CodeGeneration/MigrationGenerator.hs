@@ -91,6 +91,12 @@ tests = do
 
                 diffSchemas targetSchema actualSchema `shouldBe` []
 
+            it "normalizes equivalent dollar-quoted COMMENT metadata" do
+                let targetSchema = sql "COMMENT ON TABLE users IS $$application users$$;"
+                let actualSchema = sql "COMMENT ON TABLE public.users IS 'application users';"
+
+                diffSchemas targetSchema actualSchema `shouldBe` []
+
             it "does not repeatedly migrate ACL statements followed by comments" do
                 let targetSchema = sql "GRANT/* rationale */ SELECT ON users TO reader; REVOKE-- rationale\n INSERT ON users FROM reader;"
 

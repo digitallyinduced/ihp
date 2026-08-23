@@ -479,6 +479,12 @@ spec = do
             parseSql "COMMENT ON TABLE users IS 'owner records';" `shouldBe`
                 UnknownStatement { raw = "COMMENT ON TABLE users IS 'owner records'" }
 
+        it "should normalize equivalent COMMENT literal forms" do
+            normalizeComment "COMMENT ON TABLE users IS $$application users$$" `shouldBe`
+                Just "COMMENT ON TABLE users IS 'application users'"
+            normalizeComment "COMMENT ON TABLE users IS 'owner''s records'" `shouldBe`
+                Just "COMMENT ON TABLE users IS 'owner''s records'"
+
         it "should preserve a newline after a trailing opaque line comment" do
             let statements = parseSqlStatements "GRANT SELECT ON users TO reader -- rationale\n;"
             statements `shouldBe` [UnknownStatement { raw = "GRANT SELECT ON users TO reader -- rationale\n" }]
@@ -513,6 +519,10 @@ spec = do
         it "should preserve newline-concatenated DO string bodies" do
             parseSql "DO 'BEGIN NULL;'\n' END';" `shouldBe`
                 UnknownStatement { raw = "DO 'BEGIN NULL;'\n' END'" }
+
+        it "should allow comments between newline-concatenated DO string bodies" do
+            parseSql "DO 'BEGIN'\n/* explanation */ ' END';" `shouldBe`
+                UnknownStatement { raw = "DO 'BEGIN'\n/* explanation */ ' END'" }
 
         it "should locate COMMENT values outside quoted text" do
             unsetComment "COMMENT ON TABLE \"records IS active\" IS 'this IS documented'" `shouldBe`

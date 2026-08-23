@@ -319,9 +319,8 @@ normalizeComment = parseMaybe do
     notFollowedBy (satisfy isIdentifierCharacter)
     space1
     targetChunks <- manyTill normalizedTargetChunk commentValueDelimiter
-    value <- Text.pack <$> some anySingle
-    eof
-    pure ("COMMENT ON " <> normalizeTarget targetChunks <> " IS " <> Text.strip value)
+    value <- try (normalizedCommentValue <* spaceConsumer <* eof) <|> (Text.strip . Text.pack <$> some anySingle <* eof)
+    pure ("COMMENT ON " <> normalizeTarget targetChunks <> " IS " <> value)
     where
         commentValueDelimiter = try do
             space1
@@ -358,6 +357,20 @@ normalizeComment = parseMaybe do
             | " " `Text.isSuffixOf` normalized = normalized
             | otherwise = normalized <> " "
         appendChunk normalized chunk = normalized <> chunk
+
+        normalizedCommentValue = quoteString <$> (try dollarQuotedValue <|> standardStringValue)
+
+        dollarQuotedValue = do
+            delimiter <- dollarQuoteTag
+            Text.pack <$> manyTill anySingle (try (string delimiter))
+
+        standardStringValue = do
+            char '\''
+            value <- mconcat <$> many (try (string "''" $> "'") <|> (Text.singleton <$> anySingleBut '\''))
+            char '\''
+            pure value
+
+        quoteString value = "'" <> Text.replace "'" "''" value <> "'"
 
 opaqueChunk :: Parser Text
 opaqueChunk =
@@ -410,8 +423,12 @@ doStatement = do
             pure (mconcat (first : rest))
         stringLiteral = try unicodeEscapeStringLiteral <|> try prefixedStandardStringLiteral <|> try escapeStringLiteral <|> standardStringLiteral
         stringConcatenationSeparator = do
-            whitespace <- some (satisfy isSpace)
-            when (not (any (`elem` ['\n', '\r']) whitespace)) (fail "adjacent SQL string literals require a newline")
+            separator <- fst <$> match (some separatorChunk)
+            when (not (Text.any (`elem` ['\n', '\r']) separator)) (fail "adjacent SQL string literals require a newline")
+        separatorChunk =
+            (some (satisfy isSpace) $> ())
+            <|> Lexer.skipLineComment "--"
+            <|> Lexer.skipBlockCommentNested "/*" "*/"
         unicodeEscapeStringLiteral = fst <$> match do
             string' "U&"
             char '\''
