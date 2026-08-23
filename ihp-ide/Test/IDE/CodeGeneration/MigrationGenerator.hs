@@ -74,6 +74,18 @@ tests = do
             it "should handle an empty schema" do
                 diffSchemas [] [] `shouldBe` []
 
+            it "normalizes equivalent geometry modifiers" do
+                let targetSchema = sql "CREATE TABLE locations (shape geometry(Point, 4326));"
+                let actualSchema = sql "CREATE TABLE locations (shape geometry(point,4326));"
+
+                diffSchemas targetSchema actualSchema `shouldBe` []
+
+            it "normalizes equivalent numeric defaults" do
+                let targetSchema = sql "CREATE TABLE invoices (amount DOUBLE PRECISION DEFAULT 20.0000);"
+                let actualSchema = sql "CREATE TABLE invoices (amount DOUBLE PRECISION DEFAULT 20);"
+
+                diffSchemas targetSchema actualSchema `shouldBe` []
+
             it "should handle a new table" do
                 let targetSchema = sql [i|
                     CREATE TABLE users (

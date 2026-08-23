@@ -576,9 +576,9 @@ normalizeExpression (LessThanExpression a b) = LessThanExpression (normalizeExpr
 normalizeExpression (LessThanOrEqualToExpression a b) = LessThanOrEqualToExpression (normalizeExpression a) (normalizeExpression b)
 normalizeExpression (GreaterThanExpression a b) = GreaterThanExpression (normalizeExpression a) (normalizeExpression b)
 normalizeExpression (GreaterThanOrEqualToExpression a b) = GreaterThanOrEqualToExpression (normalizeExpression a) (normalizeExpression b)
-normalizeExpression e@(DoubleExpression {}) = e
-normalizeExpression e@(NumericExpression {}) = e
-normalizeExpression e@(IntExpression {}) = e
+normalizeExpression (DoubleExpression value) = NumericExpression (normalizeNumericLiteral (tshow value))
+normalizeExpression (NumericExpression value) = NumericExpression (normalizeNumericLiteral value)
+normalizeExpression (IntExpression value) = NumericExpression (normalizeNumericLiteral (tshow value))
 normalizeExpression (ConcatenationExpression a b) = ConcatenationExpression (normalizeExpression a) (normalizeExpression b)
 -- Enum default values from pg_dump always have an explicit type cast. Inside the Schema.sql they typically don't have those.
 -- Therefore we remove these typecasts here
@@ -681,9 +681,30 @@ resolveAlias Nothing fromExpression expression = expression
 
 normalizeSqlType :: PostgresType -> PostgresType
 normalizeSqlType (PCustomType customType) = PCustomType (Text.toLower customType)
+normalizeSqlType (PGeometryWithModifier modifier) = PGeometryWithModifier (Text.intercalate "," (map (Text.toLower . Text.strip) (Text.splitOn "," modifier)))
 normalizeSqlType PBigserial = PBigInt
 normalizeSqlType PSerial = PInt
 normalizeSqlType otherwise = otherwise
+
+normalizeNumericLiteral :: Text -> Text
+normalizeNumericLiteral value =
+    case Read.readMaybe (cs exponentText) :: Maybe Int of
+        Nothing -> Text.toLower value
+        Just exponent
+            | Text.null significantDigits -> "0"
+            | otherwise -> sign <> significantDigits <> "e" <> tshow (exponent - Text.length fractionalPart + trailingZeroCount)
+    where
+        (mantissa, rawExponent) = Text.break (\character -> character == 'e' || character == 'E') value
+        exponentText = if Text.null rawExponent then "0" else Text.drop 1 rawExponent
+        (sign, unsignedMantissa) = case Text.uncons mantissa of
+            Just ('-', rest) -> ("-", rest)
+            Just ('+', rest) -> ("", rest)
+            _ -> ("", mantissa)
+        (integerPart, rawFractionalPart) = Text.break (== '.') unsignedMantissa
+        fractionalPart = Text.drop 1 rawFractionalPart
+        digits = Text.dropWhile (== '0') (integerPart <> fractionalPart)
+        significantDigits = Text.dropWhileEnd (== '0') digits
+        trailingZeroCount = Text.length digits - Text.length significantDigits
 
 -- | Returns every migration file created by a generation plan.
 migrationPathsFromPlan :: [GeneratorAction] -> [Text]
