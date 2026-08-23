@@ -478,6 +478,12 @@ spec = do
             parseSql "COMMENT ON TABLE users IS 'owner records';" `shouldBe`
                 UnknownStatement { raw = "COMMENT ON TABLE users IS 'owner records'" }
 
+        it "should preserve semicolons inside opaque statement literals" do
+            parseSql "COMMENT ON TABLE users IS 'internal; only';" `shouldBe`
+                UnknownStatement { raw = "COMMENT ON TABLE users IS 'internal; only'" }
+            parseSql "GRANT SELECT ON TABLE users TO \"report;reader\";" `shouldBe`
+                UnknownStatement { raw = "GRANT SELECT ON TABLE users TO \"report;reader\"" }
+
         it "should preserve a DO block whose body contains semicolons" do
             parseSql "DO $$\nBEGIN\n    PERFORM 1;\nEND\n$$;" `shouldBe`
                 UnknownStatement { raw = "DO $$\nBEGIN\n    PERFORM 1;\nEND\n$$" }

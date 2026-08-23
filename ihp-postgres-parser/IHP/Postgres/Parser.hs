@@ -257,8 +257,21 @@ createExtension = do
 opaqueStatement :: Parser Statement
 opaqueStatement = do
     keyword <- choice (map symbol' ["GRANT", "REVOKE", "COMMENT"])
-    raw <- cs <$> someTill anySingle (char ';')
+    raw <- mconcat <$> someTill opaqueChunk (char ';')
     pure UnknownStatement { raw = Text.stripEnd (keyword <> " " <> raw) }
+    where
+        opaqueChunk =
+            quotedChunk '\''
+            <|> quotedChunk '"'
+            <|> try dollarQuoted
+            <|> (fst <$> match (Lexer.skipLineComment "--"))
+            <|> (fst <$> match (Lexer.skipBlockCommentNested "/*" "*/"))
+            <|> (Text.singleton <$> anySingle)
+
+        quotedChunk quote = fst <$> match do
+            char quote
+            many (try (char quote >> char quote) <|> try (char '\\' >> anySingle) <|> anySingleBut quote)
+            char quote
 
 -- | An anonymous DO block. Its body can contain semicolons, so parse through
 -- the matching dollar-quote delimiter before consuming the statement terminator.
