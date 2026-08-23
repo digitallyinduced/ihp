@@ -131,6 +131,15 @@ tests = do
 
                 diffSchemas targetSchema actualSchema `shouldBe` []
 
+            it "preserves semantic casts in trigger conditions" do
+                let targetSchema = sql "CREATE TRIGGER items_check BEFORE UPDATE ON items FOR EACH ROW WHEN ((NEW.value::citext) = 'x') EXECUTE FUNCTION check_items();"
+                let actualSchema = sql "CREATE TRIGGER items_check BEFORE UPDATE ON items FOR EACH ROW WHEN ((NEW.value::text) = 'x'::text) EXECUTE FUNCTION check_items();"
+                let pgDumpNoiseSchema = sql "CREATE TRIGGER items_check BEFORE UPDATE ON items FOR EACH ROW WHEN ((NEW.value::citext) = 'x'::text) EXECUTE FUNCTION check_items();"
+
+                diffSchemas targetSchema actualSchema `shouldBe`
+                    ([DropTrigger { name = "items_check", tableName = "items" }] <> normalizeSchema targetSchema)
+                diffSchemas targetSchema pgDumpNoiseSchema `shouldBe` []
+
             it "should handle a new table" do
                 let targetSchema = sql [i|
                     CREATE TABLE users (

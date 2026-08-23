@@ -479,12 +479,12 @@ normalizeStatement CreateEnumType { name, values } = [ CreateEnumType { name = T
 normalizeStatement CreatePolicy { name, action, tableName, using, check } = [ CreatePolicy { name = truncateIdentifier name, tableName, using = (unqualifyExpression tableName . normalizeExpression) <$> using, check = (unqualifyExpression tableName . normalizeExpression) <$> check, action = normalizePolicyAction action } ]
 normalizeStatement CreateIndex { columns, indexType, indexName, .. } = [ CreateIndex { columns = map normalizeIndexColumn columns, indexType = normalizeIndexType indexType, indexName = truncateIdentifier indexName, .. } ]
 normalizeStatement CreateFunction { .. } = [ CreateFunction { orReplace = False, language = Text.toUpper language, functionBody = removeIndentation $ normalizeNewLines functionBody, .. } ]
-normalizeStatement trigger@CreateTrigger { event, whenCondition } = [trigger { event = map normalizeTriggerEvent event, whenCondition = normalizeExpression <$> whenCondition }]
+normalizeStatement trigger@CreateTrigger { event, whenCondition } = [trigger { event = map normalizeTriggerEvent event, whenCondition = normalizeTriggerExpression <$> whenCondition }]
 normalizeStatement trigger@CreateConstraintTrigger { event, referencedTableName, deferrable, deferrableType, whenCondition } =
     [ trigger
         { event = map normalizeTriggerEvent event
         , referencedTableName = Text.toLower <$> referencedTableName
-        , whenCondition = normalizeExpression <$> whenCondition
+        , whenCondition = normalizeTriggerExpression <$> whenCondition
         , deferrable = if deferrable == Just False then Nothing else deferrable
         , deferrableType = if deferrableType == Just InitiallyImmediate then Nothing else deferrableType
         }
@@ -616,45 +616,60 @@ normalizeColumnGenerator :: ColumnGenerator -> ColumnGenerator
 normalizeColumnGenerator generator@(ColumnGenerator { generate }) = generator { generate = normalizeExpression generate }
 
 normalizeExpression :: Expression -> Expression
-normalizeExpression e@(TextExpression {}) = e
-normalizeExpression (VarExpression var) = VarExpression (Text.toLower var)
-normalizeExpression (CallExpression function args) = CallExpression (Text.toLower function) (map normalizeExpression args)
-normalizeExpression (NotEqExpression a b) = NotEqExpression (normalizeExpression a) (normalizeExpression b)
-normalizeExpression (EqExpression a b) = EqExpression (normalizeExpression a) (normalizeExpression b)
-normalizeExpression (AndExpression a b) = AndExpression (normalizeExpression a) (normalizeExpression b)
-normalizeExpression (IsExpression a b) = IsExpression (normalizeExpression a) (normalizeExpression b)
-normalizeExpression (InExpression a b) = InExpression (normalizeExpression a) (normalizeExpression b)
-normalizeExpression (NotExpression a) = NotExpression (normalizeExpression a)
-normalizeExpression (OrExpression a b) = OrExpression (normalizeExpression a) (normalizeExpression b)
-normalizeExpression (LessThanExpression a b) = LessThanExpression (normalizeExpression a) (normalizeExpression b)
-normalizeExpression (LessThanOrEqualToExpression a b) = LessThanOrEqualToExpression (normalizeExpression a) (normalizeExpression b)
-normalizeExpression (GreaterThanExpression a b) = GreaterThanExpression (normalizeExpression a) (normalizeExpression b)
-normalizeExpression (GreaterThanOrEqualToExpression a b) = GreaterThanOrEqualToExpression (normalizeExpression a) (normalizeExpression b)
-normalizeExpression e@(DoubleExpression {}) = e
-normalizeExpression e@(IntExpression {}) = e
-normalizeExpression (ConcatenationExpression a b) = ConcatenationExpression (normalizeExpression a) (normalizeExpression b)
+normalizeExpression = normalizeExpressionWith False
+
+normalizeTriggerExpression :: Expression -> Expression
+normalizeTriggerExpression = normalizeExpressionWith True
+
+normalizeExpressionWith :: Bool -> Expression -> Expression
+normalizeExpressionWith preserveSemanticCasts = normalize
+    where
+        normalize e@(TextExpression {}) = e
+        normalize (VarExpression var) = VarExpression (Text.toLower var)
+        normalize (CallExpression function args) = CallExpression (Text.toLower function) (map normalize args)
+        normalize (NotEqExpression a b) = NotEqExpression (normalize a) (normalize b)
+        normalize (EqExpression a b) = EqExpression (normalize a) (normalize b)
+        normalize (AndExpression a b) = AndExpression (normalize a) (normalize b)
+        normalize (IsExpression a b) = IsExpression (normalize a) (normalize b)
+        normalize (InExpression a b) = InExpression (normalize a) (normalize b)
+        normalize (NotExpression a) = NotExpression (normalize a)
+        normalize (OrExpression a b) = OrExpression (normalize a) (normalize b)
+        normalize (LessThanExpression a b) = LessThanExpression (normalize a) (normalize b)
+        normalize (LessThanOrEqualToExpression a b) = LessThanOrEqualToExpression (normalize a) (normalize b)
+        normalize (GreaterThanExpression a b) = GreaterThanExpression (normalize a) (normalize b)
+        normalize (GreaterThanOrEqualToExpression a b) = GreaterThanOrEqualToExpression (normalize a) (normalize b)
+        normalize e@(DoubleExpression {}) = e
+        normalize e@(IntExpression {}) = e
+        normalize (ConcatenationExpression a b) = ConcatenationExpression (normalize a) (normalize b)
 -- Enum default values from pg_dump always have an explicit type cast. Inside the Schema.sql they typically don't have those.
 -- Therefore we remove these typecasts here
 --
 -- 'job_status_not_started'::public.job_status => 'job_status_not_started'
 --
-normalizeExpression (TypeCastExpression a b) = normalizeExpression a
-normalizeExpression (SelectExpression Select { columns, from, whereClause, alias }) = SelectExpression Select { columns = resolveAlias' <$> (normalizeExpression <$> columns), from = normalizeFrom from, whereClause = resolveAlias' (normalizeExpression whereClause), alias = Nothing }
-    where
-        -- Turns a `SELECT 1 FROM a` into `SELECT 1 FROM public.a`
-        normalizeFrom (VarExpression a) = DotExpression (VarExpression "public") a
-        normalizeFrom otherwise = normalizeExpression otherwise
+        normalize (TypeCastExpression expression postgresType)
+            | preserveSemanticCasts && not (isLiteralExpression expression) = TypeCastExpression (normalize expression) (normalizeSqlType postgresType)
+            | otherwise = normalize expression
+        normalize (SelectExpression Select { columns, from, whereClause, alias }) = SelectExpression Select { columns = resolveAlias' <$> (normalize <$> columns), from = normalizeFrom from, whereClause = resolveAlias' (normalize whereClause), alias = Nothing }
+            where
+                -- Turns a `SELECT 1 FROM a` into `SELECT 1 FROM public.a`
+                normalizeFrom (VarExpression a) = DotExpression (VarExpression "public") a
+                normalizeFrom otherwise = normalize otherwise
 
-        resolveAlias' = resolveAlias alias (unqualifiedName from)
+                resolveAlias' = resolveAlias alias (unqualifiedName from)
 
-        unqualifiedName :: Expression -> Expression
-        unqualifiedName (DotExpression (VarExpression _) name) = VarExpression name
-        unqualifiedName name = name
-normalizeExpression (DotExpression a b) = DotExpression (normalizeExpression a) (Text.toLower b)
-normalizeExpression (ExistsExpression a) = ExistsExpression (normalizeExpression a)
-normalizeExpression (InArrayExpression exprs) = InArrayExpression (map normalizeExpression exprs)
-normalizeExpression (ArrayLiteralExpression exprs) = ArrayLiteralExpression (map normalizeExpression exprs)
-normalizeExpression (VariadicExpression expr) = VariadicExpression (normalizeExpression expr)
+                unqualifiedName :: Expression -> Expression
+                unqualifiedName (DotExpression (VarExpression _) name) = VarExpression name
+                unqualifiedName name = name
+        normalize (DotExpression a b) = DotExpression (normalize a) (Text.toLower b)
+        normalize (ExistsExpression a) = ExistsExpression (normalize a)
+        normalize (InArrayExpression exprs) = InArrayExpression (map normalize exprs)
+        normalize (ArrayLiteralExpression exprs) = ArrayLiteralExpression (map normalize exprs)
+        normalize (VariadicExpression expr) = VariadicExpression (normalize expr)
+
+        isLiteralExpression TextExpression {} = True
+        isLiteralExpression DoubleExpression {} = True
+        isLiteralExpression IntExpression {} = True
+        isLiteralExpression _ = False
 
 -- | Replaces @table.field@ with just @field@
 --
