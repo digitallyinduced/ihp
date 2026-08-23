@@ -242,6 +242,40 @@ spec = do
                     }
             compileSql [statement] `shouldBe` sql
 
+        it "should round-trip non-public schema-qualified table names" do
+            let statement = StatementCreateTable (table "private.users")
+            parseSql (compileSql [statement]) `shouldBe` statement
+
+        it "should quote qualified identifier components independently" do
+            let statement = StatementCreateTable (table "tenant-a.MixedUsers")
+            compileSql [statement] `shouldBe` "CREATE TABLE \"tenant-a\".\"MixedUsers\" (\n\n);\n"
+            parseSql (compileSql [statement]) `shouldBe` statement
+
+        it "does not split dots in ordinary quoted identifiers" do
+            let statement = StatementCreateTable (table "users")
+                    { columns = [(col "A.b" PText)] }
+            compileSql [statement] `shouldBe` "CREATE TABLE users (\n    \"A.b\" TEXT\n);\n"
+
+        it "round-trips schema-qualified enum types" do
+            let statement = CreateEnumType { name = "private.status", values = ["active"] }
+            parseSql (compileSql [statement]) `shouldBe` statement
+
+        it "keeps dotted CREATE INDEX names as single identifiers" do
+            let statement = CreateIndex
+                    { indexName = "audit.v1"
+                    , unique = False
+                    , tableName = "users"
+                    , columns = [indexCol (VarExpression "id")]
+                    , whereClause = Nothing
+                    , indexType = Nothing
+                    , nullsDistinct = True
+                    }
+            compileSql [statement] `shouldBe` "CREATE INDEX \"audit.v1\" ON users (id);\n"
+
+        it "should round-trip a schema-qualified DROP TABLE" do
+            let statement = DropTable { tableName = "private.users" }
+            parseSql (compileSql [statement]) `shouldBe` statement
+
         it "should round-trip a schema-qualified CREATE FUNCTION" do
             -- parse -> compile -> parse must preserve a non-public schema like `private.`
             let statement = CreateFunction
@@ -380,6 +414,21 @@ spec = do
                             }
                         ]
             compileSql statements `shouldBe` sql
+
+        describe "literal and type round trips" do
+            let roundTrip sql = compileSql [parseSql sql] `shouldBe` (sql <> "\n")
+
+            it "keeps numeric scale" do
+                roundTrip "CREATE TABLE fees (\n    vat NUMERIC(7,4) DEFAULT 20.0000 NOT NULL\n);"
+
+            it "keeps PostGIS geometry modifiers" do
+                roundTrip "CREATE TABLE locations (\n    geom GEOMETRY(Point, 4326)\n);"
+
+            it "escapes apostrophes in string literals" do
+                roundTrip "ALTER TABLE fees ADD CONSTRAINT fees_label_check CHECK (label <> 'owner''s fee');"
+
+            it "keeps POSITION's SQL-standard IN syntax" do
+                roundTrip "ALTER TABLE users ADD CONSTRAINT users_email_position_check CHECK (POSITION('@' IN email) > 1);"
 
 parseSql :: Text -> Statement
 parseSql sql =

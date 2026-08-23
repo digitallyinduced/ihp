@@ -204,6 +204,41 @@ tests = do
                 let targetSchema = sql "CREATE EXTENSION IF NOT EXISTS postgis WITH SCHEMA geo VERSION '3.4.2' CASCADE;"
 
                 diffSchemas targetSchema [] `shouldBe` targetSchema
+            it "normalizes equivalent geometry modifiers" do
+                let targetSchema = sql "CREATE TABLE locations (shape geometry(Point, 4326));"
+                let actualSchema = sql "CREATE TABLE locations (shape geometry(point,4326));"
+
+                diffSchemas targetSchema actualSchema `shouldBe` []
+
+            it "normalizes equivalent geometry modifiers inside arrays" do
+                let targetSchema = sql "CREATE TABLE locations (shapes geometry(Point, 4326)[]);"
+                let actualSchema = sql "CREATE TABLE locations (shapes geometry(point,4326)[]);"
+
+                diffSchemas targetSchema actualSchema `shouldBe` []
+
+            it "normalizes equivalent numeric defaults" do
+                let targetSchema = sql "CREATE TABLE invoices (amount DOUBLE PRECISION DEFAULT 20.0000);"
+                let actualSchema = sql "CREATE TABLE invoices (amount DOUBLE PRECISION DEFAULT 20);"
+
+                diffSchemas targetSchema actualSchema `shouldBe` []
+
+            it "preserves scale for unconstrained numeric defaults" do
+                let targetSchema = sql "CREATE TABLE invoices (amount NUMERIC DEFAULT 20.0000);"
+                let actualSchema = sql "CREATE TABLE invoices (amount NUMERIC DEFAULT 20);"
+
+                diffSchemas targetSchema actualSchema `shouldNotBe` []
+
+            it "preserves integer distinctions in constraints" do
+                let targetSchema = sql [i|
+                    CREATE TABLE invoices (amount NUMERIC);
+                    ALTER TABLE invoices ADD CONSTRAINT amount_type CHECK (pg_typeof(1.0) = pg_typeof(amount));
+                |]
+                let actualSchema = sql [i|
+                    CREATE TABLE invoices (amount NUMERIC);
+                    ALTER TABLE invoices ADD CONSTRAINT amount_type CHECK (pg_typeof(1) = pg_typeof(amount));
+                |]
+
+                diffSchemas targetSchema actualSchema `shouldNotBe` []
 
             it "should handle a new table" do
                 let targetSchema = sql [i|
@@ -1644,6 +1679,20 @@ CREATE POLICY "Users can read and edit their own record" ON public.users USING (
                     );
                 |]
                 diffSchemas targetSchema actualSchema `shouldBe` []
+
+            it "should ignore unmodelled statements instead of generating raw SQL migrations" do
+                let targetSchema = [UnknownStatement { raw = "CREATE TABLE private.tokens (id UUID)" }]
+                let actualSchema = [UnknownStatement { raw = "CREATE TABLE private.tokens (id uuid NOT NULL)" }]
+
+                diffSchemas targetSchema actualSchema `shouldBe` []
+
+            it "should ignore pg_dump session statements" do
+                let actualSchema =
+                        [ Set { name = "statement_timeout", value = IntExpression 0 }
+                        , SelectStatement { query = "pg_catalog.set_config('search_path', '', false)" }
+                        ]
+
+                diffSchemas [] actualSchema `shouldBe` []
 
 sql :: Text -> [Statement]
 sql code = case Megaparsec.runParser Parser.parseDDL "" code of
