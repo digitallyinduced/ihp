@@ -239,7 +239,9 @@ symbol' :: Text -> Parser Text
 symbol' = Lexer.symbol' spaceConsumer
 
 stringLiteral :: Parser String
-stringLiteral = char '\'' *> manyTill Lexer.charLiteral (char '\'')
+stringLiteral = char '\'' *> manyTill stringCharacter (try (char '\'' <* notFollowedBy (char '\'')))
+    where
+        stringCharacter = try (string "''" $> '\'') <|> Lexer.charLiteral
 
 parseDDL :: Parser [Statement]
 parseDDL = optional Char.space >> (manyTill statement eof)
@@ -537,15 +539,11 @@ sqlType = choice $ map optionalArray
                     try (symbol' "POLYGON")
                     pure PPolygon
 
-                -- PostGIS @geometry@ type. Accepts the optional
-                -- @geometry(SubType[, SRID])@ modifier used in PostGIS schemas;
-                -- the modifier is dropped from the AST because PostgreSQL
-                -- enforces it at DDL time.
                 geometry = do
                     try (symbol' "GEOMETRY")
-                    optional $ between (char '(' >> space) (char ')' >> space)
+                    modifier <- optional $ between (char '(' >> space) (char ')' >> space)
                         (takeWhile1P (Just "geometry type modifier") (/= ')'))
-                    pure PGeometry
+                    pure (maybe PGeometry (PGeometryWithModifier . Text.strip) modifier)
 
                 date = do
                     try (symbol' "DATE")
@@ -731,7 +729,7 @@ varExpr :: Parser Expression
 varExpr = VarExpression <$> identifier
 
 doubleExpr :: Parser Expression
-doubleExpr = DoubleExpression <$> (Lexer.signed spaceConsumer Lexer.float)
+doubleExpr = NumericExpression . fst <$> lexeme (match (Lexer.signed spaceConsumer Lexer.float))
 
 intExpr :: Parser Expression
 intExpr = IntExpression <$> (Lexer.signed spaceConsumer Lexer.decimal)
@@ -773,7 +771,7 @@ textExpr' = cs <$> do
     let emptyByteString = do
             string "'\\x'"
             pure ""
-    (try (char '\'' *> manyTill Lexer.charLiteral (char '\''))) <|> emptyByteString
+    (try (char '\'' *> many (try (string "''" $> '\'') <|> (notFollowedBy (char '\'') *> Lexer.charLiteral)) <* char '\'')) <|> emptyByteString
 
 selectExpr :: Parser Expression
 selectExpr = do

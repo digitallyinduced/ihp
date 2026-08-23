@@ -132,13 +132,15 @@ compileDefaultValue :: Expression -> Text
 compileDefaultValue value = "DEFAULT " <> compileExpression value
 
 compileExpression :: Expression -> Text
-compileExpression (TextExpression value) = "'" <> value <> "'"
+compileExpression (TextExpression value) = "'" <> Text.replace "'" "''" value <> "'"
 compileExpression (VarExpression name) =
         if nameContainsSpaces
             then compileIdentifier name
             else name
     where
         nameContainsSpaces = Text.any (== ' ') name
+compileExpression (CallExpression func [InExpression needle haystack])
+    | Text.toUpper func == "POSITION" = func <> "(" <> compileExpressionWithOptionalParenthese needle <> " IN " <> compileExpressionWithOptionalParenthese haystack <> ")"
 compileExpression (CallExpression func args) = func <> "(" <> intercalate ", " (map compileExpressionWithOptionalParenthese args) <> ")"
 compileExpression (NotEqExpression a b) = compileExpression a <> " <> " <> compileExpression b
 compileExpression (EqExpression a b) = compileExpressionWithOptionalParenthese a <> " = " <> compileExpressionWithOptionalParenthese b
@@ -156,6 +158,7 @@ compileExpression (LessThanOrEqualToExpression a b) = compileExpressionWithOptio
 compileExpression (GreaterThanExpression a b) = compileExpressionWithOptionalParenthese a <> " > " <> compileExpressionWithOptionalParenthese b
 compileExpression (GreaterThanOrEqualToExpression a b) = compileExpressionWithOptionalParenthese a <> " >= " <> compileExpressionWithOptionalParenthese b
 compileExpression (DoubleExpression double) = tshow double
+compileExpression (NumericExpression value) = value
 compileExpression (IntExpression integer) = tshow integer
 compileExpression (TypeCastExpression value type_) = compileExpression value <> "::" <> compilePostgresType type_
 compileExpression (SelectExpression Select { columns, from, whereClause }) = "SELECT " <> intercalate ", " (map compileExpression columns) <> " FROM " <> compileExpression from <> " WHERE " <> compileExpression whereClause
@@ -175,6 +178,7 @@ compileExpressionWithOptionalParenthese expr@(CallExpression {}) = compileExpres
 compileExpressionWithOptionalParenthese expr@(TextExpression {}) = compileExpression expr
 compileExpressionWithOptionalParenthese expr@(IntExpression {}) = compileExpression expr
 compileExpressionWithOptionalParenthese expr@(DoubleExpression {}) = compileExpression expr
+compileExpressionWithOptionalParenthese expr@(NumericExpression {}) = compileExpression expr
 compileExpressionWithOptionalParenthese expr@(DotExpression (VarExpression {}) b) = compileExpression expr
 compileExpressionWithOptionalParenthese expr@(ConcatenationExpression a b ) = compileExpression expr
 compileExpressionWithOptionalParenthese expr@(InArrayExpression values) = compileExpression expr
@@ -204,6 +208,7 @@ compilePostgresType PDouble = "DOUBLE PRECISION"
 compilePostgresType PPoint = "POINT"
 compilePostgresType PPolygon = "POLYGON"
 compilePostgresType PGeometry = "GEOMETRY"
+compilePostgresType (PGeometryWithModifier modifier) = "GEOMETRY(" <> modifier <> ")"
 compilePostgresType PDate = "DATE"
 compilePostgresType PBinary = "BYTEA"
 compilePostgresType PTime = "TIME"

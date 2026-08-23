@@ -462,11 +462,15 @@ spec = do
         it "should parse negative IntExpression's" do
             parseExpression "-1" `shouldBe` (IntExpression (-1))
 
-        it "should parse positive DoubleExpression's" do
-            parseExpression "1.337" `shouldBe` (DoubleExpression 1.337)
+        it "should preserve positive numeric literals exactly" do
+            parseExpression "1.337" `shouldBe` NumericExpression "1.337"
 
-        it "should parse negative DoubleExpression's" do
-            parseExpression "-1.337" `shouldBe` (DoubleExpression (-1.337))
+        it "should preserve negative numeric literals exactly" do
+            parseExpression "-1.337" `shouldBe` NumericExpression "-1.337"
+
+        it "should preserve PostGIS geometry modifiers" do
+            parseSql "CREATE TABLE locations (geom geometry(Point, 4326));"
+                `shouldBe` StatementCreateTable (table "locations") { columns = [col "geom" (PGeometryWithModifier "Point, 4326")] }
 
         it "should ignore a comment inside a statement" do
             parseSql "CREATE TABLE users (\n    id UUID PRIMARY KEY, -- surrogate key\n    email TEXT NOT NULL /* the login */\n);" `shouldBe`

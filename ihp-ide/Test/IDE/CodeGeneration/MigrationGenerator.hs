@@ -74,6 +74,42 @@ tests = do
             it "should handle an empty schema" do
                 diffSchemas [] [] `shouldBe` []
 
+            it "normalizes equivalent geometry modifiers" do
+                let targetSchema = sql "CREATE TABLE locations (shape geometry(Point, 4326));"
+                let actualSchema = sql "CREATE TABLE locations (shape geometry(point,4326));"
+
+                diffSchemas targetSchema actualSchema `shouldBe` []
+
+            it "normalizes equivalent geometry modifiers inside arrays" do
+                let targetSchema = sql "CREATE TABLE locations (shapes geometry(Point, 4326)[]);"
+                let actualSchema = sql "CREATE TABLE locations (shapes geometry(point,4326)[]);"
+
+                diffSchemas targetSchema actualSchema `shouldBe` []
+
+            it "normalizes equivalent numeric defaults" do
+                let targetSchema = sql "CREATE TABLE invoices (amount DOUBLE PRECISION DEFAULT 20.0000);"
+                let actualSchema = sql "CREATE TABLE invoices (amount DOUBLE PRECISION DEFAULT 20);"
+
+                diffSchemas targetSchema actualSchema `shouldBe` []
+
+            it "preserves scale for unconstrained numeric defaults" do
+                let targetSchema = sql "CREATE TABLE invoices (amount NUMERIC DEFAULT 20.0000);"
+                let actualSchema = sql "CREATE TABLE invoices (amount NUMERIC DEFAULT 20);"
+
+                diffSchemas targetSchema actualSchema `shouldNotBe` []
+
+            it "preserves integer distinctions in constraints" do
+                let targetSchema = sql [i|
+                    CREATE TABLE invoices (amount NUMERIC);
+                    ALTER TABLE invoices ADD CONSTRAINT amount_type CHECK (pg_typeof(1.0) = pg_typeof(amount));
+                |]
+                let actualSchema = sql [i|
+                    CREATE TABLE invoices (amount NUMERIC);
+                    ALTER TABLE invoices ADD CONSTRAINT amount_type CHECK (pg_typeof(1) = pg_typeof(amount));
+                |]
+
+                diffSchemas targetSchema actualSchema `shouldNotBe` []
+
             it "should handle a new table" do
                 let targetSchema = sql [i|
                     CREATE TABLE users (
