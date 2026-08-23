@@ -362,6 +362,10 @@ spec = do
             let parsed = parseSql "CREATE FUNCTION estimated() RETURNS TABLE (id uuid, label text) LANGUAGE sql ROWS 10 AS $$SELECT NULL, NULL;$$;"
             parsed.returns `shouldBe` PTable [("id", PUUID), ("label", PText)]
 
+        it "should fold only unquoted RETURNS TABLE column names" do
+            let parsed = parseSql "CREATE FUNCTION estimated() RETURNS TABLE (Result text, \"ExactResult\" text) LANGUAGE sql AS $$SELECT NULL, NULL;$$;"
+            parsed.returns `shouldBe` PTable [("result", PText), ("ExactResult", PText)]
+
         it "should parse schema-qualified set-returning custom types" do
             let parsed = parseSql "CREATE FUNCTION widgets() RETURNS SETOF private.widget LANGUAGE sql AS $$SELECT NULL;$$;"
             parsed.returns `shouldBe` PSetOf (PCustomType "private.widget")

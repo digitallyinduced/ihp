@@ -912,10 +912,13 @@ createFunction = do
     pure CreateFunction { functionName, functionArguments, functionBody, orReplace, returns, language, securityDefiner, functionAttributes, functionSettings }
     where
         functionArgument = do
-            argumentName <- qualifiedIdentifier
+            argumentName <- functionArgumentName
             space
             argumentType <- sqlType
             pure (argumentName, argumentType)
+        functionArgumentName = quotedArgumentName <|> unquotedArgumentName
+        quotedArgumentName = between (char '"') (char '"') (takeWhile1P Nothing (/= '"'))
+        unquotedArgumentName = Text.toLower <$> takeWhile1P (Just "function argument name") (\c -> isAlphaNum c || c == '_')
         functionReturnType =
             try (lexeme "SETOF" >> (PSetOf <$> sqlType))
             <|> try do

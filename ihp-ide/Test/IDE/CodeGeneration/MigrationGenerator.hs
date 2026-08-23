@@ -1428,6 +1428,13 @@ CREATE POLICY "Users can read and edit their own record" ON public.users USING (
 
                 normalizeSchema schema `shouldBe` normalizedSchema
 
+            it "preserves quoted RETURNS TABLE column names when replacing functions" do
+                let targetSchema = sql "CREATE FUNCTION report() RETURNS TABLE (\"Result\" text) LANGUAGE sql AS $$SELECT 1;$$;"
+                let actualSchema = sql "CREATE FUNCTION report() RETURNS TABLE (\"Result\" text) LANGUAGE sql AS $$SELECT 2;$$;"
+                let migration = sql "CREATE OR REPLACE FUNCTION report() RETURNS TABLE (\"Result\" text) LANGUAGE SQL AS $$SELECT 1;$$;"
+
+                diffSchemas targetSchema actualSchema `shouldBe` migration
+
             it "should delete the updated_at trigger when the updated_at column is deleted" do
                 -- https://github.com/digitallyinduced/ihp/issues/1630
                 let actualSchema = sql $ cs [plain|

@@ -738,7 +738,7 @@ resolveAlias Nothing fromExpression expression = expression
 normalizeSqlType :: PostgresType -> PostgresType
 normalizeSqlType (PCustomType customType) = PCustomType (normalizeCustomType customType)
 normalizeSqlType (PSetOf type_) = PSetOf (normalizeSqlType type_)
-normalizeSqlType (PTable columns) = PTable (map (\(name, type_) -> (Text.toLower name, normalizeSqlType type_)) columns)
+normalizeSqlType (PTable columns) = PTable (map (\(name, type_) -> (name, normalizeSqlType type_)) columns)
 normalizeSqlType PBigserial = PBigInt
 normalizeSqlType PSerial = PInt
 normalizeSqlType otherwise = otherwise
