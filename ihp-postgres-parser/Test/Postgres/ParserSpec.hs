@@ -509,8 +509,8 @@ spec = do
         it "should parse an operator behind a double literal" do
             parseExpression "a > 0.5 AND b > 0.5" `shouldBe`
                 AndExpression
-                    (GreaterThanExpression (VarExpression "a") (DoubleExpression 0.5))
-                    (GreaterThanExpression (VarExpression "b") (DoubleExpression 0.5))
+                    (GreaterThanExpression (VarExpression "a") (NumericExpression "0.5"))
+                    (GreaterThanExpression (VarExpression "b") (NumericExpression "0.5"))
 
         it "should parse arithmetic operators" do
             parseExpression "a + b <= 100" `shouldBe`
