@@ -79,6 +79,12 @@ tests = do
 
                 diffSchemas targetSchema [] `shouldBe` []
 
+            it "removes deleted COMMENT metadata" do
+                let actualSchema = sql "COMMENT ON TABLE users IS 'application users';"
+
+                diffSchemas [] actualSchema `shouldBe`
+                    [UnknownStatement { raw = "COMMENT ON TABLE users IS NULL" }]
+
             it "does not repeatedly migrate ACL statements followed by comments" do
                 let targetSchema = sql "GRANT/* rationale */ SELECT ON users TO reader; REVOKE-- rationale\n INSERT ON users FROM reader;"
 

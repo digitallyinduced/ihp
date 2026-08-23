@@ -249,6 +249,7 @@ diffSchemas targetSchema' actualSchema' = (drop <> create)
         toDropStatement CreateFunction { functionName } = Just DropFunction { functionName }
         toDropStatement CreateTrigger { name, tableName } = Just DropTrigger { name, tableName }
         toDropStatement CreateEventTrigger { name } = Just DropEventTrigger { name }
+        toDropStatement UnknownStatement { raw } = UnknownStatement <$> Parser.unsetComment raw
         toDropStatement otherwise = Nothing
 
 
@@ -465,6 +466,7 @@ normalizeStatement CreateIndex { columns, indexType, indexName, .. } = [ CreateI
 normalizeStatement CreateFunction { .. } = [ CreateFunction { orReplace = False, language = Text.toUpper language, functionBody = removeIndentation $ normalizeNewLines functionBody, .. } ]
 normalizeStatement statement@UnknownStatement { raw }
     | firstKeyword `elem` ["DO", "GRANT", "REVOKE"] = []
+    | "COMMENT ON EXTENSION " `Text.isPrefixOf` Text.toUpper (Text.stripStart raw) = []
     | otherwise = [statement]
     where
         firstKeyword = Text.toUpper (Text.takeWhile Char.isAlpha (Text.stripStart raw))

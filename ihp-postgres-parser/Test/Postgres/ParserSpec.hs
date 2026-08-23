@@ -510,6 +510,14 @@ spec = do
             parseSql "DO 'BEGIN PERFORM 1; END';" `shouldBe`
                 UnknownStatement { raw = "DO 'BEGIN PERFORM 1; END'" }
 
+        it "should preserve newline-concatenated DO string bodies" do
+            parseSql "DO 'BEGIN NULL;'\n' END';" `shouldBe`
+                UnknownStatement { raw = "DO 'BEGIN NULL;'\n' END'" }
+
+        it "should locate COMMENT values outside quoted text" do
+            unsetComment "COMMENT ON TABLE \"records IS active\" IS 'this IS documented'" `shouldBe`
+                Just "COMMENT ON TABLE \"records IS active\" IS NULL"
+
         it "should preserve a DO block with an escape-string body" do
             parseSql "DO E'BEGIN PERFORM 1; END';" `shouldBe`
                 UnknownStatement { raw = "DO E'BEGIN PERFORM 1; END'" }

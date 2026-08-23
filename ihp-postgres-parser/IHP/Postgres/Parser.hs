@@ -13,6 +13,7 @@ module IHP.Postgres.Parser
 , sqlType
 , removeTypeCasts
 , parseIndexColumns
+, unsetComment
 ) where
 
 import Prelude
@@ -286,30 +287,53 @@ opaqueStatement = do
             notFollowedBy (satisfy (\character -> isAlphaNum character || character == '_'))
             pure value
 
-        opaqueChunk =
-            try escapeStringChunk
-            <|> quotedChunk '\''
-            <|> quotedChunk '"'
-            <|> identifierChunk
-            <|> try dollarQuoted
-            <|> (fst <$> match (Lexer.skipLineComment "--"))
-            <|> (fst <$> match (Lexer.skipBlockCommentNested "/*" "*/"))
-            <|> (Text.singleton <$> anySingle)
+-- | Builds the inverse of an executable COMMENT statement. The `IS` keyword
+-- is located lexically, so occurrences inside identifiers, strings, comments,
+-- or dollar-quoted text cannot be mistaken for the comment-value delimiter.
+unsetComment :: Text -> Maybe Text
+unsetComment = parseMaybe do
+    keyword <- fst <$> match do
+        string' "COMMENT"
+        notFollowedBy (satisfy isIdentifierCharacter)
+    target <- mconcat <$> manyTill opaqueChunk commentValueDelimiter
+    _ <- some anySingle
+    eof
+    pure (Text.stripEnd (keyword <> target) <> " IS NULL")
+    where
+        commentValueDelimiter = try do
+            space1
+            string' "IS"
+            notFollowedBy (satisfy isIdentifierCharacter)
+            space1
 
-        quotedChunk quote = fst <$> match do
-            char quote
-            many (try (char quote >> char quote) <|> anySingleBut quote)
-            char quote
+opaqueChunk :: Parser Text
+opaqueChunk =
+    try escapeStringChunk
+    <|> quotedChunk '\''
+    <|> quotedChunk '"'
+    <|> identifierChunk
+    <|> try dollarQuoted
+    <|> (fst <$> match (Lexer.skipLineComment "--"))
+    <|> (fst <$> match (Lexer.skipBlockCommentNested "/*" "*/"))
+    <|> (Text.singleton <$> anySingle)
 
-        escapeStringChunk = fst <$> match do
-            oneOf ['e', 'E']
-            char '\''
-            many (try (char '\'' >> char '\'') <|> try (char '\\' >> anySingle) <|> anySingleBut '\'')
-            char '\''
+quotedChunk :: Char -> Parser Text
+quotedChunk quote = fst <$> match do
+    char quote
+    many (try (char quote >> char quote) <|> anySingleBut quote)
+    char quote
 
-        identifierChunk = fst <$> match do
-            _ <- satisfy (\character -> isAlpha character || character == '_')
-            takeWhileP Nothing (\character -> isAlphaNum character || character == '_' || character == '$')
+escapeStringChunk :: Parser Text
+escapeStringChunk = fst <$> match do
+    oneOf ['e', 'E']
+    char '\''
+    many (try (char '\'' >> char '\'') <|> try (char '\\' >> anySingle) <|> anySingleBut '\'')
+    char '\''
+
+identifierChunk :: Parser Text
+identifierChunk = fst <$> match do
+    _ <- satisfy (\character -> isAlpha character || character == '_')
+    takeWhileP Nothing (\character -> isAlphaNum character || character == '_' || character == '$')
 
 -- | An anonymous DO block. Its body can contain semicolons, so parse through
 -- the matching dollar-quote delimiter before consuming the statement terminator.
@@ -317,12 +341,24 @@ doStatement :: Parser Statement
 doStatement = do
     sqlLexeme (string' "DO")
     languageBefore <- optional (sqlLexeme (string' "LANGUAGE") >> languageIdentifier)
-    body <- sqlLexeme (dollarQuoted <|> try unicodeEscapeStringLiteral <|> try prefixedStandardStringLiteral <|> try escapeStringLiteral <|> standardStringLiteral)
+    body <- dollarQuoted <|> concatenatedStringLiterals
+    sqlSpaceConsumer
     languageAfter <- optional (sqlLexeme (string' "LANGUAGE") >> languageIdentifier)
     char ';'
     let language = maybe "" (\name -> "LANGUAGE " <> name <> " ") (languageBefore <|> languageAfter)
     pure UnknownStatement { raw = "DO " <> language <> body }
     where
+        concatenatedStringLiterals = do
+            first <- stringLiteral
+            rest <- many $ try do
+                separator <- fst <$> match stringConcatenationSeparator
+                next <- stringLiteral
+                pure (separator <> next)
+            pure (mconcat (first : rest))
+        stringLiteral = try unicodeEscapeStringLiteral <|> try prefixedStandardStringLiteral <|> try escapeStringLiteral <|> standardStringLiteral
+        stringConcatenationSeparator = do
+            whitespace <- some (satisfy isSpace)
+            when (not (any (`elem` ['\n', '\r']) whitespace)) (fail "adjacent SQL string literals require a newline")
         unicodeEscapeStringLiteral = fst <$> match do
             string' "U&"
             char '\''
