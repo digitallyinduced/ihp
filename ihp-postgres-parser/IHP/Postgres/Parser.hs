@@ -1125,7 +1125,7 @@ createPolicy = do
 
     roles <- fromMaybe [] <$> optional do
         lexeme "TO"
-        identifier `sepBy1` (char ',' >> space)
+        policyRole `sepBy1` (char ',' >> space)
 
     using <- optional do
         lexeme "USING"
@@ -1139,6 +1139,20 @@ createPolicy = do
     char ';'
 
     pure CreatePolicy { name, action, tableName, roles, using, check }
+
+policyRole :: Parser PolicyRole
+policyRole = quotedRole <|> unquotedRole
+    where
+        quotedRole = do
+            role <- between (char '"') (char '"') (takeWhile1P Nothing (/= '"'))
+            space
+            pure (QuotedPolicyRole role)
+        unquotedRole = do
+            role <- identifier
+            let upperRole = Text.toUpper role
+            pure if upperRole `elem` ["PUBLIC", "CURRENT_ROLE", "CURRENT_USER", "SESSION_USER"]
+                then SpecialPolicyRole upperRole
+                else PolicyRole role
 
 policyAction =
     (lexeme "ALL" >> pure PolicyForAll)

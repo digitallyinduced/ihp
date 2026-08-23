@@ -470,6 +470,23 @@ tests = do
                 |]
 
                 diffSchemas targetSchema actualSchema `shouldBe` migration 
+
+            it "retargets FORCE statements after table renames" do
+                let targetSchema = sql [i|
+                    CREATE TABLE users (id UUID);
+                    ALTER TABLE users FORCE ROW LEVEL SECURITY;
+                |]
+                let actualSchema = sql [i|
+                    CREATE TABLE profiles (id UUID);
+                    ALTER TABLE profiles FORCE ROW LEVEL SECURITY;
+                |]
+                let migration = sql [i|
+                    ALTER TABLE profiles RENAME TO users;
+                    ALTER TABLE users NO FORCE ROW LEVEL SECURITY;
+                    ALTER TABLE users FORCE ROW LEVEL SECURITY;
+                |]
+
+                diffSchemas targetSchema actualSchema `shouldBe` migration
             
             it "should not do a rename if tables are different" do
                 let targetSchema = sql [i|

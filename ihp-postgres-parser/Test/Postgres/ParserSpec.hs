@@ -472,9 +472,14 @@ spec = do
             parseSql "CREATE POLICY access ON tickets FOR SELECT TO ihp_authenticated, PUBLIC USING (active);" `shouldBe`
                 (policy "access" "tickets")
                     { action = Just PolicyForSelect
-                    , roles = ["ihp_authenticated", "PUBLIC"]
+                    , roles = [PolicyRole "ihp_authenticated", SpecialPolicyRole "PUBLIC"]
                     , using = Just (VarExpression "active")
                     }
+
+        it "should distinguish quoted policy roles from special role specifications" do
+            parseSql "CREATE POLICY access ON tickets TO \"current_user\", CURRENT_USER;" `shouldBe`
+                (policy "access" "tickets")
+                    { roles = [QuotedPolicyRole "current_user", SpecialPolicyRole "CURRENT_USER"] }
 
         it "should parse FORCE ROW LEVEL SECURITY" do
             parseSql "ALTER TABLE tickets FORCE ROW LEVEL SECURITY;" `shouldBe`

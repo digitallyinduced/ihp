@@ -42,7 +42,7 @@ data Statement
     | ForceRowLevelSecurity { tableName :: Text }
     | NoForceRowLevelSecurity { tableName :: Text }
     -- CREATE POLICY name ON tableName USING using WITH CHECK check;
-    | CreatePolicy { name :: Text, tableName :: Text, action :: Maybe PolicyAction, roles :: [Text], using :: Maybe Expression, check :: Maybe Expression }
+    | CreatePolicy { name :: Text, tableName :: Text, action :: Maybe PolicyAction, roles :: [PolicyRole], using :: Maybe Expression, check :: Maybe Expression }
     -- SET name = value;
     | Set { name :: Text, value :: Expression }
     -- SELECT query;
@@ -274,6 +274,12 @@ data PolicyAction
     | PolicyForInsert
     | PolicyForUpdate
     | PolicyForDelete
+    deriving (Eq, Show)
+
+data PolicyRole
+    = PolicyRole Text
+    | QuotedPolicyRole Text
+    | SpecialPolicyRole Text
     deriving (Eq, Show)
 
 data IndexType = Btree | Hash | Gist | Spgist | Gin | Brin | Hnsw | Ivfflat

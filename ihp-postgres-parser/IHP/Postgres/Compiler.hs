@@ -504,12 +504,10 @@ compilePolicyAction PolicyForInsert = "INSERT"
 compilePolicyAction PolicyForUpdate = "UPDATE"
 compilePolicyAction PolicyForDelete = "DELETE"
 
-compilePolicyRole :: Text -> Text
-compilePolicyRole role
-    | upperRole `elem` ["PUBLIC", "CURRENT_ROLE", "CURRENT_USER", "SESSION_USER"] = upperRole
-    | otherwise = compileIdentifier role
-    where
-        upperRole = Text.toUpper role
+compilePolicyRole :: PolicyRole -> Text
+compilePolicyRole (PolicyRole role) = compileIdentifier role
+compilePolicyRole (QuotedPolicyRole role) = "\"" <> Text.replace "\"" "\"\"" role <> "\""
+compilePolicyRole (SpecialPolicyRole role) = Text.toUpper role
 
 compileGenerator :: ColumnGenerator -> Text
 compileGenerator ColumnGenerator { generate, stored } =

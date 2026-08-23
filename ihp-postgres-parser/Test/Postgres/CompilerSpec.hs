@@ -238,7 +238,7 @@ spec = do
                     [ ForceRowLevelSecurity { tableName = "tickets" }
                     , (policy "access" "tickets")
                         { action = Just PolicyForSelect
-                        , roles = ["ihp_authenticated", "PUBLIC"]
+                        , roles = [PolicyRole "ihp_authenticated", SpecialPolicyRole "PUBLIC"]
                         , using = Just (VarExpression "active")
                         }
                     ]
@@ -248,10 +248,15 @@ spec = do
             let statements =
                     [ NoForceRowLevelSecurity { tableName = "tickets" }
                     , (policy "access" "tickets")
-                        { roles = ["current_role", "CURRENT_USER", "session_user"]
+                        { roles = [SpecialPolicyRole "current_role", SpecialPolicyRole "CURRENT_USER", SpecialPolicyRole "session_user"]
                         }
                     ]
             compileSql statements `shouldBe` "ALTER TABLE tickets NO FORCE ROW LEVEL SECURITY;\nCREATE POLICY \"access\" ON tickets TO CURRENT_ROLE, CURRENT_USER, SESSION_USER;\n"
+
+        it "quotes literal roles that look like special role specifications" do
+            let statement = (policy "access" "tickets")
+                    { roles = [QuotedPolicyRole "current_user", SpecialPolicyRole "CURRENT_USER"] }
+            compileSql [statement] `shouldBe` "CREATE POLICY \"access\" ON tickets TO \"current_user\", CURRENT_USER;\n"
 
         it "should round-trip a schema-qualified CREATE FUNCTION" do
             -- parse -> compile -> parse must preserve a non-public schema like `private.`
