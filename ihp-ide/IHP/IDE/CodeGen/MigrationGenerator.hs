@@ -232,17 +232,6 @@ diffSchemas targetSchema' actualSchema' = (drop <> create)
 
         sequenceDirection options = if any isDescendingIncrement options then (-1 :: Int) else 1
 
-        sequenceOptionKind = \case
-            SequenceAs {} -> (0 :: Int)
-            SequenceStart {} -> 1
-            SequenceIncrement {} -> 2
-            SequenceNoMinValue -> 3
-            SequenceMinValue {} -> 3
-            SequenceNoMaxValue -> 4
-            SequenceMaxValue {} -> 4
-            SequenceCache {} -> 5
-            SequenceCycle {} -> 6
-
         isDescendingIncrement (SequenceIncrement (IntExpression value)) = value < 0
         isDescendingIncrement _ = False
 
@@ -516,11 +505,23 @@ normalizeStatement statement@CreateExtension { extensionOptions } = [statement {
 normalizeStatement otherwise = [otherwise]
 
 normalizeSequenceOptions :: [SequenceOption] -> [SequenceOption]
-normalizeSequenceOptions options = filter (not . isImplicitSequenceOption implicitStart) options
+normalizeSequenceOptions options = sortOn sequenceOptionKind (filter (not . isImplicitSequenceOption implicitStart) options)
     where
         implicitStart = if any isDescendingIncrement options then -1 else 1
         isDescendingIncrement (SequenceIncrement (IntExpression value)) = value < 0
         isDescendingIncrement _ = False
+
+sequenceOptionKind :: SequenceOption -> Int
+sequenceOptionKind = \case
+    SequenceAs {} -> 0
+    SequenceStart {} -> 1
+    SequenceIncrement {} -> 2
+    SequenceNoMinValue -> 3
+    SequenceMinValue {} -> 3
+    SequenceNoMaxValue -> 4
+    SequenceMaxValue {} -> 4
+    SequenceCache {} -> 5
+    SequenceCycle {} -> 6
 
 isImplicitSequenceOption :: Int -> SequenceOption -> Bool
 isImplicitSequenceOption implicitStart (SequenceStart (IntExpression value)) = value == implicitStart

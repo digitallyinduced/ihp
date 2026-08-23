@@ -90,6 +90,12 @@ tests = do
 
                 diffSchemas targetSchema actualSchema `shouldBe` []
 
+            it "canonicalizes sequence option ordering" do
+                let targetSchema = sql "CREATE SEQUENCE events_id_seq CACHE 10 INCREMENT BY 2;"
+                let actualSchema = sql "CREATE SEQUENCE events_id_seq INCREMENT BY 2 CACHE 10;"
+
+                diffSchemas targetSchema actualSchema `shouldBe` []
+
             it "alters changed options on an existing sequence" do
                 let targetSchema = sql "CREATE SEQUENCE events_id_seq INCREMENT BY 3;"
                 let actualSchema = sql "CREATE SEQUENCE events_id_seq INCREMENT BY 2;"
