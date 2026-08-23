@@ -31,6 +31,10 @@ spec = do
         it "should parse an CREATE EXTENSION with schema suffix" do
             parseSql "CREATE EXTENSION IF NOT EXISTS \"uuid-ossp\" WITH SCHEMA public;" `shouldBe` CreateExtension { name = "uuid-ossp", ifNotExists = True, extensionOptions = [ExtensionSchema "public"] }
 
+        it "should round-trip quoted extension schema names" do
+            let statement = parseSql "CREATE EXTENSION IF NOT EXISTS postgis WITH SCHEMA \"geo.data\";"
+            parseSql (compileSql [statement]) `shouldBe` statement
+
         it "should fold an unquoted extension schema to lowercase" do
             parseSql "CREATE EXTENSION IF NOT EXISTS postgis WITH SCHEMA Geo;" `shouldBe` CreateExtension { name = "postgis", ifNotExists = True, extensionOptions = [ExtensionSchema "geo"] }
 

@@ -23,6 +23,12 @@ spec = do
         it "should compile a CREATE EXTENSION for the UUID extension" do
             compileSql [CreateExtension { name = "uuid-ossp", ifNotExists = True, extensionOptions = [] }] `shouldBe` "CREATE EXTENSION IF NOT EXISTS \"uuid-ossp\";\n"
 
+        it "should quote punctuation in extension schema names" do
+            compileSql [CreateExtension { name = "postgis", ifNotExists = True, extensionOptions = [ExtensionSchema "geo.data"] }] `shouldBe` "CREATE EXTENSION IF NOT EXISTS postgis WITH SCHEMA \"geo.data\";\n"
+
+        it "should escape quotes in extension schema names" do
+            compileSql [CreateExtension { name = "postgis", ifNotExists = True, extensionOptions = [ExtensionSchema "geo\"data"] }] `shouldBe` "CREATE EXTENSION IF NOT EXISTS postgis WITH SCHEMA \"geo\"\"data\";\n"
+
         it "should compile a line comment" do
             compileSql [Comment { content = " Comment value" }] `shouldBe` "-- Comment value\n"
 

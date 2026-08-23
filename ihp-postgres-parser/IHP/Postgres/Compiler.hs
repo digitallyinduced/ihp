@@ -11,6 +11,7 @@ import Data.Maybe (fromJust, isJust, catMaybes, fromMaybe, maybeToList)
 import Data.Text (Text)
 import qualified Data.Text as Text
 import Data.Function ((&))
+import Data.Char (isAlpha, isAlphaNum)
 
 -- | Text versions of list functions
 intercalate :: Text -> [Text] -> Text
@@ -535,9 +536,18 @@ compileSequenceOption (SequenceCache value) = "CACHE " <> compileExpression valu
 compileSequenceOption (SequenceCycle enabled) = if enabled then "CYCLE" else "NO CYCLE"
 
 compileExtensionOption :: ExtensionOption -> Text
-compileExtensionOption (ExtensionSchema schema) = "WITH SCHEMA " <> compileIdentifier schema
+compileExtensionOption (ExtensionSchema schema) = "WITH SCHEMA " <> compileExtensionSchema schema
 compileExtensionOption (ExtensionVersion version) = "VERSION " <> compileExpression (TextExpression version)
 compileExtensionOption ExtensionCascade = "CASCADE"
+
+compileExtensionSchema :: Text -> Text
+compileExtensionSchema schema
+    | isSimpleIdentifier schema = compileIdentifier schema
+    | otherwise = "\"" <> Text.replace "\"" "\"\"" schema <> "\""
+    where
+        isSimpleIdentifier value = case Text.uncons value of
+            Just (first, rest) -> (isAlpha first || first == '_') && Text.all (\character -> isAlphaNum character || character == '_' || character == '$') rest
+            Nothing -> False
 
 compileIndexColumn :: IndexColumn -> Text
 compileIndexColumn IndexColumn { column, columnOperatorClass, columnOrder } =
