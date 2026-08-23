@@ -116,6 +116,9 @@ spec = do
                         , referenceTable = "auth.users"
                         , referenceColumn = Just "id"
                         , onDelete = Nothing
+                        , onUpdate = Nothing
+                        , constraintDeferrable = Nothing
+                        , constraintDeferrableType = Nothing
                         }
                     , deferrable = Nothing
                     , deferrableType = Nothing
