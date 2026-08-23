@@ -279,6 +279,30 @@ tests = do
                 (SchemaOperations.addColumn options inputSchema) `shouldBe` expectedSchema
 
         describe "deleteColumn" do
+            it "removes a trigger whose WHEN condition references the deleted column" do
+                let inputSchema = parseSqlStatements [trimming|
+                    CREATE TABLE items (ticket_id UUID, organization_id UUID);
+                    CREATE TRIGGER items_changed BEFORE UPDATE ON items FOR EACH ROW WHEN (OLD.ticket_id <> NEW.ticket_id) EXECUTE FUNCTION notify_change();
+                |]
+                let expectedSchema = parseSqlStatements "CREATE TABLE items (organization_id UUID);"
+                let options = SchemaOperations.DeleteColumnOptions { tableName = "items", columnName = "ticket_id", columnId = 0 }
+
+                SchemaOperations.deleteColumn options inputSchema `shouldBe` expectedSchema
+
+            it "removes a composite foreign key referencing the deleted column" do
+                let inputSchema = parseSqlStatements [trimming|
+                    CREATE TABLE tickets (ticket_id UUID, organization_id UUID);
+                    CREATE TABLE items (ticket_id UUID, organization_id UUID);
+                    ALTER TABLE items ADD CONSTRAINT items_ticket_fkey FOREIGN KEY (ticket_id, organization_id) REFERENCES tickets (ticket_id, organization_id);
+                |]
+                let expectedSchema = parseSqlStatements [trimming|
+                    CREATE TABLE tickets (organization_id UUID);
+                    CREATE TABLE items (ticket_id UUID, organization_id UUID);
+                |]
+                let options = SchemaOperations.DeleteColumnOptions { tableName = "tickets", columnName = "ticket_id", columnId = 0 }
+
+                SchemaOperations.deleteColumn options inputSchema `shouldBe` expectedSchema
+
             it "removes a deleted column from UPDATE OF triggers" do
                 let inputSchema = parseSqlStatements [trimming|
                     CREATE TABLE items (ticket_id UUID, organization_id UUID);
@@ -609,6 +633,20 @@ tests = do
 
                 (SchemaOperations.updateColumn options inputSchema) `shouldBe` expectedSchema
         describe "updateTable" do
+            it "retargets composite foreign keys when the referenced table is renamed" do
+                let inputSchema = parseSqlStatements [trimming|
+                    CREATE TABLE tickets (id UUID, organization_id UUID);
+                    CREATE TABLE items (ticket_id UUID, organization_id UUID);
+                    ALTER TABLE items ADD CONSTRAINT items_ticket_fkey FOREIGN KEY (ticket_id, organization_id) REFERENCES tickets (id, organization_id);
+                |]
+                let expectedSchema = parseSqlStatements [trimming|
+                    CREATE TABLE issues (id UUID, organization_id UUID);
+                    CREATE TABLE items (ticket_id UUID, organization_id UUID);
+                    ALTER TABLE items ADD CONSTRAINT items_ticket_fkey FOREIGN KEY (ticket_id, organization_id) REFERENCES issues (id, organization_id);
+                |]
+
+                SchemaOperations.updateTable 0 "issues" inputSchema `shouldBe` expectedSchema
+
             it "renames a table with all it's indices, constraints, policies, enable RLS statements, triggers" do
                 let inputSchema = parseSqlStatements [trimming|
                     CREATE TABLE tasks ();

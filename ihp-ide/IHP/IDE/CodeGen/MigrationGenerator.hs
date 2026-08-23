@@ -464,11 +464,12 @@ normalizeStatement CreateEnumType { name, values } = [ CreateEnumType { name = T
 normalizeStatement CreatePolicy { name, action, tableName, using, check } = [ CreatePolicy { name = truncateIdentifier name, tableName, using = (unqualifyExpression tableName . normalizeExpression) <$> using, check = (unqualifyExpression tableName . normalizeExpression) <$> check, action = normalizePolicyAction action } ]
 normalizeStatement CreateIndex { columns, indexType, indexName, .. } = [ CreateIndex { columns = map normalizeIndexColumn columns, indexType = normalizeIndexType indexType, indexName = truncateIdentifier indexName, .. } ]
 normalizeStatement CreateFunction { .. } = [ CreateFunction { orReplace = False, language = Text.toUpper language, functionBody = removeIndentation $ normalizeNewLines functionBody, .. } ]
-normalizeStatement trigger@CreateTrigger { event } = [trigger { event = map normalizeTriggerEvent event }]
-normalizeStatement trigger@CreateConstraintTrigger { event, referencedTableName, deferrable, deferrableType } =
+normalizeStatement trigger@CreateTrigger { event, whenCondition } = [trigger { event = map normalizeTriggerEvent event, whenCondition = normalizeExpression <$> whenCondition }]
+normalizeStatement trigger@CreateConstraintTrigger { event, referencedTableName, deferrable, deferrableType, whenCondition } =
     [ trigger
         { event = map normalizeTriggerEvent event
         , referencedTableName = Text.toLower <$> referencedTableName
+        , whenCondition = normalizeExpression <$> whenCondition
         , deferrable = if deferrable == Just False then Nothing else deferrable
         , deferrableType = if deferrableType == Just InitiallyImmediate then Nothing else deferrableType
         }
@@ -623,7 +624,7 @@ normalizeExpression (SelectExpression Select { columns, from, whereClause, alias
         unqualifiedName :: Expression -> Expression
         unqualifiedName (DotExpression (VarExpression _) name) = VarExpression name
         unqualifiedName name = name
-normalizeExpression (DotExpression a b) = DotExpression (normalizeExpression a) b
+normalizeExpression (DotExpression a b) = DotExpression (normalizeExpression a) (Text.toLower b)
 normalizeExpression (ExistsExpression a) = ExistsExpression (normalizeExpression a)
 normalizeExpression (InArrayExpression exprs) = InArrayExpression (map normalizeExpression exprs)
 normalizeExpression (ArrayLiteralExpression exprs) = ArrayLiteralExpression (map normalizeExpression exprs)
