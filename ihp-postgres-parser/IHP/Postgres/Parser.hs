@@ -904,22 +904,21 @@ createFunction = do
     returns <- functionReturnType
     space
 
-    functionOptions <- many parseFunctionOption
-    let languageBeforeBody = listToMaybe [language | FunctionLanguage language <- functionOptions]
-    let securityDefiner = any isSecurityDefiner functionOptions
-    let functionAttributes = [attribute | FunctionAttribute attribute <- functionOptions]
-    let functionSettings = [functionSetting | FunctionSettingOption functionSetting <- functionOptions]
+    functionOptionsBeforeBody <- many parseFunctionOption
 
     lexeme "AS"
     space
     functionBody <- cs <$> between (char '$' >> char '$') (char '$' >> char '$') (many (anySingleBut '$'))
     space
 
-    language <- case languageBeforeBody of
+    functionOptionsAfterBody <- many parseFunctionOption
+    let functionOptions = functionOptionsBeforeBody <> functionOptionsAfterBody
+    let securityDefiner = any isSecurityDefiner functionOptions
+    let functionAttributes = [attribute | FunctionAttribute attribute <- functionOptions]
+    let functionSettings = [functionSetting | FunctionSettingOption functionSetting <- functionOptions]
+    language <- case listToMaybe [language | FunctionLanguage language <- functionOptions] of
         Just language -> pure language
-        Nothing -> do
-            symbol' "language"
-            symbol' "plpgsql" <|> symbol' "SQL"
+        Nothing -> fail "CREATE FUNCTION requires a LANGUAGE option"
     char ';'
     pure CreateFunction { functionName, functionArguments, functionBody, orReplace, returns, language, securityDefiner, functionAttributes, functionSettings }
     where
@@ -929,7 +928,8 @@ createFunction = do
             argumentType <- sqlType
             pure (argumentName, argumentType)
         functionArgumentName = quotedArgumentName <|> unquotedArgumentName
-        quotedArgumentName = between (char '"') (char '"') (takeWhile1P Nothing (/= '"'))
+        quotedArgumentName = Text.pack <$> between (char '"') (char '"') (some quotedArgumentNameCharacter)
+        quotedArgumentNameCharacter = try (string "\"\"" $> '"') <|> anySingleBut '"'
         unquotedArgumentName = Text.toLower <$> takeWhile1P (Just "function argument name") (\c -> isAlphaNum c || c == '_')
         functionReturnType =
             try (lexeme "SETOF" >> (PSetOf <$> sqlType))
