@@ -518,6 +518,10 @@ spec = do
             parseSql "CREATE POLICY access ON tickets TO ÄRole;" `shouldBe`
                 (policy "access" "tickets") { roles = [PolicyRole "Ärole"] }
 
+        it "should recognize special policy roles with ASCII folding only" do
+            parseSql "CREATE POLICY access ON tickets TO publıc;" `shouldBe`
+                (policy "access" "tickets") { roles = [PolicyRole "publıc"] }
+
         it "should parse dollar signs in unquoted policy roles" do
             parseSql "CREATE POLICY access ON tickets TO app$user;" `shouldBe`
                 (policy "access" "tickets") { roles = [PolicyRole "app$user"] }

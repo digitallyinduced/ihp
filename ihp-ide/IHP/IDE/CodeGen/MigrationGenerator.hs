@@ -8,6 +8,8 @@ module IHP.IDE.CodeGen.MigrationGenerator where
 import IHP.Prelude
 import qualified System.Directory as Directory
 import qualified Data.Text as Text
+import qualified Data.Text.Encoding as TextEncoding
+import qualified Data.ByteString as ByteString
 import qualified Data.Time.Clock.POSIX as POSIX
 import qualified IHP.NameSupport as NameSupport
 import qualified Data.Char as Char
@@ -540,7 +542,7 @@ normalizePolicyRoles roles
     | any isPublicRole roles = []
     | otherwise = map normalizeLiteralRole roles
     where
-        isPublicRole (SpecialPolicyRole role) = Text.toUpper role == "PUBLIC"
+        isPublicRole (SpecialPolicyRole role) = foldAsciiUpper role == "PUBLIC"
         isPublicRole _ = False
         normalizeLiteralRole (PolicyRole role) = PolicyRole (truncateIdentifier role)
         normalizeLiteralRole (QuotedPolicyRole role) = literalPolicyRole (truncateIdentifier role)
@@ -563,7 +565,13 @@ isOrdinaryUnquotedRole role = case Text.uncons role of
         isUnquotedContinuation character = isAsciiLower character || isAsciiDigit character || character == '_' || character == '$'
 
 isSpecialPolicyRoleName :: Text -> Bool
-isSpecialPolicyRoleName role = Text.toUpper role `elem` ["PUBLIC", "CURRENT_ROLE", "CURRENT_USER", "SESSION_USER"]
+isSpecialPolicyRoleName role = foldAsciiUpper role `elem` ["PUBLIC", "CURRENT_ROLE", "CURRENT_USER", "SESSION_USER"]
+
+foldAsciiUpper :: Text -> Text
+foldAsciiUpper = Text.map \character ->
+    if character >= 'a' && character <= 'z'
+        then Char.toUpper character
+        else character
 
 normalizeTable :: CreateTable -> (CreateTable, [Statement])
 normalizeTable table@(CreateTable { .. }) = ( CreateTable { columns = fst normalizedColumns, constraints = normalizedTableConstraints, .. }, (concat $ (snd normalizedColumns)) <> normalizedConstraintsStatements )
@@ -987,11 +995,16 @@ removeIndentation text =
                 |> map (\line -> Text.length (Text.takeWhile Char.isSpace line))
         spacesToDrop = spaces |> minimum
 
--- | Postgres truncates identifiers longer than 63 characters.
+-- | PostgreSQL truncates identifiers longer than 63 UTF-8 bytes.
 --
--- This function truncates a Text to 63 chars max. This way we avoid unnecssary changes in the generated migrations.
+-- This keeps the result on a valid UTF-8 boundary to match PostgreSQL.
 truncateIdentifier :: Text -> Text
-truncateIdentifier identifier =
-    if Text.length identifier > 63
-        then Text.take 63 identifier
-        else identifier
+truncateIdentifier = go 63
+    where
+        go remaining identifier = case Text.uncons identifier of
+            Nothing -> ""
+            Just (character, rest)
+                | byteCount <= remaining -> Text.cons character (go (remaining - byteCount) rest)
+                | otherwise -> ""
+                where
+                    byteCount = ByteString.length (TextEncoding.encodeUtf8 (Text.singleton character))

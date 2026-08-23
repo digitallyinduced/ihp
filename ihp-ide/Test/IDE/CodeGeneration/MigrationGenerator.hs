@@ -12,6 +12,7 @@ import qualified Text.Megaparsec as Megaparsec
 import qualified IHP.Postgres.Parser as Parser
 import IHP.Postgres.Types
 import IHP.IDE.CodeGen.Types (GeneratorAction (..))
+import qualified Data.Text as Text
 
 tests = do
     describe "MigrationGenerator" do
@@ -638,6 +639,12 @@ tests = do
             it "truncates literal policy roles before comparison" do
                 let targetSchema = sql "CREATE POLICY access ON tickets TO aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa;"
                 let actualSchema = sql "CREATE POLICY access ON tickets TO aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa;"
+
+                diffSchemas targetSchema actualSchema `shouldBe` []
+
+            it "truncates policy roles by UTF-8 bytes" do
+                let targetSchema = sql ("CREATE POLICY access ON tickets TO \"" <> Text.replicate 40 "é" <> "\";")
+                let actualSchema = sql ("CREATE POLICY access ON tickets TO \"" <> Text.replicate 31 "é" <> "\";")
 
                 diffSchemas targetSchema actualSchema `shouldBe` []
 

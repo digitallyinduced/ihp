@@ -25,7 +25,7 @@ import Data.String.Conversions (cs)
 import Data.Maybe (isJust, catMaybes, isNothing, listToMaybe, fromMaybe)
 import Data.Either (lefts, rights)
 import Data.Functor (($>))
-import Data.Char (isAlpha, isAlphaNum, isSpace, toLower)
+import Data.Char (isAlpha, isAlphaNum, isSpace, toLower, toUpper)
 import qualified Data.List as List
 import Control.Monad (when)
 import Text.Megaparsec
@@ -1163,13 +1163,17 @@ policyRole = quotedRole <|> unquotedRole
             rest <- takeWhileP (Just "policy role") (\character -> isAlphaNum character || character == '_' || character == '$')
             space
             let role = Text.cons first rest
-            let upperRole = Text.toUpper role
+            let upperRole = foldAsciiUpper role
             pure if upperRole `elem` ["PUBLIC", "CURRENT_ROLE", "CURRENT_USER", "SESSION_USER"]
                 then SpecialPolicyRole upperRole
                 else PolicyRole (foldAscii role)
         foldAscii = Text.map \character ->
             if character >= 'A' && character <= 'Z'
                 then toLower character
+                else character
+        foldAsciiUpper = Text.map \character ->
+            if character >= 'a' && character <= 'z'
+                then toUpper character
                 else character
 
 policyAction =
