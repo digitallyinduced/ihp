@@ -537,7 +537,7 @@ compileSequenceOption (SequenceCycle enabled) = if enabled then "CYCLE" else "NO
 
 compileExtensionOption :: ExtensionOption -> Text
 compileExtensionOption (ExtensionSchema schema) = "WITH SCHEMA " <> compileExtensionSchema schema
-compileExtensionOption (ExtensionVersion version) = "VERSION " <> compileExpression (TextExpression version)
+compileExtensionOption (ExtensionVersion version) = "VERSION '" <> Text.replace "'" "''" version <> "'"
 compileExtensionOption ExtensionCascade = "CASCADE"
 
 compileExtensionSchema :: Text -> Text

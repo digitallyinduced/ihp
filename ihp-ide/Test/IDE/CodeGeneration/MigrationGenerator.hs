@@ -152,6 +152,20 @@ tests = do
                         }
                     ]
 
+            it "moves the implicit sequence start when a bound changes" do
+                let targetSchema = sql "CREATE SEQUENCE events_id_seq MINVALUE 20;"
+                let actualSchema = sql "CREATE SEQUENCE events_id_seq START WITH 10 MINVALUE 10;"
+
+                diffSchemas targetSchema actualSchema `shouldBe`
+                    [ AlterSequence
+                        { name = "events_id_seq"
+                        , sequenceOptions =
+                            [ SequenceMinValue (IntExpression 20)
+                            , SequenceStart (IntExpression 20)
+                            ]
+                        }
+                    ]
+
             it "resets direction-dependent defaults when a sequence becomes descending" do
                 let targetSchema = sql "CREATE SEQUENCE events_id_seq INCREMENT BY -1;"
                 let actualSchema = sql "CREATE SEQUENCE events_id_seq INCREMENT BY 2;"

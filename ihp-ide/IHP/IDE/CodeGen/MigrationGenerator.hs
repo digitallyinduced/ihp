@@ -212,7 +212,7 @@ diffSchemas targetSchema' actualSchema' = (drop <> create)
 
         sequenceAlterOptions targetOptions actualOptions = desiredOptions <> mapMaybe resetOption changedActualOptions
             where
-                desiredOptions = targetOptions <> directionDefaults
+                desiredOptions = targetOptions <> boundStartDefault <> directionDefaults
                 changedActualOptions = filter (not . hasMatchingOption desiredOptions) actualOptions
                 hasMatchingOption options option = any ((== sequenceOptionKind option) . sequenceOptionKind) options
                 resetOption SequenceAs {} = Just (SequenceAs PBigInt)
@@ -235,6 +235,16 @@ diffSchemas targetSchema' actualSchema' = (drop <> create)
                         , SequenceNoMinValue
                         , SequenceNoMaxValue
                         ]
+                boundStartDefault
+                    | targetDirection /= actualDirection = []
+                    | relevantStartBound targetOptions /= relevantStartBound actualOptions
+                    , not (any isStartOption targetOptions) = [SequenceStart implicitStart]
+                    | otherwise = []
+                relevantStartBound options
+                    | targetDirection < 0 = listToMaybe [value | SequenceMaxValue value <- options]
+                    | otherwise = listToMaybe [value | SequenceMinValue value <- options]
+                isStartOption SequenceStart {} = True
+                isStartOption _ = False
 
         sequenceDirection options = if any isDescendingIncrement options then (-1 :: Int) else 1
 

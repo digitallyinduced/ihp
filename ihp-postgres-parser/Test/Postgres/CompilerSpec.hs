@@ -334,6 +334,11 @@ spec = do
             let statements = [ CreateSequence { name = "a", sequenceOptions = [] } ]
             compileSql statements `shouldBe` sql
 
+        it "should escape quotes in extension versions" do
+            let sql = "CREATE EXTENSION extension_name VERSION '1''beta';\n"
+            let statements = [ CreateExtension { name = "extension_name", ifNotExists = False, extensionOptions = [ExtensionVersion "1'beta"] } ]
+            compileSql statements `shouldBe` sql
+
         it "should compile 'ALTER SEQUENCE ..' statements" do
             let sql = "ALTER SEQUENCE a INCREMENT BY 3 CACHE 10;\n"
             let statements = [ AlterSequence { name = "a", sequenceOptions = [SequenceIncrement (IntExpression 3), SequenceCache (IntExpression 10)] } ]
