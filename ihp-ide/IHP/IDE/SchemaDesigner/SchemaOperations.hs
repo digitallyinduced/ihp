@@ -273,6 +273,8 @@ newForeignKeyConstraint tableName columnName referenceTable =
         , referenceColumn = "id"
         , onDelete = (Just NoAction)
         , onUpdate = Nothing
+        , constraintDeferrable = Nothing
+        , constraintDeferrableType = Nothing
         }
     , deferrable = Nothing
     , deferrableType = Nothing
@@ -308,7 +310,7 @@ arrayifytype False coltype = coltype
 arrayifytype True  coltype = PArray coltype
 
 addForeignKeyConstraint :: Text -> Text -> Text -> Text -> OnDelete -> [Statement] -> [Statement]
-addForeignKeyConstraint tableName columnName constraintName referenceTable onDelete list = list <> [AddConstraint { tableName = tableName, constraint = ForeignKeyConstraint { name = Just constraintName, columnName = columnName, referenceTable = referenceTable, referenceColumn = "id", onDelete = (Just onDelete), onUpdate = Nothing }, deferrable = Nothing, deferrableType = Nothing }]
+addForeignKeyConstraint tableName columnName constraintName referenceTable onDelete list = list <> [AddConstraint { tableName = tableName, constraint = ForeignKeyConstraint { name = Just constraintName, columnName = columnName, referenceTable = referenceTable, referenceColumn = "id", onDelete = (Just onDelete), onUpdate = Nothing, constraintDeferrable = Nothing, constraintDeferrableType = Nothing }, deferrable = Nothing, deferrableType = Nothing }]
 
 addTableIndex :: Text -> Bool -> Text -> [Text] -> [Statement] -> [Statement]
 addTableIndex indexName unique tableName columnNames list = list <> [CreateIndex { indexName, unique, tableName, columns = columnNames |> map (indexCol . VarExpression), whereClause = Nothing, indexType = Nothing, nullsDistinct = True }]
@@ -649,9 +651,9 @@ deleteColumn DeleteColumnOptions { .. } schema =
         |> concatMap deleteColumnFromTrigger
         |> (filter \case
                 AddConstraint { tableName = fkTable, constraint = ForeignKeyConstraint { columnName = fkColumn } } | fkTable == tableName && fkColumn == columnName -> False
-                AddConstraint { constraint = ForeignKeyConstraint { referenceTable, referenceColumn } } | referenceTable == tableName && referenceColumn == Just columnName -> False
+                AddConstraint { constraint = ForeignKeyConstraint { referenceTable, referenceColumn } } | referenceTable == tableName && referencesDeletedColumn referenceTable (maybeToList referenceColumn) -> False
                 AddConstraint { tableName = fkTable, constraint = CompositeForeignKeyConstraint { columnNames = fkColumns } } | fkTable == tableName && columnName `elem` fkColumns -> False
-                AddConstraint { constraint = CompositeForeignKeyConstraint { referenceTable, referenceColumns } } | referenceTable == tableName && columnName `elem` referenceColumns -> False
+                AddConstraint { constraint = CompositeForeignKeyConstraint { referenceTable, referenceColumns } } | referenceTable == tableName && referencesDeletedColumn referenceTable referenceColumns -> False
                 index@(CreateIndex {}) | isIndexStatementReferencingTableColumn index tableName columnName -> False
                 otherwise -> True
             )
@@ -661,6 +663,16 @@ deleteColumn DeleteColumnOptions { .. } schema =
             )
         |> filter deletePolicyReferencingPolicy
     where
+        referencesDeletedColumn referenceTable referenceColumns =
+            columnName `elem` if null referenceColumns then referencedPrimaryKey referenceTable else referenceColumns
+
+        referencedPrimaryKey referenceTable = fromMaybe [] do
+            StatementCreateTable { unsafeGetCreateTable = CreateTable { primaryKeyConstraint = PrimaryKeyConstraint { primaryKeyColumnNames } } } <- find isReferencedTable schema
+            pure primaryKeyColumnNames
+            where
+                isReferencedTable StatementCreateTable { unsafeGetCreateTable = CreateTable { name } } = name == referenceTable
+                isReferencedTable _ = False
+
         deleteColumnInTable :: Statement -> Statement
         deleteColumnInTable (StatementCreateTable table@CreateTable { name, columns }) | name == tableName = StatementCreateTable $ table { columns = delete (columns !! columnId) columns}
         deleteColumnInTable statement = statement

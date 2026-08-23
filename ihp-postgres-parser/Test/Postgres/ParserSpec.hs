@@ -113,6 +113,8 @@ spec = do
                         , referenceColumn = Just "id"
                         , onDelete = Just Cascade
                         , onUpdate = Nothing
+                        , constraintDeferrable = Nothing
+                        , constraintDeferrableType = Nothing
                         }
                     , deferrable = Nothing
                     , deferrableType = Nothing
@@ -481,6 +483,8 @@ spec = do
                         , matchType = Nothing
                         , onDelete = Just (SetNull ["ticket_id"])
                         , onUpdate = Just Cascade
+                        , constraintDeferrable = Nothing
+                        , constraintDeferrableType = Nothing
                         }
                     , deferrable = Just True
                     , deferrableType = Just InitiallyDeferred
@@ -498,10 +502,18 @@ spec = do
                         , matchType = Just MatchFull
                         , onDelete = Nothing
                         , onUpdate = Nothing
+                        , constraintDeferrable = Nothing
+                        , constraintDeferrableType = Nothing
                         }
                     , deferrable = Nothing
                     , deferrableType = Nothing
                     }
+
+        it "should preserve deferrability on inline composite foreign keys" do
+            let parsed = parseSql "CREATE TABLE items (ticket_id UUID, organization_id UUID, FOREIGN KEY (ticket_id, organization_id) REFERENCES tickets (id, organization_id) DEFERRABLE INITIALLY DEFERRED);"
+            parsed.unsafeGetCreateTable.constraints `shouldSatisfy` \case
+                [CompositeForeignKeyConstraint { constraintDeferrable = Just True, constraintDeferrableType = Just InitiallyDeferred }] -> True
+                _ -> False
 
         it "should fold only unquoted constraint names" do
             let unquoted = parseSql "ALTER TABLE items ADD CONSTRAINT Child_FK FOREIGN KEY (tenant_id, parent_id) REFERENCES parents (tenant_id, id);"
@@ -520,6 +532,8 @@ spec = do
                         , referenceColumn = Just "id"
                         , onDelete = Nothing
                         , onUpdate = Just Cascade
+                        , constraintDeferrable = Nothing
+                        , constraintDeferrableType = Nothing
                         }
                     , deferrable = Nothing
                     , deferrableType = Nothing

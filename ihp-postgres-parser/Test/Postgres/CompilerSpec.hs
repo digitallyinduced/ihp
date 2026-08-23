@@ -59,6 +59,8 @@ spec = do
                         , referenceColumn = Just "id"
                         , onDelete = Just Cascade
                         , onUpdate = Nothing
+                        , constraintDeferrable = Nothing
+                        , constraintDeferrableType = Nothing
                         }
                     , deferrable = Nothing
                     , deferrableType = Nothing
@@ -75,6 +77,8 @@ spec = do
                         , referenceColumn = Just "id"
                         , onDelete = Nothing
                         , onUpdate = Just Cascade
+                        , constraintDeferrable = Nothing
+                        , constraintDeferrableType = Nothing
                         }
                     , deferrable = Nothing
                     , deferrableType = Nothing
@@ -92,11 +96,31 @@ spec = do
                         , matchType = Just MatchFull
                         , onDelete = Nothing
                         , onUpdate = Nothing
+                        , constraintDeferrable = Nothing
+                        , constraintDeferrableType = Nothing
                         }
                     , deferrable = Nothing
                     , deferrableType = Nothing
                     }
             compileSql [statement] `shouldBe` "ALTER TABLE items ADD CONSTRAINT items_parent_fkey FOREIGN KEY (tenant_id, parent_id) REFERENCES parents (tenant_id, id) MATCH FULL ;\n"
+
+        it "should compile deferrability on inline composite foreign keys" do
+            let statement = StatementCreateTable (table "items")
+                    { constraints =
+                        [ CompositeForeignKeyConstraint
+                            { name = Nothing
+                            , columnNames = ["tenant_id", "parent_id"]
+                            , referenceTable = "parents"
+                            , referenceColumns = ["tenant_id", "id"]
+                            , matchType = Nothing
+                            , onDelete = Nothing
+                            , onUpdate = Nothing
+                            , constraintDeferrable = Just True
+                            , constraintDeferrableType = Just InitiallyDeferred
+                            }
+                        ]
+                    }
+            compileSql [statement] `shouldBe` "CREATE TABLE items (\n    FOREIGN KEY (tenant_id, parent_id) REFERENCES parents (tenant_id, id)  DEFERRABLE INITIALLY DEFERRED\n);\n"
 
         it "should compile ALTER TABLE .. ADD CONSTRAINT .. CHECK .." do
             let statement = AddConstraint

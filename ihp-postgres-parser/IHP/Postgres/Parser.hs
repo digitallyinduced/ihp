@@ -323,8 +323,15 @@ addConstraint tableName = do
     constraint <- parseTableConstraint >>= \case
       Left (name, primaryKeyConstraint) -> pure AlterTableAddPrimaryKey { name, primaryKeyConstraint }
       Right constraint -> pure constraint
-    deferrable <- optional parseDeferrable
-    deferrableType <- optional parseDeferrableType
+    (constraint, deferrable, deferrableType) <- case constraint of
+        foreignKey@ForeignKeyConstraint { constraintDeferrable, constraintDeferrableType } ->
+            pure (foreignKey { constraintDeferrable = Nothing, constraintDeferrableType = Nothing }, constraintDeferrable, constraintDeferrableType)
+        foreignKey@CompositeForeignKeyConstraint { constraintDeferrable, constraintDeferrableType } ->
+            pure (foreignKey { constraintDeferrable = Nothing, constraintDeferrableType = Nothing }, constraintDeferrable, constraintDeferrableType)
+        otherConstraint -> do
+            deferrable <- optional parseDeferrable
+            deferrableType <- optional parseDeferrableType
+            pure (otherConstraint, deferrable, deferrableType)
     char ';'
     pure AddConstraint { tableName, constraint, deferrable, deferrableType }
 
@@ -366,13 +373,15 @@ parseForeignKeyConstraint name = do
         (lexeme "DELETE" >> (Left <$> parseOnDelete)) <|> (lexeme "UPDATE" >> (Right <$> parseOnDelete))
     let onDelete = listToMaybe (lefts referentialActions)
     let onUpdate = listToMaybe (rights referentialActions)
+    deferrable <- optional parseDeferrable
+    deferrableType <- optional parseDeferrableType
     case (columnNames, referenceColumns) of
         ([columnName], Nothing) ->
-            pure ForeignKeyConstraint { name, columnName, referenceTable, referenceColumn = Nothing, onDelete, onUpdate }
+            pure ForeignKeyConstraint { name, columnName, referenceTable, referenceColumn = Nothing, onDelete, onUpdate, constraintDeferrable = deferrable, constraintDeferrableType = deferrableType }
         ([columnName], Just [referenceColumn]) ->
-            pure ForeignKeyConstraint { name, columnName, referenceTable, referenceColumn = Just referenceColumn, onDelete, onUpdate }
+            pure ForeignKeyConstraint { name, columnName, referenceTable, referenceColumn = Just referenceColumn, onDelete, onUpdate, constraintDeferrable = deferrable, constraintDeferrableType = deferrableType }
         _ ->
-            pure CompositeForeignKeyConstraint { name, columnNames, referenceTable, referenceColumns = fromMaybe [] referenceColumns, matchType, onDelete, onUpdate }
+            pure CompositeForeignKeyConstraint { name, columnNames, referenceTable, referenceColumns = fromMaybe [] referenceColumns, matchType, onDelete, onUpdate, constraintDeferrable = deferrable, constraintDeferrableType = deferrableType }
 
 parseUniqueConstraint name = do
     lexeme "UNIQUE"

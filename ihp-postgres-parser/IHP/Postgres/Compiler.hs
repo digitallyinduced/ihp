@@ -80,7 +80,12 @@ compilePrimaryKeyConstraint PrimaryKeyConstraint { primaryKeyColumnNames } =
 
 compileTableConstraint :: Constraint -> Text
 compileTableConstraint constraint =
-    maybe "" (\name -> "CONSTRAINT " <> compileIdentifier name <> " ") constraint.name <> compileConstraint constraint
+    maybe "" (\name -> "CONSTRAINT " <> compileIdentifier name <> " ") constraint.name <> compileConstraint constraint <> compileConstraintDeferrability constraint
+
+compileConstraintDeferrability :: Constraint -> Text
+compileConstraintDeferrability ForeignKeyConstraint { constraintDeferrable, constraintDeferrableType } = compileDeferrable constraintDeferrable constraintDeferrableType
+compileConstraintDeferrability CompositeForeignKeyConstraint { constraintDeferrable, constraintDeferrableType } = compileDeferrable constraintDeferrable constraintDeferrableType
+compileConstraintDeferrability _ = ""
 
 compileConstraint :: Constraint -> Text
 compileConstraint ForeignKeyConstraint { columnName, referenceTable, referenceColumn, onDelete, onUpdate } = "FOREIGN KEY (" <> compileIdentifier columnName <> ") REFERENCES " <> compileIdentifier referenceTable <> (if isJust referenceColumn then " (" <> fromJust referenceColumn <> ")" else "") <> compileOnUpdate onUpdate <> " " <> compileOnDelete onDelete

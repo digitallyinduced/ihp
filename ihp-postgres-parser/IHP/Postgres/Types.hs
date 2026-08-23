@@ -146,6 +146,8 @@ data Constraint
         , referenceColumn :: !(Maybe Text)
         , onDelete :: !(Maybe OnDelete)
         , onUpdate :: !(Maybe OnDelete)
+        , constraintDeferrable :: !(Maybe Bool)
+        , constraintDeferrableType :: !(Maybe DeferrableType)
         }
     | CompositeForeignKeyConstraint
         { name :: !(Maybe Text)
@@ -155,6 +157,8 @@ data Constraint
         , matchType :: !(Maybe ForeignKeyMatchType)
         , onDelete :: !(Maybe OnDelete)
         , onUpdate :: !(Maybe OnDelete)
+        , constraintDeferrable :: !(Maybe Bool)
+        , constraintDeferrableType :: !(Maybe DeferrableType)
         }
     | UniqueConstraint
         { name :: !(Maybe Text)
@@ -365,6 +369,8 @@ foreignKey tableName columnName referenceTable = AddConstraint
         , referenceColumn = Nothing
         , onDelete = Nothing
         , onUpdate = Nothing
+        , constraintDeferrable = Nothing
+        , constraintDeferrableType = Nothing
         }
     , deferrable = Nothing
     , deferrableType = Nothing

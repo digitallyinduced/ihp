@@ -457,6 +457,52 @@ normalizeSchema statements = map normalizeStatement statements
         |> concat
         |> normalizePrimaryKeys
         |> normalizeCompositeForeignKeyReferences
+        |> normalizeForeignKeyNameCollisions
+
+normalizeForeignKeyNameCollisions :: [Statement] -> [Statement]
+normalizeForeignKeyNameCollisions = go []
+    where
+        go _ [] = []
+        go usedNames (statement@AddConstraint { tableName, constraint } : rest)
+            | isForeignKey constraint =
+                case constraint.name of
+                    Just explicitName -> statement : go ((tableName, explicitName) : usedNames) rest
+                    Nothing ->
+                        let baseName = generatedForeignKeyName tableName constraint
+                            uniqueName = firstAvailableName tableName baseName usedNames
+                            normalizedConstraint = setForeignKeyName uniqueName constraint
+                        in statement { constraint = normalizedConstraint } : go ((tableName, uniqueName) : usedNames) rest
+            | Just explicitName <- constraint.name =
+                statement : go ((tableName, explicitName) : usedNames) rest
+        go usedNames (statement@(StatementCreateTable CreateTable { name, constraints }) : rest) =
+            statement : go (map (\constraintName -> (name, constraintName)) (mapMaybe (.name) constraints) <> usedNames) rest
+        go usedNames (statement : rest) = statement : go usedNames rest
+
+        generatedForeignKeyName tableName ForeignKeyConstraint { columnName } =
+            postgresGeneratedObjectName (Text.toLower tableName) (Text.toLower columnName) "fkey"
+        generatedForeignKeyName tableName CompositeForeignKeyConstraint { columnNames } =
+            postgresGeneratedObjectName (Text.toLower tableName) (Text.intercalate "_" (map Text.toLower columnNames)) "fkey"
+        generatedForeignKeyName _ _ = error "generatedForeignKeyName: expected a foreign key"
+
+        isForeignKey ForeignKeyConstraint {} = True
+        isForeignKey CompositeForeignKeyConstraint {} = True
+        isForeignKey _ = False
+
+        setForeignKeyName uniqueName (ForeignKeyConstraint _ columnName referenceTable referenceColumn onDelete onUpdate constraintDeferrable constraintDeferrableType) =
+            ForeignKeyConstraint (Just uniqueName) columnName referenceTable referenceColumn onDelete onUpdate constraintDeferrable constraintDeferrableType
+        setForeignKeyName uniqueName (CompositeForeignKeyConstraint _ columnNames referenceTable referenceColumns matchType onDelete onUpdate constraintDeferrable constraintDeferrableType) =
+            CompositeForeignKeyConstraint (Just uniqueName) columnNames referenceTable referenceColumns matchType onDelete onUpdate constraintDeferrable constraintDeferrableType
+        setForeignKeyName _ constraint = constraint
+
+        firstAvailableName tableName baseName usedNames = findAvailable 0
+            where
+                findAvailable index
+                    | (tableName, candidate index) `elem` usedNames = findAvailable (index + 1)
+                    | otherwise = candidate index
+                candidate 0 = baseName
+                candidate index =
+                    let suffix = tshow index
+                    in truncateUtf8ToBytes (63 - utf8Length suffix) baseName <> suffix
 
 normalizeCompositeForeignKeyReferences :: [Statement] -> [Statement]
 normalizeCompositeForeignKeyReferences statements = map resolveReferenceColumns statements
@@ -529,11 +575,17 @@ normalizeTable table@(CreateTable { .. }) = ( CreateTable { columns = fst normal
         normalizedDetachedConstraints = constraints
                 |> map \case
                     constraint@(CheckConstraint {}) -> detach constraint
-                    constraint@(ForeignKeyConstraint {}) -> detach constraint
-                    constraint@(CompositeForeignKeyConstraint {}) -> detach constraint
+                    constraint@(ForeignKeyConstraint {}) -> detachForeignKey constraint
+                    constraint@(CompositeForeignKeyConstraint {}) -> detachForeignKey constraint
                     otherConstraint -> Right otherConstraint
             where
                 detach constraint = Left AddConstraint { tableName = name, constraint = normalizeConstraint name constraint, deferrable = Nothing, deferrableType = Nothing }
+                detachForeignKey constraint = Left AddConstraint
+                    { tableName = name
+                    , constraint = normalizeConstraint name constraint { constraintDeferrable = Nothing, constraintDeferrableType = Nothing }
+                    , deferrable = constraint.constraintDeferrable
+                    , deferrableType = constraint.constraintDeferrableType
+                    }
 
         normalizedTableConstraints :: [Constraint]
         normalizedTableConstraints =
@@ -550,8 +602,8 @@ normalizeTable table@(CreateTable { .. }) = ( CreateTable { columns = fst normal
                 Left c -> Just c
 
 normalizeConstraint :: Text -> Constraint -> Constraint
-normalizeConstraint tableName ForeignKeyConstraint { name, columnName, referenceTable, referenceColumn, onDelete, onUpdate } = ForeignKeyConstraint { name = normalizeForeignKeyName tableName [columnName] name, columnName = Text.toLower columnName, referenceTable = Text.toLower referenceTable, referenceColumn = fmap Text.toLower referenceColumn, onDelete = normalizeReferentialAction onDelete, onUpdate = normalizeReferentialAction onUpdate }
-normalizeConstraint tableName CompositeForeignKeyConstraint { name, columnNames, referenceTable, referenceColumns, matchType, onDelete, onUpdate } = CompositeForeignKeyConstraint
+normalizeConstraint tableName ForeignKeyConstraint { name, columnName, referenceTable, referenceColumn, onDelete, onUpdate, constraintDeferrable, constraintDeferrableType } = ForeignKeyConstraint { name = normalizeForeignKeyName tableName [columnName] name, columnName = Text.toLower columnName, referenceTable = Text.toLower referenceTable, referenceColumn = fmap Text.toLower referenceColumn, onDelete = normalizeReferentialAction onDelete, onUpdate = normalizeReferentialAction onUpdate, constraintDeferrable, constraintDeferrableType }
+normalizeConstraint tableName CompositeForeignKeyConstraint { name, columnNames, referenceTable, referenceColumns, matchType, onDelete, onUpdate, constraintDeferrable, constraintDeferrableType } = CompositeForeignKeyConstraint
     { name = normalizeForeignKeyName tableName columnNames name
     , columnNames = map Text.toLower columnNames
     , referenceTable = Text.toLower referenceTable
@@ -559,6 +611,8 @@ normalizeConstraint tableName CompositeForeignKeyConstraint { name, columnNames,
     , matchType = normalizeMatchType matchType
     , onDelete = normalizeReferentialAction onDelete
     , onUpdate = normalizeReferentialAction onUpdate
+    , constraintDeferrable
+    , constraintDeferrableType
     }
 
 normalizeConstraint tableName constraint@(UniqueConstraint { name = Just uniqueName, columnNames }) | length columnNames > 1 =
@@ -591,12 +645,7 @@ normalizeConstraint tableName constraint@(UniqueConstraint { name = Just uniqueN
 normalizeConstraint _ otherwise = otherwise
 
 normalizeForeignKeyName :: Text -> [Text] -> Maybe Text -> Maybe Text
-normalizeForeignKeyName tableName columnNames name = Just (maybe defaultName truncateIdentifier name)
-    where
-        defaultName = postgresGeneratedObjectName
-            (Text.toLower tableName)
-            (Text.intercalate "_" (map Text.toLower columnNames))
-            "fkey"
+normalizeForeignKeyName _ _ name = truncateIdentifier <$> name
 
 -- PostgreSQL's makeObjectName balances truncation between the relation and
 -- column components, clips on a UTF-8 boundary, and always keeps the suffix.
@@ -614,7 +663,9 @@ postgresGeneratedObjectName firstName secondName suffix =
             | firstLength > secondLength = balance (firstLength - 1) secondLength
             | otherwise = balance firstLength (secondLength - 1)
 
-        truncateUtf8ToBytes byteLimit = Text.pack . go byteLimit . Text.unpack
+truncateUtf8ToBytes :: Int -> Text -> Text
+truncateUtf8ToBytes byteLimit = Text.pack . go byteLimit . Text.unpack
+    where
         go _ [] = []
         go remaining (character : rest)
             | characterBytes <= remaining = character : go (remaining - characterBytes) rest
@@ -622,7 +673,8 @@ postgresGeneratedObjectName firstName secondName suffix =
             where
                 characterBytes = utf8Length (Text.singleton character)
 
-        utf8Length = ByteString.length . TextEncoding.encodeUtf8
+utf8Length :: Text -> Int
+utf8Length = ByteString.length . TextEncoding.encodeUtf8
 
 normalizeMatchType :: Maybe ForeignKeyMatchType -> Maybe ForeignKeyMatchType
 normalizeMatchType (Just MatchSimple) = Nothing
@@ -705,7 +757,7 @@ normalizeExpressionWith preserveSemanticCasts = normalize
         normalize (VariadicExpression expr) = VariadicExpression (normalize expr)
 
         normalizeComparison constructor a b = constructor (normalizeComparisonOperand b a) (normalizeComparisonOperand a b)
-        normalizeComparisonOperand other (TypeCastExpression expression _)
+        normalizeComparisonOperand other (TypeCastExpression expression PText)
             | preserveSemanticCasts && isLiteralExpression expression && not (isLiteralOperand other) = normalize expression
         normalizeComparisonOperand _ operand = normalize operand
 

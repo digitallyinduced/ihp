@@ -128,9 +128,27 @@ tests = do
 
                 diffSchemas targetSchema actualSchema `shouldBe` []
 
+            it "disambiguates colliding generated foreign-key names" do
+                let targetSchema = sql "CREATE TABLE children (parent_id uuid); ALTER TABLE children ADD FOREIGN KEY (parent_id) REFERENCES parents(id); ALTER TABLE children ADD FOREIGN KEY (parent_id) REFERENCES archived_parents(id);"
+                let actualSchema = sql "CREATE TABLE children (parent_id uuid); ALTER TABLE children ADD CONSTRAINT children_parent_id_fkey FOREIGN KEY (parent_id) REFERENCES parents(id); ALTER TABLE children ADD CONSTRAINT children_parent_id_fkey1 FOREIGN KEY (parent_id) REFERENCES archived_parents(id);"
+
+                diffSchemas targetSchema actualSchema `shouldBe` []
+
+            it "reserves existing non-foreign-key constraint names" do
+                let targetSchema = sql "CREATE TABLE children (parent_id uuid, CONSTRAINT children_parent_id_fkey CHECK (parent_id IS NOT NULL)); ALTER TABLE children ADD FOREIGN KEY (parent_id) REFERENCES parents(id);"
+                let actualSchema = sql "CREATE TABLE children (parent_id uuid, CONSTRAINT children_parent_id_fkey CHECK (parent_id IS NOT NULL)); ALTER TABLE children ADD CONSTRAINT children_parent_id_fkey1 FOREIGN KEY (parent_id) REFERENCES parents(id);"
+
+                diffSchemas targetSchema actualSchema `shouldBe` []
+
             it "hoists inline composite foreign keys before comparison" do
                 let targetSchema = sql "CREATE TABLE children (tenant_id uuid, parent_id uuid, FOREIGN KEY (tenant_id, parent_id) REFERENCES parents (tenant_id, id));"
                 let actualSchema = sql "CREATE TABLE children (tenant_id uuid, parent_id uuid); ALTER TABLE children ADD CONSTRAINT children_tenant_id_parent_id_fkey FOREIGN KEY (tenant_id, parent_id) REFERENCES parents (tenant_id, id);"
+
+                diffSchemas targetSchema actualSchema `shouldBe` []
+
+            it "preserves inline composite foreign-key deferrability" do
+                let targetSchema = sql "CREATE TABLE children (tenant_id uuid, parent_id uuid, FOREIGN KEY (tenant_id, parent_id) REFERENCES parents (tenant_id, id) DEFERRABLE INITIALLY DEFERRED);"
+                let actualSchema = sql "CREATE TABLE children (tenant_id uuid, parent_id uuid); ALTER TABLE children ADD CONSTRAINT children_tenant_id_parent_id_fkey FOREIGN KEY (tenant_id, parent_id) REFERENCES parents (tenant_id, id) DEFERRABLE INITIALLY DEFERRED;"
 
                 diffSchemas targetSchema actualSchema `shouldBe` []
 
@@ -182,6 +200,11 @@ tests = do
                 let actualOperatorCast = sql "CREATE TRIGGER items_check BEFORE UPDATE ON items FOR EACH ROW WHEN (('1'::int) = ('1'::int)) EXECUTE FUNCTION check_items();"
                 diffSchemas targetOperatorCast actualOperatorCast `shouldBe`
                     ([DropTrigger { name = "items_check", tableName = "items" }] <> normalizeSchema targetOperatorCast)
+
+                let targetLiteralCast = sql "CREATE TRIGGER items_check BEFORE UPDATE ON items FOR EACH ROW WHEN (NEW.value = 'x'::citext) EXECUTE FUNCTION check_items();"
+                let actualLiteralCast = sql "CREATE TRIGGER items_check BEFORE UPDATE ON items FOR EACH ROW WHEN (NEW.value = 'x'::text) EXECUTE FUNCTION check_items();"
+                diffSchemas targetLiteralCast actualLiteralCast `shouldBe`
+                    ([DropTrigger { name = "items_check", tableName = "items" }] <> normalizeSchema targetLiteralCast)
 
             it "should handle a new table" do
                 let targetSchema = sql [i|
