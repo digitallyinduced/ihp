@@ -80,6 +80,11 @@ tests = do
 
                 diffSchemas [] actualSchema `shouldBe` migration
 
+            it "canonicalizes explicit target NO FORCE to PostgreSQL's omitted default" do
+                let targetSchema = sql "ALTER TABLE tickets NO FORCE ROW LEVEL SECURITY;"
+
+                diffSchemas targetSchema [] `shouldBe` []
+
             it "does not emit NO FORCE after dropping its table" do
                 let actualSchema = sql [i|
                     CREATE TABLE tickets (id UUID);
@@ -584,6 +589,12 @@ tests = do
 
                 diffSchemas targetSchema actualSchema `shouldBe` []
 
+            it "preserves quotes on literal roles that look special" do
+                let targetSchema = sql "CREATE POLICY access ON tickets TO \"current_user\", \"public\";"
+                let actualSchema = sql "CREATE POLICY access ON tickets TO \"current_user\", \"public\";"
+
+                normalizeSchema targetSchema `shouldBe` actualSchema
+
             it "resolves context-dependent policy roles before comparison" do
                 let targetSchema = sql "CREATE POLICY access ON tickets TO CURRENT_ROLE, CURRENT_USER, SESSION_USER;"
                 let actualSchema = sql "CREATE POLICY access ON tickets TO migration_role, app_user, \"Session User\";"
@@ -594,6 +605,16 @@ tests = do
                         }
 
                 diffSchemas (resolveContextDependentPolicyRoles context targetSchema) actualSchema `shouldBe` []
+
+            it "keeps context-dependent role keywords in generated policies" do
+                let targetSchema = sql "CREATE POLICY access ON tickets TO CURRENT_ROLE, CURRENT_USER, SESSION_USER;"
+                let context = PolicyRoleContext
+                        { policyCurrentRole = "migration_role"
+                        , policyCurrentUser = "app_user"
+                        , policySessionUser = "Session User"
+                        }
+
+                diffSchemasWithPolicyRoleContext context targetSchema [] `shouldBe` normalizeSchema targetSchema
 
             it "should normalize primary keys" do
                 let targetSchema = sql [i|

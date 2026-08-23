@@ -125,9 +125,9 @@ diffAppDatabase includeIHPSchema databaseUrl = do
     actualSchema <- getAppDBSchema databaseUrl
     policyRoleContext <- getPolicyRoleContext databaseUrl
 
-    let targetSchema = resolveContextDependentPolicyRoles policyRoleContext (ihpSchemaSql <> schemaSql)
+    let targetSchema = ihpSchemaSql <> schemaSql
 
-    pure (diffSchemas targetSchema actualSchema)
+    pure (diffSchemasWithPolicyRoleContext policyRoleContext targetSchema actualSchema)
 
 data PolicyRoleContext = PolicyRoleContext
     { policyCurrentRole :: Text
@@ -162,6 +162,29 @@ resolveContextDependentPolicyRoles context = map \case
         resolvedRole role
             | role == Text.toLower role = PolicyRole role
             | otherwise = QuotedPolicyRole role
+
+diffSchemasWithPolicyRoleContext :: PolicyRoleContext -> [Statement] -> [Statement] -> [Statement]
+diffSchemasWithPolicyRoleContext context targetSchema actualSchema =
+    restoreTargetPolicyRoles targetSchema
+        (diffSchemas (resolveContextDependentPolicyRoles context targetSchema) actualSchema)
+
+-- Context-dependent role keywords are resolved only for comparison. Keeping
+-- the original target roles in emitted CREATE POLICY statements lets each
+-- database resolve CURRENT_ROLE/CURRENT_USER/SESSION_USER at execution time.
+restoreTargetPolicyRoles :: [Statement] -> [Statement] -> [Statement]
+restoreTargetPolicyRoles targetSchema = map restorePolicy
+    where
+        targetPolicies = normalizeSchema targetSchema
+
+        restorePolicy policy@CreatePolicy { name, tableName } =
+            case find (isSamePolicy name tableName) targetPolicies of
+                Just CreatePolicy { roles } -> policy { roles }
+                _ -> policy
+        restorePolicy statement = statement
+
+        isSamePolicy policyName policyTableName CreatePolicy { name, tableName } =
+            name == policyName && tableName == policyTableName
+        isSamePolicy _ _ _ = False
 
 parseIHPSchema :: IO (Either ByteString [Statement])
 parseIHPSchema = do
@@ -502,6 +525,7 @@ normalizeStatement CreateEnumType { name, values } = [ CreateEnumType { name = T
 normalizeStatement CreatePolicy { name, action, tableName, roles, using, check } = [ CreatePolicy { name = truncateIdentifier name, tableName, roles = normalizePolicyRoles roles, using = (unqualifyExpression tableName . normalizeExpression) <$> using, check = (unqualifyExpression tableName . normalizeExpression) <$> check, action = normalizePolicyAction action } ]
 normalizeStatement CreateIndex { columns, indexType, indexName, .. } = [ CreateIndex { columns = map normalizeIndexColumn columns, indexType = normalizeIndexType indexType, indexName = truncateIdentifier indexName, .. } ]
 normalizeStatement CreateFunction { .. } = [ CreateFunction { orReplace = False, language = Text.toUpper language, functionBody = removeIndentation $ normalizeNewLines functionBody, .. } ]
+normalizeStatement NoForceRowLevelSecurity {} = []
 normalizeStatement otherwise = [otherwise]
 
 normalizePolicyAction (Just PolicyForAll) = Nothing
@@ -515,8 +539,9 @@ normalizePolicyRoles roles
         isPublicRole (SpecialPolicyRole role) = Text.toUpper role == "PUBLIC"
         isPublicRole _ = False
         normalizeLiteralRole (QuotedPolicyRole role)
-            | role == Text.toLower role = PolicyRole role
+            | role == Text.toLower role && not (isSpecialRoleName role) = PolicyRole role
         normalizeLiteralRole role = role
+        isSpecialRoleName role = Text.toUpper role `elem` ["PUBLIC", "CURRENT_ROLE", "CURRENT_USER", "SESSION_USER"]
 
 normalizeTable :: CreateTable -> (CreateTable, [Statement])
 normalizeTable table@(CreateTable { .. }) = ( CreateTable { columns = fst normalizedColumns, constraints = normalizedTableConstraints, .. }, (concat $ (snd normalizedColumns)) <> normalizedConstraintsStatements )
