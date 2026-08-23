@@ -266,6 +266,13 @@ spec = do
                     }
             parseSql (compileSql [statement]) `shouldBe` statement
 
+        it "should re-quote decoded input argument names" do
+            let statement = parseSql "CREATE FUNCTION quoted_arg(\"arg\"\"name\" text) RETURNS text LANGUAGE sql AS $$SELECT NULL;$$;"
+
+            compileSql [statement] `shouldBe`
+                "CREATE FUNCTION quoted_arg(\"arg\"\"name\" TEXT) RETURNS TEXT AS $$SELECT NULL;$$ language sql;\n"
+            parseSql (compileSql [statement]) `shouldBe` statement
+
         it "should round-trip TRANSFORM attributes for qualified custom types" do
             let statement = CreateFunction
                     { functionName = "transformed"
