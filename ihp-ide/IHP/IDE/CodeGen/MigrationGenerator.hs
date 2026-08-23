@@ -143,6 +143,7 @@ diffSchemas :: [Statement] -> [Statement] -> [Statement]
 diffSchemas targetSchema' actualSchema' = (drop <> create)
             |> patchTable
             |> patchEnumType
+            |> patchSequence
             |> applyRenameTable
             |> removeImplicitDeletions actualSchema
             |> disableTransactionWhileAddingEnumValues
@@ -197,6 +198,53 @@ diffSchemas targetSchema' actualSchema' = (drop <> create)
                         otherwise                      -> False
         patchEnumType (s:rest) = s:(patchEnumType rest)
         patchEnumType [] = []
+
+        patchSequence :: [Statement] -> [Statement]
+        patchSequence = map \case
+            CreateSequence { name, sequenceOptions }
+                | Just actualOptions <- listToMaybe (mapMaybe (\case CreateSequence { name = actualName, sequenceOptions = options } | actualName == name -> Just options; _ -> Nothing) actualSchema) ->
+                    AlterSequence { name, sequenceOptions = sequenceAlterOptions sequenceOptions actualOptions }
+            statement -> statement
+
+        sequenceAlterOptions targetOptions actualOptions = desiredOptions <> mapMaybe resetOption changedActualOptions
+            where
+                desiredOptions = targetOptions <> directionDefaults
+                changedActualOptions = filter (not . hasMatchingOption desiredOptions) actualOptions
+                hasMatchingOption options option = any ((== sequenceOptionKind option) . sequenceOptionKind) options
+                resetOption SequenceAs {} = Just (SequenceAs PBigInt)
+                resetOption SequenceStart {} = Just (SequenceStart (IntExpression implicitStart))
+                resetOption SequenceIncrement {} = Just (SequenceIncrement (IntExpression 1))
+                resetOption SequenceMinValue {} = Just SequenceNoMinValue
+                resetOption SequenceMaxValue {} = Just SequenceNoMaxValue
+                resetOption SequenceCache {} = Just (SequenceCache (IntExpression 1))
+                resetOption SequenceCycle {} = Just (SequenceCycle False)
+                resetOption _ = Nothing
+                targetDirection = sequenceDirection targetOptions
+                actualDirection = sequenceDirection actualOptions
+                implicitStart = if targetDirection < 0 then -1 else 1
+                directionDefaults
+                    | targetDirection == actualDirection = []
+                    | otherwise = filter (not . hasMatchingOption targetOptions)
+                        [ SequenceStart (IntExpression implicitStart)
+                        , SequenceNoMinValue
+                        , SequenceNoMaxValue
+                        ]
+
+        sequenceDirection options = if any isDescendingIncrement options then (-1 :: Int) else 1
+
+        sequenceOptionKind = \case
+            SequenceAs {} -> (0 :: Int)
+            SequenceStart {} -> 1
+            SequenceIncrement {} -> 2
+            SequenceNoMinValue -> 3
+            SequenceMinValue {} -> 3
+            SequenceNoMaxValue -> 4
+            SequenceMaxValue {} -> 4
+            SequenceCache {} -> 5
+            SequenceCycle {} -> 6
+
+        isDescendingIncrement (SequenceIncrement (IntExpression value)) = value < 0
+        isDescendingIncrement _ = False
 
         -- | Replaces 'DROP TABLE a; CREATE TABLE b;' DDL sequences with a more efficient 'ALTER TABLE a RENAME TO b' sequence if
         -- the tables have no differences except the name.
@@ -463,17 +511,32 @@ normalizeStatement CreateEnumType { name, values } = [ CreateEnumType { name = T
 normalizeStatement CreatePolicy { name, action, tableName, using, check } = [ CreatePolicy { name = truncateIdentifier name, tableName, using = (unqualifyExpression tableName . normalizeExpression) <$> using, check = (unqualifyExpression tableName . normalizeExpression) <$> check, action = normalizePolicyAction action } ]
 normalizeStatement CreateIndex { columns, indexType, indexName, .. } = [ CreateIndex { columns = map normalizeIndexColumn columns, indexType = normalizeIndexType indexType, indexName = truncateIdentifier indexName, .. } ]
 normalizeStatement CreateFunction { .. } = [ CreateFunction { orReplace = False, language = Text.toUpper language, functionBody = removeIndentation $ normalizeNewLines functionBody, .. } ]
-normalizeStatement statement@CreateSequence { sequenceOptions } = [statement { sequenceOptions = filter (not . isImplicitSequenceOption) sequenceOptions }]
-normalizeStatement statement@CreateExtension { extensionOptions } = [statement { extensionOptions = filter (/= ExtensionSchema "public") extensionOptions }]
+normalizeStatement statement@CreateSequence { sequenceOptions } = [statement { sequenceOptions = normalizeSequenceOptions sequenceOptions }]
+normalizeStatement statement@CreateExtension { extensionOptions } = [statement { extensionOptions = filter (not . isImplicitExtensionOption) extensionOptions }]
 normalizeStatement otherwise = [otherwise]
 
-isImplicitSequenceOption :: SequenceOption -> Bool
-isImplicitSequenceOption (SequenceStart (IntExpression 1)) = True
-isImplicitSequenceOption (SequenceIncrement (IntExpression 1)) = True
-isImplicitSequenceOption SequenceNoMinValue = True
-isImplicitSequenceOption SequenceNoMaxValue = True
-isImplicitSequenceOption (SequenceCache (IntExpression 1)) = True
-isImplicitSequenceOption _ = False
+normalizeSequenceOptions :: [SequenceOption] -> [SequenceOption]
+normalizeSequenceOptions options = filter (not . isImplicitSequenceOption implicitStart) options
+    where
+        implicitStart = if any isDescendingIncrement options then -1 else 1
+        isDescendingIncrement (SequenceIncrement (IntExpression value)) = value < 0
+        isDescendingIncrement _ = False
+
+isImplicitSequenceOption :: Int -> SequenceOption -> Bool
+isImplicitSequenceOption implicitStart (SequenceStart (IntExpression value)) = value == implicitStart
+isImplicitSequenceOption _ (SequenceAs PBigInt) = True
+isImplicitSequenceOption _ (SequenceIncrement (IntExpression 1)) = True
+isImplicitSequenceOption _ SequenceNoMinValue = True
+isImplicitSequenceOption _ SequenceNoMaxValue = True
+isImplicitSequenceOption _ (SequenceCache (IntExpression 1)) = True
+isImplicitSequenceOption _ (SequenceCycle False) = True
+isImplicitSequenceOption _ _ = False
+
+isImplicitExtensionOption :: ExtensionOption -> Bool
+isImplicitExtensionOption (ExtensionSchema "public") = True
+isImplicitExtensionOption ExtensionVersion {} = True
+isImplicitExtensionOption ExtensionCascade = True
+isImplicitExtensionOption _ = False
 
 normalizePolicyAction (Just PolicyForAll) = Nothing
 normalizePolicyAction otherwise = otherwise

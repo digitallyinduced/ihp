@@ -90,9 +90,61 @@ tests = do
 
                 diffSchemas targetSchema actualSchema `shouldBe` []
 
+            it "alters changed options on an existing sequence" do
+                let targetSchema = sql "CREATE SEQUENCE events_id_seq INCREMENT BY 3;"
+                let actualSchema = sql "CREATE SEQUENCE events_id_seq INCREMENT BY 2;"
+
+                diffSchemas targetSchema actualSchema `shouldBe`
+                    [AlterSequence { name = "events_id_seq", sequenceOptions = [SequenceIncrement (IntExpression 3)] }]
+
+            it "resets removed sequence options to PostgreSQL defaults" do
+                let targetSchema = sql "CREATE SEQUENCE events_id_seq;"
+                let actualSchema = sql "CREATE SEQUENCE events_id_seq INCREMENT BY 2 CACHE 10 CYCLE;"
+
+                diffSchemas targetSchema actualSchema `shouldBe`
+                    [ AlterSequence
+                        { name = "events_id_seq"
+                        , sequenceOptions =
+                            [ SequenceIncrement (IntExpression 1)
+                            , SequenceCache (IntExpression 1)
+                            , SequenceCycle False
+                            ]
+                        }
+                    ]
+
+            it "normalizes PostgreSQL's implicit descending sequence start" do
+                let targetSchema = sql "CREATE SEQUENCE events_id_seq INCREMENT BY -1;"
+                let actualSchema = sql [i|
+                    CREATE SEQUENCE events_id_seq START WITH -1 INCREMENT BY -1 NO MINVALUE NO MAXVALUE CACHE 1;
+                |]
+
+                diffSchemas targetSchema actualSchema `shouldBe` []
+
+            it "resets direction-dependent defaults when a sequence becomes descending" do
+                let targetSchema = sql "CREATE SEQUENCE events_id_seq INCREMENT BY -1;"
+                let actualSchema = sql "CREATE SEQUENCE events_id_seq INCREMENT BY 2;"
+
+                diffSchemas targetSchema actualSchema `shouldBe`
+                    [ AlterSequence
+                        { name = "events_id_seq"
+                        , sequenceOptions =
+                            [ SequenceIncrement (IntExpression (-1))
+                            , SequenceStart (IntExpression (-1))
+                            , SequenceNoMinValue
+                            , SequenceNoMaxValue
+                            ]
+                        }
+                    ]
+
             it "normalizes the default extension schema" do
                 let targetSchema = sql "CREATE EXTENSION IF NOT EXISTS pg_trgm;"
                 let actualSchema = sql "CREATE EXTENSION IF NOT EXISTS pg_trgm WITH SCHEMA public;"
+
+                diffSchemas targetSchema actualSchema `shouldBe` []
+
+            it "ignores installation-only extension options" do
+                let targetSchema = sql "CREATE EXTENSION IF NOT EXISTS pg_trgm VERSION '1.6' CASCADE;"
+                let actualSchema = sql "CREATE EXTENSION IF NOT EXISTS pg_trgm;"
 
                 diffSchemas targetSchema actualSchema `shouldBe` []
 

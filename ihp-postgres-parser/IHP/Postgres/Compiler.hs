@@ -47,6 +47,7 @@ compileStatement CreateFunction { functionName, functionArguments, functionBody,
 compileStatement EnableRowLevelSecurity { tableName } = "ALTER TABLE " <> compileIdentifier tableName <> " ENABLE ROW LEVEL SECURITY;"
 compileStatement CreatePolicy { name, action, tableName, using, check } = "CREATE POLICY " <> compileIdentifier name <> " ON " <> compileIdentifier tableName <> maybe "" (\action -> " FOR " <> compilePolicyAction action) action  <> maybe "" (\expr -> " USING (" <> compileExpression expr <> ")") using <> maybe "" (\expr -> " WITH CHECK (" <> compileExpression expr <> ")") check <> ";"
 compileStatement CreateSequence { name, sequenceOptions } = "CREATE SEQUENCE " <> compileIdentifier name <> (if null sequenceOptions then "" else " " <> intercalate " " (map compileSequenceOption sequenceOptions)) <> ";"
+compileStatement AlterSequence { name, sequenceOptions } = "ALTER SEQUENCE " <> compileIdentifier name <> " " <> intercalate " " (map compileSequenceOption sequenceOptions) <> ";"
 compileStatement DropConstraint { tableName, constraintName } = "ALTER TABLE " <> compileIdentifier tableName <> " DROP CONSTRAINT " <> compileIdentifier constraintName <> ";"
 compileStatement DropEnumType { name } = "DROP TYPE " <> compileIdentifier name <> ";"
 compileStatement DropIndex { indexName } = "DROP INDEX " <> compileIdentifier indexName <> ";"

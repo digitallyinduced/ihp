@@ -47,6 +47,7 @@ data Statement
     | SelectStatement { query :: Text }
     -- CREATE SEQUENCE name;
     | CreateSequence { name :: Text, sequenceOptions :: [SequenceOption] }
+    | AlterSequence { name :: Text, sequenceOptions :: [SequenceOption] }
     -- ALTER TABLE tableName RENAME COLUMN from TO to;
     | RenameColumn { tableName :: Text, from :: Text, to :: Text }
     -- ALTER TYPE enumName ADD VALUE newValue;

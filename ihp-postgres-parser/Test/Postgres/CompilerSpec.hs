@@ -328,6 +328,11 @@ spec = do
             let statements = [ CreateSequence { name = "a", sequenceOptions = [] } ]
             compileSql statements `shouldBe` sql
 
+        it "should compile 'ALTER SEQUENCE ..' statements" do
+            let sql = "ALTER SEQUENCE a INCREMENT BY 3 CACHE 10;\n"
+            let statements = [ AlterSequence { name = "a", sequenceOptions = [SequenceIncrement (IntExpression 3), SequenceCache (IntExpression 10)] } ]
+            compileSql statements `shouldBe` sql
+
         it "should compile 'DROP TYPE ..;' statements" do
             let sql = "DROP TYPE colors;\n"
             let statements = [ DropEnumType { name = "colors" } ]
