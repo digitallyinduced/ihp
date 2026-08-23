@@ -484,9 +484,17 @@ spec = do
             parseSql "GRANT SELECT ON TABLE users TO \"report;reader\";" `shouldBe`
                 UnknownStatement { raw = "GRANT SELECT ON TABLE users TO \"report;reader\"" }
 
+        it "should treat backslashes literally in standard SQL strings" do
+            parseSql "COMMENT ON TABLE users IS 'path\\';" `shouldBe`
+                UnknownStatement { raw = "COMMENT ON TABLE users IS 'path\\'" }
+
         it "should preserve a DO block whose body contains semicolons" do
             parseSql "DO $$\nBEGIN\n    PERFORM 1;\nEND\n$$;" `shouldBe`
                 UnknownStatement { raw = "DO $$\nBEGIN\n    PERFORM 1;\nEND\n$$" }
+
+        it "should preserve a DO block with a standard string body" do
+            parseSql "DO 'BEGIN PERFORM 1; END';" `shouldBe`
+                UnknownStatement { raw = "DO 'BEGIN PERFORM 1; END'" }
 
         it "should parse tagged function dollar quotes" do
             parseSql "CREATE FUNCTION f() RETURNS trigger AS $_$ BEGIN RETURN NEW; END; $_$ language plpgsql;" `shouldBe`

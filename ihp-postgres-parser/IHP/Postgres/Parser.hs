@@ -261,7 +261,8 @@ opaqueStatement = do
     pure UnknownStatement { raw = Text.stripEnd (keyword <> " " <> raw) }
     where
         opaqueChunk =
-            quotedChunk '\''
+            try escapeStringChunk
+            <|> quotedChunk '\''
             <|> quotedChunk '"'
             <|> try dollarQuoted
             <|> (fst <$> match (Lexer.skipLineComment "--"))
@@ -270,8 +271,14 @@ opaqueStatement = do
 
         quotedChunk quote = fst <$> match do
             char quote
-            many (try (char quote >> char quote) <|> try (char '\\' >> anySingle) <|> anySingleBut quote)
+            many (try (char quote >> char quote) <|> anySingleBut quote)
             char quote
+
+        escapeStringChunk = fst <$> match do
+            oneOf ['e', 'E']
+            char '\''
+            many (try (char '\'' >> char '\'') <|> try (char '\\' >> anySingle) <|> anySingleBut '\'')
+            char '\''
 
 -- | An anonymous DO block. Its body can contain semicolons, so parse through
 -- the matching dollar-quote delimiter before consuming the statement terminator.
@@ -279,12 +286,17 @@ doStatement :: Parser Statement
 doStatement = do
     lexeme "DO"
     languageBefore <- optional (lexeme "LANGUAGE" >> identifier)
-    body <- dollarQuoted
+    body <- dollarQuoted <|> standardStringLiteral
     space
     languageAfter <- optional (lexeme "LANGUAGE" >> identifier)
     char ';'
     let language = maybe "" (\name -> "LANGUAGE " <> name <> " ") (languageBefore <|> languageAfter)
     pure UnknownStatement { raw = "DO " <> language <> body }
+    where
+        standardStringLiteral = fst <$> match do
+            char '\''
+            many (try (char '\'' >> char '\'') <|> anySingleBut '\'')
+            char '\''
 
 -- | A dollar-quoted string including its delimiter.
 dollarQuoted :: Parser Text
