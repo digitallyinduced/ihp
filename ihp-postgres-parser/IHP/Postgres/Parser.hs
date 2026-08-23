@@ -413,6 +413,7 @@ parseColumn = do
             , columnType
             , defaultValue = Nothing
             , notNull = False
+            , notNullConstraintName = Nothing
             , isUnique = False
             , generator = Nothing
             }
@@ -438,6 +439,15 @@ parseColumn = do
                 lexeme "NOT"
                 lexeme "NULL"
                 parseColumnAttributes column { notNull = True } primaryKey
+            -- PostgreSQL 18 stores NOT NULL constraints in pg_constraint, so
+            -- pg_dump can emit their name before NOT NULL. IHP does not model
+            -- constraint names for columns, but it must accept this spelling.
+            , do
+                lexeme "CONSTRAINT"
+                constraintName <- identifier
+                lexeme "NOT"
+                lexeme "NULL"
+                parseColumnAttributes column { notNull = True, notNullConstraintName = Just constraintName } primaryKey
             , do
                 lexeme "UNIQUE"
                 parseColumnAttributes column { isUnique = True } primaryKey

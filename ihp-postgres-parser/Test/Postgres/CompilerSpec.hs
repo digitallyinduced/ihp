@@ -233,6 +233,10 @@ spec = do
                     }
             compileSql [statement] `shouldBe` sql
 
+        it "should round-trip PostgreSQL 18 named NOT NULL constraints" do
+            let sql = "CREATE TABLE users (\n    email TEXT CONSTRAINT users_email_not_null NOT NULL\n);"
+            compileSql [parseSql sql] `shouldBe` (sql <> "\n")
+
         it "should round-trip non-public schema-qualified table names" do
             let statement = StatementCreateTable (table "private.users")
             parseSql (compileSql [statement]) `shouldBe` statement

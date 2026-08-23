@@ -100,6 +100,16 @@ spec = do
         it "should parse a CREATE TABLE with quoted identifiers" do
             parseSql "CREATE TABLE \"quoted name\" ();" `shouldBe` StatementCreateTable (table "quoted name")
 
+        it "should parse PostgreSQL 18 named NOT NULL constraints" do
+            let sql = "CREATE TABLE context_search_email_binary_signatures (\n                    embedding_provider text CONSTRAINT context_search_email_binary_signatu_embedding_provider_not_null NOT NULL,\n                    embedding_dimensions integer CONSTRAINT context_search_email_binary_signa_embedding_dimensions_not_null NOT NULL,\n                    embedding_model text\n                );"
+            parseSql sql `shouldBe` StatementCreateTable (table "context_search_email_binary_signatures")
+                    { columns =
+                        [ (col "embedding_provider" PText) { notNull = True, notNullConstraintName = Just "context_search_email_binary_signatu_embedding_provider_not_null" }
+                        , (col "embedding_dimensions" PInt) { notNull = True, notNullConstraintName = Just "context_search_email_binary_signa_embedding_dimensions_not_null" }
+                        , col "embedding_model" PText
+                        ]
+                    }
+
         it "should preserve non-public schema-qualified table names" do
             parseSql "CREATE TABLE private.users ();" `shouldBe`
                 StatementCreateTable (table "private.users")

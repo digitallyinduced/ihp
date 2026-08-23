@@ -110,14 +110,14 @@ compileOnDelete (Just SetDefault) = "ON DELETE SET DEFAULT"
 compileOnDelete (Just Cascade) = "ON DELETE CASCADE"
 
 compileColumn :: PrimaryKeyConstraint -> Column -> Text
-compileColumn primaryKeyConstraint Column { name, columnType, defaultValue, notNull, isUnique, generator } =
+compileColumn primaryKeyConstraint Column { name, columnType, defaultValue, notNull, notNullConstraintName, isUnique, generator } =
     unwords (catMaybes
         [ Just (compileIdentifier name)
         , Just (compilePostgresType columnType)
         , fmap compileDefaultValue defaultValue
         , fmap compileGenerator generator
         , primaryKeyColumnConstraint
-        , if notNull then Just "NOT NULL" else Nothing
+        , if notNull then Just (maybe "NOT NULL" (\constraintName -> "CONSTRAINT " <> compileIdentifier constraintName <> " NOT NULL") notNullConstraintName) else Nothing
         , if isUnique then Just "UNIQUE" else Nothing
         ])
     where
