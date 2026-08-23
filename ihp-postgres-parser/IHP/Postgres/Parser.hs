@@ -239,7 +239,9 @@ symbol' :: Text -> Parser Text
 symbol' = Lexer.symbol' spaceConsumer
 
 stringLiteral :: Parser String
-stringLiteral = char '\'' *> manyTill Lexer.charLiteral (char '\'')
+stringLiteral = char '\'' *> manyTill stringCharacter (try (char '\'' <* notFollowedBy (char '\'')))
+    where
+        stringCharacter = try (string "''" $> '\'') <|> Lexer.charLiteral
 
 parseDDL :: Parser [Statement]
 parseDDL = optional Char.space >> (manyTill statement eof)
@@ -307,10 +309,7 @@ createTable = do
 createEnumType = do
     lexeme "CREATE"
     lexeme "TYPE"
-    optional do
-        lexeme "public"
-        char '.'
-    name <- identifier
+    name <- qualifiedIdentifier
     lexeme "AS"
     lexeme "ENUM"
     values <- between (char '(' >> space) (space >> char ')' >> space) (textExpr' `sepBy` (char ',' >> space))
@@ -563,15 +562,11 @@ sqlType = choice $ map optionalArray
                     try (symbol' "POLYGON")
                     pure PPolygon
 
-                -- PostGIS @geometry@ type. Accepts the optional
-                -- @geometry(SubType[, SRID])@ modifier used in PostGIS schemas;
-                -- the modifier is dropped from the AST because PostgreSQL
-                -- enforces it at DDL time.
                 geometry = do
                     try (symbol' "GEOMETRY")
-                    optional $ between (char '(' >> space) (char ')' >> space)
+                    modifier <- optional $ between (char '(' >> space) (char ')' >> space)
                         (takeWhile1P (Just "geometry type modifier") (/= ')'))
-                    pure PGeometry
+                    pure (maybe PGeometry (PGeometryWithModifier . Text.strip) modifier)
 
                 date = do
                     try (symbol' "DATE")
@@ -826,7 +821,7 @@ varExpr = VarExpression <$> identifier
 -- them, `makeExprParser` cannot see the operator behind it and
 -- @CHECK (a > 0 AND b > 0)@ fails where @CHECK (a > 'x' AND …)@ succeeds.
 doubleExpr :: Parser Expression
-doubleExpr = DoubleExpression <$> lexeme (Lexer.signed spaceConsumer Lexer.float)
+doubleExpr = NumericExpression . fst <$> lexeme (match (Lexer.signed spaceConsumer Lexer.float))
 
 intExpr :: Parser Expression
 intExpr = IntExpression <$> lexeme (Lexer.signed spaceConsumer Lexer.decimal)
@@ -875,7 +870,7 @@ textExpr' = cs <$> do
     let emptyByteString = do
             string "'\\x'"
             pure ""
-    (try (char '\'' *> manyTill Lexer.charLiteral (char '\''))) <|> emptyByteString
+    (try (char '\'' *> many (try (string "''" $> '\'') <|> (notFollowedBy (char '\'') *> Lexer.charLiteral)) <* char '\'')) <|> emptyByteString
 
 selectExpr :: Parser Expression
 selectExpr = do
@@ -1265,11 +1260,17 @@ commentStatement = do
     char ';'
     pure Comment { content }
 
+-- | Parse a possibly schema-qualified identifier. The default public schema is
+-- normalized away for backward compatibility; every other schema is preserved.
+qualifiedIdentifier :: Parser Text
 qualifiedIdentifier = do
-    optional $ try do
-        lexeme "public"
-        char '.'
-    identifier
+    schemaOrName <- identifier
+    maybeName <- optional (char '.' >> identifier)
+    pure $ case maybeName of
+        Nothing -> schemaOrName
+        Just name
+            | schemaOrName == "public" -> name
+            | otherwise -> schemaOrName <> "." <> name
 
 -- | Parses a (possibly schema-qualified) function name.
 --
@@ -1323,7 +1324,7 @@ renameTable tableName = do
 dropTable = do
     lexeme "DROP"
     lexeme "TABLE"
-    tableName <- identifier
+    tableName <- qualifiedIdentifier
     char ';'
     pure DropTable { tableName }
 
