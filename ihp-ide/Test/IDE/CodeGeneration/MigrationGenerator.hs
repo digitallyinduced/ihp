@@ -90,6 +90,12 @@ tests = do
 
                 diffSchemas targetSchema actualSchema `shouldBe` []
 
+            it "canonicalizes function strictness synonyms and the SQL default cost" do
+                let targetSchema = sql "CREATE FUNCTION f(value integer) RETURNS integer LANGUAGE sql RETURNS NULL ON NULL INPUT COST 100.0 AS $$ SELECT value $$;"
+                let actualSchema = sql "CREATE FUNCTION f(value integer) RETURNS integer LANGUAGE sql STRICT AS $$ SELECT value $$;"
+
+                diffSchemas targetSchema actualSchema `shouldBe` []
+
             it "should handle a new table" do
                 let targetSchema = sql [i|
                     CREATE TABLE users (

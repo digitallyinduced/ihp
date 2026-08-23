@@ -991,7 +991,7 @@ parseFunctionAttribute = do
             pure (name <> " " <> value)
         supportAttribute = try do
             functionOptionBoundaryKeyword "SUPPORT"
-            supportFunction <- qualifiedIdentifier
+            supportFunction <- functionIdentifier
             pure ("SUPPORT " <> supportFunction)
 
 functionOptionBoundaryKeyword :: Text -> Parser ()

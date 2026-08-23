@@ -479,6 +479,10 @@ spec = do
         it "should normalize the default public schema away on DROP FUNCTION" do
             parseSql "DROP FUNCTION public.sync_access;" `shouldBe` DropFunction { functionName = "sync_access" }
 
+        it "should preserve a non-public schema in a SUPPORT function" do
+            let parsed = parseSql "CREATE FUNCTION public.f(value integer) RETURNS integer LANGUAGE sql SUPPORT private.my_support AS $$ SELECT value $$;"
+            parsed.functionAttributes `shouldBe` ["SUPPORT private.my_support"]
+
         it "should parse a pg_dump CREATE INDEX with VARIADIC function arguments" do
             let sql = "CREATE INDEX agent_runs_ingest_gmail_message_latest_idx ON public.agent_runs USING btree (organization_id, jsonb_extract_path_text(input, VARIADIC ARRAY['gmailMessageId'::text]), COALESCE(completed_at, last_event_at, started_at, created_at) DESC, id DESC) WHERE ((type = 'ingest'::public.agent_run_type) AND (jsonb_extract_path_text(input, VARIADIC ARRAY['source'::text]) = 'gmail_email_ingest'::text));"
             parseSql sql `shouldBe` CreateIndex

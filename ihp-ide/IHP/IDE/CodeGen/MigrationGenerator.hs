@@ -462,10 +462,20 @@ normalizeStatement AddConstraint { tableName, constraint, deferrable, deferrable
 normalizeStatement CreateEnumType { name, values } = [ CreateEnumType { name = Text.toLower name, values = map Text.toLower values } ]
 normalizeStatement CreatePolicy { name, action, tableName, using, check } = [ CreatePolicy { name = truncateIdentifier name, tableName, using = (unqualifyExpression tableName . normalizeExpression) <$> using, check = (unqualifyExpression tableName . normalizeExpression) <$> check, action = normalizePolicyAction action } ]
 normalizeStatement CreateIndex { columns, indexType, indexName, .. } = [ CreateIndex { columns = map normalizeIndexColumn columns, indexType = normalizeIndexType indexType, indexName = truncateIdentifier indexName, .. } ]
-normalizeStatement CreateFunction { .. } = [ CreateFunction { orReplace = False, language = Text.toUpper language, functionAttributes = normalizedFunctionAttributes, functionBody = removeIndentation $ normalizeNewLines functionBody, .. } ]
+normalizeStatement CreateFunction { .. } = [ CreateFunction { orReplace = False, language = normalizedLanguage, functionAttributes = normalizedFunctionAttributes, functionBody = removeIndentation $ normalizeNewLines functionBody, .. } ]
     where
-        normalizedFunctionAttributes = sortOn functionAttributeOrder (filter (`notElem` defaultFunctionAttributes) (map Text.toUpper functionAttributes))
+        normalizedLanguage = Text.toUpper language
+        normalizedFunctionAttributes = sortOn functionAttributeOrder (filter (not . isDefaultFunctionAttribute) (map normalizeFunctionAttribute functionAttributes))
         defaultFunctionAttributes = ["VOLATILE", "NOT LEAKPROOF", "CALLED ON NULL INPUT", "SECURITY INVOKER", "PARALLEL UNSAFE"]
+        isDefaultFunctionAttribute attribute = attribute `elem` defaultFunctionAttributes || isDefaultCost attribute
+        isDefaultCost attribute
+            | normalizedLanguage `elem` ["SQL", "PLPGSQL"] = case Text.stripPrefix "COST " attribute of
+                Just cost -> Read.readMaybe (cs cost) == Just (100 :: Double)
+                Nothing -> False
+            | otherwise = False
+        normalizeFunctionAttribute attribute = case Text.toUpper attribute of
+            "RETURNS NULL ON NULL INPUT" -> "STRICT"
+            normalized -> normalized
         functionAttributeOrder attribute
             | attribute `elem` ["IMMUTABLE", "STABLE", "VOLATILE"] = (0 :: Int)
             | "LEAKPROOF" `Text.isInfixOf` attribute = 1
