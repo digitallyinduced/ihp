@@ -1462,7 +1462,7 @@ CREATE POLICY "Users can read and edit their own record" ON public.users USING (
                     ALTER TABLE media RENAME TO artefacts;
                     
                     DROP INDEX media_created_at_index;
-                    DROP TRIGGER update_media_updated_at ON media;
+                    DROP TRIGGER update_media_updated_at ON artefacts;
                     DROP INDEX media_user_id_index;
 
                     ALTER TABLE artefacts DROP CONSTRAINT media_ref_user_id;

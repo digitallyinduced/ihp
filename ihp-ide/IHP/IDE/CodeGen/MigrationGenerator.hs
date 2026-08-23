@@ -236,6 +236,7 @@ diffSchemas targetSchema' actualSchema' = (drop <> create)
                         fixIdentifier :: Statement -> Statement
                         fixIdentifier s@(DropConstraint { tableName }) | tableName == tableFrom = s { tableName = tableTo }
                         fixIdentifier s@(DropPolicy { tableName }) | tableName == tableFrom = s { tableName = tableTo }
+                        fixIdentifier s@(DropTrigger { tableName }) | tableName == tableFrom = s { tableName = tableTo }
                         fixIdentifier o = o
         applyRenameTable (s:rest) = s:(applyRenameTable rest)
         applyRenameTable [] = []
