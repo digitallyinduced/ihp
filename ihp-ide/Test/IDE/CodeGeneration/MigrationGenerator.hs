@@ -137,6 +137,15 @@ tests = do
                     , DropTable { tableName = "accounts" }
                     ]
 
+            it "drops referencing foreign keys before their target table" do
+                let targetSchema = sql "CREATE TABLE children (parent_id uuid);"
+                let actualSchema = sql "CREATE TABLE parents (id uuid); CREATE TABLE children (parent_id uuid); ALTER TABLE children ADD CONSTRAINT children_parent_id_fkey FOREIGN KEY (parent_id) REFERENCES parents(id);"
+
+                diffSchemas targetSchema actualSchema `shouldBe`
+                    [ DropConstraint { tableName = "children", constraintName = "children_parent_id_fkey" }
+                    , DropTable { tableName = "parents" }
+                    ]
+
             it "normalizes constraint trigger defaults and UPDATE OF identifiers" do
                 let targetSchema = sql "CREATE CONSTRAINT TRIGGER items_check AFTER UPDATE OF Email ON items FROM Entries FOR EACH ROW WHEN (OLD.Email <> NEW.Email) EXECUTE FUNCTION check_items();"
                 let actualSchema = sql "CREATE CONSTRAINT TRIGGER items_check AFTER UPDATE OF email ON items FROM entries NOT DEFERRABLE INITIALLY IMMEDIATE FOR EACH ROW WHEN (OLD.email <> NEW.email) EXECUTE FUNCTION check_items();"

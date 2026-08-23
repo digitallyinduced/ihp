@@ -856,7 +856,7 @@ removeImplicitDeletions actualSchema (statement@dropStatement:rest) | isDropStat
         dependentDrops = filter isDependentDrop rest
         filteredRest = filter (\candidate -> candidate `notElem` dependentDrops && isImplicitlyDeleted candidate) rest
         isDependentDrop candidate = case dropColumnName of
-            Nothing -> isDependentTriggerDrop candidate
+            Nothing -> isDependentTriggerDrop candidate || isReferencingForeignKeyDrop candidate
             Just _ -> isDependentColumnDrop candidate
         isDependentTriggerDrop DropTrigger { name, tableName }
             | DropTable {} <- dropStatement = any (\case
@@ -864,6 +864,16 @@ removeImplicitDeletions actualSchema (statement@dropStatement:rest) | isDropStat
                     triggerName == name && triggerTableName == tableName && referencedTableName == dropTableName
                 _ -> False) actualSchema
         isDependentTriggerDrop _ = False
+        isReferencingForeignKeyDrop DropConstraint { tableName, constraintName } = any (\case
+                AddConstraint { tableName = actualTableName, constraint }
+                    | actualTableName == tableName
+                    , actualTableName /= dropTableName
+                    , constraint.name == Just constraintName -> foreignKeyReferencesDroppedTable constraint
+                _ -> False) actualSchema
+        isReferencingForeignKeyDrop _ = False
+        foreignKeyReferencesDroppedTable ForeignKeyConstraint { referenceTable } = referenceTable == dropTableName
+        foreignKeyReferencesDroppedTable CompositeForeignKeyConstraint { referenceTable } = referenceTable == dropTableName
+        foreignKeyReferencesDroppedTable _ = False
         isDependentColumnDrop DropTrigger { name, tableName } = tableName == dropTableName || any (\case
                 CreateConstraintTrigger { name = triggerName, tableName = triggerTableName, referencedTableName = Just referencedTableName } ->
                     triggerName == name && triggerTableName == tableName && referencedTableName == dropTableName
