@@ -301,6 +301,13 @@ spec = do
                     }
             compileSql [statement] `shouldBe` sql
 
+        it "should preserve grouping for inequality predicate operands" do
+            compileExpression
+                (NotEqExpression
+                    (IsExpression (VarExpression "a") (VarExpression "NULL"))
+                    (IsExpression (VarExpression "b") (VarExpression "NULL")))
+                `shouldBe` "(a IS NULL) <> (b IS NULL)"
+
         it "should compile 'ENABLE ROW LEVEL SECURITY' statements" do
             let sql = "ALTER TABLE tasks ENABLE ROW LEVEL SECURITY;\n"
             let statements = [EnableRowLevelSecurity { tableName = "tasks" }]

@@ -573,6 +573,25 @@ spec = do
         it "should read != as the canonical <> operator" do
             parseExpression "a != b" `shouldBe` NotEqExpression (VarExpression "a") (VarExpression "b")
 
+        it "should bind regular expression operators before comparisons" do
+            parseExpression "flag <> code ~ '^x'" `shouldBe`
+                NotEqExpression
+                    (VarExpression "flag")
+                    (BinaryOperatorExpression "~" (VarExpression "code") (TextExpression "^x"))
+
+        it "should parse WITH only as an exclusion-element delimiter" do
+            parseSql "CREATE TABLE reservations (EXCLUDE (overlaps_with WITH =));" `shouldBe`
+                StatementCreateTable (table "reservations")
+                    { constraints =
+                        [ ExcludeConstraint
+                            { name = Nothing
+                            , excludeElements = [ExcludeConstraintElement { element = "overlaps_with", operator = "=" }]
+                            , predicate = Nothing
+                            , indexType = Nothing
+                            }
+                        ]
+                    }
+
         it "should cast the operand rather than the sum" do
             parseExpression "a::integer + 1" `shouldBe`
                 BinaryOperatorExpression "+"

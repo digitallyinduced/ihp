@@ -365,7 +365,7 @@ parseExcludeConstraint name = do
     pure ExcludeConstraint { name, excludeElements, predicate, indexType }
     where
         excludeElement = do
-            element <- Text.stripEnd . cs <$> someTill anySingle (try (space >> string' "WITH" >> space))
+            element <- Text.stripEnd . cs <$> someTill anySingle (try (space1 >> string' "WITH" >> space1))
             operator <- parseCommutativeInfixOperator
             pure ExcludeConstraintElement { element, operator }
 
@@ -653,6 +653,9 @@ term = parens expression <|> try variadicExpr <|> try arrayExpr <|> try typedLit
 
 table = highPrecedenceTable <>
         [
+            [ operator "!~*", operator "!~", operator "~*", operator "~"
+            , operator "?", operator "&&"
+            ],
             [ Postfix (foldl1 (flip (.)) <$> some (try notInOp <|> try betweenOp <|> inOp))
             ],
             [ binary  "<>"  NotEqExpression
@@ -667,10 +670,6 @@ table = highPrecedenceTable <>
             , binary ">"  GreaterThanExpression
             , binary "||" ConcatenationExpression
 
-            -- Regular expression matching. Longest operator first, otherwise
-            -- `~` would match the prefix of `~*` and leave a stray `*`.
-            , operator "!~*", operator "!~", operator "~*", operator "~"
-            , operator "?", operator "&&"
             , keywordOperator "NOT LIKE", keywordOperator "NOT ILIKE"
             , keywordOperator "LIKE", keywordOperator "ILIKE"
 

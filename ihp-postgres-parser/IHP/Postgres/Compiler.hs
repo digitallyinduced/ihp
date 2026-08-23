@@ -140,7 +140,7 @@ compileExpression (VarExpression name) =
     where
         nameContainsSpaces = Text.any (== ' ') name
 compileExpression (CallExpression func args) = func <> "(" <> intercalate ", " (map compileExpressionWithOptionalParenthese args) <> ")"
-compileExpression (NotEqExpression a b) = compileExpression a <> " <> " <> compileExpression b
+compileExpression (NotEqExpression a b) = compileEqualityOperand a <> " <> " <> compileEqualityOperand b
 compileExpression (EqExpression a b) = compileEqualityOperand a <> " = " <> compileEqualityOperand b
 compileExpression (IsExpression a (NotExpression b)) = compileExpressionWithOptionalParenthese a <> " IS NOT " <> compileExpressionWithOptionalParenthese b -- 'IS (NOT NULL)' => 'IS NOT NULL'
 compileExpression (IsExpression a b) = compileExpressionWithOptionalParenthese a <> " IS " <> compileExpressionWithOptionalParenthese b
