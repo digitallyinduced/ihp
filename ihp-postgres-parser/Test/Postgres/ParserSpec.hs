@@ -580,6 +580,10 @@ spec = do
             parseSql "DO LANGUAGE \"MyLang\" $$ BEGIN NULL; END $$;" `shouldBe`
                 UnknownStatement { raw = "DO LANGUAGE \"MyLang\" $$ BEGIN NULL; END $$" }
 
+        it "should preserve a Unicode-delimited DO language identifier" do
+            parseSql "DO LANGUAGE U&\"plpg\\0073ql\" $$ BEGIN NULL; END $$;" `shouldBe`
+                UnknownStatement { raw = "DO LANGUAGE U&\"plpg\\0073ql\" $$ BEGIN NULL; END $$" }
+
         it "should not treat dollar signs inside identifiers as quote delimiters" do
             parseSqlStatements "GRANT SELECT ON foo$tag$ TO role; CREATE FUNCTION f() RETURNS trigger AS $tag$BEGIN RETURN NEW; END;$tag$ language plpgsql;" `shouldBe`
                 [ UnknownStatement { raw = "GRANT SELECT ON foo$tag$ TO role" }

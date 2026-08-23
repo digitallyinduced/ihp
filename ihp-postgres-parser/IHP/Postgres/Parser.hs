@@ -461,7 +461,21 @@ doStatement = do
             char '\''
             many (try (char '\'' >> char '\'') <|> anySingleBut '\'')
             char '\''
-        languageIdentifier = sqlLexeme (fst <$> match rawIdentifier)
+        languageIdentifier = sqlLexeme (fst <$> match (try unicodeDelimitedIdentifier <|> rawIdentifier))
+        unicodeDelimitedIdentifier = do
+            string' "U&"
+            char '"'
+            many (try (string "\"\"") <|> (Text.singleton <$> anySingleBut '"'))
+            char '"'
+            optional $ try do
+                sqlSpaceConsumer
+                string' "UESCAPE"
+                notFollowedBy (satisfy isIdentifierCharacter)
+                sqlSpaceConsumer
+                char '\''
+                anySingleBut '\''
+                char '\''
+            pure ()
         rawIdentifier =
             between (char '"') (char '"') (many (try (string "\"\"") <|> (Text.singleton <$> anySingleBut '"'))) $> ()
             <|> some (satisfy (\character -> isAlphaNum character || character == '_' || character == '$')) $> ()
