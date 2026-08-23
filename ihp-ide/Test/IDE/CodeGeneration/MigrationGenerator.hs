@@ -74,40 +74,6 @@ tests = do
             it "should handle an empty schema" do
                 diffSchemas [] [] `shouldBe` []
 
-            it "does not repeatedly migrate non-persistent opaque statements" do
-                let targetSchema = sql "GRANT SELECT ON users TO reader; REVOKE INSERT ON users FROM reader; DO $$ BEGIN NULL; END $$;"
-
-                diffSchemas targetSchema [] `shouldBe` []
-
-            it "removes deleted COMMENT metadata" do
-                let actualSchema = sql "COMMENT ON TABLE users IS 'application users';"
-
-                diffSchemas [] actualSchema `shouldBe`
-                    [UnknownStatement { raw = "COMMENT ON TABLE users IS NULL" }]
-
-            it "normalizes equivalent qualified COMMENT metadata" do
-                let targetSchema = sql "comment on table users is 'application users';"
-                let actualSchema = sql "COMMENT ON TABLE public.users IS 'application users';"
-
-                diffSchemas targetSchema actualSchema `shouldBe` []
-
-            it "normalizes equivalent dollar-quoted COMMENT metadata" do
-                let targetSchema = sql "COMMENT ON TABLE users IS $$application users$$;"
-                let actualSchema = sql "COMMENT ON TABLE public.users IS 'application users';"
-
-                diffSchemas targetSchema actualSchema `shouldBe` []
-
-            it "normalizes equivalent COMMENT function signatures" do
-                let targetSchema = sql "COMMENT ON FUNCTION f(integer,text) IS 'x';"
-                let actualSchema = sql "COMMENT ON FUNCTION public.f(integer, text) IS 'x';"
-
-                diffSchemas targetSchema actualSchema `shouldBe` []
-
-            it "does not repeatedly migrate ACL statements followed by comments" do
-                let targetSchema = sql "GRANT/* rationale */ SELECT ON users TO reader; REVOKE-- rationale\n INSERT ON users FROM reader;"
-
-                diffSchemas targetSchema [] `shouldBe` []
-
             it "normalizes equivalent geometry modifiers" do
                 let targetSchema = sql "CREATE TABLE locations (shape geometry(Point, 4326));"
                 let actualSchema = sql "CREATE TABLE locations (shape geometry(point,4326));"

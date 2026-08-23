@@ -249,7 +249,6 @@ diffSchemas targetSchema' actualSchema' = (drop <> create)
         toDropStatement CreateFunction { functionName } = Just DropFunction { functionName }
         toDropStatement CreateTrigger { name, tableName } = Just DropTrigger { name, tableName }
         toDropStatement CreateEventTrigger { name } = Just DropEventTrigger { name }
-        toDropStatement UnknownStatement { raw } = UnknownStatement <$> Parser.unsetComment raw
         toDropStatement otherwise = Nothing
 
 
@@ -470,13 +469,6 @@ normalizeStatement CreateEnumType { name, values } = [ CreateEnumType { name = T
 normalizeStatement CreatePolicy { name, action, tableName, using, check } = [ CreatePolicy { name = truncateIdentifier name, tableName, using = (unqualifyExpression tableName . normalizeExpression) <$> using, check = (unqualifyExpression tableName . normalizeExpression) <$> check, action = normalizePolicyAction action } ]
 normalizeStatement CreateIndex { columns, indexType, indexName, .. } = [ CreateIndex { columns = map normalizeIndexColumn columns, indexType = normalizeIndexType indexType, indexName = truncateIdentifier indexName, .. } ]
 normalizeStatement CreateFunction { .. } = [ CreateFunction { orReplace = False, language = Text.toUpper language, functionBody = removeIndentation $ normalizeNewLines functionBody, .. } ]
-normalizeStatement statement@UnknownStatement { raw }
-    | firstKeyword `elem` ["DO", "GRANT", "REVOKE"] = []
-    | "COMMENT ON EXTENSION " `Text.isPrefixOf` Text.toUpper (Text.stripStart raw) = []
-    | Just normalizedComment <- Parser.normalizeComment raw = [UnknownStatement { raw = normalizedComment }]
-    | otherwise = [statement]
-    where
-        firstKeyword = Text.toUpper (Text.takeWhile Char.isAlpha (Text.stripStart raw))
 normalizeStatement otherwise = [otherwise]
 
 normalizePolicyAction (Just PolicyForAll) = Nothing
