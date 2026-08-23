@@ -936,7 +936,19 @@ parseFunctionSetting = do
     pure (FunctionSettingOption FunctionSetting { settingName, settingValue })
     where
         settingValueItem = lexeme
-            (try escapeStringSettingValue <|> singleQuotedSettingValue <|> doubleQuotedSettingValue <|> takeWhile1P (Just "setting value") (\c -> not (isSpace c) && c /= ','))
+            (try dollarQuotedSettingValue <|> try escapeStringSettingValue <|> singleQuotedSettingValue <|> doubleQuotedSettingValue <|> takeWhile1P (Just "setting value") (\c -> not (isSpace c) && c /= ','))
+        dollarQuotedSettingValue = fst <$> match do
+            delimiter <- settingDollarQuoteDelimiter
+            _ <- manyTill anySingle (try (string delimiter))
+            pure ()
+        settingDollarQuoteDelimiter = do
+            char '$'
+            tag <- optional do
+                first <- satisfy (\character -> isAlpha character || character == '_')
+                rest <- many (satisfy (\character -> isAlphaNum character || character == '_'))
+                pure (Text.pack (first : rest))
+            char '$'
+            pure ("$" <> maybe "" id tag <> "$")
         escapeStringSettingValue = fst <$> match do
             oneOf ['e', 'E']
             char '\''

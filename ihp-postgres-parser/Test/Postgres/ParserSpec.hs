@@ -362,6 +362,10 @@ spec = do
             let parsed = parseSql "CREATE FUNCTION estimated() RETURNS TABLE (id uuid, label text) LANGUAGE sql ROWS 10 AS $$SELECT NULL, NULL;$$;"
             parsed.returns `shouldBe` PTable [("id", PUUID), ("label", PText)]
 
+        it "should parse dollar-quoted function settings containing whitespace" do
+            let parsed = parseSql "CREATE FUNCTION configured() RETURNS uuid LANGUAGE sql SET application_name = $worker$batch worker$worker$ AS $$SELECT NULL;$$;"
+            parsed.functionSettings `shouldBe` [FunctionSetting { settingName = "application_name", settingValue = "$worker$batch worker$worker$" }]
+
         it "should parse escape-string function settings containing whitespace" do
             let sql = "CREATE FUNCTION configured_path() RETURNS uuid LANGUAGE sql SET application_name = E'C:\\\\Program Files' AS $$SELECT 1;$$;"
             parseSql sql `shouldBe` CreateFunction

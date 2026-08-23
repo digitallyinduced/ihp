@@ -467,12 +467,21 @@ normalizeStatement CreateFunction { .. } = [ CreateFunction { orReplace = False,
         normalizedLanguage = Text.toUpper language
         normalizedFunctionAttributes = sortOn functionAttributeOrder (filter (not . isDefaultFunctionAttribute) (map normalizeFunctionAttribute functionAttributes))
         defaultFunctionAttributes = ["VOLATILE", "NOT LEAKPROOF", "CALLED ON NULL INPUT", "SECURITY INVOKER", "PARALLEL UNSAFE"]
-        isDefaultFunctionAttribute attribute = attribute `elem` defaultFunctionAttributes || isDefaultCost attribute
+        isDefaultFunctionAttribute attribute = attribute `elem` defaultFunctionAttributes || isDefaultCost attribute || isDefaultRows attribute
         isDefaultCost attribute
             | normalizedLanguage `elem` ["SQL", "PLPGSQL"] = case Text.stripPrefix "COST " attribute of
                 Just cost -> Read.readMaybe (cs cost) == Just (100 :: Double)
                 Nothing -> False
             | otherwise = False
+        isDefaultRows attribute
+            | isSetReturning = case Text.stripPrefix "ROWS " attribute of
+                Just rows -> Read.readMaybe (cs rows) == Just (1000 :: Double)
+                Nothing -> False
+            | otherwise = False
+        isSetReturning = case returns of
+            PSetOf {} -> True
+            PTable {} -> True
+            _ -> False
         normalizeFunctionAttribute attribute
             | Just supportFunction <- Text.stripPrefix "SUPPORT " attribute = "SUPPORT " <> supportFunction
             | Just value <- Text.stripPrefix "COST " normalizedAttribute = "COST " <> canonicalNumeric value
