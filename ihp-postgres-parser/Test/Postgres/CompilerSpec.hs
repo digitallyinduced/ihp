@@ -271,6 +271,12 @@ spec = do
             let statement = DropTable { tableName = "private.users" }
             parseSql (compileSql [statement]) `shouldBe` statement
 
+        it "should compile LIKE escape clauses without changing their grouping" do
+            let expression = BinaryOperatorExpression "ESCAPE"
+                    (BinaryOperatorExpression "LIKE" (VarExpression "code") (TextExpression "A!_%"))
+                    (TextExpression "!")
+            compileExpression expression `shouldBe` "code LIKE 'A!_%' ESCAPE '!'"
+
         it "should round-trip a schema-qualified CREATE FUNCTION" do
             -- parse -> compile -> parse must preserve a non-public schema like `private.`
             let statement = CreateFunction

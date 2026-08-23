@@ -703,6 +703,8 @@ table = highPrecedenceTable <> genericOperatorTable <>
             [ keywordOperator "NOT LIKE", keywordOperator "NOT ILIKE"
             , keywordOperator "LIKE", keywordOperator "ILIKE"
             ],
+            [ Postfix escapeOp
+            ],
             [ binary  "<>"  NotEqExpression
             -- `!=` is PostgreSQL's spelling of `<>`; the compiler prints the
             -- canonical `<>` back, which is what pg_dump emits.
@@ -713,8 +715,6 @@ table = highPrecedenceTable <> genericOperatorTable <>
             , binary "<"  LessThanExpression
             , binary ">="  GreaterThanOrEqualToExpression
             , binary ">"  GreaterThanExpression
-            , binary "||" ConcatenationExpression
-
             , binary "IS" IsExpression
             , prefix "NOT" NotExpression
             , prefix "EXISTS" ExistsExpression
@@ -730,17 +730,17 @@ table = highPrecedenceTable <> genericOperatorTable <>
             , [ keywordOperator "AT TIME ZONE" ]
             , [ operator "^" ]
             , [ operator "*", operator "/", operator "%" ]
-            , [ operator "+", minusOperator ]
+            , [ operator "+", operator "-" ]
             ]
 
-        genericOperatorTable = [[genericOperator]]
+        genericOperatorTable = [[genericOperator, InfixL (ConcatenationExpression <$ try (symbol "||"))]]
 
         binary  name f = InfixL  (f <$ try (symbol name))
         prefix  name f = Prefix  (f <$ symbol name)
         postfix name f = Postfix (f <$ symbol name)
 
         -- | An operator kept verbatim in 'BinaryOperatorExpression'.
-        operator name = InfixL (BinaryOperatorExpression name <$ try (symbol name))
+        operator name = InfixL (BinaryOperatorExpression name <$ try (lexeme (string name <* notFollowedBy (satisfy isOperatorCharacter))))
 
         genericOperator = InfixL do
             name <- try do
@@ -752,15 +752,17 @@ table = highPrecedenceTable <> genericOperatorTable <>
         isOperatorCharacter character = character `elem` ("+-*/<>=~!@#%^&|`?" :: String)
         dedicatedOperators = ["*", "/", "%", "+", "-", "<>", "!=", "=", "<=", "<", ">=", ">", "||"]
 
-        -- Do not consume the prefix of PostgreSQL's JSON operators here.
-        minusOperator = InfixL (BinaryOperatorExpression "-" <$ try (lexeme (string "-" <* notFollowedBy (char '>'))))
-
         -- | Same, for operators spelled as words, which need a word boundary so
         -- that e.g. `LIKE` does not match the start of a `likelihood` column.
         keywordOperator name = InfixL (BinaryOperatorExpression name <$ try (mapM_ keyword (Text.words name)))
 
         keyword name = try do
             lexeme (string' name <* notFollowedBy (satisfy isIdentifierCharacter))
+
+        escapeOp = do
+            keyword "ESCAPE"
+            escapeCharacter <- term
+            pure (\patternExpression -> BinaryOperatorExpression "ESCAPE" patternExpression escapeCharacter)
 
         -- Cannot be implemented as a infix operator as that requires two expression operands,
         -- but the second is the type-cast type which is not an expression

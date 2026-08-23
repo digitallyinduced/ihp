@@ -165,6 +165,7 @@ compileExpression (SelectExpression Select { columns, from, whereClause }) = "SE
 compileExpression (ExistsExpression a) = "EXISTS " <> compileExpressionWithOptionalParenthese a
 compileExpression (DotExpression a b) = compileExpressionWithOptionalParenthese a <> "." <> compileIdentifier b
 compileExpression (ConcatenationExpression a b) = compileExpressionWithOptionalParenthese a <> " || " <> compileExpressionWithOptionalParenthese b
+compileExpression (BinaryOperatorExpression "ESCAPE" patternExpression escapeCharacter) = compileExpression patternExpression <> " ESCAPE " <> compileExpressionWithOptionalParenthese escapeCharacter
 compileExpression (BinaryOperatorExpression operator a b) = compileExpressionWithOptionalParenthese a <> " " <> operator <> " " <> compileExpressionWithOptionalParenthese b
 
 compileEqualityOperand :: Expression -> Text

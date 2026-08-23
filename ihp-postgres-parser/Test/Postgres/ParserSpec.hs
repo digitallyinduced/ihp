@@ -556,6 +556,18 @@ spec = do
             parseExpression "left_value ## right_value" `shouldBe`
                 BinaryOperatorExpression "##" (VarExpression "left_value") (VarExpression "right_value")
 
+        it "should keep concatenation at the generic operator precedence" do
+            parseExpression "defaults || payload ->> 'name'" `shouldBe`
+                BinaryOperatorExpression "->>"
+                    (ConcatenationExpression (VarExpression "defaults") (VarExpression "payload"))
+                    (TextExpression "name")
+
+        it "should parse user-defined operators beginning with arithmetic characters" do
+            parseExpression "lhs +> rhs" `shouldBe`
+                BinaryOperatorExpression "+>" (VarExpression "lhs") (VarExpression "rhs")
+            parseExpression "lhs ^@ rhs" `shouldBe`
+                BinaryOperatorExpression "^@" (VarExpression "lhs") (VarExpression "rhs")
+
         it "should parse BETWEEN and NOT IN" do
             parseExpression "month BETWEEN 1 AND 12" `shouldBe`
                 AndExpression
@@ -637,6 +649,12 @@ spec = do
             parseExpression "name LIKE 'a%'" `shouldBe`
                 BinaryOperatorExpression "LIKE" (VarExpression "name") (TextExpression "a%")
             parseExpression "likelihood" `shouldBe` VarExpression "likelihood"
+
+        it "should preserve LIKE escape clauses" do
+            parseExpression "code LIKE 'A!_%' ESCAPE '!'" `shouldBe`
+                BinaryOperatorExpression "ESCAPE"
+                    (BinaryOperatorExpression "LIKE" (VarExpression "code") (TextExpression "A!_%"))
+                    (TextExpression "!")
 
         it "should bind LIKE before prefix NOT and allow trivia in NOT LIKE" do
             parseExpression "NOT name LIKE 'a%'" `shouldBe`
