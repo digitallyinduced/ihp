@@ -109,6 +109,19 @@ tests = do
 
                 SchemaOperations.deleteTable "tasks" inputSchema `shouldBe` outputSchema
 
+            it "removes foreign keys that reference a deleted table" do
+                let inputSchema = parseSqlStatements [trimming|
+                    CREATE TABLE parents ();
+                    CREATE TABLE children ();
+                    ALTER TABLE children ADD CONSTRAINT children_parent_fkey FOREIGN KEY (parent_id) REFERENCES parents (id);
+                    ALTER TABLE children ADD CONSTRAINT children_parent_scope_fkey FOREIGN KEY (tenant_id, parent_id) REFERENCES parents (tenant_id, id) MATCH FULL;
+                |]
+                let outputSchema = parseSqlStatements [trimming|
+                    CREATE TABLE children ();
+                |]
+
+                SchemaOperations.deleteTable "parents" inputSchema `shouldBe` outputSchema
+
         describe "suggestPolicy" do
             it "should suggest a policy if a user_id column exists" do
                 let postsTable = StatementCreateTable (table "posts")

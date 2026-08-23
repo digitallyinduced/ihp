@@ -81,6 +81,23 @@ spec = do
                     }
             compileSql [statement] `shouldBe` "ALTER TABLE memberships ADD CONSTRAINT memberships_user_id_fkey FOREIGN KEY (user_id) REFERENCES users (id) ON UPDATE CASCADE ;\n"
 
+        it "should compile MATCH FULL on composite foreign keys" do
+            let statement = AddConstraint
+                    { tableName = "items"
+                    , constraint = CompositeForeignKeyConstraint
+                        { name = Just "items_parent_fkey"
+                        , columnNames = ["tenant_id", "parent_id"]
+                        , referenceTable = "parents"
+                        , referenceColumns = ["tenant_id", "id"]
+                        , matchType = Just MatchFull
+                        , onDelete = Nothing
+                        , onUpdate = Nothing
+                        }
+                    , deferrable = Nothing
+                    , deferrableType = Nothing
+                    }
+            compileSql [statement] `shouldBe` "ALTER TABLE items ADD CONSTRAINT items_parent_fkey FOREIGN KEY (tenant_id, parent_id) REFERENCES parents (tenant_id, id) MATCH FULL ;\n"
+
         it "should compile ALTER TABLE .. ADD CONSTRAINT .. CHECK .." do
             let statement = AddConstraint
                     { tableName = "posts"

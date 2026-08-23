@@ -519,6 +519,8 @@ deleteTable tableName statements =
     |> filter \case
         StatementCreateTable CreateTable { name }       | name == tableName            -> False
         AddConstraint { tableName = constraintTable }   | constraintTable == tableName -> False
+        AddConstraint { constraint = ForeignKeyConstraint { referenceTable } } | referenceTable == tableName -> False
+        AddConstraint { constraint = CompositeForeignKeyConstraint { referenceTable } } | referenceTable == tableName -> False
         CreateIndex { tableName = indexTable }          | indexTable == tableName      -> False
         EnableRowLevelSecurity { tableName = rlsTable } | rlsTable == tableName        -> False
         CreatePolicy { tableName = policyTable }        | policyTable == tableName     -> False

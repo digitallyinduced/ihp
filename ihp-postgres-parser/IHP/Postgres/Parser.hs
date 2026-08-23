@@ -342,6 +342,9 @@ parseForeignKeyConstraint name = do
     lexeme "REFERENCES"
     referenceTable <- qualifiedIdentifier
     referenceColumns <- optional $ between (char '(' >> space) (char ')' >> space) (identifier `sepBy1` (char ',' >> space))
+    matchType <- optional do
+        lexeme "MATCH"
+        (lexeme "FULL" $> MatchFull) <|> (lexeme "PARTIAL" $> MatchPartial) <|> (lexeme "SIMPLE" $> MatchSimple)
     referentialActions <- many $ try do
         lexeme "ON"
         (lexeme "DELETE" >> (Left <$> parseOnDelete)) <|> (lexeme "UPDATE" >> (Right <$> parseOnDelete))
@@ -353,7 +356,7 @@ parseForeignKeyConstraint name = do
         ([columnName], Just [referenceColumn]) ->
             pure ForeignKeyConstraint { name, columnName, referenceTable, referenceColumn = Just referenceColumn, onDelete, onUpdate }
         _ ->
-            pure CompositeForeignKeyConstraint { name, columnNames, referenceTable, referenceColumns = fromMaybe [] referenceColumns, onDelete, onUpdate }
+            pure CompositeForeignKeyConstraint { name, columnNames, referenceTable, referenceColumns = fromMaybe [] referenceColumns, matchType, onDelete, onUpdate }
 
 parseUniqueConstraint name = do
     lexeme "UNIQUE"

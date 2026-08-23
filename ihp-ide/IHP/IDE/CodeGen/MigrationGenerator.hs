@@ -527,14 +527,16 @@ normalizeTable table@(CreateTable { .. }) = ( CreateTable { columns = fst normal
 
 normalizeConstraint :: Text -> Constraint -> Constraint
 normalizeConstraint _ ForeignKeyConstraint { name, columnName, referenceTable, referenceColumn, onDelete, onUpdate } = ForeignKeyConstraint { name = truncateIdentifier <$> name, columnName = Text.toLower columnName, referenceTable = Text.toLower referenceTable, referenceColumn = fmap Text.toLower referenceColumn, onDelete = normalizeReferentialAction onDelete, onUpdate = normalizeReferentialAction onUpdate }
-normalizeConstraint _ CompositeForeignKeyConstraint { name, columnNames, referenceTable, referenceColumns, onDelete, onUpdate } = CompositeForeignKeyConstraint
+normalizeConstraint _ CompositeForeignKeyConstraint { name, columnNames, referenceTable, referenceColumns, matchType, onDelete, onUpdate } = CompositeForeignKeyConstraint
     { name = truncateIdentifier <$> name
     , columnNames = map Text.toLower columnNames
     , referenceTable = Text.toLower referenceTable
     , referenceColumns = map Text.toLower referenceColumns
+    , matchType = normalizeMatchType matchType
     , onDelete = normalizeReferentialAction onDelete
     , onUpdate = normalizeReferentialAction onUpdate
     }
+
 normalizeConstraint tableName constraint@(UniqueConstraint { name = Just uniqueName, columnNames }) | length columnNames > 1 =
         -- Single column UNIQUE constraints like:
         --
@@ -563,6 +565,10 @@ normalizeConstraint tableName constraint@(UniqueConstraint { name = Just uniqueN
                 then constraint { name = Nothing }
                 else constraint
 normalizeConstraint _ otherwise = otherwise
+
+normalizeMatchType :: Maybe ForeignKeyMatchType -> Maybe ForeignKeyMatchType
+normalizeMatchType (Just MatchSimple) = Nothing
+normalizeMatchType matchType = matchType
 
 normalizeReferentialAction action = Just case fromMaybe NoAction action of
     SetNull columnNames -> SetNull (map Text.toLower columnNames)

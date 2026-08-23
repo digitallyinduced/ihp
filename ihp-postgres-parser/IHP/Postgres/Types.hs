@@ -120,6 +120,13 @@ data OnDelete
     | Cascade
     deriving (Show, Eq)
 
+-- | PostgreSQL foreign-key matching semantics.
+data ForeignKeyMatchType
+    = MatchFull
+    | MatchPartial
+    | MatchSimple
+    deriving (Show, Eq)
+
 data ColumnGenerator
     = ColumnGenerator
     { generate :: !Expression
@@ -145,6 +152,7 @@ data Constraint
         , columnNames :: ![Text]
         , referenceTable :: !Text
         , referenceColumns :: ![Text]
+        , matchType :: !(Maybe ForeignKeyMatchType)
         , onDelete :: !(Maybe OnDelete)
         , onUpdate :: !(Maybe OnDelete)
         }

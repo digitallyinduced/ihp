@@ -84,7 +84,7 @@ compileTableConstraint constraint =
 
 compileConstraint :: Constraint -> Text
 compileConstraint ForeignKeyConstraint { columnName, referenceTable, referenceColumn, onDelete, onUpdate } = "FOREIGN KEY (" <> compileIdentifier columnName <> ") REFERENCES " <> compileIdentifier referenceTable <> (if isJust referenceColumn then " (" <> fromJust referenceColumn <> ")" else "") <> compileOnUpdate onUpdate <> " " <> compileOnDelete onDelete
-compileConstraint CompositeForeignKeyConstraint { columnNames, referenceTable, referenceColumns, onDelete, onUpdate } = "FOREIGN KEY (" <> intercalate ", " (map compileIdentifier columnNames) <> ") REFERENCES " <> compileIdentifier referenceTable <> (if null referenceColumns then "" else " (" <> intercalate ", " (map compileIdentifier referenceColumns) <> ")") <> compileOnUpdate onUpdate <> " " <> compileOnDelete onDelete
+compileConstraint CompositeForeignKeyConstraint { columnNames, referenceTable, referenceColumns, matchType, onDelete, onUpdate } = "FOREIGN KEY (" <> intercalate ", " (map compileIdentifier columnNames) <> ") REFERENCES " <> compileIdentifier referenceTable <> (if null referenceColumns then "" else " (" <> intercalate ", " (map compileIdentifier referenceColumns) <> ")") <> compileMatchType matchType <> compileOnUpdate onUpdate <> " " <> compileOnDelete onDelete
 compileConstraint UniqueConstraint { columnNames } = "UNIQUE(" <> intercalate ", " columnNames <> ")"
 compileConstraint CheckConstraint { checkExpression } = "CHECK (" <> compileExpression checkExpression <> ")"
 compileConstraint AlterTableAddPrimaryKey { primaryKeyConstraint = PrimaryKeyConstraint { primaryKeyColumnNames } } = "PRIMARY KEY(" <> intercalate ", " (map compileIdentifier primaryKeyColumnNames) <> ")"
@@ -119,6 +119,12 @@ compileOnUpdate (Just Cascade) = " ON UPDATE CASCADE"
 compileReferentialActionColumns :: [Text] -> Text
 compileReferentialActionColumns [] = ""
 compileReferentialActionColumns columnNames = " (" <> intercalate ", " (map compileIdentifier columnNames) <> ")"
+
+compileMatchType :: Maybe ForeignKeyMatchType -> Text
+compileMatchType Nothing = ""
+compileMatchType (Just MatchFull) = " MATCH FULL"
+compileMatchType (Just MatchPartial) = " MATCH PARTIAL"
+compileMatchType (Just MatchSimple) = " MATCH SIMPLE"
 
 compileOnDelete :: Maybe OnDelete -> Text
 compileOnDelete Nothing = ""

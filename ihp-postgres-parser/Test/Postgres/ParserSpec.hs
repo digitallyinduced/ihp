@@ -478,11 +478,29 @@ spec = do
                         , columnNames = ["ticket_id", "organization_id"]
                         , referenceTable = "tickets"
                         , referenceColumns = ["id", "organization_id"]
+                        , matchType = Nothing
                         , onDelete = Just (SetNull ["ticket_id"])
                         , onUpdate = Just Cascade
                         }
                     , deferrable = Just True
                     , deferrableType = Just InitiallyDeferred
+                    }
+
+        it "should preserve MATCH modes on composite foreign keys" do
+            parseSql "ALTER TABLE items ADD CONSTRAINT items_parent_fkey FOREIGN KEY (tenant_id, parent_id) REFERENCES parents (tenant_id, id) MATCH FULL;" `shouldBe`
+                AddConstraint
+                    { tableName = "items"
+                    , constraint = CompositeForeignKeyConstraint
+                        { name = Just "items_parent_fkey"
+                        , columnNames = ["tenant_id", "parent_id"]
+                        , referenceTable = "parents"
+                        , referenceColumns = ["tenant_id", "id"]
+                        , matchType = Just MatchFull
+                        , onDelete = Nothing
+                        , onUpdate = Nothing
+                        }
+                    , deferrable = Nothing
+                    , deferrableType = Nothing
                     }
 
         it "should keep single-column foreign keys with ON UPDATE relational" do
