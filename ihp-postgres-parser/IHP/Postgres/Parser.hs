@@ -386,11 +386,22 @@ parseExcludeConstraint name = do
             pure ExcludeConstraintElement { element, operator }
 
         excludeElementChunk =
-            quotedChunk '\''
+            try dollarQuotedChunk
+            <|> quotedChunk '\''
             <|> quotedChunk '"'
             <|> (fst <$> match (Lexer.skipLineComment "--"))
             <|> (fst <$> match (Lexer.skipBlockCommentNested "/*" "*/"))
             <|> (Text.singleton <$> anySingle)
+
+        dollarQuotedChunk :: Parser Text
+        dollarQuotedChunk = fst <$> match do
+            delimiter <- do
+                char '$'
+                tag <- takeWhileP (Just "dollar quote tag") (\c -> isAlphaNum c || c == '_')
+                char '$'
+                pure ("$" <> tag <> "$")
+            _ <- manyTill anySingle (try (string delimiter))
+            pure ()
 
         quotedChunk quote = fst <$> match do
             char quote
@@ -683,6 +694,9 @@ table = highPrecedenceTable <> genericOperatorTable <>
         [
             [ Postfix (foldl1 (flip (.)) <$> some (try notInOp <|> try betweenOp <|> inOp))
             ],
+            [ keywordOperator "NOT LIKE", keywordOperator "NOT ILIKE"
+            , keywordOperator "LIKE", keywordOperator "ILIKE"
+            ],
             [ binary  "<>"  NotEqExpression
             -- `!=` is PostgreSQL's spelling of `<>`; the compiler prints the
             -- canonical `<>` back, which is what pg_dump emits.
@@ -694,9 +708,6 @@ table = highPrecedenceTable <> genericOperatorTable <>
             , binary ">="  GreaterThanOrEqualToExpression
             , binary ">"  GreaterThanExpression
             , binary "||" ConcatenationExpression
-
-            , keywordOperator "NOT LIKE", keywordOperator "NOT ILIKE"
-            , keywordOperator "LIKE", keywordOperator "ILIKE"
 
             , binary "IS" IsExpression
             , prefix "NOT" NotExpression
@@ -734,7 +745,7 @@ table = highPrecedenceTable <> genericOperatorTable <>
 
         -- | Same, for operators spelled as words, which need a word boundary so
         -- that e.g. `LIKE` does not match the start of a `likelihood` column.
-        keywordOperator name = InfixL (BinaryOperatorExpression name <$ keyword name)
+        keywordOperator name = InfixL (BinaryOperatorExpression name <$ try (mapM_ keyword (Text.words name)))
 
         keyword name = try do
             lexeme (string' name <* notFollowedBy (satisfy isIdentifierCharacter))

@@ -540,6 +540,9 @@ spec = do
                     (VarExpression "cutoff")
                     (BinaryOperatorExpression "AT TIME ZONE" (VarExpression "created_at") (TextExpression "UTC"))
 
+            parseExpression "created_at AT /* normalize */ TIME\nZONE 'UTC'" `shouldBe`
+                BinaryOperatorExpression "AT TIME ZONE" (VarExpression "created_at") (TextExpression "UTC")
+
         it "should parse typed PostgreSQL literals" do
             parseExpression "closed_at - INTERVAL '30 days' > opened_at" `shouldBe`
                 GreaterThanExpression
@@ -575,6 +578,12 @@ spec = do
             parseExpression "name LIKE 'a%'" `shouldBe`
                 BinaryOperatorExpression "LIKE" (VarExpression "name") (TextExpression "a%")
             parseExpression "likelihood" `shouldBe` VarExpression "likelihood"
+
+        it "should bind LIKE before prefix NOT and allow trivia in NOT LIKE" do
+            parseExpression "NOT name LIKE 'a%'" `shouldBe`
+                NotExpression (BinaryOperatorExpression "LIKE" (VarExpression "name") (TextExpression "a%"))
+            parseExpression "name NOT /* pattern */ LIKE 'a%'" `shouldBe`
+                BinaryOperatorExpression "NOT LIKE" (VarExpression "name") (TextExpression "a%")
 
         it "should read != as the canonical <> operator" do
             parseExpression "a != b" `shouldBe` NotEqExpression (VarExpression "a") (VarExpression "b")
@@ -624,6 +633,19 @@ spec = do
                         [ ExcludeConstraint
                             { name = Nothing
                             , excludeElements = [ExcludeConstraintElement { element = "room_id /* WITH marker */", operator = "=" }]
+                            , predicate = Nothing
+                            , indexType = Nothing
+                            }
+                        ]
+                    }
+
+        it "should ignore WITH inside dollar-quoted exclusion literals" do
+            parseSql "CREATE TABLE reservations (EXCLUDE ((name || $tag$ WITH $tag$) WITH =));" `shouldBe`
+                StatementCreateTable (table "reservations")
+                    { constraints =
+                        [ ExcludeConstraint
+                            { name = Nothing
+                            , excludeElements = [ExcludeConstraintElement { element = "(name || $tag$ WITH $tag$)", operator = "=" }]
                             , predicate = Nothing
                             , indexType = Nothing
                             }
