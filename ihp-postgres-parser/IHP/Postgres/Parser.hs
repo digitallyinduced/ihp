@@ -385,7 +385,12 @@ parseExcludeConstraint name = do
             operator <- parseCommutativeInfixOperator
             pure ExcludeConstraintElement { element, operator }
 
-        excludeElementChunk = quotedChunk '\'' <|> quotedChunk '"' <|> (Text.singleton <$> anySingle)
+        excludeElementChunk =
+            quotedChunk '\''
+            <|> quotedChunk '"'
+            <|> (fst <$> match (Lexer.skipLineComment "--"))
+            <|> (fst <$> match (Lexer.skipBlockCommentNested "/*" "*/"))
+            <|> (Text.singleton <$> anySingle)
 
         quotedChunk quote = fst <$> match do
             char quote

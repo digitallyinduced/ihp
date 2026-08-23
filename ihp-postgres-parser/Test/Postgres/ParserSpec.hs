@@ -617,6 +617,19 @@ spec = do
                         ]
                     }
 
+        it "should ignore WITH inside comments in exclusion elements" do
+            parseSql "CREATE TABLE reservations (EXCLUDE (room_id /* WITH marker */ WITH =));" `shouldBe`
+                StatementCreateTable (table "reservations")
+                    { constraints =
+                        [ ExcludeConstraint
+                            { name = Nothing
+                            , excludeElements = [ExcludeConstraintElement { element = "room_id /* WITH marker */", operator = "=" }]
+                            , predicate = Nothing
+                            , indexType = Nothing
+                            }
+                        ]
+                    }
+
         it "should parse compact exclusion operators" do
             parseSql "CREATE TABLE reservations (EXCLUDE (room_id WITH=));" `shouldBe`
                 StatementCreateTable (table "reservations")
