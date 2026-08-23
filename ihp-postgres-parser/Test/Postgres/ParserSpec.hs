@@ -100,6 +100,27 @@ spec = do
         it "should parse a CREATE TABLE with quoted identifiers" do
             parseSql "CREATE TABLE \"quoted name\" ();" `shouldBe` StatementCreateTable (table "quoted name")
 
+        it "should preserve non-public schema-qualified table names" do
+            parseSql "CREATE TABLE private.users ();" `shouldBe`
+                StatementCreateTable (table "private.users")
+            parseSql "CREATE TABLE public.users ();" `shouldBe`
+                StatementCreateTable (table "users")
+
+        it "should preserve non-public schemas across foreign keys" do
+            parseSql "ALTER TABLE private.tokens ADD CONSTRAINT tokens_user_fk FOREIGN KEY (user_id) REFERENCES auth.users (id);" `shouldBe`
+                AddConstraint
+                    { tableName = "private.tokens"
+                    , constraint = ForeignKeyConstraint
+                        { name = Just "tokens_user_fk"
+                        , columnName = "user_id"
+                        , referenceTable = "auth.users"
+                        , referenceColumn = Just "id"
+                        , onDelete = Nothing
+                        }
+                    , deferrable = Nothing
+                    , deferrableType = Nothing
+                    }
+
         it "should parse a CREATE TABLE with public schema prefix" do
             parseSql "CREATE TABLE public.users ();" `shouldBe` StatementCreateTable (table "users")
 
@@ -457,6 +478,9 @@ spec = do
         it "should parse 'DROP TABLE ..' statements" do
             parseSql "DROP TABLE tasks;" `shouldBe` DropTable { tableName = "tasks" }
 
+        it "should parse a schema-qualified DROP TABLE" do
+            parseSql "DROP TABLE private.tasks;" `shouldBe` DropTable { tableName = "private.tasks" }
+
         it "should parse 'DROP TYPE ..' statements" do
             parseSql "DROP TYPE colors;" `shouldBe` DropEnumType { name = "colors" }
 
@@ -481,11 +505,36 @@ spec = do
         it "should parse negative IntExpression's" do
             parseExpression "-1" `shouldBe` (IntExpression (-1))
 
-        it "should parse positive DoubleExpression's" do
-            parseExpression "1.337" `shouldBe` (DoubleExpression 1.337)
+        it "should preserve positive numeric literals exactly" do
+            parseExpression "1.337" `shouldBe` NumericExpression "1.337"
 
-        it "should parse negative DoubleExpression's" do
-            parseExpression "-1.337" `shouldBe` (DoubleExpression (-1.337))
+        it "should preserve negative numeric literals exactly" do
+            parseExpression "-1.337" `shouldBe` NumericExpression "-1.337"
+
+        it "should preserve PostGIS geometry modifiers" do
+            parseSql "CREATE TABLE locations (geom geometry(Point, 4326));"
+                `shouldBe` StatementCreateTable (table "locations") { columns = [col "geom" (PGeometryWithModifier "Point, 4326")] }
+
+        it "should ignore a comment inside a statement" do
+            parseSql "CREATE TABLE users (\n    id UUID PRIMARY KEY, -- surrogate key\n    email TEXT NOT NULL /* the login */\n);" `shouldBe`
+                StatementCreateTable (table "users")
+                    { columns = [col "id" PUUID, (col "email" PText) { notNull = True }]
+                    , primaryKeyConstraint = PrimaryKeyConstraint ["id"]
+                    }
+
+        it "should keep a comment between two statements as its own statement" do
+            parseSqlStatements "CREATE TABLE a ();\n-- about b\nCREATE TABLE b ();" `shouldBe`
+                [ StatementCreateTable (table "a")
+                , Comment { content = " about b" }
+                , StatementCreateTable (table "b")
+                ]
+
+        it "should keep the comment behind a pg_dump restrict fence" do
+            parseSqlStatements "\\restrict aBcD1\n-- kept\nCREATE TABLE a ();" `shouldBe`
+                [ Comment { content = "" }
+                , Comment { content = " kept" }
+                , StatementCreateTable (table "a")
+                ]
 
 parseSql :: Text -> Statement
 parseSql sql = let [statement] = parseSqlStatements sql in statement

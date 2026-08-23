@@ -200,6 +200,7 @@ postgresTypeToGraphQLType PDouble = NamedType "Float"
 postgresTypeToGraphQLType PPoint = NamedType "Point"
 postgresTypeToGraphQLType PPolygon = error "todo"
 postgresTypeToGraphQLType PGeometry = NamedType "String" -- hex EWKB
+postgresTypeToGraphQLType (PGeometryWithModifier _) = NamedType "String" -- hex EWKB
 postgresTypeToGraphQLType PDate = NamedType "Date"
 postgresTypeToGraphQLType PBinary = NamedType "String"
 postgresTypeToGraphQLType PTime = NamedType "Time"
