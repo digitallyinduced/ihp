@@ -395,6 +395,23 @@ tests = do
 
                 SchemaOperations.updateColumn options inputSchema `shouldBe` expectedSchema
 
+            it "renames columns in trigger WHEN conditions" do
+                let inputSchema = parseSqlStatements [trimming|
+                    CREATE TABLE items (ticket_id UUID);
+                    CREATE TRIGGER items_changed BEFORE UPDATE ON items FOR EACH ROW WHEN (OLD.ticket_id <> NEW.ticket_id) EXECUTE FUNCTION notify_change();
+                |]
+                let expectedSchema = parseSqlStatements [trimming|
+                    CREATE TABLE items (parent_ticket_id UUID);
+                    CREATE TRIGGER items_changed BEFORE UPDATE ON items FOR EACH ROW WHEN (OLD.parent_ticket_id <> NEW.parent_ticket_id) EXECUTE FUNCTION notify_change();
+                |]
+                let options = SchemaOperations.UpdateColumnOptions
+                        { tableName = "items", columnName = "parent_ticket_id", columnType = PUUID
+                        , defaultValue = Nothing, isArray = False, allowNull = True
+                        , isUnique = False, primaryKey = False, columnId = 0
+                        }
+
+                SchemaOperations.updateColumn options inputSchema `shouldBe` expectedSchema
+
             it "updates composite foreign key columns" do
                 let inputSchema = parseSqlStatements [trimming|
                     CREATE TABLE items (ticket_id UUID, organization_id UUID);
@@ -414,6 +431,25 @@ tests = do
                         , isUnique = False
                         , primaryKey = False
                         , columnId = 0
+                        }
+
+                SchemaOperations.updateColumn options inputSchema `shouldBe` expectedSchema
+
+            it "updates referenced columns in composite foreign keys" do
+                let inputSchema = parseSqlStatements [trimming|
+                    CREATE TABLE tickets (ticket_id UUID, organization_id UUID);
+                    CREATE TABLE items (ticket_id UUID, organization_id UUID);
+                    ALTER TABLE items ADD CONSTRAINT items_ticket_fkey FOREIGN KEY (ticket_id, organization_id) REFERENCES tickets (ticket_id, organization_id);
+                |]
+                let expectedSchema = parseSqlStatements [trimming|
+                    CREATE TABLE tickets (id UUID, organization_id UUID);
+                    CREATE TABLE items (ticket_id UUID, organization_id UUID);
+                    ALTER TABLE items ADD CONSTRAINT items_ticket_fkey FOREIGN KEY (ticket_id, organization_id) REFERENCES tickets (id, organization_id);
+                |]
+                let options = SchemaOperations.UpdateColumnOptions
+                        { tableName = "tickets", columnName = "id", columnType = PUUID
+                        , defaultValue = Nothing, isArray = False, allowNull = True
+                        , isUnique = False, primaryKey = False, columnId = 0
                         }
 
                 SchemaOperations.updateColumn options inputSchema `shouldBe` expectedSchema

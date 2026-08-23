@@ -166,19 +166,30 @@ updateColumn options@(UpdateColumnOptions { .. }) schema =
               (True, True) -> primaryKeyConstraint
 
         updateForeignKeyConstraints = map \case
-                statement@(AddConstraint { tableName = constraintTable, constraint = constraint@(ForeignKeyConstraint { name = fkName, columnName = fkColumnName, onDelete, onUpdate })  }) | constraintTable == tableName && fkColumnName == (oldColumn.name) ->
+                statement@(AddConstraint { tableName = constraintTable, constraint = constraint@(ForeignKeyConstraint { name = fkName, columnName = fkColumnName, referenceTable, referenceColumn, onDelete, onUpdate })  })
+                        | updatesLocalColumn || updatesReferencedColumn ->
                     let
-                        newName = Text.replace (oldColumn.name) columnName <$> fkName
-                        newOnDelete = fmap updateReferentialActionColumns onDelete
-                        newOnUpdate = fmap updateReferentialActionColumns onUpdate
-                    in statement { constraint = constraint { columnName, name = newName, onDelete = newOnDelete, onUpdate = newOnUpdate } }
-                statement@(AddConstraint { tableName = constraintTable, constraint = constraint@(CompositeForeignKeyConstraint { name = fkName, columnNames, onDelete, onUpdate }) }) | constraintTable == tableName && oldColumn.name `elem` columnNames ->
+                        newName = if updatesLocalColumn then Text.replace oldColumn.name columnName <$> fkName else fkName
+                        newColumnName = if updatesLocalColumn then columnName else fkColumnName
+                        newReferenceColumn = if updatesReferencedColumn then Just columnName else referenceColumn
+                        newOnDelete = if updatesLocalColumn then fmap updateReferentialActionColumns onDelete else onDelete
+                        newOnUpdate = if updatesLocalColumn then fmap updateReferentialActionColumns onUpdate else onUpdate
+                    in statement { constraint = constraint { columnName = newColumnName, referenceColumn = newReferenceColumn, name = newName, onDelete = newOnDelete, onUpdate = newOnUpdate } }
+                    where
+                        updatesLocalColumn = constraintTable == tableName && fkColumnName == oldColumn.name
+                        updatesReferencedColumn = referenceTable == tableName && referenceColumn == Just oldColumn.name
+                statement@(AddConstraint { tableName = constraintTable, constraint = constraint@(CompositeForeignKeyConstraint { name = fkName, columnNames, referenceTable, referenceColumns, onDelete, onUpdate }) })
+                        | updatesLocalColumns || updatesReferenceColumns ->
                     let
-                        newName = Text.replace oldColumn.name columnName <$> fkName
-                        newColumnNames = map (\name -> if name == oldColumn.name then columnName else name) columnNames
-                        newOnDelete = fmap updateReferentialActionColumns onDelete
-                        newOnUpdate = fmap updateReferentialActionColumns onUpdate
-                    in statement { constraint = constraint { columnNames = newColumnNames, name = newName, onDelete = newOnDelete, onUpdate = newOnUpdate } }
+                        newName = if updatesLocalColumns then Text.replace oldColumn.name columnName <$> fkName else fkName
+                        newColumnNames = if updatesLocalColumns then map renameColumn columnNames else columnNames
+                        newReferenceColumns = if updatesReferenceColumns then map renameColumn referenceColumns else referenceColumns
+                        newOnDelete = if updatesLocalColumns then fmap updateReferentialActionColumns onDelete else onDelete
+                        newOnUpdate = if updatesLocalColumns then fmap updateReferentialActionColumns onUpdate else onUpdate
+                    in statement { constraint = constraint { columnNames = newColumnNames, referenceColumns = newReferenceColumns, name = newName, onDelete = newOnDelete, onUpdate = newOnUpdate } }
+                    where
+                        updatesLocalColumns = constraintTable == tableName && oldColumn.name `elem` columnNames
+                        updatesReferenceColumns = referenceTable == tableName && oldColumn.name `elem` referenceColumns
                 index@(CreateIndex { indexName, tableName = indexTable, columns = indexColumns }) | indexTable == tableName ->
                     let
                         updateIndexColumn :: IndexColumn -> IndexColumn
@@ -186,8 +197,8 @@ updateColumn options@(UpdateColumnOptions { .. }) schema =
                         updateIndexColumn otherwise = otherwise
                     in
                         (index :: Statement) { columns = map updateIndexColumn indexColumns, indexName = Text.replace (oldColumn.name) columnName indexName }
-                trigger@(CreateTrigger { tableName = triggerTable, event }) | triggerTable == tableName -> trigger { event = map updateTriggerEvent event }
-                trigger@(CreateConstraintTrigger { tableName = triggerTable, event }) | triggerTable == tableName -> trigger { event = map updateTriggerEvent event }
+                trigger@(CreateTrigger { tableName = triggerTable, event, whenCondition }) | triggerTable == tableName -> trigger { event = map updateTriggerEvent event, whenCondition = renameExpressionColumns <$> whenCondition }
+                trigger@(CreateConstraintTrigger { tableName = triggerTable, event, whenCondition }) | triggerTable == tableName -> trigger { event = map updateTriggerEvent event, whenCondition = renameExpressionColumns <$> whenCondition }
                 otherwise -> otherwise
         updateTriggerEvent (TriggerOnUpdateOf columns) = TriggerOnUpdateOf (map renameColumn columns)
         updateTriggerEvent event = event
@@ -196,6 +207,29 @@ updateColumn options@(UpdateColumnOptions { .. }) schema =
         updateReferentialActionColumns action = action
         renameColumn name | name == oldColumn.name = columnName
         renameColumn name = name
+        renameExpressionColumns = \case
+            VarExpression name -> VarExpression (renameColumn name)
+            CallExpression function arguments -> CallExpression function (map renameExpressionColumns arguments)
+            NotEqExpression left right -> NotEqExpression (renameExpressionColumns left) (renameExpressionColumns right)
+            EqExpression left right -> EqExpression (renameExpressionColumns left) (renameExpressionColumns right)
+            AndExpression left right -> AndExpression (renameExpressionColumns left) (renameExpressionColumns right)
+            IsExpression left right -> IsExpression (renameExpressionColumns left) (renameExpressionColumns right)
+            InExpression left right -> InExpression (renameExpressionColumns left) (renameExpressionColumns right)
+            InArrayExpression expressions -> InArrayExpression (map renameExpressionColumns expressions)
+            ArrayLiteralExpression expressions -> ArrayLiteralExpression (map renameExpressionColumns expressions)
+            VariadicExpression expression -> VariadicExpression (renameExpressionColumns expression)
+            NotExpression expression -> NotExpression (renameExpressionColumns expression)
+            ExistsExpression expression -> ExistsExpression (renameExpressionColumns expression)
+            OrExpression left right -> OrExpression (renameExpressionColumns left) (renameExpressionColumns right)
+            LessThanExpression left right -> LessThanExpression (renameExpressionColumns left) (renameExpressionColumns right)
+            LessThanOrEqualToExpression left right -> LessThanOrEqualToExpression (renameExpressionColumns left) (renameExpressionColumns right)
+            GreaterThanExpression left right -> GreaterThanExpression (renameExpressionColumns left) (renameExpressionColumns right)
+            GreaterThanOrEqualToExpression left right -> GreaterThanOrEqualToExpression (renameExpressionColumns left) (renameExpressionColumns right)
+            TypeCastExpression expression postgresType -> TypeCastExpression (renameExpressionColumns expression) postgresType
+            SelectExpression select@Select { columns, whereClause } -> SelectExpression (select { columns = map renameExpressionColumns columns, whereClause = renameExpressionColumns whereClause })
+            DotExpression expression name -> DotExpression (renameExpressionColumns expression) (renameColumn name)
+            ConcatenationExpression left right -> ConcatenationExpression (renameExpressionColumns left) (renameExpressionColumns right)
+            expression -> expression
         findOldColumn statements = mapMaybe findOldColumn' statements
                 |> head
                 |> fromMaybe (error "Could not find old column")

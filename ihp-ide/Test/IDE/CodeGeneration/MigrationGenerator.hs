@@ -99,8 +99,8 @@ tests = do
                 diffSchemas targetSchema actualSchema `shouldBe` []
 
             it "normalizes constraint trigger defaults and UPDATE OF identifiers" do
-                let targetSchema = sql "CREATE CONSTRAINT TRIGGER items_check AFTER UPDATE OF Email ON items FOR EACH ROW EXECUTE FUNCTION check_items();"
-                let actualSchema = sql "CREATE CONSTRAINT TRIGGER items_check AFTER UPDATE OF email ON items NOT DEFERRABLE INITIALLY IMMEDIATE FOR EACH ROW EXECUTE FUNCTION check_items();"
+                let targetSchema = sql "CREATE CONSTRAINT TRIGGER items_check AFTER UPDATE OF Email ON items FROM Entries FOR EACH ROW EXECUTE FUNCTION check_items();"
+                let actualSchema = sql "CREATE CONSTRAINT TRIGGER items_check AFTER UPDATE OF email ON items FROM entries NOT DEFERRABLE INITIALLY IMMEDIATE FOR EACH ROW EXECUTE FUNCTION check_items();"
 
                 diffSchemas targetSchema actualSchema `shouldBe` []
 

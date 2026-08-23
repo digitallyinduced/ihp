@@ -465,9 +465,10 @@ normalizeStatement CreatePolicy { name, action, tableName, using, check } = [ Cr
 normalizeStatement CreateIndex { columns, indexType, indexName, .. } = [ CreateIndex { columns = map normalizeIndexColumn columns, indexType = normalizeIndexType indexType, indexName = truncateIdentifier indexName, .. } ]
 normalizeStatement CreateFunction { .. } = [ CreateFunction { orReplace = False, language = Text.toUpper language, functionBody = removeIndentation $ normalizeNewLines functionBody, .. } ]
 normalizeStatement trigger@CreateTrigger { event } = [trigger { event = map normalizeTriggerEvent event }]
-normalizeStatement trigger@CreateConstraintTrigger { event, deferrable, deferrableType } =
+normalizeStatement trigger@CreateConstraintTrigger { event, referencedTableName, deferrable, deferrableType } =
     [ trigger
         { event = map normalizeTriggerEvent event
+        , referencedTableName = Text.toLower <$> referencedTableName
         , deferrable = if deferrable == Just False then Nothing else deferrable
         , deferrableType = if deferrableType == Just InitiallyImmediate then Nothing else deferrableType
         }
