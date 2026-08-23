@@ -12,6 +12,7 @@ import qualified Text.Megaparsec as Megaparsec
 import qualified IHP.Postgres.Parser as Parser
 import IHP.Postgres.Types
 import IHP.IDE.CodeGen.Types (GeneratorAction (..))
+import qualified Data.Text as Text
 
 tests = do
     describe "MigrationGenerator" do
@@ -151,6 +152,20 @@ tests = do
             it "reserves existing non-foreign-key constraint names" do
                 let targetSchema = sql "CREATE TABLE children (parent_id uuid, CONSTRAINT children_parent_id_fkey CHECK (parent_id IS NOT NULL)); ALTER TABLE children ADD FOREIGN KEY (parent_id) REFERENCES parents(id);"
                 let actualSchema = sql "CREATE TABLE children (parent_id uuid, CONSTRAINT children_parent_id_fkey CHECK (parent_id IS NOT NULL)); ALTER TABLE children ADD CONSTRAINT children_parent_id_fkey1 FOREIGN KEY (parent_id) REFERENCES parents(id);"
+
+                diffSchemas targetSchema actualSchema `shouldBe` []
+
+            it "reserves named primary keys before assigning foreign-key names" do
+                let targetSchema = sql "CREATE TABLE children (id uuid, parent_id uuid); ALTER TABLE children ADD CONSTRAINT children_parent_id_fkey PRIMARY KEY (id); ALTER TABLE children ADD FOREIGN KEY (parent_id) REFERENCES parents(id);"
+                let actualSchema = sql "CREATE TABLE children (id uuid, parent_id uuid); ALTER TABLE children ADD CONSTRAINT children_parent_id_fkey PRIMARY KEY (id); ALTER TABLE children ADD CONSTRAINT children_parent_id_fkey1 FOREIGN KEY (parent_id) REFERENCES parents(id);"
+
+                diffSchemas targetSchema actualSchema `shouldBe` []
+
+            it "truncates explicit foreign-key names by UTF-8 bytes" do
+                let targetName = Text.replicate 40 "é"
+                let actualName = Text.replicate 31 "é"
+                let targetSchema = sql ("ALTER TABLE children ADD CONSTRAINT \"" <> targetName <> "\" FOREIGN KEY (parent_id) REFERENCES parents(id);")
+                let actualSchema = sql ("ALTER TABLE children ADD CONSTRAINT \"" <> actualName <> "\" FOREIGN KEY (parent_id) REFERENCES parents(id);")
 
                 diffSchemas targetSchema actualSchema `shouldBe` []
 

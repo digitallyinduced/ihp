@@ -461,9 +461,9 @@ parseDumpedSql sql =
 normalizeSchema :: [Statement] -> [Statement]
 normalizeSchema statements = map normalizeStatement statements
         |> concat
+        |> normalizeForeignKeyNameCollisions
         |> normalizePrimaryKeys
         |> normalizeCompositeForeignKeyReferences
-        |> normalizeForeignKeyNameCollisions
 
 normalizeForeignKeyNameCollisions :: [Statement] -> [Statement]
 normalizeForeignKeyNameCollisions = go []
@@ -653,7 +653,7 @@ normalizeConstraint tableName constraint@(UniqueConstraint { name = Just uniqueN
 normalizeConstraint _ otherwise = otherwise
 
 normalizeForeignKeyName :: Text -> [Text] -> Maybe Text -> Maybe Text
-normalizeForeignKeyName _ _ name = truncateIdentifier <$> name
+normalizeForeignKeyName _ _ name = truncateUtf8ToBytes 63 <$> name
 
 -- PostgreSQL's makeObjectName balances truncation between the relation and
 -- column components, clips on a UTF-8 boundary, and always keeps the suffix.
