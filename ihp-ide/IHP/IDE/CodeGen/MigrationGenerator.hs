@@ -582,9 +582,7 @@ normalizeConstraint tableName constraint@(UniqueConstraint { name = Just uniqueN
 normalizeConstraint _ otherwise = otherwise
 
 normalizeForeignKeyName :: Text -> [Text] -> Maybe Text -> Maybe Text
-normalizeForeignKeyName tableName columnNames name
-    | name == Just defaultName = Nothing
-    | otherwise = truncateIdentifier <$> name
+normalizeForeignKeyName tableName columnNames name = Just (maybe defaultName truncateIdentifier name)
     where
         defaultName = truncateIdentifier (Text.intercalate "_" (map Text.toLower (tableName : columnNames)) <> "_fkey")
 
@@ -800,16 +798,35 @@ normalizePrimaryKeys statements = reverse $ normalizePrimaryKeys' [] statements
 -- > DROP TABLE a;
 --
 removeImplicitDeletions :: [Statement] -> [Statement] -> [Statement]
-removeImplicitDeletions actualSchema (statement@dropStatement:rest) | isDropStatement dropStatement = dependentTriggerDrops <> [statement] <> removeImplicitDeletions actualSchema filteredRest
+removeImplicitDeletions actualSchema (statement@dropStatement:rest) | isDropStatement dropStatement = dependentDrops <> [statement] <> removeImplicitDeletions actualSchema filteredRest
     where
-        dependentTriggerDrops = filter isDependentTriggerDrop rest
-        filteredRest = filter (\candidate -> candidate `notElem` dependentTriggerDrops && isImplicitlyDeleted candidate) rest
+        dependentDrops = filter isDependentDrop rest
+        filteredRest = filter (\candidate -> candidate `notElem` dependentDrops && isImplicitlyDeleted candidate) rest
+        isDependentDrop candidate = case dropColumnName of
+            Nothing -> isDependentTriggerDrop candidate
+            Just _ -> isDependentColumnDrop candidate
         isDependentTriggerDrop DropTrigger { name, tableName }
             | DropTable {} <- dropStatement = any (\case
                 CreateConstraintTrigger { name = triggerName, tableName = triggerTableName, referencedTableName = Just referencedTableName } ->
                     triggerName == name && triggerTableName == tableName && referencedTableName == dropTableName
                 _ -> False) actualSchema
         isDependentTriggerDrop _ = False
+        isDependentColumnDrop DropTrigger { name, tableName } = tableName == dropTableName || any (\case
+                CreateConstraintTrigger { name = triggerName, tableName = triggerTableName, referencedTableName = Just referencedTableName } ->
+                    triggerName == name && triggerTableName == tableName && referencedTableName == dropTableName
+                _ -> False) actualSchema
+        isDependentColumnDrop DropPolicy { tableName } = tableName == dropTableName
+        isDependentColumnDrop DropConstraint { tableName, constraintName } = any (\case
+                AddConstraint { tableName = actualTableName, constraint }
+                    | actualTableName == tableName
+                    , constraint.name == Just constraintName -> foreignKeyReferencesDroppedColumn constraint
+                _ -> False) actualSchema
+        isDependentColumnDrop _ = False
+        foreignKeyReferencesDroppedColumn ForeignKeyConstraint { referenceTable, referenceColumn }
+            | Just columnName <- dropColumnName = referenceTable == dropTableName && maybe True (== columnName) referenceColumn
+        foreignKeyReferencesDroppedColumn CompositeForeignKeyConstraint { referenceTable, referenceColumns }
+            | Just columnName <- dropColumnName = referenceTable == dropTableName && (null referenceColumns || columnName `elem` referenceColumns)
+        foreignKeyReferencesDroppedColumn _ = False
         isImplicitlyDeleted (DropIndex { indexName }) = case findIndexByName indexName of
                 Just CreateIndex { tableName = indexTableName, columns = indexColumns } -> indexTableName /= dropTableName && (
                         case dropColumnName of

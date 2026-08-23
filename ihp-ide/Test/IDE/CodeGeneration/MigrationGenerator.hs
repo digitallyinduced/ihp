@@ -1355,8 +1355,8 @@ CREATE POLICY "Users can read and edit their own record" ON public.users USING (
                     CREATE POLICY "Users can manage their artefacts" ON artefacts USING (user_id = ihp_user_id()) WITH CHECK (user_id = ihp_user_id());
                 |]
                 let migration = sql [i|
-                    ALTER TABLE artefacts DROP COLUMN user_id;
                     DROP POLICY "Users can manage their artefacts" ON artefacts;
+                    ALTER TABLE artefacts DROP COLUMN user_id;
                 |]
 
                 diffSchemas targetSchema actualSchema `shouldBe` migration
@@ -1468,11 +1468,20 @@ CREATE POLICY "Users can read and edit their own record" ON public.users USING (
                     );
                 |]
                 let migration = sql [i|
-                    ALTER TABLE posts DROP COLUMN updated_at;
                     DROP TRIGGER update_posts_updated_at ON posts;
+                    ALTER TABLE posts DROP COLUMN updated_at;
                 |]
 
                 diffSchemas targetSchema actualSchema `shouldBe` migration
+
+            it "drops a referencing foreign key before its target column" do
+                let targetSchema = sql "CREATE TABLE parents (id uuid); CREATE TABLE children (parent_id uuid);"
+                let actualSchema = sql "CREATE TABLE parents (id uuid, legacy_id uuid); CREATE TABLE children (parent_id uuid); ALTER TABLE children ADD CONSTRAINT children_parent_id_fkey FOREIGN KEY (parent_id) REFERENCES parents(legacy_id);"
+
+                diffSchemas targetSchema actualSchema `shouldBe`
+                    [ DropConstraint { tableName = "children", constraintName = "children_parent_id_fkey" }
+                    , DropColumn { tableName = "parents", columnName = "legacy_id" }
+                    ]
 
             it "should ignore did_update_.. triggers by IHP.PGListener" do
                 let actualSchema = sql $ cs [plain|

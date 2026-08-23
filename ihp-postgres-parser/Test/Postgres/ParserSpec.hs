@@ -551,6 +551,10 @@ spec = do
                     , arguments = []
                     }
 
+        it "should preserve schema-qualified constraint-trigger functions" do
+            let parsed = parseSql "CREATE CONSTRAINT TRIGGER check_entry AFTER INSERT ON entry_lines FOR EACH ROW EXECUTE FUNCTION private.check_entry();"
+            parsed.functionName `shouldBe` "private.check_entry"
+
         it "should parse UPDATE OF triggers" do
             parseSql "CREATE TRIGGER sync_signature AFTER UPDATE OF organization_id, domain ON documents FOR EACH ROW EXECUTE FUNCTION sync_signature();" `shouldBe`
                 CreateTrigger

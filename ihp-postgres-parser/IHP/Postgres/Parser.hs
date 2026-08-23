@@ -755,7 +755,7 @@ intExpr = IntExpression <$> (Lexer.signed spaceConsumer Lexer.decimal)
 
 callExpr :: Parser Expression
 callExpr = do
-    func <- qualifiedIdentifier
+    func <- functionIdentifier
     args <- between (char '(') (char ')') (expression `sepBy` (char ',' >> space))
     space
     pure (CallExpression func args)
