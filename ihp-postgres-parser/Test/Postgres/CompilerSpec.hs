@@ -242,6 +242,11 @@ spec = do
             compileSql [statement] `shouldBe` "CREATE TABLE \"tenant-a\".\"MixedUsers\" (\n\n);\n"
             parseSql (compileSql [statement]) `shouldBe` statement
 
+        it "does not split dots in ordinary quoted identifiers" do
+            let statement = StatementCreateTable (table "users")
+                    { columns = [(col "A.b" PText)] }
+            compileSql [statement] `shouldBe` "CREATE TABLE users (\n    \"A.b\" TEXT\n);\n"
+
         it "should round-trip a schema-qualified DROP TABLE" do
             let statement = DropTable { tableName = "private.users" }
             parseSql (compileSql [statement]) `shouldBe` statement
