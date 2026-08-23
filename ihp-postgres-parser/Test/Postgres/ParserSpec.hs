@@ -298,6 +298,25 @@ spec = do
                         ]
                     }
 
+        it "should keep function attribute keywords after SET commas" do
+            let sql = "CREATE FUNCTION uses_stable_schema() RETURNS uuid LANGUAGE sql SET search_path = public, stable AS $$SELECT 1;$$;"
+            parseSql sql `shouldBe` CreateFunction
+                    { functionName = "uses_stable_schema"
+                    , functionArguments = []
+                    , functionBody = "SELECT 1;"
+                    , orReplace = False
+                    , returns = PUUID
+                    , language = "sql"
+                    , securityDefiner = False
+                    , functionAttributes = []
+                    , functionSettings =
+                        [ FunctionSetting
+                            { settingName = "search_path"
+                            , settingValue = "public, stable"
+                            }
+                        ]
+                    }
+
         it "should parse pg_dump CREATE FUNCTION SET options with TO" do
             let sql = "CREATE OR REPLACE FUNCTION private.sync_access()\nRETURNS TRIGGER\nLANGUAGE plpgsql\nSECURITY DEFINER\nSET search_path TO 'public', 'private', 'pg_temp'\nAS $$BEGIN\n    RETURN NEW;\nEND;$$;"
             parseSql sql `shouldBe` CreateFunction

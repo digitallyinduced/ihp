@@ -926,9 +926,11 @@ parseFunctionSetting = do
     symbol' "SET"
     settingName <- qualifiedIdentifier
     symbol "=" <|> symbol' "TO"
-    settingValue <- Text.strip . cs <$> someTill anySingle (lookAhead functionOptionBoundary)
-    space
+    settingValue <- Text.intercalate ", " <$> settingValueItem `sepBy1` symbol ","
     pure (FunctionSettingOption FunctionSetting { settingName, settingValue })
+    where
+        settingValueItem = lexeme
+            ((fst <$> match textExpr') <|> takeWhile1P (Just "setting value") (\c -> not (isSpace c) && c /= ','))
 
 -- | Volatility, strictness, parallelism and cost attributes as printed by pg_dump.
 -- They affect function behaviour, so keep their canonical spelling in the AST
@@ -962,22 +964,6 @@ parseFunctionAttribute = do
             value <- takeWhile1P (Just "number") (\c -> isDigit c || c == '.')
             space
             pure (name <> " " <> value)
-
-functionOptionBoundary :: Parser ()
-functionOptionBoundary =
-    choice
-        [ try (space1 >> functionOptionBoundaryKeyword "LANGUAGE")
-        , try (space1 >> functionOptionBoundaryKeyword "SECURITY")
-        , try (space1 >> functionOptionBoundaryKeyword "SET")
-        , try (space1 >> functionOptionBoundaryKeyword "AS")
-        , try (space1 >> functionAttributeBoundary)
-        ]
-
-functionAttributeBoundary :: Parser ()
-functionAttributeBoundary = choice (map (try . functionOptionBoundaryKeyword)
-    [ "IMMUTABLE", "STABLE", "VOLATILE", "LEAKPROOF", "WINDOW", "STRICT"
-    , "NOT", "CALLED", "RETURNS", "PARALLEL", "COST", "ROWS"
-    ])
 
 functionOptionBoundaryKeyword :: Text -> Parser ()
 functionOptionBoundaryKeyword keyword = do
