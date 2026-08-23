@@ -538,8 +538,8 @@ normalizeStatement trigger@CreateConstraintTrigger { name, event, tableName, ref
     [ trigger
         { name = Text.toLower name
         , event = map normalizeTriggerEvent event
-        , tableName = Text.toLower tableName
-        , referencedTableName = Text.toLower <$> referencedTableName
+        , tableName
+        , referencedTableName
         , whenCondition = normalizeTriggerExpression <$> whenCondition
         , deferrable = if deferrable == Just False then Nothing else deferrable
         , deferrableType = if deferrableType == Just InitiallyImmediate then Nothing else deferrableType

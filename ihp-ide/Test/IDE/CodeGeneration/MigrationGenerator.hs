@@ -182,6 +182,11 @@ tests = do
 
                 diffSchemas targetSchema actualSchema `shouldBe` []
 
+            it "preserves quoted constraint trigger relation names" do
+                let targetSchema = sql "CREATE CONSTRAINT TRIGGER audit AFTER INSERT ON \"Entries\" FROM \"AuditRows\" FOR EACH ROW EXECUTE FUNCTION check_entries();"
+
+                diffSchemas targetSchema [] `shouldBe` targetSchema
+
             it "preserves semantic casts in trigger conditions" do
                 let targetSchema = sql "CREATE TRIGGER items_check BEFORE UPDATE ON items FOR EACH ROW WHEN ((NEW.value::citext) = 'x') EXECUTE FUNCTION check_items();"
                 let actualSchema = sql "CREATE TRIGGER items_check BEFORE UPDATE ON items FOR EACH ROW WHEN ((NEW.value::text) = 'x'::text) EXECUTE FUNCTION check_items();"

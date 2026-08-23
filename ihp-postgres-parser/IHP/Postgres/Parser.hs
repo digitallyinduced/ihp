@@ -1002,8 +1002,8 @@ createConstraintTrigger = do
     eventWhen <- (lexeme "AFTER" >> pure After) <|> (lexeme "BEFORE" >> pure Before) <|> (lexeme "INSTEAD OF" >> pure InsteadOf)
     event <- triggerEvent `sepBy1` lexeme "OR"
     lexeme "ON"
-    tableName <- qualifiedIdentifier
-    referencedTableName <- optional (lexeme "FROM" >> functionIdentifier)
+    tableName <- foldingQualifiedIdentifier
+    referencedTableName <- optional (lexeme "FROM" >> foldingQualifiedIdentifier)
     deferrable <- optional parseDeferrable
     deferrableType <- optional parseDeferrableType
     lexeme "FOR"
@@ -1234,6 +1234,26 @@ qualifiedIdentifier = do
         Just name
             | schemaOrName == "public" -> name
             | otherwise -> schemaOrName <> "." <> name
+
+-- | Parses identifiers whose unquoted spelling should be folded by PostgreSQL
+-- while retaining the exact spelling of quoted components.
+foldingQualifiedIdentifier :: Parser Text
+foldingQualifiedIdentifier = do
+    schemaOrName <- foldingIdentifier
+    maybeName <- optional (char '.' >> foldingIdentifier)
+    pure $ case maybeName of
+        Nothing -> schemaOrName
+        Just name
+            | schemaOrName == "public" -> name
+            | otherwise -> schemaOrName <> "." <> name
+    where
+        foldingIdentifier = do
+            value <- quotedIdentifier <|> unquotedIdentifier
+            space
+            pure value
+        quotedIdentifier = Text.pack <$> between (char '"') (char '"') (some quotedIdentifierCharacter)
+        quotedIdentifierCharacter = try (string "\"\"" $> '"') <|> anySingleBut '"'
+        unquotedIdentifier = Text.toLower <$> takeWhile1P (Just "identifier") (\c -> isAlphaNum c || c == '_')
 
 -- | Parses a (possibly schema-qualified) function name.
 --
