@@ -392,6 +392,7 @@ parseExcludeConstraint name = do
 
         excludeElementChunk =
             try dollarQuotedChunk
+            <|> try escapeStringChunk
             <|> quotedChunk '\''
             <|> quotedChunk '"'
             <|> (fst <$> match (Lexer.skipLineComment "--"))
@@ -417,6 +418,12 @@ parseExcludeConstraint name = do
             char quote
             many (try (char quote >> char quote) <|> anySingleBut quote)
             char quote
+
+        escapeStringChunk = fst <$> match do
+            oneOf ['e', 'E']
+            char '\''
+            many (try (char '\\' >> anySingle) <|> try (char '\'' >> char '\'') <|> anySingleBut '\'')
+            char '\''
 
         parseCommutativeInfixOperator = lexeme do
             try identifier <|> takeWhile1P (Just "operator") (`elem` ("+-*/<>=~!@#%^&|`?" :: String))

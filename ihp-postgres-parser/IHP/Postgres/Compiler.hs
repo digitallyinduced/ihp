@@ -166,7 +166,13 @@ compileExpression (ExistsExpression a) = "EXISTS " <> compileExpressionWithOptio
 compileExpression (DotExpression a b) = compileExpressionWithOptionalParenthese a <> "." <> compileIdentifier b
 compileExpression (ConcatenationExpression a b) = compileExpressionWithOptionalParenthese a <> " || " <> compileExpressionWithOptionalParenthese b
 compileExpression (BinaryOperatorExpression "ESCAPE" patternExpression escapeCharacter) = compileExpression patternExpression <> " ESCAPE " <> compileExpressionWithOptionalParenthese escapeCharacter
-compileExpression (BinaryOperatorExpression operator a b) = compileExpressionWithOptionalParenthese a <> " " <> operator <> " " <> compileExpressionWithOptionalParenthese b
+compileExpression (BinaryOperatorExpression operator a b) = compileBinaryOperatorOperand a <> " " <> operator <> " " <> compileBinaryOperatorOperand b
+
+compileBinaryOperatorOperand :: Expression -> Text
+compileBinaryOperatorOperand expression@(EqExpression {}) = "(" <> compileExpression expression <> ")"
+compileBinaryOperatorOperand expression@(IsExpression {}) = "(" <> compileExpression expression <> ")"
+compileBinaryOperatorOperand expression@(ConcatenationExpression {}) = "(" <> compileExpression expression <> ")"
+compileBinaryOperatorOperand expression = compileExpressionWithOptionalParenthese expression
 
 compileEqualityOperand :: Expression -> Text
 compileEqualityOperand expression@(IsExpression {}) = "(" <> compileExpression expression <> ")"

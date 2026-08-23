@@ -568,6 +568,11 @@ spec = do
             parseExpression "lhs ^@ rhs" `shouldBe`
                 BinaryOperatorExpression "^@" (VarExpression "lhs") (VarExpression "rhs")
 
+        it "should ignore WITH inside PostgreSQL escape strings in exclusion elements" do
+            let parsed = parseSql "CREATE TABLE bookings (EXCLUDE (room_id || E'foo\\' WITH bar' WITH =));"
+            parsed.unsafeGetCreateTable.constraints `shouldBe`
+                [ExcludeConstraint Nothing [ExcludeConstraintElement "room_id || E'foo\\' WITH bar'" "="] Nothing Nothing]
+
         it "should parse BETWEEN and NOT IN" do
             parseExpression "month BETWEEN 1 AND 12" `shouldBe`
                 AndExpression

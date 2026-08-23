@@ -277,6 +277,10 @@ spec = do
                     (TextExpression "!")
             compileExpression expression `shouldBe` "code LIKE 'A!_%' ESCAPE '!'"
 
+        it "should parenthesize comparisons used by generic operators" do
+            let expression = BinaryOperatorExpression "##" (EqExpression (VarExpression "a") (VarExpression "b")) (VarExpression "flag")
+            compileExpression expression `shouldBe` "(a = b) ## flag"
+
         it "should round-trip a schema-qualified CREATE FUNCTION" do
             -- parse -> compile -> parse must preserve a non-public schema like `private.`
             let statement = CreateFunction
