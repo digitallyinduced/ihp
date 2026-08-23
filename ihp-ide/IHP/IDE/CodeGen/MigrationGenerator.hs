@@ -507,7 +507,9 @@ normalizeStatement otherwise = [otherwise]
 normalizeSequenceOptions :: [SequenceOption] -> [SequenceOption]
 normalizeSequenceOptions options = sortOn sequenceOptionKind (filter (not . isImplicitSequenceOption implicitStart) options)
     where
-        implicitStart = if any isDescendingIncrement options then -1 else 1
+        implicitStart
+            | any isDescendingIncrement options = fromMaybe (IntExpression (-1)) (listToMaybe [value | SequenceMaxValue value <- options])
+            | otherwise = fromMaybe (IntExpression 1) (listToMaybe [value | SequenceMinValue value <- options])
         isDescendingIncrement (SequenceIncrement (IntExpression value)) = value < 0
         isDescendingIncrement _ = False
 
@@ -523,8 +525,8 @@ sequenceOptionKind = \case
     SequenceCache {} -> 5
     SequenceCycle {} -> 6
 
-isImplicitSequenceOption :: Int -> SequenceOption -> Bool
-isImplicitSequenceOption implicitStart (SequenceStart (IntExpression value)) = value == implicitStart
+isImplicitSequenceOption :: Expression -> SequenceOption -> Bool
+isImplicitSequenceOption implicitStart (SequenceStart value) = value == implicitStart
 isImplicitSequenceOption _ (SequenceAs PBigInt) = True
 isImplicitSequenceOption _ (SequenceIncrement (IntExpression 1)) = True
 isImplicitSequenceOption _ SequenceNoMinValue = True

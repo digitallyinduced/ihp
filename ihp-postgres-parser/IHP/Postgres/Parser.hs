@@ -247,7 +247,7 @@ createExtension = do
     name <- qualifiedIdentifier
     optional (lexeme "WITH")
     schema <- optional (lexeme "SCHEMA" >> identifier)
-    version <- optional (lexeme "VERSION" >> (textExpr' <|> identifier))
+    version <- optional (lexeme "VERSION" >> (lexeme textExpr' <|> identifier))
     cascade <- isJust <$> optional (lexeme "CASCADE")
     char ';'
     let extensionOptions = maybe [] ((:[]) . ExtensionSchema) schema <> maybe [] ((:[]) . ExtensionVersion) version <> [ExtensionCascade | cascade]
