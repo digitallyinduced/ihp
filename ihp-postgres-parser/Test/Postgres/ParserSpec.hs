@@ -317,6 +317,39 @@ spec = do
                         ]
                     }
 
+        it "should parse SQL-escaped quotes in function settings" do
+            let sql = "CREATE FUNCTION configured() RETURNS uuid LANGUAGE sql SET application_name = 'it''s enabled' AS $$SELECT 1;$$;"
+            parseSql sql `shouldBe` CreateFunction
+                    { functionName = "configured"
+                    , functionArguments = []
+                    , functionBody = "SELECT 1;"
+                    , orReplace = False
+                    , returns = PUUID
+                    , language = "sql"
+                    , securityDefiner = False
+                    , functionAttributes = []
+                    , functionSettings =
+                        [ FunctionSetting
+                            { settingName = "application_name"
+                            , settingValue = "'it''s enabled'"
+                            }
+                        ]
+                    }
+
+        it "should parse exponent notation in numeric function attributes" do
+            let sql = "CREATE FUNCTION estimated() RETURNS uuid LANGUAGE sql COST 1e-6 ROWS 1E6 AS $$SELECT 1;$$;"
+            parseSql sql `shouldBe` CreateFunction
+                    { functionName = "estimated"
+                    , functionArguments = []
+                    , functionBody = "SELECT 1;"
+                    , orReplace = False
+                    , returns = PUUID
+                    , language = "sql"
+                    , securityDefiner = False
+                    , functionAttributes = ["COST 1e-6", "ROWS 1E6"]
+                    , functionSettings = []
+                    }
+
         it "should parse pg_dump CREATE FUNCTION SET options with TO" do
             let sql = "CREATE OR REPLACE FUNCTION private.sync_access()\nRETURNS TRIGGER\nLANGUAGE plpgsql\nSECURITY DEFINER\nSET search_path TO 'public', 'private', 'pg_temp'\nAS $$BEGIN\n    RETURN NEW;\nEND;$$;"
             parseSql sql `shouldBe` CreateFunction

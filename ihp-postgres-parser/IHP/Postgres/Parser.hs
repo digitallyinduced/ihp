@@ -930,7 +930,11 @@ parseFunctionSetting = do
     pure (FunctionSettingOption FunctionSetting { settingName, settingValue })
     where
         settingValueItem = lexeme
-            ((fst <$> match textExpr') <|> takeWhile1P (Just "setting value") (\c -> not (isSpace c) && c /= ','))
+            (singleQuotedSettingValue <|> takeWhile1P (Just "setting value") (\c -> not (isSpace c) && c /= ','))
+        singleQuotedSettingValue = fst <$> match do
+            char '\''
+            _ <- many (try (string "''") <|> (Text.singleton <$> satisfy (/= '\'')))
+            char '\''
 
 -- | Volatility, strictness, parallelism and cost attributes as printed by pg_dump.
 -- They affect function behaviour, so keep their canonical spelling in the AST
@@ -961,7 +965,18 @@ parseFunctionAttribute = do
         keywordPrefix value = try (functionOptionBoundaryKeyword value)
         numericAttribute name = try do
             functionOptionBoundaryKeyword name
-            value <- takeWhile1P (Just "number") (\c -> isDigit c || c == '.')
+            value <- fst <$> match do
+                _ <- some digitChar
+                optional do
+                    char '.'
+                    _ <- some digitChar
+                    pure ()
+                optional do
+                    oneOf ['e', 'E']
+                    optional (oneOf ['+', '-'])
+                    _ <- some digitChar
+                    pure ()
+                pure ()
             space
             pure (name <> " " <> value)
 
