@@ -1422,6 +1422,12 @@ CREATE POLICY "Users can read and edit their own record" ON public.users USING (
                     , language = "PLPGSQL"
                     }]
 
+            it "preserves quoted custom type names while normalizing functions" do
+                let schema = sql "CREATE FUNCTION widgets(value private.\"Widget\") RETURNS SETOF private.\"Widget\" LANGUAGE sql AS $$SELECT value;$$;"
+                let normalizedSchema = sql "CREATE FUNCTION widgets(value private.\"Widget\") RETURNS SETOF private.\"Widget\" LANGUAGE SQL AS $$SELECT value;$$;"
+
+                normalizeSchema schema `shouldBe` normalizedSchema
+
             it "should delete the updated_at trigger when the updated_at column is deleted" do
                 -- https://github.com/digitallyinduced/ihp/issues/1630
                 let actualSchema = sql $ cs [plain|

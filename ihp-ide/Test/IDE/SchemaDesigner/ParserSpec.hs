@@ -714,7 +714,7 @@ tests = do
         it "should parse pgvector column types with dimensions" do
             parseSql "ALTER TABLE knowledge_chunks ADD COLUMN embedding VECTOR(1536) DEFAULT NULL;" `shouldBe` AddColumn
                     { tableName = "knowledge_chunks"
-                    , column = (col "embedding" (PCustomType "VECTOR(1536)")) { defaultValue = Just (VarExpression "NULL") }
+                    , column = (col "embedding" (PCustomType "vector(1536)")) { defaultValue = Just (VarExpression "NULL") }
                     }
 
         it "should parse pgvector HNSW indexes with operator classes" do

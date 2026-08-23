@@ -662,7 +662,7 @@ sqlType = choice $ map optionalArray
                 unquotedTypeIdentifier = do
                     first <- satisfy (\character -> isAlpha character || character == '_')
                     rest <- many (satisfy (\character -> isAlphaNum character || character == '_' || character == '$'))
-                    pure (Text.pack (first : rest))
+                    pure (Text.toLower (Text.pack (first : rest)))
 
 
 intervalFields :: [Text]

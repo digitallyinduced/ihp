@@ -462,7 +462,7 @@ normalizeStatement AddConstraint { tableName, constraint, deferrable, deferrable
 normalizeStatement CreateEnumType { name, values } = [ CreateEnumType { name = Text.toLower name, values = map Text.toLower values } ]
 normalizeStatement CreatePolicy { name, action, tableName, using, check } = [ CreatePolicy { name = truncateIdentifier name, tableName, using = (unqualifyExpression tableName . normalizeExpression) <$> using, check = (unqualifyExpression tableName . normalizeExpression) <$> check, action = normalizePolicyAction action } ]
 normalizeStatement CreateIndex { columns, indexType, indexName, .. } = [ CreateIndex { columns = map normalizeIndexColumn columns, indexType = normalizeIndexType indexType, indexName = truncateIdentifier indexName, .. } ]
-normalizeStatement CreateFunction { .. } = [ CreateFunction { orReplace = False, language = normalizedLanguage, functionAttributes = normalizedFunctionAttributes, functionBody = removeIndentation $ normalizeNewLines functionBody, .. } ]
+normalizeStatement CreateFunction { functionArguments, returns, .. } = [ CreateFunction { orReplace = False, language = normalizedLanguage, functionArguments = map (\(name, type_) -> (name, normalizeSqlType type_)) functionArguments, returns = normalizeSqlType returns, functionAttributes = normalizedFunctionAttributes, functionBody = removeIndentation $ normalizeNewLines functionBody, .. } ]
     where
         normalizedLanguage = Text.toUpper language
         normalizedFunctionAttributes = sortOn functionAttributeOrder (filter (not . isDefaultFunctionAttribute) (map normalizeFunctionAttribute functionAttributes))
@@ -736,12 +736,22 @@ resolveAlias (Just alias) fromExpression expression =
 resolveAlias Nothing fromExpression expression = expression
 
 normalizeSqlType :: PostgresType -> PostgresType
-normalizeSqlType (PCustomType customType) = PCustomType (Text.toLower customType)
+normalizeSqlType (PCustomType customType) = PCustomType (normalizeCustomType customType)
 normalizeSqlType (PSetOf type_) = PSetOf (normalizeSqlType type_)
 normalizeSqlType (PTable columns) = PTable (map (\(name, type_) -> (Text.toLower name, normalizeSqlType type_)) columns)
 normalizeSqlType PBigserial = PBigInt
 normalizeSqlType PSerial = PInt
 normalizeSqlType otherwise = otherwise
+
+normalizeCustomType :: Text -> Text
+normalizeCustomType = Text.pack . normalize False . Text.unpack
+    where
+        normalize _ [] = []
+        normalize True ('"' : '"' : rest) = '"' : '"' : normalize True rest
+        normalize quoted ('"' : rest) = '"' : normalize (not quoted) rest
+        normalize False rest@('(' : _) = rest
+        normalize True (character : rest) = character : normalize True rest
+        normalize False (character : rest) = Char.toLower character : normalize False rest
 
 -- | Returns every migration file created by a generation plan.
 migrationPathsFromPlan :: [GeneratorAction] -> [Text]

@@ -202,13 +202,13 @@ spec = do
         it "should parse pgvector column types with dimensions" do
             parseSql "ALTER TABLE knowledge_chunks ADD COLUMN embedding VECTOR(1536) DEFAULT NULL;" `shouldBe` AddColumn
                     { tableName = "knowledge_chunks"
-                    , column = (col "embedding" (PCustomType "VECTOR(1536)")) { defaultValue = Just (VarExpression "NULL") }
+                    , column = (col "embedding" (PCustomType "vector(1536)")) { defaultValue = Just (VarExpression "NULL") }
                     }
 
         it "should preserve custom type modifier contents" do
             parseSql "ALTER TABLE knowledge_chunks ADD COLUMN embedding VECTOR( 1536 ) DEFAULT NULL;" `shouldBe` AddColumn
                     { tableName = "knowledge_chunks"
-                    , column = (col "embedding" (PCustomType "VECTOR( 1536 )")) { defaultValue = Just (VarExpression "NULL") }
+                    , column = (col "embedding" (PCustomType "vector( 1536 )")) { defaultValue = Just (VarExpression "NULL") }
                     }
 
         it "should parse pgvector HNSW indexes with operator classes" do
@@ -365,6 +365,12 @@ spec = do
         it "should parse schema-qualified set-returning custom types" do
             let parsed = parseSql "CREATE FUNCTION widgets() RETURNS SETOF private.widget LANGUAGE sql AS $$SELECT NULL;$$;"
             parsed.returns `shouldBe` PSetOf (PCustomType "private.widget")
+
+        it "should fold only unquoted custom type identifiers" do
+            let unquoted = parseSql "CREATE FUNCTION widgets() RETURNS SETOF Private.Widget(CustomCase) LANGUAGE sql AS $$SELECT NULL;$$;"
+            let quoted = parseSql "CREATE FUNCTION widgets() RETURNS SETOF private.\"Widget\" LANGUAGE sql AS $$SELECT NULL;$$;"
+            unquoted.returns `shouldBe` PSetOf (PCustomType "private.widget(CustomCase)")
+            quoted.returns `shouldBe` PSetOf (PCustomType "private.\"Widget\"")
 
         it "should parse schema-qualified custom types in RETURNS TABLE" do
             let parsed = parseSql "CREATE FUNCTION widgets() RETURNS TABLE (widget private.widget) LANGUAGE sql AS $$SELECT NULL;$$;"
