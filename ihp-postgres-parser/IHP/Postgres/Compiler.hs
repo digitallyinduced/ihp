@@ -227,7 +227,10 @@ compilePostgresType PEventTrigger = "EVENT_TRIGGER"
 compilePostgresType (PCustomType theType) = theType
 
 compileIdentifier :: Text -> Text
-compileIdentifier identifier = if identifierNeedsQuoting then tshow identifier else identifier
+compileIdentifier identifier
+    | Text.any (== '.') identifier = Text.intercalate "." (map compileIdentifier (Text.splitOn "." identifier))
+    | identifierNeedsQuoting = tshow identifier
+    | otherwise = identifier
     where
         identifierNeedsQuoting = isKeyword || containsChar ' ' || containsChar '-' || isUsingUppercase
         isKeyword = Text.toUpper identifier `elem` keywords

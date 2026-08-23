@@ -459,6 +459,9 @@ spec = do
         it "should parse 'DROP TABLE ..' statements" do
             parseSql "DROP TABLE tasks;" `shouldBe` DropTable { tableName = "tasks" }
 
+        it "should parse a schema-qualified DROP TABLE" do
+            parseSql "DROP TABLE private.tasks;" `shouldBe` DropTable { tableName = "private.tasks" }
+
         it "should parse 'DROP TYPE ..' statements" do
             parseSql "DROP TYPE colors;" `shouldBe` DropEnumType { name = "colors" }
 

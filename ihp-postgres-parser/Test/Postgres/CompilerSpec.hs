@@ -237,6 +237,15 @@ spec = do
             let statement = StatementCreateTable (table "private.users")
             parseSql (compileSql [statement]) `shouldBe` statement
 
+        it "should quote qualified identifier components independently" do
+            let statement = StatementCreateTable (table "tenant-a.MixedUsers")
+            compileSql [statement] `shouldBe` "CREATE TABLE \"tenant-a\".\"MixedUsers\" (\n\n);\n"
+            parseSql (compileSql [statement]) `shouldBe` statement
+
+        it "should round-trip a schema-qualified DROP TABLE" do
+            let statement = DropTable { tableName = "private.users" }
+            parseSql (compileSql [statement]) `shouldBe` statement
+
         it "should round-trip a schema-qualified CREATE FUNCTION" do
             -- parse -> compile -> parse must preserve a non-public schema like `private.`
             let statement = CreateFunction

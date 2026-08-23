@@ -1211,7 +1211,7 @@ renameTable tableName = do
 dropTable = do
     lexeme "DROP"
     lexeme "TABLE"
-    tableName <- identifier
+    tableName <- qualifiedIdentifier
     char ';'
     pure DropTable { tableName }
 
