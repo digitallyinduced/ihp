@@ -454,6 +454,21 @@ normalizeSchema :: [Statement] -> [Statement]
 normalizeSchema statements = map normalizeStatement statements
         |> concat
         |> normalizePrimaryKeys
+        |> normalizeCompositeForeignKeyReferences
+
+normalizeCompositeForeignKeyReferences :: [Statement] -> [Statement]
+normalizeCompositeForeignKeyReferences statements = map resolveReferenceColumns statements
+    where
+        resolveReferenceColumns statement@(AddConstraint { constraint = constraint@CompositeForeignKeyConstraint { referenceTable, referenceColumns = [] } }) =
+            statement { constraint = constraint { referenceColumns = referencedPrimaryKey referenceTable } }
+        resolveReferenceColumns statement = statement
+
+        referencedPrimaryKey referenceTable = fromMaybe [] do
+            StatementCreateTable { unsafeGetCreateTable = CreateTable { primaryKeyConstraint = PrimaryKeyConstraint { primaryKeyColumnNames } } } <- find isReferencedTable statements
+            pure primaryKeyColumnNames
+            where
+                isReferencedTable StatementCreateTable { unsafeGetCreateTable = CreateTable { name } } = name == referenceTable
+                isReferencedTable _ = False
 
 normalizeStatement :: Statement -> [Statement]
 normalizeStatement StatementCreateTable { unsafeGetCreateTable = table } = StatementCreateTable { unsafeGetCreateTable = normalizedTable } : normalizeTableRest
@@ -778,8 +793,16 @@ normalizePrimaryKeys statements = reverse $ normalizePrimaryKeys' [] statements
 -- > DROP TABLE a;
 --
 removeImplicitDeletions :: [Statement] -> [Statement] -> [Statement]
-removeImplicitDeletions actualSchema (statement@dropStatement:rest) | isDropStatement dropStatement = statement:(filter isImplicitlyDeleted rest)
+removeImplicitDeletions actualSchema (statement@dropStatement:rest) | isDropStatement dropStatement = dependentTriggerDrops <> [statement] <> removeImplicitDeletions actualSchema filteredRest
     where
+        dependentTriggerDrops = filter isDependentTriggerDrop rest
+        filteredRest = filter (\candidate -> candidate `notElem` dependentTriggerDrops && isImplicitlyDeleted candidate) rest
+        isDependentTriggerDrop DropTrigger { name, tableName }
+            | DropTable {} <- dropStatement = any (\case
+                CreateConstraintTrigger { name = triggerName, tableName = triggerTableName, referencedTableName = Just referencedTableName } ->
+                    triggerName == name && triggerTableName == tableName && referencedTableName == dropTableName
+                _ -> False) actualSchema
+        isDependentTriggerDrop _ = False
         isImplicitlyDeleted (DropIndex { indexName }) = case findIndexByName indexName of
                 Just CreateIndex { tableName = indexTableName, columns = indexColumns } -> indexTableName /= dropTableName && (
                         case dropColumnName of

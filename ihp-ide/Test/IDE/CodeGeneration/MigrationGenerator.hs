@@ -98,6 +98,21 @@ tests = do
 
                 diffSchemas targetSchema actualSchema `shouldBe` []
 
+            it "resolves omitted composite reference columns from the parent primary key" do
+                let targetSchema = sql "CREATE TABLE parents (tenant_id uuid, id uuid, PRIMARY KEY (tenant_id, id)); CREATE TABLE children (tenant_id uuid, parent_id uuid); ALTER TABLE children ADD FOREIGN KEY (tenant_id, parent_id) REFERENCES parents;"
+                let actualSchema = sql "CREATE TABLE parents (tenant_id uuid, id uuid, PRIMARY KEY (tenant_id, id)); CREATE TABLE children (tenant_id uuid, parent_id uuid); ALTER TABLE children ADD FOREIGN KEY (tenant_id, parent_id) REFERENCES parents (tenant_id, id);"
+
+                diffSchemas targetSchema actualSchema `shouldBe` []
+
+            it "drops FROM-dependent constraint triggers before their referenced table" do
+                let targetSchema = sql "CREATE TABLE entries ();"
+                let actualSchema = sql "CREATE TABLE accounts (); CREATE TABLE entries (); CREATE CONSTRAINT TRIGGER entries_accounts AFTER INSERT ON entries FROM accounts FOR EACH ROW EXECUTE FUNCTION check_entries();"
+
+                diffSchemas targetSchema actualSchema `shouldBe`
+                    [ DropTrigger { name = "entries_accounts", tableName = "entries" }
+                    , DropTable { tableName = "accounts" }
+                    ]
+
             it "normalizes constraint trigger defaults and UPDATE OF identifiers" do
                 let targetSchema = sql "CREATE CONSTRAINT TRIGGER items_check AFTER UPDATE OF Email ON items FROM Entries FOR EACH ROW WHEN (OLD.Email <> NEW.Email) EXECUTE FUNCTION check_items();"
                 let actualSchema = sql "CREATE CONSTRAINT TRIGGER items_check AFTER UPDATE OF email ON items FROM entries NOT DEFERRABLE INITIALLY IMMEDIATE FOR EACH ROW WHEN (OLD.email <> NEW.email) EXECUTE FUNCTION check_items();"
