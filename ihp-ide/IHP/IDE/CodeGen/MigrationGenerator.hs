@@ -8,6 +8,8 @@ module IHP.IDE.CodeGen.MigrationGenerator where
 import IHP.Prelude
 import qualified System.Directory as Directory
 import qualified Data.Text as Text
+import qualified Data.Text.Encoding as TextEncoding
+import qualified Data.ByteString as ByteString
 import qualified Data.Time.Clock.POSIX as POSIX
 import qualified IHP.NameSupport as NameSupport
 import qualified Data.Char as Char
@@ -480,13 +482,16 @@ normalizeStatement CreatePolicy { name, action, tableName, using, check } = [ Cr
 normalizeStatement CreateIndex { columns, indexType, indexName, .. } = [ CreateIndex { columns = map normalizeIndexColumn columns, indexType = normalizeIndexType indexType, indexName = truncateIdentifier indexName, .. } ]
 normalizeStatement CreateFunction { .. } = [ CreateFunction { orReplace = False, language = Text.toUpper language, functionBody = removeIndentation $ normalizeNewLines functionBody, .. } ]
 normalizeStatement trigger@CreateTrigger { event, whenCondition } = [trigger { event = map normalizeTriggerEvent event, whenCondition = normalizeTriggerExpression <$> whenCondition }]
-normalizeStatement trigger@CreateConstraintTrigger { event, referencedTableName, deferrable, deferrableType, whenCondition } =
+normalizeStatement trigger@CreateConstraintTrigger { name, event, tableName, referencedTableName, deferrable, deferrableType, whenCondition, functionName } =
     [ trigger
-        { event = map normalizeTriggerEvent event
+        { name = Text.toLower name
+        , event = map normalizeTriggerEvent event
+        , tableName = Text.toLower tableName
         , referencedTableName = Text.toLower <$> referencedTableName
         , whenCondition = normalizeTriggerExpression <$> whenCondition
         , deferrable = if deferrable == Just False then Nothing else deferrable
         , deferrableType = if deferrableType == Just InitiallyImmediate then Nothing else deferrableType
+        , functionName = Text.toLower functionName
         }
     ]
 normalizeStatement otherwise = [otherwise]
@@ -584,7 +589,36 @@ normalizeConstraint _ otherwise = otherwise
 normalizeForeignKeyName :: Text -> [Text] -> Maybe Text -> Maybe Text
 normalizeForeignKeyName tableName columnNames name = Just (maybe defaultName truncateIdentifier name)
     where
-        defaultName = truncateIdentifier (Text.intercalate "_" (map Text.toLower (tableName : columnNames)) <> "_fkey")
+        defaultName = postgresGeneratedObjectName
+            (Text.toLower tableName)
+            (Text.intercalate "_" (map Text.toLower columnNames))
+            "fkey"
+
+-- PostgreSQL's makeObjectName balances truncation between the relation and
+-- column components, clips on a UTF-8 boundary, and always keeps the suffix.
+postgresGeneratedObjectName :: Text -> Text -> Text -> Text
+postgresGeneratedObjectName firstName secondName suffix =
+    truncateUtf8ToBytes firstBytes firstName
+        <> "_" <> truncateUtf8ToBytes secondBytes secondName
+        <> "_" <> suffix
+    where
+        availableBytes = 63 - utf8Length suffix - 2
+        (firstBytes, secondBytes) = balance (utf8Length firstName) (utf8Length secondName)
+
+        balance firstLength secondLength
+            | firstLength + secondLength <= availableBytes = (firstLength, secondLength)
+            | firstLength > secondLength = balance (firstLength - 1) secondLength
+            | otherwise = balance firstLength (secondLength - 1)
+
+        truncateUtf8ToBytes byteLimit = Text.pack . go byteLimit . Text.unpack
+        go _ [] = []
+        go remaining (character : rest)
+            | characterBytes <= remaining = character : go (remaining - characterBytes) rest
+            | otherwise = []
+            where
+                characterBytes = utf8Length (Text.singleton character)
+
+        utf8Length = ByteString.length . TextEncoding.encodeUtf8
 
 normalizeMatchType :: Maybe ForeignKeyMatchType -> Maybe ForeignKeyMatchType
 normalizeMatchType (Just MatchSimple) = Nothing

@@ -110,6 +110,12 @@ tests = do
 
                 diffSchemas targetSchema actualSchema `shouldBe` []
 
+            it "preserves the suffix of long PostgreSQL-generated foreign key names" do
+                let targetSchema = sql "ALTER TABLE very_long_child_table_name_for_foreign_key ADD FOREIGN KEY (very_long_parent_reference_column) REFERENCES parents (id);"
+                let actualSchema = sql "ALTER TABLE very_long_child_table_name_for_foreign_key ADD CONSTRAINT very_long_child_table_name_fo_very_long_parent_reference_c_fkey FOREIGN KEY (very_long_parent_reference_column) REFERENCES parents (id);"
+
+                diffSchemas targetSchema actualSchema `shouldBe` []
+
             it "normalizes resolved composite primary key identifiers" do
                 let targetSchema = sql "CREATE TABLE parents (Tenant_ID uuid, ID uuid, PRIMARY KEY (Tenant_ID, ID)); CREATE TABLE children (tenant_id uuid, parent_id uuid); ALTER TABLE children ADD FOREIGN KEY (tenant_id, parent_id) REFERENCES parents;"
                 let actualSchema = sql "CREATE TABLE parents (tenant_id uuid, id uuid, PRIMARY KEY (tenant_id, id)); CREATE TABLE children (tenant_id uuid, parent_id uuid); ALTER TABLE children ADD CONSTRAINT children_tenant_id_parent_id_fkey FOREIGN KEY (tenant_id, parent_id) REFERENCES parents (tenant_id, id);"
@@ -128,6 +134,12 @@ tests = do
             it "normalizes constraint trigger defaults and UPDATE OF identifiers" do
                 let targetSchema = sql "CREATE CONSTRAINT TRIGGER items_check AFTER UPDATE OF Email ON items FROM Entries FOR EACH ROW WHEN (OLD.Email <> NEW.Email) EXECUTE FUNCTION check_items();"
                 let actualSchema = sql "CREATE CONSTRAINT TRIGGER items_check AFTER UPDATE OF email ON items FROM entries NOT DEFERRABLE INITIALLY IMMEDIATE FOR EACH ROW WHEN (OLD.email <> NEW.email) EXECUTE FUNCTION check_items();"
+
+                diffSchemas targetSchema actualSchema `shouldBe` []
+
+            it "normalizes unquoted constraint trigger identifiers" do
+                let targetSchema = sql "CREATE CONSTRAINT TRIGGER Audit AFTER INSERT ON Entries FROM Accounts FOR EACH ROW EXECUTE FUNCTION Check_Entries();"
+                let actualSchema = sql "CREATE CONSTRAINT TRIGGER audit AFTER INSERT ON entries FROM accounts FOR EACH ROW EXECUTE FUNCTION check_entries();"
 
                 diffSchemas targetSchema actualSchema `shouldBe` []
 
