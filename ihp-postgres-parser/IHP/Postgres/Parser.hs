@@ -381,9 +381,15 @@ parseExcludeConstraint name = do
     pure ExcludeConstraint { name, excludeElements, predicate, indexType }
     where
         excludeElement = do
-            element <- Text.stripEnd . mconcat <$> someTill excludeElementChunk (try (space1 >> string' "WITH" <* notFollowedBy (satisfy isIdentifierCharacter) <* space))
+            element <- Text.stripEnd . mconcat <$> someTill excludeElementChunk withDelimiter
             operator <- parseCommutativeInfixOperator
             pure ExcludeConstraintElement { element, operator }
+
+        withDelimiter = try do
+            optional space1
+            string' "WITH"
+            notFollowedBy (satisfy isIdentifierCharacter)
+            space
 
         excludeElementChunk =
             try dollarQuotedChunk
@@ -391,7 +397,12 @@ parseExcludeConstraint name = do
             <|> quotedChunk '"'
             <|> (fst <$> match (Lexer.skipLineComment "--"))
             <|> (fst <$> match (Lexer.skipBlockCommentNested "/*" "*/"))
+            <|> identifierChunk
             <|> (Text.singleton <$> anySingle)
+
+        identifierChunk = fst <$> match do
+            _ <- satisfy (\character -> isAlpha character || character == '_')
+            takeWhileP Nothing isIdentifierCharacter
 
         dollarQuotedChunk :: Parser Text
         dollarQuotedChunk = fst <$> match do
@@ -722,6 +733,7 @@ table = highPrecedenceTable <> genericOperatorTable <>
               [ Postfix (foldl1 (flip (.)) <$> some (typeCastOp <|> dotOp))
               ]
             , [ keywordOperator "AT TIME ZONE" ]
+            , [ operator "^" ]
             , [ operator "*", operator "/", operator "%" ]
             , [ operator "+", minusOperator ]
             ]
@@ -794,7 +806,7 @@ table = highPrecedenceTable <> genericOperatorTable <>
             pure $ \expr -> AndExpression (GreaterThanOrEqualToExpression expr lower) (LessThanOrEqualToExpression expr upper)
 
         boundExpression = do
-            value <- makeExprParser term (highPrecedenceTable <> genericOperatorTable)
+            value <- makeExprParser term (highPrecedenceTable <> genericOperatorTable <> [[binary "||" ConcatenationExpression]])
             space
             pure value
 

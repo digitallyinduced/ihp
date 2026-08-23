@@ -496,6 +496,12 @@ spec = do
                     (VarExpression "a")
                     (BinaryOperatorExpression "*" (VarExpression "b") (VarExpression "c"))
 
+        it "should give exponentiation tighter precedence than multiplication" do
+            parseExpression "2 * 3 ^ 2" `shouldBe`
+                BinaryOperatorExpression "*"
+                    (IntExpression 2)
+                    (BinaryOperatorExpression "^" (IntExpression 3) (IntExpression 2))
+
         it "should parse regular expression operators" do
             parseExpression "code ~ '^[A-Z]{3}$'" `shouldBe`
                 BinaryOperatorExpression "~" (VarExpression "code") (TextExpression "^[A-Z]{3}$")
@@ -552,6 +558,12 @@ spec = do
                 AndExpression
                     (GreaterThanOrEqualToExpression (VarExpression "value") (BinaryOperatorExpression "->>" (VarExpression "bounds") (TextExpression "lower")))
                     (LessThanOrEqualToExpression (VarExpression "value") (BinaryOperatorExpression "->>" (VarExpression "bounds") (TextExpression "upper")))
+
+        it "should parse concatenation in BETWEEN bounds" do
+            parseExpression "value BETWEEN prefix || suffix AND upper" `shouldBe`
+                AndExpression
+                    (GreaterThanOrEqualToExpression (VarExpression "value") (ConcatenationExpression (VarExpression "prefix") (VarExpression "suffix")))
+                    (LessThanOrEqualToExpression (VarExpression "value") (VarExpression "upper"))
 
         it "should give AT TIME ZONE precedence over comparisons" do
             parseExpression "cutoff < created_at AT TIME ZONE 'UTC'" `shouldBe`
@@ -683,6 +695,17 @@ spec = do
                             }
                         ]
                     }
+
+        it "should accept punctuation before the exclusion WITH delimiter" do
+            let parsed = parseSql "CREATE TABLE reservations (EXCLUDE ((lower(room_id))WITH=));"
+            parsed.unsafeGetCreateTable.constraints `shouldBe`
+                [ ExcludeConstraint
+                    { name = Nothing
+                    , excludeElements = [ExcludeConstraintElement { element = "(lower(room_id))", operator = "=" }]
+                    , predicate = Nothing
+                    , indexType = Nothing
+                    }
+                ]
 
         it "should cast the operand rather than the sum" do
             parseExpression "a::integer + 1" `shouldBe`
