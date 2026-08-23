@@ -595,6 +595,12 @@ tests = do
 
                 normalizeSchema targetSchema `shouldBe` actualSchema
 
+            it "truncates literal policy roles before comparison" do
+                let targetSchema = sql "CREATE POLICY access ON tickets TO aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa;"
+                let actualSchema = sql "CREATE POLICY access ON tickets TO aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa;"
+
+                diffSchemas targetSchema actualSchema `shouldBe` []
+
             it "resolves context-dependent policy roles before comparison" do
                 let targetSchema = sql "CREATE POLICY access ON tickets TO CURRENT_ROLE, CURRENT_USER, SESSION_USER;"
                 let actualSchema = sql "CREATE POLICY access ON tickets TO migration_role, app_user, \"Session User\";"

@@ -538,8 +538,10 @@ normalizePolicyRoles roles
     where
         isPublicRole (SpecialPolicyRole role) = Text.toUpper role == "PUBLIC"
         isPublicRole _ = False
+        normalizeLiteralRole (PolicyRole role) = PolicyRole (truncateIdentifier role)
         normalizeLiteralRole (QuotedPolicyRole role)
-            | role == Text.toLower role && not (isSpecialPolicyRoleName role) = PolicyRole role
+            | role == Text.toLower role && not (isSpecialPolicyRoleName role) = PolicyRole (truncateIdentifier role)
+            | otherwise = QuotedPolicyRole (truncateIdentifier role)
         normalizeLiteralRole role = role
 
 isSpecialPolicyRoleName :: Text -> Bool

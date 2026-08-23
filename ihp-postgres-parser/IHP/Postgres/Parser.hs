@@ -1171,7 +1171,11 @@ policyRole = quotedRole <|> unquotedRole
             let upperRole = Text.toUpper role
             pure if upperRole `elem` ["PUBLIC", "CURRENT_ROLE", "CURRENT_USER", "SESSION_USER"]
                 then SpecialPolicyRole upperRole
-                else PolicyRole (Text.toLower role)
+                else PolicyRole (foldAscii role)
+        foldAscii = Text.map \character ->
+            if character >= 'A' && character <= 'Z'
+                then toLower character
+                else character
 
 policyAction =
     (lexeme "ALL" >> pure PolicyForAll)
