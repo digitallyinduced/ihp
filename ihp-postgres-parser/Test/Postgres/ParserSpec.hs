@@ -563,6 +563,26 @@ spec = do
                     , functionName = "sync_signature"
                     , arguments = []
                     }
+        it "should ignore a comment inside a statement" do
+            parseSql "CREATE TABLE users (\n    id UUID PRIMARY KEY, -- surrogate key\n    email TEXT NOT NULL /* the login */\n);" `shouldBe`
+                StatementCreateTable (table "users")
+                    { columns = [col "id" PUUID, (col "email" PText) { notNull = True }]
+                    , primaryKeyConstraint = PrimaryKeyConstraint ["id"]
+                    }
+
+        it "should keep a comment between two statements as its own statement" do
+            parseSqlStatements "CREATE TABLE a ();\n-- about b\nCREATE TABLE b ();" `shouldBe`
+                [ StatementCreateTable (table "a")
+                , Comment { content = " about b" }
+                , StatementCreateTable (table "b")
+                ]
+
+        it "should keep the comment behind a pg_dump restrict fence" do
+            parseSqlStatements "\\restrict aBcD1\n-- kept\nCREATE TABLE a ();" `shouldBe`
+                [ Comment { content = "" }
+                , Comment { content = " kept" }
+                , StatementCreateTable (table "a")
+                ]
 
 parseSql :: Text -> Statement
 parseSql sql = let [statement] = parseSqlStatements sql in statement
