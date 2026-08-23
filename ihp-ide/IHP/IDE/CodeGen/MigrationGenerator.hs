@@ -123,10 +123,45 @@ diffAppDatabase includeIHPSchema databaseUrl = do
             then parseIHPSchema
             else pure (Right [])
     actualSchema <- getAppDBSchema databaseUrl
+    policyRoleContext <- getPolicyRoleContext databaseUrl
 
-    let targetSchema = ihpSchemaSql <> schemaSql
+    let targetSchema = resolveContextDependentPolicyRoles policyRoleContext (ihpSchemaSql <> schemaSql)
 
     pure (diffSchemas targetSchema actualSchema)
+
+data PolicyRoleContext = PolicyRoleContext
+    { policyCurrentRole :: Text
+    , policyCurrentUser :: Text
+    , policySessionUser :: Text
+    }
+
+getPolicyRoleContext :: Text -> IO PolicyRoleContext
+getPolicyRoleContext databaseUrl = do
+    output <- Text.stripEnd . cs <$> Process.readProcess "psql"
+        [ "--no-psqlrc"
+        , "--tuples-only"
+        , "--no-align"
+        , "--field-separator=\t"
+        , cs databaseUrl
+        , "--command"
+        , "SELECT current_role, current_user, session_user"
+        ] []
+    case Text.splitOn "\t" output of
+        [policyCurrentRole, policyCurrentUser, policySessionUser] -> pure PolicyRoleContext { policyCurrentRole, policyCurrentUser, policySessionUser }
+        _ -> fail "Could not resolve PostgreSQL policy role context"
+
+resolveContextDependentPolicyRoles :: PolicyRoleContext -> [Statement] -> [Statement]
+resolveContextDependentPolicyRoles context = map \case
+    policy@CreatePolicy { roles } -> policy { roles = map resolveRole roles }
+    statement -> statement
+    where
+        resolveRole (SpecialPolicyRole "CURRENT_ROLE") = resolvedRole context.policyCurrentRole
+        resolveRole (SpecialPolicyRole "CURRENT_USER") = resolvedRole context.policyCurrentUser
+        resolveRole (SpecialPolicyRole "SESSION_USER") = resolvedRole context.policySessionUser
+        resolveRole role = role
+        resolvedRole role
+            | role == Text.toLower role = PolicyRole role
+            | otherwise = QuotedPolicyRole role
 
 parseIHPSchema :: IO (Either ByteString [Statement])
 parseIHPSchema = do
@@ -464,13 +499,24 @@ normalizeStatement StatementCreateTable { unsafeGetCreateTable = table } = State
         (normalizedTable, normalizeTableRest) = normalizeTable table
 normalizeStatement AddConstraint { tableName, constraint, deferrable, deferrableType } = [ AddConstraint { tableName, constraint = normalizeConstraint tableName constraint, deferrable, deferrableType } ]
 normalizeStatement CreateEnumType { name, values } = [ CreateEnumType { name = Text.toLower name, values = map Text.toLower values } ]
-normalizeStatement CreatePolicy { name, action, tableName, roles, using, check } = [ CreatePolicy { name = truncateIdentifier name, tableName, roles, using = (unqualifyExpression tableName . normalizeExpression) <$> using, check = (unqualifyExpression tableName . normalizeExpression) <$> check, action = normalizePolicyAction action } ]
+normalizeStatement CreatePolicy { name, action, tableName, roles, using, check } = [ CreatePolicy { name = truncateIdentifier name, tableName, roles = normalizePolicyRoles roles, using = (unqualifyExpression tableName . normalizeExpression) <$> using, check = (unqualifyExpression tableName . normalizeExpression) <$> check, action = normalizePolicyAction action } ]
 normalizeStatement CreateIndex { columns, indexType, indexName, .. } = [ CreateIndex { columns = map normalizeIndexColumn columns, indexType = normalizeIndexType indexType, indexName = truncateIdentifier indexName, .. } ]
 normalizeStatement CreateFunction { .. } = [ CreateFunction { orReplace = False, language = Text.toUpper language, functionBody = removeIndentation $ normalizeNewLines functionBody, .. } ]
 normalizeStatement otherwise = [otherwise]
 
 normalizePolicyAction (Just PolicyForAll) = Nothing
 normalizePolicyAction otherwise = otherwise
+
+normalizePolicyRoles :: [PolicyRole] -> [PolicyRole]
+normalizePolicyRoles roles
+    | any isPublicRole roles = []
+    | otherwise = map normalizeLiteralRole roles
+    where
+        isPublicRole (SpecialPolicyRole role) = Text.toUpper role == "PUBLIC"
+        isPublicRole _ = False
+        normalizeLiteralRole (QuotedPolicyRole role)
+            | role == Text.toLower role = PolicyRole role
+        normalizeLiteralRole role = role
 
 normalizeTable :: CreateTable -> (CreateTable, [Statement])
 normalizeTable table@(CreateTable { .. }) = ( CreateTable { columns = fst normalizedColumns, constraints = normalizedTableConstraints, .. }, (concat $ (snd normalizedColumns)) <> normalizedConstraintsStatements )

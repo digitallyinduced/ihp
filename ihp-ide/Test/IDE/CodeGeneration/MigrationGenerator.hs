@@ -578,6 +578,23 @@ tests = do
 
                 diffSchemas targetSchema actualSchema `shouldBe` migration
 
+            it "normalizes explicit PUBLIC to PostgreSQL's omitted policy role" do
+                let targetSchema = sql "CREATE POLICY access ON tickets TO PUBLIC;"
+                let actualSchema = sql "CREATE POLICY access ON tickets;"
+
+                diffSchemas targetSchema actualSchema `shouldBe` []
+
+            it "resolves context-dependent policy roles before comparison" do
+                let targetSchema = sql "CREATE POLICY access ON tickets TO CURRENT_ROLE, CURRENT_USER, SESSION_USER;"
+                let actualSchema = sql "CREATE POLICY access ON tickets TO migration_role, app_user, \"Session User\";"
+                let context = PolicyRoleContext
+                        { policyCurrentRole = "migration_role"
+                        , policyCurrentUser = "app_user"
+                        , policySessionUser = "Session User"
+                        }
+
+                diffSchemas (resolveContextDependentPolicyRoles context targetSchema) actualSchema `shouldBe` []
+
             it "should normalize primary keys" do
                 let targetSchema = sql [i|
                     CREATE TABLE users (
