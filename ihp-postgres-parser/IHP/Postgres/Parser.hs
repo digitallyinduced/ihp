@@ -30,7 +30,8 @@ import qualified Data.List as List
 import Control.Monad (when)
 import Text.Megaparsec
 import Data.Void
-import Text.Megaparsec.Char
+import Text.Megaparsec.Char hiding (space)
+import qualified Text.Megaparsec.Char as Char
 import qualified Text.Megaparsec.Char.Lexer as Lexer
 import System.OsPath (OsPath, decodeUtf)
 import Control.Monad.Combinators.Expr
@@ -207,11 +208,26 @@ dropDollarQuoted delimiter (_ : rest) = dropDollarQuoted delimiter rest
 
 type Parser = Parsec Void Text
 
+-- | Whitespace between two tokens of the same statement.
+--
+-- PostgreSQL's line comment is @--@, not @\/\/@, so an inline comment such as
+-- @id UUID PRIMARY KEY, -- surrogate key@ used to stop the parser mid statement
+-- even though the server accepts it.
+--
+-- At statement level a @--@ comment is not trivia: 'comment' turns it into a
+-- 'Comment' statement so the schema keeps it. 'statement' and 'parseDDL'
+-- therefore consume plain whitespace with 'Char.space' and leave comments for
+-- 'comment' to claim.
 spaceConsumer :: Parser ()
 spaceConsumer = Lexer.space
     space1
-    (Lexer.skipLineComment "//")
+    (Lexer.skipLineComment "--")
     (Lexer.skipBlockComment "/*" "*/")
+
+-- | Whitespace inside a statement, where a comment is trivia. Shadows
+-- 'Char.space' so that every statement parser gets comment handling.
+space :: Parser ()
+space = spaceConsumer
 
 lexeme :: Parser a -> Parser a
 lexeme = Lexer.lexeme spaceConsumer
@@ -226,16 +242,16 @@ stringLiteral :: Parser String
 stringLiteral = char '\'' *> manyTill Lexer.charLiteral (char '\'')
 
 parseDDL :: Parser [Statement]
-parseDDL = optional space >> (manyTill statement eof)
+parseDDL = optional Char.space >> (manyTill statement eof)
 
 statement = do
-    space
+    Char.space
     let create = try createExtension <|> try (StatementCreateTable <$> createTable) <|> try createIndex <|> try createFunction <|> try createTrigger <|> try createEnumType <|> try createPolicy <|> try createSequence
     let alter = do
             lexeme "ALTER"
             alterTable <|> alterType <|> alterSequence
     s <- setStatement <|> create <|> alter <|> selectStatement <|> try opaqueStatement <|> try doStatement <|> try dropTable <|> try dropIndex <|> try dropPolicy <|> try dropFunction <|> try dropType <|> dropTrigger <|> commentStatement <|> comment <|> begin <|> commit <|> restrict <|> unrestrict
-    space
+    Char.space
     pure s
 
 
@@ -1432,12 +1448,18 @@ removeTypeCasts :: Expression -> Expression
 removeTypeCasts (TypeCastExpression value _) = value
 removeTypeCasts otherwise = otherwise
 
+-- | pg_dump 17.5 and later fence their output with @\restrict <key>@. The key is
+-- read with 'restrictKey' rather than 'identifier' because 'identifier' consumes
+-- the trivia behind it, and here that trivia is the next statement: a comment.
 restrict = do
     lexeme "\\restrict"
-    key <- identifier
+    key <- restrictKey
     pure Comment { content = "" }
 
 unrestrict = do
     lexeme "\\unrestrict"
-    key <- identifier
+    key <- restrictKey
     pure Comment { content = "" }
+
+restrictKey :: Parser Text
+restrictKey = takeWhile1P (Just "restrict key") (\c -> isAlphaNum c || c == '_')
