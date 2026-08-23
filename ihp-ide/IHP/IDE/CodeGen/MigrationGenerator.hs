@@ -212,7 +212,7 @@ diffSchemas targetSchema' actualSchema' = (drop <> create)
                 changedActualOptions = filter (not . hasMatchingOption desiredOptions) actualOptions
                 hasMatchingOption options option = any ((== sequenceOptionKind option) . sequenceOptionKind) options
                 resetOption SequenceAs {} = Just (SequenceAs PBigInt)
-                resetOption SequenceStart {} = Just (SequenceStart (IntExpression implicitStart))
+                resetOption SequenceStart {} = Just (SequenceStart implicitStart)
                 resetOption SequenceIncrement {} = Just (SequenceIncrement (IntExpression 1))
                 resetOption SequenceMinValue {} = Just SequenceNoMinValue
                 resetOption SequenceMaxValue {} = Just SequenceNoMaxValue
@@ -221,11 +221,13 @@ diffSchemas targetSchema' actualSchema' = (drop <> create)
                 resetOption _ = Nothing
                 targetDirection = sequenceDirection targetOptions
                 actualDirection = sequenceDirection actualOptions
-                implicitStart = if targetDirection < 0 then -1 else 1
+                implicitStart
+                    | targetDirection < 0 = fromMaybe (IntExpression (-1)) (listToMaybe [value | SequenceMaxValue value <- targetOptions])
+                    | otherwise = fromMaybe (IntExpression 1) (listToMaybe [value | SequenceMinValue value <- targetOptions])
                 directionDefaults
                     | targetDirection == actualDirection = []
                     | otherwise = filter (not . hasMatchingOption targetOptions)
-                        [ SequenceStart (IntExpression implicitStart)
+                        [ SequenceStart implicitStart
                         , SequenceNoMinValue
                         , SequenceNoMaxValue
                         ]
