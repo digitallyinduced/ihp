@@ -525,22 +525,26 @@ normalizeTable table@(CreateTable { .. }) = ( CreateTable { columns = fst normal
         -- >     id uuid DEFAULT public.uuid_generate_v4() NOT NULL
         -- > );
         -- > ALTER TABLE a ADD CONSTRAINT c CHECK 1=1;
-        normalizedCheckConstraints :: [Either Statement Constraint]
-        normalizedCheckConstraints = constraints
+        normalizedDetachedConstraints :: [Either Statement Constraint]
+        normalizedDetachedConstraints = constraints
                 |> map \case
-                    checkConstraint@(CheckConstraint {}) -> Left AddConstraint { tableName = name, constraint = checkConstraint, deferrable = Nothing, deferrableType = Nothing }
+                    constraint@(CheckConstraint {}) -> detach constraint
+                    constraint@(ForeignKeyConstraint {}) -> detach constraint
+                    constraint@(CompositeForeignKeyConstraint {}) -> detach constraint
                     otherConstraint -> Right otherConstraint
+            where
+                detach constraint = Left AddConstraint { tableName = name, constraint = normalizeConstraint name constraint, deferrable = Nothing, deferrableType = Nothing }
 
         normalizedTableConstraints :: [Constraint]
         normalizedTableConstraints =
-            normalizedCheckConstraints
+            normalizedDetachedConstraints
             |> mapMaybe \case
                 Left _ -> Nothing
                 Right c -> Just c
 
         normalizedConstraintsStatements :: [Statement]
         normalizedConstraintsStatements =
-            normalizedCheckConstraints
+            normalizedDetachedConstraints
             |> mapMaybe \case
                 Right _ -> Nothing
                 Left c -> Just c
