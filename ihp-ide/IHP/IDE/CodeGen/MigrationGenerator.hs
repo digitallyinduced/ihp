@@ -249,6 +249,7 @@ diffSchemas targetSchema' actualSchema' = (drop <> create)
         toDropStatement CreateFunction { functionName } = Just DropFunction { functionName }
         toDropStatement CreateTrigger { name, tableName } = Just DropTrigger { name, tableName }
         toDropStatement CreateEventTrigger { name } = Just DropEventTrigger { name }
+        toDropStatement ForceRowLevelSecurity { tableName } = Just NoForceRowLevelSecurity { tableName }
         toDropStatement otherwise = Nothing
 
 

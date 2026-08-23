@@ -244,6 +244,15 @@ spec = do
                     ]
             parseSqlStatements (compileSql statements) `shouldBe` statements
 
+        it "preserves special policy roles and NO FORCE" do
+            let statements =
+                    [ NoForceRowLevelSecurity { tableName = "tickets" }
+                    , (policy "access" "tickets")
+                        { roles = ["current_role", "CURRENT_USER", "session_user"]
+                        }
+                    ]
+            compileSql statements `shouldBe` "ALTER TABLE tickets NO FORCE ROW LEVEL SECURITY;\nCREATE POLICY \"access\" ON tickets TO CURRENT_ROLE, CURRENT_USER, SESSION_USER;\n"
+
         it "should round-trip a schema-qualified CREATE FUNCTION" do
             -- parse -> compile -> parse must preserve a non-public schema like `private.`
             let statement = CreateFunction

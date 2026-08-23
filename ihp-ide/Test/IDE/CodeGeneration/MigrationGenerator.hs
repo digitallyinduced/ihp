@@ -74,6 +74,12 @@ tests = do
             it "should handle an empty schema" do
                 diffSchemas [] [] `shouldBe` []
 
+            it "removes FORCE ROW LEVEL SECURITY when absent from the target" do
+                let actualSchema = sql "ALTER TABLE tickets FORCE ROW LEVEL SECURITY;"
+                let migration = sql "ALTER TABLE tickets NO FORCE ROW LEVEL SECURITY;"
+
+                diffSchemas [] actualSchema `shouldBe` migration
+
             it "should handle a new table" do
                 let targetSchema = sql [i|
                     CREATE TABLE users (

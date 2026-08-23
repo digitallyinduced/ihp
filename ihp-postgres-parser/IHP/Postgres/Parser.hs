@@ -1037,7 +1037,7 @@ alterTable = do
     let alter = do
             lexeme "ALTER"
             alterColumn tableName
-    enableRowLevelSecurity tableName <|> forceRowLevelSecurity tableName <|> add <|> drop <|> rename <|> alter
+    enableRowLevelSecurity tableName <|> noForceRowLevelSecurity tableName <|> forceRowLevelSecurity tableName <|> add <|> drop <|> rename <|> alter
 
 alterType = do
     lexeme "TYPE"
@@ -1104,6 +1104,15 @@ forceRowLevelSecurity tableName = do
     lexeme "SECURITY"
     char ';'
     pure ForceRowLevelSecurity { tableName }
+
+noForceRowLevelSecurity tableName = do
+    lexeme "NO"
+    lexeme "FORCE"
+    lexeme "ROW"
+    lexeme "LEVEL"
+    lexeme "SECURITY"
+    char ';'
+    pure NoForceRowLevelSecurity { tableName }
 
 createPolicy = do
     lexeme "CREATE"

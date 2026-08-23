@@ -46,6 +46,7 @@ compileStatement CreateIndex { indexName, unique, tableName, columns, whereClaus
 compileStatement CreateFunction { functionName, functionArguments, functionBody, orReplace, returns, language, securityDefiner, functionSettings } = "CREATE " <> (if orReplace then "OR REPLACE " else "") <> "FUNCTION " <> functionName <> "(" <> (functionArguments & map (\(argName, argType) -> argName <> " " <> compilePostgresType argType) & intercalate  ", ") <> ")" <> " RETURNS " <> compilePostgresType returns <> (if securityDefiner then " SECURITY DEFINER" else "") <> mconcat (map compileFunctionSetting functionSettings) <> " AS $$" <> functionBody <> "$$ language " <> language <> ";"
 compileStatement EnableRowLevelSecurity { tableName } = "ALTER TABLE " <> compileIdentifier tableName <> " ENABLE ROW LEVEL SECURITY;"
 compileStatement ForceRowLevelSecurity { tableName } = "ALTER TABLE " <> compileIdentifier tableName <> " FORCE ROW LEVEL SECURITY;"
+compileStatement NoForceRowLevelSecurity { tableName } = "ALTER TABLE " <> compileIdentifier tableName <> " NO FORCE ROW LEVEL SECURITY;"
 compileStatement CreatePolicy { name, action, tableName, roles, using, check } = "CREATE POLICY " <> compileIdentifier name <> " ON " <> compileIdentifier tableName <> maybe "" (\action -> " FOR " <> compilePolicyAction action) action <> (if null roles then "" else " TO " <> intercalate ", " (map compilePolicyRole roles)) <> maybe "" (\expr -> " USING (" <> compileExpression expr <> ")") using <> maybe "" (\expr -> " WITH CHECK (" <> compileExpression expr <> ")") check <> ";"
 compileStatement CreateSequence { name } = "CREATE SEQUENCE " <> compileIdentifier name <> ";"
 compileStatement DropConstraint { tableName, constraintName } = "ALTER TABLE " <> compileIdentifier tableName <> " DROP CONSTRAINT " <> compileIdentifier constraintName <> ";"
@@ -505,8 +506,10 @@ compilePolicyAction PolicyForDelete = "DELETE"
 
 compilePolicyRole :: Text -> Text
 compilePolicyRole role
-    | Text.toUpper role == "PUBLIC" = "PUBLIC"
+    | upperRole `elem` ["PUBLIC", "CURRENT_ROLE", "CURRENT_USER", "SESSION_USER"] = upperRole
     | otherwise = compileIdentifier role
+    where
+        upperRole = Text.toUpper role
 
 compileGenerator :: ColumnGenerator -> Text
 compileGenerator ColumnGenerator { generate, stored } =

@@ -480,6 +480,10 @@ spec = do
             parseSql "ALTER TABLE tickets FORCE ROW LEVEL SECURITY;" `shouldBe`
                 ForceRowLevelSecurity { tableName = "tickets" }
 
+        it "should parse NO FORCE ROW LEVEL SECURITY" do
+            parseSql "ALTER TABLE tickets NO FORCE ROW LEVEL SECURITY;" `shouldBe`
+                NoForceRowLevelSecurity { tableName = "tickets" }
+
 parseSql :: Text -> Statement
 parseSql sql = let [statement] = parseSqlStatements sql in statement
 

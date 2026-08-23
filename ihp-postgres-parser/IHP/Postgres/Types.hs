@@ -40,6 +40,7 @@ data Statement
     -- | ALTER TABLE tableName ENABLE ROW LEVEL SECURITY;
     | EnableRowLevelSecurity { tableName :: Text }
     | ForceRowLevelSecurity { tableName :: Text }
+    | NoForceRowLevelSecurity { tableName :: Text }
     -- CREATE POLICY name ON tableName USING using WITH CHECK check;
     | CreatePolicy { name :: Text, tableName :: Text, action :: Maybe PolicyAction, roles :: [Text], using :: Maybe Expression, check :: Maybe Expression }
     -- SET name = value;
