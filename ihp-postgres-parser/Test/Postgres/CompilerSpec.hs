@@ -247,6 +247,22 @@ spec = do
                     { columns = [(col "A.b" PText)] }
             compileSql [statement] `shouldBe` "CREATE TABLE users (\n    \"A.b\" TEXT\n);\n"
 
+        it "round-trips schema-qualified enum types" do
+            let statement = CreateEnumType { name = "private.status", values = ["active"] }
+            parseSql (compileSql [statement]) `shouldBe` statement
+
+        it "keeps dotted CREATE INDEX names as single identifiers" do
+            let statement = CreateIndex
+                    { indexName = "audit.v1"
+                    , unique = False
+                    , tableName = "users"
+                    , columns = [indexCol (VarExpression "id")]
+                    , whereClause = Nothing
+                    , indexType = Nothing
+                    , nullsDistinct = True
+                    }
+            compileSql [statement] `shouldBe` "CREATE INDEX \"audit.v1\" ON users (id);\n"
+
         it "should round-trip a schema-qualified DROP TABLE" do
             let statement = DropTable { tableName = "private.users" }
             parseSql (compileSql [statement]) `shouldBe` statement

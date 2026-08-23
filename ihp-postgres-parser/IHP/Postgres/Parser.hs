@@ -291,10 +291,7 @@ createTable = do
 createEnumType = do
     lexeme "CREATE"
     lexeme "TYPE"
-    optional do
-        lexeme "public"
-        char '.'
-    name <- identifier
+    name <- qualifiedIdentifier
     lexeme "AS"
     lexeme "ENUM"
     values <- between (char '(' >> space) (space >> char ')' >> space) (textExpr' `sepBy` (char ',' >> space))
