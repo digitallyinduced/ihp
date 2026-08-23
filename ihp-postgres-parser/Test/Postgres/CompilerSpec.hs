@@ -262,6 +262,20 @@ spec = do
                     }
             parseSql (compileSql [statement]) `shouldBe` statement
 
+        it "should round-trip TRANSFORM attributes for qualified custom types" do
+            let statement = CreateFunction
+                    { functionName = "transformed"
+                    , functionArguments = [("value", PCustomType "private.widget")]
+                    , functionBody = "BEGIN RETURN value; END;"
+                    , orReplace = False
+                    , returns = PCustomType "private.widget"
+                    , language = "plpgsql"
+                    , securityDefiner = False
+                    , functionAttributes = ["TRANSFORM FOR TYPE private.widget"]
+                    , functionSettings = []
+                    }
+            parseSql (compileSql [statement]) `shouldBe` statement
+
         it "should round-trip a quoted SUPPORT function identifier" do
             let statement = CreateFunction
                     { functionName = "supported"

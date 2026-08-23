@@ -484,6 +484,7 @@ normalizeStatement CreateFunction { .. } = [ CreateFunction { orReplace = False,
             _ -> False
         normalizeFunctionAttribute attribute
             | Just supportFunction <- Text.stripPrefix "SUPPORT " attribute = "SUPPORT " <> supportFunction
+            | Just typeName <- Text.stripPrefix "TRANSFORM FOR TYPE " attribute = "TRANSFORM FOR TYPE " <> typeName
             | Just value <- Text.stripPrefix "COST " normalizedAttribute = "COST " <> canonicalNumeric value
             | Just value <- Text.stripPrefix "ROWS " normalizedAttribute = "ROWS " <> canonicalNumeric value
             | otherwise = case normalizedAttribute of
@@ -519,7 +520,8 @@ normalizeStatement CreateFunction { .. } = [ CreateFunction { orReplace = False,
             | "COST " `Text.isPrefixOf` attribute = 6
             | "ROWS " `Text.isPrefixOf` attribute = 7
             | "SUPPORT " `Text.isPrefixOf` attribute = 8
-            | otherwise = 9
+            | "TRANSFORM FOR TYPE " `Text.isPrefixOf` attribute = 9
+            | otherwise = 10
 normalizeStatement otherwise = [otherwise]
 
 normalizePolicyAction (Just PolicyForAll) = Nothing

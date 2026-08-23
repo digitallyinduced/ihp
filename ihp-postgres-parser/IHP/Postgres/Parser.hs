@@ -634,10 +634,7 @@ sqlType = choice $ map optionalArray
                     pure PEventTrigger
 
                 customType = do
-                    optional do
-                        lexeme "public"
-                        char '.'
-                    theType <- try (takeWhile1P (Just "Custom type") (\c -> isAlphaNum c || c == '_'))
+                    theType <- sourceQualifiedTypeIdentifier
                     -- Custom typmods are flat here; nested parenthesized
                     -- modifiers are not supported by this parser.
                     typeModifier <- optional $ try do
@@ -647,6 +644,25 @@ sqlType = choice $ map optionalArray
                         space
                         pure value
                     pure (PCustomType (maybe theType (\value -> theType <> "(" <> value <> ")") typeModifier))
+
+                sourceQualifiedTypeIdentifier = do
+                    schemaOrName <- sourceTypeIdentifier
+                    maybeName <- optional (char '.' >> sourceTypeIdentifier)
+                    pure case maybeName of
+                        Nothing -> schemaOrName
+                        Just name
+                            | schemaOrName == "public" || schemaOrName == "\"public\"" -> name
+                            | otherwise -> schemaOrName <> "." <> name
+
+                sourceTypeIdentifier = quotedTypeIdentifier <|> unquotedTypeIdentifier
+                quotedTypeIdentifier = fst <$> match do
+                    char '"'
+                    _ <- many (try (string "\"\"" $> ()) <|> (anySingleBut '"' $> ()))
+                    char '"'
+                unquotedTypeIdentifier = do
+                    first <- satisfy (\character -> isAlpha character || character == '_')
+                    rest <- many (satisfy (\character -> isAlphaNum character || character == '_' || character == '$'))
+                    pure (Text.pack (first : rest))
 
 
 intervalFields :: [Text]
@@ -986,6 +1002,7 @@ parseFunctionAttribute = do
         , numericAttribute "COST"
         , numericAttribute "ROWS"
         , supportAttribute
+        , transformAttribute
         ]
     where
         keyword value = try (functionOptionBoundaryKeyword value) $> value
@@ -1008,6 +1025,12 @@ parseFunctionAttribute = do
             functionOptionBoundaryKeyword "SUPPORT"
             supportFunction <- supportFunctionIdentifier
             pure ("SUPPORT " <> supportFunction)
+        transformAttribute = try do
+            functionOptionBoundaryKeyword "TRANSFORM"
+            functionOptionBoundaryKeyword "FOR"
+            functionOptionBoundaryKeyword "TYPE"
+            typeName <- supportFunctionIdentifier
+            pure ("TRANSFORM FOR TYPE " <> typeName)
 
         supportFunctionIdentifier = do
             (schemaOrName, _) <- sourceIdentifier

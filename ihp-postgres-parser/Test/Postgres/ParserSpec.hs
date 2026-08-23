@@ -362,6 +362,18 @@ spec = do
             let parsed = parseSql "CREATE FUNCTION estimated() RETURNS TABLE (id uuid, label text) LANGUAGE sql ROWS 10 AS $$SELECT NULL, NULL;$$;"
             parsed.returns `shouldBe` PTable [("id", PUUID), ("label", PText)]
 
+        it "should parse schema-qualified set-returning custom types" do
+            let parsed = parseSql "CREATE FUNCTION widgets() RETURNS SETOF private.widget LANGUAGE sql AS $$SELECT NULL;$$;"
+            parsed.returns `shouldBe` PSetOf (PCustomType "private.widget")
+
+        it "should parse schema-qualified custom types in RETURNS TABLE" do
+            let parsed = parseSql "CREATE FUNCTION widgets() RETURNS TABLE (widget private.widget) LANGUAGE sql AS $$SELECT NULL;$$;"
+            parsed.returns `shouldBe` PTable [("widget", PCustomType "private.widget")]
+
+        it "should preserve TRANSFORM function attributes" do
+            let parsed = parseSql "CREATE FUNCTION transformed(value private.widget) RETURNS private.widget LANGUAGE plpgsql TRANSFORM FOR TYPE private.widget AS $$BEGIN RETURN value; END;$$;"
+            parsed.functionAttributes `shouldBe` ["TRANSFORM FOR TYPE private.widget"]
+
         it "should parse dollar-quoted function settings containing whitespace" do
             let parsed = parseSql "CREATE FUNCTION configured() RETURNS uuid LANGUAGE sql SET application_name = $worker$batch worker$worker$ AS $$SELECT NULL;$$;"
             parsed.functionSettings `shouldBe` [FunctionSetting { settingName = "application_name", settingValue = "$worker$batch worker$worker$" }]
