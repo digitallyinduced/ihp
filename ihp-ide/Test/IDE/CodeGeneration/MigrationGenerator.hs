@@ -97,6 +97,12 @@ tests = do
 
                 diffSchemas targetSchema actualSchema `shouldBe` []
 
+            it "normalizes equivalent COMMENT function signatures" do
+                let targetSchema = sql "COMMENT ON FUNCTION f(integer,text) IS 'x';"
+                let actualSchema = sql "COMMENT ON FUNCTION public.f(integer, text) IS 'x';"
+
+                diffSchemas targetSchema actualSchema `shouldBe` []
+
             it "does not repeatedly migrate ACL statements followed by comments" do
                 let targetSchema = sql "GRANT/* rationale */ SELECT ON users TO reader; REVOKE-- rationale\n INSERT ON users FROM reader;"
 

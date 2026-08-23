@@ -485,6 +485,10 @@ spec = do
             normalizeComment "COMMENT ON TABLE users IS 'owner''s records'" `shouldBe`
                 Just "COMMENT ON TABLE users IS 'owner''s records'"
 
+        it "should normalize COMMENT function signature spacing" do
+            normalizeComment "COMMENT ON FUNCTION f(integer,text) IS 'x'" `shouldBe`
+                Just "COMMENT ON FUNCTION f(integer, text) IS 'x'"
+
         it "should preserve a newline after a trailing opaque line comment" do
             let statements = parseSqlStatements "GRANT SELECT ON users TO reader -- rationale\n;"
             statements `shouldBe` [UnknownStatement { raw = "GRANT SELECT ON users TO reader -- rationale\n" }]

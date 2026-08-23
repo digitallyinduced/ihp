@@ -356,6 +356,9 @@ normalizeComment = parseMaybe do
         appendChunk normalized " "
             | " " `Text.isSuffixOf` normalized = normalized
             | otherwise = normalized <> " "
+        appendChunk normalized "(" = Text.stripEnd normalized <> "("
+        appendChunk normalized ")" = Text.stripEnd normalized <> ")"
+        appendChunk normalized "," = Text.stripEnd normalized <> ", "
         appendChunk normalized chunk = normalized <> chunk
 
         normalizedCommentValue = quoteString <$> (try dollarQuotedValue <|> standardStringValue)
