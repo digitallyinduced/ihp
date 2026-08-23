@@ -762,6 +762,7 @@ removeImplicitDeletions actualSchema (statement@dropStatement:rest) | isDropStat
                 Nothing -> True
         isImplicitlyDeleted (DropConstraint { tableName = constraintTableName }) = constraintTableName /= dropTableName
         isImplicitlyDeleted (DropPolicy { tableName = policyTableName }) = not (isNothing dropColumnName && policyTableName == dropTableName)
+        isImplicitlyDeleted (NoForceRowLevelSecurity { tableName = forceTableName }) = not (isNothing dropColumnName && forceTableName == dropTableName)
         isImplicitlyDeleted otherwise = True
 
         findIndexByName :: Text -> Maybe Statement

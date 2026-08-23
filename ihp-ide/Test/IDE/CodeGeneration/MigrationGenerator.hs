@@ -80,6 +80,14 @@ tests = do
 
                 diffSchemas [] actualSchema `shouldBe` migration
 
+            it "does not emit NO FORCE after dropping its table" do
+                let actualSchema = sql [i|
+                    CREATE TABLE tickets (id UUID);
+                    ALTER TABLE tickets FORCE ROW LEVEL SECURITY;
+                |]
+
+                diffSchemas [] actualSchema `shouldBe` sql "DROP TABLE tickets;"
+
             it "should handle a new table" do
                 let targetSchema = sql [i|
                     CREATE TABLE users (

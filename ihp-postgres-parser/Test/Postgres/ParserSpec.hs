@@ -481,6 +481,11 @@ spec = do
                 (policy "access" "tickets")
                     { roles = [QuotedPolicyRole "current_user", SpecialPolicyRole "CURRENT_USER"] }
 
+        it "should fold unquoted policy roles and decode quoted role escapes" do
+            parseSql "CREATE POLICY access ON tickets TO MyRole, \"ops\"\"team\";" `shouldBe`
+                (policy "access" "tickets")
+                    { roles = [PolicyRole "myrole", QuotedPolicyRole "ops\"team"] }
+
         it "should parse FORCE ROW LEVEL SECURITY" do
             parseSql "ALTER TABLE tickets FORCE ROW LEVEL SECURITY;" `shouldBe`
                 ForceRowLevelSecurity { tableName = "tickets" }

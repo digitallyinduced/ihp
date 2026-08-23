@@ -1144,7 +1144,7 @@ policyRole :: Parser PolicyRole
 policyRole = quotedRole <|> unquotedRole
     where
         quotedRole = do
-            role <- between (char '"') (char '"') (takeWhile1P Nothing (/= '"'))
+            role <- Text.pack <$> between (char '"') (char '"') (some (try (string "\"\"" $> '"') <|> anySingleBut '"'))
             space
             pure (QuotedPolicyRole role)
         unquotedRole = do
@@ -1152,7 +1152,7 @@ policyRole = quotedRole <|> unquotedRole
             let upperRole = Text.toUpper role
             pure if upperRole `elem` ["PUBLIC", "CURRENT_ROLE", "CURRENT_USER", "SESSION_USER"]
                 then SpecialPolicyRole upperRole
-                else PolicyRole role
+                else PolicyRole (Text.toLower role)
 
 policyAction =
     (lexeme "ALL" >> pure PolicyForAll)
