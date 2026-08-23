@@ -374,6 +374,10 @@ spec = do
             let parsed = parseSql "CREATE FUNCTION transformed(value private.widget) RETURNS private.widget LANGUAGE plpgsql TRANSFORM FOR TYPE private.widget AS $$BEGIN RETURN value; END;$$;"
             parsed.functionAttributes `shouldBe` ["TRANSFORM FOR TYPE private.widget"]
 
+        it "should preserve every type in a TRANSFORM list" do
+            let parsed = parseSql "CREATE FUNCTION transformed() RETURNS uuid LANGUAGE plpgsql TRANSFORM FOR TYPE private.widget, FOR TYPE private.gadget AS $$BEGIN RETURN NULL; END;$$;"
+            parsed.functionAttributes `shouldBe` ["TRANSFORM FOR TYPE private.widget, FOR TYPE private.gadget"]
+
         it "should parse dollar-quoted function settings containing whitespace" do
             let parsed = parseSql "CREATE FUNCTION configured() RETURNS uuid LANGUAGE sql SET application_name = $worker$batch worker$worker$ AS $$SELECT NULL;$$;"
             parsed.functionSettings `shouldBe` [FunctionSetting { settingName = "application_name", settingValue = "$worker$batch worker$worker$" }]
@@ -396,6 +400,10 @@ spec = do
                             }
                         ]
                     }
+
+        it "should parse Unicode-escape function settings containing whitespace" do
+            let parsed = parseSql "CREATE FUNCTION configured() RETURNS uuid LANGUAGE sql SET application_name = U&'batch worker' AS $$SELECT 1;$$;"
+            parsed.functionSettings `shouldBe` [FunctionSetting { settingName = "application_name", settingValue = "U&'batch worker'" }]
 
         it "should parse quoted identifiers in function settings" do
             let sql = "CREATE FUNCTION configured_schema() RETURNS uuid LANGUAGE sql SET search_path = \"tenant schema\", public AS $$SELECT 1;$$;"

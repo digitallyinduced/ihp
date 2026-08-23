@@ -952,7 +952,7 @@ parseFunctionSetting = do
     pure (FunctionSettingOption FunctionSetting { settingName, settingValue })
     where
         settingValueItem = lexeme
-            (try dollarQuotedSettingValue <|> try escapeStringSettingValue <|> singleQuotedSettingValue <|> doubleQuotedSettingValue <|> takeWhile1P (Just "setting value") (\c -> not (isSpace c) && c /= ','))
+            (try dollarQuotedSettingValue <|> try unicodeEscapeStringSettingValue <|> try escapeStringSettingValue <|> singleQuotedSettingValue <|> doubleQuotedSettingValue <|> takeWhile1P (Just "setting value") (\c -> not (isSpace c) && c /= ','))
         dollarQuotedSettingValue = fst <$> match do
             delimiter <- settingDollarQuoteDelimiter
             _ <- manyTill anySingle (try (string delimiter))
@@ -970,6 +970,19 @@ parseFunctionSetting = do
             char '\''
             _ <- many (try (char '\'' >> char '\'') <|> try (char '\\' >> anySingle) <|> anySingleBut '\'')
             char '\''
+        unicodeEscapeStringSettingValue = fst <$> match do
+            string' "U&"
+            char '\''
+            _ <- many (try (char '\'' >> char '\'') <|> anySingleBut '\'')
+            char '\''
+            optional $ try do
+                space1
+                string' "UESCAPE"
+                notFollowedBy (satisfy isIdentifierCharacter)
+                space
+                char '\''
+                anySingleBut '\''
+                char '\''
         singleQuotedSettingValue = fst <$> match do
             char '\''
             _ <- many (try (string "''") <|> (Text.singleton <$> satisfy (/= '\'')))
@@ -1027,10 +1040,17 @@ parseFunctionAttribute = do
             pure ("SUPPORT " <> supportFunction)
         transformAttribute = try do
             functionOptionBoundaryKeyword "TRANSFORM"
+            firstType <- transformType
+            additionalTypes <- many $ try do
+                char ','
+                space
+                transformType
+            pure ("TRANSFORM FOR TYPE " <> Text.intercalate ", FOR TYPE " (firstType : additionalTypes))
+
+        transformType = do
             functionOptionBoundaryKeyword "FOR"
             functionOptionBoundaryKeyword "TYPE"
-            typeName <- supportFunctionIdentifier
-            pure ("TRANSFORM FOR TYPE " <> typeName)
+            supportFunctionIdentifier
 
         supportFunctionIdentifier = do
             (schemaOrName, _) <- sourceIdentifier
