@@ -223,7 +223,7 @@ compilePostgresType PInet = "INET"
 compilePostgresType PTSVector = "TSVECTOR"
 compilePostgresType (PArray type_) = compilePostgresType type_ <> "[]"
 compilePostgresType (PSetOf type_) = "SETOF " <> compilePostgresType type_
-compilePostgresType (PTable columns) = "TABLE (" <> intercalate ", " (map (\(name, type_) -> compileIdentifier name <> " " <> compilePostgresType type_) columns) <> ")"
+compilePostgresType (PTable columns) = "TABLE (" <> intercalate ", " (map (\(name, type_) -> compileUnqualifiedIdentifier name <> " " <> compilePostgresType type_) columns) <> ")"
 compilePostgresType PTrigger = "TRIGGER"
 compilePostgresType PEventTrigger = "EVENT_TRIGGER"
 compilePostgresType (PCustomType theType) = theType
@@ -479,6 +479,20 @@ compileIdentifier identifier = if identifierNeedsQuoting then tshow identifier e
             , "TRIM"
             , "VARCHAR"
             ]
+
+compileUnqualifiedIdentifier :: Text -> Text
+compileUnqualifiedIdentifier identifier
+    | isValidUnquotedIdentifier && compileIdentifier identifier == identifier = identifier
+    | otherwise = "\"" <> Text.replace "\"" "\"\"" identifier <> "\""
+    where
+        isValidUnquotedIdentifier = case Text.uncons identifier of
+            Nothing -> False
+            Just (firstCharacter, remainingCharacters) ->
+                isIdentifierStart firstCharacter && Text.all isIdentifierContinuation remainingCharacters
+        isIdentifierStart character = character == '_' || isAsciiLower character || character >= '\x80'
+        isIdentifierContinuation character = isIdentifierStart character || isAsciiDigit character || character == '$'
+        isAsciiLower character = character >= 'a' && character <= 'z'
+        isAsciiDigit character = character >= '0' && character <= '9'
 
 indent text = "    " <> text
 

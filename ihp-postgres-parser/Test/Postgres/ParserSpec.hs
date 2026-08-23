@@ -388,6 +388,10 @@ spec = do
             let parsed = parseSql "CREATE FUNCTION transformed() RETURNS uuid LANGUAGE plpgsql TRANSFORM FOR TYPE private.widget, FOR TYPE private.gadget AS $$BEGIN RETURN NULL; END;$$;"
             parsed.functionAttributes `shouldBe` ["TRANSFORM FOR TYPE private.widget, FOR TYPE private.gadget"]
 
+        it "should preserve complete types in TRANSFORM lists" do
+            let parsed = parseSql "CREATE FUNCTION transformed() RETURNS uuid LANGUAGE plpgsql TRANSFORM FOR TYPE double precision, FOR TYPE hstore[] AS $$BEGIN RETURN NULL; END;$$;"
+            parsed.functionAttributes `shouldBe` ["TRANSFORM FOR TYPE DOUBLE PRECISION, FOR TYPE hstore[]"]
+
         it "should parse dollar-quoted function settings containing whitespace" do
             let parsed = parseSql "CREATE FUNCTION configured() RETURNS uuid LANGUAGE sql SET application_name = $worker$batch worker$worker$ AS $$SELECT NULL;$$;"
             parsed.functionSettings `shouldBe` [FunctionSetting { settingName = "application_name", settingValue = "$worker$batch worker$worker$" }]

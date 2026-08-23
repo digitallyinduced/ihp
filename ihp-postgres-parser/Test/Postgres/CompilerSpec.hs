@@ -6,7 +6,7 @@ module Postgres.CompilerSpec where
 
 import Prelude
 import Test.Hspec
-import IHP.Postgres.Compiler (compileSql)
+import IHP.Postgres.Compiler (compileSql, compilePostgresType)
 import IHP.Postgres.Types
 import Data.Text (Text)
 import qualified Data.Text as Text
@@ -48,6 +48,10 @@ spec = do
 
         it "should compile a CREATE TABLE with quoted identifiers" do
             compileSql [StatementCreateTable (table "quoted name")] `shouldBe` "CREATE TABLE \"quoted name\" (\n\n);\n"
+
+        it "should quote punctuation and escape quotes in returned column identifiers" do
+            compilePostgresType (PTable [("result.code", PText), ("result\"code", PText)]) `shouldBe`
+                "TABLE (\"result.code\" TEXT, \"result\"\"code\" TEXT)"
 
         it "should compile ALTER TABLE .. ADD FOREIGN KEY .. ON DELETE CASCADE" do
             let statement = AddConstraint

@@ -17,6 +17,7 @@ module IHP.Postgres.Parser
 
 import Prelude
 import IHP.Postgres.Types hiding (table)
+import IHP.Postgres.Compiler (compilePostgresType)
 import Data.Text (Text)
 import qualified Data.Text as Text
 import qualified Data.Text.IO as Text
@@ -1053,7 +1054,9 @@ parseFunctionAttribute = do
         transformType = do
             functionOptionBoundaryKeyword "FOR"
             functionOptionBoundaryKeyword "TYPE"
-            supportFunctionIdentifier
+            type_ <- sqlType
+            space
+            pure (compilePostgresType type_)
 
         supportFunctionIdentifier = do
             (schemaOrName, _) <- sourceIdentifier
