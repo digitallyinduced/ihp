@@ -339,7 +339,7 @@ parseDeferrableType = do
 parseTableConstraint = do
     name <- optional do
         lexeme "CONSTRAINT"
-        identifier
+        postgresIdentifier
     (do
         primaryKeyConstraint <- parsePrimaryKeyConstraint
         pure (Left (name, primaryKeyConstraint))) <|>
@@ -829,6 +829,17 @@ identifier = do
     space
     pure i
 
+-- | An identifier with PostgreSQL's case-folding semantics. Quoted spelling is
+-- preserved; unquoted spelling is folded before it enters the AST.
+postgresIdentifier :: Parser Text
+postgresIdentifier = do
+    value <- quotedIdentifier <|> unquotedIdentifier
+    space
+    pure value
+    where
+        quotedIdentifier = between (char '"') (char '"') (takeWhile1P Nothing (/= '"'))
+        unquotedIdentifier = Text.toLower <$> takeWhile1P (Just "identifier") (\c -> isAlphaNum c || c == '_')
+
 comment = do
     (char '-' >> char '-') <?> "Line comment"
     content <- takeWhileP Nothing (/= '\n')
@@ -988,7 +999,7 @@ createConstraintTrigger = do
     event <- triggerEvent `sepBy1` lexeme "OR"
     lexeme "ON"
     tableName <- qualifiedIdentifier
-    referencedTableName <- optional (lexeme "FROM" >> qualifiedIdentifier)
+    referencedTableName <- optional (lexeme "FROM" >> functionIdentifier)
     deferrable <- optional parseDeferrable
     deferrableType <- optional parseDeferrableType
     lexeme "FOR"

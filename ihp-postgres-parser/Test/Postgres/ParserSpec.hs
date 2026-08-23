@@ -503,6 +503,12 @@ spec = do
                     , deferrableType = Nothing
                     }
 
+        it "should fold only unquoted constraint names" do
+            let unquoted = parseSql "ALTER TABLE items ADD CONSTRAINT Child_FK FOREIGN KEY (tenant_id, parent_id) REFERENCES parents (tenant_id, id);"
+            let quoted = parseSql "ALTER TABLE items ADD CONSTRAINT \"Child_FK\" FOREIGN KEY (tenant_id, parent_id) REFERENCES parents (tenant_id, id);"
+            unquoted.constraint.name `shouldBe` Just "child_fk"
+            quoted.constraint.name `shouldBe` Just "Child_FK"
+
         it "should keep single-column foreign keys with ON UPDATE relational" do
             parseSql "ALTER TABLE memberships ADD CONSTRAINT memberships_user_id_fkey FOREIGN KEY (user_id) REFERENCES users(id) ON UPDATE CASCADE;" `shouldBe`
                 AddConstraint
@@ -554,6 +560,10 @@ spec = do
         it "should preserve schema-qualified constraint-trigger functions" do
             let parsed = parseSql "CREATE CONSTRAINT TRIGGER check_entry AFTER INSERT ON entry_lines FOR EACH ROW EXECUTE FUNCTION private.check_entry();"
             parsed.functionName `shouldBe` "private.check_entry"
+
+        it "should preserve schema-qualified referenced relations" do
+            let parsed = parseSql "CREATE CONSTRAINT TRIGGER check_entry AFTER INSERT ON entry_lines FROM private.accounts FOR EACH ROW EXECUTE FUNCTION check_entry();"
+            parsed.referencedTableName `shouldBe` Just "private.accounts"
 
         it "should parse UPDATE OF triggers" do
             parseSql "CREATE TRIGGER sync_signature AFTER UPDATE OF organization_id, domain ON documents FOR EACH ROW EXECUTE FUNCTION sync_signature();" `shouldBe`

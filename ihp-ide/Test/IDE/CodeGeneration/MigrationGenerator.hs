@@ -122,6 +122,12 @@ tests = do
 
                 diffSchemas targetSchema actualSchema `shouldBe` []
 
+            it "folds unquoted explicit composite foreign-key names" do
+                let targetSchema = sql "CREATE TABLE children (tenant_id uuid, parent_id uuid); ALTER TABLE children ADD CONSTRAINT Child_FK FOREIGN KEY (tenant_id, parent_id) REFERENCES parents (tenant_id, id);"
+                let actualSchema = sql "CREATE TABLE children (tenant_id uuid, parent_id uuid); ALTER TABLE children ADD CONSTRAINT child_fk FOREIGN KEY (tenant_id, parent_id) REFERENCES parents (tenant_id, id);"
+
+                diffSchemas targetSchema actualSchema `shouldBe` []
+
             it "hoists inline composite foreign keys before comparison" do
                 let targetSchema = sql "CREATE TABLE children (tenant_id uuid, parent_id uuid, FOREIGN KEY (tenant_id, parent_id) REFERENCES parents (tenant_id, id));"
                 let actualSchema = sql "CREATE TABLE children (tenant_id uuid, parent_id uuid); ALTER TABLE children ADD CONSTRAINT children_tenant_id_parent_id_fkey FOREIGN KEY (tenant_id, parent_id) REFERENCES parents (tenant_id, id);"
@@ -166,6 +172,16 @@ tests = do
                 diffSchemas targetSchema actualSchema `shouldBe`
                     ([DropTrigger { name = "items_check", tableName = "items" }] <> normalizeSchema targetSchema)
                 diffSchemas targetSchema pgDumpNoiseSchema `shouldBe` []
+
+                let targetFunctionCast = sql "CREATE TRIGGER items_check BEFORE UPDATE ON items FOR EACH ROW WHEN (is_valid('x'::jsonb)) EXECUTE FUNCTION check_items();"
+                let actualFunctionCast = sql "CREATE TRIGGER items_check BEFORE UPDATE ON items FOR EACH ROW WHEN (is_valid('x'::text)) EXECUTE FUNCTION check_items();"
+                diffSchemas targetFunctionCast actualFunctionCast `shouldBe`
+                    ([DropTrigger { name = "items_check", tableName = "items" }] <> normalizeSchema targetFunctionCast)
+
+                let targetOperatorCast = sql "CREATE TRIGGER items_check BEFORE UPDATE ON items FOR EACH ROW WHEN (('1'::int) = ('1'::bigint)) EXECUTE FUNCTION check_items();"
+                let actualOperatorCast = sql "CREATE TRIGGER items_check BEFORE UPDATE ON items FOR EACH ROW WHEN (('1'::int) = ('1'::int)) EXECUTE FUNCTION check_items();"
+                diffSchemas targetOperatorCast actualOperatorCast `shouldBe`
+                    ([DropTrigger { name = "items_check", tableName = "items" }] <> normalizeSchema targetOperatorCast)
 
             it "should handle a new table" do
                 let targetSchema = sql [i|

@@ -665,17 +665,17 @@ normalizeExpressionWith preserveSemanticCasts = normalize
         normalize e@(TextExpression {}) = e
         normalize (VarExpression var) = VarExpression (Text.toLower var)
         normalize (CallExpression function args) = CallExpression (Text.toLower function) (map normalize args)
-        normalize (NotEqExpression a b) = NotEqExpression (normalize a) (normalize b)
-        normalize (EqExpression a b) = EqExpression (normalize a) (normalize b)
+        normalize (NotEqExpression a b) = normalizeComparison NotEqExpression a b
+        normalize (EqExpression a b) = normalizeComparison EqExpression a b
         normalize (AndExpression a b) = AndExpression (normalize a) (normalize b)
         normalize (IsExpression a b) = IsExpression (normalize a) (normalize b)
         normalize (InExpression a b) = InExpression (normalize a) (normalize b)
         normalize (NotExpression a) = NotExpression (normalize a)
         normalize (OrExpression a b) = OrExpression (normalize a) (normalize b)
-        normalize (LessThanExpression a b) = LessThanExpression (normalize a) (normalize b)
-        normalize (LessThanOrEqualToExpression a b) = LessThanOrEqualToExpression (normalize a) (normalize b)
-        normalize (GreaterThanExpression a b) = GreaterThanExpression (normalize a) (normalize b)
-        normalize (GreaterThanOrEqualToExpression a b) = GreaterThanOrEqualToExpression (normalize a) (normalize b)
+        normalize (LessThanExpression a b) = normalizeComparison LessThanExpression a b
+        normalize (LessThanOrEqualToExpression a b) = normalizeComparison LessThanOrEqualToExpression a b
+        normalize (GreaterThanExpression a b) = normalizeComparison GreaterThanExpression a b
+        normalize (GreaterThanOrEqualToExpression a b) = normalizeComparison GreaterThanOrEqualToExpression a b
         normalize e@(DoubleExpression {}) = e
         normalize e@(IntExpression {}) = e
         normalize (ConcatenationExpression a b) = ConcatenationExpression (normalize a) (normalize b)
@@ -685,7 +685,7 @@ normalizeExpressionWith preserveSemanticCasts = normalize
 -- 'job_status_not_started'::public.job_status => 'job_status_not_started'
 --
         normalize (TypeCastExpression expression postgresType)
-            | preserveSemanticCasts && not (isLiteralExpression expression) = TypeCastExpression (normalize expression) (normalizeSqlType postgresType)
+            | preserveSemanticCasts = TypeCastExpression (normalize expression) (normalizeSqlType postgresType)
             | otherwise = normalize expression
         normalize (SelectExpression Select { columns, from, whereClause, alias }) = SelectExpression Select { columns = resolveAlias' <$> (normalize <$> columns), from = normalizeFrom from, whereClause = resolveAlias' (normalize whereClause), alias = Nothing }
             where
@@ -704,10 +704,17 @@ normalizeExpressionWith preserveSemanticCasts = normalize
         normalize (ArrayLiteralExpression exprs) = ArrayLiteralExpression (map normalize exprs)
         normalize (VariadicExpression expr) = VariadicExpression (normalize expr)
 
+        normalizeComparison constructor a b = constructor (normalizeComparisonOperand b a) (normalizeComparisonOperand a b)
+        normalizeComparisonOperand other (TypeCastExpression expression _)
+            | preserveSemanticCasts && isLiteralExpression expression && not (isLiteralOperand other) = normalize expression
+        normalizeComparisonOperand _ operand = normalize operand
+
         isLiteralExpression TextExpression {} = True
         isLiteralExpression DoubleExpression {} = True
         isLiteralExpression IntExpression {} = True
         isLiteralExpression _ = False
+        isLiteralOperand (TypeCastExpression expression _) = isLiteralExpression expression
+        isLiteralOperand expression = isLiteralExpression expression
 
 -- | Replaces @table.field@ with just @field@
 --
