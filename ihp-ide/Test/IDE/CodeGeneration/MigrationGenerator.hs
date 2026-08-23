@@ -96,6 +96,12 @@ tests = do
 
                 diffSchemas targetSchema actualSchema `shouldBe` []
 
+            it "canonicalizes redundant quotes in function attributes" do
+                let targetSchema = sql "CREATE FUNCTION current_tenant() RETURNS uuid LANGUAGE sql SUPPORT public.\"my_support\" TRANSFORM FOR TYPE private.\"widget\" AS $$SELECT NULL;$$;"
+                let actualSchema = sql "CREATE FUNCTION current_tenant() RETURNS uuid LANGUAGE sql SUPPORT my_support TRANSFORM FOR TYPE private.widget AS $$SELECT NULL;$$;"
+
+                diffSchemas targetSchema actualSchema `shouldBe` []
+
             it "canonicalizes numeric function attribute values" do
                 let targetSchema = sql "CREATE FUNCTION estimate() RETURNS SETOF uuid LANGUAGE sql COST 2.50 ROWS 1E6 AS $$SELECT NULL;$$;"
                 let actualSchema = sql "CREATE FUNCTION estimate() RETURNS SETOF uuid LANGUAGE sql COST 2.5 ROWS 1000000 AS $$SELECT NULL;$$;"
@@ -1463,6 +1469,12 @@ CREATE POLICY "Users can read and edit their own record" ON public.users USING (
                 let normalizedSchema = sql "CREATE FUNCTION widgets(value private.\"Widget\") RETURNS SETOF private.\"Widget\" LANGUAGE SQL AS $$SELECT value;$$;"
 
                 normalizeSchema schema `shouldBe` normalizedSchema
+
+            it "canonicalizes redundant quotes in custom function types" do
+                let targetSchema = sql "CREATE FUNCTION widgets(value private.\"widget\") RETURNS SETOF private.\"widget\" LANGUAGE sql AS $$SELECT value;$$;"
+                let actualSchema = sql "CREATE FUNCTION widgets(value private.widget) RETURNS SETOF private.widget LANGUAGE sql AS $$SELECT value;$$;"
+
+                diffSchemas targetSchema actualSchema `shouldBe` []
 
             it "preserves quoted RETURNS TABLE column names when replacing functions" do
                 let targetSchema = sql "CREATE FUNCTION report() RETURNS TABLE (\"Result\" text) LANGUAGE sql AS $$SELECT 1;$$;"

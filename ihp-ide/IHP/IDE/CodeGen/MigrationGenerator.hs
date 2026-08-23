@@ -17,7 +17,7 @@ import qualified IHP.Postgres.Parser as Parser
 import qualified IHP.SchemaCompiler.Parser as SchemaDesignerParser
 import IHP.Postgres.Types
 import Text.Megaparsec
-import IHP.Postgres.Compiler (compileSql)
+import IHP.Postgres.Compiler (compileSql, compileIdentifier)
 import IHP.IDE.CodeGen.Types
 import qualified IHP.FrameworkConfig as FrameworkConfig
 import Paths_ihp_ide (getDataFileName)
@@ -489,8 +489,8 @@ normalizeStatement CreateFunction { functionArguments, returns, .. } = [ CreateF
             PTable {} -> True
             _ -> False
         normalizeFunctionAttribute attribute
-            | Just supportFunction <- Text.stripPrefix "SUPPORT " attribute = "SUPPORT " <> supportFunction
-            | Just typeName <- Text.stripPrefix "TRANSFORM FOR TYPE " attribute = "TRANSFORM FOR TYPE " <> typeName
+            | Just supportFunction <- Text.stripPrefix "SUPPORT " attribute = "SUPPORT " <> normalizeCustomType supportFunction
+            | Just typeName <- Text.stripPrefix "TRANSFORM FOR TYPE " attribute = "TRANSFORM FOR TYPE " <> normalizeCustomType typeName
             | Just value <- Text.stripPrefix "COST " normalizedAttribute = "COST " <> canonicalNumeric value
             | Just value <- Text.stripPrefix "ROWS " normalizedAttribute = "ROWS " <> canonicalNumeric value
             | otherwise = case normalizedAttribute of
@@ -770,7 +770,7 @@ normalizeSqlType PSerial = PInt
 normalizeSqlType otherwise = otherwise
 
 normalizeCustomType :: Text -> Text
-normalizeCustomType = Text.pack . normalize False . Text.unpack
+normalizeCustomType = canonicalizeRedundantIdentifierQuotes . Text.pack . normalize False . Text.unpack
     where
         normalize _ [] = []
         normalize True ('"' : '"' : rest) = '"' : '"' : normalize True rest
@@ -778,6 +778,37 @@ normalizeCustomType = Text.pack . normalize False . Text.unpack
         normalize False rest@('(' : _) = rest
         normalize True (character : rest) = character : normalize True rest
         normalize False (character : rest) = Char.toLower character : normalize False rest
+
+canonicalizeRedundantIdentifierQuotes :: Text -> Text
+canonicalizeRedundantIdentifierQuotes = Text.pack . normalize . Text.unpack
+    where
+        normalize [] = []
+        normalize rest@('(' : _) = rest
+        normalize ('"' : rest) = case quotedIdentifier rest of
+            Just (source, decoded, afterQuote)
+                | isSafeUnquotedIdentifier decoded -> decoded <> normalize afterQuote
+                | otherwise -> '"' : source <> ('"' : normalize afterQuote)
+            Nothing -> '"' : normalize rest
+        normalize (character : rest) = character : normalize rest
+
+        quotedIdentifier [] = Nothing
+        quotedIdentifier ('"' : '"' : rest) = do
+            (source, decoded, afterQuote) <- quotedIdentifier rest
+            pure ('"' : '"' : source, '"' : decoded, afterQuote)
+        quotedIdentifier ('"' : rest) = Just ([], [], rest)
+        quotedIdentifier (character : rest) = do
+            (source, decoded, afterQuote) <- quotedIdentifier rest
+            pure (character : source, character : decoded, afterQuote)
+
+        isSafeUnquotedIdentifier identifier = case identifier of
+            firstCharacter : rest ->
+                (isAsciiLower firstCharacter || firstCharacter == '_')
+                    && all isUnquotedContinuation rest
+                    && compileIdentifier (Text.pack identifier) == Text.pack identifier
+            [] -> False
+        isAsciiLower character = character >= 'a' && character <= 'z'
+        isAsciiDigit character = character >= '0' && character <= '9'
+        isUnquotedContinuation character = isAsciiLower character || isAsciiDigit character || character == '_' || character == '$'
 
 normalizeNumericLiteral :: Text -> Text
 normalizeNumericLiteral value =
