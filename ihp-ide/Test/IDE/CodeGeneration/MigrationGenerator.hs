@@ -104,6 +104,18 @@ tests = do
 
                 diffSchemas targetSchema actualSchema `shouldBe` []
 
+            it "normalizes PostgreSQL-generated composite foreign key names" do
+                let targetSchema = sql "ALTER TABLE children ADD FOREIGN KEY (tenant_id, parent_id) REFERENCES parents (tenant_id, id);"
+                let actualSchema = sql "ALTER TABLE children ADD CONSTRAINT children_tenant_id_parent_id_fkey FOREIGN KEY (tenant_id, parent_id) REFERENCES parents (tenant_id, id);"
+
+                diffSchemas targetSchema actualSchema `shouldBe` []
+
+            it "normalizes resolved composite primary key identifiers" do
+                let targetSchema = sql "CREATE TABLE parents (Tenant_ID uuid, ID uuid, PRIMARY KEY (Tenant_ID, ID)); CREATE TABLE children (tenant_id uuid, parent_id uuid); ALTER TABLE children ADD FOREIGN KEY (tenant_id, parent_id) REFERENCES parents;"
+                let actualSchema = sql "CREATE TABLE parents (tenant_id uuid, id uuid, PRIMARY KEY (tenant_id, id)); CREATE TABLE children (tenant_id uuid, parent_id uuid); ALTER TABLE children ADD CONSTRAINT children_tenant_id_parent_id_fkey FOREIGN KEY (tenant_id, parent_id) REFERENCES parents (tenant_id, id);"
+
+                diffSchemas targetSchema actualSchema `shouldBe` []
+
             it "drops FROM-dependent constraint triggers before their referenced table" do
                 let targetSchema = sql "CREATE TABLE entries ();"
                 let actualSchema = sql "CREATE TABLE accounts (); CREATE TABLE entries (); CREATE CONSTRAINT TRIGGER entries_accounts AFTER INSERT ON entries FROM accounts FOR EACH ROW EXECUTE FUNCTION check_entries();"

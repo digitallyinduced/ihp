@@ -465,7 +465,7 @@ normalizeCompositeForeignKeyReferences statements = map resolveReferenceColumns 
 
         referencedPrimaryKey referenceTable = fromMaybe [] do
             StatementCreateTable { unsafeGetCreateTable = CreateTable { primaryKeyConstraint = PrimaryKeyConstraint { primaryKeyColumnNames } } } <- find isReferencedTable statements
-            pure primaryKeyColumnNames
+            pure (map Text.toLower primaryKeyColumnNames)
             where
                 isReferencedTable StatementCreateTable { unsafeGetCreateTable = CreateTable { name } } = name == referenceTable
                 isReferencedTable _ = False
@@ -541,9 +541,9 @@ normalizeTable table@(CreateTable { .. }) = ( CreateTable { columns = fst normal
                 Left c -> Just c
 
 normalizeConstraint :: Text -> Constraint -> Constraint
-normalizeConstraint _ ForeignKeyConstraint { name, columnName, referenceTable, referenceColumn, onDelete, onUpdate } = ForeignKeyConstraint { name = truncateIdentifier <$> name, columnName = Text.toLower columnName, referenceTable = Text.toLower referenceTable, referenceColumn = fmap Text.toLower referenceColumn, onDelete = normalizeReferentialAction onDelete, onUpdate = normalizeReferentialAction onUpdate }
-normalizeConstraint _ CompositeForeignKeyConstraint { name, columnNames, referenceTable, referenceColumns, matchType, onDelete, onUpdate } = CompositeForeignKeyConstraint
-    { name = truncateIdentifier <$> name
+normalizeConstraint tableName ForeignKeyConstraint { name, columnName, referenceTable, referenceColumn, onDelete, onUpdate } = ForeignKeyConstraint { name = normalizeForeignKeyName tableName [columnName] name, columnName = Text.toLower columnName, referenceTable = Text.toLower referenceTable, referenceColumn = fmap Text.toLower referenceColumn, onDelete = normalizeReferentialAction onDelete, onUpdate = normalizeReferentialAction onUpdate }
+normalizeConstraint tableName CompositeForeignKeyConstraint { name, columnNames, referenceTable, referenceColumns, matchType, onDelete, onUpdate } = CompositeForeignKeyConstraint
+    { name = normalizeForeignKeyName tableName columnNames name
     , columnNames = map Text.toLower columnNames
     , referenceTable = Text.toLower referenceTable
     , referenceColumns = map Text.toLower referenceColumns
@@ -580,6 +580,13 @@ normalizeConstraint tableName constraint@(UniqueConstraint { name = Just uniqueN
                 then constraint { name = Nothing }
                 else constraint
 normalizeConstraint _ otherwise = otherwise
+
+normalizeForeignKeyName :: Text -> [Text] -> Maybe Text -> Maybe Text
+normalizeForeignKeyName tableName columnNames name
+    | name == Just defaultName = Nothing
+    | otherwise = truncateIdentifier <$> name
+    where
+        defaultName = truncateIdentifier (Text.intercalate "_" (map Text.toLower (tableName : columnNames)) <> "_fkey")
 
 normalizeMatchType :: Maybe ForeignKeyMatchType -> Maybe ForeignKeyMatchType
 normalizeMatchType (Just MatchSimple) = Nothing
