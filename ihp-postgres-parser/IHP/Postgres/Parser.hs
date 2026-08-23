@@ -930,7 +930,12 @@ parseFunctionSetting = do
     pure (FunctionSettingOption FunctionSetting { settingName, settingValue })
     where
         settingValueItem = lexeme
-            (singleQuotedSettingValue <|> takeWhile1P (Just "setting value") (\c -> not (isSpace c) && c /= ','))
+            (try escapeStringSettingValue <|> singleQuotedSettingValue <|> takeWhile1P (Just "setting value") (\c -> not (isSpace c) && c /= ','))
+        escapeStringSettingValue = fst <$> match do
+            oneOf ['e', 'E']
+            char '\''
+            _ <- many (try (char '\'' >> char '\'') <|> try (char '\\' >> anySingle) <|> anySingleBut '\'')
+            char '\''
         singleQuotedSettingValue = fst <$> match do
             char '\''
             _ <- many (try (string "''") <|> (Text.singleton <$> satisfy (/= '\'')))

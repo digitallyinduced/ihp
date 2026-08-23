@@ -350,6 +350,25 @@ spec = do
                     , functionSettings = []
                     }
 
+        it "should parse escape-string function settings containing whitespace" do
+            let sql = "CREATE FUNCTION configured_path() RETURNS uuid LANGUAGE sql SET application_name = E'C:\\\\Program Files' AS $$SELECT 1;$$;"
+            parseSql sql `shouldBe` CreateFunction
+                    { functionName = "configured_path"
+                    , functionArguments = []
+                    , functionBody = "SELECT 1;"
+                    , orReplace = False
+                    , returns = PUUID
+                    , language = "sql"
+                    , securityDefiner = False
+                    , functionAttributes = []
+                    , functionSettings =
+                        [ FunctionSetting
+                            { settingName = "application_name"
+                            , settingValue = "E'C:\\\\Program Files'"
+                            }
+                        ]
+                    }
+
         it "should parse pg_dump CREATE FUNCTION SET options with TO" do
             let sql = "CREATE OR REPLACE FUNCTION private.sync_access()\nRETURNS TRIGGER\nLANGUAGE plpgsql\nSECURITY DEFINER\nSET search_path TO 'public', 'private', 'pg_temp'\nAS $$BEGIN\n    RETURN NEW;\nEND;$$;"
             parseSql sql `shouldBe` CreateFunction

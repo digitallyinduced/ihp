@@ -74,6 +74,16 @@ tests = do
             it "should handle an empty schema" do
                 diffSchemas [] [] `shouldBe` []
 
+            it "normalizes explicit default function attributes" do
+                let targetSchema = sql [i|
+                    CREATE FUNCTION current_tenant() RETURNS uuid LANGUAGE sql VOLATILE NOT LEAKPROOF CALLED ON NULL INPUT SECURITY INVOKER PARALLEL UNSAFE AS $$SELECT NULL;$$;
+                |]
+                let actualSchema = sql [i|
+                    CREATE FUNCTION current_tenant() RETURNS uuid LANGUAGE sql AS $$SELECT NULL;$$;
+                |]
+
+                diffSchemas targetSchema actualSchema `shouldBe` []
+
             it "should handle a new table" do
                 let targetSchema = sql [i|
                     CREATE TABLE users (
