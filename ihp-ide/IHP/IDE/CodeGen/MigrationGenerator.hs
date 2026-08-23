@@ -475,9 +475,31 @@ normalizeStatement CreateFunction { .. } = [ CreateFunction { orReplace = False,
             | otherwise = False
         normalizeFunctionAttribute attribute
             | Just supportFunction <- Text.stripPrefix "SUPPORT " attribute = "SUPPORT " <> supportFunction
-            | otherwise = case Text.toUpper attribute of
+            | Just value <- Text.stripPrefix "COST " normalizedAttribute = "COST " <> canonicalNumeric value
+            | Just value <- Text.stripPrefix "ROWS " normalizedAttribute = "ROWS " <> canonicalNumeric value
+            | otherwise = case normalizedAttribute of
                 "RETURNS NULL ON NULL INPUT" -> "STRICT"
                 normalized -> normalized
+            where
+                normalizedAttribute = Text.toUpper attribute
+                canonicalNumeric value =
+                    let
+                        (mantissa, exponentText) = Text.break (\character -> character == 'E') value
+                        exponent = fromMaybe 0 (Read.readMaybe (cs (Text.drop 1 exponentText)))
+                        (integerPart, fractionalWithDot) = Text.break (== '.') mantissa
+                        fractionalPart = Text.drop 1 fractionalWithDot
+                        digits = Text.dropWhile (== '0') (integerPart <> fractionalPart)
+                        decimalShift = exponent - Text.length fractionalPart
+                        plain
+                            | Text.null digits = "0"
+                            | decimalShift >= 0 = digits <> Text.replicate decimalShift "0"
+                            | Text.length digits + decimalShift > 0 =
+                                let splitAt = Text.length digits + decimalShift
+                                in Text.take splitAt digits <> "." <> Text.drop splitAt digits
+                            | otherwise = "0." <> Text.replicate (negate (Text.length digits + decimalShift)) "0" <> digits
+                    in if "." `Text.isInfixOf` plain
+                        then Text.dropWhileEnd (== '.') (Text.dropWhileEnd (== '0') plain)
+                        else plain
         functionAttributeOrder attribute
             | attribute `elem` ["IMMUTABLE", "STABLE", "VOLATILE"] = (0 :: Int)
             | "LEAKPROOF" `Text.isInfixOf` attribute = 1

@@ -96,6 +96,12 @@ tests = do
 
                 diffSchemas targetSchema actualSchema `shouldBe` []
 
+            it "canonicalizes numeric function attribute values" do
+                let targetSchema = sql "CREATE FUNCTION estimate() RETURNS uuid LANGUAGE sql COST 2.50 ROWS 1E6 AS $$SELECT NULL;$$;"
+                let actualSchema = sql "CREATE FUNCTION estimate() RETURNS uuid LANGUAGE sql COST 2.5 ROWS 1000000 AS $$SELECT NULL;$$;"
+
+                diffSchemas targetSchema actualSchema `shouldBe` []
+
             it "canonicalizes function strictness synonyms and the SQL default cost" do
                 let targetSchema = sql "CREATE FUNCTION f(value integer) RETURNS integer LANGUAGE sql RETURNS NULL ON NULL INPUT COST 100.0 AS $$ SELECT value $$;"
                 let actualSchema = sql "CREATE FUNCTION f(value integer) RETURNS integer LANGUAGE sql STRICT AS $$ SELECT value $$;"

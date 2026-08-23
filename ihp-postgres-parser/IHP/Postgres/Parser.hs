@@ -992,13 +992,13 @@ parseFunctionAttribute = do
             pure ("SUPPORT " <> supportFunction)
 
         supportFunctionIdentifier = do
-            (schemaOrName, schemaIsQuoted) <- sourceIdentifier
+            (schemaOrName, _) <- sourceIdentifier
             maybeName <- optional (char '.' >> sourceIdentifier)
             space
             pure case maybeName of
                 Nothing -> schemaOrName
                 Just (name, _)
-                    | not schemaIsQuoted && schemaOrName == "public" -> name
+                    | schemaOrName == "public" || schemaOrName == "\"public\"" -> name
                     | otherwise -> schemaOrName <> "." <> name
 
         sourceIdentifier = quotedIdentifier <|> unquotedIdentifier
