@@ -266,6 +266,12 @@ diffSchemas targetSchema' actualSchema' = (drop <> create)
 
 removeNoise = filter \case
         Comment {} -> False
+        -- IHP cannot compare unmodelled SQL safely. Never copy it from either
+        -- side into an automatically generated migration.
+        UnknownStatement {} -> False
+        -- pg_dump session setup is not part of the application schema.
+        Set {} -> False
+        SelectStatement {} -> False
         StatementCreateTable { unsafeGetCreateTable = CreateTable { name = "schema_migrations" } }      -> False
         AddConstraint { tableName = "schema_migrations" }                                               -> False
         CreateFunction { functionName } | "notify_" `Text.isPrefixOf` functionName                      -> False

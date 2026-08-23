@@ -1550,6 +1550,20 @@ CREATE POLICY "Users can read and edit their own record" ON public.users USING (
                 |]
                 diffSchemas targetSchema actualSchema `shouldBe` []
 
+            it "should ignore unmodelled statements instead of generating raw SQL migrations" do
+                let targetSchema = [UnknownStatement { raw = "CREATE TABLE private.tokens (id UUID)" }]
+                let actualSchema = [UnknownStatement { raw = "CREATE TABLE private.tokens (id uuid NOT NULL)" }]
+
+                diffSchemas targetSchema actualSchema `shouldBe` []
+
+            it "should ignore pg_dump session statements" do
+                let actualSchema =
+                        [ Set { name = "statement_timeout", value = IntExpression 0 }
+                        , SelectStatement { query = "pg_catalog.set_config('search_path', '', false)" }
+                        ]
+
+                diffSchemas [] actualSchema `shouldBe` []
+
 sql :: Text -> [Statement]
 sql code = case Megaparsec.runParser Parser.parseDDL "" code of
     Left parsingFailed -> error (cs $ Megaparsec.errorBundlePretty parsingFailed)
