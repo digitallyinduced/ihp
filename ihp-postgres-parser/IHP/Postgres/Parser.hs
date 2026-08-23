@@ -645,10 +645,7 @@ sqlType = choice $ map optionalArray
                     pure PEventTrigger
 
                 customType = do
-                    optional do
-                        lexeme "public"
-                        char '.'
-                    theType <- try (takeWhile1P (Just "Custom type") (\c -> isAlphaNum c || c == '_'))
+                    theType <- sourceQualifiedTypeIdentifier
                     -- Custom typmods are flat here; nested parenthesized
                     -- modifiers are not supported by this parser.
                     typeModifier <- optional $ try do
@@ -658,6 +655,22 @@ sqlType = choice $ map optionalArray
                         space
                         pure value
                     pure (PCustomType (maybe theType (\value -> theType <> "(" <> value <> ")") typeModifier))
+
+                sourceQualifiedTypeIdentifier = do
+                    schemaOrName <- sourceTypeIdentifier
+                    maybeName <- optional (char '.' >> sourceTypeIdentifier)
+                    pure case maybeName of
+                        Nothing -> schemaOrName
+                        Just name
+                            | schemaOrName == "public" || schemaOrName == "\"public\"" -> name
+                            | otherwise -> schemaOrName <> "." <> name
+
+                sourceTypeIdentifier = quotedTypeIdentifier <|> unquotedTypeIdentifier
+                quotedTypeIdentifier = fst <$> match do
+                    char '"'
+                    many (try (string "\"\"") <|> (Text.singleton <$> anySingleBut '"'))
+                    char '"'
+                unquotedTypeIdentifier = takeWhile1P (Just "Custom type") (\c -> isAlphaNum c || c == '_')
 
 
 intervalFields :: [Text]
