@@ -159,9 +159,7 @@ resolveContextDependentPolicyRoles context = map \case
         resolveRole (SpecialPolicyRole "CURRENT_USER") = resolvedRole context.policyCurrentUser
         resolveRole (SpecialPolicyRole "SESSION_USER") = resolvedRole context.policySessionUser
         resolveRole role = role
-        resolvedRole role
-            | role == Text.toLower role && not (isSpecialPolicyRoleName role) = PolicyRole role
-            | otherwise = QuotedPolicyRole role
+        resolvedRole = literalPolicyRole
 
 diffSchemasWithPolicyRoleContext :: PolicyRoleContext -> [Statement] -> [Statement] -> [Statement]
 diffSchemasWithPolicyRoleContext context targetSchema actualSchema =
@@ -545,10 +543,24 @@ normalizePolicyRoles roles
         isPublicRole (SpecialPolicyRole role) = Text.toUpper role == "PUBLIC"
         isPublicRole _ = False
         normalizeLiteralRole (PolicyRole role) = PolicyRole (truncateIdentifier role)
-        normalizeLiteralRole (QuotedPolicyRole role)
-            | role == Text.toLower role && not (isSpecialPolicyRoleName role) = PolicyRole (truncateIdentifier role)
-            | otherwise = QuotedPolicyRole (truncateIdentifier role)
+        normalizeLiteralRole (QuotedPolicyRole role) = literalPolicyRole (truncateIdentifier role)
         normalizeLiteralRole role = role
+
+literalPolicyRole :: Text -> PolicyRole
+literalPolicyRole role
+    | isOrdinaryUnquotedRole role && not (isSpecialPolicyRoleName role) = PolicyRole role
+    | otherwise = QuotedPolicyRole role
+
+isOrdinaryUnquotedRole :: Text -> Bool
+isOrdinaryUnquotedRole role = case Text.uncons role of
+    Just (firstCharacter, rest) ->
+        (isAsciiLower firstCharacter || firstCharacter == '_')
+            && Text.all isUnquotedContinuation rest
+    Nothing -> False
+    where
+        isAsciiLower character = character >= 'a' && character <= 'z'
+        isAsciiDigit character = character >= '0' && character <= '9'
+        isUnquotedContinuation character = isAsciiLower character || isAsciiDigit character || character == '_' || character == '$'
 
 isSpecialPolicyRoleName :: Text -> Bool
 isSpecialPolicyRoleName role = Text.toUpper role `elem` ["PUBLIC", "CURRENT_ROLE", "CURRENT_USER", "SESSION_USER"]

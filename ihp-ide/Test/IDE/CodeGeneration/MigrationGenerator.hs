@@ -630,6 +630,11 @@ tests = do
 
                 normalizeSchema targetSchema `shouldBe` actualSchema
 
+            it "preserves quotes on roles that are not valid unquoted identifiers" do
+                let targetSchema = sql "CREATE POLICY access ON tickets TO \"ops.team\", \"ops\"\"team\", \"9ops\", \"ops/team\";"
+
+                normalizeSchema targetSchema `shouldBe` targetSchema
+
             it "truncates literal policy roles before comparison" do
                 let targetSchema = sql "CREATE POLICY access ON tickets TO aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa;"
                 let actualSchema = sql "CREATE POLICY access ON tickets TO aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa;"
