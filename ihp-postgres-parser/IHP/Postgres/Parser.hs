@@ -692,7 +692,7 @@ term = parens expression <|> try variadicExpr <|> try arrayExpr <|> try typedLit
 
 table = highPrecedenceTable <> genericOperatorTable <>
         [
-            [ Postfix (foldl1 (flip (.)) <$> some (try notInOp <|> try betweenOp <|> inOp))
+            [ Postfix (foldl1 (flip (.)) <$> some (try notInOp <|> try notBetweenOp <|> try betweenOp <|> inOp))
             ],
             [ keywordOperator "NOT LIKE", keywordOperator "NOT ILIKE"
             , keywordOperator "LIKE", keywordOperator "ILIKE"
@@ -726,12 +726,7 @@ table = highPrecedenceTable <> genericOperatorTable <>
             , [ operator "+", minusOperator ]
             ]
 
-        genericOperatorTable =
-            [ [ operator "->>", operator "->"
-              , operator "!~*", operator "!~", operator "~*", operator "~"
-              , operator "?", operator "&&"
-              ]
-            ]
+        genericOperatorTable = [[genericOperator]]
 
         binary  name f = InfixL  (f <$ try (symbol name))
         prefix  name f = Prefix  (f <$ symbol name)
@@ -739,6 +734,16 @@ table = highPrecedenceTable <> genericOperatorTable <>
 
         -- | An operator kept verbatim in 'BinaryOperatorExpression'.
         operator name = InfixL (BinaryOperatorExpression name <$ try (symbol name))
+
+        genericOperator = InfixL do
+            name <- try do
+                name <- lexeme (Text.pack <$> some (satisfy isOperatorCharacter))
+                when (name `elem` dedicatedOperators) (fail "operator has dedicated precedence")
+                pure name
+            pure (BinaryOperatorExpression name)
+
+        isOperatorCharacter character = character `elem` ("+-*/<>=~!@#%^&|`?" :: String)
+        dedicatedOperators = ["*", "/", "%", "+", "-", "<>", "!=", "=", "<=", "<", ">=", ">", "||"]
 
         -- Do not consume the prefix of PostgreSQL's JSON operators here.
         minusOperator = InfixL (BinaryOperatorExpression "-" <$ try (lexeme (string "-" <* notFollowedBy (char '>'))))
@@ -772,6 +777,14 @@ table = highPrecedenceTable <> genericOperatorTable <>
             keyword "IN"
             right <- try inArrayExpression <|> expression
             pure $ \expr -> BinaryOperatorExpression "NOT IN" expr right
+
+        notBetweenOp = do
+            keyword "NOT"
+            keyword "BETWEEN"
+            lower <- boundExpression
+            keyword "AND"
+            upper <- boundExpression
+            pure $ \expr -> NotExpression (AndExpression (GreaterThanOrEqualToExpression expr lower) (LessThanOrEqualToExpression expr upper))
 
         betweenOp = do
             keyword "BETWEEN"

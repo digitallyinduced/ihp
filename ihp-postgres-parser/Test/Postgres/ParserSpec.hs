@@ -507,6 +507,20 @@ spec = do
                     (TextExpression "invoice")
             parseExpression "metadata ? 'kind'" `shouldBe`
                 BinaryOperatorExpression "?" (VarExpression "metadata") (TextExpression "kind")
+            parseExpression "payload @> '{\"kind\":\"booking\"}'" `shouldBe`
+                BinaryOperatorExpression "@>" (VarExpression "payload") (TextExpression "{\"kind\":\"booking\"}")
+            parseExpression "payload <@ expected #> '{items}'" `shouldBe`
+                BinaryOperatorExpression "#>"
+                    (BinaryOperatorExpression "<@" (VarExpression "payload") (VarExpression "expected"))
+                    (TextExpression "{items}")
+            parseExpression "payload ?| keys" `shouldBe`
+                BinaryOperatorExpression "?|" (VarExpression "payload") (VarExpression "keys")
+            parseExpression "payload ?& keys" `shouldBe`
+                BinaryOperatorExpression "?&" (VarExpression "payload") (VarExpression "keys")
+            parseExpression "payload #>> '{items,0}'" `shouldBe`
+                BinaryOperatorExpression "#>>" (VarExpression "payload") (TextExpression "{items,0}")
+            parseExpression "left_value ## right_value" `shouldBe`
+                BinaryOperatorExpression "##" (VarExpression "left_value") (VarExpression "right_value")
 
         it "should parse BETWEEN and NOT IN" do
             parseExpression "month BETWEEN 1 AND 12" `shouldBe`
@@ -517,6 +531,11 @@ spec = do
                 BinaryOperatorExpression "NOT IN"
                     (VarExpression "kind")
                     (InArrayExpression [TextExpression "draft", TextExpression "void"])
+            parseExpression "age NOT BETWEEN 13 AND 19" `shouldBe`
+                NotExpression
+                    (AndExpression
+                        (GreaterThanOrEqualToExpression (VarExpression "age") (IntExpression 13))
+                        (LessThanOrEqualToExpression (VarExpression "age") (IntExpression 19)))
 
         it "should parse BETWEEN after arithmetic expressions" do
             parseExpression "subtotal + tax BETWEEN minimum + 1 AND maximum" `shouldBe`
