@@ -380,6 +380,29 @@ tests = do
 
                 SchemaOperations.updateColumn options inputSchema `shouldBe` expectedSchema
 
+            it "updates restricted-action columns in composite foreign keys" do
+                let inputSchema = parseSqlStatements [trimming|
+                    CREATE TABLE items (ticket_id UUID, organization_id UUID);
+                    ALTER TABLE items ADD CONSTRAINT items_ticket_id_organization_id_fkey FOREIGN KEY (ticket_id, organization_id) REFERENCES tickets (id, organization_id) ON UPDATE SET DEFAULT (ticket_id) ON DELETE SET NULL (ticket_id);
+                |]
+                let expectedSchema = parseSqlStatements [trimming|
+                    CREATE TABLE items (parent_ticket_id UUID, organization_id UUID);
+                    ALTER TABLE items ADD CONSTRAINT items_parent_ticket_id_organization_id_fkey FOREIGN KEY (parent_ticket_id, organization_id) REFERENCES tickets (id, organization_id) ON UPDATE SET DEFAULT (parent_ticket_id) ON DELETE SET NULL (parent_ticket_id);
+                |]
+                let options = SchemaOperations.UpdateColumnOptions
+                        { tableName = "items"
+                        , columnName = "parent_ticket_id"
+                        , columnType = PUUID
+                        , defaultValue = Nothing
+                        , isArray = False
+                        , allowNull = True
+                        , isUnique = False
+                        , primaryKey = False
+                        , columnId = 0
+                        }
+
+                SchemaOperations.updateColumn options inputSchema `shouldBe` expectedSchema
+
             it "update a column's name, type, default value and not null" do
                 let tableAWithCreatedAt = StatementCreateTable (table "a")
                             { columns = [

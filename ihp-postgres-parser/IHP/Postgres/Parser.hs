@@ -969,6 +969,7 @@ createConstraintTrigger = do
     event <- triggerEvent `sepBy1` lexeme "OR"
     lexeme "ON"
     tableName <- qualifiedIdentifier
+    referencedTableName <- optional (lexeme "FROM" >> qualifiedIdentifier)
     deferrable <- optional parseDeferrable
     deferrableType <- optional parseDeferrableType
     lexeme "FOR"
@@ -979,7 +980,7 @@ createConstraintTrigger = do
     optional (lexeme "FUNCTION" <|> lexeme "PROCEDURE")
     (CallExpression functionName arguments) <- callExpr
     char ';'
-    pure CreateConstraintTrigger { name, eventWhen, event, tableName, deferrable, deferrableType, for, whenCondition, functionName, arguments }
+    pure CreateConstraintTrigger { name, eventWhen, event, tableName, referencedTableName, deferrable, deferrableType, for, whenCondition, functionName, arguments }
 
 createEventTrigger = do
     lexeme "EVENT"

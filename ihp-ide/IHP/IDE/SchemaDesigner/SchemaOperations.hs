@@ -169,11 +169,13 @@ updateColumn options@(UpdateColumnOptions { .. }) schema =
                 statement@(AddConstraint { tableName = constraintTable, constraint = constraint@(ForeignKeyConstraint { name = fkName, columnName = fkColumnName  })  }) | constraintTable == tableName && fkColumnName == (oldColumn.name) ->
                     let newName = Text.replace (oldColumn.name) columnName <$> fkName
                     in statement { constraint = constraint { columnName, name = newName } }
-                statement@(AddConstraint { tableName = constraintTable, constraint = constraint@(CompositeForeignKeyConstraint { name = fkName, columnNames }) }) | constraintTable == tableName && oldColumn.name `elem` columnNames ->
+                statement@(AddConstraint { tableName = constraintTable, constraint = constraint@(CompositeForeignKeyConstraint { name = fkName, columnNames, onDelete, onUpdate }) }) | constraintTable == tableName && oldColumn.name `elem` columnNames ->
                     let
                         newName = Text.replace oldColumn.name columnName <$> fkName
                         newColumnNames = map (\name -> if name == oldColumn.name then columnName else name) columnNames
-                    in statement { constraint = constraint { columnNames = newColumnNames, name = newName } }
+                        newOnDelete = fmap updateReferentialActionColumns onDelete
+                        newOnUpdate = fmap updateReferentialActionColumns onUpdate
+                    in statement { constraint = constraint { columnNames = newColumnNames, name = newName, onDelete = newOnDelete, onUpdate = newOnUpdate } }
                 index@(CreateIndex { indexName, tableName = indexTable, columns = indexColumns }) | indexTable == tableName ->
                     let
                         updateIndexColumn :: IndexColumn -> IndexColumn
@@ -182,6 +184,11 @@ updateColumn options@(UpdateColumnOptions { .. }) schema =
                     in
                         (index :: Statement) { columns = map updateIndexColumn indexColumns, indexName = Text.replace (oldColumn.name) columnName indexName }
                 otherwise -> otherwise
+        updateReferentialActionColumns (SetNull names) = SetNull (map renameColumn names)
+        updateReferentialActionColumns (SetDefault names) = SetDefault (map renameColumn names)
+        updateReferentialActionColumns action = action
+        renameColumn name | name == oldColumn.name = columnName
+        renameColumn name = name
         findOldColumn statements = mapMaybe findOldColumn' statements
                 |> head
                 |> fromMaybe (error "Could not find old column")
@@ -474,7 +481,7 @@ deleteTable tableName statements =
         EnableRowLevelSecurity { tableName = rlsTable } | rlsTable == tableName        -> False
         CreatePolicy { tableName = policyTable }        | policyTable == tableName     -> False
         CreateTrigger { tableName = triggerTable }      | triggerTable == tableName    -> False
-        CreateConstraintTrigger { tableName = triggerTable } | triggerTable == tableName -> False
+        CreateConstraintTrigger { tableName = triggerTable, referencedTableName } | triggerTable == tableName || referencedTableName == Just tableName -> False
         otherwise -> True
 
 updateTable :: Int -> Text -> Schema -> Schema
@@ -490,7 +497,12 @@ updateTable tableId tableName statements =
             rls@(EnableRowLevelSecurity { tableName = rlsTable }) | rlsTable == oldTableName -> (rls :: Statement) { tableName }
             policy@(CreatePolicy { tableName = policyTable, name }) | policyTable == oldTableName -> (policy :: Statement) { tableName, name = Text.replace oldTableName tableName name }
             trigger@(CreateTrigger { tableName = triggerTable, name }) | triggerTable == oldTableName -> (trigger :: Statement) { tableName, name = Text.replace oldTableName tableName name }
-            trigger@(CreateConstraintTrigger { tableName = triggerTable, name }) | triggerTable == oldTableName -> (trigger :: Statement) { tableName, name = Text.replace oldTableName tableName name }
+            trigger@(CreateConstraintTrigger { tableName = triggerTable, referencedTableName, name }) | triggerTable == oldTableName || referencedTableName == Just oldTableName ->
+                (trigger :: Statement)
+                    { tableName = if triggerTable == oldTableName then tableName else triggerTable
+                    , referencedTableName = (\referencedTable -> if referencedTable == oldTableName then tableName else referencedTable) <$> referencedTableName
+                    , name = if triggerTable == oldTableName then Text.replace oldTableName tableName name else name
+                    }
             otherwise -> otherwise  
 
 

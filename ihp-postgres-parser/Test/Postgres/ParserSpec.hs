@@ -491,11 +491,28 @@ spec = do
                     , eventWhen = After
                     , event = [TriggerOnInsert, TriggerOnDelete, TriggerOnUpdate]
                     , tableName = "entry_lines"
+                    , referencedTableName = Nothing
                     , deferrable = Just True
                     , deferrableType = Just InitiallyDeferred
                     , for = ForEachRow
                     , whenCondition = Nothing
                     , functionName = "entry_is_balanced"
+                    , arguments = []
+                    }
+
+        it "should parse the referenced table of constraint triggers" do
+            parseSql "CREATE CONSTRAINT TRIGGER check_entry AFTER INSERT ON entry_lines FROM entries DEFERRABLE FOR EACH ROW EXECUTE FUNCTION check_entry();" `shouldBe`
+                CreateConstraintTrigger
+                    { name = "check_entry"
+                    , eventWhen = After
+                    , event = [TriggerOnInsert]
+                    , tableName = "entry_lines"
+                    , referencedTableName = Just "entries"
+                    , deferrable = Just True
+                    , deferrableType = Nothing
+                    , for = ForEachRow
+                    , whenCondition = Nothing
+                    , functionName = "check_entry"
                     , arguments = []
                     }
 
