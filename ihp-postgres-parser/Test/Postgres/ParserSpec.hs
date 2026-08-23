@@ -100,6 +100,27 @@ spec = do
         it "should parse a CREATE TABLE with quoted identifiers" do
             parseSql "CREATE TABLE \"quoted name\" ();" `shouldBe` StatementCreateTable (table "quoted name")
 
+        it "should preserve non-public schema-qualified table names" do
+            parseSql "CREATE TABLE private.users ();" `shouldBe`
+                StatementCreateTable (table "private.users")
+            parseSql "CREATE TABLE public.users ();" `shouldBe`
+                StatementCreateTable (table "users")
+
+        it "should preserve non-public schemas across foreign keys" do
+            parseSql "ALTER TABLE private.tokens ADD CONSTRAINT tokens_user_fk FOREIGN KEY (user_id) REFERENCES auth.users (id);" `shouldBe`
+                AddConstraint
+                    { tableName = "private.tokens"
+                    , constraint = ForeignKeyConstraint
+                        { name = Just "tokens_user_fk"
+                        , columnName = "user_id"
+                        , referenceTable = "auth.users"
+                        , referenceColumn = Just "id"
+                        , onDelete = Nothing
+                        }
+                    , deferrable = Nothing
+                    , deferrableType = Nothing
+                    }
+
         it "should parse a CREATE TABLE with public schema prefix" do
             parseSql "CREATE TABLE public.users ();" `shouldBe` StatementCreateTable (table "users")
 
@@ -441,6 +462,9 @@ spec = do
         it "should parse 'DROP TABLE ..' statements" do
             parseSql "DROP TABLE tasks;" `shouldBe` DropTable { tableName = "tasks" }
 
+        it "should parse a schema-qualified DROP TABLE" do
+            parseSql "DROP TABLE private.tasks;" `shouldBe` DropTable { tableName = "private.tasks" }
+
         it "should parse 'DROP TYPE ..' statements" do
             parseSql "DROP TYPE colors;" `shouldBe` DropEnumType { name = "colors" }
 
@@ -465,11 +489,15 @@ spec = do
         it "should parse negative IntExpression's" do
             parseExpression "-1" `shouldBe` (IntExpression (-1))
 
-        it "should parse positive DoubleExpression's" do
-            parseExpression "1.337" `shouldBe` (DoubleExpression 1.337)
+        it "should preserve positive numeric literals exactly" do
+            parseExpression "1.337" `shouldBe` NumericExpression "1.337"
 
-        it "should parse negative DoubleExpression's" do
-            parseExpression "-1.337" `shouldBe` (DoubleExpression (-1.337))
+        it "should preserve negative numeric literals exactly" do
+            parseExpression "-1.337" `shouldBe` NumericExpression "-1.337"
+
+        it "should preserve PostGIS geometry modifiers" do
+            parseSql "CREATE TABLE locations (geom geometry(Point, 4326));"
+                `shouldBe` StatementCreateTable (table "locations") { columns = [col "geom" (PGeometryWithModifier "Point, 4326")] }
 
         it "should parse composite foreign keys and both referential actions" do
             parseSql "ALTER TABLE ONLY items ADD CONSTRAINT items_ref_ticket FOREIGN KEY (ticket_id, organization_id) REFERENCES tickets(id, organization_id) ON UPDATE CASCADE ON DELETE SET NULL (ticket_id) DEFERRABLE INITIALLY DEFERRED;" `shouldBe`

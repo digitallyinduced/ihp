@@ -720,6 +720,7 @@ deleteColumn DeleteColumnOptions { .. } schema =
                 isRef (GreaterThanExpression a b) = isRef a || isRef b
                 isRef (GreaterThanOrEqualToExpression a b) = isRef a || isRef b
                 isRef (DoubleExpression _) = False
+                isRef (NumericExpression _) = False
                 isRef (IntExpression _) = False
                 isRef (TypeCastExpression a _) = isRef a
                 isRef (SelectExpression _) = False
@@ -781,6 +782,7 @@ expressionReferencesColumn columnName = \case
     GreaterThanExpression a b -> references a || references b
     GreaterThanOrEqualToExpression a b -> references a || references b
     DoubleExpression _ -> False
+    NumericExpression _ -> False
     IntExpression _ -> False
     TypeCastExpression expression _ -> references expression
     SelectExpression Select { columns, from, whereClause } -> any references columns || references from || references whereClause
