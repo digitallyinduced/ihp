@@ -256,10 +256,19 @@ createExtension = do
 -- discarding them would change schema permissions or metadata. Keep their body.
 opaqueStatement :: Parser Statement
 opaqueStatement = do
-    keyword <- choice (map symbol' ["GRANT", "REVOKE", "COMMENT"])
+    keyword <- choice (map opaqueKeyword ["GRANT", "REVOKE", "COMMENT"])
     raw <- mconcat <$> someTill opaqueChunk (char ';')
-    pure UnknownStatement { raw = Text.stripEnd (keyword <> " " <> raw) }
+    let statementRaw = keyword <> raw
+    let normalizedRaw
+            | "\n" `Text.isSuffixOf` statementRaw = Text.stripEnd statementRaw <> "\n"
+            | otherwise = Text.stripEnd statementRaw
+    pure UnknownStatement { raw = normalizedRaw }
     where
+        opaqueKeyword keyword = try do
+            value <- string' keyword
+            notFollowedBy (satisfy (\character -> isAlphaNum character || character == '_'))
+            pure value
+
         opaqueChunk =
             try escapeStringChunk
             <|> quotedChunk '\''

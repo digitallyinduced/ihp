@@ -7,6 +7,7 @@ module Postgres.ParserSpec where
 import Prelude
 import Test.Hspec
 import IHP.Postgres.Parser
+import IHP.Postgres.Compiler (compileSql)
 import IHP.Postgres.Types
 import Data.Text (Text)
 import qualified Data.Text as Text
@@ -477,6 +478,15 @@ spec = do
         it "should preserve executable SQL COMMENT statements" do
             parseSql "COMMENT ON TABLE users IS 'owner records';" `shouldBe`
                 UnknownStatement { raw = "COMMENT ON TABLE users IS 'owner records'" }
+
+        it "should preserve a newline after a trailing opaque line comment" do
+            let statements = parseSqlStatements "GRANT SELECT ON users TO reader -- rationale\n;"
+            statements `shouldBe` [UnknownStatement { raw = "GRANT SELECT ON users TO reader -- rationale\n" }]
+            compileSql statements `shouldBe` "GRANT SELECT ON users TO reader -- rationale\n;\n"
+
+        it "should preserve nested block comments after opaque keywords" do
+            parseSql "GRANT /* outer /* inner */ outer */ SELECT ON users TO reader;" `shouldBe`
+                UnknownStatement { raw = "GRANT /* outer /* inner */ outer */ SELECT ON users TO reader" }
 
         it "should preserve semicolons inside opaque statement literals" do
             parseSql "COMMENT ON TABLE users IS 'internal; only';" `shouldBe`
