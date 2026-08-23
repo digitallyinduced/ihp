@@ -365,9 +365,16 @@ parseExcludeConstraint name = do
     pure ExcludeConstraint { name, excludeElements, predicate, indexType }
     where
         excludeElement = do
-            element <- Text.stripEnd . cs <$> someTill anySingle (try (space1 >> string' "WITH" >> space1))
+            element <- Text.stripEnd . mconcat <$> someTill excludeElementChunk (try (space1 >> string' "WITH" >> space1))
             operator <- parseCommutativeInfixOperator
             pure ExcludeConstraintElement { element, operator }
+
+        excludeElementChunk = quotedChunk '\'' <|> quotedChunk '"' <|> (Text.singleton <$> anySingle)
+
+        quotedChunk quote = fst <$> match do
+            char quote
+            many (try (char quote >> char quote) <|> anySingleBut quote)
+            char quote
 
         parseCommutativeInfixOperator = lexeme do
             try identifier <|> takeWhile1P (Just "operator") (`elem` ("+-*/<>=~!@#%^&|`?" :: String))
@@ -653,7 +660,8 @@ term = parens expression <|> try variadicExpr <|> try arrayExpr <|> try typedLit
 
 table = highPrecedenceTable <>
         [
-            [ operator "!~*", operator "!~", operator "~*", operator "~"
+            [ operator "->>", operator "->"
+            , operator "!~*", operator "!~", operator "~*", operator "~"
             , operator "?", operator "&&"
             ],
             [ Postfix (foldl1 (flip (.)) <$> some (try notInOp <|> try betweenOp <|> inOp))
@@ -686,9 +694,8 @@ table = highPrecedenceTable <>
               [ Postfix (foldl1 (flip (.)) <$> some (typeCastOp <|> dotOp))
               ]
             , [ keywordOperator "AT TIME ZONE" ]
-            , [ operator "->>", operator "->" ]
             , [ operator "*", operator "/", operator "%" ]
-            , [ operator "+", operator "-" ]
+            , [ operator "+", minusOperator ]
             ]
 
         binary  name f = InfixL  (f <$ try (symbol name))
@@ -697,6 +704,9 @@ table = highPrecedenceTable <>
 
         -- | An operator kept verbatim in 'BinaryOperatorExpression'.
         operator name = InfixL (BinaryOperatorExpression name <$ try (symbol name))
+
+        -- Do not consume the prefix of PostgreSQL's JSON operators here.
+        minusOperator = InfixL (BinaryOperatorExpression "-" <$ try (lexeme (string "-" <* notFollowedBy (char '>'))))
 
         -- | Same, for operators spelled as words, which need a word boundary so
         -- that e.g. `LIKE` does not match the start of a `likelihood` column.

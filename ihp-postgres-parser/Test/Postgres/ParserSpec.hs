@@ -579,6 +579,12 @@ spec = do
                     (VarExpression "flag")
                     (BinaryOperatorExpression "~" (VarExpression "code") (TextExpression "^x"))
 
+        it "should bind arithmetic before JSON operators" do
+            parseExpression "payload -> 0 + 1" `shouldBe`
+                BinaryOperatorExpression "->"
+                    (VarExpression "payload")
+                    (BinaryOperatorExpression "+" (IntExpression 0) (IntExpression 1))
+
         it "should parse WITH only as an exclusion-element delimiter" do
             parseSql "CREATE TABLE reservations (EXCLUDE (overlaps_with WITH =));" `shouldBe`
                 StatementCreateTable (table "reservations")
@@ -586,6 +592,19 @@ spec = do
                         [ ExcludeConstraint
                             { name = Nothing
                             , excludeElements = [ExcludeConstraintElement { element = "overlaps_with", operator = "=" }]
+                            , predicate = Nothing
+                            , indexType = Nothing
+                            }
+                        ]
+                    }
+
+        it "should ignore quoted WITH text inside exclusion elements" do
+            parseSql "CREATE TABLE reservations (EXCLUDE ((name || ' WITH ') WITH =));" `shouldBe`
+                StatementCreateTable (table "reservations")
+                    { constraints =
+                        [ ExcludeConstraint
+                            { name = Nothing
+                            , excludeElements = [ExcludeConstraintElement { element = "(name || ' WITH ')", operator = "=" }]
                             , predicate = Nothing
                             , indexType = Nothing
                             }
