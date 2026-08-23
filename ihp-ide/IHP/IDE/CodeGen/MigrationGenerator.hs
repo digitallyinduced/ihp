@@ -473,9 +473,11 @@ normalizeStatement CreateFunction { .. } = [ CreateFunction { orReplace = False,
                 Just cost -> Read.readMaybe (cs cost) == Just (100 :: Double)
                 Nothing -> False
             | otherwise = False
-        normalizeFunctionAttribute attribute = case Text.toUpper attribute of
-            "RETURNS NULL ON NULL INPUT" -> "STRICT"
-            normalized -> normalized
+        normalizeFunctionAttribute attribute
+            | Just supportFunction <- Text.stripPrefix "SUPPORT " attribute = "SUPPORT " <> supportFunction
+            | otherwise = case Text.toUpper attribute of
+                "RETURNS NULL ON NULL INPUT" -> "STRICT"
+                normalized -> normalized
         functionAttributeOrder attribute
             | attribute `elem` ["IMMUTABLE", "STABLE", "VOLATILE"] = (0 :: Int)
             | "LEAKPROOF" `Text.isInfixOf` attribute = 1

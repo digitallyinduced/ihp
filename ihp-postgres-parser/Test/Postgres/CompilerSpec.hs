@@ -248,6 +248,20 @@ spec = do
                     }
             parseSql (compileSql [statement]) `shouldBe` statement
 
+        it "should round-trip a quoted SUPPORT function identifier" do
+            let statement = CreateFunction
+                    { functionName = "supported"
+                    , functionArguments = []
+                    , functionBody = "SELECT 1;"
+                    , orReplace = False
+                    , returns = PUUID
+                    , language = "sql"
+                    , securityDefiner = False
+                    , functionAttributes = ["SUPPORT \"MySupport\""]
+                    , functionSettings = []
+                    }
+            parseSql (compileSql [statement]) `shouldBe` statement
+
         it "should round-trip a schema-qualified CREATE FUNCTION" do
             -- parse -> compile -> parse must preserve a non-public schema like `private.`
             let statement = CreateFunction

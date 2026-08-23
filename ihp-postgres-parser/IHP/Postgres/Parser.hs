@@ -25,7 +25,7 @@ import Data.String.Conversions (cs)
 import Data.Maybe (isJust, catMaybes, isNothing, listToMaybe)
 import Data.Either (lefts, rights)
 import Data.Functor (($>))
-import Data.Char (isAlpha, isAlphaNum, isDigit, isSpace, toLower)
+import Data.Char (isAlpha, isAlphaNum, isSpace, toLower)
 import qualified Data.List as List
 import Control.Monad (when)
 import Text.Megaparsec
@@ -976,11 +976,8 @@ parseFunctionAttribute = do
         numericAttribute name = try do
             functionOptionBoundaryKeyword name
             value <- fst <$> match do
-                _ <- some digitChar
-                optional do
-                    char '.'
-                    _ <- some digitChar
-                    pure ()
+                _ <- try (some digitChar >> optional (char '.' >> some digitChar) $> ())
+                    <|> (char '.' >> some digitChar $> ())
                 optional do
                     oneOf ['e', 'E']
                     optional (oneOf ['+', '-'])
@@ -991,8 +988,30 @@ parseFunctionAttribute = do
             pure (name <> " " <> value)
         supportAttribute = try do
             functionOptionBoundaryKeyword "SUPPORT"
-            supportFunction <- functionIdentifier
+            supportFunction <- supportFunctionIdentifier
             pure ("SUPPORT " <> supportFunction)
+
+        supportFunctionIdentifier = do
+            (schemaOrName, schemaIsQuoted) <- sourceIdentifier
+            maybeName <- optional (char '.' >> sourceIdentifier)
+            space
+            pure case maybeName of
+                Nothing -> schemaOrName
+                Just (name, _)
+                    | not schemaIsQuoted && schemaOrName == "public" -> name
+                    | otherwise -> schemaOrName <> "." <> name
+
+        sourceIdentifier = quotedIdentifier <|> unquotedIdentifier
+        quotedIdentifier = do
+            raw <- fst <$> match do
+                char '"'
+                _ <- many (try (string "\"\"" $> ()) <|> (anySingleBut '"' $> ()))
+                char '"'
+            pure (raw, True)
+        unquotedIdentifier = do
+            first <- satisfy (\c -> isAlpha c || c == '_')
+            rest <- many (satisfy isIdentifierCharacter)
+            pure (Text.toLower (Text.pack (first : rest)), False)
 
 functionOptionBoundaryKeyword :: Text -> Parser ()
 functionOptionBoundaryKeyword keyword = do

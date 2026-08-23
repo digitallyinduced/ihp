@@ -350,6 +350,10 @@ spec = do
                     , functionSettings = []
                     }
 
+        it "should parse leading-dot numeric function attributes" do
+            let parsed = parseSql "CREATE FUNCTION estimated() RETURNS uuid LANGUAGE sql COST .5 ROWS .25 AS $$SELECT 1;$$;"
+            parsed.functionAttributes `shouldBe` ["COST .5", "ROWS .25"]
+
         it "should parse escape-string function settings containing whitespace" do
             let sql = "CREATE FUNCTION configured_path() RETURNS uuid LANGUAGE sql SET application_name = E'C:\\\\Program Files' AS $$SELECT 1;$$;"
             parseSql sql `shouldBe` CreateFunction
@@ -482,6 +486,10 @@ spec = do
         it "should preserve a non-public schema in a SUPPORT function" do
             let parsed = parseSql "CREATE FUNCTION public.f(value integer) RETURNS integer LANGUAGE sql SUPPORT private.my_support AS $$ SELECT value $$;"
             parsed.functionAttributes `shouldBe` ["SUPPORT private.my_support"]
+
+        it "should preserve quoted identifiers in a SUPPORT function" do
+            let parsed = parseSql "CREATE FUNCTION public.f(value integer) RETURNS integer LANGUAGE sql SUPPORT public.\"MySupport\" AS $$ SELECT value $$;"
+            parsed.functionAttributes `shouldBe` ["SUPPORT \"MySupport\""]
 
         it "should parse a pg_dump CREATE INDEX with VARIADIC function arguments" do
             let sql = "CREATE INDEX agent_runs_ingest_gmail_message_latest_idx ON public.agent_runs USING btree (organization_id, jsonb_extract_path_text(input, VARIADIC ARRAY['gmailMessageId'::text]), COALESCE(completed_at, last_event_at, started_at, created_at) DESC, id DESC) WHERE ((type = 'ingest'::public.agent_run_type) AND (jsonb_extract_path_text(input, VARIADIC ARRAY['source'::text]) = 'gmail_email_ingest'::text));"

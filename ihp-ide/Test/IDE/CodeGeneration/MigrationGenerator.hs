@@ -90,6 +90,12 @@ tests = do
 
                 diffSchemas targetSchema actualSchema `shouldBe` []
 
+            it "preserves quoted SUPPORT function identifiers while normalizing public" do
+                let targetSchema = sql "CREATE FUNCTION current_tenant() RETURNS uuid LANGUAGE sql SUPPORT public.\"MySupport\" AS $$SELECT NULL;$$;"
+                let actualSchema = sql "CREATE FUNCTION current_tenant() RETURNS uuid LANGUAGE sql SUPPORT \"MySupport\" AS $$SELECT NULL;$$;"
+
+                diffSchemas targetSchema actualSchema `shouldBe` []
+
             it "canonicalizes function strictness synonyms and the SQL default cost" do
                 let targetSchema = sql "CREATE FUNCTION f(value integer) RETURNS integer LANGUAGE sql RETURNS NULL ON NULL INPUT COST 100.0 AS $$ SELECT value $$;"
                 let actualSchema = sql "CREATE FUNCTION f(value integer) RETURNS integer LANGUAGE sql STRICT AS $$ SELECT value $$;"
