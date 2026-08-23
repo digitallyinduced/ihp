@@ -110,6 +110,12 @@ tests = do
 
                 diffSchemas targetSchema actualSchema `shouldBe` []
 
+            it "excludes schema names from generated foreign key names" do
+                let targetSchema = sql "ALTER TABLE private.tokens ADD FOREIGN KEY (user_id) REFERENCES private.users (id);"
+                let actualSchema = sql "ALTER TABLE private.tokens ADD CONSTRAINT tokens_user_id_fkey FOREIGN KEY (user_id) REFERENCES private.users (id);"
+
+                diffSchemas targetSchema actualSchema `shouldBe` []
+
             it "preserves the suffix of long PostgreSQL-generated foreign key names" do
                 let targetSchema = sql "ALTER TABLE very_long_child_table_name_for_foreign_key ADD FOREIGN KEY (very_long_parent_reference_column) REFERENCES parents (id);"
                 let actualSchema = sql "ALTER TABLE very_long_child_table_name_for_foreign_key ADD CONSTRAINT very_long_child_table_name_fo_very_long_parent_reference_c_fkey FOREIGN KEY (very_long_parent_reference_column) REFERENCES parents (id);"
@@ -121,6 +127,14 @@ tests = do
                 let actualSchema = sql "CREATE TABLE parents (tenant_id uuid, id uuid, PRIMARY KEY (tenant_id, id)); CREATE TABLE children (tenant_id uuid, parent_id uuid); ALTER TABLE children ADD CONSTRAINT children_tenant_id_parent_id_fkey FOREIGN KEY (tenant_id, parent_id) REFERENCES parents (tenant_id, id);"
 
                 diffSchemas targetSchema actualSchema `shouldBe` []
+
+            it "preserves quoted composite foreign key identifiers" do
+                let targetSchema = sql "ALTER TABLE children ADD FOREIGN KEY (\"Tenant_ID\", \"Parent_ID\") REFERENCES \"Parents\" (\"Tenant_ID\", \"ID\");"
+                let [AddConstraint { constraint = CompositeForeignKeyConstraint { columnNames, referenceTable, referenceColumns } }] = diffSchemas targetSchema []
+
+                columnNames `shouldBe` ["Tenant_ID", "Parent_ID"]
+                referenceTable `shouldBe` "Parents"
+                referenceColumns `shouldBe` ["Tenant_ID", "ID"]
 
             it "folds unquoted explicit composite foreign-key names" do
                 let targetSchema = sql "CREATE TABLE children (tenant_id uuid, parent_id uuid); ALTER TABLE children ADD CONSTRAINT Child_FK FOREIGN KEY (tenant_id, parent_id) REFERENCES parents (tenant_id, id);"

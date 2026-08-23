@@ -485,10 +485,12 @@ normalizeForeignKeyNameCollisions = go []
         go usedNames (statement : rest) = statement : go usedNames rest
 
         generatedForeignKeyName tableName ForeignKeyConstraint { columnName } =
-            postgresGeneratedObjectName (Text.toLower tableName) (Text.toLower columnName) "fkey"
+            postgresGeneratedObjectName (unqualifiedRelationName tableName) (Text.toLower columnName) "fkey"
         generatedForeignKeyName tableName CompositeForeignKeyConstraint { columnNames } =
-            postgresGeneratedObjectName (Text.toLower tableName) (Text.intercalate "_" (map Text.toLower columnNames)) "fkey"
+            postgresGeneratedObjectName (unqualifiedRelationName tableName) (Text.intercalate "_" (map Text.toLower columnNames)) "fkey"
         generatedForeignKeyName _ _ = error "generatedForeignKeyName: expected a foreign key"
+
+        unqualifiedRelationName tableName = Text.toLower (fromMaybe tableName (last (Text.splitOn "." tableName)))
 
         isForeignKey ForeignKeyConstraint {} = True
         isForeignKey CompositeForeignKeyConstraint {} = True
@@ -608,12 +610,12 @@ normalizeTable table@(CreateTable { .. }) = ( CreateTable { columns = fst normal
                 Left c -> Just c
 
 normalizeConstraint :: Text -> Constraint -> Constraint
-normalizeConstraint tableName ForeignKeyConstraint { name, columnName, referenceTable, referenceColumn, onDelete, onUpdate, constraintDeferrable, constraintDeferrableType } = ForeignKeyConstraint { name = normalizeForeignKeyName tableName [columnName] name, columnName = Text.toLower columnName, referenceTable = Text.toLower referenceTable, referenceColumn = fmap Text.toLower referenceColumn, onDelete = normalizeReferentialAction onDelete, onUpdate = normalizeReferentialAction onUpdate, constraintDeferrable, constraintDeferrableType }
+normalizeConstraint tableName ForeignKeyConstraint { name, columnName, referenceTable, referenceColumn, onDelete, onUpdate, constraintDeferrable, constraintDeferrableType } = ForeignKeyConstraint { name = normalizeForeignKeyName tableName [columnName] name, columnName, referenceTable, referenceColumn, onDelete = normalizeReferentialAction onDelete, onUpdate = normalizeReferentialAction onUpdate, constraintDeferrable, constraintDeferrableType }
 normalizeConstraint tableName CompositeForeignKeyConstraint { name, columnNames, referenceTable, referenceColumns, matchType, onDelete, onUpdate, constraintDeferrable, constraintDeferrableType } = CompositeForeignKeyConstraint
     { name = normalizeForeignKeyName tableName columnNames name
-    , columnNames = map Text.toLower columnNames
-    , referenceTable = Text.toLower referenceTable
-    , referenceColumns = map Text.toLower referenceColumns
+    , columnNames
+    , referenceTable
+    , referenceColumns
     , matchType = normalizeMatchType matchType
     , onDelete = normalizeReferentialAction onDelete
     , onUpdate = normalizeReferentialAction onUpdate

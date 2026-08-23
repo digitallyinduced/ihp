@@ -360,10 +360,10 @@ parsePrimaryKeyConstraint = do
 parseForeignKeyConstraint name = do
     lexeme "FOREIGN"
     lexeme "KEY"
-    columnNames <- between (char '(' >> space) (char ')' >> space) (identifier `sepBy1` (char ',' >> space))
+    columnNames <- between (char '(' >> space) (char ')' >> space) (postgresIdentifier `sepBy1` (char ',' >> space))
     lexeme "REFERENCES"
-    referenceTable <- qualifiedIdentifier
-    referenceColumns <- optional $ between (char '(' >> space) (char ')' >> space) (identifier `sepBy1` (char ',' >> space))
+    referenceTable <- foldingQualifiedIdentifier
+    referenceColumns <- optional $ between (char '(' >> space) (char ')' >> space) (postgresIdentifier `sepBy1` (char ',' >> space))
     matchType <- optional do
         lexeme "MATCH"
         (lexeme "FULL" $> MatchFull) <|> (lexeme "PARTIAL" $> MatchPartial) <|> (lexeme "SIMPLE" $> MatchSimple)
