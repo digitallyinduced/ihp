@@ -470,6 +470,7 @@ deleteTable tableName statements =
         CreateIndex { tableName = indexTable }          | indexTable == tableName      -> False
         EnableRowLevelSecurity { tableName = rlsTable } | rlsTable == tableName        -> False
         ForceRowLevelSecurity { tableName = rlsTable }  | rlsTable == tableName        -> False
+        NoForceRowLevelSecurity { tableName = rlsTable } | rlsTable == tableName       -> False
         CreatePolicy { tableName = policyTable }        | policyTable == tableName     -> False
         CreateTrigger { tableName = triggerTable }      | triggerTable == tableName    -> False
         otherwise -> True
@@ -486,6 +487,7 @@ updateTable tableId tableName statements =
             index@(CreateIndex { tableName = indexTable, indexName }) | indexTable == oldTableName -> (index :: Statement) { tableName, indexName = Text.replace oldTableName tableName indexName } 
             rls@(EnableRowLevelSecurity { tableName = rlsTable }) | rlsTable == oldTableName -> (rls :: Statement) { tableName }
             rls@(ForceRowLevelSecurity { tableName = rlsTable }) | rlsTable == oldTableName -> (rls :: Statement) { tableName }
+            rls@(NoForceRowLevelSecurity { tableName = rlsTable }) | rlsTable == oldTableName -> (rls :: Statement) { tableName }
             policy@(CreatePolicy { tableName = policyTable, name }) | policyTable == oldTableName -> (policy :: Statement) { tableName, name = Text.replace oldTableName tableName name }
             trigger@(CreateTrigger { tableName = triggerTable, name }) | triggerTable == oldTableName -> (trigger :: Statement) { tableName, name = Text.replace oldTableName tableName name }
             otherwise -> otherwise  
