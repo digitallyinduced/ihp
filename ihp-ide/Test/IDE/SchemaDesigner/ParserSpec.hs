@@ -603,12 +603,12 @@ tests = do
 
         it "should parse a CREATE TABLE statement with a PostGIS geometry(subtype, srid) column" do
             parseSql "CREATE TABLE locations (\n    geom geometry(Point, 4326)\n);\n" `shouldBe` StatementCreateTable (table "locations")
-                    { columns = [ col "geom" PGeometry ]
+                    { columns = [ col "geom" (PGeometryWithModifier "Point, 4326") ]
                     }
 
         it "should parse a CREATE TABLE statement with a PostGIS geometry(subtype) column" do
             parseSql "CREATE TABLE areas (\n    shape geometry(MultiPolygon)\n);\n" `shouldBe` StatementCreateTable (table "areas")
-                    { columns = [ col "shape" PGeometry ]
+                    { columns = [ col "shape" (PGeometryWithModifier "MultiPolygon") ]
                     }
 
         it "should parse a CREATE INDEX statement" do
@@ -845,7 +845,7 @@ $$;
         it "should parse a decimal default value with a type-cast" do
             let sql = "CREATE TABLE a(electricity_unit_price DOUBLE PRECISION DEFAULT 0.17::double precision NOT NULL);"
             let statements =
-                    [ StatementCreateTable (table "a") { columns = [(col "electricity_unit_price" PDouble) { defaultValue = Just (TypeCastExpression (DoubleExpression 0.17) PDouble), notNull = True }] }
+                    [ StatementCreateTable (table "a") { columns = [(col "electricity_unit_price" PDouble) { defaultValue = Just (TypeCastExpression (NumericExpression "0.17") PDouble), notNull = True }] }
                     ]
             parseSqlStatements sql `shouldBe` statements
 
@@ -1143,11 +1143,11 @@ COMMENT ON EXTENSION "uuid-ossp" IS 'generate universally unique identifiers (UU
         it "should parse negative IntExpression's" do
             parseExpression "-1" `shouldBe` (IntExpression (-1))
 
-        it "should parse positive DoubleExpression's" do
-            parseExpression "1.337" `shouldBe` (DoubleExpression 1.337)
+        it "should preserve positive numeric literals exactly" do
+            parseExpression "1.337" `shouldBe` NumericExpression "1.337"
 
-        it "should parse negative DoubleExpression's" do
-            parseExpression "-1.337" `shouldBe` (DoubleExpression (-1.337))
+        it "should preserve negative numeric literals exactly" do
+            parseExpression "-1.337" `shouldBe` NumericExpression "-1.337"
 
         it "should parse lower-cased SELECT expressions" do
             parseExpression "(select company_id from users where id = ihp_user_id())" `shouldBe` SelectExpression (Select {columns = [VarExpression "company_id"], from = VarExpression "users", alias = Nothing, whereClause = EqExpression (VarExpression "id") (CallExpression "ihp_user_id" [])})

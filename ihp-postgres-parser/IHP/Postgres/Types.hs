@@ -201,6 +201,8 @@ data Expression =
     | GreaterThanOrEqualToExpression Expression Expression
     -- | Double literal value, e.g. 0.1337
     | DoubleExpression Double
+    -- | Exact SQL decimal literal, retaining significant scale and exponent.
+    | NumericExpression Text
     -- | Integer literal value, e.g. 1337
     | IntExpression Int
     -- | value::type
@@ -231,6 +233,7 @@ data PostgresType
     | PPoint
     | PPolygon
     | PGeometry
+    | PGeometryWithModifier Text
     | PDate
     | PBinary
     | PTime

@@ -328,6 +328,12 @@ diffSchemas targetSchema' actualSchema' = (drop <> create)
 
 removeNoise = filter \case
         Comment {} -> False
+        -- IHP cannot compare unmodelled SQL safely. Never copy it from either
+        -- side into an automatically generated migration.
+        UnknownStatement {} -> False
+        -- pg_dump session setup is not part of the application schema.
+        Set {} -> False
+        SelectStatement {} -> False
         StatementCreateTable { unsafeGetCreateTable = CreateTable { name = "schema_migrations" } }      -> False
         AddConstraint { tableName = "schema_migrations" }                                               -> False
         CreateFunction { functionName } | "notify_" `Text.isPrefixOf` functionName                      -> False
@@ -632,7 +638,7 @@ normalizeColumn table Column { name, columnType, defaultValue, notNull, isUnique
         normalizeName nane = Text.toLower name
 
         normalizedDefaultValue = case defaultValue of
-            Just defaultValue -> Just (normalizeExpression defaultValue)
+            Just defaultValue -> Just (normalizeDefaultExpression columnType defaultValue)
             Nothing -> if notNull || isJust generator
                 then Nothing
                 else Just (VarExpression "null") -- pg_dump columns don't have an explicit default null value
@@ -656,6 +662,7 @@ normalizeExpression (LessThanOrEqualToExpression a b) = LessThanOrEqualToExpress
 normalizeExpression (GreaterThanExpression a b) = GreaterThanExpression (normalizeExpression a) (normalizeExpression b)
 normalizeExpression (GreaterThanOrEqualToExpression a b) = GreaterThanOrEqualToExpression (normalizeExpression a) (normalizeExpression b)
 normalizeExpression e@(DoubleExpression {}) = e
+normalizeExpression e@(NumericExpression {}) = e
 normalizeExpression e@(IntExpression {}) = e
 normalizeExpression (ConcatenationExpression a b) = ConcatenationExpression (normalizeExpression a) (normalizeExpression b)
 -- Enum default values from pg_dump always have an explicit type cast. Inside the Schema.sql they typically don't have those.
@@ -681,6 +688,21 @@ normalizeExpression (InArrayExpression exprs) = InArrayExpression (map normalize
 normalizeExpression (ArrayLiteralExpression exprs) = ArrayLiteralExpression (map normalizeExpression exprs)
 normalizeExpression (VariadicExpression expr) = VariadicExpression (normalizeExpression expr)
 
+normalizeDefaultExpression :: PostgresType -> Expression -> Expression
+normalizeDefaultExpression columnType expression
+    | supportsEquivalentNumericLiterals (normalizeSqlType columnType) = normalizeNumericExpression (normalizeExpression expression)
+    | otherwise = normalizeExpression expression
+    where
+        supportsEquivalentNumericLiterals PReal = True
+        supportsEquivalentNumericLiterals PDouble = True
+        supportsEquivalentNumericLiterals PNumeric { scale = Just _ } = True
+        supportsEquivalentNumericLiterals _ = False
+
+        normalizeNumericExpression (DoubleExpression value) = NumericExpression (normalizeNumericLiteral (tshow value))
+        normalizeNumericExpression (NumericExpression value) = NumericExpression (normalizeNumericLiteral value)
+        normalizeNumericExpression (IntExpression value) = NumericExpression (normalizeNumericLiteral (tshow value))
+        normalizeNumericExpression other = other
+
 -- | Replaces @table.field@ with just @field@
 --
 -- >>> unqualifyExpression "servers" (sql "SELECT * FROM servers WHERE servers.is_public")
@@ -704,6 +726,7 @@ unqualifyExpression scope expression = doUnqualify expression
         doUnqualify (GreaterThanExpression a b) = GreaterThanExpression (doUnqualify a) (doUnqualify b)
         doUnqualify (GreaterThanOrEqualToExpression a b) = GreaterThanOrEqualToExpression (doUnqualify a) (doUnqualify b)
         doUnqualify e@(DoubleExpression {}) = e
+        doUnqualify e@(NumericExpression {}) = e
         doUnqualify e@(IntExpression {}) = e
         doUnqualify (ConcatenationExpression a b) = ConcatenationExpression (doUnqualify a) (doUnqualify b)
         doUnqualify (TypeCastExpression a b) = TypeCastExpression (doUnqualify a) b
@@ -744,6 +767,7 @@ resolveAlias (Just alias) fromExpression expression =
         e@(GreaterThanExpression a b) -> GreaterThanExpression (rec a) (rec b)
         e@(GreaterThanOrEqualToExpression a b) -> GreaterThanOrEqualToExpression (rec a) (rec b)
         e@(DoubleExpression {}) -> e
+        e@(NumericExpression {}) -> e
         e@(IntExpression {}) -> e
         e@(TypeCastExpression a b) -> (TypeCastExpression (rec a) b)
         e@(SelectExpression Select { columns, from, whereClause, alias }) -> SelectExpression Select { columns = rec <$> columns, from = rec from, whereClause = rec whereClause, alias = alias }
@@ -757,9 +781,31 @@ resolveAlias Nothing fromExpression expression = expression
 
 normalizeSqlType :: PostgresType -> PostgresType
 normalizeSqlType (PCustomType customType) = PCustomType (Text.toLower customType)
+normalizeSqlType (PGeometryWithModifier modifier) = PGeometryWithModifier (Text.intercalate "," (map (Text.toLower . Text.strip) (Text.splitOn "," modifier)))
+normalizeSqlType (PArray elementType) = PArray (normalizeSqlType elementType)
 normalizeSqlType PBigserial = PBigInt
 normalizeSqlType PSerial = PInt
 normalizeSqlType otherwise = otherwise
+
+normalizeNumericLiteral :: Text -> Text
+normalizeNumericLiteral value =
+    case Read.readMaybe (cs exponentText) :: Maybe Int of
+        Nothing -> Text.toLower value
+        Just exponent
+            | Text.null significantDigits -> "0"
+            | otherwise -> sign <> significantDigits <> "e" <> tshow (exponent - Text.length fractionalPart + trailingZeroCount)
+    where
+        (mantissa, rawExponent) = Text.break (\character -> character == 'e' || character == 'E') value
+        exponentText = if Text.null rawExponent then "0" else Text.drop 1 rawExponent
+        (sign, unsignedMantissa) = case Text.uncons mantissa of
+            Just ('-', rest) -> ("-", rest)
+            Just ('+', rest) -> ("", rest)
+            _ -> ("", mantissa)
+        (integerPart, rawFractionalPart) = Text.break (== '.') unsignedMantissa
+        fractionalPart = Text.drop 1 rawFractionalPart
+        digits = Text.dropWhile (== '0') (integerPart <> fractionalPart)
+        significantDigits = Text.dropWhileEnd (== '0') digits
+        trailingZeroCount = Text.length digits - Text.length significantDigits
 
 -- | Returns every migration file created by a generation plan.
 migrationPathsFromPlan :: [GeneratorAction] -> [Text]
