@@ -553,7 +553,7 @@ normalizeColumn table Column { name, columnType, defaultValue, notNull, isUnique
         normalizeName nane = Text.toLower name
 
         normalizedDefaultValue = case defaultValue of
-            Just defaultValue -> Just (normalizeExpression defaultValue)
+            Just defaultValue -> Just (normalizeDefaultExpression columnType defaultValue)
             Nothing -> if notNull || isJust generator
                 then Nothing
                 else Just (VarExpression "null") -- pg_dump columns don't have an explicit default null value
@@ -576,9 +576,9 @@ normalizeExpression (LessThanExpression a b) = LessThanExpression (normalizeExpr
 normalizeExpression (LessThanOrEqualToExpression a b) = LessThanOrEqualToExpression (normalizeExpression a) (normalizeExpression b)
 normalizeExpression (GreaterThanExpression a b) = GreaterThanExpression (normalizeExpression a) (normalizeExpression b)
 normalizeExpression (GreaterThanOrEqualToExpression a b) = GreaterThanOrEqualToExpression (normalizeExpression a) (normalizeExpression b)
-normalizeExpression (DoubleExpression value) = NumericExpression (normalizeNumericLiteral (tshow value))
-normalizeExpression (NumericExpression value) = NumericExpression (normalizeNumericLiteral value)
-normalizeExpression (IntExpression value) = NumericExpression (normalizeNumericLiteral (tshow value))
+normalizeExpression e@(DoubleExpression {}) = e
+normalizeExpression e@(NumericExpression {}) = e
+normalizeExpression e@(IntExpression {}) = e
 normalizeExpression (ConcatenationExpression a b) = ConcatenationExpression (normalizeExpression a) (normalizeExpression b)
 -- Enum default values from pg_dump always have an explicit type cast. Inside the Schema.sql they typically don't have those.
 -- Therefore we remove these typecasts here
@@ -602,6 +602,21 @@ normalizeExpression (ExistsExpression a) = ExistsExpression (normalizeExpression
 normalizeExpression (InArrayExpression exprs) = InArrayExpression (map normalizeExpression exprs)
 normalizeExpression (ArrayLiteralExpression exprs) = ArrayLiteralExpression (map normalizeExpression exprs)
 normalizeExpression (VariadicExpression expr) = VariadicExpression (normalizeExpression expr)
+
+normalizeDefaultExpression :: PostgresType -> Expression -> Expression
+normalizeDefaultExpression columnType expression
+    | supportsEquivalentNumericLiterals (normalizeSqlType columnType) = normalizeNumericExpression (normalizeExpression expression)
+    | otherwise = normalizeExpression expression
+    where
+        supportsEquivalentNumericLiterals PReal = True
+        supportsEquivalentNumericLiterals PDouble = True
+        supportsEquivalentNumericLiterals PNumeric {} = True
+        supportsEquivalentNumericLiterals _ = False
+
+        normalizeNumericExpression (DoubleExpression value) = NumericExpression (normalizeNumericLiteral (tshow value))
+        normalizeNumericExpression (NumericExpression value) = NumericExpression (normalizeNumericLiteral value)
+        normalizeNumericExpression (IntExpression value) = NumericExpression (normalizeNumericLiteral (tshow value))
+        normalizeNumericExpression other = other
 
 -- | Replaces @table.field@ with just @field@
 --
@@ -682,6 +697,7 @@ resolveAlias Nothing fromExpression expression = expression
 normalizeSqlType :: PostgresType -> PostgresType
 normalizeSqlType (PCustomType customType) = PCustomType (Text.toLower customType)
 normalizeSqlType (PGeometryWithModifier modifier) = PGeometryWithModifier (Text.intercalate "," (map (Text.toLower . Text.strip) (Text.splitOn "," modifier)))
+normalizeSqlType (PArray elementType) = PArray (normalizeSqlType elementType)
 normalizeSqlType PBigserial = PBigInt
 normalizeSqlType PSerial = PInt
 normalizeSqlType otherwise = otherwise
