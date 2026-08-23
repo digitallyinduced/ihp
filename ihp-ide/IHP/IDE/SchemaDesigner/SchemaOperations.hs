@@ -166,9 +166,12 @@ updateColumn options@(UpdateColumnOptions { .. }) schema =
               (True, True) -> primaryKeyConstraint
 
         updateForeignKeyConstraints = map \case
-                statement@(AddConstraint { tableName = constraintTable, constraint = constraint@(ForeignKeyConstraint { name = fkName, columnName = fkColumnName  })  }) | constraintTable == tableName && fkColumnName == (oldColumn.name) ->
-                    let newName = Text.replace (oldColumn.name) columnName <$> fkName
-                    in statement { constraint = constraint { columnName, name = newName } }
+                statement@(AddConstraint { tableName = constraintTable, constraint = constraint@(ForeignKeyConstraint { name = fkName, columnName = fkColumnName, onDelete, onUpdate })  }) | constraintTable == tableName && fkColumnName == (oldColumn.name) ->
+                    let
+                        newName = Text.replace (oldColumn.name) columnName <$> fkName
+                        newOnDelete = fmap updateReferentialActionColumns onDelete
+                        newOnUpdate = fmap updateReferentialActionColumns onUpdate
+                    in statement { constraint = constraint { columnName, name = newName, onDelete = newOnDelete, onUpdate = newOnUpdate } }
                 statement@(AddConstraint { tableName = constraintTable, constraint = constraint@(CompositeForeignKeyConstraint { name = fkName, columnNames, onDelete, onUpdate }) }) | constraintTable == tableName && oldColumn.name `elem` columnNames ->
                     let
                         newName = Text.replace oldColumn.name columnName <$> fkName
@@ -183,7 +186,11 @@ updateColumn options@(UpdateColumnOptions { .. }) schema =
                         updateIndexColumn otherwise = otherwise
                     in
                         (index :: Statement) { columns = map updateIndexColumn indexColumns, indexName = Text.replace (oldColumn.name) columnName indexName }
+                trigger@(CreateTrigger { tableName = triggerTable, event }) | triggerTable == tableName -> trigger { event = map updateTriggerEvent event }
+                trigger@(CreateConstraintTrigger { tableName = triggerTable, event }) | triggerTable == tableName -> trigger { event = map updateTriggerEvent event }
                 otherwise -> otherwise
+        updateTriggerEvent (TriggerOnUpdateOf columns) = TriggerOnUpdateOf (map renameColumn columns)
+        updateTriggerEvent event = event
         updateReferentialActionColumns (SetNull names) = SetNull (map renameColumn names)
         updateReferentialActionColumns (SetDefault names) = SetDefault (map renameColumn names)
         updateReferentialActionColumns action = action
@@ -575,6 +582,7 @@ deleteColumn :: DeleteColumnOptions -> Schema -> Schema
 deleteColumn DeleteColumnOptions { .. } schema =
         schema
         |> map deleteColumnInTable
+        |> concatMap deleteColumnFromTrigger
         |> (filter \case
                 AddConstraint { tableName = fkTable, constraint = ForeignKeyConstraint { columnName = fkColumn } } | fkTable == tableName && fkColumn == columnName -> False
                 AddConstraint { tableName = fkTable, constraint = CompositeForeignKeyConstraint { columnNames = fkColumns } } | fkTable == tableName && columnName `elem` fkColumns -> False
@@ -590,6 +598,19 @@ deleteColumn DeleteColumnOptions { .. } schema =
         deleteColumnInTable :: Statement -> Statement
         deleteColumnInTable (StatementCreateTable table@CreateTable { name, columns }) | name == tableName = StatementCreateTable $ table { columns = delete (columns !! columnId) columns}
         deleteColumnInTable statement = statement
+
+        deleteColumnFromTrigger trigger@(CreateTrigger { tableName = triggerTable, event }) | triggerTable == tableName = updateTriggerEvents trigger event
+        deleteColumnFromTrigger trigger@(CreateConstraintTrigger { tableName = triggerTable, event }) | triggerTable == tableName = updateTriggerEvents trigger event
+        deleteColumnFromTrigger statement = [statement]
+
+        updateTriggerEvents trigger events = case mapMaybe deleteColumnFromEvent events of
+            [] -> []
+            remainingEvents -> [trigger { event = remainingEvents }]
+
+        deleteColumnFromEvent (TriggerOnUpdateOf columns) = case filter (/= columnName) columns of
+            [] -> Nothing
+            remainingColumns -> Just (TriggerOnUpdateOf remainingColumns)
+        deleteColumnFromEvent event = Just event
 
         deletePolicyReferencingPolicy :: Statement -> Bool
         deletePolicyReferencingPolicy CreatePolicy { tableName = policyTable, using, check } | policyTable == tableName = 

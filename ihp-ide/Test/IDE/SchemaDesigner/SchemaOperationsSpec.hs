@@ -4,10 +4,18 @@ import Test.Hspec
 import IHP.Prelude
 import IHP.Postgres.Types
 import qualified IHP.IDE.SchemaDesigner.SchemaOperations as SchemaOperations
+import qualified IHP.IDE.SchemaDesigner.Controller.Columns as ColumnsController
 import qualified IHP.Postgres.Parser as Parser
 import qualified Text.Megaparsec as Megaparsec
 
 tests = do
+    describe "IHP.IDE.SchemaDesigner.Controller.Columns" do
+        it "preserves ON UPDATE when editing a foreign key" do
+            let inputSchema = parseSqlStatements "ALTER TABLE messages ADD CONSTRAINT messages_ref_user_id FOREIGN KEY (user_id) REFERENCES users (id) ON UPDATE CASCADE ON DELETE RESTRICT;"
+            let expectedSchema = parseSqlStatements "ALTER TABLE messages ADD CONSTRAINT messages_ref_user_id FOREIGN KEY (user_id) REFERENCES accounts (id) ON UPDATE CASCADE ON DELETE SET NULL;"
+
+            ColumnsController.updateForeignKeyConstraint "messages" "user_id" "messages_ref_user_id" "accounts" (SetNull []) 0 inputSchema `shouldBe` expectedSchema
+
     describe "IHP.IDE.SchemaDesigner.SchemaOperations" do
         let tableA = StatementCreateTable (table "a")
         let tableB = StatementCreateTable (table "b")
@@ -271,6 +279,19 @@ tests = do
                 (SchemaOperations.addColumn options inputSchema) `shouldBe` expectedSchema
 
         describe "deleteColumn" do
+            it "removes a deleted column from UPDATE OF triggers" do
+                let inputSchema = parseSqlStatements [trimming|
+                    CREATE TABLE items (ticket_id UUID, organization_id UUID);
+                    CREATE TRIGGER items_changed BEFORE UPDATE OF ticket_id, organization_id ON items FOR EACH ROW EXECUTE FUNCTION notify_change();
+                |]
+                let expectedSchema = parseSqlStatements [trimming|
+                    CREATE TABLE items (organization_id UUID);
+                    CREATE TRIGGER items_changed BEFORE UPDATE OF organization_id ON items FOR EACH ROW EXECUTE FUNCTION notify_change();
+                |]
+                let options = SchemaOperations.DeleteColumnOptions { tableName = "items", columnName = "ticket_id", columnId = 0 }
+
+                SchemaOperations.deleteColumn options inputSchema `shouldBe` expectedSchema
+
             it "deletes a composite foreign key containing the column" do
                 let inputSchema = parseSqlStatements [trimming|
                     CREATE TABLE items (ticket_id UUID, organization_id UUID);
@@ -357,6 +378,23 @@ tests = do
 
                 (SchemaOperations.deleteColumn options inputSchema) `shouldBe` expectedSchema
         describe "update" do
+            it "renames columns in UPDATE OF triggers" do
+                let inputSchema = parseSqlStatements [trimming|
+                    CREATE TABLE items (ticket_id UUID);
+                    CREATE TRIGGER items_changed BEFORE UPDATE OF ticket_id ON items FOR EACH ROW EXECUTE FUNCTION notify_change();
+                |]
+                let expectedSchema = parseSqlStatements [trimming|
+                    CREATE TABLE items (parent_ticket_id UUID);
+                    CREATE TRIGGER items_changed BEFORE UPDATE OF parent_ticket_id ON items FOR EACH ROW EXECUTE FUNCTION notify_change();
+                |]
+                let options = SchemaOperations.UpdateColumnOptions
+                        { tableName = "items", columnName = "parent_ticket_id", columnType = PUUID
+                        , defaultValue = Nothing, isArray = False, allowNull = True
+                        , isUnique = False, primaryKey = False, columnId = 0
+                        }
+
+                SchemaOperations.updateColumn options inputSchema `shouldBe` expectedSchema
+
             it "updates composite foreign key columns" do
                 let inputSchema = parseSqlStatements [trimming|
                     CREATE TABLE items (ticket_id UUID, organization_id UUID);

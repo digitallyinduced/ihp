@@ -98,6 +98,12 @@ tests = do
 
                 diffSchemas targetSchema actualSchema `shouldBe` []
 
+            it "normalizes constraint trigger defaults and UPDATE OF identifiers" do
+                let targetSchema = sql "CREATE CONSTRAINT TRIGGER items_check AFTER UPDATE OF Email ON items FOR EACH ROW EXECUTE FUNCTION check_items();"
+                let actualSchema = sql "CREATE CONSTRAINT TRIGGER items_check AFTER UPDATE OF email ON items NOT DEFERRABLE INITIALLY IMMEDIATE FOR EACH ROW EXECUTE FUNCTION check_items();"
+
+                diffSchemas targetSchema actualSchema `shouldBe` []
+
             it "should handle a new table" do
                 let targetSchema = sql [i|
                     CREATE TABLE users (
@@ -519,7 +525,7 @@ tests = do
                 |]
                 let actualSchema = sql ""
                 let migration = sql [i|
-                    ALTER TABLE messages ADD CONSTRAINT messages_ref_user_id FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE NO ACTION;
+                    ALTER TABLE messages ADD CONSTRAINT messages_ref_user_id FOREIGN KEY (user_id) REFERENCES users (id) ON UPDATE NO ACTION ON DELETE NO ACTION;
                 |]
 
                 diffSchemas targetSchema actualSchema `shouldBe` migration
@@ -734,7 +740,7 @@ tests = do
                         user_id UUID NOT NULL
                     );
                     CREATE INDEX posts_user_id_index ON posts (user_id);
-                    ALTER TABLE posts ADD CONSTRAINT posts_ref_user_id FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE NO ACTION;
+                    ALTER TABLE posts ADD CONSTRAINT posts_ref_user_id FOREIGN KEY (user_id) REFERENCES users (id) ON UPDATE NO ACTION ON DELETE NO ACTION;
                 |]
 
                 diffSchemas targetSchema actualSchema `shouldBe` migration
@@ -1294,7 +1300,7 @@ CREATE POLICY "Users can read and edit their own record" ON public.users USING (
                     CREATE INDEX artefacts_created_at_index ON artefacts (created_at);
                     CREATE TRIGGER update_artefacts_updated_at BEFORE UPDATE ON artefacts FOR EACH ROW EXECUTE FUNCTION set_updated_at_to_now();
                     CREATE INDEX artefacts_user_id_index ON artefacts (user_id);
-                    ALTER TABLE artefacts ADD CONSTRAINT artefacts_ref_user_id FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE NO ACTION;
+                    ALTER TABLE artefacts ADD CONSTRAINT artefacts_ref_user_id FOREIGN KEY (user_id) REFERENCES users (id) ON UPDATE NO ACTION ON DELETE NO ACTION;
                     ALTER TABLE artefacts ENABLE ROW LEVEL SECURITY;
                     CREATE POLICY "Users can manage their artefacts" ON artefacts USING (user_id = ihp_user_id()) WITH CHECK (user_id = ihp_user_id());
                 |]

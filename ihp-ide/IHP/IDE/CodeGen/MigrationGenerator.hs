@@ -464,7 +464,19 @@ normalizeStatement CreateEnumType { name, values } = [ CreateEnumType { name = T
 normalizeStatement CreatePolicy { name, action, tableName, using, check } = [ CreatePolicy { name = truncateIdentifier name, tableName, using = (unqualifyExpression tableName . normalizeExpression) <$> using, check = (unqualifyExpression tableName . normalizeExpression) <$> check, action = normalizePolicyAction action } ]
 normalizeStatement CreateIndex { columns, indexType, indexName, .. } = [ CreateIndex { columns = map normalizeIndexColumn columns, indexType = normalizeIndexType indexType, indexName = truncateIdentifier indexName, .. } ]
 normalizeStatement CreateFunction { .. } = [ CreateFunction { orReplace = False, language = Text.toUpper language, functionBody = removeIndentation $ normalizeNewLines functionBody, .. } ]
+normalizeStatement trigger@CreateTrigger { event } = [trigger { event = map normalizeTriggerEvent event }]
+normalizeStatement trigger@CreateConstraintTrigger { event, deferrable, deferrableType } =
+    [ trigger
+        { event = map normalizeTriggerEvent event
+        , deferrable = if deferrable == Just False then Nothing else deferrable
+        , deferrableType = if deferrableType == Just InitiallyImmediate then Nothing else deferrableType
+        }
+    ]
 normalizeStatement otherwise = [otherwise]
+
+normalizeTriggerEvent :: TriggerEvent -> TriggerEvent
+normalizeTriggerEvent (TriggerOnUpdateOf columns) = TriggerOnUpdateOf (map Text.toLower columns)
+normalizeTriggerEvent event = event
 
 normalizePolicyAction (Just PolicyForAll) = Nothing
 normalizePolicyAction otherwise = otherwise
@@ -521,10 +533,6 @@ normalizeConstraint _ CompositeForeignKeyConstraint { name, columnNames, referen
     , onDelete = normalizeReferentialAction onDelete
     , onUpdate = normalizeReferentialAction onUpdate
     }
-normalizeReferentialAction action = Just case fromMaybe NoAction action of
-    SetNull columnNames -> SetNull (map Text.toLower columnNames)
-    SetDefault columnNames -> SetDefault (map Text.toLower columnNames)
-    other -> other
 normalizeConstraint tableName constraint@(UniqueConstraint { name = Just uniqueName, columnNames }) | length columnNames > 1 =
         -- Single column UNIQUE constraints like:
         --
@@ -553,6 +561,11 @@ normalizeConstraint tableName constraint@(UniqueConstraint { name = Just uniqueN
                 then constraint { name = Nothing }
                 else constraint
 normalizeConstraint _ otherwise = otherwise
+
+normalizeReferentialAction action = Just case fromMaybe NoAction action of
+    SetNull columnNames -> SetNull (map Text.toLower columnNames)
+    SetDefault columnNames -> SetDefault (map Text.toLower columnNames)
+    other -> other
 
 normalizeColumn :: CreateTable -> Column -> (Column, [Statement])
 normalizeColumn table Column { name, columnType, defaultValue, notNull, isUnique, generator } = (Column { name = normalizeName name, columnType = normalizeSqlType columnType, defaultValue = normalizedDefaultValue, notNull, isUnique = False, generator = normalizeColumnGenerator <$> generator }, uniqueConstraint)
