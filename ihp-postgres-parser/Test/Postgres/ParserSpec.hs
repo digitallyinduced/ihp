@@ -369,6 +369,34 @@ spec = do
                         ]
                     }
 
+        it "should parse quoted identifiers in function settings" do
+            let sql = "CREATE FUNCTION configured_schema() RETURNS uuid LANGUAGE sql SET search_path = \"tenant schema\", public AS $$SELECT 1;$$;"
+            parseSql sql `shouldBe` CreateFunction
+                    { functionName = "configured_schema"
+                    , functionArguments = []
+                    , functionBody = "SELECT 1;"
+                    , orReplace = False
+                    , returns = PUUID
+                    , language = "sql"
+                    , securityDefiner = False
+                    , functionAttributes = []
+                    , functionSettings = [FunctionSetting { settingName = "search_path", settingValue = "\"tenant schema\", public" }]
+                    }
+
+        it "should preserve function SUPPORT attributes" do
+            let sql = "CREATE FUNCTION supported() RETURNS uuid LANGUAGE sql SUPPORT public.my_support AS $$SELECT 1;$$;"
+            parseSql sql `shouldBe` CreateFunction
+                    { functionName = "supported"
+                    , functionArguments = []
+                    , functionBody = "SELECT 1;"
+                    , orReplace = False
+                    , returns = PUUID
+                    , language = "sql"
+                    , securityDefiner = False
+                    , functionAttributes = ["SUPPORT my_support"]
+                    , functionSettings = []
+                    }
+
         it "should parse pg_dump CREATE FUNCTION SET options with TO" do
             let sql = "CREATE OR REPLACE FUNCTION private.sync_access()\nRETURNS TRIGGER\nLANGUAGE plpgsql\nSECURITY DEFINER\nSET search_path TO 'public', 'private', 'pg_temp'\nAS $$BEGIN\n    RETURN NEW;\nEND;$$;"
             parseSql sql `shouldBe` CreateFunction

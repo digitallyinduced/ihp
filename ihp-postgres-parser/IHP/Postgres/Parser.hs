@@ -930,7 +930,7 @@ parseFunctionSetting = do
     pure (FunctionSettingOption FunctionSetting { settingName, settingValue })
     where
         settingValueItem = lexeme
-            (try escapeStringSettingValue <|> singleQuotedSettingValue <|> takeWhile1P (Just "setting value") (\c -> not (isSpace c) && c /= ','))
+            (try escapeStringSettingValue <|> singleQuotedSettingValue <|> doubleQuotedSettingValue <|> takeWhile1P (Just "setting value") (\c -> not (isSpace c) && c /= ','))
         escapeStringSettingValue = fst <$> match do
             oneOf ['e', 'E']
             char '\''
@@ -940,6 +940,10 @@ parseFunctionSetting = do
             char '\''
             _ <- many (try (string "''") <|> (Text.singleton <$> satisfy (/= '\'')))
             char '\''
+        doubleQuotedSettingValue = fst <$> match do
+            char '"'
+            _ <- many (try (string "\"\"") <|> (Text.singleton <$> satisfy (/= '"')))
+            char '"'
 
 -- | Volatility, strictness, parallelism and cost attributes as printed by pg_dump.
 -- They affect function behaviour, so keep their canonical spelling in the AST
@@ -963,6 +967,7 @@ parseFunctionAttribute = do
             pure ("PARALLEL " <> mode)
         , numericAttribute "COST"
         , numericAttribute "ROWS"
+        , supportAttribute
         ]
     where
         keyword value = try (functionOptionBoundaryKeyword value) $> value
@@ -984,6 +989,10 @@ parseFunctionAttribute = do
                 pure ()
             space
             pure (name <> " " <> value)
+        supportAttribute = try do
+            functionOptionBoundaryKeyword "SUPPORT"
+            supportFunction <- qualifiedIdentifier
+            pure ("SUPPORT " <> supportFunction)
 
 functionOptionBoundaryKeyword :: Text -> Parser ()
 functionOptionBoundaryKeyword keyword = do

@@ -84,6 +84,12 @@ tests = do
 
                 diffSchemas targetSchema actualSchema `shouldBe` []
 
+            it "canonicalizes function attribute ordering" do
+                let targetSchema = sql "CREATE FUNCTION current_tenant() RETURNS uuid LANGUAGE sql PARALLEL SAFE IMMUTABLE SUPPORT public.my_support AS $$SELECT NULL;$$;"
+                let actualSchema = sql "CREATE FUNCTION current_tenant() RETURNS uuid LANGUAGE sql IMMUTABLE PARALLEL SAFE SUPPORT my_support AS $$SELECT NULL;$$;"
+
+                diffSchemas targetSchema actualSchema `shouldBe` []
+
             it "should handle a new table" do
                 let targetSchema = sql [i|
                     CREATE TABLE users (

@@ -464,8 +464,19 @@ normalizeStatement CreatePolicy { name, action, tableName, using, check } = [ Cr
 normalizeStatement CreateIndex { columns, indexType, indexName, .. } = [ CreateIndex { columns = map normalizeIndexColumn columns, indexType = normalizeIndexType indexType, indexName = truncateIdentifier indexName, .. } ]
 normalizeStatement CreateFunction { .. } = [ CreateFunction { orReplace = False, language = Text.toUpper language, functionAttributes = normalizedFunctionAttributes, functionBody = removeIndentation $ normalizeNewLines functionBody, .. } ]
     where
-        normalizedFunctionAttributes = filter (`notElem` defaultFunctionAttributes) (map Text.toUpper functionAttributes)
+        normalizedFunctionAttributes = sortOn functionAttributeOrder (filter (`notElem` defaultFunctionAttributes) (map Text.toUpper functionAttributes))
         defaultFunctionAttributes = ["VOLATILE", "NOT LEAKPROOF", "CALLED ON NULL INPUT", "SECURITY INVOKER", "PARALLEL UNSAFE"]
+        functionAttributeOrder attribute
+            | attribute `elem` ["IMMUTABLE", "STABLE", "VOLATILE"] = (0 :: Int)
+            | "LEAKPROOF" `Text.isInfixOf` attribute = 1
+            | attribute == "WINDOW" = 2
+            | attribute `elem` ["STRICT", "CALLED ON NULL INPUT", "RETURNS NULL ON NULL INPUT"] = 3
+            | "SECURITY " `Text.isPrefixOf` attribute = 4
+            | "PARALLEL " `Text.isPrefixOf` attribute = 5
+            | "COST " `Text.isPrefixOf` attribute = 6
+            | "ROWS " `Text.isPrefixOf` attribute = 7
+            | "SUPPORT " `Text.isPrefixOf` attribute = 8
+            | otherwise = 9
 normalizeStatement otherwise = [otherwise]
 
 normalizePolicyAction (Just PolicyForAll) = Nothing
