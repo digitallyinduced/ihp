@@ -610,7 +610,7 @@ normalizeDefaultExpression columnType expression
     where
         supportsEquivalentNumericLiterals PReal = True
         supportsEquivalentNumericLiterals PDouble = True
-        supportsEquivalentNumericLiterals PNumeric {} = True
+        supportsEquivalentNumericLiterals PNumeric { scale = Just _ } = True
         supportsEquivalentNumericLiterals _ = False
 
         normalizeNumericExpression (DoubleExpression value) = NumericExpression (normalizeNumericLiteral (tshow value))

@@ -92,6 +92,12 @@ tests = do
 
                 diffSchemas targetSchema actualSchema `shouldBe` []
 
+            it "preserves scale for unconstrained numeric defaults" do
+                let targetSchema = sql "CREATE TABLE invoices (amount NUMERIC DEFAULT 20.0000);"
+                let actualSchema = sql "CREATE TABLE invoices (amount NUMERIC DEFAULT 20);"
+
+                diffSchemas targetSchema actualSchema `shouldNotBe` []
+
             it "preserves integer distinctions in constraints" do
                 let targetSchema = sql [i|
                     CREATE TABLE invoices (amount NUMERIC);
