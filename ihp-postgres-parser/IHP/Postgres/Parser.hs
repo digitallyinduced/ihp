@@ -365,7 +365,7 @@ parseExcludeConstraint name = do
     pure ExcludeConstraint { name, excludeElements, predicate, indexType }
     where
         excludeElement = do
-            element <- Text.stripEnd . mconcat <$> someTill excludeElementChunk (try (space1 >> string' "WITH" >> space1))
+            element <- Text.stripEnd . mconcat <$> someTill excludeElementChunk (try (space1 >> string' "WITH" <* notFollowedBy (satisfy isIdentifierCharacter) <* space))
             operator <- parseCommutativeInfixOperator
             pure ExcludeConstraintElement { element, operator }
 
@@ -658,12 +658,8 @@ term = parens expression <|> try variadicExpr <|> try arrayExpr <|> try typedLit
     where
         parens f = between (char '(' >> space) (char ')' >> space) f
 
-table = highPrecedenceTable <>
+table = highPrecedenceTable <> genericOperatorTable <>
         [
-            [ operator "->>", operator "->"
-            , operator "!~*", operator "!~", operator "~*", operator "~"
-            , operator "?", operator "&&"
-            ],
             [ Postfix (foldl1 (flip (.)) <$> some (try notInOp <|> try betweenOp <|> inOp))
             ],
             [ binary  "<>"  NotEqExpression
@@ -696,6 +692,13 @@ table = highPrecedenceTable <>
             , [ keywordOperator "AT TIME ZONE" ]
             , [ operator "*", operator "/", operator "%" ]
             , [ operator "+", minusOperator ]
+            ]
+
+        genericOperatorTable =
+            [ [ operator "->>", operator "->"
+              , operator "!~*", operator "!~", operator "~*", operator "~"
+              , operator "?", operator "&&"
+              ]
             ]
 
         binary  name f = InfixL  (f <$ try (symbol name))
@@ -740,13 +743,13 @@ table = highPrecedenceTable <>
 
         betweenOp = do
             keyword "BETWEEN"
-            lower <- arithmeticExpression
+            lower <- boundExpression
             keyword "AND"
-            upper <- arithmeticExpression
+            upper <- boundExpression
             pure $ \expr -> AndExpression (GreaterThanOrEqualToExpression expr lower) (LessThanOrEqualToExpression expr upper)
 
-        arithmeticExpression = do
-            value <- makeExprParser term highPrecedenceTable
+        boundExpression = do
+            value <- makeExprParser term (highPrecedenceTable <> genericOperatorTable)
             space
             pure value
 

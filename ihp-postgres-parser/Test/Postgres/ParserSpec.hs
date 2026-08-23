@@ -528,6 +528,12 @@ spec = do
                         (BinaryOperatorExpression "+" (VarExpression "subtotal") (VarExpression "tax"))
                         (VarExpression "maximum"))
 
+        it "should parse generic operators in BETWEEN bounds" do
+            parseExpression "value BETWEEN bounds ->> 'lower' AND bounds ->> 'upper'" `shouldBe`
+                AndExpression
+                    (GreaterThanOrEqualToExpression (VarExpression "value") (BinaryOperatorExpression "->>" (VarExpression "bounds") (TextExpression "lower")))
+                    (LessThanOrEqualToExpression (VarExpression "value") (BinaryOperatorExpression "->>" (VarExpression "bounds") (TextExpression "upper")))
+
         it "should give AT TIME ZONE precedence over comparisons" do
             parseExpression "cutoff < created_at AT TIME ZONE 'UTC'" `shouldBe`
                 LessThanExpression
@@ -605,6 +611,19 @@ spec = do
                         [ ExcludeConstraint
                             { name = Nothing
                             , excludeElements = [ExcludeConstraintElement { element = "(name || ' WITH ')", operator = "=" }]
+                            , predicate = Nothing
+                            , indexType = Nothing
+                            }
+                        ]
+                    }
+
+        it "should parse compact exclusion operators" do
+            parseSql "CREATE TABLE reservations (EXCLUDE (room_id WITH=));" `shouldBe`
+                StatementCreateTable (table "reservations")
+                    { constraints =
+                        [ ExcludeConstraint
+                            { name = Nothing
+                            , excludeElements = [ExcludeConstraintElement { element = "room_id", operator = "=" }]
                             , predicate = Nothing
                             , indexType = Nothing
                             }
