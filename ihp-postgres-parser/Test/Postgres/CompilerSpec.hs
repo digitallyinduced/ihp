@@ -58,11 +58,28 @@ spec = do
                         , referenceTable = "companies"
                         , referenceColumn = Just "id"
                         , onDelete = Just Cascade
+                        , onUpdate = Nothing
                         }
                     , deferrable = Nothing
                     , deferrableType = Nothing
                     }
             compileSql [statement] `shouldBe` "ALTER TABLE users ADD CONSTRAINT users_ref_company_id FOREIGN KEY (company_id) REFERENCES companies (id) ON DELETE CASCADE;\n"
+
+        it "should compile ON UPDATE on single-column foreign keys" do
+            let statement = AddConstraint
+                    { tableName = "memberships"
+                    , constraint = ForeignKeyConstraint
+                        { name = Just "memberships_user_id_fkey"
+                        , columnName = "user_id"
+                        , referenceTable = "users"
+                        , referenceColumn = Just "id"
+                        , onDelete = Nothing
+                        , onUpdate = Just Cascade
+                        }
+                    , deferrable = Nothing
+                    , deferrableType = Nothing
+                    }
+            compileSql [statement] `shouldBe` "ALTER TABLE memberships ADD CONSTRAINT memberships_user_id_fkey FOREIGN KEY (user_id) REFERENCES users (id) ON UPDATE CASCADE ;\n"
 
         it "should compile ALTER TABLE .. ADD CONSTRAINT .. CHECK .." do
             let statement = AddConstraint

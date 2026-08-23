@@ -112,6 +112,7 @@ spec = do
                         , referenceTable = "companies"
                         , referenceColumn = Just "id"
                         , onDelete = Just Cascade
+                        , onUpdate = Nothing
                         }
                     , deferrable = Nothing
                     , deferrableType = Nothing
@@ -482,6 +483,22 @@ spec = do
                         }
                     , deferrable = Just True
                     , deferrableType = Just InitiallyDeferred
+                    }
+
+        it "should keep single-column foreign keys with ON UPDATE relational" do
+            parseSql "ALTER TABLE memberships ADD CONSTRAINT memberships_user_id_fkey FOREIGN KEY (user_id) REFERENCES users(id) ON UPDATE CASCADE;" `shouldBe`
+                AddConstraint
+                    { tableName = "memberships"
+                    , constraint = ForeignKeyConstraint
+                        { name = Just "memberships_user_id_fkey"
+                        , columnName = "user_id"
+                        , referenceTable = "users"
+                        , referenceColumn = Just "id"
+                        , onDelete = Nothing
+                        , onUpdate = Just Cascade
+                        }
+                    , deferrable = Nothing
+                    , deferrableType = Nothing
                     }
 
         it "should parse constraint triggers" do

@@ -141,7 +141,7 @@ tests = do
                 let schema =
                             [ tasksTable
                             , taskListsTable
-                            , AddConstraint { tableName = "tasks", constraint = ForeignKeyConstraint { name = "tasks_ref_task_lists", columnName = "task_list_id", referenceTable = "task_lists", referenceColumn = Nothing, onDelete = Nothing }, deferrable = Nothing, deferrableType = Nothing }
+                            , AddConstraint { tableName = "tasks", constraint = ForeignKeyConstraint { name = "tasks_ref_task_lists", columnName = "task_list_id", referenceTable = "task_lists", referenceColumn = Nothing, onDelete = Nothing, onUpdate = Nothing }, deferrable = Nothing, deferrableType = Nothing }
                             ]
                 let expectedPolicy = (policy "Users can manage the tasks if they can see the TaskList" "tasks")
                         { using = Just (ExistsExpression (SelectExpression (Select {columns = [IntExpression 1], from = DotExpression (VarExpression "public") "task_lists", alias = Nothing, whereClause = EqExpression (DotExpression (VarExpression "task_lists") "id") (DotExpression (VarExpression "tasks") "task_list_id")})))
@@ -241,7 +241,7 @@ tests = do
                         }
                 let constraint = AddConstraint
                         { tableName = "a"
-                        , constraint = ForeignKeyConstraint { name = Just "a_ref_user_id", columnName = "user_id", referenceTable = "users", referenceColumn = Just "id", onDelete = Just NoAction }
+                        , constraint = ForeignKeyConstraint { name = Just "a_ref_user_id", columnName = "user_id", referenceTable = "users", referenceColumn = Just "id", onDelete = Just NoAction, onUpdate = Nothing }
                         , deferrable = Nothing
                         , deferrableType = Nothing
                         }
@@ -476,7 +476,7 @@ tests = do
                 let inputSchema =
                             [ tasksTable
                             , taskListsTable
-                            , AddConstraint { tableName = "tasks", constraint = ForeignKeyConstraint { name = "tasks_ref_task_lists", columnName = "task_list_id", referenceTable = "task_lists", referenceColumn = Nothing, onDelete = Nothing }, deferrable = Nothing, deferrableType = Nothing }
+                            , AddConstraint { tableName = "tasks", constraint = ForeignKeyConstraint { name = "tasks_ref_task_lists", columnName = "task_list_id", referenceTable = "task_lists", referenceColumn = Nothing, onDelete = Nothing, onUpdate = Nothing }, deferrable = Nothing, deferrableType = Nothing }
                             ]
 
                 let tasksTable' = StatementCreateTable (table "tasks")
@@ -487,7 +487,7 @@ tests = do
                 let expectedSchema =
                             [ tasksTable'
                             , taskListsTable
-                            , AddConstraint { tableName = "tasks", constraint = ForeignKeyConstraint { name = "tasks_ref_task_lists", columnName = "list_id", referenceTable = "task_lists", referenceColumn = Nothing, onDelete = Nothing }, deferrable = Nothing, deferrableType = Nothing }
+                            , AddConstraint { tableName = "tasks", constraint = ForeignKeyConstraint { name = "tasks_ref_task_lists", columnName = "list_id", referenceTable = "task_lists", referenceColumn = Nothing, onDelete = Nothing, onUpdate = Nothing }, deferrable = Nothing, deferrableType = Nothing }
                             ]
                 
                 let options = SchemaOperations.UpdateColumnOptions

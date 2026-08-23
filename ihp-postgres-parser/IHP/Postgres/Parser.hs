@@ -347,11 +347,11 @@ parseForeignKeyConstraint name = do
         (lexeme "DELETE" >> (Left <$> parseOnDelete)) <|> (lexeme "UPDATE" >> (Right <$> parseOnDelete))
     let onDelete = listToMaybe (lefts referentialActions)
     let onUpdate = listToMaybe (rights referentialActions)
-    case (columnNames, referenceColumns, onUpdate) of
-        ([columnName], Nothing, Nothing) ->
-            pure ForeignKeyConstraint { name, columnName, referenceTable, referenceColumn = Nothing, onDelete }
-        ([columnName], Just [referenceColumn], Nothing) ->
-            pure ForeignKeyConstraint { name, columnName, referenceTable, referenceColumn = Just referenceColumn, onDelete }
+    case (columnNames, referenceColumns) of
+        ([columnName], Nothing) ->
+            pure ForeignKeyConstraint { name, columnName, referenceTable, referenceColumn = Nothing, onDelete, onUpdate }
+        ([columnName], Just [referenceColumn]) ->
+            pure ForeignKeyConstraint { name, columnName, referenceTable, referenceColumn = Just referenceColumn, onDelete, onUpdate }
         _ ->
             pure CompositeForeignKeyConstraint { name, columnNames, referenceTable, referenceColumns = fromMaybe [] referenceColumns, onDelete, onUpdate }
 

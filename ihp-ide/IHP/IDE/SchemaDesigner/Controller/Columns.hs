@@ -134,7 +134,7 @@ instance Controller ColumnsController where
         let name = tableName
         statements <- readSchema
         let tableNames = nameList (getCreateTable statements)
-        let (Just statement) = find (\statement -> statement == AddConstraint { tableName = tableName, deferrable = Nothing, deferrableType = Nothing, constraint = ForeignKeyConstraint { name = Just constraintName, columnName = columnName, referenceTable = referenceTable, referenceColumn = "id", onDelete = statement.constraint.onDelete }}) statements
+        let (Just statement) = find (\statement -> statement == AddConstraint { tableName = tableName, deferrable = Nothing, deferrableType = Nothing, constraint = ForeignKeyConstraint { name = Just constraintName, columnName = columnName, referenceTable = referenceTable, referenceColumn = "id", onDelete = statement.constraint.onDelete, onUpdate = statement.constraint.onUpdate }}) statements
         onDelete <- case statement.constraint.onDelete of
             Just NoAction -> do pure "NoAction"
             Just Restrict -> do pure "Restrict"
@@ -185,7 +185,7 @@ deleteColumnInTable tableName columnId statement = statement
 
 
 updateForeignKeyConstraint :: Text -> Text -> Text -> Text -> OnDelete -> Int -> [Statement] -> [Statement]
-updateForeignKeyConstraint tableName columnName constraintName referenceTable onDelete constraintId list = replace constraintId AddConstraint { tableName = tableName, deferrable = Nothing, deferrableType = Nothing, constraint = ForeignKeyConstraint { name = Just constraintName, columnName = columnName, referenceTable = referenceTable, referenceColumn = "id", onDelete = (Just onDelete) } } list
+updateForeignKeyConstraint tableName columnName constraintName referenceTable onDelete constraintId list = replace constraintId AddConstraint { tableName = tableName, deferrable = Nothing, deferrableType = Nothing, constraint = ForeignKeyConstraint { name = Just constraintName, columnName = columnName, referenceTable = referenceTable, referenceColumn = "id", onDelete = (Just onDelete), onUpdate = Nothing } } list
 
 deleteForeignKeyConstraint :: Text -> [Statement] -> [Statement]
 deleteForeignKeyConstraint constraintName = filter \case

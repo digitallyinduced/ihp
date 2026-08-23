@@ -74,6 +74,20 @@ tests = do
             it "should handle an empty schema" do
                 diffSchemas [] [] `shouldBe` []
 
+            it "does not drop constraint triggers after dropping their table" do
+                let actualSchema = sql [i|
+                    CREATE TABLE entries (id UUID);
+                    CREATE CONSTRAINT TRIGGER entries_check AFTER INSERT ON entries FOR EACH ROW EXECUTE FUNCTION check_entries();
+                |]
+
+                diffSchemas [] actualSchema `shouldBe` sql "DROP TABLE entries;"
+
+            it "normalizes restricted-action column identifiers" do
+                let targetSchema = sql "ALTER TABLE items ADD CONSTRAINT items_fkey FOREIGN KEY (Ticket_ID, Organization_ID) REFERENCES tickets(id, organization_id) ON UPDATE SET DEFAULT (Ticket_ID) ON DELETE SET NULL (Ticket_ID);"
+                let actualSchema = sql "ALTER TABLE items ADD CONSTRAINT items_fkey FOREIGN KEY (ticket_id, organization_id) REFERENCES tickets(id, organization_id) ON UPDATE SET DEFAULT (ticket_id) ON DELETE SET NULL (ticket_id);"
+
+                diffSchemas targetSchema actualSchema `shouldBe` []
+
             it "normalizes omitted referential actions on composite foreign keys" do
                 let targetSchema = sql [i|
                     ALTER TABLE items ADD CONSTRAINT items_ref_ticket FOREIGN KEY (ticket_id, organization_id) REFERENCES tickets (id, organization_id);

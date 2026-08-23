@@ -138,6 +138,7 @@ data Constraint
         , referenceTable :: !Text
         , referenceColumn :: !(Maybe Text)
         , onDelete :: !(Maybe OnDelete)
+        , onUpdate :: !(Maybe OnDelete)
         }
     | CompositeForeignKeyConstraint
         { name :: !(Maybe Text)
@@ -355,6 +356,7 @@ foreignKey tableName columnName referenceTable = AddConstraint
         , referenceTable = referenceTable
         , referenceColumn = Nothing
         , onDelete = Nothing
+        , onUpdate = Nothing
         }
     , deferrable = Nothing
     , deferrableType = Nothing

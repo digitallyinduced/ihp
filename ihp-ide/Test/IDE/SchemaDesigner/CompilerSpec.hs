@@ -63,6 +63,7 @@ tests = do
                         , referenceTable = "companies"
                         , referenceColumn = "id"
                         , onDelete = Just Cascade
+                        , onUpdate = Nothing
                         }
                     , deferrable = Nothing
                     , deferrableType = Nothing
@@ -78,6 +79,7 @@ tests = do
                         , referenceTable = "companies"
                         , referenceColumn = "id"
                         , onDelete = Just (SetDefault [])
+                        , onUpdate = Nothing
                         }
                     , deferrable = Nothing
                     , deferrableType = Nothing
@@ -93,6 +95,7 @@ tests = do
                         , referenceTable = "companies"
                         , referenceColumn = "id"
                         , onDelete = Just (SetNull [])
+                        , onUpdate = Nothing
                         }
                     , deferrable = Nothing
                     , deferrableType = Nothing
@@ -108,6 +111,7 @@ tests = do
                         , referenceTable = "companies"
                         , referenceColumn = "id"
                         , onDelete = Just Restrict
+                        , onUpdate = Nothing
                         }
                     , deferrable = Nothing
                     , deferrableType = Nothing
@@ -123,6 +127,7 @@ tests = do
                         , referenceTable = "companies"
                         , referenceColumn = "id"
                         , onDelete = Just NoAction
+                        , onUpdate = Nothing
                         }
                     , deferrable = Nothing
                     , deferrableType = Nothing
@@ -138,6 +143,7 @@ tests = do
                         , referenceTable = "companies"
                         , referenceColumn = "id"
                         , onDelete = Nothing
+                        , onUpdate = Nothing
                         }
                     , deferrable = Nothing
                     , deferrableType = Nothing

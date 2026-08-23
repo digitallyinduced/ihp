@@ -512,15 +512,19 @@ normalizeTable table@(CreateTable { .. }) = ( CreateTable { columns = fst normal
                 Left c -> Just c
 
 normalizeConstraint :: Text -> Constraint -> Constraint
-normalizeConstraint _ ForeignKeyConstraint { name, columnName, referenceTable, referenceColumn, onDelete } = ForeignKeyConstraint { name = truncateIdentifier <$> name, columnName = Text.toLower columnName, referenceTable = Text.toLower referenceTable, referenceColumn = fmap Text.toLower referenceColumn, onDelete = Just (fromMaybe NoAction onDelete) }
+normalizeConstraint _ ForeignKeyConstraint { name, columnName, referenceTable, referenceColumn, onDelete, onUpdate } = ForeignKeyConstraint { name = truncateIdentifier <$> name, columnName = Text.toLower columnName, referenceTable = Text.toLower referenceTable, referenceColumn = fmap Text.toLower referenceColumn, onDelete = normalizeReferentialAction onDelete, onUpdate = normalizeReferentialAction onUpdate }
 normalizeConstraint _ CompositeForeignKeyConstraint { name, columnNames, referenceTable, referenceColumns, onDelete, onUpdate } = CompositeForeignKeyConstraint
     { name = truncateIdentifier <$> name
     , columnNames = map Text.toLower columnNames
     , referenceTable = Text.toLower referenceTable
     , referenceColumns = map Text.toLower referenceColumns
-    , onDelete = Just (fromMaybe NoAction onDelete)
-    , onUpdate = Just (fromMaybe NoAction onUpdate)
+    , onDelete = normalizeReferentialAction onDelete
+    , onUpdate = normalizeReferentialAction onUpdate
     }
+normalizeReferentialAction action = Just case fromMaybe NoAction action of
+    SetNull columnNames -> SetNull (map Text.toLower columnNames)
+    SetDefault columnNames -> SetDefault (map Text.toLower columnNames)
+    other -> other
 normalizeConstraint tableName constraint@(UniqueConstraint { name = Just uniqueName, columnNames }) | length columnNames > 1 =
         -- Single column UNIQUE constraints like:
         --
@@ -767,6 +771,7 @@ removeImplicitDeletions actualSchema (statement@dropStatement:rest) | isDropStat
                 Nothing -> True
         isImplicitlyDeleted (DropConstraint { tableName = constraintTableName }) = constraintTableName /= dropTableName
         isImplicitlyDeleted (DropPolicy { tableName = policyTableName }) = not (isNothing dropColumnName && policyTableName == dropTableName)
+        isImplicitlyDeleted (DropTrigger { tableName = triggerTableName }) = not (isNothing dropColumnName && triggerTableName == dropTableName)
         isImplicitlyDeleted otherwise = True
 
         findIndexByName :: Text -> Maybe Statement

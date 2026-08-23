@@ -231,6 +231,7 @@ newForeignKeyConstraint tableName columnName referenceTable =
         , referenceTable = referenceTable
         , referenceColumn = "id"
         , onDelete = (Just NoAction)
+        , onUpdate = Nothing
         }
     , deferrable = Nothing
     , deferrableType = Nothing
@@ -266,7 +267,7 @@ arrayifytype False coltype = coltype
 arrayifytype True  coltype = PArray coltype
 
 addForeignKeyConstraint :: Text -> Text -> Text -> Text -> OnDelete -> [Statement] -> [Statement]
-addForeignKeyConstraint tableName columnName constraintName referenceTable onDelete list = list <> [AddConstraint { tableName = tableName, constraint = ForeignKeyConstraint { name = Just constraintName, columnName = columnName, referenceTable = referenceTable, referenceColumn = "id", onDelete = (Just onDelete) }, deferrable = Nothing, deferrableType = Nothing }]
+addForeignKeyConstraint tableName columnName constraintName referenceTable onDelete list = list <> [AddConstraint { tableName = tableName, constraint = ForeignKeyConstraint { name = Just constraintName, columnName = columnName, referenceTable = referenceTable, referenceColumn = "id", onDelete = (Just onDelete), onUpdate = Nothing }, deferrable = Nothing, deferrableType = Nothing }]
 
 addTableIndex :: Text -> Bool -> Text -> [Text] -> [Statement] -> [Statement]
 addTableIndex indexName unique tableName columnNames list = list <> [CreateIndex { indexName, unique, tableName, columns = columnNames |> map (indexCol . VarExpression), whereClause = Nothing, indexType = Nothing, nullsDistinct = True }]
