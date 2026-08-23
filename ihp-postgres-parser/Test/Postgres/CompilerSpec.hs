@@ -29,6 +29,9 @@ spec = do
         it "should escape quotes in extension schema names" do
             compileSql [CreateExtension { name = "postgis", ifNotExists = True, extensionOptions = [ExtensionSchema "geo\"data"] }] `shouldBe` "CREATE EXTENSION IF NOT EXISTS postgis WITH SCHEMA \"geo\"\"data\";\n"
 
+        it "should emit WITH before arbitrarily ordered extension options" do
+            compileSql [CreateExtension { name = "postgis", ifNotExists = True, extensionOptions = [ExtensionCascade, ExtensionSchema "geo"] }] `shouldBe` "CREATE EXTENSION IF NOT EXISTS postgis WITH CASCADE SCHEMA geo;\n"
+
         it "should compile a line comment" do
             compileSql [Comment { content = " Comment value" }] `shouldBe` "-- Comment value\n"
 

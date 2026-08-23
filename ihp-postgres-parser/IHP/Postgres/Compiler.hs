@@ -35,7 +35,10 @@ compileSql statements = statements
 compileStatement :: Statement -> Text
 compileStatement (StatementCreateTable CreateTable { name, columns, primaryKeyConstraint, constraints, unlogged, inherits }) = "CREATE" <> (if unlogged then " UNLOGGED" else "") <> " TABLE " <> compileIdentifier name <> " (\n" <> intercalate ",\n" (map (\col -> "    " <> compileColumn primaryKeyConstraint col) columns <> maybe [] ((:[]) . indent) (compilePrimaryKeyConstraint primaryKeyConstraint) <> map (indent . compileConstraint) constraints) <> "\n)" <> maybe "" (\parent -> " INHERITS (" <> compileIdentifier parent <> ")") inherits <> ";"
 compileStatement CreateEnumType { name, values } = "CREATE TYPE " <> compileIdentifier name <> " AS ENUM (" <> intercalate ", " (values & map TextExpression & map compileExpression) <> ");"
-compileStatement CreateExtension { name, ifNotExists, extensionOptions } = "CREATE EXTENSION " <> (if ifNotExists then "IF NOT EXISTS " else "") <> compileIdentifier name <> mconcat (map ((" " <>) . compileExtensionOption) extensionOptions) <> ";"
+compileStatement CreateExtension { name, ifNotExists, extensionOptions } = "CREATE EXTENSION " <> (if ifNotExists then "IF NOT EXISTS " else "") <> compileIdentifier name <> (if any isSchemaOption extensionOptions then " WITH" else "") <> mconcat (map ((" " <>) . compileExtensionOption) extensionOptions) <> ";"
+    where
+        isSchemaOption ExtensionSchema {} = True
+        isSchemaOption _ = False
 compileStatement AddConstraint { tableName, constraint = UniqueConstraint { name = Nothing, columnNames } } = "ALTER TABLE " <> compileIdentifier tableName <> " ADD UNIQUE (" <> intercalate ", " columnNames <> ")" <> ";"
 compileStatement AddConstraint { tableName, constraint, deferrable, deferrableType } = "ALTER TABLE " <> compileIdentifier tableName <> " ADD CONSTRAINT " <> compileIdentifier (fromMaybe (error "compileStatement: Expected constraint name") (constraint.name)) <> " " <> compileConstraint constraint <> compileDeferrable deferrable deferrableType <> ";"
 compileStatement AddColumn { tableName, column } = "ALTER TABLE " <> compileIdentifier tableName <> " ADD COLUMN " <> (compileColumn (PrimaryKeyConstraint []) column) <> ";"
@@ -536,7 +539,7 @@ compileSequenceOption (SequenceCache value) = "CACHE " <> compileExpression valu
 compileSequenceOption (SequenceCycle enabled) = if enabled then "CYCLE" else "NO CYCLE"
 
 compileExtensionOption :: ExtensionOption -> Text
-compileExtensionOption (ExtensionSchema schema) = "WITH SCHEMA " <> compileExtensionSchema schema
+compileExtensionOption (ExtensionSchema schema) = "SCHEMA " <> compileExtensionSchema schema
 compileExtensionOption (ExtensionVersion version) = "VERSION '" <> Text.replace "'" "''" version <> "'"
 compileExtensionOption ExtensionCascade = "CASCADE"
 
