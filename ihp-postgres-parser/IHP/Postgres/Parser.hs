@@ -259,8 +259,9 @@ opaqueStatement = do
     keyword <- choice (map opaqueKeyword ["GRANT", "REVOKE", "COMMENT"])
     raw <- mconcat <$> someTill opaqueChunk (char ';')
     let statementRaw = keyword <> raw
+    let trailingWhitespace = Text.drop (Text.length (Text.stripEnd statementRaw)) statementRaw
     let normalizedRaw
-            | "\n" `Text.isSuffixOf` statementRaw = Text.stripEnd statementRaw <> "\n"
+            | Text.any (== '\n') trailingWhitespace = Text.stripEnd statementRaw <> "\n"
             | otherwise = Text.stripEnd statementRaw
     pure UnknownStatement { raw = normalizedRaw }
     where
@@ -298,11 +299,10 @@ opaqueStatement = do
 -- the matching dollar-quote delimiter before consuming the statement terminator.
 doStatement :: Parser Statement
 doStatement = do
-    lexeme "DO"
-    languageBefore <- optional (lexeme "LANGUAGE" >> identifier)
-    body <- dollarQuoted <|> try escapeStringLiteral <|> standardStringLiteral
-    space
-    languageAfter <- optional (lexeme "LANGUAGE" >> identifier)
+    sqlLexeme (string' "DO")
+    languageBefore <- optional (sqlLexeme (string' "LANGUAGE") >> languageIdentifier)
+    body <- sqlLexeme (dollarQuoted <|> try escapeStringLiteral <|> standardStringLiteral)
+    languageAfter <- optional (sqlLexeme (string' "LANGUAGE") >> languageIdentifier)
     char ';'
     let language = maybe "" (\name -> "LANGUAGE " <> name <> " ") (languageBefore <|> languageAfter)
     pure UnknownStatement { raw = "DO " <> language <> body }
@@ -316,6 +316,12 @@ doStatement = do
             char '\''
             many (try (char '\'' >> char '\'') <|> anySingleBut '\'')
             char '\''
+        languageIdentifier = sqlLexeme (fst <$> match rawIdentifier)
+        rawIdentifier =
+            between (char '"') (char '"') (many (try (string "\"\"") <|> (Text.singleton <$> anySingleBut '"'))) $> ()
+            <|> some (satisfy (\character -> isAlphaNum character || character == '_' || character == '$')) $> ()
+        sqlLexeme = Lexer.lexeme sqlSpaceConsumer
+        sqlSpaceConsumer = Lexer.space space1 (Lexer.skipLineComment "--") (Lexer.skipBlockCommentNested "/*" "*/")
 
 -- | A dollar-quoted string including its delimiter.
 dollarQuoted :: Parser Text

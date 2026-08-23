@@ -484,6 +484,10 @@ spec = do
             statements `shouldBe` [UnknownStatement { raw = "GRANT SELECT ON users TO reader -- rationale\n" }]
             compileSql statements `shouldBe` "GRANT SELECT ON users TO reader -- rationale\n;\n"
 
+        it "should preserve a newline before an indented opaque terminator" do
+            let statements = parseSqlStatements "GRANT SELECT ON users TO reader -- rationale\n    ;"
+            compileSql statements `shouldBe` "GRANT SELECT ON users TO reader -- rationale\n;\n"
+
         it "should preserve nested block comments after opaque keywords" do
             parseSql "GRANT /* outer /* inner */ outer */ SELECT ON users TO reader;" `shouldBe`
                 UnknownStatement { raw = "GRANT /* outer /* inner */ outer */ SELECT ON users TO reader" }
@@ -509,6 +513,14 @@ spec = do
         it "should preserve a DO block with an escape-string body" do
             parseSql "DO E'BEGIN PERFORM 1; END';" `shouldBe`
                 UnknownStatement { raw = "DO E'BEGIN PERFORM 1; END'" }
+
+        it "should accept PostgreSQL comments around DO clauses" do
+            parseSql "DO -- rationale\n/* outer /* inner */ outer */ $$ BEGIN NULL; END $$;" `shouldBe`
+                UnknownStatement { raw = "DO $$ BEGIN NULL; END $$" }
+
+        it "should preserve a quoted DO language identifier" do
+            parseSql "DO LANGUAGE \"MyLang\" $$ BEGIN NULL; END $$;" `shouldBe`
+                UnknownStatement { raw = "DO LANGUAGE \"MyLang\" $$ BEGIN NULL; END $$" }
 
         it "should not treat dollar signs inside identifiers as quote delimiters" do
             parseSqlStatements "GRANT SELECT ON foo$tag$ TO role; CREATE FUNCTION f() RETURNS trigger AS $tag$BEGIN RETURN NEW; END;$tag$ language plpgsql;" `shouldBe`
