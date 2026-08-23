@@ -74,6 +74,28 @@ tests = do
             it "should handle an empty schema" do
                 diffSchemas [] [] `shouldBe` []
 
+            it "normalizes PostgreSQL's implicit sequence options" do
+                let targetSchema = sql "CREATE SEQUENCE events_id_seq;"
+                let actualSchema = sql [i|
+                    CREATE SEQUENCE events_id_seq START WITH 1 INCREMENT BY 1 NO MINVALUE NO MAXVALUE CACHE 1;
+                |]
+
+                diffSchemas targetSchema actualSchema `shouldBe` []
+
+            it "keeps non-default sequence options" do
+                let targetSchema = sql "CREATE SEQUENCE events_id_seq INCREMENT BY 2;"
+                let actualSchema = sql [i|
+                    CREATE SEQUENCE events_id_seq START WITH 1 INCREMENT BY 2 NO MINVALUE NO MAXVALUE CACHE 1;
+                |]
+
+                diffSchemas targetSchema actualSchema `shouldBe` []
+
+            it "normalizes the default extension schema" do
+                let targetSchema = sql "CREATE EXTENSION IF NOT EXISTS pg_trgm;"
+                let actualSchema = sql "CREATE EXTENSION IF NOT EXISTS pg_trgm WITH SCHEMA public;"
+
+                diffSchemas targetSchema actualSchema `shouldBe` []
+
             it "should handle a new table" do
                 let targetSchema = sql [i|
                     CREATE TABLE users (

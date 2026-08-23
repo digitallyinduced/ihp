@@ -463,7 +463,17 @@ normalizeStatement CreateEnumType { name, values } = [ CreateEnumType { name = T
 normalizeStatement CreatePolicy { name, action, tableName, using, check } = [ CreatePolicy { name = truncateIdentifier name, tableName, using = (unqualifyExpression tableName . normalizeExpression) <$> using, check = (unqualifyExpression tableName . normalizeExpression) <$> check, action = normalizePolicyAction action } ]
 normalizeStatement CreateIndex { columns, indexType, indexName, .. } = [ CreateIndex { columns = map normalizeIndexColumn columns, indexType = normalizeIndexType indexType, indexName = truncateIdentifier indexName, .. } ]
 normalizeStatement CreateFunction { .. } = [ CreateFunction { orReplace = False, language = Text.toUpper language, functionBody = removeIndentation $ normalizeNewLines functionBody, .. } ]
+normalizeStatement statement@CreateSequence { sequenceOptions } = [statement { sequenceOptions = filter (not . isImplicitSequenceOption) sequenceOptions }]
+normalizeStatement statement@CreateExtension { extensionOptions } = [statement { extensionOptions = filter (/= ExtensionSchema "public") extensionOptions }]
 normalizeStatement otherwise = [otherwise]
+
+isImplicitSequenceOption :: SequenceOption -> Bool
+isImplicitSequenceOption (SequenceStart (IntExpression 1)) = True
+isImplicitSequenceOption (SequenceIncrement (IntExpression 1)) = True
+isImplicitSequenceOption SequenceNoMinValue = True
+isImplicitSequenceOption SequenceNoMaxValue = True
+isImplicitSequenceOption (SequenceCache (IntExpression 1)) = True
+isImplicitSequenceOption _ = False
 
 normalizePolicyAction (Just PolicyForAll) = Nothing
 normalizePolicyAction otherwise = otherwise
