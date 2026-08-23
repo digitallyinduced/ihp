@@ -651,17 +651,10 @@ term = parens expression <|> try variadicExpr <|> try arrayExpr <|> try typedLit
     where
         parens f = between (char '(' >> space) (char ')' >> space) f
 
-table = [
-            -- Chain multiple postfix operators at the same precedence so we can
-            -- parse e.g. `table.col IN (SELECT …)` — pg_dump qualifies columns
-            -- with their table name and `makeExprParser`'s `Postfix` only
-            -- applies one postfix per term. They bind tighter than every infix
-            -- operator so that e.g. `a::integer + 1` casts `a` and not the sum.
-            [ Postfix (foldl1 (flip (.)) <$> some (typeCastOp <|> dotOp <|> try notInOp <|> try betweenOp <|> inOp))
+table = highPrecedenceTable <>
+        [
+            [ Postfix (foldl1 (flip (.)) <$> some (try notInOp <|> try betweenOp <|> inOp))
             ],
-            [ operator "->>", operator "->" ],
-            [ operator "*", operator "/", operator "%" ],
-            [ operator "+", operator "-" ],
             [ binary  "<>"  NotEqExpression
             -- `!=` is PostgreSQL's spelling of `<>`; the compiler prints the
             -- canonical `<>` back, which is what pg_dump emits.
@@ -678,7 +671,6 @@ table = [
             -- `~` would match the prefix of `~*` and leave a stray `*`.
             , operator "!~*", operator "!~", operator "~*", operator "~"
             , operator "?", operator "&&"
-            , keywordOperator "AT TIME ZONE"
             , keywordOperator "NOT LIKE", keywordOperator "NOT ILIKE"
             , keywordOperator "LIKE", keywordOperator "ILIKE"
 
@@ -689,6 +681,17 @@ table = [
             [ binary "AND" AndExpression, binary "OR" OrExpression ]
         ]
     where
+        highPrecedenceTable =
+            [ -- Chained postfix operators bind tighter than every infix
+              -- operator, so `a::integer + 1` casts `a`, not the sum.
+              [ Postfix (foldl1 (flip (.)) <$> some (typeCastOp <|> dotOp))
+              ]
+            , [ keywordOperator "AT TIME ZONE" ]
+            , [ operator "->>", operator "->" ]
+            , [ operator "*", operator "/", operator "%" ]
+            , [ operator "+", operator "-" ]
+            ]
+
         binary  name f = InfixL  (f <$ try (symbol name))
         prefix  name f = Prefix  (f <$ symbol name)
         postfix name f = Postfix (f <$ symbol name)
@@ -728,10 +731,15 @@ table = [
 
         betweenOp = do
             keyword "BETWEEN"
-            lower <- term
+            lower <- arithmeticExpression
             keyword "AND"
-            upper <- term
+            upper <- arithmeticExpression
             pure $ \expr -> AndExpression (GreaterThanOrEqualToExpression expr lower) (LessThanOrEqualToExpression expr upper)
+
+        arithmeticExpression = do
+            value <- makeExprParser term highPrecedenceTable
+            space
+            pure value
 
 -- | Parses a SQL expression
 --

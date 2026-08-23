@@ -6,7 +6,7 @@ module Postgres.CompilerSpec where
 
 import Prelude
 import Test.Hspec
-import IHP.Postgres.Compiler (compileSql)
+import IHP.Postgres.Compiler (compileExpression, compileSql)
 import IHP.Postgres.Types
 import Data.Text (Text)
 import qualified Data.Text as Text
@@ -365,6 +365,13 @@ spec = do
                             }
                         ]
             compileSql statements `shouldBe` sql
+
+        it "should parenthesize binary expressions before type casts" do
+            compileExpression
+                (TypeCastExpression
+                    (BinaryOperatorExpression "+" (VarExpression "price") (VarExpression "tax"))
+                    (PNumeric Nothing Nothing))
+                `shouldBe` "(price + tax)::NUMERIC"
 
 parseSql :: Text -> Statement
 parseSql sql =

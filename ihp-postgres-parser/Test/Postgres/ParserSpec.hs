@@ -518,6 +518,22 @@ spec = do
                     (VarExpression "kind")
                     (InArrayExpression [TextExpression "draft", TextExpression "void"])
 
+        it "should parse BETWEEN after arithmetic expressions" do
+            parseExpression "subtotal + tax BETWEEN minimum + 1 AND maximum" `shouldBe`
+                AndExpression
+                    (GreaterThanOrEqualToExpression
+                        (BinaryOperatorExpression "+" (VarExpression "subtotal") (VarExpression "tax"))
+                        (BinaryOperatorExpression "+" (VarExpression "minimum") (IntExpression 1)))
+                    (LessThanOrEqualToExpression
+                        (BinaryOperatorExpression "+" (VarExpression "subtotal") (VarExpression "tax"))
+                        (VarExpression "maximum"))
+
+        it "should give AT TIME ZONE precedence over comparisons" do
+            parseExpression "cutoff < created_at AT TIME ZONE 'UTC'" `shouldBe`
+                LessThanExpression
+                    (VarExpression "cutoff")
+                    (BinaryOperatorExpression "AT TIME ZONE" (VarExpression "created_at") (TextExpression "UTC"))
+
         it "should parse typed PostgreSQL literals" do
             parseExpression "closed_at - INTERVAL '30 days' > opened_at" `shouldBe`
                 GreaterThanExpression

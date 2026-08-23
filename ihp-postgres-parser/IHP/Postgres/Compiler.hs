@@ -157,7 +157,7 @@ compileExpression (GreaterThanExpression a b) = compileExpressionWithOptionalPar
 compileExpression (GreaterThanOrEqualToExpression a b) = compileExpressionWithOptionalParenthese a <> " >= " <> compileExpressionWithOptionalParenthese b
 compileExpression (DoubleExpression double) = tshow double
 compileExpression (IntExpression integer) = tshow integer
-compileExpression (TypeCastExpression value type_) = compileExpression value <> "::" <> compilePostgresType type_
+compileExpression (TypeCastExpression value type_) = compileExpressionWithOptionalParenthese value <> "::" <> compilePostgresType type_
 compileExpression (SelectExpression Select { columns, from, whereClause }) = "SELECT " <> intercalate ", " (map compileExpression columns) <> " FROM " <> compileExpression from <> " WHERE " <> compileExpression whereClause
 compileExpression (ExistsExpression a) = "EXISTS " <> compileExpressionWithOptionalParenthese a
 compileExpression (DotExpression a b) = compileExpressionWithOptionalParenthese a <> "." <> compileIdentifier b
