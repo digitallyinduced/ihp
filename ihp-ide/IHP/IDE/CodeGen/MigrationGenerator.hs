@@ -160,7 +160,7 @@ resolveContextDependentPolicyRoles context = map \case
         resolveRole (SpecialPolicyRole "SESSION_USER") = resolvedRole context.policySessionUser
         resolveRole role = role
         resolvedRole role
-            | role == Text.toLower role = PolicyRole role
+            | role == Text.toLower role && not (isSpecialPolicyRoleName role) = PolicyRole role
             | otherwise = QuotedPolicyRole role
 
 diffSchemasWithPolicyRoleContext :: PolicyRoleContext -> [Statement] -> [Statement] -> [Statement]
@@ -539,9 +539,11 @@ normalizePolicyRoles roles
         isPublicRole (SpecialPolicyRole role) = Text.toUpper role == "PUBLIC"
         isPublicRole _ = False
         normalizeLiteralRole (QuotedPolicyRole role)
-            | role == Text.toLower role && not (isSpecialRoleName role) = PolicyRole role
+            | role == Text.toLower role && not (isSpecialPolicyRoleName role) = PolicyRole role
         normalizeLiteralRole role = role
-        isSpecialRoleName role = Text.toUpper role `elem` ["PUBLIC", "CURRENT_ROLE", "CURRENT_USER", "SESSION_USER"]
+
+isSpecialPolicyRoleName :: Text -> Bool
+isSpecialPolicyRoleName role = Text.toUpper role `elem` ["PUBLIC", "CURRENT_ROLE", "CURRENT_USER", "SESSION_USER"]
 
 normalizeTable :: CreateTable -> (CreateTable, [Statement])
 normalizeTable table@(CreateTable { .. }) = ( CreateTable { columns = fst normalizedColumns, constraints = normalizedTableConstraints, .. }, (concat $ (snd normalizedColumns)) <> normalizedConstraintsStatements )

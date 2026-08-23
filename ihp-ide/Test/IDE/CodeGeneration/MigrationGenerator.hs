@@ -606,6 +606,23 @@ tests = do
 
                 diffSchemas (resolveContextDependentPolicyRoles context targetSchema) actualSchema `shouldBe` []
 
+            it "preserves quotes when contextual roles resolve to special-looking names" do
+                let targetSchema = sql "CREATE POLICY access ON tickets TO CURRENT_ROLE, CURRENT_USER, SESSION_USER;"
+                let actualSchema = sql "CREATE POLICY access ON tickets TO \"public\", \"current_user\", \"session_user\";"
+                let context = PolicyRoleContext
+                        { policyCurrentRole = "public"
+                        , policyCurrentUser = "current_user"
+                        , policySessionUser = "session_user"
+                        }
+
+                diffSchemas (resolveContextDependentPolicyRoles context targetSchema) actualSchema `shouldBe` []
+
+                let currentRoleTarget = sql "CREATE POLICY access ON tickets TO CURRENT_ROLE;"
+                let currentRoleActual = sql "CREATE POLICY access ON tickets TO \"current_role\";"
+                let currentRoleContext = context { policyCurrentRole = "current_role" }
+
+                diffSchemas (resolveContextDependentPolicyRoles currentRoleContext currentRoleTarget) currentRoleActual `shouldBe` []
+
             it "keeps context-dependent role keywords in generated policies" do
                 let targetSchema = sql "CREATE POLICY access ON tickets TO CURRENT_ROLE, CURRENT_USER, SESSION_USER;"
                 let context = PolicyRoleContext
