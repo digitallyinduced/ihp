@@ -486,6 +486,10 @@ spec = do
                 (policy "access" "tickets")
                     { roles = [PolicyRole "myrole", QuotedPolicyRole "ops\"team"] }
 
+        it "should parse dollar signs in unquoted policy roles" do
+            parseSql "CREATE POLICY access ON tickets TO app$user;" `shouldBe`
+                (policy "access" "tickets") { roles = [PolicyRole "app$user"] }
+
         it "should parse FORCE ROW LEVEL SECURITY" do
             parseSql "ALTER TABLE tickets FORCE ROW LEVEL SECURITY;" `shouldBe`
                 ForceRowLevelSecurity { tableName = "tickets" }

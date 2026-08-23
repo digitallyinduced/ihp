@@ -1148,7 +1148,10 @@ policyRole = quotedRole <|> unquotedRole
             space
             pure (QuotedPolicyRole role)
         unquotedRole = do
-            role <- identifier
+            first <- satisfy (\character -> isAlpha character || character == '_')
+            rest <- takeWhileP (Just "policy role") (\character -> isAlphaNum character || character == '_' || character == '$')
+            space
+            let role = Text.cons first rest
             let upperRole = Text.toUpper role
             pure if upperRole `elem` ["PUBLIC", "CURRENT_ROLE", "CURRENT_USER", "SESSION_USER"]
                 then SpecialPolicyRole upperRole

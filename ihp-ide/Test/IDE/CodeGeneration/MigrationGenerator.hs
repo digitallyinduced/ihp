@@ -88,6 +88,19 @@ tests = do
 
                 diffSchemas [] actualSchema `shouldBe` sql "DROP TABLE tickets;"
 
+            it "does not emit NO FORCE after dropping multiple tables" do
+                let actualSchema = sql [i|
+                    CREATE TABLE tickets (id UUID);
+                    CREATE TABLE users (id UUID);
+                    ALTER TABLE tickets FORCE ROW LEVEL SECURITY;
+                    ALTER TABLE users FORCE ROW LEVEL SECURITY;
+                |]
+
+                diffSchemas [] actualSchema `shouldBe` sql [i|
+                    DROP TABLE tickets;
+                    DROP TABLE users;
+                |]
+
             it "should handle a new table" do
                 let targetSchema = sql [i|
                     CREATE TABLE users (

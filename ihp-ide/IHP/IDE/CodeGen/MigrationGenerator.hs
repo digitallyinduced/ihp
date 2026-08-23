@@ -748,7 +748,7 @@ normalizePrimaryKeys statements = reverse $ normalizePrimaryKeys' [] statements
 -- > DROP TABLE a;
 --
 removeImplicitDeletions :: [Statement] -> [Statement] -> [Statement]
-removeImplicitDeletions actualSchema (statement@dropStatement:rest) | isDropStatement dropStatement = statement:(filter isImplicitlyDeleted rest)
+removeImplicitDeletions actualSchema (statement@dropStatement:rest) | isDropStatement dropStatement = statement : removeImplicitDeletions actualSchema (filter isImplicitlyDeleted rest)
     where
         isImplicitlyDeleted (DropIndex { indexName }) = case findIndexByName indexName of
                 Just CreateIndex { tableName = indexTableName, columns = indexColumns } -> indexTableName /= dropTableName && (
