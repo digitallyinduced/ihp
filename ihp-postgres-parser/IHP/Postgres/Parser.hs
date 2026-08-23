@@ -301,12 +301,25 @@ doStatement :: Parser Statement
 doStatement = do
     sqlLexeme (string' "DO")
     languageBefore <- optional (sqlLexeme (string' "LANGUAGE") >> languageIdentifier)
-    body <- sqlLexeme (dollarQuoted <|> try escapeStringLiteral <|> standardStringLiteral)
+    body <- sqlLexeme (dollarQuoted <|> try unicodeEscapeStringLiteral <|> try escapeStringLiteral <|> standardStringLiteral)
     languageAfter <- optional (sqlLexeme (string' "LANGUAGE") >> languageIdentifier)
     char ';'
     let language = maybe "" (\name -> "LANGUAGE " <> name <> " ") (languageBefore <|> languageAfter)
     pure UnknownStatement { raw = "DO " <> language <> body }
     where
+        unicodeEscapeStringLiteral = fst <$> match do
+            string' "U&"
+            char '\''
+            many (try (char '\'' >> char '\'') <|> anySingleBut '\'')
+            char '\''
+            optional $ try do
+                sqlSpaceConsumer
+                string' "UESCAPE"
+                notFollowedBy (satisfy isIdentifierCharacter)
+                sqlSpaceConsumer
+                char '\''
+                anySingleBut '\''
+                char '\''
         escapeStringLiteral = fst <$> match do
             oneOf ['e', 'E']
             char '\''
