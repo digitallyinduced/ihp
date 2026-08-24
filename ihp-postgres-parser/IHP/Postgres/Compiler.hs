@@ -11,6 +11,7 @@ import Data.Maybe (fromJust, isJust, catMaybes, fromMaybe, maybeToList)
 import Data.Text (Text)
 import qualified Data.Text as Text
 import Data.Function ((&))
+import Data.Char (isAlpha, isAlphaNum)
 
 -- | Text versions of list functions
 intercalate :: Text -> [Text] -> Text
@@ -34,7 +35,10 @@ compileSql statements = statements
 compileStatement :: Statement -> Text
 compileStatement (StatementCreateTable CreateTable { name, columns, primaryKeyConstraint, constraints, unlogged, inherits }) = "CREATE" <> (if unlogged then " UNLOGGED" else "") <> " TABLE " <> compileQualifiedIdentifier name <> " (\n" <> intercalate ",\n" (map (\col -> "    " <> compileColumn primaryKeyConstraint col) columns <> maybe [] ((:[]) . indent) (compilePrimaryKeyConstraint primaryKeyConstraint) <> map (indent . compileConstraint) constraints) <> "\n)" <> maybe "" (\parent -> " INHERITS (" <> compileQualifiedIdentifier parent <> ")") inherits <> ";"
 compileStatement CreateEnumType { name, values } = "CREATE TYPE " <> compileQualifiedIdentifier name <> " AS ENUM (" <> intercalate ", " (values & map TextExpression & map compileExpression) <> ");"
-compileStatement CreateExtension { name, ifNotExists } = "CREATE EXTENSION " <> (if ifNotExists then "IF NOT EXISTS " else "") <> compileIdentifier name <> ";"
+compileStatement CreateExtension { name, ifNotExists, extensionOptions } = "CREATE EXTENSION " <> (if ifNotExists then "IF NOT EXISTS " else "") <> compileIdentifier name <> (if any isSchemaOption extensionOptions then " WITH" else "") <> mconcat (map ((" " <>) . compileExtensionOption) extensionOptions) <> ";"
+    where
+        isSchemaOption ExtensionSchema {} = True
+        isSchemaOption _ = False
 compileStatement AddConstraint { tableName, constraint = UniqueConstraint { name = Nothing, columnNames } } = "ALTER TABLE " <> compileQualifiedIdentifier tableName <> " ADD UNIQUE (" <> intercalate ", " columnNames <> ")" <> ";"
 compileStatement AddConstraint { tableName, constraint, deferrable, deferrableType } = "ALTER TABLE " <> compileQualifiedIdentifier tableName <> " ADD CONSTRAINT " <> compileIdentifier (fromMaybe (error "compileStatement: Expected constraint name") (constraint.name)) <> " " <> compileConstraint constraint <> compileDeferrable deferrable deferrableType <> ";"
 compileStatement AddColumn { tableName, column } = "ALTER TABLE " <> compileQualifiedIdentifier tableName <> " ADD COLUMN " <> (compileColumn (PrimaryKeyConstraint []) column) <> ";"
@@ -43,10 +47,11 @@ compileStatement RenameColumn { tableName, from, to } = "ALTER TABLE " <> compil
 compileStatement DropTable { tableName } = "DROP TABLE " <> compileQualifiedIdentifier tableName <> ";"
 compileStatement Comment { content } = "--" <> content
 compileStatement CreateIndex { indexName, unique, tableName, columns, whereClause, indexType, nullsDistinct } = "CREATE" <> (if unique then " UNIQUE " else " ") <> "INDEX " <> compileIdentifier indexName <> " ON " <> compileQualifiedIdentifier tableName <> (maybe "" (\indexType -> " USING " <> compileIndexType indexType) indexType) <> " (" <> (intercalate ", " (map compileIndexColumn columns)) <> ")" <> (if nullsDistinct then "" else " NULLS NOT DISTINCT") <> (case whereClause of Just expression -> " WHERE " <> compileExpression expression; Nothing -> "") <> ";"
-compileStatement CreateFunction { functionName, functionArguments, functionBody, orReplace, returns, language, securityDefiner, functionSettings } = "CREATE " <> (if orReplace then "OR REPLACE " else "") <> "FUNCTION " <> functionName <> "(" <> (functionArguments & map (\(argName, argType) -> argName <> " " <> compilePostgresType argType) & intercalate  ", ") <> ")" <> " RETURNS " <> compilePostgresType returns <> (if securityDefiner then " SECURITY DEFINER" else "") <> mconcat (map compileFunctionSetting functionSettings) <> " AS " <> dollarQuote functionBody <> functionBody <> dollarQuote functionBody <> " language " <> language <> ";"
+compileStatement CreateFunction { functionName, functionArguments, functionBody, orReplace, returns, language, securityDefiner, functionAttributes, functionSettings } = "CREATE " <> (if orReplace then "OR REPLACE " else "") <> "FUNCTION " <> compileQualifiedIdentifier functionName <> "(" <> (functionArguments & map (\(argName, argType) -> compileUnqualifiedIdentifier argName <> " " <> compilePostgresType argType) & intercalate  ", ") <> ")" <> " RETURNS " <> compilePostgresType returns <> (if securityDefiner then " SECURITY DEFINER" else "") <> mconcat (map (" " <>) functionAttributes) <> mconcat (map compileFunctionSetting functionSettings) <> " AS " <> dollarQuote functionBody <> functionBody <> dollarQuote functionBody <> " language " <> language <> ";"
 compileStatement EnableRowLevelSecurity { tableName } = "ALTER TABLE " <> compileQualifiedIdentifier tableName <> " ENABLE ROW LEVEL SECURITY;"
 compileStatement CreatePolicy { name, action, tableName, using, check } = "CREATE POLICY " <> compileIdentifier name <> " ON " <> compileQualifiedIdentifier tableName <> maybe "" (\action -> " FOR " <> compilePolicyAction action) action  <> maybe "" (\expr -> " USING (" <> compileExpression expr <> ")") using <> maybe "" (\expr -> " WITH CHECK (" <> compileExpression expr <> ")") check <> ";"
-compileStatement CreateSequence { name } = "CREATE SEQUENCE " <> compileQualifiedIdentifier name <> ";"
+compileStatement CreateSequence { name, sequenceOptions } = "CREATE SEQUENCE " <> compileQualifiedIdentifier name <> (if null sequenceOptions then "" else " " <> intercalate " " (map compileSequenceOption sequenceOptions)) <> ";"
+compileStatement AlterSequence { name, sequenceOptions } = "ALTER SEQUENCE " <> compileQualifiedIdentifier name <> " " <> intercalate " " (map compileSequenceOption sequenceOptions) <> ";"
 compileStatement DropConstraint { tableName, constraintName } = "ALTER TABLE " <> compileQualifiedIdentifier tableName <> " DROP CONSTRAINT " <> compileIdentifier constraintName <> ";"
 compileStatement DropEnumType { name } = "DROP TYPE " <> compileQualifiedIdentifier name <> ";"
 compileStatement DropIndex { indexName } = "DROP INDEX " <> compileQualifiedIdentifier indexName <> ";"
@@ -153,8 +158,8 @@ compileExpression (VarExpression name) =
 compileExpression (CallExpression func [InExpression needle haystack])
     | Text.toUpper func == "POSITION" = func <> "(" <> compileExpressionWithOptionalParenthese needle <> " IN " <> compileExpressionWithOptionalParenthese haystack <> ")"
 compileExpression (CallExpression func args) = func <> "(" <> intercalate ", " (map compileExpressionWithOptionalParenthese args) <> ")"
-compileExpression (NotEqExpression a b) = compileExpression a <> " <> " <> compileExpression b
-compileExpression (EqExpression a b) = compileExpressionWithOptionalParenthese a <> " = " <> compileExpressionWithOptionalParenthese b
+compileExpression (NotEqExpression a b) = compileEqualityOperand a <> " <> " <> compileEqualityOperand b
+compileExpression (EqExpression a b) = compileEqualityOperand a <> " = " <> compileEqualityOperand b
 compileExpression (IsExpression a (NotExpression b)) = compileExpressionWithOptionalParenthese a <> " IS NOT " <> compileExpressionWithOptionalParenthese b -- 'IS (NOT NULL)' => 'IS NOT NULL'
 compileExpression (IsExpression a b) = compileExpressionWithOptionalParenthese a <> " IS " <> compileExpressionWithOptionalParenthese b
 compileExpression (InExpression a b) = compileExpressionWithOptionalParenthese a <> " IN " <> compileExpressionWithOptionalParenthese b
@@ -171,11 +176,23 @@ compileExpression (GreaterThanOrEqualToExpression a b) = compileExpressionWithOp
 compileExpression (DoubleExpression double) = tshow double
 compileExpression (NumericExpression value) = value
 compileExpression (IntExpression integer) = tshow integer
-compileExpression (TypeCastExpression value type_) = compileExpression value <> "::" <> compilePostgresType type_
+compileExpression (TypeCastExpression value type_) = compileExpressionWithOptionalParenthese value <> "::" <> compilePostgresType type_
 compileExpression (SelectExpression Select { columns, from, whereClause }) = "SELECT " <> intercalate ", " (map compileExpression columns) <> " FROM " <> compileExpression from <> " WHERE " <> compileExpression whereClause
 compileExpression (ExistsExpression a) = "EXISTS " <> compileExpressionWithOptionalParenthese a
 compileExpression (DotExpression a b) = compileExpressionWithOptionalParenthese a <> "." <> compileIdentifier b
 compileExpression (ConcatenationExpression a b) = compileExpressionWithOptionalParenthese a <> " || " <> compileExpressionWithOptionalParenthese b
+compileExpression (BinaryOperatorExpression "ESCAPE" patternExpression escapeCharacter) = compileExpression patternExpression <> " ESCAPE " <> compileExpressionWithOptionalParenthese escapeCharacter
+compileExpression (BinaryOperatorExpression operator a b) = compileBinaryOperatorOperand a <> " " <> operator <> " " <> compileBinaryOperatorOperand b
+
+compileBinaryOperatorOperand :: Expression -> Text
+compileBinaryOperatorOperand expression@(EqExpression {}) = "(" <> compileExpression expression <> ")"
+compileBinaryOperatorOperand expression@(IsExpression {}) = "(" <> compileExpression expression <> ")"
+compileBinaryOperatorOperand expression@(ConcatenationExpression {}) = "(" <> compileExpression expression <> ")"
+compileBinaryOperatorOperand expression = compileExpressionWithOptionalParenthese expression
+
+compileEqualityOperand :: Expression -> Text
+compileEqualityOperand expression@(IsExpression {}) = "(" <> compileExpression expression <> ")"
+compileEqualityOperand expression = compileExpressionWithOptionalParenthese expression
 
 compileExpressionWithOptionalParenthese :: Expression -> Text
 compileExpressionWithOptionalParenthese expr@(VarExpression {}) = compileExpression expr
@@ -238,6 +255,8 @@ compilePostgresType PJSONB = "JSONB"
 compilePostgresType PInet = "INET"
 compilePostgresType PTSVector = "TSVECTOR"
 compilePostgresType (PArray type_) = compilePostgresType type_ <> "[]"
+compilePostgresType (PSetOf type_) = "SETOF " <> compilePostgresType type_
+compilePostgresType (PTable columns) = "TABLE (" <> intercalate ", " (map (\(name, type_) -> compileUnqualifiedIdentifier name <> " " <> compilePostgresType type_) columns) <> ")"
 compilePostgresType PTrigger = "TRIGGER"
 compilePostgresType PEventTrigger = "EVENT_TRIGGER"
 compilePostgresType (PCustomType theType) = theType
@@ -499,6 +518,20 @@ compileIdentifier identifier
             , "VARCHAR"
             ]
 
+compileUnqualifiedIdentifier :: Text -> Text
+compileUnqualifiedIdentifier identifier
+    | isValidUnquotedIdentifier && compileIdentifier identifier == identifier = identifier
+    | otherwise = "\"" <> Text.replace "\"" "\"\"" identifier <> "\""
+    where
+        isValidUnquotedIdentifier = case Text.uncons identifier of
+            Nothing -> False
+            Just (firstCharacter, remainingCharacters) ->
+                isIdentifierStart firstCharacter && Text.all isIdentifierContinuation remainingCharacters
+        isIdentifierStart character = character == '_' || isAsciiLower character || character >= '\x80'
+        isIdentifierContinuation character = isIdentifierStart character || isAsciiDigit character || character == '$'
+        isAsciiLower character = character >= 'a' && character <= 'z'
+        isAsciiDigit character = character >= '0' && character <= '9'
+
 indent text = "    " <> text
 
 compileTriggerEventWhen :: TriggerEventWhen -> Text
@@ -542,6 +575,31 @@ compileIndexType Ivfflat = "IVFFLAT"
 
 compileFunctionSetting :: FunctionSetting -> Text
 compileFunctionSetting FunctionSetting { settingName, settingValue } = " SET " <> settingName <> " = " <> settingValue
+
+compileSequenceOption :: SequenceOption -> Text
+compileSequenceOption (SequenceAs type_) = "AS " <> compilePostgresType type_
+compileSequenceOption (SequenceStart value) = "START WITH " <> compileExpression value
+compileSequenceOption (SequenceIncrement value) = "INCREMENT BY " <> compileExpression value
+compileSequenceOption SequenceNoMinValue = "NO MINVALUE"
+compileSequenceOption SequenceNoMaxValue = "NO MAXVALUE"
+compileSequenceOption (SequenceMinValue value) = "MINVALUE " <> compileExpression value
+compileSequenceOption (SequenceMaxValue value) = "MAXVALUE " <> compileExpression value
+compileSequenceOption (SequenceCache value) = "CACHE " <> compileExpression value
+compileSequenceOption (SequenceCycle enabled) = if enabled then "CYCLE" else "NO CYCLE"
+
+compileExtensionOption :: ExtensionOption -> Text
+compileExtensionOption (ExtensionSchema schema) = "SCHEMA " <> compileExtensionSchema schema
+compileExtensionOption (ExtensionVersion version) = "VERSION '" <> Text.replace "'" "''" version <> "'"
+compileExtensionOption ExtensionCascade = "CASCADE"
+
+compileExtensionSchema :: Text -> Text
+compileExtensionSchema schema
+    | isSimpleIdentifier schema = compileIdentifier schema
+    | otherwise = "\"" <> Text.replace "\"" "\"\"" schema <> "\""
+    where
+        isSimpleIdentifier value = case Text.uncons value of
+            Just (first, rest) -> (isAlpha first || first == '_') && Text.all (\character -> isAlphaNum character || character == '_' || character == '$') rest
+            Nothing -> False
 
 compileIndexColumn :: IndexColumn -> Text
 compileIndexColumn IndexColumn { column, columnOperatorClass, columnOrder } =

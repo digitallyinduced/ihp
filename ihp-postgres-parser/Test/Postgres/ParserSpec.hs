@@ -23,36 +23,54 @@ spec = do
             parseSql "CREATE TABLE users ();"  `shouldBe` StatementCreateTable (table "users")
 
         it "should parse an CREATE EXTENSION for the UUID extension" do
-            parseSql "CREATE EXTENSION IF NOT EXISTS \"uuid-ossp\";" `shouldBe` CreateExtension { name = "uuid-ossp", ifNotExists = True }
+            parseSql "CREATE EXTENSION IF NOT EXISTS \"uuid-ossp\";" `shouldBe` CreateExtension { name = "uuid-ossp", ifNotExists = True, extensionOptions = [] }
 
         it "should preserve a missing IF NOT EXISTS clause" do
-            parseSql "CREATE EXTENSION \"uuid-ossp\";" `shouldBe` CreateExtension { name = "uuid-ossp", ifNotExists = False }
+            parseSql "CREATE EXTENSION \"uuid-ossp\";" `shouldBe` CreateExtension { name = "uuid-ossp", ifNotExists = False, extensionOptions = [] }
 
         it "should parse an CREATE EXTENSION with schema suffix" do
-            parseSql "CREATE EXTENSION IF NOT EXISTS \"uuid-ossp\" WITH SCHEMA public;" `shouldBe` CreateExtension { name = "uuid-ossp", ifNotExists = True }
+            parseSql "CREATE EXTENSION IF NOT EXISTS \"uuid-ossp\" WITH SCHEMA public;" `shouldBe` CreateExtension { name = "uuid-ossp", ifNotExists = True, extensionOptions = [ExtensionSchema "public"] }
+
+        it "should round-trip quoted extension schema names" do
+            let statement = parseSql "CREATE EXTENSION IF NOT EXISTS postgis WITH SCHEMA \"geo.data\";"
+            parseSql (compileSql [statement]) `shouldBe` statement
+
+        it "should fold an unquoted extension schema to lowercase" do
+            parseSql "CREATE EXTENSION IF NOT EXISTS postgis WITH SCHEMA Geo;" `shouldBe` CreateExtension { name = "postgis", ifNotExists = True, extensionOptions = [ExtensionSchema "geo"] }
+
+        it "should parse CREATE EXTENSION version and cascade options" do
+            parseSql "CREATE EXTENSION pg_trgm VERSION '1.6' CASCADE;" `shouldBe`
+                CreateExtension { name = "pg_trgm", ifNotExists = False, extensionOptions = [ExtensionVersion "1.6", ExtensionCascade] }
+
+        it "should decode doubled quotes in extension versions" do
+            parseSql "CREATE EXTENSION extension_name VERSION '1''beta';" `shouldBe`
+                CreateExtension { name = "extension_name", ifNotExists = False, extensionOptions = [ExtensionVersion "1'beta"] }
 
         describe "parseCreateExtensionMigration" do
             it "accepts one or more extension statements and comments" do
                 parseCreateExtensionMigration "-- Required for earthdistance\nCREATE EXTENSION IF NOT EXISTS cube;\nCREATE EXTENSION IF NOT EXISTS \"earthdistance\" WITH SCHEMA public;"
                     `shouldBe` Right
-                        [ CreateExtension { name = "cube", ifNotExists = True }
-                        , CreateExtension { name = "earthdistance", ifNotExists = True }
+                        [ CreateExtension { name = "cube", ifNotExists = True, extensionOptions = [] }
+                        , CreateExtension { name = "earthdistance", ifNotExists = True, extensionOptions = [ExtensionSchema "public"] }
                         ]
 
             it "is case insensitive" do
                 parseCreateExtensionMigration "create extension if not exists PG_TRGM;"
-                    `shouldBe` Right [CreateExtension { name = "pg_trgm", ifNotExists = True }]
+                    `shouldBe` Right [CreateExtension { name = "pg_trgm", ifNotExists = True, extensionOptions = [] }]
 
             it "accepts PostgreSQL extension options" do
                 parseCreateExtensionMigration "CREATE EXTENSION IF NOT EXISTS PostGIS WITH SCHEMA public VERSION '3.4.2' CASCADE;"
-                    `shouldBe` Right [CreateExtension { name = "postgis", ifNotExists = True }]
+                    `shouldBe` Right [CreateExtension { name = "postgis", ifNotExists = True, extensionOptions = [ExtensionSchema "public", ExtensionVersion "3.4.2", ExtensionCascade] }]
 
                 parseCreateExtensionMigration "CREATE EXTENSION IF NOT EXISTS postgis WITH VERSION stable CASCADE;"
-                    `shouldBe` Right [CreateExtension { name = "postgis", ifNotExists = True }]
+                    `shouldBe` Right [CreateExtension { name = "postgis", ifNotExists = True, extensionOptions = [ExtensionVersion "stable", ExtensionCascade] }]
+
+                parseCreateExtensionMigration "CREATE EXTENSION IF NOT EXISTS postgis CASCADE VERSION '3.4.2' SCHEMA geo;"
+                    `shouldBe` Right [CreateExtension { name = "postgis", ifNotExists = True, extensionOptions = [ExtensionCascade, ExtensionVersion "3.4.2", ExtensionSchema "geo"] }]
 
             it "preserves quoted extension names" do
                 parseCreateExtensionMigration "CREATE EXTENSION IF NOT EXISTS \"MixedCase\";"
-                    `shouldBe` Right [CreateExtension { name = "MixedCase", ifNotExists = True }]
+                    `shouldBe` Right [CreateExtension { name = "MixedCase", ifNotExists = True, extensionOptions = [] }]
 
             it "rejects a mixed migration" do
                 parseCreateExtensionMigration "CREATE EXTENSION IF NOT EXISTS pg_trgm; CREATE TABLE users ();"
@@ -234,13 +252,13 @@ spec = do
         it "should parse pgvector column types with dimensions" do
             parseSql "ALTER TABLE knowledge_chunks ADD COLUMN embedding VECTOR(1536) DEFAULT NULL;" `shouldBe` AddColumn
                     { tableName = "knowledge_chunks"
-                    , column = (col "embedding" (PCustomType "VECTOR(1536)")) { defaultValue = Just (VarExpression "NULL") }
+                    , column = (col "embedding" (PCustomType "vector(1536)")) { defaultValue = Just (VarExpression "NULL") }
                     }
 
         it "should preserve custom type modifier contents" do
             parseSql "ALTER TABLE knowledge_chunks ADD COLUMN embedding VECTOR( 1536 ) DEFAULT NULL;" `shouldBe` AddColumn
                     { tableName = "knowledge_chunks"
-                    , column = (col "embedding" (PCustomType "VECTOR( 1536 )")) { defaultValue = Just (VarExpression "NULL") }
+                    , column = (col "embedding" (PCustomType "vector( 1536 )")) { defaultValue = Just (VarExpression "NULL") }
                     }
 
         it "should parse pgvector HNSW indexes with operator classes" do
@@ -283,6 +301,7 @@ spec = do
                     , returns = PTrigger
                     , language = "plpgsql"
                     , securityDefiner = True
+                    , functionAttributes = []
                     , functionSettings =
                         [ FunctionSetting
                             { settingName = "search_path"
@@ -291,6 +310,49 @@ spec = do
                         ]
                     }
 
+        it "should preserve pg_dump function attributes" do
+            let sql = "CREATE FUNCTION current_organization_id() RETURNS uuid\n    LANGUAGE sql STABLE PARALLEL SAFE SECURITY DEFINER COST 2.5\n    SET search_path = public, pg_temp\n    AS $$SELECT 1;$$;"
+            parseSql sql `shouldBe` CreateFunction
+                    { functionName = "current_organization_id"
+                    , functionArguments = []
+                    , functionBody = "SELECT 1;"
+                    , orReplace = False
+                    , returns = PUUID
+                    , language = "sql"
+                    , securityDefiner = True
+                    , functionAttributes = ["STABLE", "PARALLEL SAFE", "COST 2.5"]
+                    , functionSettings =
+                        [ FunctionSetting
+                            { settingName = "search_path"
+                            , settingValue = "public, pg_temp"
+                            }
+                        ]
+                    }
+
+        it "should parse CREATE FUNCTION returning SETOF" do
+            let sql = "CREATE FUNCTION search_ids(query text) RETURNS setof uuid LANGUAGE sql AS $$SELECT 1;$$;"
+            parseSql sql `shouldBe`
+                (function "search_ids")
+                    { functionArguments = [("query", PText)]
+                    , functionBody = "SELECT 1;"
+                    , returns = PSetOf PUUID
+                    , language = "sql"
+                    }
+
+        it "should parse CREATE FUNCTION returning TABLE" do
+            let sql = "CREATE FUNCTION search_rows() RETURNS table(id uuid, label text) LANGUAGE sql AS $$SELECT 1;$$;"
+            parseSql sql `shouldBe`
+                (function "search_rows")
+                    { functionBody = "SELECT 1;"
+                    , returns = PTable [("id", PUUID), ("label", PText)]
+                    , language = "sql"
+                    }
+
+        it "should parse qualified types in function return shapes" do
+            let setReturning = parseSql "CREATE FUNCTION widgets() RETURNS SETOF private.users LANGUAGE sql AS $$SELECT NULL;$$;"
+            let tableReturning = parseSql "CREATE FUNCTION widgets() RETURNS TABLE (status private.status) LANGUAGE sql AS $$SELECT NULL;$$;"
+            setReturning.returns `shouldBe` PSetOf (PCustomType "private.users")
+            tableReturning.returns `shouldBe` PTable [("status", PCustomType "private.status")]
         it "should not stop CREATE FUNCTION SET values at keyword prefixes" do
             let sql = "CREATE OR REPLACE FUNCTION set_tz()\nRETURNS TRIGGER\nSET TimeZone = 'Asia/Tokyo'\nAS $$BEGIN\n    RETURN NEW;\nEND;$$ language plpgsql;"
             parseSql sql `shouldBe` CreateFunction
@@ -301,12 +363,171 @@ spec = do
                     , returns = PTrigger
                     , language = "plpgsql"
                     , securityDefiner = False
+                    , functionAttributes = []
                     , functionSettings =
                         [ FunctionSetting
                             { settingName = "TimeZone"
                             , settingValue = "'Asia/Tokyo'"
                             }
                         ]
+                    }
+
+        it "should keep function attribute keywords after SET commas" do
+            let sql = "CREATE FUNCTION uses_stable_schema() RETURNS uuid LANGUAGE sql SET search_path = public, stable AS $$SELECT 1;$$;"
+            parseSql sql `shouldBe` CreateFunction
+                    { functionName = "uses_stable_schema"
+                    , functionArguments = []
+                    , functionBody = "SELECT 1;"
+                    , orReplace = False
+                    , returns = PUUID
+                    , language = "sql"
+                    , securityDefiner = False
+                    , functionAttributes = []
+                    , functionSettings =
+                        [ FunctionSetting
+                            { settingName = "search_path"
+                            , settingValue = "public, stable"
+                            }
+                        ]
+                    }
+
+        it "should parse SQL-escaped quotes in function settings" do
+            let sql = "CREATE FUNCTION configured() RETURNS uuid LANGUAGE sql SET application_name = 'it''s enabled' AS $$SELECT 1;$$;"
+            parseSql sql `shouldBe` CreateFunction
+                    { functionName = "configured"
+                    , functionArguments = []
+                    , functionBody = "SELECT 1;"
+                    , orReplace = False
+                    , returns = PUUID
+                    , language = "sql"
+                    , securityDefiner = False
+                    , functionAttributes = []
+                    , functionSettings =
+                        [ FunctionSetting
+                            { settingName = "application_name"
+                            , settingValue = "'it''s enabled'"
+                            }
+                        ]
+                    }
+
+        it "should parse exponent notation in numeric function attributes" do
+            let sql = "CREATE FUNCTION estimated() RETURNS SETOF uuid LANGUAGE sql COST 1e-6 ROWS 1E6 AS $$SELECT 1;$$;"
+            parseSql sql `shouldBe` CreateFunction
+                    { functionName = "estimated"
+                    , functionArguments = []
+                    , functionBody = "SELECT 1;"
+                    , orReplace = False
+                    , returns = PSetOf PUUID
+                    , language = "sql"
+                    , securityDefiner = False
+                    , functionAttributes = ["COST 1e-6", "ROWS 1E6"]
+                    , functionSettings = []
+                    }
+
+        it "should parse leading-dot numeric function attributes" do
+            let parsed = parseSql "CREATE FUNCTION estimated() RETURNS SETOF uuid LANGUAGE sql COST .5 ROWS .25 AS $$SELECT 1;$$;"
+            parsed.functionAttributes `shouldBe` ["COST .5", "ROWS .25"]
+
+        it "should parse trailing-dot numeric function attributes" do
+            let parsed = parseSql "CREATE FUNCTION estimated() RETURNS SETOF uuid LANGUAGE sql COST 5. ROWS 10. AS $$SELECT 1;$$;"
+            parsed.functionAttributes `shouldBe` ["COST 5.", "ROWS 10."]
+
+        it "should parse table-returning function signatures" do
+            let parsed = parseSql "CREATE FUNCTION estimated() RETURNS TABLE (id uuid, label text) LANGUAGE sql ROWS 10 AS $$SELECT NULL, NULL;$$;"
+            parsed.returns `shouldBe` PTable [("id", PUUID), ("label", PText)]
+
+        it "should fold only unquoted RETURNS TABLE column names" do
+            let parsed = parseSql "CREATE FUNCTION estimated() RETURNS TABLE (Result text, \"ExactResult\" text) LANGUAGE sql AS $$SELECT NULL, NULL;$$;"
+            parsed.returns `shouldBe` PTable [("result", PText), ("ExactResult", PText)]
+
+        it "should decode doubled quotes in RETURNS TABLE column names" do
+            let parsed = parseSql "CREATE FUNCTION estimated() RETURNS TABLE (\"result\"\"code\" text) LANGUAGE sql AS $$SELECT NULL;$$;"
+            parsed.returns `shouldBe` PTable [("result\"code", PText)]
+
+        it "should parse function attributes after the body" do
+            let parsed = parseSql "CREATE FUNCTION estimated() RETURNS integer AS $$SELECT 1$$ LANGUAGE sql IMMUTABLE;"
+            parsed.language `shouldBe` "sql"
+            parsed.functionAttributes `shouldBe` ["IMMUTABLE"]
+
+        it "should parse schema-qualified set-returning custom types" do
+            let parsed = parseSql "CREATE FUNCTION widgets() RETURNS SETOF private.widget LANGUAGE sql AS $$SELECT NULL;$$;"
+            parsed.returns `shouldBe` PSetOf (PCustomType "private.widget")
+
+        it "should fold only unquoted custom type identifiers" do
+            let unquoted = parseSql "CREATE FUNCTION widgets() RETURNS SETOF Private.Widget(CustomCase) LANGUAGE sql AS $$SELECT NULL;$$;"
+            let quoted = parseSql "CREATE FUNCTION widgets() RETURNS SETOF private.\"Widget\" LANGUAGE sql AS $$SELECT NULL;$$;"
+            unquoted.returns `shouldBe` PSetOf (PCustomType "private.widget(CustomCase)")
+            quoted.returns `shouldBe` PSetOf (PCustomType "private.\"Widget\"")
+
+        it "should parse schema-qualified custom types in RETURNS TABLE" do
+            let parsed = parseSql "CREATE FUNCTION widgets() RETURNS TABLE (widget private.widget) LANGUAGE sql AS $$SELECT NULL;$$;"
+            parsed.returns `shouldBe` PTable [("widget", PCustomType "private.widget")]
+
+        it "should preserve TRANSFORM function attributes" do
+            let parsed = parseSql "CREATE FUNCTION transformed(value private.widget) RETURNS private.widget LANGUAGE plpgsql TRANSFORM FOR TYPE private.widget AS $$BEGIN RETURN value; END;$$;"
+            parsed.functionAttributes `shouldBe` ["TRANSFORM FOR TYPE private.widget"]
+
+        it "should preserve every type in a TRANSFORM list" do
+            let parsed = parseSql "CREATE FUNCTION transformed() RETURNS uuid LANGUAGE plpgsql TRANSFORM FOR TYPE private.widget, FOR TYPE private.gadget AS $$BEGIN RETURN NULL; END;$$;"
+            parsed.functionAttributes `shouldBe` ["TRANSFORM FOR TYPE private.widget, FOR TYPE private.gadget"]
+
+        it "should preserve complete types in TRANSFORM lists" do
+            let parsed = parseSql "CREATE FUNCTION transformed() RETURNS uuid LANGUAGE plpgsql TRANSFORM FOR TYPE double precision, FOR TYPE hstore[] AS $$BEGIN RETURN NULL; END;$$;"
+            parsed.functionAttributes `shouldBe` ["TRANSFORM FOR TYPE DOUBLE PRECISION, FOR TYPE hstore[]"]
+
+        it "should parse dollar-quoted function settings containing whitespace" do
+            let parsed = parseSql "CREATE FUNCTION configured() RETURNS uuid LANGUAGE sql SET application_name = $worker$batch worker$worker$ AS $$SELECT NULL;$$;"
+            parsed.functionSettings `shouldBe` [FunctionSetting { settingName = "application_name", settingValue = "$worker$batch worker$worker$" }]
+
+        it "should parse escape-string function settings containing whitespace" do
+            let sql = "CREATE FUNCTION configured_path() RETURNS uuid LANGUAGE sql SET application_name = E'C:\\\\Program Files' AS $$SELECT 1;$$;"
+            parseSql sql `shouldBe` CreateFunction
+                    { functionName = "configured_path"
+                    , functionArguments = []
+                    , functionBody = "SELECT 1;"
+                    , orReplace = False
+                    , returns = PUUID
+                    , language = "sql"
+                    , securityDefiner = False
+                    , functionAttributes = []
+                    , functionSettings =
+                        [ FunctionSetting
+                            { settingName = "application_name"
+                            , settingValue = "E'C:\\\\Program Files'"
+                            }
+                        ]
+                    }
+
+        it "should parse Unicode-escape function settings containing whitespace" do
+            let parsed = parseSql "CREATE FUNCTION configured() RETURNS uuid LANGUAGE sql SET application_name = U&'batch worker' AS $$SELECT 1;$$;"
+            parsed.functionSettings `shouldBe` [FunctionSetting { settingName = "application_name", settingValue = "U&'batch worker'" }]
+
+        it "should parse quoted identifiers in function settings" do
+            let sql = "CREATE FUNCTION configured_schema() RETURNS uuid LANGUAGE sql SET search_path = \"tenant schema\", public AS $$SELECT 1;$$;"
+            parseSql sql `shouldBe` CreateFunction
+                    { functionName = "configured_schema"
+                    , functionArguments = []
+                    , functionBody = "SELECT 1;"
+                    , orReplace = False
+                    , returns = PUUID
+                    , language = "sql"
+                    , securityDefiner = False
+                    , functionAttributes = []
+                    , functionSettings = [FunctionSetting { settingName = "search_path", settingValue = "\"tenant schema\", public" }]
+                    }
+
+        it "should preserve function SUPPORT attributes" do
+            let sql = "CREATE FUNCTION supported() RETURNS uuid LANGUAGE sql SUPPORT public.my_support AS $$SELECT 1;$$;"
+            parseSql sql `shouldBe` CreateFunction
+                    { functionName = "supported"
+                    , functionArguments = []
+                    , functionBody = "SELECT 1;"
+                    , orReplace = False
+                    , returns = PUUID
+                    , language = "sql"
+                    , securityDefiner = False
+                    , functionAttributes = ["SUPPORT my_support"]
+                    , functionSettings = []
                     }
 
         it "should parse pg_dump CREATE FUNCTION SET options with TO" do
@@ -319,6 +540,7 @@ spec = do
                     , returns = PTrigger
                     , language = "plpgsql"
                     , securityDefiner = True
+                    , functionAttributes = []
                     , functionSettings =
                         [ FunctionSetting
                             { settingName = "search_path"
@@ -338,6 +560,7 @@ spec = do
                     , returns = PTrigger
                     , language = "plpgsql"
                     , securityDefiner = True
+                    , functionAttributes = []
                     , functionSettings =
                         [ FunctionSetting
                             { settingName = "search_path"
@@ -357,6 +580,7 @@ spec = do
                     , returns = PTrigger
                     , language = "plpgsql"
                     , securityDefiner = True
+                    , functionAttributes = []
                     , functionSettings =
                         [ FunctionSetting
                             { settingName = "search_path"
@@ -377,6 +601,7 @@ spec = do
                     , returns = PTrigger
                     , language = "plpgsql"
                     , securityDefiner = False
+                    , functionAttributes = []
                     , functionSettings = []
                     }
 
@@ -386,6 +611,18 @@ spec = do
 
         it "should normalize the default public schema away on DROP FUNCTION" do
             parseSql "DROP FUNCTION public.sync_access;" `shouldBe` DropFunction { functionName = "sync_access" }
+
+        it "should preserve a non-public schema in a SUPPORT function" do
+            let parsed = parseSql "CREATE FUNCTION public.f(value integer) RETURNS integer LANGUAGE sql SUPPORT private.my_support AS $$ SELECT value $$;"
+            parsed.functionAttributes `shouldBe` ["SUPPORT private.my_support"]
+
+        it "should preserve quoted identifiers in a SUPPORT function" do
+            let parsed = parseSql "CREATE FUNCTION public.f(value integer) RETURNS integer LANGUAGE sql SUPPORT public.\"MySupport\" AS $$ SELECT value $$;"
+            parsed.functionAttributes `shouldBe` ["SUPPORT \"MySupport\""]
+
+        it "should normalize a redundantly quoted public SUPPORT schema" do
+            let parsed = parseSql "CREATE FUNCTION public.f(value integer) RETURNS integer LANGUAGE sql SUPPORT \"public\".my_support AS $$ SELECT value $$;"
+            parsed.functionAttributes `shouldBe` ["SUPPORT my_support"]
 
         it "should parse a pg_dump CREATE INDEX with VARIADIC function arguments" do
             let sql = "CREATE INDEX agent_runs_ingest_gmail_message_latest_idx ON public.agent_runs USING btree (organization_id, jsonb_extract_path_text(input, VARIADIC ARRAY['gmailMessageId'::text]), COALESCE(completed_at, last_event_at, started_at, created_at) DESC, id DESC) WHERE ((type = 'ingest'::public.agent_run_type) AND (jsonb_extract_path_text(input, VARIADIC ARRAY['source'::text]) = 'gmail_email_ingest'::text));"
@@ -477,7 +714,24 @@ spec = do
             parseSql "DROP TYPE colors;" `shouldBe` DropEnumType { name = "colors" }
 
         it "should parse 'CREATE SEQUENCE ..' statements" do
-            parseSql "CREATE SEQUENCE a;" `shouldBe` CreateSequence { name = "a" }
+            parseSql "CREATE SEQUENCE a;" `shouldBe` CreateSequence { name = "a", sequenceOptions = [] }
+
+        it "should preserve pg_dump sequence options" do
+            let sql = "CREATE SEQUENCE a AS bigint START WITH 1 INCREMENT BY 2 NO MINVALUE MAXVALUE 99 CACHE 4 NO CYCLE;"
+            parseSql (compileSql [parseSql sql]) `shouldBe` parseSql sql
+
+        it "should not read INCREMENT as the IN expression operator" do
+            parseSql "CREATE SEQUENCE a START WITH 1 INCREMENT BY 1 NO MINVALUE NO MAXVALUE CACHE 1;"
+                `shouldBe` CreateSequence
+                    { name = "a"
+                    , sequenceOptions =
+                        [ SequenceStart (IntExpression 1)
+                        , SequenceIncrement (IntExpression 1)
+                        , SequenceNoMinValue
+                        , SequenceNoMaxValue
+                        , SequenceCache (IntExpression 1)
+                        ]
+                    }
 
         it "should parse 'BEGIN' statements" do
             parseSql "BEGIN;" `shouldBe` Begin
@@ -615,6 +869,293 @@ spec = do
         it "should parse dollar signs inside a function body" do
             parseSql "CREATE FUNCTION f(a TEXT) RETURNS text AS $$ SELECT $1; $$ language sql;" `shouldBe`
                 (function "f") { functionArguments = [("a", PText)], returns = PText, functionBody = " SELECT $1; ", language = "sql" }
+
+        it "should parse an operator behind an integer literal" do
+            parseExpression "a > 0 AND b > 0" `shouldBe`
+                AndExpression
+                    (GreaterThanExpression (VarExpression "a") (IntExpression 0))
+                    (GreaterThanExpression (VarExpression "b") (IntExpression 0))
+
+        it "should parse an operator behind a double literal" do
+            parseExpression "a > 0.5 AND b > 0.5" `shouldBe`
+                AndExpression
+                    (GreaterThanExpression (VarExpression "a") (NumericExpression "0.5"))
+                    (GreaterThanExpression (VarExpression "b") (NumericExpression "0.5"))
+
+        it "should parse arithmetic operators" do
+            parseExpression "a + b <= 100" `shouldBe`
+                LessThanOrEqualToExpression
+                    (BinaryOperatorExpression "+" (VarExpression "a") (VarExpression "b"))
+                    (IntExpression 100)
+
+        it "should give multiplication a tighter precedence than addition" do
+            parseExpression "a + b * c" `shouldBe`
+                BinaryOperatorExpression "+"
+                    (VarExpression "a")
+                    (BinaryOperatorExpression "*" (VarExpression "b") (VarExpression "c"))
+
+        it "should give exponentiation tighter precedence than multiplication" do
+            parseExpression "2 * 3 ^ 2" `shouldBe`
+                BinaryOperatorExpression "*"
+                    (IntExpression 2)
+                    (BinaryOperatorExpression "^" (IntExpression 3) (IntExpression 2))
+
+        it "should parse regular expression operators" do
+            parseExpression "code ~ '^[A-Z]{3}$'" `shouldBe`
+                BinaryOperatorExpression "~" (VarExpression "code") (TextExpression "^[A-Z]{3}$")
+
+        it "should parse PostgreSQL JSON operators" do
+            parseExpression "metadata ->> 'kind' = 'invoice'" `shouldBe`
+                EqExpression
+                    (BinaryOperatorExpression "->>" (VarExpression "metadata") (TextExpression "kind"))
+                    (TextExpression "invoice")
+            parseExpression "metadata ? 'kind'" `shouldBe`
+                BinaryOperatorExpression "?" (VarExpression "metadata") (TextExpression "kind")
+            parseExpression "payload @> '{\"kind\":\"booking\"}'" `shouldBe`
+                BinaryOperatorExpression "@>" (VarExpression "payload") (TextExpression "{\"kind\":\"booking\"}")
+            parseExpression "payload <@ expected #> '{items}'" `shouldBe`
+                BinaryOperatorExpression "#>"
+                    (BinaryOperatorExpression "<@" (VarExpression "payload") (VarExpression "expected"))
+                    (TextExpression "{items}")
+            parseExpression "payload ?| keys" `shouldBe`
+                BinaryOperatorExpression "?|" (VarExpression "payload") (VarExpression "keys")
+            parseExpression "payload ?& keys" `shouldBe`
+                BinaryOperatorExpression "?&" (VarExpression "payload") (VarExpression "keys")
+            parseExpression "payload #>> '{items,0}'" `shouldBe`
+                BinaryOperatorExpression "#>>" (VarExpression "payload") (TextExpression "{items,0}")
+            parseExpression "left_value ## right_value" `shouldBe`
+                BinaryOperatorExpression "##" (VarExpression "left_value") (VarExpression "right_value")
+
+        it "should keep concatenation at the generic operator precedence" do
+            parseExpression "defaults || payload ->> 'name'" `shouldBe`
+                BinaryOperatorExpression "->>"
+                    (ConcatenationExpression (VarExpression "defaults") (VarExpression "payload"))
+                    (TextExpression "name")
+
+        it "should parse user-defined operators beginning with arithmetic characters" do
+            parseExpression "lhs +> rhs" `shouldBe`
+                BinaryOperatorExpression "+>" (VarExpression "lhs") (VarExpression "rhs")
+            parseExpression "lhs ^@ rhs" `shouldBe`
+                BinaryOperatorExpression "^@" (VarExpression "lhs") (VarExpression "rhs")
+
+        it "should ignore WITH inside PostgreSQL escape strings in exclusion elements" do
+            let parsed = parseSql "CREATE TABLE bookings (EXCLUDE (room_id || E'foo\\' WITH bar' WITH =));"
+            parsed.unsafeGetCreateTable.constraints `shouldBe`
+                [ExcludeConstraint Nothing [ExcludeConstraintElement "room_id || E'foo\\' WITH bar'" "="] Nothing Nothing]
+
+        it "should parse BETWEEN and NOT IN" do
+            parseExpression "month BETWEEN 1 AND 12" `shouldBe`
+                AndExpression
+                    (GreaterThanOrEqualToExpression (VarExpression "month") (IntExpression 1))
+                    (LessThanOrEqualToExpression (VarExpression "month") (IntExpression 12))
+            parseExpression "kind NOT IN ('draft', 'void')" `shouldBe`
+                BinaryOperatorExpression "NOT IN"
+                    (VarExpression "kind")
+                    (InArrayExpression [TextExpression "draft", TextExpression "void"])
+            parseExpression "age NOT BETWEEN 13 AND 19" `shouldBe`
+                NotExpression
+                    (AndExpression
+                        (GreaterThanOrEqualToExpression (VarExpression "age") (IntExpression 13))
+                        (LessThanOrEqualToExpression (VarExpression "age") (IntExpression 19)))
+
+        it "should parse BETWEEN after arithmetic expressions" do
+            parseExpression "subtotal + tax BETWEEN minimum + 1 AND maximum" `shouldBe`
+                AndExpression
+                    (GreaterThanOrEqualToExpression
+                        (BinaryOperatorExpression "+" (VarExpression "subtotal") (VarExpression "tax"))
+                        (BinaryOperatorExpression "+" (VarExpression "minimum") (IntExpression 1)))
+                    (LessThanOrEqualToExpression
+                        (BinaryOperatorExpression "+" (VarExpression "subtotal") (VarExpression "tax"))
+                        (VarExpression "maximum"))
+
+        it "should parse generic operators in BETWEEN bounds" do
+            parseExpression "value BETWEEN bounds ->> 'lower' AND bounds ->> 'upper'" `shouldBe`
+                AndExpression
+                    (GreaterThanOrEqualToExpression (VarExpression "value") (BinaryOperatorExpression "->>" (VarExpression "bounds") (TextExpression "lower")))
+                    (LessThanOrEqualToExpression (VarExpression "value") (BinaryOperatorExpression "->>" (VarExpression "bounds") (TextExpression "upper")))
+
+        it "should parse concatenation in BETWEEN bounds" do
+            parseExpression "value BETWEEN prefix || suffix AND upper" `shouldBe`
+                AndExpression
+                    (GreaterThanOrEqualToExpression (VarExpression "value") (ConcatenationExpression (VarExpression "prefix") (VarExpression "suffix")))
+                    (LessThanOrEqualToExpression (VarExpression "value") (VarExpression "upper"))
+
+        it "should give AT TIME ZONE precedence over comparisons" do
+            parseExpression "cutoff < created_at AT TIME ZONE 'UTC'" `shouldBe`
+                LessThanExpression
+                    (VarExpression "cutoff")
+                    (BinaryOperatorExpression "AT TIME ZONE" (VarExpression "created_at") (TextExpression "UTC"))
+
+            parseExpression "created_at AT /* normalize */ TIME\nZONE 'UTC'" `shouldBe`
+                BinaryOperatorExpression "AT TIME ZONE" (VarExpression "created_at") (TextExpression "UTC")
+
+        it "should parse typed PostgreSQL literals" do
+            parseExpression "closed_at - INTERVAL '30 days' > opened_at" `shouldBe`
+                GreaterThanExpression
+                    (BinaryOperatorExpression "-"
+                        (VarExpression "closed_at")
+                        (TypeCastExpression (TextExpression "30 days") (PInterval Nothing)))
+                    (VarExpression "opened_at")
+            parseExpression "TIMESTAMPTZ '2026-08-09 18:00:00+00'" `shouldBe`
+                TypeCastExpression (TextExpression "2026-08-09 18:00:00+00") PTimestampWithTimezone
+            parseExpression "created_at + INTERVAL '1' DAY" `shouldBe`
+                BinaryOperatorExpression "+"
+                    (VarExpression "created_at")
+                    (TypeCastExpression (TextExpression "1") (PInterval (Just "DAY")))
+
+        it "should parse expression-based EXCLUDE constraints" do
+            parseSql "ALTER TABLE bookings ADD CONSTRAINT bookings_no_overlap EXCLUDE USING gist (room_id WITH =, daterange(starts_on, ends_on) WITH &&);" `shouldBe`
+                AddConstraint
+                    { tableName = "bookings"
+                    , constraint = ExcludeConstraint
+                        { name = Just "bookings_no_overlap"
+                        , excludeElements =
+                            [ ExcludeConstraintElement { element = "room_id", operator = "=" }
+                            , ExcludeConstraintElement { element = "daterange(starts_on, ends_on)", operator = "&&" }
+                            ]
+                        , predicate = Nothing
+                        , indexType = Just Gist
+                        }
+                    , deferrable = Nothing
+                    , deferrableType = Nothing
+                    }
+
+        it "should prefer the longest regular expression operator" do
+            parseExpression "code !~* 'x'" `shouldBe`
+                BinaryOperatorExpression "!~*" (VarExpression "code") (TextExpression "x")
+
+        it "should parse LIKE without consuming an identifier that starts with it" do
+            parseExpression "name LIKE 'a%'" `shouldBe`
+                BinaryOperatorExpression "LIKE" (VarExpression "name") (TextExpression "a%")
+            parseExpression "likelihood" `shouldBe` VarExpression "likelihood"
+
+        it "should preserve LIKE escape clauses" do
+            parseExpression "code LIKE 'A!_%' ESCAPE '!'" `shouldBe`
+                BinaryOperatorExpression "ESCAPE"
+                    (BinaryOperatorExpression "LIKE" (VarExpression "code") (TextExpression "A!_%"))
+                    (TextExpression "!")
+            parseExpression "code LIKE pattern ESCAPE escape_prefix || ''" `shouldBe`
+                BinaryOperatorExpression "ESCAPE"
+                    (BinaryOperatorExpression "LIKE" (VarExpression "code") (VarExpression "pattern"))
+                    (ConcatenationExpression (VarExpression "escape_prefix") (TextExpression ""))
+
+        it "should bind LIKE before prefix NOT and allow trivia in NOT LIKE" do
+            parseExpression "NOT name LIKE 'a%'" `shouldBe`
+                NotExpression (BinaryOperatorExpression "LIKE" (VarExpression "name") (TextExpression "a%"))
+            parseExpression "name NOT /* pattern */ LIKE 'a%'" `shouldBe`
+                BinaryOperatorExpression "NOT LIKE" (VarExpression "name") (TextExpression "a%")
+
+        it "should read != as the canonical <> operator" do
+            parseExpression "a != b" `shouldBe` NotEqExpression (VarExpression "a") (VarExpression "b")
+
+        it "should bind regular expression operators before comparisons" do
+            parseExpression "flag <> code ~ '^x'" `shouldBe`
+                NotEqExpression
+                    (VarExpression "flag")
+                    (BinaryOperatorExpression "~" (VarExpression "code") (TextExpression "^x"))
+
+        it "should bind arithmetic before JSON operators" do
+            parseExpression "payload -> 0 + 1" `shouldBe`
+                BinaryOperatorExpression "->"
+                    (VarExpression "payload")
+                    (BinaryOperatorExpression "+" (IntExpression 0) (IntExpression 1))
+
+        it "should parse WITH only as an exclusion-element delimiter" do
+            parseSql "CREATE TABLE reservations (EXCLUDE (overlaps_with WITH =));" `shouldBe`
+                StatementCreateTable (table "reservations")
+                    { constraints =
+                        [ ExcludeConstraint
+                            { name = Nothing
+                            , excludeElements = [ExcludeConstraintElement { element = "overlaps_with", operator = "=" }]
+                            , predicate = Nothing
+                            , indexType = Nothing
+                            }
+                        ]
+                    }
+
+        it "should ignore quoted WITH text inside exclusion elements" do
+            parseSql "CREATE TABLE reservations (EXCLUDE ((name || ' WITH ') WITH =));" `shouldBe`
+                StatementCreateTable (table "reservations")
+                    { constraints =
+                        [ ExcludeConstraint
+                            { name = Nothing
+                            , excludeElements = [ExcludeConstraintElement { element = "(name || ' WITH ')", operator = "=" }]
+                            , predicate = Nothing
+                            , indexType = Nothing
+                            }
+                        ]
+                    }
+
+        it "should ignore WITH inside comments in exclusion elements" do
+            parseSql "CREATE TABLE reservations (EXCLUDE (room_id /* WITH marker */ WITH =));" `shouldBe`
+                StatementCreateTable (table "reservations")
+                    { constraints =
+                        [ ExcludeConstraint
+                            { name = Nothing
+                            , excludeElements = [ExcludeConstraintElement { element = "room_id /* WITH marker */", operator = "=" }]
+                            , predicate = Nothing
+                            , indexType = Nothing
+                            }
+                        ]
+                    }
+
+        it "should ignore WITH inside dollar-quoted exclusion literals" do
+            parseSql "CREATE TABLE reservations (EXCLUDE ((name || $tag$ WITH $tag$) WITH =));" `shouldBe`
+                StatementCreateTable (table "reservations")
+                    { constraints =
+                        [ ExcludeConstraint
+                            { name = Nothing
+                            , excludeElements = [ExcludeConstraintElement { element = "(name || $tag$ WITH $tag$)", operator = "=" }]
+                            , predicate = Nothing
+                            , indexType = Nothing
+                            }
+                        ]
+                    }
+
+        it "should parse compact exclusion operators" do
+            parseSql "CREATE TABLE reservations (EXCLUDE (room_id WITH=));" `shouldBe`
+                StatementCreateTable (table "reservations")
+                    { constraints =
+                        [ ExcludeConstraint
+                            { name = Nothing
+                            , excludeElements = [ExcludeConstraintElement { element = "room_id", operator = "=" }]
+                            , predicate = Nothing
+                            , indexType = Nothing
+                            }
+                        ]
+                    }
+
+        it "should accept punctuation before the exclusion WITH delimiter" do
+            let parsed = parseSql "CREATE TABLE reservations (EXCLUDE ((lower(room_id))WITH=));"
+            parsed.unsafeGetCreateTable.constraints `shouldBe`
+                [ ExcludeConstraint
+                    { name = Nothing
+                    , excludeElements = [ExcludeConstraintElement { element = "(lower(room_id))", operator = "=" }]
+                    , predicate = Nothing
+                    , indexType = Nothing
+                    }
+                ]
+
+        it "should cast the operand rather than the sum" do
+            parseExpression "a::integer + 1" `shouldBe`
+                BinaryOperatorExpression "+"
+                    (TypeCastExpression (VarExpression "a") PInt)
+                    (IntExpression 1)
+
+        it "should parse a CHECK constraint combining comparisons with AND" do
+            parseSql "CREATE TABLE t (a INT, b INT, CONSTRAINT t_positive CHECK (a > 0 AND b > 0));" `shouldBe`
+                StatementCreateTable (table "t")
+                    { columns = [col "a" PInt, col "b" PInt]
+                    , constraints =
+                        [ CheckConstraint
+                            { name = Just "t_positive"
+                            , checkExpression =
+                                AndExpression
+                                    (GreaterThanExpression (VarExpression "a") (IntExpression 0))
+                                    (GreaterThanExpression (VarExpression "b") (IntExpression 0))
+                            }
+                        ]
+                    }
         it "should ignore a comment inside a statement" do
             parseSql "CREATE TABLE users (\n    id UUID PRIMARY KEY, -- surrogate key\n    email TEXT NOT NULL /* the login */\n);" `shouldBe`
                 StatementCreateTable (table "users")
