@@ -6,7 +6,7 @@ module Postgres.CompilerSpec where
 
 import Prelude
 import Test.Hspec
-import IHP.Postgres.Compiler (compileSql)
+import IHP.Postgres.Compiler (compileExpression, compileSql)
 import IHP.Postgres.Types
 import Data.Text (Text)
 import qualified Data.Text as Text
@@ -21,7 +21,16 @@ spec = do
             compileSql [StatementCreateTable (table "users")] `shouldBe` "CREATE TABLE users (\n\n);\n"
 
         it "should compile a CREATE EXTENSION for the UUID extension" do
-            compileSql [CreateExtension { name = "uuid-ossp", ifNotExists = True }] `shouldBe` "CREATE EXTENSION IF NOT EXISTS \"uuid-ossp\";\n"
+            compileSql [CreateExtension { name = "uuid-ossp", ifNotExists = True, extensionOptions = [] }] `shouldBe` "CREATE EXTENSION IF NOT EXISTS \"uuid-ossp\";\n"
+
+        it "should quote punctuation in extension schema names" do
+            compileSql [CreateExtension { name = "postgis", ifNotExists = True, extensionOptions = [ExtensionSchema "geo.data"] }] `shouldBe` "CREATE EXTENSION IF NOT EXISTS postgis WITH SCHEMA \"geo.data\";\n"
+
+        it "should escape quotes in extension schema names" do
+            compileSql [CreateExtension { name = "postgis", ifNotExists = True, extensionOptions = [ExtensionSchema "geo\"data"] }] `shouldBe` "CREATE EXTENSION IF NOT EXISTS postgis WITH SCHEMA \"geo\"\"data\";\n"
+
+        it "should emit WITH before arbitrarily ordered extension options" do
+            compileSql [CreateExtension { name = "postgis", ifNotExists = True, extensionOptions = [ExtensionCascade, ExtensionSchema "geo"] }] `shouldBe` "CREATE EXTENSION IF NOT EXISTS postgis WITH CASCADE SCHEMA geo;\n"
 
         it "should compile a line comment" do
             compileSql [Comment { content = " Comment value" }] `shouldBe` "-- Comment value\n"
@@ -239,6 +248,14 @@ spec = do
             parseSql (compileSql [setReturning]) `shouldBe` setReturning
             parseSql (compileSql [tableReturning]) `shouldBe` tableReturning
 
+        it "should keep boolean IS expressions grouped inside equality" do
+            let sql = "ALTER TABLE t ADD CONSTRAINT t_pair CHECK ((a IS NULL) = (b IS NULL));"
+            compileSql [parseSql sql] `shouldBe` (sql <> "\n")
+
+        it "should round-trip PostgreSQL 18 named NOT NULL constraints" do
+            let sql = "CREATE TABLE users (\n    email TEXT CONSTRAINT users_email_not_null NOT NULL\n);"
+            compileSql [parseSql sql] `shouldBe` (sql <> "\n")
+
         it "should round-trip non-public schema-qualified table names" do
             let statement = StatementCreateTable (table "private.users")
             parseSql (compileSql [statement]) `shouldBe` statement
@@ -272,6 +289,16 @@ spec = do
         it "should round-trip a schema-qualified DROP TABLE" do
             let statement = DropTable { tableName = "private.users" }
             parseSql (compileSql [statement]) `shouldBe` statement
+
+        it "should compile LIKE escape clauses without changing their grouping" do
+            let expression = BinaryOperatorExpression "ESCAPE"
+                    (BinaryOperatorExpression "LIKE" (VarExpression "code") (TextExpression "A!_%"))
+                    (TextExpression "!")
+            compileExpression expression `shouldBe` "code LIKE 'A!_%' ESCAPE '!'"
+
+        it "should parenthesize comparisons used by generic operators" do
+            let expression = BinaryOperatorExpression "##" (EqExpression (VarExpression "a") (VarExpression "b")) (VarExpression "flag")
+            compileExpression expression `shouldBe` "(a = b) ## flag"
 
         it "should round-trip a schema-qualified CREATE FUNCTION" do
             -- parse -> compile -> parse must preserve a non-public schema like `private.`
@@ -337,6 +364,13 @@ spec = do
                     }
             compileSql [statement] `shouldBe` sql
 
+        it "should preserve grouping for inequality predicate operands" do
+            compileExpression
+                (NotEqExpression
+                    (IsExpression (VarExpression "a") (VarExpression "NULL"))
+                    (IsExpression (VarExpression "b") (VarExpression "NULL")))
+                `shouldBe` "(a IS NULL) <> (b IS NULL)"
+
         it "should compile 'ENABLE ROW LEVEL SECURITY' statements" do
             let sql = "ALTER TABLE tasks ENABLE ROW LEVEL SECURITY;\n"
             let statements = [EnableRowLevelSecurity { tableName = "tasks" }]
@@ -365,7 +399,17 @@ spec = do
 
         it "should compile 'CREATE SEQUENCE ..' statements" do
             let sql = "CREATE SEQUENCE a;\n"
-            let statements = [ CreateSequence { name = "a" } ]
+            let statements = [ CreateSequence { name = "a", sequenceOptions = [] } ]
+            compileSql statements `shouldBe` sql
+
+        it "should escape quotes in extension versions" do
+            let sql = "CREATE EXTENSION extension_name VERSION '1''beta';\n"
+            let statements = [ CreateExtension { name = "extension_name", ifNotExists = False, extensionOptions = [ExtensionVersion "1'beta"] } ]
+            compileSql statements `shouldBe` sql
+
+        it "should compile 'ALTER SEQUENCE ..' statements" do
+            let sql = "ALTER SEQUENCE a INCREMENT BY 3 CACHE 10;\n"
+            let statements = [ AlterSequence { name = "a", sequenceOptions = [SequenceIncrement (IntExpression 3), SequenceCache (IntExpression 10)] } ]
             compileSql statements `shouldBe` sql
 
         it "should compile 'DROP TYPE ..;' statements" do
@@ -401,6 +445,13 @@ spec = do
                             }
                         ]
             compileSql statements `shouldBe` sql
+
+        it "should parenthesize binary expressions before type casts" do
+            compileExpression
+                (TypeCastExpression
+                    (BinaryOperatorExpression "+" (VarExpression "price") (VarExpression "tax"))
+                    (PNumeric Nothing Nothing))
+                `shouldBe` "(price + tax)::NUMERIC"
 
         describe "literal and type round trips" do
             let roundTrip sql = compileSql [parseSql sql] `shouldBe` (sql <> "\n")
