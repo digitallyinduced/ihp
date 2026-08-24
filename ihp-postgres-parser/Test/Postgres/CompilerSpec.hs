@@ -6,7 +6,7 @@ module Postgres.CompilerSpec where
 
 import Prelude
 import Test.Hspec
-import IHP.Postgres.Compiler (compileExpression, compileSql)
+import IHP.Postgres.Compiler (compileExpression, compilePostgresType, compileSql)
 import IHP.Postgres.Types
 import Data.Text (Text)
 import qualified Data.Text as Text
@@ -57,6 +57,10 @@ spec = do
 
         it "should compile a CREATE TABLE with quoted identifiers" do
             compileSql [StatementCreateTable (table "quoted name")] `shouldBe` "CREATE TABLE \"quoted name\" (\n\n);\n"
+
+        it "should quote punctuation and escape quotes in returned column identifiers" do
+            compilePostgresType (PTable [("result.code", PText), ("result\"code", PText)]) `shouldBe`
+                "TABLE (\"result.code\" TEXT, \"result\"\"code\" TEXT)"
 
         it "should compile ALTER TABLE .. ADD FOREIGN KEY .. ON DELETE CASCADE" do
             let statement = AddConstraint
@@ -233,6 +237,7 @@ spec = do
                     , returns = PTrigger
                     , language = "plpgsql"
                     , securityDefiner = True
+                    , functionAttributes = []
                     , functionSettings =
                         [ FunctionSetting
                             { settingName = "search_path"
@@ -242,9 +247,72 @@ spec = do
                     }
             compileSql [statement] `shouldBe` sql
 
+        it "should round-trip CREATE FUNCTION attributes" do
+            let statement = CreateFunction
+                    { functionName = "current_organization_id"
+                    , functionArguments = []
+                    , functionBody = "SELECT 1;"
+                    , orReplace = False
+                    , returns = PUUID
+                    , language = "sql"
+                    , securityDefiner = True
+                    , functionAttributes = ["STABLE", "PARALLEL SAFE", "COST 2.5"]
+                    , functionSettings = []
+                    }
+            parseSql (compileSql [statement]) `shouldBe` statement
+
+        it "should round-trip set-returning function signatures" do
+            let statement = CreateFunction
+                    { functionName = "estimated"
+                    , functionArguments = []
+                    , functionBody = "SELECT NULL, NULL;"
+                    , orReplace = False
+                    , returns = PTable [("id", PUUID), ("label", PText)]
+                    , language = "sql"
+                    , securityDefiner = False
+                    , functionAttributes = ["ROWS 10"]
+                    , functionSettings = []
+                    }
+            parseSql (compileSql [statement]) `shouldBe` statement
+
+        it "should re-quote decoded input argument names" do
+            let statement = parseSql "CREATE FUNCTION quoted_arg(\"arg\"\"name\" text) RETURNS text LANGUAGE sql AS $$SELECT NULL;$$;"
+
+            compileSql [statement] `shouldBe`
+                "CREATE FUNCTION quoted_arg(\"arg\"\"name\" TEXT) RETURNS TEXT AS $$SELECT NULL;$$ language sql;\n"
+            parseSql (compileSql [statement]) `shouldBe` statement
+
+        it "should round-trip TRANSFORM attributes for qualified custom types" do
+            let statement = CreateFunction
+                    { functionName = "transformed"
+                    , functionArguments = [("value", PCustomType "private.widget")]
+                    , functionBody = "BEGIN RETURN value; END;"
+                    , orReplace = False
+                    , returns = PCustomType "private.widget"
+                    , language = "plpgsql"
+                    , securityDefiner = False
+                    , functionAttributes = ["TRANSFORM FOR TYPE private.widget"]
+                    , functionSettings = []
+                    }
+            parseSql (compileSql [statement]) `shouldBe` statement
+
+        it "should round-trip a quoted SUPPORT function identifier" do
+            let statement = CreateFunction
+                    { functionName = "supported"
+                    , functionArguments = []
+                    , functionBody = "SELECT 1;"
+                    , orReplace = False
+                    , returns = PUUID
+                    , language = "sql"
+                    , securityDefiner = False
+                    , functionAttributes = ["SUPPORT \"MySupport\""]
+                    , functionSettings = []
+                    }
+            parseSql (compileSql [statement]) `shouldBe` statement
+
         it "should round-trip function-only return types" do
             let setReturning = (function "search_ids") { returns = PSetOf PUUID, language = "sql" }
-            let tableReturning = (function "search_rows") { returns = PReturnTable [("id", PUUID), ("label", PText)], language = "sql" }
+            let tableReturning = (function "search_rows") { returns = PTable [("id", PUUID), ("label", PText)], language = "sql" }
             parseSql (compileSql [setReturning]) `shouldBe` setReturning
             parseSql (compileSql [tableReturning]) `shouldBe` tableReturning
 
@@ -310,6 +378,7 @@ spec = do
                     , returns = PTrigger
                     , language = "plpgsql"
                     , securityDefiner = True
+                    , functionAttributes = []
                     , functionSettings =
                         [ FunctionSetting
                             { settingName = "search_path"

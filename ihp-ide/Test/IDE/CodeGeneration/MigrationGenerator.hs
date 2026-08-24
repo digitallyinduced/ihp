@@ -74,11 +74,57 @@ tests = do
             it "should handle an empty schema" do
                 diffSchemas [] [] `shouldBe` []
 
+            it "normalizes explicit default function attributes" do
+                let targetSchema = sql [i|
+                    CREATE FUNCTION current_tenant() RETURNS uuid LANGUAGE sql VOLATILE NOT LEAKPROOF CALLED ON NULL INPUT SECURITY INVOKER PARALLEL UNSAFE AS $$SELECT NULL;$$;
+                |]
+                let actualSchema = sql [i|
+                    CREATE FUNCTION current_tenant() RETURNS uuid LANGUAGE sql AS $$SELECT NULL;$$;
+                |]
+
+                diffSchemas targetSchema actualSchema `shouldBe` []
+
             it "normalizes PostgreSQL's implicit sequence options" do
                 let targetSchema = sql "CREATE SEQUENCE events_id_seq;"
                 let actualSchema = sql [i|
                     CREATE SEQUENCE events_id_seq START WITH 1 INCREMENT BY 1 NO MINVALUE NO MAXVALUE CACHE 1;
                 |]
+
+                diffSchemas targetSchema actualSchema `shouldBe` []
+
+            it "canonicalizes function attribute ordering" do
+                let targetSchema = sql "CREATE FUNCTION current_tenant() RETURNS uuid LANGUAGE sql PARALLEL SAFE IMMUTABLE SUPPORT public.my_support AS $$SELECT NULL;$$;"
+                let actualSchema = sql "CREATE FUNCTION current_tenant() RETURNS uuid LANGUAGE sql IMMUTABLE PARALLEL SAFE SUPPORT my_support AS $$SELECT NULL;$$;"
+
+                diffSchemas targetSchema actualSchema `shouldBe` []
+
+            it "preserves quoted SUPPORT function identifiers while normalizing public" do
+                let targetSchema = sql "CREATE FUNCTION current_tenant() RETURNS uuid LANGUAGE sql SUPPORT public.\"MySupport\" AS $$SELECT NULL;$$;"
+                let actualSchema = sql "CREATE FUNCTION current_tenant() RETURNS uuid LANGUAGE sql SUPPORT \"MySupport\" AS $$SELECT NULL;$$;"
+
+                diffSchemas targetSchema actualSchema `shouldBe` []
+
+            it "canonicalizes redundant quotes in function attributes" do
+                let targetSchema = sql "CREATE FUNCTION current_tenant() RETURNS uuid LANGUAGE sql SUPPORT public.\"my_support\" TRANSFORM FOR TYPE private.\"widget\" AS $$SELECT NULL;$$;"
+                let actualSchema = sql "CREATE FUNCTION current_tenant() RETURNS uuid LANGUAGE sql SUPPORT my_support TRANSFORM FOR TYPE private.widget AS $$SELECT NULL;$$;"
+
+                diffSchemas targetSchema actualSchema `shouldBe` []
+
+            it "canonicalizes numeric function attribute values" do
+                let targetSchema = sql "CREATE FUNCTION estimate() RETURNS SETOF uuid LANGUAGE sql COST 2.50 ROWS 1E6 AS $$SELECT NULL;$$;"
+                let actualSchema = sql "CREATE FUNCTION estimate() RETURNS SETOF uuid LANGUAGE sql COST 2.5 ROWS 1000000 AS $$SELECT NULL;$$;"
+
+                diffSchemas targetSchema actualSchema `shouldBe` []
+
+            it "normalizes the default set-returning ROWS estimate" do
+                let targetSchema = sql "CREATE FUNCTION estimate() RETURNS SETOF uuid LANGUAGE sql ROWS 1000 AS $$SELECT NULL;$$;"
+                let actualSchema = sql "CREATE FUNCTION estimate() RETURNS SETOF uuid LANGUAGE sql AS $$SELECT NULL;$$;"
+
+                diffSchemas targetSchema actualSchema `shouldBe` []
+
+            it "canonicalizes function strictness synonyms and the SQL default cost" do
+                let targetSchema = sql "CREATE FUNCTION f(value integer) RETURNS integer LANGUAGE sql RETURNS NULL ON NULL INPUT COST 100.0 AS $$ SELECT value $$;"
+                let actualSchema = sql "CREATE FUNCTION f(value integer) RETURNS integer LANGUAGE sql STRICT AS $$ SELECT value $$;"
 
                 diffSchemas targetSchema actualSchema `shouldBe` []
 
@@ -1547,6 +1593,25 @@ CREATE POLICY "Users can read and edit their own record" ON public.users USING (
                     { functionBody = "BEGIN\n    NEW.updated_at = NOW();\n    RETURN NEW;\nEND;"
                     , language = "PLPGSQL"
                     }]
+
+            it "preserves quoted custom type names while normalizing functions" do
+                let schema = sql "CREATE FUNCTION widgets(value private.\"Widget\") RETURNS SETOF private.\"Widget\" LANGUAGE sql AS $$SELECT value;$$;"
+                let normalizedSchema = sql "CREATE FUNCTION widgets(value private.\"Widget\") RETURNS SETOF private.\"Widget\" LANGUAGE SQL AS $$SELECT value;$$;"
+
+                normalizeSchema schema `shouldBe` normalizedSchema
+
+            it "canonicalizes redundant quotes in custom function types" do
+                let targetSchema = sql "CREATE FUNCTION widgets(value private.\"widget\") RETURNS SETOF private.\"widget\" LANGUAGE sql AS $$SELECT value;$$;"
+                let actualSchema = sql "CREATE FUNCTION widgets(value private.widget) RETURNS SETOF private.widget LANGUAGE sql AS $$SELECT value;$$;"
+
+                diffSchemas targetSchema actualSchema `shouldBe` []
+
+            it "preserves quoted RETURNS TABLE column names when replacing functions" do
+                let targetSchema = sql "CREATE FUNCTION report() RETURNS TABLE (\"Result\" text) LANGUAGE sql AS $$SELECT 1;$$;"
+                let actualSchema = sql "CREATE FUNCTION report() RETURNS TABLE (\"Result\" text) LANGUAGE sql AS $$SELECT 2;$$;"
+                let migration = sql "CREATE OR REPLACE FUNCTION report() RETURNS TABLE (\"Result\" text) LANGUAGE SQL AS $$SELECT 1;$$;"
+
+                diffSchemas targetSchema actualSchema `shouldBe` migration
 
             it "should delete the updated_at trigger when the updated_at column is deleted" do
                 -- https://github.com/digitallyinduced/ihp/issues/1630

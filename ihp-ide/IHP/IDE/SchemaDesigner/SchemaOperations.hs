@@ -536,6 +536,7 @@ addUpdatedAtTrigger tableName schema =
                 , returns = PTrigger
                 , language = "plpgsql"
                 , securityDefiner = False
+                , functionAttributes = []
                 , functionSettings = []
                 }
 

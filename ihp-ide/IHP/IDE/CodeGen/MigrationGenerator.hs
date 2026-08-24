@@ -17,7 +17,7 @@ import qualified IHP.Postgres.Parser as Parser
 import qualified IHP.SchemaCompiler.Parser as SchemaDesignerParser
 import IHP.Postgres.Types
 import Text.Megaparsec
-import IHP.Postgres.Compiler (compileSql)
+import IHP.Postgres.Compiler (compileSql, compileIdentifier)
 import IHP.IDE.CodeGen.Types
 import qualified IHP.FrameworkConfig as FrameworkConfig
 import Paths_ihp_ide (getDataFileName)
@@ -521,7 +521,66 @@ normalizeStatement AddConstraint { tableName, constraint, deferrable, deferrable
 normalizeStatement CreateEnumType { name, values } = [ CreateEnumType { name = Text.toLower name, values = map Text.toLower values } ]
 normalizeStatement CreatePolicy { name, action, tableName, using, check } = [ CreatePolicy { name = truncateIdentifier name, tableName, using = (unqualifyExpression tableName . normalizeExpression) <$> using, check = (unqualifyExpression tableName . normalizeExpression) <$> check, action = normalizePolicyAction action } ]
 normalizeStatement CreateIndex { columns, indexType, indexName, .. } = [ CreateIndex { columns = map normalizeIndexColumn columns, indexType = normalizeIndexType indexType, indexName = truncateIdentifier indexName, .. } ]
-normalizeStatement CreateFunction { .. } = [ CreateFunction { orReplace = False, language = Text.toUpper language, functionBody = removeIndentation $ normalizeNewLines functionBody, .. } ]
+normalizeStatement CreateFunction { functionArguments, returns, .. } = [ CreateFunction { orReplace = False, language = normalizedLanguage, functionArguments = map (\(name, type_) -> (name, normalizeSqlType type_)) functionArguments, returns = normalizeSqlType returns, functionAttributes = normalizedFunctionAttributes, functionBody = removeIndentation $ normalizeNewLines functionBody, .. } ]
+    where
+        normalizedLanguage = Text.toUpper language
+        normalizedFunctionAttributes = sortOn functionAttributeOrder (filter (not . isDefaultFunctionAttribute) (map normalizeFunctionAttribute functionAttributes))
+        defaultFunctionAttributes = ["VOLATILE", "NOT LEAKPROOF", "CALLED ON NULL INPUT", "SECURITY INVOKER", "PARALLEL UNSAFE"]
+        isDefaultFunctionAttribute attribute = attribute `elem` defaultFunctionAttributes || isDefaultCost attribute || isDefaultRows attribute
+        isDefaultCost attribute
+            | normalizedLanguage `elem` ["SQL", "PLPGSQL"] = case Text.stripPrefix "COST " attribute of
+                Just cost -> Read.readMaybe (cs cost) == Just (100 :: Double)
+                Nothing -> False
+            | otherwise = False
+        isDefaultRows attribute
+            | isSetReturning = case Text.stripPrefix "ROWS " attribute of
+                Just rows -> Read.readMaybe (cs rows) == Just (1000 :: Double)
+                Nothing -> False
+            | otherwise = False
+        isSetReturning = case returns of
+            PSetOf {} -> True
+            PTable {} -> True
+            _ -> False
+        normalizeFunctionAttribute attribute
+            | Just supportFunction <- Text.stripPrefix "SUPPORT " attribute = "SUPPORT " <> normalizeCustomType supportFunction
+            | Just typeName <- Text.stripPrefix "TRANSFORM FOR TYPE " attribute = "TRANSFORM FOR TYPE " <> normalizeCustomType typeName
+            | Just value <- Text.stripPrefix "COST " normalizedAttribute = "COST " <> canonicalNumeric value
+            | Just value <- Text.stripPrefix "ROWS " normalizedAttribute = "ROWS " <> canonicalNumeric value
+            | otherwise = case normalizedAttribute of
+                "RETURNS NULL ON NULL INPUT" -> "STRICT"
+                normalized -> normalized
+            where
+                normalizedAttribute = Text.toUpper attribute
+                canonicalNumeric value =
+                    let
+                        (mantissa, exponentText) = Text.break (\character -> character == 'E') value
+                        exponent = fromMaybe 0 (Read.readMaybe (cs (Text.drop 1 exponentText)))
+                        (integerPart, fractionalWithDot) = Text.break (== '.') mantissa
+                        fractionalPart = Text.drop 1 fractionalWithDot
+                        digits = Text.dropWhile (== '0') (integerPart <> fractionalPart)
+                        decimalShift = exponent - Text.length fractionalPart
+                        plain
+                            | Text.null digits = "0"
+                            | decimalShift >= 0 = digits <> Text.replicate decimalShift "0"
+                            | Text.length digits + decimalShift > 0 =
+                                let splitAt = Text.length digits + decimalShift
+                                in Text.take splitAt digits <> "." <> Text.drop splitAt digits
+                            | otherwise = "0." <> Text.replicate (negate (Text.length digits + decimalShift)) "0" <> digits
+                    in if "." `Text.isInfixOf` plain
+                        then Text.dropWhileEnd (== '.') (Text.dropWhileEnd (== '0') plain)
+                        else plain
+        functionAttributeOrder attribute
+            | attribute `elem` ["IMMUTABLE", "STABLE", "VOLATILE"] = (0 :: Int)
+            | "LEAKPROOF" `Text.isInfixOf` attribute = 1
+            | attribute == "WINDOW" = 2
+            | attribute `elem` ["STRICT", "CALLED ON NULL INPUT", "RETURNS NULL ON NULL INPUT"] = 3
+            | "SECURITY " `Text.isPrefixOf` attribute = 4
+            | "PARALLEL " `Text.isPrefixOf` attribute = 5
+            | "COST " `Text.isPrefixOf` attribute = 6
+            | "ROWS " `Text.isPrefixOf` attribute = 7
+            | "SUPPORT " `Text.isPrefixOf` attribute = 8
+            | "TRANSFORM FOR TYPE " `Text.isPrefixOf` attribute = 9
+            | otherwise = 10
 normalizeStatement statement@CreateSequence { sequenceOptions } = [statement { sequenceOptions = normalizeSequenceOptions sequenceOptions }]
 normalizeStatement statement@CreateExtension { extensionOptions } = [statement { extensionOptions = filter (not . isImplicitExtensionOption) extensionOptions }]
 normalizeStatement otherwise = [otherwise]
@@ -808,12 +867,55 @@ resolveAlias (Just alias) fromExpression expression =
 resolveAlias Nothing fromExpression expression = expression
 
 normalizeSqlType :: PostgresType -> PostgresType
-normalizeSqlType (PCustomType customType) = PCustomType (Text.toLower customType)
+normalizeSqlType (PCustomType customType) = PCustomType (normalizeCustomType customType)
 normalizeSqlType (PGeometryWithModifier modifier) = PGeometryWithModifier (Text.intercalate "," (map (Text.toLower . Text.strip) (Text.splitOn "," modifier)))
 normalizeSqlType (PArray elementType) = PArray (normalizeSqlType elementType)
+normalizeSqlType (PSetOf type_) = PSetOf (normalizeSqlType type_)
+normalizeSqlType (PTable columns) = PTable (map (\(name, type_) -> (name, normalizeSqlType type_)) columns)
 normalizeSqlType PBigserial = PBigInt
 normalizeSqlType PSerial = PInt
 normalizeSqlType otherwise = otherwise
+
+normalizeCustomType :: Text -> Text
+normalizeCustomType = canonicalizeRedundantIdentifierQuotes . Text.pack . normalize False . Text.unpack
+    where
+        normalize _ [] = []
+        normalize True ('"' : '"' : rest) = '"' : '"' : normalize True rest
+        normalize quoted ('"' : rest) = '"' : normalize (not quoted) rest
+        normalize False rest@('(' : _) = rest
+        normalize True (character : rest) = character : normalize True rest
+        normalize False (character : rest) = Char.toLower character : normalize False rest
+
+canonicalizeRedundantIdentifierQuotes :: Text -> Text
+canonicalizeRedundantIdentifierQuotes = Text.pack . normalize . Text.unpack
+    where
+        normalize [] = []
+        normalize rest@('(' : _) = rest
+        normalize ('"' : rest) = case quotedIdentifier rest of
+            Just (source, decoded, afterQuote)
+                | isSafeUnquotedIdentifier decoded -> decoded <> normalize afterQuote
+                | otherwise -> '"' : source <> ('"' : normalize afterQuote)
+            Nothing -> '"' : normalize rest
+        normalize (character : rest) = character : normalize rest
+
+        quotedIdentifier [] = Nothing
+        quotedIdentifier ('"' : '"' : rest) = do
+            (source, decoded, afterQuote) <- quotedIdentifier rest
+            pure ('"' : '"' : source, '"' : decoded, afterQuote)
+        quotedIdentifier ('"' : rest) = Just ([], [], rest)
+        quotedIdentifier (character : rest) = do
+            (source, decoded, afterQuote) <- quotedIdentifier rest
+            pure (character : source, character : decoded, afterQuote)
+
+        isSafeUnquotedIdentifier identifier = case identifier of
+            firstCharacter : rest ->
+                (isAsciiLower firstCharacter || firstCharacter == '_')
+                    && all isUnquotedContinuation rest
+                    && compileIdentifier (Text.pack identifier) == Text.pack identifier
+            [] -> False
+        isAsciiLower character = character >= 'a' && character <= 'z'
+        isAsciiDigit character = character >= '0' && character <= '9'
+        isUnquotedContinuation character = isAsciiLower character || isAsciiDigit character || character == '_' || character == '$'
 
 normalizeNumericLiteral :: Text -> Text
 normalizeNumericLiteral value =

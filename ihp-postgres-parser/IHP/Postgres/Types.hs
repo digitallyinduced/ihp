@@ -36,7 +36,7 @@ data Statement
     -- | DROP INDEX indexName;
     | DropIndex { indexName :: Text }
     -- | CREATE OR REPLACE FUNCTION functionName(param1 TEXT, param2 INT) RETURNS TRIGGER AS $$functionBody$$ language plpgsql;
-    | CreateFunction { functionName :: Text, functionArguments :: [(Text, PostgresType)], functionBody :: Text, orReplace :: Bool, returns :: PostgresType, language :: Text, securityDefiner :: Bool, functionSettings :: [FunctionSetting] }
+    | CreateFunction { functionName :: Text, functionArguments :: [(Text, PostgresType)], functionBody :: Text, orReplace :: Bool, returns :: PostgresType, language :: Text, securityDefiner :: Bool, functionAttributes :: [Text], functionSettings :: [FunctionSetting] }
     -- | ALTER TABLE tableName ENABLE ROW LEVEL SECURITY;
     | EnableRowLevelSecurity { tableName :: Text }
     -- CREATE POLICY name ON tableName USING using WITH CHECK check;
@@ -276,12 +276,12 @@ data PostgresType
     | PInet
     | PTSVector
     | PArray PostgresType
-    | PTrigger
-    | PEventTrigger
     -- | @RETURNS SETOF x@. Only valid as a function return type.
     | PSetOf PostgresType
     -- | @RETURNS TABLE (name type, ...)@. Only valid as a function return type.
-    | PReturnTable [(Text, PostgresType)]
+    | PTable [(Text, PostgresType)]
+    | PTrigger
+    | PEventTrigger
     | PCustomType Text
     deriving (Eq, Show)
 
@@ -355,6 +355,7 @@ function functionName = CreateFunction
     , returns = PTrigger
     , language = "plpgsql"
     , securityDefiner = False
+    , functionAttributes = []
     , functionSettings = []
     }
 

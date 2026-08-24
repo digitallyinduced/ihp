@@ -252,13 +252,13 @@ spec = do
         it "should parse pgvector column types with dimensions" do
             parseSql "ALTER TABLE knowledge_chunks ADD COLUMN embedding VECTOR(1536) DEFAULT NULL;" `shouldBe` AddColumn
                     { tableName = "knowledge_chunks"
-                    , column = (col "embedding" (PCustomType "VECTOR(1536)")) { defaultValue = Just (VarExpression "NULL") }
+                    , column = (col "embedding" (PCustomType "vector(1536)")) { defaultValue = Just (VarExpression "NULL") }
                     }
 
         it "should preserve custom type modifier contents" do
             parseSql "ALTER TABLE knowledge_chunks ADD COLUMN embedding VECTOR( 1536 ) DEFAULT NULL;" `shouldBe` AddColumn
                     { tableName = "knowledge_chunks"
-                    , column = (col "embedding" (PCustomType "VECTOR( 1536 )")) { defaultValue = Just (VarExpression "NULL") }
+                    , column = (col "embedding" (PCustomType "vector( 1536 )")) { defaultValue = Just (VarExpression "NULL") }
                     }
 
         it "should parse pgvector HNSW indexes with operator classes" do
@@ -301,10 +301,30 @@ spec = do
                     , returns = PTrigger
                     , language = "plpgsql"
                     , securityDefiner = True
+                    , functionAttributes = []
                     , functionSettings =
                         [ FunctionSetting
                             { settingName = "search_path"
                             , settingValue = "public, private, pg_temp"
+                            }
+                        ]
+                    }
+
+        it "should preserve pg_dump function attributes" do
+            let sql = "CREATE FUNCTION current_organization_id() RETURNS uuid\n    LANGUAGE sql STABLE PARALLEL SAFE SECURITY DEFINER COST 2.5\n    SET search_path = public, pg_temp\n    AS $$SELECT 1;$$;"
+            parseSql sql `shouldBe` CreateFunction
+                    { functionName = "current_organization_id"
+                    , functionArguments = []
+                    , functionBody = "SELECT 1;"
+                    , orReplace = False
+                    , returns = PUUID
+                    , language = "sql"
+                    , securityDefiner = True
+                    , functionAttributes = ["STABLE", "PARALLEL SAFE", "COST 2.5"]
+                    , functionSettings =
+                        [ FunctionSetting
+                            { settingName = "search_path"
+                            , settingValue = "public, pg_temp"
                             }
                         ]
                     }
@@ -324,7 +344,7 @@ spec = do
             parseSql sql `shouldBe`
                 (function "search_rows")
                     { functionBody = "SELECT 1;"
-                    , returns = PReturnTable [("id", PUUID), ("label", PText)]
+                    , returns = PTable [("id", PUUID), ("label", PText)]
                     , language = "sql"
                     }
 
@@ -332,8 +352,7 @@ spec = do
             let setReturning = parseSql "CREATE FUNCTION widgets() RETURNS SETOF private.users LANGUAGE sql AS $$SELECT NULL;$$;"
             let tableReturning = parseSql "CREATE FUNCTION widgets() RETURNS TABLE (status private.status) LANGUAGE sql AS $$SELECT NULL;$$;"
             setReturning.returns `shouldBe` PSetOf (PCustomType "private.users")
-            tableReturning.returns `shouldBe` PReturnTable [("status", PCustomType "private.status")]
-
+            tableReturning.returns `shouldBe` PTable [("status", PCustomType "private.status")]
         it "should not stop CREATE FUNCTION SET values at keyword prefixes" do
             let sql = "CREATE OR REPLACE FUNCTION set_tz()\nRETURNS TRIGGER\nSET TimeZone = 'Asia/Tokyo'\nAS $$BEGIN\n    RETURN NEW;\nEND;$$ language plpgsql;"
             parseSql sql `shouldBe` CreateFunction
@@ -344,12 +363,171 @@ spec = do
                     , returns = PTrigger
                     , language = "plpgsql"
                     , securityDefiner = False
+                    , functionAttributes = []
                     , functionSettings =
                         [ FunctionSetting
                             { settingName = "TimeZone"
                             , settingValue = "'Asia/Tokyo'"
                             }
                         ]
+                    }
+
+        it "should keep function attribute keywords after SET commas" do
+            let sql = "CREATE FUNCTION uses_stable_schema() RETURNS uuid LANGUAGE sql SET search_path = public, stable AS $$SELECT 1;$$;"
+            parseSql sql `shouldBe` CreateFunction
+                    { functionName = "uses_stable_schema"
+                    , functionArguments = []
+                    , functionBody = "SELECT 1;"
+                    , orReplace = False
+                    , returns = PUUID
+                    , language = "sql"
+                    , securityDefiner = False
+                    , functionAttributes = []
+                    , functionSettings =
+                        [ FunctionSetting
+                            { settingName = "search_path"
+                            , settingValue = "public, stable"
+                            }
+                        ]
+                    }
+
+        it "should parse SQL-escaped quotes in function settings" do
+            let sql = "CREATE FUNCTION configured() RETURNS uuid LANGUAGE sql SET application_name = 'it''s enabled' AS $$SELECT 1;$$;"
+            parseSql sql `shouldBe` CreateFunction
+                    { functionName = "configured"
+                    , functionArguments = []
+                    , functionBody = "SELECT 1;"
+                    , orReplace = False
+                    , returns = PUUID
+                    , language = "sql"
+                    , securityDefiner = False
+                    , functionAttributes = []
+                    , functionSettings =
+                        [ FunctionSetting
+                            { settingName = "application_name"
+                            , settingValue = "'it''s enabled'"
+                            }
+                        ]
+                    }
+
+        it "should parse exponent notation in numeric function attributes" do
+            let sql = "CREATE FUNCTION estimated() RETURNS SETOF uuid LANGUAGE sql COST 1e-6 ROWS 1E6 AS $$SELECT 1;$$;"
+            parseSql sql `shouldBe` CreateFunction
+                    { functionName = "estimated"
+                    , functionArguments = []
+                    , functionBody = "SELECT 1;"
+                    , orReplace = False
+                    , returns = PSetOf PUUID
+                    , language = "sql"
+                    , securityDefiner = False
+                    , functionAttributes = ["COST 1e-6", "ROWS 1E6"]
+                    , functionSettings = []
+                    }
+
+        it "should parse leading-dot numeric function attributes" do
+            let parsed = parseSql "CREATE FUNCTION estimated() RETURNS SETOF uuid LANGUAGE sql COST .5 ROWS .25 AS $$SELECT 1;$$;"
+            parsed.functionAttributes `shouldBe` ["COST .5", "ROWS .25"]
+
+        it "should parse trailing-dot numeric function attributes" do
+            let parsed = parseSql "CREATE FUNCTION estimated() RETURNS SETOF uuid LANGUAGE sql COST 5. ROWS 10. AS $$SELECT 1;$$;"
+            parsed.functionAttributes `shouldBe` ["COST 5.", "ROWS 10."]
+
+        it "should parse table-returning function signatures" do
+            let parsed = parseSql "CREATE FUNCTION estimated() RETURNS TABLE (id uuid, label text) LANGUAGE sql ROWS 10 AS $$SELECT NULL, NULL;$$;"
+            parsed.returns `shouldBe` PTable [("id", PUUID), ("label", PText)]
+
+        it "should fold only unquoted RETURNS TABLE column names" do
+            let parsed = parseSql "CREATE FUNCTION estimated() RETURNS TABLE (Result text, \"ExactResult\" text) LANGUAGE sql AS $$SELECT NULL, NULL;$$;"
+            parsed.returns `shouldBe` PTable [("result", PText), ("ExactResult", PText)]
+
+        it "should decode doubled quotes in RETURNS TABLE column names" do
+            let parsed = parseSql "CREATE FUNCTION estimated() RETURNS TABLE (\"result\"\"code\" text) LANGUAGE sql AS $$SELECT NULL;$$;"
+            parsed.returns `shouldBe` PTable [("result\"code", PText)]
+
+        it "should parse function attributes after the body" do
+            let parsed = parseSql "CREATE FUNCTION estimated() RETURNS integer AS $$SELECT 1$$ LANGUAGE sql IMMUTABLE;"
+            parsed.language `shouldBe` "sql"
+            parsed.functionAttributes `shouldBe` ["IMMUTABLE"]
+
+        it "should parse schema-qualified set-returning custom types" do
+            let parsed = parseSql "CREATE FUNCTION widgets() RETURNS SETOF private.widget LANGUAGE sql AS $$SELECT NULL;$$;"
+            parsed.returns `shouldBe` PSetOf (PCustomType "private.widget")
+
+        it "should fold only unquoted custom type identifiers" do
+            let unquoted = parseSql "CREATE FUNCTION widgets() RETURNS SETOF Private.Widget(CustomCase) LANGUAGE sql AS $$SELECT NULL;$$;"
+            let quoted = parseSql "CREATE FUNCTION widgets() RETURNS SETOF private.\"Widget\" LANGUAGE sql AS $$SELECT NULL;$$;"
+            unquoted.returns `shouldBe` PSetOf (PCustomType "private.widget(CustomCase)")
+            quoted.returns `shouldBe` PSetOf (PCustomType "private.\"Widget\"")
+
+        it "should parse schema-qualified custom types in RETURNS TABLE" do
+            let parsed = parseSql "CREATE FUNCTION widgets() RETURNS TABLE (widget private.widget) LANGUAGE sql AS $$SELECT NULL;$$;"
+            parsed.returns `shouldBe` PTable [("widget", PCustomType "private.widget")]
+
+        it "should preserve TRANSFORM function attributes" do
+            let parsed = parseSql "CREATE FUNCTION transformed(value private.widget) RETURNS private.widget LANGUAGE plpgsql TRANSFORM FOR TYPE private.widget AS $$BEGIN RETURN value; END;$$;"
+            parsed.functionAttributes `shouldBe` ["TRANSFORM FOR TYPE private.widget"]
+
+        it "should preserve every type in a TRANSFORM list" do
+            let parsed = parseSql "CREATE FUNCTION transformed() RETURNS uuid LANGUAGE plpgsql TRANSFORM FOR TYPE private.widget, FOR TYPE private.gadget AS $$BEGIN RETURN NULL; END;$$;"
+            parsed.functionAttributes `shouldBe` ["TRANSFORM FOR TYPE private.widget, FOR TYPE private.gadget"]
+
+        it "should preserve complete types in TRANSFORM lists" do
+            let parsed = parseSql "CREATE FUNCTION transformed() RETURNS uuid LANGUAGE plpgsql TRANSFORM FOR TYPE double precision, FOR TYPE hstore[] AS $$BEGIN RETURN NULL; END;$$;"
+            parsed.functionAttributes `shouldBe` ["TRANSFORM FOR TYPE DOUBLE PRECISION, FOR TYPE hstore[]"]
+
+        it "should parse dollar-quoted function settings containing whitespace" do
+            let parsed = parseSql "CREATE FUNCTION configured() RETURNS uuid LANGUAGE sql SET application_name = $worker$batch worker$worker$ AS $$SELECT NULL;$$;"
+            parsed.functionSettings `shouldBe` [FunctionSetting { settingName = "application_name", settingValue = "$worker$batch worker$worker$" }]
+
+        it "should parse escape-string function settings containing whitespace" do
+            let sql = "CREATE FUNCTION configured_path() RETURNS uuid LANGUAGE sql SET application_name = E'C:\\\\Program Files' AS $$SELECT 1;$$;"
+            parseSql sql `shouldBe` CreateFunction
+                    { functionName = "configured_path"
+                    , functionArguments = []
+                    , functionBody = "SELECT 1;"
+                    , orReplace = False
+                    , returns = PUUID
+                    , language = "sql"
+                    , securityDefiner = False
+                    , functionAttributes = []
+                    , functionSettings =
+                        [ FunctionSetting
+                            { settingName = "application_name"
+                            , settingValue = "E'C:\\\\Program Files'"
+                            }
+                        ]
+                    }
+
+        it "should parse Unicode-escape function settings containing whitespace" do
+            let parsed = parseSql "CREATE FUNCTION configured() RETURNS uuid LANGUAGE sql SET application_name = U&'batch worker' AS $$SELECT 1;$$;"
+            parsed.functionSettings `shouldBe` [FunctionSetting { settingName = "application_name", settingValue = "U&'batch worker'" }]
+
+        it "should parse quoted identifiers in function settings" do
+            let sql = "CREATE FUNCTION configured_schema() RETURNS uuid LANGUAGE sql SET search_path = \"tenant schema\", public AS $$SELECT 1;$$;"
+            parseSql sql `shouldBe` CreateFunction
+                    { functionName = "configured_schema"
+                    , functionArguments = []
+                    , functionBody = "SELECT 1;"
+                    , orReplace = False
+                    , returns = PUUID
+                    , language = "sql"
+                    , securityDefiner = False
+                    , functionAttributes = []
+                    , functionSettings = [FunctionSetting { settingName = "search_path", settingValue = "\"tenant schema\", public" }]
+                    }
+
+        it "should preserve function SUPPORT attributes" do
+            let sql = "CREATE FUNCTION supported() RETURNS uuid LANGUAGE sql SUPPORT public.my_support AS $$SELECT 1;$$;"
+            parseSql sql `shouldBe` CreateFunction
+                    { functionName = "supported"
+                    , functionArguments = []
+                    , functionBody = "SELECT 1;"
+                    , orReplace = False
+                    , returns = PUUID
+                    , language = "sql"
+                    , securityDefiner = False
+                    , functionAttributes = ["SUPPORT my_support"]
+                    , functionSettings = []
                     }
 
         it "should parse pg_dump CREATE FUNCTION SET options with TO" do
@@ -362,6 +540,7 @@ spec = do
                     , returns = PTrigger
                     , language = "plpgsql"
                     , securityDefiner = True
+                    , functionAttributes = []
                     , functionSettings =
                         [ FunctionSetting
                             { settingName = "search_path"
@@ -381,6 +560,7 @@ spec = do
                     , returns = PTrigger
                     , language = "plpgsql"
                     , securityDefiner = True
+                    , functionAttributes = []
                     , functionSettings =
                         [ FunctionSetting
                             { settingName = "search_path"
@@ -400,6 +580,7 @@ spec = do
                     , returns = PTrigger
                     , language = "plpgsql"
                     , securityDefiner = True
+                    , functionAttributes = []
                     , functionSettings =
                         [ FunctionSetting
                             { settingName = "search_path"
@@ -420,6 +601,7 @@ spec = do
                     , returns = PTrigger
                     , language = "plpgsql"
                     , securityDefiner = False
+                    , functionAttributes = []
                     , functionSettings = []
                     }
 
@@ -429,6 +611,18 @@ spec = do
 
         it "should normalize the default public schema away on DROP FUNCTION" do
             parseSql "DROP FUNCTION public.sync_access;" `shouldBe` DropFunction { functionName = "sync_access" }
+
+        it "should preserve a non-public schema in a SUPPORT function" do
+            let parsed = parseSql "CREATE FUNCTION public.f(value integer) RETURNS integer LANGUAGE sql SUPPORT private.my_support AS $$ SELECT value $$;"
+            parsed.functionAttributes `shouldBe` ["SUPPORT private.my_support"]
+
+        it "should preserve quoted identifiers in a SUPPORT function" do
+            let parsed = parseSql "CREATE FUNCTION public.f(value integer) RETURNS integer LANGUAGE sql SUPPORT public.\"MySupport\" AS $$ SELECT value $$;"
+            parsed.functionAttributes `shouldBe` ["SUPPORT \"MySupport\""]
+
+        it "should normalize a redundantly quoted public SUPPORT schema" do
+            let parsed = parseSql "CREATE FUNCTION public.f(value integer) RETURNS integer LANGUAGE sql SUPPORT \"public\".my_support AS $$ SELECT value $$;"
+            parsed.functionAttributes `shouldBe` ["SUPPORT my_support"]
 
         it "should parse a pg_dump CREATE INDEX with VARIADIC function arguments" do
             let sql = "CREATE INDEX agent_runs_ingest_gmail_message_latest_idx ON public.agent_runs USING btree (organization_id, jsonb_extract_path_text(input, VARIADIC ARRAY['gmailMessageId'::text]), COALESCE(completed_at, last_event_at, started_at, created_at) DESC, id DESC) WHERE ((type = 'ingest'::public.agent_run_type) AND (jsonb_extract_path_text(input, VARIADIC ARRAY['source'::text]) = 'gmail_email_ingest'::text));"

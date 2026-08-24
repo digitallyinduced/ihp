@@ -17,6 +17,7 @@ module IHP.Postgres.Parser
 
 import Prelude
 import IHP.Postgres.Types hiding (table)
+import IHP.Postgres.Compiler (compilePostgresType)
 import Data.Text (Text)
 import qualified Data.Text as Text
 import qualified Data.Text.IO as Text
@@ -721,9 +722,12 @@ sqlType = choice $ map optionalArray
                 sourceTypeIdentifier = quotedTypeIdentifier <|> unquotedTypeIdentifier
                 quotedTypeIdentifier = fst <$> match do
                     char '"'
-                    many (try (string "\"\"") <|> (Text.singleton <$> anySingleBut '"'))
+                    _ <- many (try (string "\"\"" $> ()) <|> (anySingleBut '"' $> ()))
                     char '"'
-                unquotedTypeIdentifier = takeWhile1P (Just "Custom type") (\c -> isAlphaNum c || c == '_')
+                unquotedTypeIdentifier = do
+                    first <- satisfy (\character -> isAlpha character || character == '_')
+                    rest <- many (satisfy (\character -> isAlphaNum character || character == '_' || character == '$'))
+                    pure (Text.toLower (Text.pack (first : rest)))
 
 
 intervalFields :: [Text]
@@ -1021,6 +1025,7 @@ data FunctionOption
     = FunctionLanguage Text
     | FunctionSecurityDefiner
     | FunctionSettingOption FunctionSetting
+    | FunctionAttribute Text
 
 createFunction = do
     lexeme "CREATE"
@@ -1033,56 +1038,48 @@ createFunction = do
     returns <- functionReturnType
     space
 
-    functionOptions <- many parseFunctionOption
-    let languageBeforeBody = listToMaybe [language | FunctionLanguage language <- functionOptions]
-    let securityDefiner = any isSecurityDefiner functionOptions
-    let functionSettings = [functionSetting | FunctionSettingOption functionSetting <- functionOptions]
+    functionOptionsBeforeBody <- many parseFunctionOption
 
     lexeme "AS"
     space
     functionBody <- cs <$> between (char '$' >> char '$') (char '$' >> char '$') (many (anySingleBut '$'))
     space
 
-    language <- case languageBeforeBody of
+    functionOptionsAfterBody <- many parseFunctionOption
+    let functionOptions = functionOptionsBeforeBody <> functionOptionsAfterBody
+    let securityDefiner = any isSecurityDefiner functionOptions
+    let functionAttributes = [attribute | FunctionAttribute attribute <- functionOptions]
+    let functionSettings = [functionSetting | FunctionSettingOption functionSetting <- functionOptions]
+    language <- case listToMaybe [language | FunctionLanguage language <- functionOptions] of
         Just language -> pure language
-        Nothing -> do
-            symbol' "language"
-            symbol' "plpgsql" <|> symbol' "SQL"
+        Nothing -> fail "CREATE FUNCTION requires a LANGUAGE option"
     char ';'
-    pure CreateFunction { functionName, functionArguments, functionBody, orReplace, returns, language, securityDefiner, functionSettings }
+    pure CreateFunction { functionName, functionArguments, functionBody, orReplace, returns, language, securityDefiner, functionAttributes, functionSettings }
     where
         functionArgument = do
-            argumentName <- qualifiedIdentifier
+            argumentName <- functionArgumentName
             space
             argumentType <- sqlType
             pure (argumentName, argumentType)
+        functionArgumentName = quotedArgumentName <|> unquotedArgumentName
+        quotedArgumentName = Text.pack <$> between (char '"') (char '"') (some quotedArgumentNameCharacter)
+        quotedArgumentNameCharacter = try (string "\"\"" $> '"') <|> anySingleBut '"'
+        unquotedArgumentName = Text.toLower <$> takeWhile1P (Just "function argument name") (\c -> isAlphaNum c || c == '_')
+        functionReturnType =
+            try (symbol' "SETOF" >> (PSetOf <$> sqlType))
+            <|> try do
+                symbol' "TABLE"
+                PTable <$> between (char '(' >> space) (char ')' >> space) (functionArgument `sepBy1` (char ',' >> space))
+            <|> sqlType
         isSecurityDefiner FunctionSecurityDefiner = True
         isSecurityDefiner _ = False
-
--- | Function return positions accept shapes that table columns do not.
-functionReturnType :: Parser PostgresType
-functionReturnType = choice
-    [ try (returnKeyword "SETOF" >> (PSetOf <$> sqlType))
-    , try do
-        returnKeyword "TABLE"
-        columns <- between (char '(' >> space) (space >> char ')') (returnTableColumn `sepBy` (char ',' >> space))
-        pure (PReturnTable columns)
-    , sqlType
-    ]
-    where
-        returnKeyword keyword = lexeme (string' keyword <* notFollowedBy (satisfy \c -> isAlphaNum c || c == '_'))
-
-        returnTableColumn = do
-            space
-            columnName <- identifier
-            columnType <- sqlType
-            pure (columnName, columnType)
 
 parseFunctionOption :: Parser FunctionOption
 parseFunctionOption =
     try parseFunctionLanguage
     <|> try parseFunctionSecurityDefiner
     <|> try parseFunctionSetting
+    <|> try parseFunctionAttribute
 
 parseFunctionLanguage :: Parser FunctionOption
 parseFunctionLanguage = do
@@ -1100,18 +1097,133 @@ parseFunctionSetting = do
     symbol' "SET"
     settingName <- qualifiedIdentifier
     symbol "=" <|> symbol' "TO"
-    settingValue <- Text.strip . cs <$> someTill anySingle (lookAhead functionOptionBoundary)
-    space
+    settingValue <- Text.intercalate ", " <$> settingValueItem `sepBy1` symbol ","
     pure (FunctionSettingOption FunctionSetting { settingName, settingValue })
+    where
+        settingValueItem = lexeme
+            (try dollarQuotedSettingValue <|> try unicodeEscapeStringSettingValue <|> try escapeStringSettingValue <|> singleQuotedSettingValue <|> doubleQuotedSettingValue <|> takeWhile1P (Just "setting value") (\c -> not (isSpace c) && c /= ','))
+        dollarQuotedSettingValue = fst <$> match do
+            delimiter <- settingDollarQuoteDelimiter
+            _ <- manyTill anySingle (try (string delimiter))
+            pure ()
+        settingDollarQuoteDelimiter = do
+            char '$'
+            tag <- optional do
+                first <- satisfy (\character -> isAlpha character || character == '_')
+                rest <- many (satisfy (\character -> isAlphaNum character || character == '_'))
+                pure (Text.pack (first : rest))
+            char '$'
+            pure ("$" <> maybe "" id tag <> "$")
+        escapeStringSettingValue = fst <$> match do
+            oneOf ['e', 'E']
+            char '\''
+            _ <- many (try (char '\'' >> char '\'') <|> try (char '\\' >> anySingle) <|> anySingleBut '\'')
+            char '\''
+        unicodeEscapeStringSettingValue = fst <$> match do
+            string' "U&"
+            char '\''
+            _ <- many (try (char '\'' >> char '\'') <|> anySingleBut '\'')
+            char '\''
+            optional $ try do
+                space1
+                string' "UESCAPE"
+                notFollowedBy (satisfy isIdentifierCharacter)
+                space
+                char '\''
+                anySingleBut '\''
+                char '\''
+        singleQuotedSettingValue = fst <$> match do
+            char '\''
+            _ <- many (try (string "''") <|> (Text.singleton <$> satisfy (/= '\'')))
+            char '\''
+        doubleQuotedSettingValue = fst <$> match do
+            char '"'
+            _ <- many (try (string "\"\"") <|> (Text.singleton <$> satisfy (/= '"')))
+            char '"'
 
-functionOptionBoundary :: Parser ()
-functionOptionBoundary =
-    choice
-        [ try (space1 >> functionOptionBoundaryKeyword "LANGUAGE")
-        , try (space1 >> functionOptionBoundaryKeyword "SECURITY")
-        , try (space1 >> functionOptionBoundaryKeyword "SET")
-        , try (space1 >> functionOptionBoundaryKeyword "AS")
+-- | Volatility, strictness, parallelism and cost attributes as printed by pg_dump.
+-- They affect function behaviour, so keep their canonical spelling in the AST
+-- and emit them again when compiling the schema.
+parseFunctionAttribute :: Parser FunctionOption
+parseFunctionAttribute = do
+    FunctionAttribute <$> choice
+        [ keyword "IMMUTABLE"
+        , keyword "STABLE"
+        , keyword "VOLATILE"
+        , keyword "LEAKPROOF"
+        , keyword "WINDOW"
+        , keyword "STRICT"
+        , phrase ["NOT", "LEAKPROOF"]
+        , phrase ["CALLED", "ON", "NULL", "INPUT"]
+        , phrase ["RETURNS", "NULL", "ON", "NULL", "INPUT"]
+        , phrase ["SECURITY", "INVOKER"]
+        , try do
+            keywordPrefix "PARALLEL"
+            mode <- keyword "SAFE" <|> keyword "RESTRICTED" <|> keyword "UNSAFE"
+            pure ("PARALLEL " <> mode)
+        , numericAttribute "COST"
+        , numericAttribute "ROWS"
+        , supportAttribute
+        , transformAttribute
         ]
+    where
+        keyword value = try (functionOptionBoundaryKeyword value) $> value
+        phrase values = try (mapM_ functionOptionBoundaryKeyword values) $> Text.unwords values
+        keywordPrefix value = try (functionOptionBoundaryKeyword value)
+        numericAttribute name = try do
+            functionOptionBoundaryKeyword name
+            value <- fst <$> match do
+                _ <- try (some digitChar >> optional (char '.' >> many digitChar) $> ())
+                    <|> (char '.' >> some digitChar $> ())
+                optional do
+                    oneOf ['e', 'E']
+                    optional (oneOf ['+', '-'])
+                    _ <- some digitChar
+                    pure ()
+                pure ()
+            space
+            pure (name <> " " <> value)
+        supportAttribute = try do
+            functionOptionBoundaryKeyword "SUPPORT"
+            supportFunction <- supportFunctionIdentifier
+            pure ("SUPPORT " <> supportFunction)
+        transformAttribute = try do
+            functionOptionBoundaryKeyword "TRANSFORM"
+            firstType <- transformType
+            additionalTypes <- many $ try do
+                char ','
+                space
+                transformType
+            pure ("TRANSFORM FOR TYPE " <> Text.intercalate ", FOR TYPE " (firstType : additionalTypes))
+
+        transformType = do
+            functionOptionBoundaryKeyword "FOR"
+            functionOptionBoundaryKeyword "TYPE"
+            type_ <- sqlType
+            space
+            pure (compilePostgresType type_)
+
+        supportFunctionIdentifier = do
+            (schemaOrName, _) <- sourceIdentifier
+            maybeName <- optional (char '.' >> sourceIdentifier)
+            space
+            pure case maybeName of
+                Nothing -> schemaOrName
+                Just (name, _)
+                    | schemaOrName == "public" || schemaOrName == "\"public\"" -> name
+                    | otherwise -> schemaOrName <> "." <> name
+
+        sourceIdentifier = quotedIdentifier <|> unquotedIdentifier
+        quotedIdentifier = do
+            raw <- fst <$> match do
+                char '"'
+                _ <- many (try (string "\"\"" $> ()) <|> (anySingleBut '"' $> ()))
+                char '"'
+            pure (raw, True)
+        unquotedIdentifier = do
+            first <- satisfy (\c -> isAlpha c || c == '_')
+            rest <- many (satisfy isIdentifierCharacter)
+            pure (Text.toLower (Text.pack (first : rest)), False)
 
 functionOptionBoundaryKeyword :: Text -> Parser ()
 functionOptionBoundaryKeyword keyword = do

@@ -214,6 +214,8 @@ atomicType = \case
     (PVaryingN _) -> "Text"
     (PCharacterN _) -> "Text"
     PArray type_ -> "[" <> atomicType type_ <> "]"
+    PSetOf _ -> error "atomicType: PSetOf not supported for table columns"
+    PTable _ -> error "atomicType: PTable not supported for table columns"
     PPoint -> "Point"
     PPolygon -> "Polygon"
     PGeometry -> "Geometry"
@@ -222,8 +224,6 @@ atomicType = \case
     PTSVector -> "Tsvector"
     PSingleChar -> "Text"
     PTrigger -> error "atomicType: PTrigger not supported"
-    PSetOf _ -> error "atomicType: PSetOf is a function return type"
-    PReturnTable _ -> error "atomicType: PReturnTable is a function return type"
     PEventTrigger -> error "atomicType: PEventTrigger not supported"
 
 haskellType :: (?schema :: Schema) => CreateTable -> Column -> Text
@@ -786,7 +786,6 @@ hasqlSupportsColumnType :: PostgresType -> Bool
 hasqlSupportsColumnType = \case
     PTrigger -> False
     PSetOf _ -> False
-    PReturnTable _ -> False
     PEventTrigger -> False
     (PArray inner) -> hasqlSupportsColumnType inner
     _ -> True
@@ -1001,11 +1000,11 @@ hasqlValueDecoder = \case
     PInet -> "Mapping.decoder"
     PTSVector -> "Mapping.decoder"
     PArray innerType -> "(Decoders.listArray (" <> hasqlArrayElementDecoder innerType <> "))"
+    PSetOf _ -> error "hasqlValueDecoder: PSetOf not supported for table columns"
+    PTable _ -> error "hasqlValueDecoder: PTable not supported for table columns"
     PCustomType _ -> "Mapping.decoder"
     PSingleChar -> "Decoders.char"
     PTrigger -> "Decoders.text"  -- Trigger types shouldn't appear in table columns
-    PSetOf _ -> "Decoders.text"  -- Function return types shouldn't appear in table columns
-    PReturnTable _ -> "Decoders.text"  -- Function return types shouldn't appear in table columns
     PEventTrigger -> "Decoders.text"  -- Event trigger types shouldn't appear in table columns
 
 hasqlArrayElementDecoder :: PostgresType -> Text
@@ -1376,11 +1375,11 @@ hasqlValueEncoder = \case
     PInet -> "Mapping.encoder"
     PTSVector -> "Mapping.encoder"
     PArray innerType -> "(Encoders.foldableArray (Encoders.nonNullable " <> hasqlValueEncoder innerType <> "))"
+    PSetOf _ -> error "hasqlValueEncoder: PSetOf not supported for table columns"
+    PTable _ -> error "hasqlValueEncoder: PTable not supported for table columns"
     PCustomType _ -> "Mapping.encoder"
     PSingleChar -> "Encoders.char"
     PTrigger -> error "hasqlValueEncoder: PTrigger not supported"
-    PSetOf _ -> error "hasqlValueEncoder: PSetOf is a function return type"
-    PReturnTable _ -> error "hasqlValueEncoder: PReturnTable is a function return type"
     PEventTrigger -> error "hasqlValueEncoder: PEventTrigger not supported"
 
 formatEncoderBlock :: [Text] -> Text
@@ -1698,6 +1697,7 @@ compileStaticCreateManyStatement moduleName qualifiedModelName tableName writabl
         , "decoder :: Decoders.Result [" <> qualifiedModelName <> "]"
         , "decoder = Decoders.rowList RowDecoder.rowDecoder"
         ]
+
 
 compileDynamicCreateManyStatement :: (?schema :: Schema, ?compilerOptions :: CompilerOptions) => Text -> Text -> Text -> [Column] -> Text -> CreateTable -> [Column] -> Text -> Text
 compileDynamicCreateManyStatement moduleName qualifiedModelName tableName writableColumns allColumnNames table columns rowDecoderImport =
