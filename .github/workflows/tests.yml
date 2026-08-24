@@ -9,4 +9,6 @@ jobs:
     runs-on: ARM64
     steps:
     - uses: actions/checkout@v7
+    - name: Free disk space on the self-hosted runner
+      run: nix store gc --max 30G
     - run: nix flake check --impure --override-input ihp-boilerplate/ihp "github:${{ github.event.repository.full_name }}/${{ github.sha }}" -L
