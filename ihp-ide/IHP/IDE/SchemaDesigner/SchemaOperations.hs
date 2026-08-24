@@ -27,6 +27,7 @@ addTable tableName uuidFunction list = list <> [StatementCreateTable CreateTable
             , columnType = PUUID
             , defaultValue = Just (CallExpression uuidFunction [])
             , notNull = True
+            , notNullConstraintName = Nothing
             , isUnique = False
             , generator = Nothing
             }]
@@ -258,6 +259,7 @@ newColumn AddColumnOptions { .. } = Column
     , columnType = arrayifytype isArray columnType
     , defaultValue = defaultValue
     , notNull = (not allowNull)
+    , notNullConstraintName = Nothing
     , isUnique = isUnique
     , generator = Nothing
     }
@@ -350,7 +352,7 @@ updatePolicy UpdatePolicyOptions { .. } statements =
         statements
         |> map updatePolicy'
     where
-        updatePolicy' policy@CreatePolicy { name = pName, action, tableName = pTable } | pName == currentName && pTable == tableName = CreatePolicy { tableName, action, name, using, check }
+        updatePolicy' policy@CreatePolicy { name = pName, action, roles, tableName = pTable } | pName == currentName && pTable == tableName = CreatePolicy { tableName, action, roles, name, using, check }
         updatePolicy' otherwise                                                                                              = otherwise
 
 data AddPolicyOptions = AddPolicyOptions
@@ -363,7 +365,7 @@ data AddPolicyOptions = AddPolicyOptions
 addPolicy :: AddPolicyOptions -> Schema -> Schema
 addPolicy AddPolicyOptions { .. } statements = statements <> createPolicyStatement
     where
-        createPolicyStatement = [ CreatePolicy { tableName, action = Nothing, name, using, check } ]
+        createPolicyStatement = [ CreatePolicy { tableName, action = Nothing, roles = [], name, using, check } ]
 
 data DeletePolicyOptions = DeletePolicyOptions
     { tableName :: !Text
@@ -436,6 +438,7 @@ suggestPolicy schema (StatementCreateTable CreateTable { name = tableName, colum
         { name = "Users can manage their " <> tableName
         , action = Nothing
         , tableName
+        , roles = []
         , using = Just compareUserId
         , check = Just compareUserId
         }
@@ -454,6 +457,7 @@ suggestPolicy schema (StatementCreateTable CreateTable { name = tableName, colum
                     { name = "Users can manage the " <> tableName <> " if they can see the " <> tableNameToModelName refTableName
                     , action = Nothing
                     , tableName
+                    , roles = []
                     , using = Just delegateCheck
                     , check = Just delegateCheck
                     }
@@ -507,7 +511,7 @@ suggestPolicy schema (StatementCreateTable CreateTable { name = tableName, colum
                         _ -> error "resolveFK: expected StatementCreateTable"
             resolveFK _ = Nothing
 
-            emptyPolicy = CreatePolicy { name = "", action = Nothing, tableName, using = Nothing, check = Nothing }
+            emptyPolicy = CreatePolicy { name = "", action = Nothing, roles = [], tableName, using = Nothing, check = Nothing }
 suggestPolicy _ _ = error "suggestPolicy: expected StatementCreateTable"
 
 isUserIdColumn :: Column -> Bool
@@ -525,6 +529,8 @@ deleteTable tableName statements =
         AddConstraint { constraint = CompositeForeignKeyConstraint { referenceTable } } | referenceTable == tableName -> False
         CreateIndex { tableName = indexTable }          | indexTable == tableName      -> False
         EnableRowLevelSecurity { tableName = rlsTable } | rlsTable == tableName        -> False
+        ForceRowLevelSecurity { tableName = rlsTable }  | rlsTable == tableName        -> False
+        NoForceRowLevelSecurity { tableName = rlsTable } | rlsTable == tableName       -> False
         CreatePolicy { tableName = policyTable }        | policyTable == tableName     -> False
         CreateTrigger { tableName = triggerTable }      | triggerTable == tableName    -> False
         CreateConstraintTrigger { tableName = triggerTable, referencedTableName } | triggerTable == tableName || referencedTableName == Just tableName -> False
@@ -545,6 +551,8 @@ updateTable tableId tableName statements =
                     }
             index@(CreateIndex { tableName = indexTable, indexName }) | indexTable == oldTableName -> (index :: Statement) { tableName, indexName = Text.replace oldTableName tableName indexName } 
             rls@(EnableRowLevelSecurity { tableName = rlsTable }) | rlsTable == oldTableName -> (rls :: Statement) { tableName }
+            rls@(ForceRowLevelSecurity { tableName = rlsTable }) | rlsTable == oldTableName -> (rls :: Statement) { tableName }
+            rls@(NoForceRowLevelSecurity { tableName = rlsTable }) | rlsTable == oldTableName -> (rls :: Statement) { tableName }
             policy@(CreatePolicy { tableName = policyTable, name }) | policyTable == oldTableName -> (policy :: Statement) { tableName, name = Text.replace oldTableName tableName name }
             trigger@(CreateTrigger { tableName = triggerTable, name }) | triggerTable == oldTableName -> (trigger :: Statement) { tableName, name = Text.replace oldTableName tableName name }
             trigger@(CreateConstraintTrigger { tableName = triggerTable, referencedTableName, name }) | triggerTable == oldTableName || referencedTableName == Just oldTableName ->
@@ -627,6 +635,7 @@ addUpdatedAtTrigger tableName schema =
                 , returns = PTrigger
                 , language = "plpgsql"
                 , securityDefiner = False
+                , functionAttributes = []
                 , functionSettings = []
                 }
 
@@ -726,6 +735,7 @@ deleteColumn DeleteColumnOptions { .. } schema =
                 isRef (SelectExpression _) = False
                 isRef (DotExpression a _) = isRef a
                 isRef (ConcatenationExpression a b) = isRef a || isRef b
+                isRef (BinaryOperatorExpression _ a b) = isRef a || isRef b
         deletePolicyReferencingPolicy otherwise = True
 
 -- | Returns True if a CreateIndex statement references a specific column

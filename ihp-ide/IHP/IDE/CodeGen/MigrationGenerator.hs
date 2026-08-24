@@ -19,7 +19,7 @@ import qualified IHP.Postgres.Parser as Parser
 import qualified IHP.SchemaCompiler.Parser as SchemaDesignerParser
 import IHP.Postgres.Types
 import Text.Megaparsec
-import IHP.Postgres.Compiler (compileSql)
+import IHP.Postgres.Compiler (compileSql, compileIdentifier)
 import IHP.IDE.CodeGen.Types
 import qualified IHP.FrameworkConfig as FrameworkConfig
 import Paths_ihp_ide (getDataFileName)
@@ -923,6 +923,7 @@ unqualifyExpression scope expression = doUnqualify expression
         doUnqualify e@(NumericExpression {}) = e
         doUnqualify e@(IntExpression {}) = e
         doUnqualify (ConcatenationExpression a b) = ConcatenationExpression (doUnqualify a) (doUnqualify b)
+        doUnqualify (BinaryOperatorExpression operator a b) = BinaryOperatorExpression operator (doUnqualify a) (doUnqualify b)
         doUnqualify (TypeCastExpression a b) = TypeCastExpression (doUnqualify a) b
         doUnqualify e@(SelectExpression Select { columns, from, whereClause, alias }) =
             let recurse = case from of
@@ -968,18 +969,62 @@ resolveAlias (Just alias) fromExpression expression =
         e@(DotExpression a b) -> DotExpression (rec a) b
         e@(ExistsExpression a) -> ExistsExpression (rec a)
         e@(ConcatenationExpression a b) -> ConcatenationExpression (rec a) (rec b)
+        e@(BinaryOperatorExpression operator a b) -> BinaryOperatorExpression operator (rec a) (rec b)
         e@(InArrayExpression exprs) -> InArrayExpression (map rec exprs)
         e@(ArrayLiteralExpression exprs) -> ArrayLiteralExpression (map rec exprs)
         e@(VariadicExpression expr) -> VariadicExpression (rec expr)
 resolveAlias Nothing fromExpression expression = expression
 
 normalizeSqlType :: PostgresType -> PostgresType
-normalizeSqlType (PCustomType customType) = PCustomType (Text.toLower customType)
+normalizeSqlType (PCustomType customType) = PCustomType (normalizeCustomType customType)
 normalizeSqlType (PGeometryWithModifier modifier) = PGeometryWithModifier (Text.intercalate "," (map (Text.toLower . Text.strip) (Text.splitOn "," modifier)))
 normalizeSqlType (PArray elementType) = PArray (normalizeSqlType elementType)
+normalizeSqlType (PSetOf type_) = PSetOf (normalizeSqlType type_)
+normalizeSqlType (PTable columns) = PTable (map (\(name, type_) -> (name, normalizeSqlType type_)) columns)
 normalizeSqlType PBigserial = PBigInt
 normalizeSqlType PSerial = PInt
 normalizeSqlType otherwise = otherwise
+
+normalizeCustomType :: Text -> Text
+normalizeCustomType = canonicalizeRedundantIdentifierQuotes . Text.pack . normalize False . Text.unpack
+    where
+        normalize _ [] = []
+        normalize True ('"' : '"' : rest) = '"' : '"' : normalize True rest
+        normalize quoted ('"' : rest) = '"' : normalize (not quoted) rest
+        normalize False rest@('(' : _) = rest
+        normalize True (character : rest) = character : normalize True rest
+        normalize False (character : rest) = Char.toLower character : normalize False rest
+
+canonicalizeRedundantIdentifierQuotes :: Text -> Text
+canonicalizeRedundantIdentifierQuotes = Text.pack . normalize . Text.unpack
+    where
+        normalize [] = []
+        normalize rest@('(' : _) = rest
+        normalize ('"' : rest) = case quotedIdentifier rest of
+            Just (source, decoded, afterQuote)
+                | isSafeUnquotedIdentifier decoded -> decoded <> normalize afterQuote
+                | otherwise -> '"' : source <> ('"' : normalize afterQuote)
+            Nothing -> '"' : normalize rest
+        normalize (character : rest) = character : normalize rest
+
+        quotedIdentifier [] = Nothing
+        quotedIdentifier ('"' : '"' : rest) = do
+            (source, decoded, afterQuote) <- quotedIdentifier rest
+            pure ('"' : '"' : source, '"' : decoded, afterQuote)
+        quotedIdentifier ('"' : rest) = Just ([], [], rest)
+        quotedIdentifier (character : rest) = do
+            (source, decoded, afterQuote) <- quotedIdentifier rest
+            pure (character : source, character : decoded, afterQuote)
+
+        isSafeUnquotedIdentifier identifier = case identifier of
+            firstCharacter : rest ->
+                (isAsciiLower firstCharacter || firstCharacter == '_')
+                    && all isUnquotedContinuation rest
+                    && compileIdentifier (Text.pack identifier) == Text.pack identifier
+            [] -> False
+        isAsciiLower character = character >= 'a' && character <= 'z'
+        isAsciiDigit character = character >= '0' && character <= '9'
+        isUnquotedContinuation character = isAsciiLower character || isAsciiDigit character || character == '_' || character == '$'
 
 normalizeNumericLiteral :: Text -> Text
 normalizeNumericLiteral value =

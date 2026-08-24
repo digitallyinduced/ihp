@@ -1524,7 +1524,7 @@ createConstraintTrigger :: Parser Statement
 createConstraintTrigger = do
     lexeme "CONSTRAINT"
     lexeme "TRIGGER"
-    name <- qualifiedIdentifier
+    name <- foldingQualifiedIdentifier
     eventWhen <- (lexeme "AFTER" >> pure After) <|> (lexeme "BEFORE" >> pure Before) <|> (lexeme "INSTEAD OF" >> pure InsteadOf)
     event <- triggerEvent `sepBy1` lexeme "OR"
     lexeme "ON"

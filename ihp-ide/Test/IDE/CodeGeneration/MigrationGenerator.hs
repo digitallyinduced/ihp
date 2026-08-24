@@ -137,6 +137,19 @@ tests = do
                 referenceTable `shouldBe` "Parents"
                 referenceColumns `shouldBe` ["Tenant_ID", "ID"]
 
+            it "preserves quoted restricted-action column identifiers" do
+                let targetSchema = sql "ALTER TABLE children ADD FOREIGN KEY (\"Tenant_ID\", \"Parent_ID\") REFERENCES parents (tenant_id, id) ON UPDATE SET DEFAULT (\"Tenant_ID\") ON DELETE SET NULL (\"Parent_ID\");"
+                let [AddConstraint { constraint = CompositeForeignKeyConstraint { onUpdate, onDelete } }] = diffSchemas targetSchema []
+
+                onUpdate `shouldBe` Just (SetDefault ["Tenant_ID"])
+                onDelete `shouldBe` Just (SetNull ["Parent_ID"])
+
+            it "matches PostgreSQL-generated foreign-key names for quoted identifiers" do
+                let targetSchema = sql "ALTER TABLE \"Children\" ADD FOREIGN KEY (\"Parent_ID\") REFERENCES parents (id);"
+                let actualSchema = sql "ALTER TABLE \"Children\" ADD CONSTRAINT \"Children_Parent_ID_fkey\" FOREIGN KEY (\"Parent_ID\") REFERENCES parents (id);"
+
+                diffSchemas targetSchema actualSchema `shouldBe` []
+
             it "folds unquoted explicit composite foreign-key names" do
                 let targetSchema = sql "CREATE TABLE children (tenant_id uuid, parent_id uuid); ALTER TABLE children ADD CONSTRAINT Child_FK FOREIGN KEY (tenant_id, parent_id) REFERENCES parents (tenant_id, id);"
                 let actualSchema = sql "CREATE TABLE children (tenant_id uuid, parent_id uuid); ALTER TABLE children ADD CONSTRAINT child_fk FOREIGN KEY (tenant_id, parent_id) REFERENCES parents (tenant_id, id);"
@@ -215,6 +228,17 @@ tests = do
                 let targetSchema = sql "CREATE CONSTRAINT TRIGGER audit AFTER INSERT ON \"Entries\" FROM \"AuditRows\" FOR EACH ROW EXECUTE FUNCTION check_entries();"
 
                 diffSchemas targetSchema [] `shouldBe` targetSchema
+
+            it "preserves quoted constraint trigger names and UPDATE OF columns" do
+                let targetSchema = sql "CREATE CONSTRAINT TRIGGER \"Audit\" AFTER UPDATE OF \"Email\" ON items FOR EACH ROW EXECUTE FUNCTION check_items();"
+
+                diffSchemas targetSchema [] `shouldBe` targetSchema
+
+            it "normalizes explicit constraint trigger defaults without folding quoted identifiers" do
+                let targetSchema = sql "CREATE CONSTRAINT TRIGGER \"Audit\" AFTER UPDATE OF \"Email\" ON items FOR EACH ROW EXECUTE FUNCTION check_items();"
+                let actualSchema = sql "CREATE CONSTRAINT TRIGGER \"Audit\" AFTER UPDATE OF \"Email\" ON items NOT DEFERRABLE INITIALLY IMMEDIATE FOR EACH ROW EXECUTE FUNCTION check_items();"
+
+                diffSchemas targetSchema actualSchema `shouldBe` []
 
             it "preserves semantic casts in trigger conditions" do
                 let targetSchema = sql "CREATE TRIGGER items_check BEFORE UPDATE ON items FOR EACH ROW WHEN ((NEW.value::citext) = 'x') EXECUTE FUNCTION check_items();"
