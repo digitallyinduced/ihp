@@ -147,8 +147,8 @@ compileExpression (VarExpression name) =
 compileExpression (CallExpression func [InExpression needle haystack])
     | Text.toUpper func == "POSITION" = func <> "(" <> compileExpressionWithOptionalParenthese needle <> " IN " <> compileExpressionWithOptionalParenthese haystack <> ")"
 compileExpression (CallExpression func args) = func <> "(" <> intercalate ", " (map compileExpressionWithOptionalParenthese args) <> ")"
-compileExpression (NotEqExpression a b) = compileExpression a <> " <> " <> compileExpression b
-compileExpression (EqExpression a b) = compileExpressionWithOptionalParenthese a <> " = " <> compileExpressionWithOptionalParenthese b
+compileExpression (NotEqExpression a b) = compileEqualityOperand a <> " <> " <> compileEqualityOperand b
+compileExpression (EqExpression a b) = compileEqualityOperand a <> " = " <> compileEqualityOperand b
 compileExpression (IsExpression a (NotExpression b)) = compileExpressionWithOptionalParenthese a <> " IS NOT " <> compileExpressionWithOptionalParenthese b -- 'IS (NOT NULL)' => 'IS NOT NULL'
 compileExpression (IsExpression a b) = compileExpressionWithOptionalParenthese a <> " IS " <> compileExpressionWithOptionalParenthese b
 compileExpression (InExpression a b) = compileExpressionWithOptionalParenthese a <> " IN " <> compileExpressionWithOptionalParenthese b
@@ -165,11 +165,23 @@ compileExpression (GreaterThanOrEqualToExpression a b) = compileExpressionWithOp
 compileExpression (DoubleExpression double) = tshow double
 compileExpression (NumericExpression value) = value
 compileExpression (IntExpression integer) = tshow integer
-compileExpression (TypeCastExpression value type_) = compileExpression value <> "::" <> compilePostgresType type_
+compileExpression (TypeCastExpression value type_) = compileExpressionWithOptionalParenthese value <> "::" <> compilePostgresType type_
 compileExpression (SelectExpression Select { columns, from, whereClause }) = "SELECT " <> intercalate ", " (map compileExpression columns) <> " FROM " <> compileExpression from <> " WHERE " <> compileExpression whereClause
 compileExpression (ExistsExpression a) = "EXISTS " <> compileExpressionWithOptionalParenthese a
 compileExpression (DotExpression a b) = compileExpressionWithOptionalParenthese a <> "." <> compileIdentifier b
 compileExpression (ConcatenationExpression a b) = compileExpressionWithOptionalParenthese a <> " || " <> compileExpressionWithOptionalParenthese b
+compileExpression (BinaryOperatorExpression "ESCAPE" patternExpression escapeCharacter) = compileExpression patternExpression <> " ESCAPE " <> compileExpressionWithOptionalParenthese escapeCharacter
+compileExpression (BinaryOperatorExpression operator a b) = compileBinaryOperatorOperand a <> " " <> operator <> " " <> compileBinaryOperatorOperand b
+
+compileBinaryOperatorOperand :: Expression -> Text
+compileBinaryOperatorOperand expression@(EqExpression {}) = "(" <> compileExpression expression <> ")"
+compileBinaryOperatorOperand expression@(IsExpression {}) = "(" <> compileExpression expression <> ")"
+compileBinaryOperatorOperand expression@(ConcatenationExpression {}) = "(" <> compileExpression expression <> ")"
+compileBinaryOperatorOperand expression = compileExpressionWithOptionalParenthese expression
+
+compileEqualityOperand :: Expression -> Text
+compileEqualityOperand expression@(IsExpression {}) = "(" <> compileExpression expression <> ")"
+compileEqualityOperand expression = compileExpressionWithOptionalParenthese expression
 
 compileExpressionWithOptionalParenthese :: Expression -> Text
 compileExpressionWithOptionalParenthese expr@(VarExpression {}) = compileExpression expr

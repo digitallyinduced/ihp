@@ -6,7 +6,7 @@ module Postgres.CompilerSpec where
 
 import Prelude
 import Test.Hspec
-import IHP.Postgres.Compiler (compileSql)
+import IHP.Postgres.Compiler (compileExpression, compileSql)
 import IHP.Postgres.Types
 import Data.Text (Text)
 import qualified Data.Text as Text
@@ -242,6 +242,10 @@ spec = do
                     }
             compileSql [statement] `shouldBe` sql
 
+        it "should keep boolean IS expressions grouped inside equality" do
+            let sql = "ALTER TABLE t ADD CONSTRAINT t_pair CHECK ((a IS NULL) = (b IS NULL));"
+            compileSql [parseSql sql] `shouldBe` (sql <> "\n")
+
         it "should round-trip PostgreSQL 18 named NOT NULL constraints" do
             let sql = "CREATE TABLE users (\n    email TEXT CONSTRAINT users_email_not_null NOT NULL\n);"
             compileSql [parseSql sql] `shouldBe` (sql <> "\n")
@@ -279,6 +283,16 @@ spec = do
         it "should round-trip a schema-qualified DROP TABLE" do
             let statement = DropTable { tableName = "private.users" }
             parseSql (compileSql [statement]) `shouldBe` statement
+
+        it "should compile LIKE escape clauses without changing their grouping" do
+            let expression = BinaryOperatorExpression "ESCAPE"
+                    (BinaryOperatorExpression "LIKE" (VarExpression "code") (TextExpression "A!_%"))
+                    (TextExpression "!")
+            compileExpression expression `shouldBe` "code LIKE 'A!_%' ESCAPE '!'"
+
+        it "should parenthesize comparisons used by generic operators" do
+            let expression = BinaryOperatorExpression "##" (EqExpression (VarExpression "a") (VarExpression "b")) (VarExpression "flag")
+            compileExpression expression `shouldBe` "(a = b) ## flag"
 
         it "should round-trip a schema-qualified CREATE FUNCTION" do
             -- parse -> compile -> parse must preserve a non-public schema like `private.`
@@ -343,6 +357,13 @@ spec = do
                     , nullsDistinct = True
                     }
             compileSql [statement] `shouldBe` sql
+
+        it "should preserve grouping for inequality predicate operands" do
+            compileExpression
+                (NotEqExpression
+                    (IsExpression (VarExpression "a") (VarExpression "NULL"))
+                    (IsExpression (VarExpression "b") (VarExpression "NULL")))
+                `shouldBe` "(a IS NULL) <> (b IS NULL)"
 
         it "should compile 'ENABLE ROW LEVEL SECURITY' statements" do
             let sql = "ALTER TABLE tasks ENABLE ROW LEVEL SECURITY;\n"
@@ -418,6 +439,13 @@ spec = do
                             }
                         ]
             compileSql statements `shouldBe` sql
+
+        it "should parenthesize binary expressions before type casts" do
+            compileExpression
+                (TypeCastExpression
+                    (BinaryOperatorExpression "+" (VarExpression "price") (VarExpression "tax"))
+                    (PNumeric Nothing Nothing))
+                `shouldBe` "(price + tax)::NUMERIC"
 
         describe "literal and type round trips" do
             let roundTrip sql = compileSql [parseSql sql] `shouldBe` (sql <> "\n")

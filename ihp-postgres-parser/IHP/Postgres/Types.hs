@@ -231,6 +231,13 @@ data Expression =
     | SelectExpression Select
     | DotExpression Expression Text
     | ConcatenationExpression Expression Expression -- ^ a || b
+    -- | An infix operator the schema representation does not model on its own,
+    -- carrying the operator verbatim, e.g. @a + b@ or @name ~ '^[A-Z]+$'@.
+    --
+    -- PostgreSQL has hundreds of operators and accepts user defined ones, so a
+    -- dedicated constructor per operator cannot be complete. Keeping the operator
+    -- as text lets any of them round-trip unchanged.
+    | BinaryOperatorExpression Text Expression Expression
     deriving (Eq, Show)
 
 data Select = Select
