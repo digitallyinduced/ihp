@@ -105,6 +105,7 @@ data Column = Column
     , columnType :: PostgresType
     , defaultValue :: Maybe Expression
     , notNull :: Bool
+    , notNullConstraintName :: Maybe Text
     , isUnique :: Bool
     , generator :: Maybe ColumnGenerator
     }
@@ -306,6 +307,7 @@ col columnName columnType = Column
     , columnType = columnType
     , defaultValue = Nothing
     , notNull = False
+    , notNullConstraintName = Nothing
     , isUnique = False
     , generator = Nothing
     }

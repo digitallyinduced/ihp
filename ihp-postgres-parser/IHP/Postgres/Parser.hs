@@ -196,11 +196,15 @@ dropQuoted quote (character : rest)
     | otherwise = dropQuoted quote rest
 
 dollarQuoteDelimiter :: String -> Maybe (String, String)
-dollarQuoteDelimiter rest =
-    let (tag, remaining) = span (\character -> isAlphaNum character || character == '_') rest
-    in case remaining of
-        '$' : afterDelimiter -> Just ("$" <> tag <> "$", afterDelimiter)
-        _ -> Nothing
+dollarQuoteDelimiter ('$' : afterDelimiter) = Just ("$$", afterDelimiter)
+dollarQuoteDelimiter (firstCharacter : rest)
+    | isAlpha firstCharacter || firstCharacter == '_' =
+        let (remainingTag, remaining) = span (\character -> isAlphaNum character || character == '_') rest
+            tag = firstCharacter : remainingTag
+        in case remaining of
+            '$' : afterDelimiter -> Just ("$" <> tag <> "$", afterDelimiter)
+            _ -> Nothing
+dollarQuoteDelimiter _ = Nothing
 
 dropDollarQuoted :: String -> String -> String
 dropDollarQuoted _ [] = []
@@ -290,6 +294,14 @@ opaqueStatement = do
             notFollowedBy (satisfy (\character -> isAlphaNum character || character == '_'))
             pure value
 
+sqlTrivia1 :: Parser ()
+sqlTrivia1 = some triviaChunk $> ()
+    where
+        triviaChunk =
+            (space1 $> ())
+            <|> Lexer.skipLineComment "--"
+            <|> Lexer.skipBlockCommentNested "/*" "*/"
+
 -- | Builds the inverse of an executable COMMENT statement. The `IS` keyword
 -- is located lexically, so occurrences inside identifiers, strings, comments,
 -- or dollar-quoted text cannot be mistaken for the comment-value delimiter.
@@ -304,10 +316,10 @@ unsetComment = parseMaybe do
     pure (Text.stripEnd (keyword <> target) <> " IS NULL")
     where
         commentValueDelimiter = try do
-            space1
+            sqlTrivia1
             string' "IS"
             notFollowedBy (satisfy isIdentifierCharacter)
-            space1
+            sqlTrivia1
 
 -- | Canonicalizes an executable COMMENT for schema comparison. PostgreSQL
 -- folds unquoted identifiers and pg_dump qualifies public objects, while a
@@ -316,19 +328,19 @@ normalizeComment :: Text -> Maybe Text
 normalizeComment = parseMaybe do
     string' "COMMENT"
     notFollowedBy (satisfy isIdentifierCharacter)
-    space1
+    sqlTrivia1
     string' "ON"
     notFollowedBy (satisfy isIdentifierCharacter)
-    space1
+    sqlTrivia1
     targetChunks <- manyTill normalizedTargetChunk commentValueDelimiter
     value <- try (normalizedCommentValue <* spaceConsumer <* eof) <|> (Text.strip . Text.pack <$> some anySingle <* eof)
     pure ("COMMENT ON " <> normalizeTarget targetChunks <> " IS " <> value)
     where
         commentValueDelimiter = try do
-            space1
+            sqlTrivia1
             string' "IS"
             notFollowedBy (satisfy isIdentifierCharacter)
-            space1
+            sqlTrivia1
 
         normalizedTargetChunk =
             try publicQualification
@@ -492,9 +504,12 @@ dollarQuoted = do
 dollarQuoteTag :: Parser Text
 dollarQuoteTag = do
     char '$'
-    tag <- takeWhileP (Just "dollar quote tag") (\c -> isAlphaNum c || c == '_')
+    tag <- optional do
+        firstCharacter <- satisfy (\character -> isAlpha character || character == '_')
+        remainingCharacters <- takeWhileP (Just "dollar quote tag") (\character -> isAlphaNum character || character == '_')
+        pure (Text.cons firstCharacter remainingCharacters)
     char '$'
-    pure ("$" <> tag <> "$")
+    pure ("$" <> maybe "" id tag <> "$")
 
 createTable = do
     lexeme "CREATE"
@@ -639,6 +654,7 @@ parseColumn = do
             , columnType
             , defaultValue = Nothing
             , notNull = False
+            , notNullConstraintName = Nothing
             , isUnique = False
             , generator = Nothing
             }
@@ -664,6 +680,15 @@ parseColumn = do
                 lexeme "NOT"
                 lexeme "NULL"
                 parseColumnAttributes column { notNull = True } primaryKey
+            -- PostgreSQL 18 stores NOT NULL constraints in pg_constraint, so
+            -- pg_dump can emit their name before NOT NULL. IHP does not model
+            -- constraint names for columns, but it must accept this spelling.
+            , do
+                lexeme "CONSTRAINT"
+                constraintName <- identifier
+                lexeme "NOT"
+                lexeme "NULL"
+                parseColumnAttributes column { notNull = True, notNullConstraintName = Just constraintName } primaryKey
             , do
                 lexeme "UNIQUE"
                 parseColumnAttributes column { isUnique = True } primaryKey

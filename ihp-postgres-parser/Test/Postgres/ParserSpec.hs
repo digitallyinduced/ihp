@@ -101,6 +101,16 @@ spec = do
         it "should parse a CREATE TABLE with quoted identifiers" do
             parseSql "CREATE TABLE \"quoted name\" ();" `shouldBe` StatementCreateTable (table "quoted name")
 
+        it "should parse PostgreSQL 18 named NOT NULL constraints" do
+            let sql = "CREATE TABLE context_search_email_binary_signatures (\n                    embedding_provider text CONSTRAINT context_search_email_binary_signatu_embedding_provider_not_null NOT NULL,\n                    embedding_dimensions integer CONSTRAINT context_search_email_binary_signa_embedding_dimensions_not_null NOT NULL,\n                    embedding_model text\n                );"
+            parseSql sql `shouldBe` StatementCreateTable (table "context_search_email_binary_signatures")
+                    { columns =
+                        [ (col "embedding_provider" PText) { notNull = True, notNullConstraintName = Just "context_search_email_binary_signatu_embedding_provider_not_null" }
+                        , (col "embedding_dimensions" PInt) { notNull = True, notNullConstraintName = Just "context_search_email_binary_signa_embedding_dimensions_not_null" }
+                        , col "embedding_model" PText
+                        ]
+                    }
+
         it "should preserve non-public schema-qualified table names" do
             parseSql "CREATE TABLE private.users ();" `shouldBe`
                 StatementCreateTable (table "private.users")
@@ -512,6 +522,8 @@ spec = do
                 Just "COMMENT ON TABLE users IS 'application users'"
             normalizeComment "COMMENT ON TABLE users IS 'owner''s records'" `shouldBe`
                 Just "COMMENT ON TABLE users IS 'owner''s records'"
+            normalizeComment "COMMENT/* keyword trivia */ON TABLE users IS/* value trivia */'owner records'" `shouldBe`
+                Just "COMMENT ON TABLE users IS 'owner records'"
 
         it "should normalize COMMENT function signature spacing" do
             normalizeComment "COMMENT ON FUNCTION f(integer,text) IS 'x'" `shouldBe`
@@ -559,6 +571,8 @@ spec = do
         it "should locate COMMENT values outside quoted text" do
             unsetComment "COMMENT ON TABLE \"records IS active\" IS 'this IS documented'" `shouldBe`
                 Just "COMMENT ON TABLE \"records IS active\" IS NULL"
+            unsetComment "COMMENT ON TABLE users IS/* value trivia */'documented'" `shouldBe`
+                Just "COMMENT ON TABLE users IS NULL"
 
         it "should preserve a DO block with an escape-string body" do
             parseSql "DO E'BEGIN PERFORM 1; END';" `shouldBe`
@@ -593,6 +607,10 @@ spec = do
         it "should parse tagged function dollar quotes" do
             parseSql "CREATE FUNCTION f() RETURNS trigger AS $_$ BEGIN RETURN NEW; END; $_$ language plpgsql;" `shouldBe`
                 (function "f") { functionBody = " BEGIN RETURN NEW; END; " }
+
+        it "should reject dollar quote tags starting with a digit" do
+            parseSqlText "CREATE FUNCTION f() RETURNS text AS $1$body$1$ language sql;" `shouldSatisfy` isLeft
+            parseSqlText "DO $1$body$1$;" `shouldSatisfy` isLeft
 
         it "should parse dollar signs inside a function body" do
             parseSql "CREATE FUNCTION f(a TEXT) RETURNS text AS $$ SELECT $1; $$ language sql;" `shouldBe`

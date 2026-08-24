@@ -548,7 +548,7 @@ normalizeConstraint tableName constraint@(UniqueConstraint { name = Just uniqueN
 normalizeConstraint _ otherwise = otherwise
 
 normalizeColumn :: CreateTable -> Column -> (Column, [Statement])
-normalizeColumn table Column { name, columnType, defaultValue, notNull, isUnique, generator } = (Column { name = normalizeName name, columnType = normalizeSqlType columnType, defaultValue = normalizedDefaultValue, notNull, isUnique = False, generator = normalizeColumnGenerator <$> generator }, uniqueConstraint)
+normalizeColumn table Column { name, columnType, defaultValue, notNull, isUnique, generator } = (Column { name = normalizeName name, columnType = normalizeSqlType columnType, defaultValue = normalizedDefaultValue, notNull, notNullConstraintName = Nothing, isUnique = False, generator = normalizeColumnGenerator <$> generator }, uniqueConstraint)
     where
         uniqueConstraint =
             if isUnique

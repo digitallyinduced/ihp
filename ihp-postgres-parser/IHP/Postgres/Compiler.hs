@@ -110,14 +110,14 @@ compileOnDelete (Just SetDefault) = "ON DELETE SET DEFAULT"
 compileOnDelete (Just Cascade) = "ON DELETE CASCADE"
 
 compileColumn :: PrimaryKeyConstraint -> Column -> Text
-compileColumn primaryKeyConstraint Column { name, columnType, defaultValue, notNull, isUnique, generator } =
+compileColumn primaryKeyConstraint Column { name, columnType, defaultValue, notNull, notNullConstraintName, isUnique, generator } =
     unwords (catMaybes
         [ Just (compileIdentifier name)
         , Just (compilePostgresType columnType)
         , fmap compileDefaultValue defaultValue
         , fmap compileGenerator generator
         , primaryKeyColumnConstraint
-        , if notNull then Just "NOT NULL" else Nothing
+        , if notNull then Just (maybe "NOT NULL" (\constraintName -> "CONSTRAINT " <> compileIdentifier constraintName <> " NOT NULL") notNullConstraintName) else Nothing
         , if isUnique then Just "UNIQUE" else Nothing
         ])
     where
@@ -131,13 +131,16 @@ compileColumn primaryKeyConstraint Column { name, columnType, defaultValue, notN
 compileDefaultValue :: Expression -> Text
 compileDefaultValue value = "DEFAULT " <> compileExpression value
 
--- | Choose the shortest delimiter that does not occur in the body.
+-- | Choose the shortest delimiter whose first occurrence after the opening
+-- delimiter is the intended closing delimiter. Checking the combined
+-- body/delimiter text also avoids matches that overlap their boundary.
 dollarQuote :: Text -> Text
 dollarQuote body = go 0
     where
         go underscores =
             let delimiter = "$" <> Text.replicate underscores "_" <> "$"
-            in if delimiter `Text.isInfixOf` body then go (underscores + 1) else delimiter
+                (beforeDelimiter, _) = Text.breakOn delimiter (body <> delimiter)
+            in if beforeDelimiter == body then delimiter else go (underscores + 1)
 
 compileExpression :: Expression -> Text
 compileExpression (TextExpression value) = "'" <> Text.replace "'" "''" value <> "'"

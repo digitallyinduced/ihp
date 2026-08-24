@@ -240,6 +240,14 @@ spec = do
         it "should choose a safe dollar quote for function bodies" do
             let statement = (function "uses_dollars") { functionBody = "SELECT '$$' || $1;", returns = PText, language = "sql" }
             parseSql (compileSql [statement]) `shouldBe` statement
+            let boundaryStatement = (function "boundary_dollars") { functionBody = "$_$", returns = PText, language = "sql" }
+            parseSql (compileSql [boundaryStatement]) `shouldBe` boundaryStatement
+            let trailingDollarStatement = (function "trailing_dollar") { functionBody = "SELECT '$", returns = PText, language = "sql" }
+            parseSql (compileSql [trailingDollarStatement]) `shouldBe` trailingDollarStatement
+
+        it "should round-trip PostgreSQL 18 named NOT NULL constraints" do
+            let sql = "CREATE TABLE users (\n    email TEXT CONSTRAINT users_email_not_null NOT NULL\n);"
+            compileSql [parseSql sql] `shouldBe` (sql <> "\n")
 
         it "should round-trip non-public schema-qualified table names" do
             let statement = StatementCreateTable (table "private.users")
