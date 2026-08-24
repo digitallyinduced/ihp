@@ -788,6 +788,7 @@ expressionReferencesColumn columnName = \case
     SelectExpression Select { columns, from, whereClause } -> any references columns || references from || references whereClause
     DotExpression expression name -> name == columnName || references expression
     ConcatenationExpression a b -> references a || references b
+    BinaryOperatorExpression _ a b -> references a || references b
     where
         references = expressionReferencesColumn columnName
 
