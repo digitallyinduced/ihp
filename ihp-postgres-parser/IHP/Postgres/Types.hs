@@ -69,6 +69,8 @@ data Statement
     | DropDefaultValue { tableName :: Text, columnName :: Text }
     -- | CREATE TRIGGER ..;
     | CreateTrigger { name :: !Text, eventWhen :: !TriggerEventWhen, event :: ![TriggerEvent], tableName :: !Text, for :: !TriggerFor, whenCondition :: Maybe Expression, functionName :: !Text, arguments :: ![Expression] }
+    -- | CREATE CONSTRAINT TRIGGER ..;
+    | CreateConstraintTrigger { name :: !Text, eventWhen :: !TriggerEventWhen, event :: ![TriggerEvent], tableName :: !Text, referencedTableName :: !(Maybe Text), deferrable :: Maybe Bool, deferrableType :: Maybe DeferrableType, for :: !TriggerFor, whenCondition :: Maybe Expression, functionName :: !Text, arguments :: ![Expression] }
     -- | CREATE EVENT TRIGGER ..;
     | CreateEventTrigger { name :: !Text, eventOn :: !Text, whenCondition :: Maybe Expression, functionName :: !Text, arguments :: ![Expression] }
     -- | DROP TRIGGER .. ON ..;
@@ -138,9 +140,16 @@ data Column = Column
 data OnDelete
     = NoAction
     | Restrict
-    | SetNull
-    | SetDefault
+    | SetNull [Text]
+    | SetDefault [Text]
     | Cascade
+    deriving (Show, Eq)
+
+-- | PostgreSQL foreign-key matching semantics.
+data ForeignKeyMatchType
+    = MatchFull
+    | MatchPartial
+    | MatchSimple
     deriving (Show, Eq)
 
 data ColumnGenerator
@@ -161,6 +170,20 @@ data Constraint
         , referenceTable :: !Text
         , referenceColumn :: !(Maybe Text)
         , onDelete :: !(Maybe OnDelete)
+        , onUpdate :: !(Maybe OnDelete)
+        , constraintDeferrable :: !(Maybe Bool)
+        , constraintDeferrableType :: !(Maybe DeferrableType)
+        }
+    | CompositeForeignKeyConstraint
+        { name :: !(Maybe Text)
+        , columnNames :: ![Text]
+        , referenceTable :: !Text
+        , referenceColumns :: ![Text]
+        , matchType :: !(Maybe ForeignKeyMatchType)
+        , onDelete :: !(Maybe OnDelete)
+        , onUpdate :: !(Maybe OnDelete)
+        , constraintDeferrable :: !(Maybe Bool)
+        , constraintDeferrableType :: !(Maybe DeferrableType)
         }
     | UniqueConstraint
         { name :: !(Maybe Text)
@@ -296,6 +319,7 @@ data TriggerEventWhen
 data TriggerEvent
     = TriggerOnInsert
     | TriggerOnUpdate
+    | TriggerOnUpdateOf ![Text]
     | TriggerOnDelete
     | TriggerOnTruncate
     deriving (Eq, Show)
@@ -392,6 +416,9 @@ foreignKey tableName columnName referenceTable = AddConstraint
         , referenceTable = referenceTable
         , referenceColumn = Nothing
         , onDelete = Nothing
+        , onUpdate = Nothing
+        , constraintDeferrable = Nothing
+        , constraintDeferrableType = Nothing
         }
     , deferrable = Nothing
     , deferrableType = Nothing

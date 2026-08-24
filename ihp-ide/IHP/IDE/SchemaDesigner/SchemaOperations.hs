@@ -167,9 +167,30 @@ updateColumn options@(UpdateColumnOptions { .. }) schema =
               (True, True) -> primaryKeyConstraint
 
         updateForeignKeyConstraints = map \case
-                statement@(AddConstraint { tableName = constraintTable, constraint = constraint@(ForeignKeyConstraint { name = fkName, columnName = fkColumnName  })  }) | constraintTable == tableName && fkColumnName == (oldColumn.name) ->
-                    let newName = Text.replace (oldColumn.name) columnName <$> fkName
-                    in statement { constraint = constraint { columnName, name = newName } }
+                statement@(AddConstraint { tableName = constraintTable, constraint = constraint@(ForeignKeyConstraint { name = fkName, columnName = fkColumnName, referenceTable, referenceColumn, onDelete, onUpdate })  })
+                        | updatesLocalColumn || updatesReferencedColumn ->
+                    let
+                        newName = if updatesLocalColumn then Text.replace oldColumn.name columnName <$> fkName else fkName
+                        newColumnName = if updatesLocalColumn then columnName else fkColumnName
+                        newReferenceColumn = if updatesReferencedColumn then Just columnName else referenceColumn
+                        newOnDelete = if updatesLocalColumn then fmap updateReferentialActionColumns onDelete else onDelete
+                        newOnUpdate = if updatesLocalColumn then fmap updateReferentialActionColumns onUpdate else onUpdate
+                    in statement { constraint = constraint { columnName = newColumnName, referenceColumn = newReferenceColumn, name = newName, onDelete = newOnDelete, onUpdate = newOnUpdate } }
+                    where
+                        updatesLocalColumn = constraintTable == tableName && fkColumnName == oldColumn.name
+                        updatesReferencedColumn = referenceTable == tableName && referenceColumn == Just oldColumn.name
+                statement@(AddConstraint { tableName = constraintTable, constraint = constraint@(CompositeForeignKeyConstraint { name = fkName, columnNames, referenceTable, referenceColumns, onDelete, onUpdate }) })
+                        | updatesLocalColumns || updatesReferenceColumns ->
+                    let
+                        newName = if updatesLocalColumns then Text.replace oldColumn.name columnName <$> fkName else fkName
+                        newColumnNames = if updatesLocalColumns then map renameColumn columnNames else columnNames
+                        newReferenceColumns = if updatesReferenceColumns then map renameColumn referenceColumns else referenceColumns
+                        newOnDelete = if updatesLocalColumns then fmap updateReferentialActionColumns onDelete else onDelete
+                        newOnUpdate = if updatesLocalColumns then fmap updateReferentialActionColumns onUpdate else onUpdate
+                    in statement { constraint = constraint { columnNames = newColumnNames, referenceColumns = newReferenceColumns, name = newName, onDelete = newOnDelete, onUpdate = newOnUpdate } }
+                    where
+                        updatesLocalColumns = constraintTable == tableName && oldColumn.name `elem` columnNames
+                        updatesReferenceColumns = referenceTable == tableName && oldColumn.name `elem` referenceColumns
                 index@(CreateIndex { indexName, tableName = indexTable, columns = indexColumns }) | indexTable == tableName ->
                     let
                         updateIndexColumn :: IndexColumn -> IndexColumn
@@ -177,7 +198,39 @@ updateColumn options@(UpdateColumnOptions { .. }) schema =
                         updateIndexColumn otherwise = otherwise
                     in
                         (index :: Statement) { columns = map updateIndexColumn indexColumns, indexName = Text.replace (oldColumn.name) columnName indexName }
+                trigger@(CreateTrigger { tableName = triggerTable, event, whenCondition }) | triggerTable == tableName -> trigger { event = map updateTriggerEvent event, whenCondition = renameExpressionColumns <$> whenCondition }
+                trigger@(CreateConstraintTrigger { tableName = triggerTable, event, whenCondition }) | triggerTable == tableName -> trigger { event = map updateTriggerEvent event, whenCondition = renameExpressionColumns <$> whenCondition }
                 otherwise -> otherwise
+        updateTriggerEvent (TriggerOnUpdateOf columns) = TriggerOnUpdateOf (map renameColumn columns)
+        updateTriggerEvent event = event
+        updateReferentialActionColumns (SetNull names) = SetNull (map renameColumn names)
+        updateReferentialActionColumns (SetDefault names) = SetDefault (map renameColumn names)
+        updateReferentialActionColumns action = action
+        renameColumn name | name == oldColumn.name = columnName
+        renameColumn name = name
+        renameExpressionColumns = \case
+            VarExpression name -> VarExpression (renameColumn name)
+            CallExpression function arguments -> CallExpression function (map renameExpressionColumns arguments)
+            NotEqExpression left right -> NotEqExpression (renameExpressionColumns left) (renameExpressionColumns right)
+            EqExpression left right -> EqExpression (renameExpressionColumns left) (renameExpressionColumns right)
+            AndExpression left right -> AndExpression (renameExpressionColumns left) (renameExpressionColumns right)
+            IsExpression left right -> IsExpression (renameExpressionColumns left) (renameExpressionColumns right)
+            InExpression left right -> InExpression (renameExpressionColumns left) (renameExpressionColumns right)
+            InArrayExpression expressions -> InArrayExpression (map renameExpressionColumns expressions)
+            ArrayLiteralExpression expressions -> ArrayLiteralExpression (map renameExpressionColumns expressions)
+            VariadicExpression expression -> VariadicExpression (renameExpressionColumns expression)
+            NotExpression expression -> NotExpression (renameExpressionColumns expression)
+            ExistsExpression expression -> ExistsExpression (renameExpressionColumns expression)
+            OrExpression left right -> OrExpression (renameExpressionColumns left) (renameExpressionColumns right)
+            LessThanExpression left right -> LessThanExpression (renameExpressionColumns left) (renameExpressionColumns right)
+            LessThanOrEqualToExpression left right -> LessThanOrEqualToExpression (renameExpressionColumns left) (renameExpressionColumns right)
+            GreaterThanExpression left right -> GreaterThanExpression (renameExpressionColumns left) (renameExpressionColumns right)
+            GreaterThanOrEqualToExpression left right -> GreaterThanOrEqualToExpression (renameExpressionColumns left) (renameExpressionColumns right)
+            TypeCastExpression expression postgresType -> TypeCastExpression (renameExpressionColumns expression) postgresType
+            SelectExpression select@Select { columns, whereClause } -> SelectExpression (select { columns = map renameExpressionColumns columns, whereClause = renameExpressionColumns whereClause })
+            DotExpression expression name -> DotExpression (renameExpressionColumns expression) (renameColumn name)
+            ConcatenationExpression left right -> ConcatenationExpression (renameExpressionColumns left) (renameExpressionColumns right)
+            expression -> expression
         findOldColumn statements = mapMaybe findOldColumn' statements
                 |> head
                 |> fromMaybe (error "Could not find old column")
@@ -221,6 +274,9 @@ newForeignKeyConstraint tableName columnName referenceTable =
         , referenceTable = referenceTable
         , referenceColumn = "id"
         , onDelete = (Just NoAction)
+        , onUpdate = Nothing
+        , constraintDeferrable = Nothing
+        , constraintDeferrableType = Nothing
         }
     , deferrable = Nothing
     , deferrableType = Nothing
@@ -256,7 +312,7 @@ arrayifytype False coltype = coltype
 arrayifytype True  coltype = PArray coltype
 
 addForeignKeyConstraint :: Text -> Text -> Text -> Text -> OnDelete -> [Statement] -> [Statement]
-addForeignKeyConstraint tableName columnName constraintName referenceTable onDelete list = list <> [AddConstraint { tableName = tableName, constraint = ForeignKeyConstraint { name = Just constraintName, columnName = columnName, referenceTable = referenceTable, referenceColumn = "id", onDelete = (Just onDelete) }, deferrable = Nothing, deferrableType = Nothing }]
+addForeignKeyConstraint tableName columnName constraintName referenceTable onDelete list = list <> [AddConstraint { tableName = tableName, constraint = ForeignKeyConstraint { name = Just constraintName, columnName = columnName, referenceTable = referenceTable, referenceColumn = "id", onDelete = (Just onDelete), onUpdate = Nothing, constraintDeferrable = Nothing, constraintDeferrableType = Nothing }, deferrable = Nothing, deferrableType = Nothing }]
 
 addTableIndex :: Text -> Bool -> Text -> [Text] -> [Statement] -> [Statement]
 addTableIndex indexName unique tableName columnNames list = list <> [CreateIndex { indexName, unique, tableName, columns = columnNames |> map (indexCol . VarExpression), whereClause = Nothing, indexType = Nothing, nullsDistinct = True }]
@@ -469,12 +525,15 @@ deleteTable tableName statements =
     |> filter \case
         StatementCreateTable CreateTable { name }       | name == tableName            -> False
         AddConstraint { tableName = constraintTable }   | constraintTable == tableName -> False
+        AddConstraint { constraint = ForeignKeyConstraint { referenceTable } } | referenceTable == tableName -> False
+        AddConstraint { constraint = CompositeForeignKeyConstraint { referenceTable } } | referenceTable == tableName -> False
         CreateIndex { tableName = indexTable }          | indexTable == tableName      -> False
         EnableRowLevelSecurity { tableName = rlsTable } | rlsTable == tableName        -> False
         ForceRowLevelSecurity { tableName = rlsTable }  | rlsTable == tableName        -> False
         NoForceRowLevelSecurity { tableName = rlsTable } | rlsTable == tableName       -> False
         CreatePolicy { tableName = policyTable }        | policyTable == tableName     -> False
         CreateTrigger { tableName = triggerTable }      | triggerTable == tableName    -> False
+        CreateConstraintTrigger { tableName = triggerTable, referencedTableName } | triggerTable == tableName || referencedTableName == Just tableName -> False
         otherwise -> True
 
 updateTable :: Int -> Text -> Schema -> Schema
@@ -485,14 +544,48 @@ updateTable tableId tableName statements =
         statements
         |> map \case
             (StatementCreateTable table@(CreateTable { name })) | name == oldTableName -> StatementCreateTable (table { name = tableName })
-            constraint@(AddConstraint { tableName = constraintTable, constraint = c }) | constraintTable == oldTableName -> (constraint :: Statement) { tableName, constraint = c { name = Text.replace oldTableName tableName <$> (c.name) } }
+            constraint@(AddConstraint { tableName = constraintTable, constraint = c }) | constraintTable == oldTableName || constraintReferencesTable c oldTableName ->
+                (constraint :: Statement)
+                    { tableName = if constraintTable == oldTableName then tableName else constraintTable
+                    , constraint = renameConstraint oldTableName constraintTable c
+                    }
             index@(CreateIndex { tableName = indexTable, indexName }) | indexTable == oldTableName -> (index :: Statement) { tableName, indexName = Text.replace oldTableName tableName indexName } 
             rls@(EnableRowLevelSecurity { tableName = rlsTable }) | rlsTable == oldTableName -> (rls :: Statement) { tableName }
             rls@(ForceRowLevelSecurity { tableName = rlsTable }) | rlsTable == oldTableName -> (rls :: Statement) { tableName }
             rls@(NoForceRowLevelSecurity { tableName = rlsTable }) | rlsTable == oldTableName -> (rls :: Statement) { tableName }
             policy@(CreatePolicy { tableName = policyTable, name }) | policyTable == oldTableName -> (policy :: Statement) { tableName, name = Text.replace oldTableName tableName name }
             trigger@(CreateTrigger { tableName = triggerTable, name }) | triggerTable == oldTableName -> (trigger :: Statement) { tableName, name = Text.replace oldTableName tableName name }
+            trigger@(CreateConstraintTrigger { tableName = triggerTable, referencedTableName, name }) | triggerTable == oldTableName || referencedTableName == Just oldTableName ->
+                (trigger :: Statement)
+                    { tableName = if triggerTable == oldTableName then tableName else triggerTable
+                    , referencedTableName = (\referencedTable -> if referencedTable == oldTableName then tableName else referencedTable) <$> referencedTableName
+                    , name = if triggerTable == oldTableName then Text.replace oldTableName tableName name else name
+                    }
             otherwise -> otherwise  
+    where
+        constraintReferencesTable ForeignKeyConstraint { referenceTable } referencedTable = referenceTable == referencedTable
+        constraintReferencesTable CompositeForeignKeyConstraint { referenceTable } referencedTable = referenceTable == referencedTable
+        constraintReferencesTable _ _ = False
+
+        renameConstraint :: Text -> Text -> Constraint -> Constraint
+        renameConstraint oldTableName constraintTable constraint = renameReferenceTable renamedConstraint
+            where
+                renamedConstraint
+                    | constraintTable == oldTableName = renameConstraintName constraint
+                    | otherwise = constraint
+                renameConstraintName :: Constraint -> Constraint
+                renameConstraintName foreignKey@ForeignKeyConstraint { name } = foreignKey { name = Text.replace oldTableName tableName <$> name }
+                renameConstraintName foreignKey@CompositeForeignKeyConstraint { name } = foreignKey { name = Text.replace oldTableName tableName <$> name }
+                renameConstraintName unique@UniqueConstraint { name } = unique { name = Text.replace oldTableName tableName <$> name }
+                renameConstraintName check@CheckConstraint { name } = check { name = Text.replace oldTableName tableName <$> name }
+                renameConstraintName exclude@ExcludeConstraint { name } = exclude { name = Text.replace oldTableName tableName <$> name }
+                renameConstraintName primaryKey@AlterTableAddPrimaryKey { name } = primaryKey { name = Text.replace oldTableName tableName <$> name }
+                renameReferenceTable :: Constraint -> Constraint
+                renameReferenceTable foreignKey@ForeignKeyConstraint { referenceTable }
+                    | referenceTable == oldTableName = foreignKey { referenceTable = tableName }
+                renameReferenceTable foreignKey@CompositeForeignKeyConstraint { referenceTable }
+                    | referenceTable == oldTableName = foreignKey { referenceTable = tableName }
+                renameReferenceTable other = other
 
 
 updatedAtTriggerName :: Text -> Text
@@ -550,6 +643,7 @@ deleteTriggerIfExists :: Text -> [Statement] -> [Statement]
 deleteTriggerIfExists triggerName statements = filter (not . isTheTriggerToBeDeleted) statements
     where
         isTheTriggerToBeDeleted CreateTrigger { name } = triggerName == name
+        isTheTriggerToBeDeleted CreateConstraintTrigger { name } = triggerName == name
         isTheTriggerToBeDeleted _                      = False
 
 data DeleteColumnOptions
@@ -563,8 +657,12 @@ deleteColumn :: DeleteColumnOptions -> Schema -> Schema
 deleteColumn DeleteColumnOptions { .. } schema =
         schema
         |> map deleteColumnInTable
+        |> concatMap deleteColumnFromTrigger
         |> (filter \case
                 AddConstraint { tableName = fkTable, constraint = ForeignKeyConstraint { columnName = fkColumn } } | fkTable == tableName && fkColumn == columnName -> False
+                AddConstraint { constraint = ForeignKeyConstraint { referenceTable, referenceColumn } } | referenceTable == tableName && referencesDeletedColumn referenceTable (maybeToList referenceColumn) -> False
+                AddConstraint { tableName = fkTable, constraint = CompositeForeignKeyConstraint { columnNames = fkColumns } } | fkTable == tableName && columnName `elem` fkColumns -> False
+                AddConstraint { constraint = CompositeForeignKeyConstraint { referenceTable, referenceColumns } } | referenceTable == tableName && referencesDeletedColumn referenceTable referenceColumns -> False
                 index@(CreateIndex {}) | isIndexStatementReferencingTableColumn index tableName columnName -> False
                 otherwise -> True
             )
@@ -574,9 +672,34 @@ deleteColumn DeleteColumnOptions { .. } schema =
             )
         |> filter deletePolicyReferencingPolicy
     where
+        referencesDeletedColumn referenceTable referenceColumns =
+            columnName `elem` if null referenceColumns then referencedPrimaryKey referenceTable else referenceColumns
+
+        referencedPrimaryKey referenceTable = fromMaybe [] do
+            StatementCreateTable { unsafeGetCreateTable = CreateTable { primaryKeyConstraint = PrimaryKeyConstraint { primaryKeyColumnNames } } } <- find isReferencedTable schema
+            pure primaryKeyColumnNames
+            where
+                isReferencedTable StatementCreateTable { unsafeGetCreateTable = CreateTable { name } } = name == referenceTable
+                isReferencedTable _ = False
+
         deleteColumnInTable :: Statement -> Statement
         deleteColumnInTable (StatementCreateTable table@CreateTable { name, columns }) | name == tableName = StatementCreateTable $ table { columns = delete (columns !! columnId) columns}
         deleteColumnInTable statement = statement
+
+        deleteColumnFromTrigger trigger@(CreateTrigger { tableName = triggerTable, event, whenCondition }) | triggerTable == tableName =
+            if maybe False (expressionReferencesColumn columnName) whenCondition then [] else updateTriggerEvents trigger event
+        deleteColumnFromTrigger trigger@(CreateConstraintTrigger { tableName = triggerTable, event, whenCondition }) | triggerTable == tableName =
+            if maybe False (expressionReferencesColumn columnName) whenCondition then [] else updateTriggerEvents trigger event
+        deleteColumnFromTrigger statement = [statement]
+
+        updateTriggerEvents trigger events = case mapMaybe deleteColumnFromEvent events of
+            [] -> []
+            remainingEvents -> [trigger { event = remainingEvents }]
+
+        deleteColumnFromEvent (TriggerOnUpdateOf columns) = case filter (/= columnName) columns of
+            [] -> Nothing
+            remainingColumns -> Just (TriggerOnUpdateOf remainingColumns)
+        deleteColumnFromEvent event = Just event
 
         deletePolicyReferencingPolicy :: Statement -> Bool
         deletePolicyReferencingPolicy CreatePolicy { tableName = policyTable, using, check } | policyTable == tableName = 
@@ -643,40 +766,41 @@ isIndexStatementReferencingTableColumn statement tableName columnName = isRefere
         -- | Returns True if a list of expressions references the columnName
         expressionsReferencesColumn :: [Expression] -> Bool
         expressionsReferencesColumn expressions = expressions
-                |> map expressionReferencesColumn
+                |> map (expressionReferencesColumn columnName)
                 |> List.or
 
-        -- | Walks the expression tree and returns True if there's a VarExpression with the column name
-        expressionReferencesColumn :: Expression -> Bool
-        expressionReferencesColumn = \case
-            TextExpression _ -> False
-            VarExpression varName -> varName == columnName
-            CallExpression _ expressions -> expressions
-                    |> map expressionReferencesColumn
-                    |> List.or
-            NotEqExpression a b -> expressionReferencesColumn a || expressionReferencesColumn b
-            EqExpression a b -> expressionReferencesColumn a || expressionReferencesColumn b
-            AndExpression a b -> expressionReferencesColumn a || expressionReferencesColumn b
-            IsExpression a b -> expressionReferencesColumn a || expressionReferencesColumn b
-            InExpression a b -> expressionReferencesColumn a || expressionReferencesColumn b
-            InArrayExpression exprs -> exprs |> map expressionReferencesColumn |> List.or
-            ArrayLiteralExpression exprs -> exprs |> map expressionReferencesColumn |> List.or
-            NotExpression a -> expressionReferencesColumn a
-            ExistsExpression a -> expressionReferencesColumn a
-            OrExpression a b -> expressionReferencesColumn a || expressionReferencesColumn b
-            VariadicExpression a -> expressionReferencesColumn a
-            LessThanExpression a b -> expressionReferencesColumn a || expressionReferencesColumn b
-            LessThanOrEqualToExpression a b -> expressionReferencesColumn a || expressionReferencesColumn b
-            GreaterThanExpression a b -> expressionReferencesColumn a || expressionReferencesColumn b
-            GreaterThanOrEqualToExpression a b -> expressionReferencesColumn a || expressionReferencesColumn b
-            DoubleExpression _ -> False
-            NumericExpression _ -> False
-            IntExpression _ -> False
-            TypeCastExpression a _ -> expressionReferencesColumn a
-            SelectExpression _ -> False
-            DotExpression a _ -> expressionReferencesColumn a
-            ConcatenationExpression a b -> expressionReferencesColumn a || expressionReferencesColumn b
-            BinaryOperatorExpression _ a b -> expressionReferencesColumn a || expressionReferencesColumn b
+-- | Returns whether an expression refers to a column, including qualified
+-- trigger references such as @OLD.ticket_id@.
+expressionReferencesColumn :: Text -> Expression -> Bool
+expressionReferencesColumn columnName = \case
+    TextExpression _ -> False
+    VarExpression varName -> varName == columnName
+    CallExpression _ expressions -> any (expressionReferencesColumn columnName) expressions
+    NotEqExpression a b -> references a || references b
+    EqExpression a b -> references a || references b
+    AndExpression a b -> references a || references b
+    IsExpression a b -> references a || references b
+    InExpression a b -> references a || references b
+    InArrayExpression expressions -> any references expressions
+    ArrayLiteralExpression expressions -> any references expressions
+    VariadicExpression expression -> references expression
+    NotExpression expression -> references expression
+    ExistsExpression expression -> references expression
+    OrExpression a b -> references a || references b
+    LessThanExpression a b -> references a || references b
+    LessThanOrEqualToExpression a b -> references a || references b
+    GreaterThanExpression a b -> references a || references b
+    GreaterThanOrEqualToExpression a b -> references a || references b
+    DoubleExpression _ -> False
+    NumericExpression _ -> False
+    IntExpression _ -> False
+    TypeCastExpression expression _ -> references expression
+    SelectExpression Select { columns, from, whereClause } -> any references columns || references from || references whereClause
+    DotExpression expression name -> name == columnName || references expression
+    ConcatenationExpression a b -> references a || references b
+    BinaryOperatorExpression _ a b -> references a || references b
+    where
+        references = expressionReferencesColumn columnName
 
 doesHaveExistingPolicies :: [Statement] -> Text -> Bool
 doesHaveExistingPolicies statements tableName = statements

@@ -15,7 +15,6 @@ import qualified IHP.NameSupport as NameSupport
 import qualified Data.Char as Char
 import qualified Text.Read as Read
 import qualified System.Process as Process
-import qualified Data.Aeson as Aeson
 import qualified IHP.Postgres.Parser as Parser
 import qualified IHP.SchemaCompiler.Parser as SchemaDesignerParser
 import IHP.Postgres.Types
@@ -126,71 +125,10 @@ diffAppDatabase includeIHPSchema databaseUrl = do
             then parseIHPSchema
             else pure (Right [])
     actualSchema <- getAppDBSchema databaseUrl
-    policyRoleContext <- getPolicyRoleContext databaseUrl
 
     let targetSchema = ihpSchemaSql <> schemaSql
 
-    pure (diffSchemasWithPolicyRoleContext policyRoleContext targetSchema actualSchema)
-
-data PolicyRoleContext = PolicyRoleContext
-    { policyCurrentRole :: Text
-    , policyCurrentUser :: Text
-    , policySessionUser :: Text
-    }
-
-getPolicyRoleContext :: Text -> IO PolicyRoleContext
-getPolicyRoleContext databaseUrl = do
-    output <- cs <$> Process.readProcess "psql"
-        [ "--no-psqlrc"
-        , "--tuples-only"
-        , "--no-align"
-        , cs databaseUrl
-        , "--command"
-        , "SELECT json_build_array(current_role, current_user, session_user)"
-        ] []
-    either fail pure (parsePolicyRoleContextOutput output)
-
-parsePolicyRoleContextOutput :: ByteString -> Either String PolicyRoleContext
-parsePolicyRoleContextOutput output = do
-    roles <- Aeson.eitherDecodeStrict' output
-    case roles of
-        [policyCurrentRole, policyCurrentUser, policySessionUser] ->
-            pure PolicyRoleContext { policyCurrentRole, policyCurrentUser, policySessionUser }
-        _ -> Left "Could not resolve PostgreSQL policy role context"
-
-resolveContextDependentPolicyRoles :: PolicyRoleContext -> [Statement] -> [Statement]
-resolveContextDependentPolicyRoles context = map \case
-    policy@CreatePolicy { roles } -> policy { roles = map resolveRole roles }
-    statement -> statement
-    where
-        resolveRole (SpecialPolicyRole "CURRENT_ROLE") = resolvedRole context.policyCurrentRole
-        resolveRole (SpecialPolicyRole "CURRENT_USER") = resolvedRole context.policyCurrentUser
-        resolveRole (SpecialPolicyRole "SESSION_USER") = resolvedRole context.policySessionUser
-        resolveRole role = role
-        resolvedRole = literalPolicyRole
-
-diffSchemasWithPolicyRoleContext :: PolicyRoleContext -> [Statement] -> [Statement] -> [Statement]
-diffSchemasWithPolicyRoleContext context targetSchema actualSchema =
-    restoreTargetPolicyRoles targetSchema
-        (diffSchemas (resolveContextDependentPolicyRoles context targetSchema) actualSchema)
-
--- Context-dependent role keywords are resolved only for comparison. Keeping
--- the original target roles in emitted CREATE POLICY statements lets each
--- database resolve CURRENT_ROLE/CURRENT_USER/SESSION_USER at execution time.
-restoreTargetPolicyRoles :: [Statement] -> [Statement] -> [Statement]
-restoreTargetPolicyRoles targetSchema = map restorePolicy
-    where
-        targetPolicies = normalizeSchema targetSchema
-
-        restorePolicy policy@CreatePolicy { name, tableName } =
-            case find (isSamePolicy name tableName) targetPolicies of
-                Just CreatePolicy { roles } -> policy { roles }
-                _ -> policy
-        restorePolicy statement = statement
-
-        isSamePolicy policyName policyTableName CreatePolicy { name, tableName } =
-            name == policyName && tableName == policyTableName
-        isSamePolicy _ _ _ = False
+    pure (diffSchemas targetSchema actualSchema)
 
 parseIHPSchema :: IO (Either ByteString [Statement])
 parseIHPSchema = do
@@ -207,18 +145,13 @@ diffSchemas :: [Statement] -> [Statement] -> [Statement]
 diffSchemas targetSchema' actualSchema' = (drop <> create)
             |> patchTable
             |> patchEnumType
-            |> patchSequence
             |> applyRenameTable
             |> removeImplicitDeletions actualSchema
             |> disableTransactionWhileAddingEnumValues
             |> applyReplaceFunction
     where
         create :: [Statement]
-        create = map restoreExtensionOptions (targetSchema \\ actualSchema)
-
-        restoreExtensionOptions statement@CreateExtension { name } =
-            fromMaybe statement (find (\case CreateExtension { name = targetName } -> targetName == name; _ -> False) targetSchema')
-        restoreExtensionOptions statement = statement
+        create = targetSchema \\ actualSchema
 
         drop :: [Statement]
         drop = (actualSchema \\ targetSchema)
@@ -267,54 +200,6 @@ diffSchemas targetSchema' actualSchema' = (drop <> create)
         patchEnumType (s:rest) = s:(patchEnumType rest)
         patchEnumType [] = []
 
-        patchSequence :: [Statement] -> [Statement]
-        patchSequence = map \case
-            CreateSequence { name, sequenceOptions }
-                | Just actualOptions <- listToMaybe (mapMaybe (\case CreateSequence { name = actualName, sequenceOptions = options } | actualName == name -> Just options; _ -> Nothing) actualSchema) ->
-                    AlterSequence { name, sequenceOptions = sequenceAlterOptions sequenceOptions actualOptions }
-            statement -> statement
-
-        sequenceAlterOptions targetOptions actualOptions = desiredOptions <> mapMaybe resetOption changedActualOptions
-            where
-                desiredOptions = targetOptions <> boundStartDefault <> directionDefaults
-                changedActualOptions = filter (not . hasMatchingOption desiredOptions) actualOptions
-                hasMatchingOption options option = any ((== sequenceOptionKind option) . sequenceOptionKind) options
-                resetOption SequenceAs {} = Just (SequenceAs PBigInt)
-                resetOption SequenceStart {} = Just (SequenceStart implicitStart)
-                resetOption SequenceIncrement {} = Just (SequenceIncrement (IntExpression 1))
-                resetOption SequenceMinValue {} = Just SequenceNoMinValue
-                resetOption SequenceMaxValue {} = Just SequenceNoMaxValue
-                resetOption SequenceCache {} = Just (SequenceCache (IntExpression 1))
-                resetOption SequenceCycle {} = Just (SequenceCycle False)
-                resetOption _ = Nothing
-                targetDirection = sequenceDirection targetOptions
-                actualDirection = sequenceDirection actualOptions
-                implicitStart
-                    | targetDirection < 0 = fromMaybe (IntExpression (-1)) (listToMaybe [value | SequenceMaxValue value <- targetOptions])
-                    | otherwise = fromMaybe (IntExpression 1) (listToMaybe [value | SequenceMinValue value <- targetOptions])
-                directionDefaults
-                    | targetDirection == actualDirection = []
-                    | otherwise = filter (not . hasMatchingOption targetOptions)
-                        [ SequenceStart implicitStart
-                        , SequenceNoMinValue
-                        , SequenceNoMaxValue
-                        ]
-                boundStartDefault
-                    | targetDirection /= actualDirection = []
-                    | relevantStartBound targetOptions /= relevantStartBound actualOptions
-                    , not (any isStartOption targetOptions) = [SequenceStart implicitStart]
-                    | otherwise = []
-                relevantStartBound options
-                    | targetDirection < 0 = listToMaybe [value | SequenceMaxValue value <- options]
-                    | otherwise = listToMaybe [value | SequenceMinValue value <- options]
-                isStartOption SequenceStart {} = True
-                isStartOption _ = False
-
-        sequenceDirection options = if any isDescendingIncrement options then (-1 :: Int) else 1
-
-        isDescendingIncrement (SequenceIncrement (IntExpression value)) = value < 0
-        isDescendingIncrement _ = False
-
         -- | Replaces 'DROP TABLE a; CREATE TABLE b;' DDL sequences with a more efficient 'ALTER TABLE a RENAME TO b' sequence if
         -- the tables have no differences except the name.
         applyRenameTable :: [Statement] -> [Statement]
@@ -351,6 +236,7 @@ diffSchemas targetSchema' actualSchema' = (drop <> create)
                         fixIdentifier :: Statement -> Statement
                         fixIdentifier s@(DropConstraint { tableName }) | tableName == tableFrom = s { tableName = tableTo }
                         fixIdentifier s@(DropPolicy { tableName }) | tableName == tableFrom = s { tableName = tableTo }
+                        fixIdentifier s@(DropTrigger { tableName }) | tableName == tableFrom = s { tableName = tableTo }
                         fixIdentifier s@(EnableRowLevelSecurity { tableName }) | tableName == tableFrom = s { tableName = tableTo }
                         fixIdentifier s@(ForceRowLevelSecurity { tableName }) | tableName == tableFrom = s { tableName = tableTo }
                         fixIdentifier s@(NoForceRowLevelSecurity { tableName }) | tableName == tableFrom = s { tableName = tableTo }
@@ -368,6 +254,7 @@ diffSchemas targetSchema' actualSchema' = (drop <> create)
         toDropStatement CreatePolicy { tableName, name } = Just DropPolicy { tableName, policyName = name }
         toDropStatement CreateFunction { functionName } = Just DropFunction { functionName }
         toDropStatement CreateTrigger { name, tableName } = Just DropTrigger { name, tableName }
+        toDropStatement CreateConstraintTrigger { name, tableName } = Just DropTrigger { name, tableName }
         toDropStatement CreateEventTrigger { name } = Just DropEventTrigger { name }
         toDropStatement ForceRowLevelSecurity { tableName } = Just NoForceRowLevelSecurity { tableName }
         toDropStatement otherwise = Nothing
@@ -579,7 +466,70 @@ parseDumpedSql sql =
 normalizeSchema :: [Statement] -> [Statement]
 normalizeSchema statements = map normalizeStatement statements
         |> concat
+        |> normalizeForeignKeyNameCollisions
         |> normalizePrimaryKeys
+        |> normalizeCompositeForeignKeyReferences
+
+normalizeForeignKeyNameCollisions :: [Statement] -> [Statement]
+normalizeForeignKeyNameCollisions = go []
+    where
+        go _ [] = []
+        go usedNames (statement@AddConstraint { tableName, constraint } : rest)
+            | isForeignKey constraint =
+                case constraint.name of
+                    Just explicitName -> statement : go ((tableName, explicitName) : usedNames) rest
+                    Nothing ->
+                        let baseName = generatedForeignKeyName tableName constraint
+                            uniqueName = firstAvailableName tableName baseName usedNames
+                            normalizedConstraint = setForeignKeyName uniqueName constraint
+                        in statement { constraint = normalizedConstraint } : go ((tableName, uniqueName) : usedNames) rest
+            | Just explicitName <- constraint.name =
+                statement : go ((tableName, explicitName) : usedNames) rest
+        go usedNames (statement@(StatementCreateTable CreateTable { name, constraints }) : rest) =
+            statement : go (map (\constraintName -> (name, constraintName)) (mapMaybe (.name) constraints) <> usedNames) rest
+        go usedNames (statement : rest) = statement : go usedNames rest
+
+        generatedForeignKeyName tableName ForeignKeyConstraint { columnName } =
+            postgresGeneratedObjectName (unqualifiedRelationName tableName) columnName "fkey"
+        generatedForeignKeyName tableName CompositeForeignKeyConstraint { columnNames } =
+            postgresGeneratedObjectName (unqualifiedRelationName tableName) (Text.intercalate "_" columnNames) "fkey"
+        generatedForeignKeyName _ _ = error "generatedForeignKeyName: expected a foreign key"
+
+        unqualifiedRelationName tableName = fromMaybe tableName (last (Text.splitOn "." tableName))
+
+        isForeignKey ForeignKeyConstraint {} = True
+        isForeignKey CompositeForeignKeyConstraint {} = True
+        isForeignKey _ = False
+
+        setForeignKeyName uniqueName (ForeignKeyConstraint _ columnName referenceTable referenceColumn onDelete onUpdate constraintDeferrable constraintDeferrableType) =
+            ForeignKeyConstraint (Just uniqueName) columnName referenceTable referenceColumn onDelete onUpdate constraintDeferrable constraintDeferrableType
+        setForeignKeyName uniqueName (CompositeForeignKeyConstraint _ columnNames referenceTable referenceColumns matchType onDelete onUpdate constraintDeferrable constraintDeferrableType) =
+            CompositeForeignKeyConstraint (Just uniqueName) columnNames referenceTable referenceColumns matchType onDelete onUpdate constraintDeferrable constraintDeferrableType
+        setForeignKeyName _ constraint = constraint
+
+        firstAvailableName tableName baseName usedNames = findAvailable 0
+            where
+                findAvailable index
+                    | (tableName, candidate index) `elem` usedNames = findAvailable (index + 1)
+                    | otherwise = candidate index
+                candidate 0 = baseName
+                candidate index =
+                    let suffix = tshow index
+                    in truncateUtf8ToBytes (63 - utf8Length suffix) baseName <> suffix
+
+normalizeCompositeForeignKeyReferences :: [Statement] -> [Statement]
+normalizeCompositeForeignKeyReferences statements = map resolveReferenceColumns statements
+    where
+        resolveReferenceColumns statement@(AddConstraint { constraint = constraint@CompositeForeignKeyConstraint { referenceTable, referenceColumns = [] } }) =
+            statement { constraint = constraint { referenceColumns = referencedPrimaryKey referenceTable } }
+        resolveReferenceColumns statement = statement
+
+        referencedPrimaryKey referenceTable = fromMaybe [] do
+            StatementCreateTable { unsafeGetCreateTable = CreateTable { primaryKeyConstraint = PrimaryKeyConstraint { primaryKeyColumnNames } } } <- find isReferencedTable statements
+            pure (map Text.toLower primaryKeyColumnNames)
+            where
+                isReferencedTable StatementCreateTable { unsafeGetCreateTable = CreateTable { name } } = name == referenceTable
+                isReferencedTable _ = False
 
 normalizeStatement :: Statement -> [Statement]
 normalizeStatement StatementCreateTable { unsafeGetCreateTable = table } = StatementCreateTable { unsafeGetCreateTable = normalizedTable } : normalizeTableRest
@@ -589,54 +539,30 @@ normalizeStatement AddConstraint { tableName, constraint, deferrable, deferrable
 normalizeStatement CreateEnumType { name, values } = [ CreateEnumType { name = Text.toLower name, values = map Text.toLower values } ]
 normalizeStatement CreatePolicy { name, action, tableName, roles, using, check } = [ CreatePolicy { name = truncateIdentifier name, tableName, roles = normalizePolicyRoles roles, using = (unqualifyExpression tableName . normalizeExpression) <$> using, check = (unqualifyExpression tableName . normalizeExpression) <$> check, action = normalizePolicyAction action } ]
 normalizeStatement CreateIndex { columns, indexType, indexName, .. } = [ CreateIndex { columns = map normalizeIndexColumn columns, indexType = normalizeIndexType indexType, indexName = truncateIdentifier indexName, .. } ]
-normalizeStatement CreateFunction { functionArguments, returns, .. } = [ CreateFunction { orReplace = False, language = normalizedLanguage, functionArguments = map (\(name, type_) -> (name, normalizeSqlType type_)) functionArguments, returns = normalizeSqlType returns, functionAttributes = normalizedFunctionAttributes, functionBody = removeIndentation $ normalizeNewLines functionBody, .. } ]
+normalizeStatement CreateFunction { functionArguments, returns, .. } = [ CreateFunction { orReplace = False, language = Text.toUpper language, functionArguments = map (\(name, type_) -> (name, normalizeSqlType type_)) functionArguments, returns = normalizeSqlType returns, functionAttributes = normalizedFunctionAttributes, functionBody = removeIndentation $ normalizeNewLines functionBody, .. } ]
     where
-        normalizedLanguage = Text.toUpper language
         normalizedFunctionAttributes = sortOn functionAttributeOrder (filter (not . isDefaultFunctionAttribute) (map normalizeFunctionAttribute functionAttributes))
-        defaultFunctionAttributes = ["VOLATILE", "NOT LEAKPROOF", "CALLED ON NULL INPUT", "SECURITY INVOKER", "PARALLEL UNSAFE"]
-        isDefaultFunctionAttribute attribute = attribute `elem` defaultFunctionAttributes || isDefaultCost attribute || isDefaultRows attribute
-        isDefaultCost attribute
-            | normalizedLanguage `elem` ["SQL", "PLPGSQL"] = case Text.stripPrefix "COST " attribute of
-                Just cost -> Read.readMaybe (cs cost) == Just (100 :: Double)
-                Nothing -> False
-            | otherwise = False
-        isDefaultRows attribute
-            | isSetReturning = case Text.stripPrefix "ROWS " attribute of
-                Just rows -> Read.readMaybe (cs rows) == Just (1000 :: Double)
-                Nothing -> False
-            | otherwise = False
+        isDefaultFunctionAttribute attribute =
+            attribute `elem` ["VOLATILE", "NOT LEAKPROOF", "CALLED ON NULL INPUT", "SECURITY INVOKER", "PARALLEL UNSAFE"]
+                || (Text.toUpper language `elem` ["SQL", "PLPGSQL"] && numericAttributeEquals "COST " 100 attribute)
+                || (isSetReturning && numericAttributeEquals "ROWS " 1000 attribute)
         isSetReturning = case returns of
             PSetOf {} -> True
             PTable {} -> True
             _ -> False
+        numericAttributeEquals prefix expected attribute = case Text.stripPrefix prefix attribute of
+            Just value -> Read.readMaybe (cs value) == Just (expected :: Double)
+            Nothing -> False
         normalizeFunctionAttribute attribute
             | Just supportFunction <- Text.stripPrefix "SUPPORT " attribute = "SUPPORT " <> normalizeCustomType supportFunction
             | Just typeName <- Text.stripPrefix "TRANSFORM FOR TYPE " attribute = "TRANSFORM FOR TYPE " <> normalizeCustomType typeName
-            | Just value <- Text.stripPrefix "COST " normalizedAttribute = "COST " <> canonicalNumeric value
-            | Just value <- Text.stripPrefix "ROWS " normalizedAttribute = "ROWS " <> canonicalNumeric value
+            | Just value <- Text.stripPrefix "COST " normalizedAttribute = "COST " <> normalizeNumericLiteral value
+            | Just value <- Text.stripPrefix "ROWS " normalizedAttribute = "ROWS " <> normalizeNumericLiteral value
             | otherwise = case normalizedAttribute of
                 "RETURNS NULL ON NULL INPUT" -> "STRICT"
                 normalized -> normalized
             where
                 normalizedAttribute = Text.toUpper attribute
-                canonicalNumeric value =
-                    let
-                        (mantissa, exponentText) = Text.break (\character -> character == 'E') value
-                        exponent = fromMaybe 0 (Read.readMaybe (cs (Text.drop 1 exponentText)))
-                        (integerPart, fractionalWithDot) = Text.break (== '.') mantissa
-                        fractionalPart = Text.drop 1 fractionalWithDot
-                        digits = Text.dropWhile (== '0') (integerPart <> fractionalPart)
-                        decimalShift = exponent - Text.length fractionalPart
-                        plain
-                            | Text.null digits = "0"
-                            | decimalShift >= 0 = digits <> Text.replicate decimalShift "0"
-                            | Text.length digits + decimalShift > 0 =
-                                let splitAt = Text.length digits + decimalShift
-                                in Text.take splitAt digits <> "." <> Text.drop splitAt digits
-                            | otherwise = "0." <> Text.replicate (negate (Text.length digits + decimalShift)) "0" <> digits
-                    in if "." `Text.isInfixOf` plain
-                        then Text.dropWhileEnd (== '.') (Text.dropWhileEnd (== '0') plain)
-                        else plain
         functionAttributeOrder attribute
             | attribute `elem` ["IMMUTABLE", "STABLE", "VOLATILE"] = (0 :: Int)
             | "LEAKPROOF" `Text.isInfixOf` attribute = 1
@@ -649,10 +575,27 @@ normalizeStatement CreateFunction { functionArguments, returns, .. } = [ CreateF
             | "SUPPORT " `Text.isPrefixOf` attribute = 8
             | "TRANSFORM FOR TYPE " `Text.isPrefixOf` attribute = 9
             | otherwise = 10
+normalizeStatement trigger@CreateTrigger { event, whenCondition } = [trigger { event = map normalizeTriggerEvent event, whenCondition = normalizeTriggerExpression <$> whenCondition }]
+normalizeStatement trigger@CreateConstraintTrigger { name, event, tableName, referencedTableName, deferrable, deferrableType, whenCondition, functionName } =
+    [ trigger
+        { name
+        , event = map normalizeTriggerEvent event
+        , tableName
+        , referencedTableName
+        , whenCondition = normalizeTriggerExpression <$> whenCondition
+        , deferrable = if deferrable == Just False then Nothing else deferrable
+        , deferrableType = if deferrableType == Just InitiallyImmediate then Nothing else deferrableType
+        , functionName = Text.toLower functionName
+        }
+    ]
 normalizeStatement statement@CreateSequence { sequenceOptions } = [statement { sequenceOptions = normalizeSequenceOptions sequenceOptions }]
 normalizeStatement statement@CreateExtension { extensionOptions } = [statement { extensionOptions = filter (not . isImplicitExtensionOption) extensionOptions }]
 normalizeStatement NoForceRowLevelSecurity {} = []
 normalizeStatement otherwise = [otherwise]
+
+normalizeTriggerEvent :: TriggerEvent -> TriggerEvent
+normalizeTriggerEvent (TriggerOnUpdateOf columns) = TriggerOnUpdateOf columns
+normalizeTriggerEvent event = event
 
 normalizeSequenceOptions :: [SequenceOption] -> [SequenceOption]
 normalizeSequenceOptions options = sortOn sequenceOptionKind (filter (not . isImplicitSequenceOption implicitStart defaultMinValue defaultMaxValue) options)
@@ -714,33 +657,12 @@ normalizePolicyRoles roles
         isPublicRole (SpecialPolicyRole role) = foldAsciiUpper role == "PUBLIC"
         isPublicRole _ = False
         normalizeLiteralRole (PolicyRole role) = PolicyRole (truncateIdentifier role)
-        normalizeLiteralRole (QuotedPolicyRole role) = literalPolicyRole (truncateIdentifier role)
+        normalizeLiteralRole (QuotedPolicyRole role) = QuotedPolicyRole (truncateIdentifier role)
         normalizeLiteralRole role = role
-
-literalPolicyRole :: Text -> PolicyRole
-literalPolicyRole role
-    | isOrdinaryUnquotedRole role && not (isSpecialPolicyRoleName role) = PolicyRole role
-    | otherwise = QuotedPolicyRole role
-
-isOrdinaryUnquotedRole :: Text -> Bool
-isOrdinaryUnquotedRole role = case Text.uncons role of
-    Just (firstCharacter, rest) ->
-        (isAsciiLower firstCharacter || firstCharacter == '_')
-            && Text.all isUnquotedContinuation rest
-    Nothing -> False
-    where
-        isAsciiLower character = character >= 'a' && character <= 'z'
-        isAsciiDigit character = character >= '0' && character <= '9'
-        isUnquotedContinuation character = isAsciiLower character || isAsciiDigit character || character == '_' || character == '$'
-
-isSpecialPolicyRoleName :: Text -> Bool
-isSpecialPolicyRoleName role = foldAsciiUpper role `elem` ["PUBLIC", "CURRENT_ROLE", "CURRENT_USER", "SESSION_USER"]
 
 foldAsciiUpper :: Text -> Text
 foldAsciiUpper = Text.map \character ->
-    if character >= 'a' && character <= 'z'
-        then Char.toUpper character
-        else character
+    if character >= 'a' && character <= 'z' then Char.toUpper character else character
 
 normalizeTable :: CreateTable -> (CreateTable, [Statement])
 normalizeTable table@(CreateTable { .. }) = ( CreateTable { columns = fst normalizedColumns, constraints = normalizedTableConstraints, .. }, (concat $ (snd normalizedColumns)) <> normalizedConstraintsStatements )
@@ -764,28 +686,50 @@ normalizeTable table@(CreateTable { .. }) = ( CreateTable { columns = fst normal
         -- >     id uuid DEFAULT public.uuid_generate_v4() NOT NULL
         -- > );
         -- > ALTER TABLE a ADD CONSTRAINT c CHECK 1=1;
-        normalizedCheckConstraints :: [Either Statement Constraint]
-        normalizedCheckConstraints = constraints
+        normalizedDetachedConstraints :: [Either Statement Constraint]
+        normalizedDetachedConstraints = constraints
                 |> map \case
-                    checkConstraint@(CheckConstraint {}) -> Left AddConstraint { tableName = name, constraint = checkConstraint, deferrable = Nothing, deferrableType = Nothing }
+                    constraint@(CheckConstraint {}) -> detach constraint
+                    constraint@(ForeignKeyConstraint {}) -> detachForeignKey constraint
+                    constraint@(CompositeForeignKeyConstraint {}) -> detachForeignKey constraint
                     otherConstraint -> Right otherConstraint
+            where
+                detach constraint = Left AddConstraint { tableName = name, constraint = normalizeConstraint name constraint, deferrable = Nothing, deferrableType = Nothing }
+                detachForeignKey constraint = Left AddConstraint
+                    { tableName = name
+                    , constraint = normalizeConstraint name constraint { constraintDeferrable = Nothing, constraintDeferrableType = Nothing }
+                    , deferrable = constraint.constraintDeferrable
+                    , deferrableType = constraint.constraintDeferrableType
+                    }
 
         normalizedTableConstraints :: [Constraint]
         normalizedTableConstraints =
-            normalizedCheckConstraints
+            normalizedDetachedConstraints
             |> mapMaybe \case
                 Left _ -> Nothing
                 Right c -> Just c
 
         normalizedConstraintsStatements :: [Statement]
         normalizedConstraintsStatements =
-            normalizedCheckConstraints
+            normalizedDetachedConstraints
             |> mapMaybe \case
                 Right _ -> Nothing
                 Left c -> Just c
 
 normalizeConstraint :: Text -> Constraint -> Constraint
-normalizeConstraint _ ForeignKeyConstraint { name, columnName, referenceTable, referenceColumn, onDelete } = ForeignKeyConstraint { name = truncateIdentifier <$> name, columnName = Text.toLower columnName, referenceTable = Text.toLower referenceTable, referenceColumn = fmap Text.toLower referenceColumn, onDelete = Just (fromMaybe NoAction onDelete) }
+normalizeConstraint tableName ForeignKeyConstraint { name, columnName, referenceTable, referenceColumn, onDelete, onUpdate, constraintDeferrable, constraintDeferrableType } = ForeignKeyConstraint { name = normalizeForeignKeyName tableName [columnName] name, columnName, referenceTable, referenceColumn, onDelete = normalizeReferentialAction onDelete, onUpdate = normalizeReferentialAction onUpdate, constraintDeferrable, constraintDeferrableType }
+normalizeConstraint tableName CompositeForeignKeyConstraint { name, columnNames, referenceTable, referenceColumns, matchType, onDelete, onUpdate, constraintDeferrable, constraintDeferrableType } = CompositeForeignKeyConstraint
+    { name = normalizeForeignKeyName tableName columnNames name
+    , columnNames
+    , referenceTable
+    , referenceColumns
+    , matchType = normalizeMatchType matchType
+    , onDelete = normalizeReferentialAction onDelete
+    , onUpdate = normalizeReferentialAction onUpdate
+    , constraintDeferrable
+    , constraintDeferrableType
+    }
+
 normalizeConstraint tableName constraint@(UniqueConstraint { name = Just uniqueName, columnNames }) | length columnNames > 1 =
         -- Single column UNIQUE constraints like:
         --
@@ -815,16 +759,54 @@ normalizeConstraint tableName constraint@(UniqueConstraint { name = Just uniqueN
                 else constraint
 normalizeConstraint _ otherwise = otherwise
 
+normalizeForeignKeyName :: Text -> [Text] -> Maybe Text -> Maybe Text
+normalizeForeignKeyName _ _ name = truncateUtf8ToBytes 63 <$> name
+
+-- PostgreSQL's makeObjectName balances truncation between the relation and
+-- column components, clips on a UTF-8 boundary, and always keeps the suffix.
+postgresGeneratedObjectName :: Text -> Text -> Text -> Text
+postgresGeneratedObjectName firstName secondName suffix =
+    truncateUtf8ToBytes firstBytes firstName
+        <> "_" <> truncateUtf8ToBytes secondBytes secondName
+        <> "_" <> suffix
+    where
+        availableBytes = 63 - utf8Length suffix - 2
+        (firstBytes, secondBytes) = balance (utf8Length firstName) (utf8Length secondName)
+
+        balance firstLength secondLength
+            | firstLength + secondLength <= availableBytes = (firstLength, secondLength)
+            | firstLength > secondLength = balance (firstLength - 1) secondLength
+            | otherwise = balance firstLength (secondLength - 1)
+
+truncateUtf8ToBytes :: Int -> Text -> Text
+truncateUtf8ToBytes byteLimit = Text.pack . go byteLimit . Text.unpack
+    where
+        go _ [] = []
+        go remaining (character : rest)
+            | characterBytes <= remaining = character : go (remaining - characterBytes) rest
+            | otherwise = []
+            where
+                characterBytes = utf8Length (Text.singleton character)
+
+utf8Length :: Text -> Int
+utf8Length = ByteString.length . TextEncoding.encodeUtf8
+
+normalizeMatchType :: Maybe ForeignKeyMatchType -> Maybe ForeignKeyMatchType
+normalizeMatchType (Just MatchSimple) = Nothing
+normalizeMatchType matchType = matchType
+
+normalizeReferentialAction action = Just case fromMaybe NoAction action of
+    SetNull columnNames -> SetNull columnNames
+    SetDefault columnNames -> SetDefault columnNames
+    other -> other
+
 normalizeColumn :: CreateTable -> Column -> (Column, [Statement])
-normalizeColumn table Column { name, columnType, defaultValue, notNull, isUnique, generator } = (Column { name = normalizeName name, columnType = normalizeSqlType columnType, defaultValue = normalizedDefaultValue, notNull, notNullConstraintName = Nothing, isUnique = False, generator = normalizeColumnGenerator <$> generator }, uniqueConstraint)
+normalizeColumn table Column { name, columnType, defaultValue, notNull, notNullConstraintName, isUnique, generator } = (Column { name, columnType = normalizeSqlType columnType, defaultValue = normalizedDefaultValue, notNull, notNullConstraintName, isUnique = False, generator = normalizeColumnGenerator <$> generator }, uniqueConstraint)
     where
         uniqueConstraint =
             if isUnique
                 then [ AddConstraint { tableName = table.name, constraint = UniqueConstraint (Just $ (table.name) <>"_" <> name <> "_key") [name], deferrable = Nothing, deferrableType = Nothing } ]
                 else []
-
-        normalizeName :: Text -> Text
-        normalizeName nane = Text.toLower name
 
         normalizedDefaultValue = case defaultValue of
             Just defaultValue -> Just (normalizeDefaultExpression columnType defaultValue)
@@ -836,47 +818,69 @@ normalizeColumnGenerator :: ColumnGenerator -> ColumnGenerator
 normalizeColumnGenerator generator@(ColumnGenerator { generate }) = generator { generate = normalizeExpression generate }
 
 normalizeExpression :: Expression -> Expression
-normalizeExpression e@(TextExpression {}) = e
-normalizeExpression (VarExpression var) = VarExpression (Text.toLower var)
-normalizeExpression (CallExpression function args) = CallExpression (Text.toLower function) (map normalizeExpression args)
-normalizeExpression (NotEqExpression a b) = NotEqExpression (normalizeExpression a) (normalizeExpression b)
-normalizeExpression (EqExpression a b) = EqExpression (normalizeExpression a) (normalizeExpression b)
-normalizeExpression (AndExpression a b) = AndExpression (normalizeExpression a) (normalizeExpression b)
-normalizeExpression (IsExpression a b) = IsExpression (normalizeExpression a) (normalizeExpression b)
-normalizeExpression (InExpression a b) = InExpression (normalizeExpression a) (normalizeExpression b)
-normalizeExpression (NotExpression a) = NotExpression (normalizeExpression a)
-normalizeExpression (OrExpression a b) = OrExpression (normalizeExpression a) (normalizeExpression b)
-normalizeExpression (LessThanExpression a b) = LessThanExpression (normalizeExpression a) (normalizeExpression b)
-normalizeExpression (LessThanOrEqualToExpression a b) = LessThanOrEqualToExpression (normalizeExpression a) (normalizeExpression b)
-normalizeExpression (GreaterThanExpression a b) = GreaterThanExpression (normalizeExpression a) (normalizeExpression b)
-normalizeExpression (GreaterThanOrEqualToExpression a b) = GreaterThanOrEqualToExpression (normalizeExpression a) (normalizeExpression b)
-normalizeExpression e@(DoubleExpression {}) = e
-normalizeExpression e@(NumericExpression {}) = e
-normalizeExpression e@(IntExpression {}) = e
-normalizeExpression (ConcatenationExpression a b) = ConcatenationExpression (normalizeExpression a) (normalizeExpression b)
-normalizeExpression (BinaryOperatorExpression operator a b) = BinaryOperatorExpression operator (normalizeExpression a) (normalizeExpression b)
+normalizeExpression = normalizeExpressionWith False
+
+normalizeTriggerExpression :: Expression -> Expression
+normalizeTriggerExpression = normalizeExpressionWith True
+
+normalizeExpressionWith :: Bool -> Expression -> Expression
+normalizeExpressionWith preserveSemanticCasts = normalize
+    where
+        normalize e@(TextExpression {}) = e
+        normalize (VarExpression var) = VarExpression (Text.toLower var)
+        normalize (CallExpression function args) = CallExpression (Text.toLower function) (map normalize args)
+        normalize (NotEqExpression a b) = normalizeComparison NotEqExpression a b
+        normalize (EqExpression a b) = normalizeComparison EqExpression a b
+        normalize (AndExpression a b) = AndExpression (normalize a) (normalize b)
+        normalize (IsExpression a b) = IsExpression (normalize a) (normalize b)
+        normalize (InExpression a b) = InExpression (normalize a) (normalize b)
+        normalize (NotExpression a) = NotExpression (normalize a)
+        normalize (OrExpression a b) = OrExpression (normalize a) (normalize b)
+        normalize (LessThanExpression a b) = normalizeComparison LessThanExpression a b
+        normalize (LessThanOrEqualToExpression a b) = normalizeComparison LessThanOrEqualToExpression a b
+        normalize (GreaterThanExpression a b) = normalizeComparison GreaterThanExpression a b
+        normalize (GreaterThanOrEqualToExpression a b) = normalizeComparison GreaterThanOrEqualToExpression a b
+        normalize e@(DoubleExpression {}) = e
+        normalize e@(NumericExpression {}) = e
+        normalize e@(IntExpression {}) = e
+        normalize (ConcatenationExpression a b) = ConcatenationExpression (normalize a) (normalize b)
+        normalize (BinaryOperatorExpression operator a b) = BinaryOperatorExpression operator (normalize a) (normalize b)
 -- Enum default values from pg_dump always have an explicit type cast. Inside the Schema.sql they typically don't have those.
 -- Therefore we remove these typecasts here
 --
 -- 'job_status_not_started'::public.job_status => 'job_status_not_started'
 --
-normalizeExpression (TypeCastExpression a b) = normalizeExpression a
-normalizeExpression (SelectExpression Select { columns, from, whereClause, alias }) = SelectExpression Select { columns = resolveAlias' <$> (normalizeExpression <$> columns), from = normalizeFrom from, whereClause = resolveAlias' (normalizeExpression whereClause), alias = Nothing }
-    where
-        -- Turns a `SELECT 1 FROM a` into `SELECT 1 FROM public.a`
-        normalizeFrom (VarExpression a) = DotExpression (VarExpression "public") a
-        normalizeFrom otherwise = normalizeExpression otherwise
+        normalize (TypeCastExpression expression postgresType)
+            | preserveSemanticCasts = TypeCastExpression (normalize expression) (normalizeSqlType postgresType)
+            | otherwise = normalize expression
+        normalize (SelectExpression Select { columns, from, whereClause, alias }) = SelectExpression Select { columns = resolveAlias' <$> (normalize <$> columns), from = normalizeFrom from, whereClause = resolveAlias' (normalize whereClause), alias = Nothing }
+            where
+                -- Turns a `SELECT 1 FROM a` into `SELECT 1 FROM public.a`
+                normalizeFrom (VarExpression a) = DotExpression (VarExpression "public") a
+                normalizeFrom otherwise = normalize otherwise
 
-        resolveAlias' = resolveAlias alias (unqualifiedName from)
+                resolveAlias' = resolveAlias alias (unqualifiedName from)
 
-        unqualifiedName :: Expression -> Expression
-        unqualifiedName (DotExpression (VarExpression _) name) = VarExpression name
-        unqualifiedName name = name
-normalizeExpression (DotExpression a b) = DotExpression (normalizeExpression a) b
-normalizeExpression (ExistsExpression a) = ExistsExpression (normalizeExpression a)
-normalizeExpression (InArrayExpression exprs) = InArrayExpression (map normalizeExpression exprs)
-normalizeExpression (ArrayLiteralExpression exprs) = ArrayLiteralExpression (map normalizeExpression exprs)
-normalizeExpression (VariadicExpression expr) = VariadicExpression (normalizeExpression expr)
+                unqualifiedName :: Expression -> Expression
+                unqualifiedName (DotExpression (VarExpression _) name) = VarExpression name
+                unqualifiedName name = name
+        normalize (DotExpression a b) = DotExpression (normalize a) (Text.toLower b)
+        normalize (ExistsExpression a) = ExistsExpression (normalize a)
+        normalize (InArrayExpression exprs) = InArrayExpression (map normalize exprs)
+        normalize (ArrayLiteralExpression exprs) = ArrayLiteralExpression (map normalize exprs)
+        normalize (VariadicExpression expr) = VariadicExpression (normalize expr)
+
+        normalizeComparison constructor a b = constructor (normalizeComparisonOperand b a) (normalizeComparisonOperand a b)
+        normalizeComparisonOperand other (TypeCastExpression expression PText)
+            | preserveSemanticCasts && isLiteralExpression expression && not (isLiteralOperand other) = normalize expression
+        normalizeComparisonOperand _ operand = normalize operand
+
+        isLiteralExpression TextExpression {} = True
+        isLiteralExpression DoubleExpression {} = True
+        isLiteralExpression IntExpression {} = True
+        isLiteralExpression _ = False
+        isLiteralOperand (TypeCastExpression expression _) = isLiteralExpression expression
+        isLiteralOperand expression = isLiteralExpression expression
 
 normalizeDefaultExpression :: PostgresType -> Expression -> Expression
 normalizeDefaultExpression columnType expression
@@ -1104,8 +1108,45 @@ normalizePrimaryKeys statements = reverse $ normalizePrimaryKeys' [] statements
 -- > DROP TABLE a;
 --
 removeImplicitDeletions :: [Statement] -> [Statement] -> [Statement]
-removeImplicitDeletions actualSchema (statement@dropStatement:rest) | isDropStatement dropStatement = statement : removeImplicitDeletions actualSchema (filter isImplicitlyDeleted rest)
+removeImplicitDeletions actualSchema (statement@dropStatement:rest) | isDropStatement dropStatement = dependentDrops <> [statement] <> removeImplicitDeletions actualSchema filteredRest
     where
+        dependentDrops = filter isDependentDrop rest
+        filteredRest = filter (\candidate -> candidate `notElem` dependentDrops && isImplicitlyDeleted candidate) rest
+        isDependentDrop candidate = case dropColumnName of
+            Nothing -> isDependentTriggerDrop candidate || isReferencingForeignKeyDrop candidate
+            Just _ -> isDependentColumnDrop candidate
+        isDependentTriggerDrop DropTrigger { name, tableName }
+            | DropTable {} <- dropStatement = any (\case
+                CreateConstraintTrigger { name = triggerName, tableName = triggerTableName, referencedTableName = Just referencedTableName } ->
+                    triggerName == name && triggerTableName == tableName && referencedTableName == dropTableName
+                _ -> False) actualSchema
+        isDependentTriggerDrop _ = False
+        isReferencingForeignKeyDrop DropConstraint { tableName, constraintName } = any (\case
+                AddConstraint { tableName = actualTableName, constraint }
+                    | actualTableName == tableName
+                    , actualTableName /= dropTableName
+                    , constraint.name == Just constraintName -> foreignKeyReferencesDroppedTable constraint
+                _ -> False) actualSchema
+        isReferencingForeignKeyDrop _ = False
+        foreignKeyReferencesDroppedTable ForeignKeyConstraint { referenceTable } = referenceTable == dropTableName
+        foreignKeyReferencesDroppedTable CompositeForeignKeyConstraint { referenceTable } = referenceTable == dropTableName
+        foreignKeyReferencesDroppedTable _ = False
+        isDependentColumnDrop DropTrigger { name, tableName } = tableName == dropTableName || any (\case
+                CreateConstraintTrigger { name = triggerName, tableName = triggerTableName, referencedTableName = Just referencedTableName } ->
+                    triggerName == name && triggerTableName == tableName && referencedTableName == dropTableName
+                _ -> False) actualSchema
+        isDependentColumnDrop DropPolicy { tableName } = tableName == dropTableName
+        isDependentColumnDrop DropConstraint { tableName, constraintName } = any (\case
+                AddConstraint { tableName = actualTableName, constraint }
+                    | actualTableName == tableName
+                    , constraint.name == Just constraintName -> foreignKeyReferencesDroppedColumn constraint
+                _ -> False) actualSchema
+        isDependentColumnDrop _ = False
+        foreignKeyReferencesDroppedColumn ForeignKeyConstraint { referenceTable, referenceColumn }
+            | Just columnName <- dropColumnName = referenceTable == dropTableName && maybe True (== columnName) referenceColumn
+        foreignKeyReferencesDroppedColumn CompositeForeignKeyConstraint { referenceTable, referenceColumns }
+            | Just columnName <- dropColumnName = referenceTable == dropTableName && (null referenceColumns || columnName `elem` referenceColumns)
+        foreignKeyReferencesDroppedColumn _ = False
         isImplicitlyDeleted (DropIndex { indexName }) = case findIndexByName indexName of
                 Just CreateIndex { tableName = indexTableName, columns = indexColumns } -> indexTableName /= dropTableName && (
                         case dropColumnName of
@@ -1118,6 +1159,7 @@ removeImplicitDeletions actualSchema (statement@dropStatement:rest) | isDropStat
                 Nothing -> True
         isImplicitlyDeleted (DropConstraint { tableName = constraintTableName }) = constraintTableName /= dropTableName
         isImplicitlyDeleted (DropPolicy { tableName = policyTableName }) = not (isNothing dropColumnName && policyTableName == dropTableName)
+        isImplicitlyDeleted (DropTrigger { tableName = triggerTableName }) = not (isNothing dropColumnName && triggerTableName == dropTableName)
         isImplicitlyDeleted (NoForceRowLevelSecurity { tableName = forceTableName }) = not (isNothing dropColumnName && forceTableName == dropTableName)
         isImplicitlyDeleted otherwise = True
 
@@ -1210,16 +1252,11 @@ removeIndentation text =
                 |> map (\line -> Text.length (Text.takeWhile Char.isSpace line))
         spacesToDrop = spaces |> minimum
 
--- | PostgreSQL truncates identifiers longer than 63 UTF-8 bytes.
+-- | Postgres truncates identifiers longer than 63 characters.
 --
--- This keeps the result on a valid UTF-8 boundary to match PostgreSQL.
+-- This function truncates a Text to 63 chars max. This way we avoid unnecssary changes in the generated migrations.
 truncateIdentifier :: Text -> Text
-truncateIdentifier = go 63
-    where
-        go remaining identifier = case Text.uncons identifier of
-            Nothing -> ""
-            Just (character, rest)
-                | byteCount <= remaining -> Text.cons character (go (remaining - byteCount) rest)
-                | otherwise -> ""
-                where
-                    byteCount = ByteString.length (TextEncoding.encodeUtf8 (Text.singleton character))
+truncateIdentifier identifier =
+    if Text.length identifier > 63
+        then Text.take 63 identifier
+        else identifier

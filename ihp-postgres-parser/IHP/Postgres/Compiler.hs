@@ -7,7 +7,7 @@ module IHP.Postgres.Compiler (compileSql, compileIdentifier, compileExpression, 
 
 import Prelude hiding (unlines, unwords)
 import IHP.Postgres.Types
-import Data.Maybe (fromJust, isJust, catMaybes, fromMaybe, maybeToList)
+import Data.Maybe (fromJust, isJust, isNothing, catMaybes, fromMaybe, maybeToList)
 import Data.Text (Text)
 import qualified Data.Text as Text
 import Data.Function ((&))
@@ -33,13 +33,14 @@ compileSql statements = statements
     & unlines
 
 compileStatement :: Statement -> Text
-compileStatement (StatementCreateTable CreateTable { name, columns, primaryKeyConstraint, constraints, unlogged, inherits }) = "CREATE" <> (if unlogged then " UNLOGGED" else "") <> " TABLE " <> compileQualifiedIdentifier name <> " (\n" <> intercalate ",\n" (map (\col -> "    " <> compileColumn primaryKeyConstraint col) columns <> maybe [] ((:[]) . indent) (compilePrimaryKeyConstraint primaryKeyConstraint) <> map (indent . compileConstraint) constraints) <> "\n)" <> maybe "" (\parent -> " INHERITS (" <> compileQualifiedIdentifier parent <> ")") inherits <> ";"
+compileStatement (StatementCreateTable CreateTable { name, columns, primaryKeyConstraint, constraints, unlogged, inherits }) = "CREATE" <> (if unlogged then " UNLOGGED" else "") <> " TABLE " <> compileQualifiedIdentifier name <> " (\n" <> intercalate ",\n" (map (\col -> "    " <> compileColumn primaryKeyConstraint col) columns <> maybe [] ((:[]) . indent) (compilePrimaryKeyConstraint primaryKeyConstraint) <> map (indent . compileTableConstraint) constraints) <> "\n)" <> maybe "" (\parent -> " INHERITS (" <> compileQualifiedIdentifier parent <> ")") inherits <> ";"
 compileStatement CreateEnumType { name, values } = "CREATE TYPE " <> compileQualifiedIdentifier name <> " AS ENUM (" <> intercalate ", " (values & map TextExpression & map compileExpression) <> ");"
 compileStatement CreateExtension { name, ifNotExists, extensionOptions } = "CREATE EXTENSION " <> (if ifNotExists then "IF NOT EXISTS " else "") <> compileIdentifier name <> (if any isSchemaOption extensionOptions then " WITH" else "") <> mconcat (map ((" " <>) . compileExtensionOption) extensionOptions) <> ";"
     where
         isSchemaOption ExtensionSchema {} = True
         isSchemaOption _ = False
 compileStatement AddConstraint { tableName, constraint = UniqueConstraint { name = Nothing, columnNames } } = "ALTER TABLE " <> compileQualifiedIdentifier tableName <> " ADD UNIQUE (" <> intercalate ", " columnNames <> ")" <> ";"
+compileStatement AddConstraint { tableName, constraint, deferrable, deferrableType } | isNothing constraint.name = "ALTER TABLE " <> compileQualifiedIdentifier tableName <> " ADD " <> compileConstraint constraint <> compileDeferrable deferrable deferrableType <> ";"
 compileStatement AddConstraint { tableName, constraint, deferrable, deferrableType } = "ALTER TABLE " <> compileQualifiedIdentifier tableName <> " ADD CONSTRAINT " <> compileIdentifier (fromMaybe (error "compileStatement: Expected constraint name") (constraint.name)) <> " " <> compileConstraint constraint <> compileDeferrable deferrable deferrableType <> ";"
 compileStatement AddColumn { tableName, column } = "ALTER TABLE " <> compileQualifiedIdentifier tableName <> " ADD COLUMN " <> (compileColumn (PrimaryKeyConstraint []) column) <> ";"
 compileStatement DropColumn { tableName, columnName } = "ALTER TABLE " <> compileQualifiedIdentifier tableName <> " DROP COLUMN " <> compileIdentifier columnName <> ";"
@@ -64,7 +65,8 @@ compileStatement DropPolicy { tableName, policyName } =  "DROP POLICY " <> compi
 compileStatement SetDefaultValue { tableName, columnName, value } = "ALTER TABLE " <> compileQualifiedIdentifier tableName <> " ALTER COLUMN " <> compileIdentifier columnName <> " SET DEFAULT " <> compileExpression value <> ";"
 compileStatement DropDefaultValue { tableName, columnName } = "ALTER TABLE " <> compileQualifiedIdentifier tableName <> " ALTER COLUMN " <> compileIdentifier columnName <> " DROP DEFAULT;"
 compileStatement AddValueToEnumType { enumName, newValue } = "ALTER TYPE " <> compileQualifiedIdentifier enumName <> " ADD VALUE " <> compileExpression (TextExpression newValue) <> ";"
-compileStatement CreateTrigger { name, eventWhen, event, tableName, for, whenCondition, functionName, arguments } = "CREATE TRIGGER " <> compileIdentifier name <> " " <> compileTriggerEventWhen eventWhen <> " " <> intercalate " OR " (map compileTriggerEvent event) <> " ON " <> compileQualifiedIdentifier tableName <> " " <> compileTriggerFor for <> " EXECUTE FUNCTION " <> compileExpression (CallExpression functionName arguments) <> ";"
+compileStatement CreateTrigger { name, eventWhen, event, tableName, for, whenCondition, functionName, arguments } = "CREATE TRIGGER " <> compileIdentifier name <> " " <> compileTriggerEventWhen eventWhen <> " " <> intercalate " OR " (map compileTriggerEvent event) <> " ON " <> compileQualifiedIdentifier tableName <> " " <> compileTriggerFor for <> maybe "" (\condition -> " WHEN (" <> compileExpression condition <> ")") whenCondition <> " EXECUTE FUNCTION " <> compileExpression (CallExpression functionName arguments) <> ";"
+compileStatement CreateConstraintTrigger { name, eventWhen, event, tableName, referencedTableName, deferrable, deferrableType, for, whenCondition, functionName, arguments } = "CREATE CONSTRAINT TRIGGER " <> compileIdentifier name <> " " <> compileTriggerEventWhen eventWhen <> " " <> intercalate " OR " (map compileTriggerEvent event) <> " ON " <> compileQualifiedIdentifier tableName <> maybe "" (\referencedTable -> " FROM " <> compileQualifiedIdentifier referencedTable) referencedTableName <> compileDeferrable deferrable deferrableType <> " " <> compileTriggerFor for <> maybe "" (\condition -> " WHEN (" <> compileExpression condition <> ")") whenCondition <> " EXECUTE FUNCTION " <> compileExpression (CallExpression functionName arguments) <> ";"
 compileStatement Begin = "BEGIN;"
 compileStatement Commit = "COMMIT;"
 compileStatement DropFunction { functionName } = "DROP FUNCTION " <> compileQualifiedIdentifier functionName <> ";"
@@ -83,11 +85,21 @@ compilePrimaryKeyConstraint PrimaryKeyConstraint { primaryKeyColumnNames } =
         [_] -> Nothing
         names -> Just $ "PRIMARY KEY(" <> intercalate ", " names <> ")"
 
+compileTableConstraint :: Constraint -> Text
+compileTableConstraint constraint =
+    maybe "" (\name -> "CONSTRAINT " <> compileIdentifier name <> " ") constraint.name <> compileConstraint constraint <> compileConstraintDeferrability constraint
+
+compileConstraintDeferrability :: Constraint -> Text
+compileConstraintDeferrability ForeignKeyConstraint { constraintDeferrable, constraintDeferrableType } = compileDeferrable constraintDeferrable constraintDeferrableType
+compileConstraintDeferrability CompositeForeignKeyConstraint { constraintDeferrable, constraintDeferrableType } = compileDeferrable constraintDeferrable constraintDeferrableType
+compileConstraintDeferrability _ = ""
+
 compileConstraint :: Constraint -> Text
-compileConstraint ForeignKeyConstraint { columnName, referenceTable, referenceColumn, onDelete } = "FOREIGN KEY (" <> compileIdentifier columnName <> ") REFERENCES " <> compileQualifiedIdentifier referenceTable <> (if isJust referenceColumn then " (" <> fromJust referenceColumn <> ")" else "") <> " " <> compileOnDelete onDelete
+compileConstraint ForeignKeyConstraint { columnName, referenceTable, referenceColumn, onDelete, onUpdate } = "FOREIGN KEY (" <> compileIdentifier columnName <> ") REFERENCES " <> compileQualifiedIdentifier referenceTable <> (if isJust referenceColumn then " (" <> fromJust referenceColumn <> ")" else "") <> compileOnUpdate onUpdate <> " " <> compileOnDelete onDelete
+compileConstraint CompositeForeignKeyConstraint { columnNames, referenceTable, referenceColumns, matchType, onDelete, onUpdate } = "FOREIGN KEY (" <> intercalate ", " (map compileIdentifier columnNames) <> ") REFERENCES " <> compileQualifiedIdentifier referenceTable <> (if null referenceColumns then "" else " (" <> intercalate ", " (map compileIdentifier referenceColumns) <> ")") <> compileMatchType matchType <> compileOnUpdate onUpdate <> " " <> compileOnDelete onDelete
 compileConstraint UniqueConstraint { columnNames } = "UNIQUE(" <> intercalate ", " columnNames <> ")"
 compileConstraint CheckConstraint { checkExpression } = "CHECK (" <> compileExpression checkExpression <> ")"
-compileConstraint AlterTableAddPrimaryKey { primaryKeyConstraint } = fromMaybe "" (compilePrimaryKeyConstraint primaryKeyConstraint)
+compileConstraint AlterTableAddPrimaryKey { primaryKeyConstraint = PrimaryKeyConstraint { primaryKeyColumnNames } } = "PRIMARY KEY(" <> intercalate ", " (map compileIdentifier primaryKeyColumnNames) <> ")"
 compileConstraint ExcludeConstraint { excludeElements, predicate, indexType } = "EXCLUDE" <> compiledIndexType <> " (" <> compiledExcludeElements <> ")" <> case predicate of
     Just expression -> " WHERE (" <> compileExpression expression <> ")"
     Nothing -> ""
@@ -108,12 +120,30 @@ compileDeferrable deferrable deferrableType = Text.concat $ map ((<>) " ") $ cat
         compileDeferrableType InitiallyImmediate = "INITIALLY IMMEDIATE"
         compileDeferrableType InitiallyDeferred = "INITIALLY DEFERRED"
 
+compileOnUpdate :: Maybe OnDelete -> Text
+compileOnUpdate Nothing = ""
+compileOnUpdate (Just NoAction) = " ON UPDATE NO ACTION"
+compileOnUpdate (Just Restrict) = " ON UPDATE RESTRICT"
+compileOnUpdate (Just (SetNull columnNames)) = " ON UPDATE SET NULL" <> compileReferentialActionColumns columnNames
+compileOnUpdate (Just (SetDefault columnNames)) = " ON UPDATE SET DEFAULT" <> compileReferentialActionColumns columnNames
+compileOnUpdate (Just Cascade) = " ON UPDATE CASCADE"
+
+compileReferentialActionColumns :: [Text] -> Text
+compileReferentialActionColumns [] = ""
+compileReferentialActionColumns columnNames = " (" <> intercalate ", " (map compileIdentifier columnNames) <> ")"
+
+compileMatchType :: Maybe ForeignKeyMatchType -> Text
+compileMatchType Nothing = ""
+compileMatchType (Just MatchFull) = " MATCH FULL"
+compileMatchType (Just MatchPartial) = " MATCH PARTIAL"
+compileMatchType (Just MatchSimple) = " MATCH SIMPLE"
+
 compileOnDelete :: Maybe OnDelete -> Text
 compileOnDelete Nothing = ""
 compileOnDelete (Just NoAction) = "ON DELETE NO ACTION"
 compileOnDelete (Just Restrict) = "ON DELETE RESTRICT"
-compileOnDelete (Just SetNull) = "ON DELETE SET NULL"
-compileOnDelete (Just SetDefault) = "ON DELETE SET DEFAULT"
+compileOnDelete (Just (SetNull columnNames)) = "ON DELETE SET NULL" <> compileReferentialActionColumns columnNames
+compileOnDelete (Just (SetDefault columnNames)) = "ON DELETE SET DEFAULT" <> compileReferentialActionColumns columnNames
 compileOnDelete (Just Cascade) = "ON DELETE CASCADE"
 
 compileColumn :: PrimaryKeyConstraint -> Column -> Text
@@ -544,6 +574,7 @@ compileTriggerEventWhen InsteadOf = "INSTEAD OF"
 compileTriggerEvent :: TriggerEvent -> Text
 compileTriggerEvent TriggerOnInsert = "INSERT"
 compileTriggerEvent TriggerOnUpdate = "UPDATE"
+compileTriggerEvent (TriggerOnUpdateOf columns) = "UPDATE OF " <> intercalate ", " (map compileIdentifier columns)
 compileTriggerEvent TriggerOnDelete = "DELETE"
 compileTriggerEvent TriggerOnTruncate = "TRUNCATE"
 

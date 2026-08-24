@@ -4,10 +4,18 @@ import Test.Hspec
 import IHP.Prelude
 import IHP.Postgres.Types
 import qualified IHP.IDE.SchemaDesigner.SchemaOperations as SchemaOperations
+import qualified IHP.IDE.SchemaDesigner.Controller.Columns as ColumnsController
 import qualified IHP.Postgres.Parser as Parser
 import qualified Text.Megaparsec as Megaparsec
 
 tests = do
+    describe "IHP.IDE.SchemaDesigner.Controller.Columns" do
+        it "preserves ON UPDATE when editing a foreign key" do
+            let inputSchema = parseSqlStatements "ALTER TABLE messages ADD CONSTRAINT messages_ref_user_id FOREIGN KEY (user_id) REFERENCES users (id) ON UPDATE CASCADE ON DELETE RESTRICT;"
+            let expectedSchema = parseSqlStatements "ALTER TABLE messages ADD CONSTRAINT messages_ref_user_id FOREIGN KEY (user_id) REFERENCES accounts (id) ON UPDATE CASCADE ON DELETE SET NULL;"
+
+            ColumnsController.updateForeignKeyConstraint "messages" "user_id" "messages_ref_user_id" "accounts" (SetNull []) 0 inputSchema `shouldBe` expectedSchema
+
     describe "IHP.IDE.SchemaDesigner.SchemaOperations" do
         let tableA = StatementCreateTable (table "a")
         let tableB = StatementCreateTable (table "b")
@@ -102,6 +110,19 @@ tests = do
 
                 SchemaOperations.deleteTable "tasks" inputSchema `shouldBe` outputSchema
 
+            it "removes foreign keys that reference a deleted table" do
+                let inputSchema = parseSqlStatements [trimming|
+                    CREATE TABLE parents ();
+                    CREATE TABLE children ();
+                    ALTER TABLE children ADD CONSTRAINT children_parent_fkey FOREIGN KEY (parent_id) REFERENCES parents (id);
+                    ALTER TABLE children ADD CONSTRAINT children_parent_scope_fkey FOREIGN KEY (tenant_id, parent_id) REFERENCES parents (tenant_id, id) MATCH FULL;
+                |]
+                let outputSchema = parseSqlStatements [trimming|
+                    CREATE TABLE children ();
+                |]
+
+                SchemaOperations.deleteTable "parents" inputSchema `shouldBe` outputSchema
+
         describe "suggestPolicy" do
             it "should suggest a policy if a user_id column exists" do
                 let postsTable = StatementCreateTable (table "posts")
@@ -142,7 +163,7 @@ tests = do
                 let schema =
                             [ tasksTable
                             , taskListsTable
-                            , AddConstraint { tableName = "tasks", constraint = ForeignKeyConstraint { name = "tasks_ref_task_lists", columnName = "task_list_id", referenceTable = "task_lists", referenceColumn = Nothing, onDelete = Nothing }, deferrable = Nothing, deferrableType = Nothing }
+                            , AddConstraint { tableName = "tasks", constraint = ForeignKeyConstraint { name = "tasks_ref_task_lists", columnName = "task_list_id", referenceTable = "task_lists", referenceColumn = Nothing, onDelete = Nothing, onUpdate = Nothing, constraintDeferrable = Nothing, constraintDeferrableType = Nothing }, deferrable = Nothing, deferrableType = Nothing }
                             ]
                 let expectedPolicy = (policy "Users can manage the tasks if they can see the TaskList" "tasks")
                         { using = Just (ExistsExpression (SelectExpression (Select {columns = [IntExpression 1], from = DotExpression (VarExpression "public") "task_lists", alias = Nothing, whereClause = EqExpression (DotExpression (VarExpression "task_lists") "id") (DotExpression (VarExpression "tasks") "task_list_id")})))
@@ -242,7 +263,7 @@ tests = do
                         }
                 let constraint = AddConstraint
                         { tableName = "a"
-                        , constraint = ForeignKeyConstraint { name = Just "a_ref_user_id", columnName = "user_id", referenceTable = "users", referenceColumn = Just "id", onDelete = Just NoAction }
+                        , constraint = ForeignKeyConstraint { name = Just "a_ref_user_id", columnName = "user_id", referenceTable = "users", referenceColumn = Just "id", onDelete = Just NoAction, onUpdate = Nothing, constraintDeferrable = Nothing, constraintDeferrableType = Nothing }
                         , deferrable = Nothing
                         , deferrableType = Nothing
                         }
@@ -272,6 +293,72 @@ tests = do
                 (SchemaOperations.addColumn options inputSchema) `shouldBe` expectedSchema
 
         describe "deleteColumn" do
+            it "removes a trigger whose WHEN condition references the deleted column" do
+                let inputSchema = parseSqlStatements [trimming|
+                    CREATE TABLE items (ticket_id UUID, organization_id UUID);
+                    CREATE TRIGGER items_changed BEFORE UPDATE ON items FOR EACH ROW WHEN (OLD.ticket_id <> NEW.ticket_id) EXECUTE FUNCTION notify_change();
+                |]
+                let expectedSchema = parseSqlStatements "CREATE TABLE items (organization_id UUID);"
+                let options = SchemaOperations.DeleteColumnOptions { tableName = "items", columnName = "ticket_id", columnId = 0 }
+
+                SchemaOperations.deleteColumn options inputSchema `shouldBe` expectedSchema
+
+            it "removes a composite foreign key referencing the deleted column" do
+                let inputSchema = parseSqlStatements [trimming|
+                    CREATE TABLE tickets (ticket_id UUID, organization_id UUID);
+                    CREATE TABLE items (ticket_id UUID, organization_id UUID);
+                    ALTER TABLE items ADD CONSTRAINT items_ticket_fkey FOREIGN KEY (ticket_id, organization_id) REFERENCES tickets (ticket_id, organization_id);
+                |]
+                let expectedSchema = parseSqlStatements [trimming|
+                    CREATE TABLE tickets (organization_id UUID);
+                    CREATE TABLE items (ticket_id UUID, organization_id UUID);
+                |]
+                let options = SchemaOperations.DeleteColumnOptions { tableName = "tickets", columnName = "ticket_id", columnId = 0 }
+
+                SchemaOperations.deleteColumn options inputSchema `shouldBe` expectedSchema
+
+            it "removes a composite foreign key with omitted primary-key references" do
+                let inputSchema = parseSqlStatements [trimming|
+                    CREATE TABLE tickets (ticket_id UUID, organization_id UUID, PRIMARY KEY (ticket_id, organization_id));
+                    CREATE TABLE items (ticket_id UUID, organization_id UUID);
+                    ALTER TABLE items ADD CONSTRAINT items_ref_ticket FOREIGN KEY (ticket_id, organization_id) REFERENCES tickets;
+                |]
+                let options = SchemaOperations.DeleteColumnOptions { tableName = "tickets", columnName = "ticket_id", columnId = 0 }
+                let remainingConstraints = SchemaOperations.deleteColumn options inputSchema |> filter \case
+                        AddConstraint {} -> True
+                        _ -> False
+
+                remainingConstraints `shouldBe` []
+
+            it "removes a deleted column from UPDATE OF triggers" do
+                let inputSchema = parseSqlStatements [trimming|
+                    CREATE TABLE items (ticket_id UUID, organization_id UUID);
+                    CREATE TRIGGER items_changed BEFORE UPDATE OF ticket_id, organization_id ON items FOR EACH ROW EXECUTE FUNCTION notify_change();
+                |]
+                let expectedSchema = parseSqlStatements [trimming|
+                    CREATE TABLE items (organization_id UUID);
+                    CREATE TRIGGER items_changed BEFORE UPDATE OF organization_id ON items FOR EACH ROW EXECUTE FUNCTION notify_change();
+                |]
+                let options = SchemaOperations.DeleteColumnOptions { tableName = "items", columnName = "ticket_id", columnId = 0 }
+
+                SchemaOperations.deleteColumn options inputSchema `shouldBe` expectedSchema
+
+            it "deletes a composite foreign key containing the column" do
+                let inputSchema = parseSqlStatements [trimming|
+                    CREATE TABLE items (ticket_id UUID, organization_id UUID);
+                    ALTER TABLE items ADD CONSTRAINT items_ref_ticket FOREIGN KEY (ticket_id, organization_id) REFERENCES tickets (id, organization_id);
+                |]
+                let expectedSchema = parseSqlStatements [trimming|
+                    CREATE TABLE items (organization_id UUID);
+                |]
+                let options = SchemaOperations.DeleteColumnOptions
+                        { tableName = "items"
+                        , columnName = "ticket_id"
+                        , columnId = 0
+                        }
+
+                SchemaOperations.deleteColumn options inputSchema `shouldBe` expectedSchema
+
             it "should delete an referenced index" do
                 let tableAWithCreatedAt = StatementCreateTable (table "a")
                             { columns = [
@@ -342,6 +429,105 @@ tests = do
 
                 (SchemaOperations.deleteColumn options inputSchema) `shouldBe` expectedSchema
         describe "update" do
+            it "renames columns in UPDATE OF triggers" do
+                let inputSchema = parseSqlStatements [trimming|
+                    CREATE TABLE items (ticket_id UUID);
+                    CREATE TRIGGER items_changed BEFORE UPDATE OF ticket_id ON items FOR EACH ROW EXECUTE FUNCTION notify_change();
+                |]
+                let expectedSchema = parseSqlStatements [trimming|
+                    CREATE TABLE items (parent_ticket_id UUID);
+                    CREATE TRIGGER items_changed BEFORE UPDATE OF parent_ticket_id ON items FOR EACH ROW EXECUTE FUNCTION notify_change();
+                |]
+                let options = SchemaOperations.UpdateColumnOptions
+                        { tableName = "items", columnName = "parent_ticket_id", columnType = PUUID
+                        , defaultValue = Nothing, isArray = False, allowNull = True
+                        , isUnique = False, primaryKey = False, columnId = 0
+                        }
+
+                SchemaOperations.updateColumn options inputSchema `shouldBe` expectedSchema
+
+            it "renames columns in trigger WHEN conditions" do
+                let inputSchema = parseSqlStatements [trimming|
+                    CREATE TABLE items (ticket_id UUID);
+                    CREATE TRIGGER items_changed BEFORE UPDATE ON items FOR EACH ROW WHEN (OLD.ticket_id <> NEW.ticket_id) EXECUTE FUNCTION notify_change();
+                |]
+                let expectedSchema = parseSqlStatements [trimming|
+                    CREATE TABLE items (parent_ticket_id UUID);
+                    CREATE TRIGGER items_changed BEFORE UPDATE ON items FOR EACH ROW WHEN (OLD.parent_ticket_id <> NEW.parent_ticket_id) EXECUTE FUNCTION notify_change();
+                |]
+                let options = SchemaOperations.UpdateColumnOptions
+                        { tableName = "items", columnName = "parent_ticket_id", columnType = PUUID
+                        , defaultValue = Nothing, isArray = False, allowNull = True
+                        , isUnique = False, primaryKey = False, columnId = 0
+                        }
+
+                SchemaOperations.updateColumn options inputSchema `shouldBe` expectedSchema
+
+            it "updates composite foreign key columns" do
+                let inputSchema = parseSqlStatements [trimming|
+                    CREATE TABLE items (ticket_id UUID, organization_id UUID);
+                    ALTER TABLE items ADD CONSTRAINT items_ticket_id_organization_id_fkey FOREIGN KEY (ticket_id, organization_id) REFERENCES tickets (id, organization_id);
+                |]
+                let expectedSchema = parseSqlStatements [trimming|
+                    CREATE TABLE items (parent_ticket_id UUID, organization_id UUID);
+                    ALTER TABLE items ADD CONSTRAINT items_parent_ticket_id_organization_id_fkey FOREIGN KEY (parent_ticket_id, organization_id) REFERENCES tickets (id, organization_id);
+                |]
+                let options = SchemaOperations.UpdateColumnOptions
+                        { tableName = "items"
+                        , columnName = "parent_ticket_id"
+                        , columnType = PUUID
+                        , defaultValue = Nothing
+                        , isArray = False
+                        , allowNull = True
+                        , isUnique = False
+                        , primaryKey = False
+                        , columnId = 0
+                        }
+
+                SchemaOperations.updateColumn options inputSchema `shouldBe` expectedSchema
+
+            it "updates referenced columns in composite foreign keys" do
+                let inputSchema = parseSqlStatements [trimming|
+                    CREATE TABLE tickets (ticket_id UUID, organization_id UUID);
+                    CREATE TABLE items (ticket_id UUID, organization_id UUID);
+                    ALTER TABLE items ADD CONSTRAINT items_ticket_fkey FOREIGN KEY (ticket_id, organization_id) REFERENCES tickets (ticket_id, organization_id);
+                |]
+                let expectedSchema = parseSqlStatements [trimming|
+                    CREATE TABLE tickets (id UUID, organization_id UUID);
+                    CREATE TABLE items (ticket_id UUID, organization_id UUID);
+                    ALTER TABLE items ADD CONSTRAINT items_ticket_fkey FOREIGN KEY (ticket_id, organization_id) REFERENCES tickets (id, organization_id);
+                |]
+                let options = SchemaOperations.UpdateColumnOptions
+                        { tableName = "tickets", columnName = "id", columnType = PUUID
+                        , defaultValue = Nothing, isArray = False, allowNull = True
+                        , isUnique = False, primaryKey = False, columnId = 0
+                        }
+
+                SchemaOperations.updateColumn options inputSchema `shouldBe` expectedSchema
+
+            it "updates restricted-action columns in composite foreign keys" do
+                let inputSchema = parseSqlStatements [trimming|
+                    CREATE TABLE items (ticket_id UUID, organization_id UUID);
+                    ALTER TABLE items ADD CONSTRAINT items_ticket_id_organization_id_fkey FOREIGN KEY (ticket_id, organization_id) REFERENCES tickets (id, organization_id) ON UPDATE SET DEFAULT (ticket_id) ON DELETE SET NULL (ticket_id);
+                |]
+                let expectedSchema = parseSqlStatements [trimming|
+                    CREATE TABLE items (parent_ticket_id UUID, organization_id UUID);
+                    ALTER TABLE items ADD CONSTRAINT items_parent_ticket_id_organization_id_fkey FOREIGN KEY (parent_ticket_id, organization_id) REFERENCES tickets (id, organization_id) ON UPDATE SET DEFAULT (parent_ticket_id) ON DELETE SET NULL (parent_ticket_id);
+                |]
+                let options = SchemaOperations.UpdateColumnOptions
+                        { tableName = "items"
+                        , columnName = "parent_ticket_id"
+                        , columnType = PUUID
+                        , defaultValue = Nothing
+                        , isArray = False
+                        , allowNull = True
+                        , isUnique = False
+                        , primaryKey = False
+                        , columnId = 0
+                        }
+
+                SchemaOperations.updateColumn options inputSchema `shouldBe` expectedSchema
+
             it "update a column's name, type, default value and not null" do
                 let tableAWithCreatedAt = StatementCreateTable (table "a")
                             { columns = [
@@ -415,7 +601,7 @@ tests = do
                 let inputSchema =
                             [ tasksTable
                             , taskListsTable
-                            , AddConstraint { tableName = "tasks", constraint = ForeignKeyConstraint { name = "tasks_ref_task_lists", columnName = "task_list_id", referenceTable = "task_lists", referenceColumn = Nothing, onDelete = Nothing }, deferrable = Nothing, deferrableType = Nothing }
+                            , AddConstraint { tableName = "tasks", constraint = ForeignKeyConstraint { name = "tasks_ref_task_lists", columnName = "task_list_id", referenceTable = "task_lists", referenceColumn = Nothing, onDelete = Nothing, onUpdate = Nothing, constraintDeferrable = Nothing, constraintDeferrableType = Nothing }, deferrable = Nothing, deferrableType = Nothing }
                             ]
 
                 let tasksTable' = StatementCreateTable (table "tasks")
@@ -426,7 +612,7 @@ tests = do
                 let expectedSchema =
                             [ tasksTable'
                             , taskListsTable
-                            , AddConstraint { tableName = "tasks", constraint = ForeignKeyConstraint { name = "tasks_ref_task_lists", columnName = "list_id", referenceTable = "task_lists", referenceColumn = Nothing, onDelete = Nothing }, deferrable = Nothing, deferrableType = Nothing }
+                            , AddConstraint { tableName = "tasks", constraint = ForeignKeyConstraint { name = "tasks_ref_task_lists", columnName = "list_id", referenceTable = "task_lists", referenceColumn = Nothing, onDelete = Nothing, onUpdate = Nothing, constraintDeferrable = Nothing, constraintDeferrableType = Nothing }, deferrable = Nothing, deferrableType = Nothing }
                             ]
                 
                 let options = SchemaOperations.UpdateColumnOptions
@@ -474,6 +660,20 @@ tests = do
 
                 (SchemaOperations.updateColumn options inputSchema) `shouldBe` expectedSchema
         describe "updateTable" do
+            it "retargets composite foreign keys when the referenced table is renamed" do
+                let inputSchema = parseSqlStatements [trimming|
+                    CREATE TABLE tickets (id UUID, organization_id UUID);
+                    CREATE TABLE items (ticket_id UUID, organization_id UUID);
+                    ALTER TABLE items ADD CONSTRAINT items_ticket_fkey FOREIGN KEY (ticket_id, organization_id) REFERENCES tickets (id, organization_id);
+                |]
+                let expectedSchema = parseSqlStatements [trimming|
+                    CREATE TABLE issues (id UUID, organization_id UUID);
+                    CREATE TABLE items (ticket_id UUID, organization_id UUID);
+                    ALTER TABLE items ADD CONSTRAINT items_ticket_fkey FOREIGN KEY (ticket_id, organization_id) REFERENCES issues (id, organization_id);
+                |]
+
+                SchemaOperations.updateTable 0 "issues" inputSchema `shouldBe` expectedSchema
+
             it "renames a table with all it's indices, constraints, policies, enable RLS statements, triggers" do
                 let inputSchema = parseSqlStatements [trimming|
                     CREATE TABLE tasks ();

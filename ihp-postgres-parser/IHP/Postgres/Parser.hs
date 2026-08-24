@@ -269,7 +269,7 @@ createExtension = do
     lexeme "CREATE"
     lexeme "EXTENSION"
     ifNotExists <- isJust <$> optional (lexeme "IF" >> lexeme "NOT" >> lexeme "EXISTS")
-    name <- qualifiedIdentifier
+    name <- foldingQualifiedIdentifier
     optional (lexeme "WITH")
     extensionOptions <- many extensionOption
     when (hasDuplicateExtensionOptions extensionOptions) (fail "duplicate CREATE EXTENSION option")
@@ -545,13 +545,14 @@ createTable = do
     let
         columns = map snd taggedColumns
         constraints = rights allConstraints
+        primaryKeyConstraints = map snd (lefts allConstraints)
 
     primaryKeyConstraint <- case filter fst taggedColumns of
-        [] -> case lefts allConstraints of
+        [] -> case primaryKeyConstraints of
             [] -> pure $ PrimaryKeyConstraint []
             [primaryKeyConstraint] -> pure primaryKeyConstraint
             _ -> fail ("Multiple PRIMARY KEY constraints on table " <> cs name)
-        [(_, Column { name })] -> case lefts allConstraints of
+        [(_, Column { name })] -> case primaryKeyConstraints of
             [] -> pure $ PrimaryKeyConstraint [name]
             _ -> fail ("Primary key defined in both column and table constraints on table " <> cs name)
         _ -> fail "Multiple columns with PRIMARY KEY constraint"
@@ -571,10 +572,17 @@ createEnumType = do
 
 addConstraint tableName = do
     constraint <- parseTableConstraint >>= \case
-      Left primaryKeyConstraint -> pure AlterTableAddPrimaryKey { name = Nothing, primaryKeyConstraint }
+      Left (name, primaryKeyConstraint) -> pure AlterTableAddPrimaryKey { name, primaryKeyConstraint }
       Right constraint -> pure constraint
-    deferrable <- optional parseDeferrable
-    deferrableType <- optional parseDeferrableType
+    (constraint, deferrable, deferrableType) <- case constraint of
+        foreignKey@ForeignKeyConstraint { constraintDeferrable, constraintDeferrableType } ->
+            pure (foreignKey { constraintDeferrable = Nothing, constraintDeferrableType = Nothing }, constraintDeferrable, constraintDeferrableType)
+        foreignKey@CompositeForeignKeyConstraint { constraintDeferrable, constraintDeferrableType } ->
+            pure (foreignKey { constraintDeferrable = Nothing, constraintDeferrableType = Nothing }, constraintDeferrable, constraintDeferrableType)
+        otherConstraint -> do
+            deferrable <- optional parseDeferrable
+            deferrableType <- optional parseDeferrableType
+            pure (otherConstraint, deferrable, deferrableType)
     char ';'
     pure AddConstraint { tableName, constraint, deferrable, deferrableType }
 
@@ -589,8 +597,10 @@ parseDeferrableType = do
 parseTableConstraint = do
     name <- optional do
         lexeme "CONSTRAINT"
-        identifier
-    (Left <$> parsePrimaryKeyConstraint) <|>
+        postgresIdentifier
+    (do
+        primaryKeyConstraint <- parsePrimaryKeyConstraint
+        pure (Left (name, primaryKeyConstraint))) <|>
       (Right <$> (parseForeignKeyConstraint name <|> parseUniqueConstraint name <|> parseCheckConstraint name <|> parseExcludeConstraint name))
 
 parsePrimaryKeyConstraint = do
@@ -602,15 +612,27 @@ parsePrimaryKeyConstraint = do
 parseForeignKeyConstraint name = do
     lexeme "FOREIGN"
     lexeme "KEY"
-    columnName <- between (char '(' >> space) (char ')' >> space) identifier
+    columnNames <- between (char '(' >> space) (char ')' >> space) (postgresIdentifier `sepBy1` (char ',' >> space))
     lexeme "REFERENCES"
-    referenceTable <- qualifiedIdentifier
-    referenceColumn <- optional $ between (char '(' >> space) (char ')' >> space) identifier
-    onDelete <- optional do
+    referenceTable <- foldingQualifiedIdentifier
+    referenceColumns <- optional $ between (char '(' >> space) (char ')' >> space) (postgresIdentifier `sepBy1` (char ',' >> space))
+    matchType <- optional do
+        lexeme "MATCH"
+        (lexeme "FULL" $> MatchFull) <|> (lexeme "PARTIAL" $> MatchPartial) <|> (lexeme "SIMPLE" $> MatchSimple)
+    referentialActions <- many $ try do
         lexeme "ON"
-        lexeme "DELETE"
-        parseOnDelete
-    pure ForeignKeyConstraint { name, columnName, referenceTable, referenceColumn, onDelete }
+        (lexeme "DELETE" >> (Left <$> parseOnDelete)) <|> (lexeme "UPDATE" >> (Right <$> parseOnDelete))
+    let onDelete = listToMaybe (lefts referentialActions)
+    let onUpdate = listToMaybe (rights referentialActions)
+    deferrable <- optional parseDeferrable
+    deferrableType <- optional parseDeferrableType
+    case (columnNames, referenceColumns) of
+        ([columnName], Nothing) ->
+            pure ForeignKeyConstraint { name, columnName, referenceTable, referenceColumn = Nothing, onDelete, onUpdate, constraintDeferrable = deferrable, constraintDeferrableType = deferrableType }
+        ([columnName], Just [referenceColumn]) ->
+            pure ForeignKeyConstraint { name, columnName, referenceTable, referenceColumn = Just referenceColumn, onDelete, onUpdate, constraintDeferrable = deferrable, constraintDeferrableType = deferrableType }
+        _ ->
+            pure CompositeForeignKeyConstraint { name, columnNames, referenceTable, referenceColumns = fromMaybe [] referenceColumns, matchType, onDelete, onUpdate, constraintDeferrable = deferrable, constraintDeferrableType = deferrableType }
 
 parseUniqueConstraint name = do
     lexeme "UNIQUE"
@@ -683,13 +705,17 @@ parseExcludeConstraint name = do
 parseOnDelete = choice
         [ (lexeme "NO" >> lexeme "ACTION") >> pure NoAction
         , (lexeme "RESTRICT" >> pure Restrict)
-        , (lexeme "SET" >> ((lexeme "NULL" >> pure SetNull) <|> (lexeme "DEFAULT" >> pure SetDefault)))
+        , (lexeme "SET" >> ((lexeme "NULL" >> (SetNull <$> referentialActionColumns)) <|> (lexeme "DEFAULT" >> (SetDefault <$> referentialActionColumns))))
         , (lexeme "CASCADE" >> pure Cascade)
         ]
 
+referentialActionColumns :: Parser [Text]
+referentialActionColumns =
+    fromMaybe [] <$> optional (between (char '(' >> space) (char ')' >> space) (postgresIdentifier `sepBy1` (char ',' >> space)))
+
 parseColumn :: Parser (Bool, Column)
 parseColumn = do
-    name <- identifier
+    name <- postgresIdentifier
     columnType <- sqlType
     space
     let
@@ -1125,7 +1151,7 @@ typedLiteralExpr = do
 
 callExpr :: Parser Expression
 callExpr = do
-    func <- qualifiedIdentifier
+    func <- functionIdentifier
     args <- between (char '(') (char ')') (expression `sepBy` (char ',' >> space))
     space
     pure (CallExpression func args)
@@ -1198,6 +1224,17 @@ identifier = do
     i <- (between (char '"') (char '"') (takeWhile1P Nothing (\c -> c /= '"'))) <|> takeWhile1P (Just "identifier") (\c -> isAlphaNum c || c == '_')
     space
     pure i
+
+-- | An identifier with PostgreSQL's case-folding semantics. Quoted spelling is
+-- preserved; unquoted spelling is folded before it enters the AST.
+postgresIdentifier :: Parser Text
+postgresIdentifier = do
+    value <- quotedIdentifier <|> unquotedIdentifier
+    space
+    pure value
+    where
+        quotedIdentifier = between (char '"') (char '"') (takeWhile1P Nothing (/= '"'))
+        unquotedIdentifier = Text.toLower <$> takeWhile1P (Just "identifier") (\c -> isAlphaNum c || c == '_')
 
 comment = do
     (char '-' >> char '-') <?> "Line comment"
@@ -1481,7 +1518,29 @@ functionOptionBoundaryKeyword keyword = do
 
 createTrigger = do
     lexeme "CREATE"
-    createEventTrigger <|> createTrigger'
+    createEventTrigger <|> createConstraintTrigger <|> createTrigger'
+
+createConstraintTrigger :: Parser Statement
+createConstraintTrigger = do
+    lexeme "CONSTRAINT"
+    lexeme "TRIGGER"
+    name <- foldingQualifiedIdentifier
+    eventWhen <- (lexeme "AFTER" >> pure After) <|> (lexeme "BEFORE" >> pure Before) <|> (lexeme "INSTEAD OF" >> pure InsteadOf)
+    event <- triggerEvent `sepBy1` lexeme "OR"
+    lexeme "ON"
+    tableName <- foldingQualifiedIdentifier
+    referencedTableName <- optional (lexeme "FROM" >> foldingQualifiedIdentifier)
+    deferrable <- optional parseDeferrable
+    deferrableType <- optional parseDeferrableType
+    lexeme "FOR"
+    optional (lexeme "EACH")
+    for <- (lexeme "ROW" >> pure ForEachRow) <|> (lexeme "STATEMENT" >> pure ForEachStatement)
+    whenCondition <- optional (lexeme "WHEN" >> expression)
+    lexeme "EXECUTE"
+    optional (lexeme "FUNCTION" <|> lexeme "PROCEDURE")
+    (CallExpression functionName arguments) <- callExpr
+    char ';'
+    pure CreateConstraintTrigger { name, eventWhen, event, tableName, referencedTableName, deferrable, deferrableType, for, whenCondition, functionName, arguments }
 
 createEventTrigger = do
     lexeme "EVENT"
@@ -1550,7 +1609,13 @@ createTrigger' = do
         }
 
 triggerEvent :: Parser TriggerEvent
-triggerEvent = (lexeme "INSERT" >> pure TriggerOnInsert) <|> (lexeme "UPDATE" >> pure TriggerOnUpdate) <|> (lexeme "DELETE" >> pure TriggerOnDelete) <|> (lexeme "TRUNCATE" >> pure TriggerOnTruncate)
+triggerEvent = (lexeme "INSERT" >> pure TriggerOnInsert) <|> (lexeme "UPDATE" >> triggerUpdateEvent) <|> (lexeme "DELETE" >> pure TriggerOnDelete) <|> (lexeme "TRUNCATE" >> pure TriggerOnTruncate)
+    where
+        triggerUpdateEvent = do
+            columns <- optional do
+                lexeme "OF"
+                postgresIdentifier `sepBy1` (char ',' >> space)
+            pure (maybe TriggerOnUpdate TriggerOnUpdateOf columns)
 
 alterTable = do
     lexeme "TABLE"
@@ -1741,6 +1806,26 @@ qualifiedIdentifier = do
         Just name
             | schemaOrName == "public" -> name
             | otherwise -> schemaOrName <> "." <> name
+
+-- | Parses identifiers whose unquoted spelling should be folded by PostgreSQL
+-- while retaining the exact spelling of quoted components.
+foldingQualifiedIdentifier :: Parser Text
+foldingQualifiedIdentifier = do
+    schemaOrName <- foldingIdentifier
+    maybeName <- optional (char '.' >> foldingIdentifier)
+    pure $ case maybeName of
+        Nothing -> schemaOrName
+        Just name
+            | schemaOrName == "public" -> name
+            | otherwise -> schemaOrName <> "." <> name
+    where
+        foldingIdentifier = do
+            value <- quotedIdentifier <|> unquotedIdentifier
+            space
+            pure value
+        quotedIdentifier = Text.pack <$> between (char '"') (char '"') (some quotedIdentifierCharacter)
+        quotedIdentifierCharacter = try (string "\"\"" $> '"') <|> anySingleBut '"'
+        unquotedIdentifier = Text.toLower <$> takeWhile1P (Just "identifier") (\c -> isAlphaNum c || c == '_')
 
 -- | Parses a (possibly schema-qualified) function name.
 --

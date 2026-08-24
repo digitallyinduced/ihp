@@ -75,6 +75,9 @@ spec = do
                         , referenceTable = "companies"
                         , referenceColumn = Just "id"
                         , onDelete = Just Cascade
+                        , onUpdate = Nothing
+                        , constraintDeferrable = Nothing
+                        , constraintDeferrableType = Nothing
                         }
                     , deferrable = Nothing
                     , deferrableType = Nothing

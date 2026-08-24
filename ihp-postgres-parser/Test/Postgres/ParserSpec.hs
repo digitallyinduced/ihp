@@ -145,6 +145,9 @@ spec = do
                         , referenceTable = "auth.users"
                         , referenceColumn = Just "id"
                         , onDelete = Nothing
+                        , onUpdate = Nothing
+                        , constraintDeferrable = Nothing
+                        , constraintDeferrableType = Nothing
                         }
                     , deferrable = Nothing
                     , deferrableType = Nothing
@@ -162,6 +165,9 @@ spec = do
                         , referenceTable = "companies"
                         , referenceColumn = Just "id"
                         , onDelete = Just Cascade
+                        , onUpdate = Nothing
+                        , constraintDeferrable = Nothing
+                        , constraintDeferrableType = Nothing
                         }
                     , deferrable = Nothing
                     , deferrableType = Nothing
