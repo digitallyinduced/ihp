@@ -761,6 +761,115 @@ spec = do
             parseSql "CREATE TABLE locations (geom geometry(Point, 4326));"
                 `shouldBe` StatementCreateTable (table "locations") { columns = [col "geom" (PGeometryWithModifier "Point, 4326")] }
 
+        it "should preserve GRANT and REVOKE statements" do
+            parseSql "GRANT SELECT ON TABLE users TO ihp_authenticated;" `shouldBe`
+                UnknownStatement { raw = "GRANT SELECT ON TABLE users TO ihp_authenticated" }
+            parseSql "REVOKE ALL ON FUNCTION public.touch_updated_at() FROM PUBLIC;" `shouldBe`
+                UnknownStatement { raw = "REVOKE ALL ON FUNCTION public.touch_updated_at() FROM PUBLIC" }
+
+        it "should preserve executable SQL COMMENT statements" do
+            parseSql "COMMENT ON TABLE users IS 'owner records';" `shouldBe`
+                UnknownStatement { raw = "COMMENT ON TABLE users IS 'owner records'" }
+
+        it "should normalize equivalent COMMENT literal forms" do
+            normalizeComment "COMMENT ON TABLE users IS $$application users$$" `shouldBe`
+                Just "COMMENT ON TABLE users IS 'application users'"
+            normalizeComment "COMMENT ON TABLE users IS 'owner''s records'" `shouldBe`
+                Just "COMMENT ON TABLE users IS 'owner''s records'"
+            normalizeComment "COMMENT/* keyword trivia */ON TABLE users IS/* value trivia */'owner records'" `shouldBe`
+                Just "COMMENT ON TABLE users IS 'owner records'"
+
+        it "should normalize COMMENT function signature spacing" do
+            normalizeComment "COMMENT ON FUNCTION f(integer,text) IS 'x'" `shouldBe`
+                Just "COMMENT ON FUNCTION f(integer, text) IS 'x'"
+
+        it "should preserve a newline after a trailing opaque line comment" do
+            let statements = parseSqlStatements "GRANT SELECT ON users TO reader -- rationale\n;"
+            statements `shouldBe` [UnknownStatement { raw = "GRANT SELECT ON users TO reader -- rationale\n" }]
+            compileSql statements `shouldBe` "GRANT SELECT ON users TO reader -- rationale\n;\n"
+
+        it "should preserve a newline before an indented opaque terminator" do
+            let statements = parseSqlStatements "GRANT SELECT ON users TO reader -- rationale\n    ;"
+            compileSql statements `shouldBe` "GRANT SELECT ON users TO reader -- rationale\n;\n"
+
+        it "should preserve nested block comments after opaque keywords" do
+            parseSql "GRANT /* outer /* inner */ outer */ SELECT ON users TO reader;" `shouldBe`
+                UnknownStatement { raw = "GRANT /* outer /* inner */ outer */ SELECT ON users TO reader" }
+
+        it "should preserve semicolons inside opaque statement literals" do
+            parseSql "COMMENT ON TABLE users IS 'internal; only';" `shouldBe`
+                UnknownStatement { raw = "COMMENT ON TABLE users IS 'internal; only'" }
+            parseSql "GRANT SELECT ON TABLE users TO \"report;reader\";" `shouldBe`
+                UnknownStatement { raw = "GRANT SELECT ON TABLE users TO \"report;reader\"" }
+
+        it "should treat backslashes literally in standard SQL strings" do
+            parseSql "COMMENT ON TABLE users IS 'path\\';" `shouldBe`
+                UnknownStatement { raw = "COMMENT ON TABLE users IS 'path\\'" }
+
+        it "should preserve a DO block whose body contains semicolons" do
+            parseSql "DO $$\nBEGIN\n    PERFORM 1;\nEND\n$$;" `shouldBe`
+                UnknownStatement { raw = "DO $$\nBEGIN\n    PERFORM 1;\nEND\n$$" }
+
+        it "should preserve a DO block with a standard string body" do
+            parseSql "DO 'BEGIN PERFORM 1; END';" `shouldBe`
+                UnknownStatement { raw = "DO 'BEGIN PERFORM 1; END'" }
+
+        it "should preserve newline-concatenated DO string bodies" do
+            parseSql "DO 'BEGIN NULL;'\n' END';" `shouldBe`
+                UnknownStatement { raw = "DO 'BEGIN NULL;'\n' END'" }
+
+        it "should allow comments between newline-concatenated DO string bodies" do
+            parseSql "DO 'BEGIN'\n/* explanation */ ' END';" `shouldBe`
+                UnknownStatement { raw = "DO 'BEGIN'\n/* explanation */ ' END'" }
+
+        it "should locate COMMENT values outside quoted text" do
+            unsetComment "COMMENT ON TABLE \"records IS active\" IS 'this IS documented'" `shouldBe`
+                Just "COMMENT ON TABLE \"records IS active\" IS NULL"
+            unsetComment "COMMENT ON TABLE users IS/* value trivia */'documented'" `shouldBe`
+                Just "COMMENT ON TABLE users IS NULL"
+
+        it "should preserve a DO block with an escape-string body" do
+            parseSql "DO E'BEGIN PERFORM 1; END';" `shouldBe`
+                UnknownStatement { raw = "DO E'BEGIN PERFORM 1; END'" }
+
+        it "should preserve a DO block with a Unicode-escape string body" do
+            parseSql "DO U&'BEGIN PERFORM \\0061; END' UESCAPE '\\';" `shouldBe`
+                UnknownStatement { raw = "DO U&'BEGIN PERFORM \\0061; END' UESCAPE '\\'" }
+
+        it "should preserve a DO block with a national-character string body" do
+            parseSql "DO N'BEGIN NULL; END';" `shouldBe`
+                UnknownStatement { raw = "DO N'BEGIN NULL; END'" }
+
+        it "should accept PostgreSQL comments around DO clauses" do
+            parseSql "DO -- rationale\n/* outer /* inner */ outer */ $$ BEGIN NULL; END $$;" `shouldBe`
+                UnknownStatement { raw = "DO $$ BEGIN NULL; END $$" }
+
+        it "should preserve a quoted DO language identifier" do
+            parseSql "DO LANGUAGE \"MyLang\" $$ BEGIN NULL; END $$;" `shouldBe`
+                UnknownStatement { raw = "DO LANGUAGE \"MyLang\" $$ BEGIN NULL; END $$" }
+
+        it "should preserve a Unicode-delimited DO language identifier" do
+            parseSql "DO LANGUAGE U&\"plpg\\0073ql\" $$ BEGIN NULL; END $$;" `shouldBe`
+                UnknownStatement { raw = "DO LANGUAGE U&\"plpg\\0073ql\" $$ BEGIN NULL; END $$" }
+
+        it "should not treat dollar signs inside identifiers as quote delimiters" do
+            parseSqlStatements "GRANT SELECT ON foo$tag$ TO role; CREATE FUNCTION f() RETURNS trigger AS $tag$BEGIN RETURN NEW; END;$tag$ language plpgsql;" `shouldBe`
+                [ UnknownStatement { raw = "GRANT SELECT ON foo$tag$ TO role" }
+                , (function "f") { functionBody = "BEGIN RETURN NEW; END;" }
+                ]
+
+        it "should parse tagged function dollar quotes" do
+            parseSql "CREATE FUNCTION f() RETURNS trigger AS $_$ BEGIN RETURN NEW; END; $_$ language plpgsql;" `shouldBe`
+                (function "f") { functionBody = " BEGIN RETURN NEW; END; " }
+
+        it "should reject dollar quote tags starting with a digit" do
+            parseSqlText "CREATE FUNCTION f() RETURNS text AS $1$body$1$ language sql;" `shouldSatisfy` isLeft
+            parseSqlText "DO $1$body$1$;" `shouldSatisfy` isLeft
+
+        it "should parse dollar signs inside a function body" do
+            parseSql "CREATE FUNCTION f(a TEXT) RETURNS text AS $$ SELECT $1; $$ language sql;" `shouldBe`
+                (function "f") { functionArguments = [("a", PText)], returns = PText, functionBody = " SELECT $1; ", language = "sql" }
+
         it "should parse an operator behind an integer literal" do
             parseExpression "a > 0 AND b > 0" `shouldBe`
                 AndExpression

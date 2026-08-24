@@ -5,6 +5,9 @@ on:
 jobs:
   core-size:
     runs-on: ARM64
+    permissions:
+      contents: read
+      pull-requests: write
     steps:
     - uses: actions/checkout@v7
 
@@ -191,6 +194,7 @@ jobs:
           echo "|--------|-------------|"
           head -10 ihp/Bench/result-pr/modules.csv | awk -F, '{ printf "| %s | %s |\n", $1, $2 }'
         } > comment-body.md
+        cat comment-body.md >> "$GITHUB_STEP_SUMMARY"
 
         # Post/update PR comment
         COMMENT_ID=$(gh api "repos/${{ github.repository }}/issues/${{ github.event.pull_request.number }}/comments" \
@@ -198,10 +202,8 @@ jobs:
         if [ -n "$COMMENT_ID" ]; then
           gh api "repos/${{ github.repository }}/issues/comments/$COMMENT_ID" -X DELETE 2>/dev/null || true
         fi
-        # Fork pull requests receive a read-only GITHUB_TOKEN, so posting the
-        # report can fail even when the benchmark itself succeeded.
         gh pr comment "${{ github.event.pull_request.number }}" --body-file comment-body.md \
-          || echo "::warning::Could not post benchmark report as a PR comment"
+          || echo "::warning::Could not post benchmark results as a PR comment; see the job summary"
 
         # Fail if either metric regresses >10%
         if [ "$FAILED" = "1" ]; then

@@ -943,7 +943,7 @@ $$;
         it "should parse 'SELECT' statements" do
             parseSql "SELECT pg_catalog.set_config('search_path', '', false);" `shouldBe` SelectStatement { query = "pg_catalog.set_config('search_path', '', false)" }
         it "should parse 'COMMENT' statements" do
-            parseSql "COMMENT ON EXTENSION \"uuid-ossp\" IS 'generate universally unique identifiers (UUIDs)';" `shouldBe` Comment { content = "ON EXTENSION \"uuid-ossp\" IS 'generate universally unique identifiers (UUIDs)'" }
+            parseSql "COMMENT ON EXTENSION \"uuid-ossp\" IS 'generate universally unique identifiers (UUIDs)';" `shouldBe` UnknownStatement { raw = "COMMENT ON EXTENSION \"uuid-ossp\" IS 'generate universally unique identifiers (UUIDs)'" }
 
         it "should parse a column with a default value that has a qualified function call" do
             let sql = cs [plain|
@@ -1040,7 +1040,7 @@ COMMENT ON EXTENSION "uuid-ossp" IS 'generate universally unique identifiers (UU
                     , Comment {content = ""}
                     , Comment {content = " Name: EXTENSION \"uuid-ossp\"; Type: COMMENT; Schema: -; Owner: -"}
                     , Comment {content = ""}
-                    , Comment {content = "ON EXTENSION \"uuid-ossp\" IS 'generate universally unique identifiers (UUIDs)'"}
+                    , UnknownStatement {raw = "COMMENT ON EXTENSION \"uuid-ossp\" IS 'generate universally unique identifiers (UUIDs)'"}
                     ]
             parseSqlStatements sql `shouldBe` statements
 

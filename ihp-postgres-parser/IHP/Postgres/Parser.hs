@@ -13,6 +13,8 @@ module IHP.Postgres.Parser
 , sqlType
 , removeTypeCasts
 , parseIndexColumns
+, unsetComment
+, normalizeComment
 ) where
 
 import Prelude
@@ -196,11 +198,15 @@ dropQuoted quote (character : rest)
     | otherwise = dropQuoted quote rest
 
 dollarQuoteDelimiter :: String -> Maybe (String, String)
-dollarQuoteDelimiter rest =
-    let (tag, remaining) = span (\character -> isAlphaNum character || character == '_') rest
-    in case remaining of
-        '$' : afterDelimiter -> Just ("$" <> tag <> "$", afterDelimiter)
-        _ -> Nothing
+dollarQuoteDelimiter ('$' : afterDelimiter) = Just ("$$", afterDelimiter)
+dollarQuoteDelimiter (firstCharacter : rest)
+    | isAlpha firstCharacter || firstCharacter == '_' =
+        let (remainingTag, remaining) = span (\character -> isAlphaNum character || character == '_') rest
+            tag = firstCharacter : remainingTag
+        in case remaining of
+            '$' : afterDelimiter -> Just ("$" <> tag <> "$", afterDelimiter)
+            _ -> Nothing
+dollarQuoteDelimiter _ = Nothing
 
 dropDollarQuoted :: String -> String -> String
 dropDollarQuoted _ [] = []
@@ -254,7 +260,7 @@ statement = do
     let alter = do
             lexeme "ALTER"
             alterTable <|> alterType <|> alterSequence
-    s <- setStatement <|> create <|> alter <|> selectStatement <|> try dropTable <|> try dropIndex <|> try dropPolicy <|> try dropFunction <|> try dropType <|> dropTrigger <|> commentStatement <|> comment <|> begin <|> commit <|> restrict <|> unrestrict
+    s <- setStatement <|> create <|> alter <|> selectStatement <|> try opaqueStatement <|> try doStatement <|> try dropTable <|> try dropIndex <|> try dropPolicy <|> try dropFunction <|> try dropType <|> dropTrigger <|> commentStatement <|> comment <|> begin <|> commit <|> restrict <|> unrestrict
     Char.space
     pure s
 
@@ -280,6 +286,241 @@ hasDuplicateExtensionOptions :: [ExtensionOption] -> Bool
 hasDuplicateExtensionOptions options = length optionKinds /= length (List.nub optionKinds)
     where
         optionKinds = map (\case ExtensionSchema {} -> (0 :: Int); ExtensionVersion {} -> 1; ExtensionCascade -> 2) options
+
+-- | Privilege and SQL COMMENT statements are not modeled structurally, but
+-- discarding them would change schema permissions or metadata. Keep their body.
+opaqueStatement :: Parser Statement
+opaqueStatement = do
+    keyword <- choice (map opaqueKeyword ["GRANT", "REVOKE", "COMMENT"])
+    raw <- mconcat <$> someTill opaqueChunk (char ';')
+    let statementRaw = keyword <> raw
+    let trailingWhitespace = Text.drop (Text.length (Text.stripEnd statementRaw)) statementRaw
+    let normalizedRaw
+            | Text.any (== '\n') trailingWhitespace = Text.stripEnd statementRaw <> "\n"
+            | otherwise = Text.stripEnd statementRaw
+    pure UnknownStatement { raw = normalizedRaw }
+    where
+        opaqueKeyword keyword = try do
+            value <- string' keyword
+            notFollowedBy (satisfy (\character -> isAlphaNum character || character == '_'))
+            pure value
+
+sqlTrivia1 :: Parser ()
+sqlTrivia1 = some triviaChunk $> ()
+    where
+        triviaChunk =
+            (space1 $> ())
+            <|> Lexer.skipLineComment "--"
+            <|> Lexer.skipBlockCommentNested "/*" "*/"
+
+-- | Builds the inverse of an executable COMMENT statement. The `IS` keyword
+-- is located lexically, so occurrences inside identifiers, strings, comments,
+-- or dollar-quoted text cannot be mistaken for the comment-value delimiter.
+unsetComment :: Text -> Maybe Text
+unsetComment = parseMaybe do
+    keyword <- fst <$> match do
+        string' "COMMENT"
+        notFollowedBy (satisfy isIdentifierCharacter)
+    target <- mconcat <$> manyTill opaqueChunk commentValueDelimiter
+    _ <- some anySingle
+    eof
+    pure (Text.stripEnd (keyword <> target) <> " IS NULL")
+    where
+        commentValueDelimiter = try do
+            sqlTrivia1
+            string' "IS"
+            notFollowedBy (satisfy isIdentifierCharacter)
+            sqlTrivia1
+
+-- | Canonicalizes an executable COMMENT for schema comparison. PostgreSQL
+-- folds unquoted identifiers and pg_dump qualifies public objects, while a
+-- hand-written Schema.sql commonly keeps their shorter unqualified spelling.
+normalizeComment :: Text -> Maybe Text
+normalizeComment = parseMaybe do
+    string' "COMMENT"
+    notFollowedBy (satisfy isIdentifierCharacter)
+    sqlTrivia1
+    string' "ON"
+    notFollowedBy (satisfy isIdentifierCharacter)
+    sqlTrivia1
+    targetChunks <- manyTill normalizedTargetChunk commentValueDelimiter
+    value <- try (normalizedCommentValue <* spaceConsumer <* eof) <|> (Text.strip . Text.pack <$> some anySingle <* eof)
+    pure ("COMMENT ON " <> normalizeTarget targetChunks <> " IS " <> value)
+    where
+        commentValueDelimiter = try do
+            sqlTrivia1
+            string' "IS"
+            notFollowedBy (satisfy isIdentifierCharacter)
+            sqlTrivia1
+
+        normalizedTargetChunk =
+            try publicQualification
+            <|> try escapeStringChunk
+            <|> quotedChunk '\''
+            <|> quotedChunk '"'
+            <|> try dollarQuoted
+            <|> (Text.toLower <$> identifierChunk)
+            <|> (space1 $> " ")
+            <|> (Lexer.skipLineComment "--" $> " ")
+            <|> (Lexer.skipBlockCommentNested "/*" "*/" $> " ")
+            <|> (Text.singleton <$> anySingle)
+
+        publicQualification = try do
+            schema <- identifierChunk
+            when (Text.toLower schema /= "public") (fail "not the public schema")
+            char '.'
+            pure ""
+
+        normalizeTarget :: [Text] -> Text
+        normalizeTarget chunks = Text.toUpper objectType <> rest
+            where
+                target = Text.strip (List.foldl' appendChunk "" chunks)
+                (objectType, rest) = Text.break isSpace target
+
+        appendChunk :: Text -> Text -> Text
+        appendChunk normalized " "
+            | " " `Text.isSuffixOf` normalized = normalized
+            | otherwise = normalized <> " "
+        appendChunk normalized "(" = Text.stripEnd normalized <> "("
+        appendChunk normalized ")" = Text.stripEnd normalized <> ")"
+        appendChunk normalized "," = Text.stripEnd normalized <> ", "
+        appendChunk normalized chunk = normalized <> chunk
+
+        normalizedCommentValue = quoteString <$> (try dollarQuotedValue <|> standardStringValue)
+
+        dollarQuotedValue = do
+            delimiter <- dollarQuoteTag
+            Text.pack <$> manyTill anySingle (try (string delimiter))
+
+        standardStringValue = do
+            char '\''
+            value <- mconcat <$> many (try (string "''" $> "'") <|> (Text.singleton <$> anySingleBut '\''))
+            char '\''
+            pure value
+
+        quoteString value = "'" <> Text.replace "'" "''" value <> "'"
+
+opaqueChunk :: Parser Text
+opaqueChunk =
+    try escapeStringChunk
+    <|> quotedChunk '\''
+    <|> quotedChunk '"'
+    <|> identifierChunk
+    <|> try dollarQuoted
+    <|> (fst <$> match (Lexer.skipLineComment "--"))
+    <|> (fst <$> match (Lexer.skipBlockCommentNested "/*" "*/"))
+    <|> (Text.singleton <$> anySingle)
+
+quotedChunk :: Char -> Parser Text
+quotedChunk quote = fst <$> match do
+    char quote
+    many (try (char quote >> char quote) <|> anySingleBut quote)
+    char quote
+
+escapeStringChunk :: Parser Text
+escapeStringChunk = fst <$> match do
+    oneOf ['e', 'E']
+    char '\''
+    many (try (char '\'' >> char '\'') <|> try (char '\\' >> anySingle) <|> anySingleBut '\'')
+    char '\''
+
+identifierChunk :: Parser Text
+identifierChunk = fst <$> match do
+    _ <- satisfy (\character -> isAlpha character || character == '_')
+    takeWhileP Nothing (\character -> isAlphaNum character || character == '_' || character == '$')
+
+-- | An anonymous DO block. Its body can contain semicolons, so parse through
+-- the matching dollar-quote delimiter before consuming the statement terminator.
+doStatement :: Parser Statement
+doStatement = do
+    sqlLexeme (string' "DO")
+    languageBefore <- optional (sqlLexeme (string' "LANGUAGE") >> languageIdentifier)
+    body <- dollarQuoted <|> concatenatedStringLiterals
+    sqlSpaceConsumer
+    languageAfter <- optional (sqlLexeme (string' "LANGUAGE") >> languageIdentifier)
+    char ';'
+    let language = maybe "" (\name -> "LANGUAGE " <> name <> " ") (languageBefore <|> languageAfter)
+    pure UnknownStatement { raw = "DO " <> language <> body }
+    where
+        concatenatedStringLiterals = do
+            first <- stringLiteral
+            rest <- many $ try do
+                separator <- fst <$> match stringConcatenationSeparator
+                next <- stringLiteral
+                pure (separator <> next)
+            pure (mconcat (first : rest))
+        stringLiteral = try unicodeEscapeStringLiteral <|> try prefixedStandardStringLiteral <|> try escapeStringLiteral <|> standardStringLiteral
+        stringConcatenationSeparator = do
+            separator <- fst <$> match (some separatorChunk)
+            when (not (Text.any (`elem` ['\n', '\r']) separator)) (fail "adjacent SQL string literals require a newline")
+        separatorChunk =
+            (some (satisfy isSpace) $> ())
+            <|> Lexer.skipLineComment "--"
+            <|> Lexer.skipBlockCommentNested "/*" "*/"
+        unicodeEscapeStringLiteral = fst <$> match do
+            string' "U&"
+            char '\''
+            many (try (char '\'' >> char '\'') <|> anySingleBut '\'')
+            char '\''
+            optional $ try do
+                sqlSpaceConsumer
+                string' "UESCAPE"
+                notFollowedBy (satisfy isIdentifierCharacter)
+                sqlSpaceConsumer
+                char '\''
+                anySingleBut '\''
+                char '\''
+        escapeStringLiteral = fst <$> match do
+            oneOf ['e', 'E']
+            char '\''
+            many (try (char '\'' >> char '\'') <|> try (char '\\' >> anySingle) <|> anySingleBut '\'')
+            char '\''
+        prefixedStandardStringLiteral = fst <$> match do
+            oneOf ['n', 'N']
+            char '\''
+            many (try (char '\'' >> char '\'') <|> anySingleBut '\'')
+            char '\''
+        standardStringLiteral = fst <$> match do
+            char '\''
+            many (try (char '\'' >> char '\'') <|> anySingleBut '\'')
+            char '\''
+        languageIdentifier = sqlLexeme (fst <$> match (try unicodeDelimitedIdentifier <|> rawIdentifier))
+        unicodeDelimitedIdentifier = do
+            string' "U&"
+            char '"'
+            many (try (string "\"\"") <|> (Text.singleton <$> anySingleBut '"'))
+            char '"'
+            optional $ try do
+                sqlSpaceConsumer
+                string' "UESCAPE"
+                notFollowedBy (satisfy isIdentifierCharacter)
+                sqlSpaceConsumer
+                char '\''
+                anySingleBut '\''
+                char '\''
+            pure ()
+        rawIdentifier =
+            between (char '"') (char '"') (many (try (string "\"\"") <|> (Text.singleton <$> anySingleBut '"'))) $> ()
+            <|> some (satisfy (\character -> isAlphaNum character || character == '_' || character == '$')) $> ()
+        sqlLexeme = Lexer.lexeme sqlSpaceConsumer
+        sqlSpaceConsumer = Lexer.space space1 (Lexer.skipLineComment "--") (Lexer.skipBlockCommentNested "/*" "*/")
+
+-- | A dollar-quoted string including its delimiter.
+dollarQuoted :: Parser Text
+dollarQuoted = do
+    delimiter <- dollarQuoteTag
+    body <- cs <$> manyTill anySingle (try (string delimiter))
+    pure (delimiter <> body <> delimiter)
+
+dollarQuoteTag :: Parser Text
+dollarQuoteTag = do
+    char '$'
+    tag <- optional do
+        firstCharacter <- satisfy (\character -> isAlpha character || character == '_')
+        remainingCharacters <- takeWhileP (Just "dollar quote tag") (\character -> isAlphaNum character || character == '_')
+        pure (Text.cons firstCharacter remainingCharacters)
+    char '$'
+    pure ("$" <> maybe "" id tag <> "$")
 
 createTable = do
     lexeme "CREATE"
@@ -1042,7 +1283,7 @@ createFunction = do
 
     lexeme "AS"
     space
-    functionBody <- cs <$> between (char '$' >> char '$') (char '$' >> char '$') (many (anySingleBut '$'))
+    functionBody <- functionBodyText
     space
 
     functionOptionsAfterBody <- many parseFunctionOption
@@ -1073,6 +1314,13 @@ createFunction = do
             <|> sqlType
         isSecurityDefiner FunctionSecurityDefiner = True
         isSecurityDefiner _ = False
+
+-- | Parse the function body without assuming the delimiter is exactly $$ or
+-- that the body contains no dollar sign (for example a $1 parameter reference).
+functionBodyText :: Parser Text
+functionBodyText = do
+    delimiter <- dollarQuoteTag
+    cs <$> manyTill anySingle (try (string delimiter))
 
 parseFunctionOption :: Parser FunctionOption
 parseFunctionOption =
