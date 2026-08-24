@@ -16,7 +16,7 @@ tests = do
             compileSql [StatementCreateTable (table "users")] `shouldBe` "CREATE TABLE users (\n\n);\n"
 
         it "should compile a CREATE EXTENSION for the UUID extension" do
-            compileSql [CreateExtension { name = "uuid-ossp", ifNotExists = True }] `shouldBe` "CREATE EXTENSION IF NOT EXISTS \"uuid-ossp\";\n"
+            compileSql [CreateExtension { name = "uuid-ossp", ifNotExists = True, extensionOptions = [] }] `shouldBe` "CREATE EXTENSION IF NOT EXISTS \"uuid-ossp\";\n"
 
         it "should compile a line comment" do
             compileSql [Comment { content = " Comment value" }] `shouldBe` "-- Comment value\n"
@@ -815,7 +815,7 @@ tests = do
 
         it "should compile 'CREATE SEQUENCE ..' statements" do
             let sql = "CREATE SEQUENCE a;\n"
-            let statements = [ CreateSequence { name = "a" } ]
+            let statements = [ CreateSequence { name = "a", sequenceOptions = [] } ]
             compileSql statements `shouldBe` sql
 
         it "should compile 'ALTER TABLE .. RENAME COLUMN .. TO ..' statements" do
@@ -875,7 +875,7 @@ tests = do
 
         it "should compile 'CREATE EXTENSION IF NOT EXISTS;' statements with an unqualified name" do
             let sql = "CREATE EXTENSION IF NOT EXISTS fuzzystrmatch;\n"
-            let statements = [ CreateExtension { name = "fuzzystrmatch", ifNotExists = True } ]
+            let statements = [ CreateExtension { name = "fuzzystrmatch", ifNotExists = True, extensionOptions = [] } ]
             compileSql statements `shouldBe` sql
 
         it "should compile 'CREATE POLICY ..;' statements with an EXISTS condition" do

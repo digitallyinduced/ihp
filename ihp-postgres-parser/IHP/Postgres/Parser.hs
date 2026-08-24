@@ -13,10 +13,13 @@ module IHP.Postgres.Parser
 , sqlType
 , removeTypeCasts
 , parseIndexColumns
+, unsetComment
+, normalizeComment
 ) where
 
 import Prelude
 import IHP.Postgres.Types hiding (table)
+import IHP.Postgres.Compiler (compilePostgresType)
 import Data.Text (Text)
 import qualified Data.Text as Text
 import qualified Data.Text.IO as Text
@@ -87,15 +90,16 @@ createExtensionForMigration = do
         extensionKeyword "EXISTS"
     name <- extensionIdentifier
     optional (extensionKeyword "WITH")
-    optional do
-        extensionKeyword "SCHEMA"
-        extensionIdentifier
-    optional do
-        extensionKeyword "VERSION"
-        extensionVersion
-    optional (extensionKeyword "CASCADE")
+    extensionOptions <- many extensionOption
+    when (hasDuplicateExtensionOptions extensionOptions) (fail "duplicate CREATE EXTENSION option")
     extensionSymbol ";"
-    pure CreateExtension { name, ifNotExists }
+    pure CreateExtension { name, ifNotExists, extensionOptions }
+    where
+        extensionOption = choice
+            [ extensionKeyword "SCHEMA" >> (ExtensionSchema <$> extensionIdentifier)
+            , extensionKeyword "VERSION" >> (ExtensionVersion <$> extensionVersionText)
+            , extensionKeyword "CASCADE" $> ExtensionCascade
+            ]
 
 extensionSpaceConsumer :: Parser ()
 extensionSpaceConsumer = Lexer.space
@@ -122,12 +126,12 @@ extensionIdentifier = extensionLexeme (quotedIdentifier <|> unquotedIdentifier)
             remainingCharacters <- many (satisfy isIdentifierCharacter)
             pure (Text.toLower (Text.pack (firstCharacter : remainingCharacters)))
 
-extensionVersion :: Parser ()
-extensionVersion = extensionLexeme (quotedVersion <|> unquotedVersion) $> ()
+extensionVersionText :: Parser Text
+extensionVersionText = extensionLexeme (quotedVersion <|> unquotedVersion)
     where
-        quotedVersion = between (char '\'') (char '\'') (many quotedVersionCharacter)
+        quotedVersion = Text.pack <$> between (char '\'') (char '\'') (many quotedVersionCharacter)
         quotedVersionCharacter = try (string "''" $> '\'') <|> satisfy (/= '\'')
-        unquotedVersion = some (satisfy isIdentifierCharacter)
+        unquotedVersion = Text.pack <$> some (satisfy isIdentifierCharacter)
 
 isIdentifierCharacter :: Char -> Bool
 isIdentifierCharacter character = isAlphaNum character || character == '_' || character == '$'
@@ -194,11 +198,15 @@ dropQuoted quote (character : rest)
     | otherwise = dropQuoted quote rest
 
 dollarQuoteDelimiter :: String -> Maybe (String, String)
-dollarQuoteDelimiter rest =
-    let (tag, remaining) = span (\character -> isAlphaNum character || character == '_') rest
-    in case remaining of
-        '$' : afterDelimiter -> Just ("$" <> tag <> "$", afterDelimiter)
-        _ -> Nothing
+dollarQuoteDelimiter ('$' : afterDelimiter) = Just ("$$", afterDelimiter)
+dollarQuoteDelimiter (firstCharacter : rest)
+    | isAlpha firstCharacter || firstCharacter == '_' =
+        let (remainingTag, remaining) = span (\character -> isAlphaNum character || character == '_') rest
+            tag = firstCharacter : remainingTag
+        in case remaining of
+            '$' : afterDelimiter -> Just ("$" <> tag <> "$", afterDelimiter)
+            _ -> Nothing
+dollarQuoteDelimiter _ = Nothing
 
 dropDollarQuoted :: String -> String -> String
 dropDollarQuoted _ [] = []
@@ -252,7 +260,7 @@ statement = do
     let alter = do
             lexeme "ALTER"
             alterTable <|> alterType <|> alterSequence
-    s <- setStatement <|> create <|> alter <|> selectStatement <|> try dropTable <|> try dropIndex <|> try dropPolicy <|> try dropFunction <|> try dropType <|> dropTrigger <|> commentStatement <|> comment <|> begin <|> commit <|> restrict <|> unrestrict
+    s <- setStatement <|> create <|> alter <|> selectStatement <|> try opaqueStatement <|> try doStatement <|> try dropTable <|> try dropIndex <|> try dropPolicy <|> try dropFunction <|> try dropType <|> dropTrigger <|> commentStatement <|> comment <|> begin <|> commit <|> restrict <|> unrestrict
     Char.space
     pure s
 
@@ -262,13 +270,257 @@ createExtension = do
     lexeme "EXTENSION"
     ifNotExists <- isJust <$> optional (lexeme "IF" >> lexeme "NOT" >> lexeme "EXISTS")
     name <- qualifiedIdentifier
-    optional do
-        space
-        lexeme "WITH"
-        lexeme "SCHEMA"
-        lexeme "public"
+    optional (lexeme "WITH")
+    extensionOptions <- many extensionOption
+    when (hasDuplicateExtensionOptions extensionOptions) (fail "duplicate CREATE EXTENSION option")
     char ';'
-    pure CreateExtension { name, ifNotExists }
+    pure CreateExtension { name, ifNotExists, extensionOptions }
+    where
+        extensionOption = choice
+            [ lexeme "SCHEMA" >> (ExtensionSchema <$> extensionIdentifier)
+            , lexeme "VERSION" >> (ExtensionVersion <$> extensionVersionText)
+            , lexeme "CASCADE" $> ExtensionCascade
+            ]
+
+hasDuplicateExtensionOptions :: [ExtensionOption] -> Bool
+hasDuplicateExtensionOptions options = length optionKinds /= length (List.nub optionKinds)
+    where
+        optionKinds = map (\case ExtensionSchema {} -> (0 :: Int); ExtensionVersion {} -> 1; ExtensionCascade -> 2) options
+
+-- | Privilege and SQL COMMENT statements are not modeled structurally, but
+-- discarding them would change schema permissions or metadata. Keep their body.
+opaqueStatement :: Parser Statement
+opaqueStatement = do
+    keyword <- choice (map opaqueKeyword ["GRANT", "REVOKE", "COMMENT"])
+    raw <- mconcat <$> someTill opaqueChunk (char ';')
+    let statementRaw = keyword <> raw
+    let trailingWhitespace = Text.drop (Text.length (Text.stripEnd statementRaw)) statementRaw
+    let normalizedRaw
+            | Text.any (== '\n') trailingWhitespace = Text.stripEnd statementRaw <> "\n"
+            | otherwise = Text.stripEnd statementRaw
+    pure UnknownStatement { raw = normalizedRaw }
+    where
+        opaqueKeyword keyword = try do
+            value <- string' keyword
+            notFollowedBy (satisfy (\character -> isAlphaNum character || character == '_'))
+            pure value
+
+sqlTrivia1 :: Parser ()
+sqlTrivia1 = some triviaChunk $> ()
+    where
+        triviaChunk =
+            (space1 $> ())
+            <|> Lexer.skipLineComment "--"
+            <|> Lexer.skipBlockCommentNested "/*" "*/"
+
+-- | Builds the inverse of an executable COMMENT statement. The `IS` keyword
+-- is located lexically, so occurrences inside identifiers, strings, comments,
+-- or dollar-quoted text cannot be mistaken for the comment-value delimiter.
+unsetComment :: Text -> Maybe Text
+unsetComment = parseMaybe do
+    keyword <- fst <$> match do
+        string' "COMMENT"
+        notFollowedBy (satisfy isIdentifierCharacter)
+    target <- mconcat <$> manyTill opaqueChunk commentValueDelimiter
+    _ <- some anySingle
+    eof
+    pure (Text.stripEnd (keyword <> target) <> " IS NULL")
+    where
+        commentValueDelimiter = try do
+            sqlTrivia1
+            string' "IS"
+            notFollowedBy (satisfy isIdentifierCharacter)
+            sqlTrivia1
+
+-- | Canonicalizes an executable COMMENT for schema comparison. PostgreSQL
+-- folds unquoted identifiers and pg_dump qualifies public objects, while a
+-- hand-written Schema.sql commonly keeps their shorter unqualified spelling.
+normalizeComment :: Text -> Maybe Text
+normalizeComment = parseMaybe do
+    string' "COMMENT"
+    notFollowedBy (satisfy isIdentifierCharacter)
+    sqlTrivia1
+    string' "ON"
+    notFollowedBy (satisfy isIdentifierCharacter)
+    sqlTrivia1
+    targetChunks <- manyTill normalizedTargetChunk commentValueDelimiter
+    value <- try (normalizedCommentValue <* spaceConsumer <* eof) <|> (Text.strip . Text.pack <$> some anySingle <* eof)
+    pure ("COMMENT ON " <> normalizeTarget targetChunks <> " IS " <> value)
+    where
+        commentValueDelimiter = try do
+            sqlTrivia1
+            string' "IS"
+            notFollowedBy (satisfy isIdentifierCharacter)
+            sqlTrivia1
+
+        normalizedTargetChunk =
+            try publicQualification
+            <|> try escapeStringChunk
+            <|> quotedChunk '\''
+            <|> quotedChunk '"'
+            <|> try dollarQuoted
+            <|> (Text.toLower <$> identifierChunk)
+            <|> (space1 $> " ")
+            <|> (Lexer.skipLineComment "--" $> " ")
+            <|> (Lexer.skipBlockCommentNested "/*" "*/" $> " ")
+            <|> (Text.singleton <$> anySingle)
+
+        publicQualification = try do
+            schema <- identifierChunk
+            when (Text.toLower schema /= "public") (fail "not the public schema")
+            char '.'
+            pure ""
+
+        normalizeTarget :: [Text] -> Text
+        normalizeTarget chunks = Text.toUpper objectType <> rest
+            where
+                target = Text.strip (List.foldl' appendChunk "" chunks)
+                (objectType, rest) = Text.break isSpace target
+
+        appendChunk :: Text -> Text -> Text
+        appendChunk normalized " "
+            | " " `Text.isSuffixOf` normalized = normalized
+            | otherwise = normalized <> " "
+        appendChunk normalized "(" = Text.stripEnd normalized <> "("
+        appendChunk normalized ")" = Text.stripEnd normalized <> ")"
+        appendChunk normalized "," = Text.stripEnd normalized <> ", "
+        appendChunk normalized chunk = normalized <> chunk
+
+        normalizedCommentValue = quoteString <$> (try dollarQuotedValue <|> standardStringValue)
+
+        dollarQuotedValue = do
+            delimiter <- dollarQuoteTag
+            Text.pack <$> manyTill anySingle (try (string delimiter))
+
+        standardStringValue = do
+            char '\''
+            value <- mconcat <$> many (try (string "''" $> "'") <|> (Text.singleton <$> anySingleBut '\''))
+            char '\''
+            pure value
+
+        quoteString value = "'" <> Text.replace "'" "''" value <> "'"
+
+opaqueChunk :: Parser Text
+opaqueChunk =
+    try escapeStringChunk
+    <|> quotedChunk '\''
+    <|> quotedChunk '"'
+    <|> identifierChunk
+    <|> try dollarQuoted
+    <|> (fst <$> match (Lexer.skipLineComment "--"))
+    <|> (fst <$> match (Lexer.skipBlockCommentNested "/*" "*/"))
+    <|> (Text.singleton <$> anySingle)
+
+quotedChunk :: Char -> Parser Text
+quotedChunk quote = fst <$> match do
+    char quote
+    many (try (char quote >> char quote) <|> anySingleBut quote)
+    char quote
+
+escapeStringChunk :: Parser Text
+escapeStringChunk = fst <$> match do
+    oneOf ['e', 'E']
+    char '\''
+    many (try (char '\'' >> char '\'') <|> try (char '\\' >> anySingle) <|> anySingleBut '\'')
+    char '\''
+
+identifierChunk :: Parser Text
+identifierChunk = fst <$> match do
+    _ <- satisfy (\character -> isAlpha character || character == '_')
+    takeWhileP Nothing (\character -> isAlphaNum character || character == '_' || character == '$')
+
+-- | An anonymous DO block. Its body can contain semicolons, so parse through
+-- the matching dollar-quote delimiter before consuming the statement terminator.
+doStatement :: Parser Statement
+doStatement = do
+    sqlLexeme (string' "DO")
+    languageBefore <- optional (sqlLexeme (string' "LANGUAGE") >> languageIdentifier)
+    body <- dollarQuoted <|> concatenatedStringLiterals
+    sqlSpaceConsumer
+    languageAfter <- optional (sqlLexeme (string' "LANGUAGE") >> languageIdentifier)
+    char ';'
+    let language = maybe "" (\name -> "LANGUAGE " <> name <> " ") (languageBefore <|> languageAfter)
+    pure UnknownStatement { raw = "DO " <> language <> body }
+    where
+        concatenatedStringLiterals = do
+            first <- stringLiteral
+            rest <- many $ try do
+                separator <- fst <$> match stringConcatenationSeparator
+                next <- stringLiteral
+                pure (separator <> next)
+            pure (mconcat (first : rest))
+        stringLiteral = try unicodeEscapeStringLiteral <|> try prefixedStandardStringLiteral <|> try escapeStringLiteral <|> standardStringLiteral
+        stringConcatenationSeparator = do
+            separator <- fst <$> match (some separatorChunk)
+            when (not (Text.any (`elem` ['\n', '\r']) separator)) (fail "adjacent SQL string literals require a newline")
+        separatorChunk =
+            (some (satisfy isSpace) $> ())
+            <|> Lexer.skipLineComment "--"
+            <|> Lexer.skipBlockCommentNested "/*" "*/"
+        unicodeEscapeStringLiteral = fst <$> match do
+            string' "U&"
+            char '\''
+            many (try (char '\'' >> char '\'') <|> anySingleBut '\'')
+            char '\''
+            optional $ try do
+                sqlSpaceConsumer
+                string' "UESCAPE"
+                notFollowedBy (satisfy isIdentifierCharacter)
+                sqlSpaceConsumer
+                char '\''
+                anySingleBut '\''
+                char '\''
+        escapeStringLiteral = fst <$> match do
+            oneOf ['e', 'E']
+            char '\''
+            many (try (char '\'' >> char '\'') <|> try (char '\\' >> anySingle) <|> anySingleBut '\'')
+            char '\''
+        prefixedStandardStringLiteral = fst <$> match do
+            oneOf ['n', 'N']
+            char '\''
+            many (try (char '\'' >> char '\'') <|> anySingleBut '\'')
+            char '\''
+        standardStringLiteral = fst <$> match do
+            char '\''
+            many (try (char '\'' >> char '\'') <|> anySingleBut '\'')
+            char '\''
+        languageIdentifier = sqlLexeme (fst <$> match (try unicodeDelimitedIdentifier <|> rawIdentifier))
+        unicodeDelimitedIdentifier = do
+            string' "U&"
+            char '"'
+            many (try (string "\"\"") <|> (Text.singleton <$> anySingleBut '"'))
+            char '"'
+            optional $ try do
+                sqlSpaceConsumer
+                string' "UESCAPE"
+                notFollowedBy (satisfy isIdentifierCharacter)
+                sqlSpaceConsumer
+                char '\''
+                anySingleBut '\''
+                char '\''
+            pure ()
+        rawIdentifier =
+            between (char '"') (char '"') (many (try (string "\"\"") <|> (Text.singleton <$> anySingleBut '"'))) $> ()
+            <|> some (satisfy (\character -> isAlphaNum character || character == '_' || character == '$')) $> ()
+        sqlLexeme = Lexer.lexeme sqlSpaceConsumer
+        sqlSpaceConsumer = Lexer.space space1 (Lexer.skipLineComment "--") (Lexer.skipBlockCommentNested "/*" "*/")
+
+-- | A dollar-quoted string including its delimiter.
+dollarQuoted :: Parser Text
+dollarQuoted = do
+    delimiter <- dollarQuoteTag
+    body <- cs <$> manyTill anySingle (try (string delimiter))
+    pure (delimiter <> body <> delimiter)
+
+dollarQuoteTag :: Parser Text
+dollarQuoteTag = do
+    char '$'
+    tag <- optional do
+        firstCharacter <- satisfy (\character -> isAlpha character || character == '_')
+        remainingCharacters <- takeWhileP (Just "dollar quote tag") (\character -> isAlphaNum character || character == '_')
+        pure (Text.cons firstCharacter remainingCharacters)
+    char '$'
+    pure ("$" <> maybe "" id tag <> "$")
 
 createTable = do
     lexeme "CREATE"
@@ -380,20 +632,53 @@ parseExcludeConstraint name = do
     pure ExcludeConstraint { name, excludeElements, predicate, indexType }
     where
         excludeElement = do
-            element <- identifier
-            space
-            lexeme "WITH"
-            space
+            element <- Text.stripEnd . mconcat <$> someTill excludeElementChunk withDelimiter
             operator <- parseCommutativeInfixOperator
             pure ExcludeConstraintElement { element, operator }
 
-        parseCommutativeInfixOperator = choice $ map lexeme
-            [ "="
-            , "<>"
-            , "!="
-            , "AND"
-            , "OR"
-            ]
+        withDelimiter = try do
+            optional space1
+            string' "WITH"
+            notFollowedBy (satisfy isIdentifierCharacter)
+            space
+
+        excludeElementChunk =
+            try dollarQuotedChunk
+            <|> try escapeStringChunk
+            <|> quotedChunk '\''
+            <|> quotedChunk '"'
+            <|> (fst <$> match (Lexer.skipLineComment "--"))
+            <|> (fst <$> match (Lexer.skipBlockCommentNested "/*" "*/"))
+            <|> identifierChunk
+            <|> (Text.singleton <$> anySingle)
+
+        identifierChunk = fst <$> match do
+            _ <- satisfy (\character -> isAlpha character || character == '_')
+            takeWhileP Nothing isIdentifierCharacter
+
+        dollarQuotedChunk :: Parser Text
+        dollarQuotedChunk = fst <$> match do
+            delimiter <- do
+                char '$'
+                tag <- takeWhileP (Just "dollar quote tag") (\c -> isAlphaNum c || c == '_')
+                char '$'
+                pure ("$" <> tag <> "$")
+            _ <- manyTill anySingle (try (string delimiter))
+            pure ()
+
+        quotedChunk quote = fst <$> match do
+            char quote
+            many (try (char quote >> char quote) <|> anySingleBut quote)
+            char quote
+
+        escapeStringChunk = fst <$> match do
+            oneOf ['e', 'E']
+            char '\''
+            many (try (char '\\' >> anySingle) <|> try (char '\'' >> char '\'') <|> anySingleBut '\'')
+            char '\''
+
+        parseCommutativeInfixOperator = lexeme do
+            try identifier <|> takeWhile1P (Just "operator") (`elem` ("+-*/<>=~!@#%^&|`?" :: String))
 
 parseOnDelete = choice
         [ (lexeme "NO" >> lexeme "ACTION") >> pure NoAction
@@ -413,6 +698,7 @@ parseColumn = do
             , columnType
             , defaultValue = Nothing
             , notNull = False
+            , notNullConstraintName = Nothing
             , isUnique = False
             , generator = Nothing
             }
@@ -438,6 +724,15 @@ parseColumn = do
                 lexeme "NOT"
                 lexeme "NULL"
                 parseColumnAttributes column { notNull = True } primaryKey
+            -- PostgreSQL 18 stores NOT NULL constraints in pg_constraint, so
+            -- pg_dump can emit their name before NOT NULL. IHP does not model
+            -- constraint names for columns, but it must accept this spelling.
+            , do
+                lexeme "CONSTRAINT"
+                constraintName <- identifier
+                lexeme "NOT"
+                lexeme "NULL"
+                parseColumnAttributes column { notNull = True, notNullConstraintName = Just constraintName } primaryKey
             , do
                 lexeme "UNIQUE"
                 parseColumnAttributes column { isUnique = True } primaryKey
@@ -489,7 +784,7 @@ sqlType = choice $ map optionalArray
                     pure PTimestampWithTimezone
 
                 timestampZ' = do
-                    try (symbol' "TIMESTAMPZ")
+                    try (symbol' "TIMESTAMPTZ") <|> try (symbol' "TIMESTAMPZ")
                     pure PTimestampWithTimezone
 
                 timestamp' = do
@@ -645,10 +940,7 @@ sqlType = choice $ map optionalArray
                     pure PEventTrigger
 
                 customType = do
-                    optional do
-                        lexeme "public"
-                        char '.'
-                    theType <- try (takeWhile1P (Just "Custom type") (\c -> isAlphaNum c || c == '_'))
+                    theType <- sourceQualifiedTypeIdentifier
                     -- Custom typmods are flat here; nested parenthesized
                     -- modifiers are not supported by this parser.
                     typeModifier <- optional $ try do
@@ -659,6 +951,25 @@ sqlType = choice $ map optionalArray
                         pure value
                     pure (PCustomType (maybe theType (\value -> theType <> "(" <> value <> ")") typeModifier))
 
+                sourceQualifiedTypeIdentifier = do
+                    schemaOrName <- sourceTypeIdentifier
+                    maybeName <- optional (char '.' >> sourceTypeIdentifier)
+                    pure case maybeName of
+                        Nothing -> schemaOrName
+                        Just name
+                            | schemaOrName == "public" || schemaOrName == "\"public\"" -> name
+                            | otherwise -> schemaOrName <> "." <> name
+
+                sourceTypeIdentifier = quotedTypeIdentifier <|> unquotedTypeIdentifier
+                quotedTypeIdentifier = fst <$> match do
+                    char '"'
+                    _ <- many (try (string "\"\"" $> ()) <|> (anySingleBut '"' $> ()))
+                    char '"'
+                unquotedTypeIdentifier = do
+                    first <- satisfy (\character -> isAlpha character || character == '_')
+                    rest <- many (satisfy (\character -> isAlphaNum character || character == '_' || character == '$'))
+                    pure (Text.toLower (Text.pack (first : rest)))
+
 
 intervalFields :: [Text]
 intervalFields =  [ "YEAR TO MONTH", "DAY TO HOUR", "DAY TO MINUTE", "DAY TO SECOND"
@@ -666,35 +977,77 @@ intervalFields =  [ "YEAR TO MONTH", "DAY TO HOUR", "DAY TO MINUTE", "DAY TO SEC
                    , "YEAR",  "MONTH", "DAY", "HOUR", "MINUTE", "SECOND"]
 
 
-term = parens expression <|> try variadicExpr <|> try arrayExpr <|> try callExpr <|> try doubleExpr <|> try intExpr <|> selectExpr <|> varExpr <|> (textExpr <* optional space)
+term = parens expression <|> try variadicExpr <|> try arrayExpr <|> try typedLiteralExpr <|> try callExpr <|> try doubleExpr <|> try intExpr <|> selectExpr <|> varExpr <|> (textExpr <* optional space)
     where
         parens f = between (char '(' >> space) (char ')' >> space) f
 
-table = [
+table = highPrecedenceTable <> genericOperatorTable <>
+        [
+            [ Postfix (foldl1 (flip (.)) <$> some (try notInOp <|> try notBetweenOp <|> try betweenOp <|> inOp))
+            ],
+            [ keywordOperator "NOT LIKE", keywordOperator "NOT ILIKE"
+            , keywordOperator "LIKE", keywordOperator "ILIKE"
+            ],
+            [ Postfix escapeOp
+            ],
             [ binary  "<>"  NotEqExpression
+            -- `!=` is PostgreSQL's spelling of `<>`; the compiler prints the
+            -- canonical `<>` back, which is what pg_dump emits.
+            , binary  "!="  NotEqExpression
             , binary "="  EqExpression
 
             , binary "<=" LessThanOrEqualToExpression
             , binary "<"  LessThanExpression
             , binary ">="  GreaterThanOrEqualToExpression
             , binary ">"  GreaterThanExpression
-            , binary "||" ConcatenationExpression
-
             , binary "IS" IsExpression
             , prefix "NOT" NotExpression
             , prefix "EXISTS" ExistsExpression
-            -- Chain multiple postfix operators at the same precedence so we can
-            -- parse e.g. `table.col IN (SELECT …)` — pg_dump qualifies columns
-            -- with their table name and `makeExprParser`'s `Postfix` only
-            -- applies one postfix per term.
-            , Postfix (foldl1 (flip (.)) <$> some (typeCastOp <|> dotOp <|> inOp))
             ],
             [ binary "AND" AndExpression, binary "OR" OrExpression ]
         ]
     where
+        highPrecedenceTable =
+            [ -- Chained postfix operators bind tighter than every infix
+              -- operator, so `a::integer + 1` casts `a`, not the sum.
+              [ Postfix (foldl1 (flip (.)) <$> some (typeCastOp <|> dotOp))
+              ]
+            , [ keywordOperator "AT TIME ZONE" ]
+            , [ operator "^" ]
+            , [ operator "*", operator "/", operator "%" ]
+            , [ operator "+", operator "-" ]
+            ]
+
+        genericOperatorTable = [[genericOperator, InfixL (ConcatenationExpression <$ try (symbol "||"))]]
+
         binary  name f = InfixL  (f <$ try (symbol name))
         prefix  name f = Prefix  (f <$ symbol name)
         postfix name f = Postfix (f <$ symbol name)
+
+        -- | An operator kept verbatim in 'BinaryOperatorExpression'.
+        operator name = InfixL (BinaryOperatorExpression name <$ try (lexeme (string name <* notFollowedBy (satisfy isOperatorCharacter))))
+
+        genericOperator = InfixL do
+            name <- try do
+                name <- lexeme (Text.pack <$> some (satisfy isOperatorCharacter))
+                when (name `elem` dedicatedOperators) (fail "operator has dedicated precedence")
+                pure name
+            pure (BinaryOperatorExpression name)
+
+        isOperatorCharacter character = character `elem` ("+-*/<>=~!@#%^&|`?" :: String)
+        dedicatedOperators = ["*", "/", "%", "+", "-", "<>", "!=", "=", "<=", "<", ">=", ">", "||"]
+
+        -- | Same, for operators spelled as words, which need a word boundary so
+        -- that e.g. `LIKE` does not match the start of a `likelihood` column.
+        keywordOperator name = InfixL (BinaryOperatorExpression name <$ try (mapM_ keyword (Text.words name)))
+
+        keyword name = try do
+            lexeme (string' name <* notFollowedBy (satisfy isIdentifierCharacter))
+
+        escapeOp = do
+            keyword "ESCAPE"
+            escapeCharacter <- boundExpression
+            pure (\patternExpression -> BinaryOperatorExpression "ESCAPE" patternExpression escapeCharacter)
 
         -- Cannot be implemented as a infix operator as that requires two expression operands,
         -- but the second is the type-cast type which is not an expression
@@ -709,9 +1062,35 @@ table = [
             pure $ \expr -> DotExpression expr name
 
         inOp = do
-            lexeme "IN"
+            keyword "IN"
             right <- try inArrayExpression <|> expression
             pure $ \expr -> InExpression expr right
+
+        notInOp = do
+            keyword "NOT"
+            keyword "IN"
+            right <- try inArrayExpression <|> expression
+            pure $ \expr -> BinaryOperatorExpression "NOT IN" expr right
+
+        notBetweenOp = do
+            keyword "NOT"
+            keyword "BETWEEN"
+            lower <- boundExpression
+            keyword "AND"
+            upper <- boundExpression
+            pure $ \expr -> NotExpression (AndExpression (GreaterThanOrEqualToExpression expr lower) (LessThanOrEqualToExpression expr upper))
+
+        betweenOp = do
+            keyword "BETWEEN"
+            lower <- boundExpression
+            keyword "AND"
+            upper <- boundExpression
+            pure $ \expr -> AndExpression (GreaterThanOrEqualToExpression expr lower) (LessThanOrEqualToExpression expr upper)
+
+        boundExpression = do
+            value <- makeExprParser term (highPrecedenceTable <> genericOperatorTable <> [[binary "||" ConcatenationExpression]])
+            space
+            pure value
 
 -- | Parses a SQL expression
 --
@@ -725,11 +1104,24 @@ expression = do
 varExpr :: Parser Expression
 varExpr = VarExpression <$> identifier
 
+-- | Numeric literals are lexemes: without consuming the whitespace that follows
+-- them, `makeExprParser` cannot see the operator behind it and
+-- @CHECK (a > 0 AND b > 0)@ fails where @CHECK (a > 'x' AND …)@ succeeds.
 doubleExpr :: Parser Expression
 doubleExpr = NumericExpression . fst <$> lexeme (match (Lexer.signed spaceConsumer Lexer.float))
 
 intExpr :: Parser Expression
-intExpr = IntExpression <$> (Lexer.signed spaceConsumer Lexer.decimal)
+intExpr = IntExpression <$> lexeme (Lexer.signed spaceConsumer Lexer.decimal)
+
+-- | PostgreSQL's @TYPE 'value'@ syntax, normalized to the equivalent cast.
+typedLiteralExpr :: Parser Expression
+typedLiteralExpr = do
+    literalType <- sqlType
+    value <- textExpr <* space
+    literalType <- case literalType of
+        PInterval Nothing -> PInterval <$> optional (choice (map symbol' intervalFields))
+        _ -> pure literalType
+    pure (TypeCastExpression value literalType)
 
 callExpr :: Parser Expression
 callExpr = do
@@ -874,6 +1266,7 @@ data FunctionOption
     = FunctionLanguage Text
     | FunctionSecurityDefiner
     | FunctionSettingOption FunctionSetting
+    | FunctionAttribute Text
 
 createFunction = do
     lexeme "CREATE"
@@ -883,40 +1276,58 @@ createFunction = do
     functionArguments <- between (char '(') (char ')') (functionArgument `sepBy` (char ',' >> space))
     space
     lexeme "RETURNS"
-    returns <- sqlType
+    returns <- functionReturnType
     space
 
-    functionOptions <- many parseFunctionOption
-    let languageBeforeBody = listToMaybe [language | FunctionLanguage language <- functionOptions]
-    let securityDefiner = any isSecurityDefiner functionOptions
-    let functionSettings = [functionSetting | FunctionSettingOption functionSetting <- functionOptions]
+    functionOptionsBeforeBody <- many parseFunctionOption
 
     lexeme "AS"
     space
-    functionBody <- cs <$> between (char '$' >> char '$') (char '$' >> char '$') (many (anySingleBut '$'))
+    functionBody <- functionBodyText
     space
 
-    language <- case languageBeforeBody of
+    functionOptionsAfterBody <- many parseFunctionOption
+    let functionOptions = functionOptionsBeforeBody <> functionOptionsAfterBody
+    let securityDefiner = any isSecurityDefiner functionOptions
+    let functionAttributes = [attribute | FunctionAttribute attribute <- functionOptions]
+    let functionSettings = [functionSetting | FunctionSettingOption functionSetting <- functionOptions]
+    language <- case listToMaybe [language | FunctionLanguage language <- functionOptions] of
         Just language -> pure language
-        Nothing -> do
-            symbol' "language"
-            symbol' "plpgsql" <|> symbol' "SQL"
+        Nothing -> fail "CREATE FUNCTION requires a LANGUAGE option"
     char ';'
-    pure CreateFunction { functionName, functionArguments, functionBody, orReplace, returns, language, securityDefiner, functionSettings }
+    pure CreateFunction { functionName, functionArguments, functionBody, orReplace, returns, language, securityDefiner, functionAttributes, functionSettings }
     where
         functionArgument = do
-            argumentName <- qualifiedIdentifier
+            argumentName <- functionArgumentName
             space
             argumentType <- sqlType
             pure (argumentName, argumentType)
+        functionArgumentName = quotedArgumentName <|> unquotedArgumentName
+        quotedArgumentName = Text.pack <$> between (char '"') (char '"') (some quotedArgumentNameCharacter)
+        quotedArgumentNameCharacter = try (string "\"\"" $> '"') <|> anySingleBut '"'
+        unquotedArgumentName = Text.toLower <$> takeWhile1P (Just "function argument name") (\c -> isAlphaNum c || c == '_')
+        functionReturnType =
+            try (symbol' "SETOF" >> (PSetOf <$> sqlType))
+            <|> try do
+                symbol' "TABLE"
+                PTable <$> between (char '(' >> space) (char ')' >> space) (functionArgument `sepBy1` (char ',' >> space))
+            <|> sqlType
         isSecurityDefiner FunctionSecurityDefiner = True
         isSecurityDefiner _ = False
+
+-- | Parse the function body without assuming the delimiter is exactly $$ or
+-- that the body contains no dollar sign (for example a $1 parameter reference).
+functionBodyText :: Parser Text
+functionBodyText = do
+    delimiter <- dollarQuoteTag
+    cs <$> manyTill anySingle (try (string delimiter))
 
 parseFunctionOption :: Parser FunctionOption
 parseFunctionOption =
     try parseFunctionLanguage
     <|> try parseFunctionSecurityDefiner
     <|> try parseFunctionSetting
+    <|> try parseFunctionAttribute
 
 parseFunctionLanguage :: Parser FunctionOption
 parseFunctionLanguage = do
@@ -934,18 +1345,133 @@ parseFunctionSetting = do
     symbol' "SET"
     settingName <- qualifiedIdentifier
     symbol "=" <|> symbol' "TO"
-    settingValue <- Text.strip . cs <$> someTill anySingle (lookAhead functionOptionBoundary)
-    space
+    settingValue <- Text.intercalate ", " <$> settingValueItem `sepBy1` symbol ","
     pure (FunctionSettingOption FunctionSetting { settingName, settingValue })
+    where
+        settingValueItem = lexeme
+            (try dollarQuotedSettingValue <|> try unicodeEscapeStringSettingValue <|> try escapeStringSettingValue <|> singleQuotedSettingValue <|> doubleQuotedSettingValue <|> takeWhile1P (Just "setting value") (\c -> not (isSpace c) && c /= ','))
+        dollarQuotedSettingValue = fst <$> match do
+            delimiter <- settingDollarQuoteDelimiter
+            _ <- manyTill anySingle (try (string delimiter))
+            pure ()
+        settingDollarQuoteDelimiter = do
+            char '$'
+            tag <- optional do
+                first <- satisfy (\character -> isAlpha character || character == '_')
+                rest <- many (satisfy (\character -> isAlphaNum character || character == '_'))
+                pure (Text.pack (first : rest))
+            char '$'
+            pure ("$" <> maybe "" id tag <> "$")
+        escapeStringSettingValue = fst <$> match do
+            oneOf ['e', 'E']
+            char '\''
+            _ <- many (try (char '\'' >> char '\'') <|> try (char '\\' >> anySingle) <|> anySingleBut '\'')
+            char '\''
+        unicodeEscapeStringSettingValue = fst <$> match do
+            string' "U&"
+            char '\''
+            _ <- many (try (char '\'' >> char '\'') <|> anySingleBut '\'')
+            char '\''
+            optional $ try do
+                space1
+                string' "UESCAPE"
+                notFollowedBy (satisfy isIdentifierCharacter)
+                space
+                char '\''
+                anySingleBut '\''
+                char '\''
+        singleQuotedSettingValue = fst <$> match do
+            char '\''
+            _ <- many (try (string "''") <|> (Text.singleton <$> satisfy (/= '\'')))
+            char '\''
+        doubleQuotedSettingValue = fst <$> match do
+            char '"'
+            _ <- many (try (string "\"\"") <|> (Text.singleton <$> satisfy (/= '"')))
+            char '"'
 
-functionOptionBoundary :: Parser ()
-functionOptionBoundary =
-    choice
-        [ try (space1 >> functionOptionBoundaryKeyword "LANGUAGE")
-        , try (space1 >> functionOptionBoundaryKeyword "SECURITY")
-        , try (space1 >> functionOptionBoundaryKeyword "SET")
-        , try (space1 >> functionOptionBoundaryKeyword "AS")
+-- | Volatility, strictness, parallelism and cost attributes as printed by pg_dump.
+-- They affect function behaviour, so keep their canonical spelling in the AST
+-- and emit them again when compiling the schema.
+parseFunctionAttribute :: Parser FunctionOption
+parseFunctionAttribute = do
+    FunctionAttribute <$> choice
+        [ keyword "IMMUTABLE"
+        , keyword "STABLE"
+        , keyword "VOLATILE"
+        , keyword "LEAKPROOF"
+        , keyword "WINDOW"
+        , keyword "STRICT"
+        , phrase ["NOT", "LEAKPROOF"]
+        , phrase ["CALLED", "ON", "NULL", "INPUT"]
+        , phrase ["RETURNS", "NULL", "ON", "NULL", "INPUT"]
+        , phrase ["SECURITY", "INVOKER"]
+        , try do
+            keywordPrefix "PARALLEL"
+            mode <- keyword "SAFE" <|> keyword "RESTRICTED" <|> keyword "UNSAFE"
+            pure ("PARALLEL " <> mode)
+        , numericAttribute "COST"
+        , numericAttribute "ROWS"
+        , supportAttribute
+        , transformAttribute
         ]
+    where
+        keyword value = try (functionOptionBoundaryKeyword value) $> value
+        phrase values = try (mapM_ functionOptionBoundaryKeyword values) $> Text.unwords values
+        keywordPrefix value = try (functionOptionBoundaryKeyword value)
+        numericAttribute name = try do
+            functionOptionBoundaryKeyword name
+            value <- fst <$> match do
+                _ <- try (some digitChar >> optional (char '.' >> many digitChar) $> ())
+                    <|> (char '.' >> some digitChar $> ())
+                optional do
+                    oneOf ['e', 'E']
+                    optional (oneOf ['+', '-'])
+                    _ <- some digitChar
+                    pure ()
+                pure ()
+            space
+            pure (name <> " " <> value)
+        supportAttribute = try do
+            functionOptionBoundaryKeyword "SUPPORT"
+            supportFunction <- supportFunctionIdentifier
+            pure ("SUPPORT " <> supportFunction)
+        transformAttribute = try do
+            functionOptionBoundaryKeyword "TRANSFORM"
+            firstType <- transformType
+            additionalTypes <- many $ try do
+                char ','
+                space
+                transformType
+            pure ("TRANSFORM FOR TYPE " <> Text.intercalate ", FOR TYPE " (firstType : additionalTypes))
+
+        transformType = do
+            functionOptionBoundaryKeyword "FOR"
+            functionOptionBoundaryKeyword "TYPE"
+            type_ <- sqlType
+            space
+            pure (compilePostgresType type_)
+
+        supportFunctionIdentifier = do
+            (schemaOrName, _) <- sourceIdentifier
+            maybeName <- optional (char '.' >> sourceIdentifier)
+            space
+            pure case maybeName of
+                Nothing -> schemaOrName
+                Just (name, _)
+                    | schemaOrName == "public" || schemaOrName == "\"public\"" -> name
+                    | otherwise -> schemaOrName <> "." <> name
+
+        sourceIdentifier = quotedIdentifier <|> unquotedIdentifier
+        quotedIdentifier = do
+            raw <- fst <$> match do
+                char '"'
+                _ <- many (try (string "\"\"" $> ()) <|> (anySingleBut '"' $> ()))
+                char '"'
+            pure (raw, True)
+        unquotedIdentifier = do
+            first <- satisfy (\c -> isAlpha c || c == '_')
+            rest <- many (satisfy isIdentifierCharacter)
+            pure (Text.toLower (Text.pack (first : rest)), False)
 
 functionOptionBoundaryKeyword :: Text -> Parser ()
 functionOptionBoundaryKeyword keyword = do
@@ -1327,37 +1853,21 @@ createSequence = do
     lexeme "CREATE"
     lexeme "SEQUENCE"
     name <- qualifiedIdentifier
-
-    -- We accept all the following SEQUENCE attributes, but don't save them
-    -- This is mostly to void issues in migrations when parsing the pg_dump output
-    optional do
-        lexeme "AS"
-        sqlType
-
-    optional do
-        lexeme "START"
-        lexeme "WITH"
-        expression
-
-    optional do
-        lexeme "INCREMENT"
-        lexeme "BY"
-        expression
-
-    optional do
-        lexeme "NO"
-        lexeme "MINVALUE"
-
-    optional do
-        lexeme "NO"
-        lexeme "MAXVALUE"
-
-    optional do
-        lexeme "CACHE"
-        expression
-
+    sequenceOptions <- many sequenceOption
     char ';'
-    pure CreateSequence { name }
+    pure CreateSequence { name, sequenceOptions }
+    where
+        sequenceOption = choice
+            [ lexeme "AS" >> (SequenceAs <$> sqlType)
+            , lexeme "START" >> optional (lexeme "WITH") >> (SequenceStart <$> sequenceValue)
+            , lexeme "INCREMENT" >> optional (lexeme "BY") >> (SequenceIncrement <$> sequenceValue)
+            , lexeme "NO" >> ((lexeme "MINVALUE" $> SequenceNoMinValue) <|> (lexeme "MAXVALUE" $> SequenceNoMaxValue) <|> (lexeme "CYCLE" $> SequenceCycle False))
+            , lexeme "MINVALUE" >> (SequenceMinValue <$> sequenceValue)
+            , lexeme "MAXVALUE" >> (SequenceMaxValue <$> sequenceValue)
+            , lexeme "CACHE" >> (SequenceCache <$> sequenceValue)
+            , lexeme "CYCLE" $> SequenceCycle True
+            ]
+        sequenceValue = lexeme (try doubleExpr <|> intExpr)
 
 addValue typeName = do
     lexeme "ADD"

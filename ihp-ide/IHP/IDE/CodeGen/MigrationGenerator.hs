@@ -20,7 +20,7 @@ import qualified IHP.Postgres.Parser as Parser
 import qualified IHP.SchemaCompiler.Parser as SchemaDesignerParser
 import IHP.Postgres.Types
 import Text.Megaparsec
-import IHP.Postgres.Compiler (compileSql)
+import IHP.Postgres.Compiler (compileSql, compileIdentifier)
 import IHP.IDE.CodeGen.Types
 import qualified IHP.FrameworkConfig as FrameworkConfig
 import Paths_ihp_ide (getDataFileName)
@@ -207,13 +207,18 @@ diffSchemas :: [Statement] -> [Statement] -> [Statement]
 diffSchemas targetSchema' actualSchema' = (drop <> create)
             |> patchTable
             |> patchEnumType
+            |> patchSequence
             |> applyRenameTable
             |> removeImplicitDeletions actualSchema
             |> disableTransactionWhileAddingEnumValues
             |> applyReplaceFunction
     where
         create :: [Statement]
-        create = targetSchema \\ actualSchema
+        create = map restoreExtensionOptions (targetSchema \\ actualSchema)
+
+        restoreExtensionOptions statement@CreateExtension { name } =
+            fromMaybe statement (find (\case CreateExtension { name = targetName } -> targetName == name; _ -> False) targetSchema')
+        restoreExtensionOptions statement = statement
 
         drop :: [Statement]
         drop = (actualSchema \\ targetSchema)
@@ -261,6 +266,54 @@ diffSchemas targetSchema' actualSchema' = (drop <> create)
                         otherwise                      -> False
         patchEnumType (s:rest) = s:(patchEnumType rest)
         patchEnumType [] = []
+
+        patchSequence :: [Statement] -> [Statement]
+        patchSequence = map \case
+            CreateSequence { name, sequenceOptions }
+                | Just actualOptions <- listToMaybe (mapMaybe (\case CreateSequence { name = actualName, sequenceOptions = options } | actualName == name -> Just options; _ -> Nothing) actualSchema) ->
+                    AlterSequence { name, sequenceOptions = sequenceAlterOptions sequenceOptions actualOptions }
+            statement -> statement
+
+        sequenceAlterOptions targetOptions actualOptions = desiredOptions <> mapMaybe resetOption changedActualOptions
+            where
+                desiredOptions = targetOptions <> boundStartDefault <> directionDefaults
+                changedActualOptions = filter (not . hasMatchingOption desiredOptions) actualOptions
+                hasMatchingOption options option = any ((== sequenceOptionKind option) . sequenceOptionKind) options
+                resetOption SequenceAs {} = Just (SequenceAs PBigInt)
+                resetOption SequenceStart {} = Just (SequenceStart implicitStart)
+                resetOption SequenceIncrement {} = Just (SequenceIncrement (IntExpression 1))
+                resetOption SequenceMinValue {} = Just SequenceNoMinValue
+                resetOption SequenceMaxValue {} = Just SequenceNoMaxValue
+                resetOption SequenceCache {} = Just (SequenceCache (IntExpression 1))
+                resetOption SequenceCycle {} = Just (SequenceCycle False)
+                resetOption _ = Nothing
+                targetDirection = sequenceDirection targetOptions
+                actualDirection = sequenceDirection actualOptions
+                implicitStart
+                    | targetDirection < 0 = fromMaybe (IntExpression (-1)) (listToMaybe [value | SequenceMaxValue value <- targetOptions])
+                    | otherwise = fromMaybe (IntExpression 1) (listToMaybe [value | SequenceMinValue value <- targetOptions])
+                directionDefaults
+                    | targetDirection == actualDirection = []
+                    | otherwise = filter (not . hasMatchingOption targetOptions)
+                        [ SequenceStart implicitStart
+                        , SequenceNoMinValue
+                        , SequenceNoMaxValue
+                        ]
+                boundStartDefault
+                    | targetDirection /= actualDirection = []
+                    | relevantStartBound targetOptions /= relevantStartBound actualOptions
+                    , not (any isStartOption targetOptions) = [SequenceStart implicitStart]
+                    | otherwise = []
+                relevantStartBound options
+                    | targetDirection < 0 = listToMaybe [value | SequenceMaxValue value <- options]
+                    | otherwise = listToMaybe [value | SequenceMinValue value <- options]
+                isStartOption SequenceStart {} = True
+                isStartOption _ = False
+
+        sequenceDirection options = if any isDescendingIncrement options then (-1 :: Int) else 1
+
+        isDescendingIncrement (SequenceIncrement (IntExpression value)) = value < 0
+        isDescendingIncrement _ = False
 
         -- | Replaces 'DROP TABLE a; CREATE TABLE b;' DDL sequences with a more efficient 'ALTER TABLE a RENAME TO b' sequence if
         -- the tables have no differences except the name.
@@ -536,9 +589,119 @@ normalizeStatement AddConstraint { tableName, constraint, deferrable, deferrable
 normalizeStatement CreateEnumType { name, values } = [ CreateEnumType { name = Text.toLower name, values = map Text.toLower values } ]
 normalizeStatement CreatePolicy { name, action, tableName, roles, using, check } = [ CreatePolicy { name = truncateIdentifier name, tableName, roles = normalizePolicyRoles roles, using = (unqualifyExpression tableName . normalizeExpression) <$> using, check = (unqualifyExpression tableName . normalizeExpression) <$> check, action = normalizePolicyAction action } ]
 normalizeStatement CreateIndex { columns, indexType, indexName, .. } = [ CreateIndex { columns = map normalizeIndexColumn columns, indexType = normalizeIndexType indexType, indexName = truncateIdentifier indexName, .. } ]
-normalizeStatement CreateFunction { .. } = [ CreateFunction { orReplace = False, language = Text.toUpper language, functionBody = removeIndentation $ normalizeNewLines functionBody, .. } ]
+normalizeStatement CreateFunction { functionArguments, returns, .. } = [ CreateFunction { orReplace = False, language = normalizedLanguage, functionArguments = map (\(name, type_) -> (name, normalizeSqlType type_)) functionArguments, returns = normalizeSqlType returns, functionAttributes = normalizedFunctionAttributes, functionBody = removeIndentation $ normalizeNewLines functionBody, .. } ]
+    where
+        normalizedLanguage = Text.toUpper language
+        normalizedFunctionAttributes = sortOn functionAttributeOrder (filter (not . isDefaultFunctionAttribute) (map normalizeFunctionAttribute functionAttributes))
+        defaultFunctionAttributes = ["VOLATILE", "NOT LEAKPROOF", "CALLED ON NULL INPUT", "SECURITY INVOKER", "PARALLEL UNSAFE"]
+        isDefaultFunctionAttribute attribute = attribute `elem` defaultFunctionAttributes || isDefaultCost attribute || isDefaultRows attribute
+        isDefaultCost attribute
+            | normalizedLanguage `elem` ["SQL", "PLPGSQL"] = case Text.stripPrefix "COST " attribute of
+                Just cost -> Read.readMaybe (cs cost) == Just (100 :: Double)
+                Nothing -> False
+            | otherwise = False
+        isDefaultRows attribute
+            | isSetReturning = case Text.stripPrefix "ROWS " attribute of
+                Just rows -> Read.readMaybe (cs rows) == Just (1000 :: Double)
+                Nothing -> False
+            | otherwise = False
+        isSetReturning = case returns of
+            PSetOf {} -> True
+            PTable {} -> True
+            _ -> False
+        normalizeFunctionAttribute attribute
+            | Just supportFunction <- Text.stripPrefix "SUPPORT " attribute = "SUPPORT " <> normalizeCustomType supportFunction
+            | Just typeName <- Text.stripPrefix "TRANSFORM FOR TYPE " attribute = "TRANSFORM FOR TYPE " <> normalizeCustomType typeName
+            | Just value <- Text.stripPrefix "COST " normalizedAttribute = "COST " <> canonicalNumeric value
+            | Just value <- Text.stripPrefix "ROWS " normalizedAttribute = "ROWS " <> canonicalNumeric value
+            | otherwise = case normalizedAttribute of
+                "RETURNS NULL ON NULL INPUT" -> "STRICT"
+                normalized -> normalized
+            where
+                normalizedAttribute = Text.toUpper attribute
+                canonicalNumeric value =
+                    let
+                        (mantissa, exponentText) = Text.break (\character -> character == 'E') value
+                        exponent = fromMaybe 0 (Read.readMaybe (cs (Text.drop 1 exponentText)))
+                        (integerPart, fractionalWithDot) = Text.break (== '.') mantissa
+                        fractionalPart = Text.drop 1 fractionalWithDot
+                        digits = Text.dropWhile (== '0') (integerPart <> fractionalPart)
+                        decimalShift = exponent - Text.length fractionalPart
+                        plain
+                            | Text.null digits = "0"
+                            | decimalShift >= 0 = digits <> Text.replicate decimalShift "0"
+                            | Text.length digits + decimalShift > 0 =
+                                let splitAt = Text.length digits + decimalShift
+                                in Text.take splitAt digits <> "." <> Text.drop splitAt digits
+                            | otherwise = "0." <> Text.replicate (negate (Text.length digits + decimalShift)) "0" <> digits
+                    in if "." `Text.isInfixOf` plain
+                        then Text.dropWhileEnd (== '.') (Text.dropWhileEnd (== '0') plain)
+                        else plain
+        functionAttributeOrder attribute
+            | attribute `elem` ["IMMUTABLE", "STABLE", "VOLATILE"] = (0 :: Int)
+            | "LEAKPROOF" `Text.isInfixOf` attribute = 1
+            | attribute == "WINDOW" = 2
+            | attribute `elem` ["STRICT", "CALLED ON NULL INPUT", "RETURNS NULL ON NULL INPUT"] = 3
+            | "SECURITY " `Text.isPrefixOf` attribute = 4
+            | "PARALLEL " `Text.isPrefixOf` attribute = 5
+            | "COST " `Text.isPrefixOf` attribute = 6
+            | "ROWS " `Text.isPrefixOf` attribute = 7
+            | "SUPPORT " `Text.isPrefixOf` attribute = 8
+            | "TRANSFORM FOR TYPE " `Text.isPrefixOf` attribute = 9
+            | otherwise = 10
+normalizeStatement statement@CreateSequence { sequenceOptions } = [statement { sequenceOptions = normalizeSequenceOptions sequenceOptions }]
+normalizeStatement statement@CreateExtension { extensionOptions } = [statement { extensionOptions = filter (not . isImplicitExtensionOption) extensionOptions }]
 normalizeStatement NoForceRowLevelSecurity {} = []
 normalizeStatement otherwise = [otherwise]
+
+normalizeSequenceOptions :: [SequenceOption] -> [SequenceOption]
+normalizeSequenceOptions options = sortOn sequenceOptionKind (filter (not . isImplicitSequenceOption implicitStart defaultMinValue defaultMaxValue) options)
+    where
+        sequenceType = fromMaybe PBigInt (listToMaybe [postgresType | SequenceAs postgresType <- options])
+        typeMinValue = IntExpression case sequenceType of
+            PSmallInt -> -32768
+            PInt -> -2147483648
+            _ -> -9223372036854775808
+        typeMaxValue = IntExpression case sequenceType of
+            PSmallInt -> 32767
+            PInt -> 2147483647
+            _ -> 9223372036854775807
+        defaultMinValue = if any isDescendingIncrement options then typeMinValue else IntExpression 1
+        defaultMaxValue = if any isDescendingIncrement options then IntExpression (-1) else typeMaxValue
+        implicitStart
+            | any isDescendingIncrement options = fromMaybe (IntExpression (-1)) (listToMaybe [value | SequenceMaxValue value <- options])
+            | otherwise = fromMaybe (IntExpression 1) (listToMaybe [value | SequenceMinValue value <- options])
+        isDescendingIncrement (SequenceIncrement (IntExpression value)) = value < 0
+        isDescendingIncrement _ = False
+
+sequenceOptionKind :: SequenceOption -> Int
+sequenceOptionKind = \case
+    SequenceAs {} -> 0
+    SequenceStart {} -> 1
+    SequenceIncrement {} -> 2
+    SequenceNoMinValue -> 3
+    SequenceMinValue {} -> 3
+    SequenceNoMaxValue -> 4
+    SequenceMaxValue {} -> 4
+    SequenceCache {} -> 5
+    SequenceCycle {} -> 6
+
+isImplicitSequenceOption :: Expression -> Expression -> Expression -> SequenceOption -> Bool
+isImplicitSequenceOption implicitStart _ _ (SequenceStart value) = value == implicitStart
+isImplicitSequenceOption _ _ _ (SequenceAs PBigInt) = True
+isImplicitSequenceOption _ _ _ (SequenceIncrement (IntExpression 1)) = True
+isImplicitSequenceOption _ _ _ SequenceNoMinValue = True
+isImplicitSequenceOption _ _ _ SequenceNoMaxValue = True
+isImplicitSequenceOption _ defaultMinValue _ (SequenceMinValue value) = value == defaultMinValue
+isImplicitSequenceOption _ _ defaultMaxValue (SequenceMaxValue value) = value == defaultMaxValue
+isImplicitSequenceOption _ _ _ (SequenceCache (IntExpression 1)) = True
+isImplicitSequenceOption _ _ _ (SequenceCycle False) = True
+isImplicitSequenceOption _ _ _ _ = False
+
+isImplicitExtensionOption :: ExtensionOption -> Bool
+isImplicitExtensionOption ExtensionSchema {} = True
+isImplicitExtensionOption ExtensionVersion {} = True
+isImplicitExtensionOption ExtensionCascade = True
 
 normalizePolicyAction (Just PolicyForAll) = Nothing
 normalizePolicyAction otherwise = otherwise
@@ -653,7 +816,7 @@ normalizeConstraint tableName constraint@(UniqueConstraint { name = Just uniqueN
 normalizeConstraint _ otherwise = otherwise
 
 normalizeColumn :: CreateTable -> Column -> (Column, [Statement])
-normalizeColumn table Column { name, columnType, defaultValue, notNull, isUnique, generator } = (Column { name = normalizeName name, columnType = normalizeSqlType columnType, defaultValue = normalizedDefaultValue, notNull, isUnique = False, generator = normalizeColumnGenerator <$> generator }, uniqueConstraint)
+normalizeColumn table Column { name, columnType, defaultValue, notNull, isUnique, generator } = (Column { name = normalizeName name, columnType = normalizeSqlType columnType, defaultValue = normalizedDefaultValue, notNull, notNullConstraintName = Nothing, isUnique = False, generator = normalizeColumnGenerator <$> generator }, uniqueConstraint)
     where
         uniqueConstraint =
             if isUnique
@@ -691,6 +854,7 @@ normalizeExpression e@(DoubleExpression {}) = e
 normalizeExpression e@(NumericExpression {}) = e
 normalizeExpression e@(IntExpression {}) = e
 normalizeExpression (ConcatenationExpression a b) = ConcatenationExpression (normalizeExpression a) (normalizeExpression b)
+normalizeExpression (BinaryOperatorExpression operator a b) = BinaryOperatorExpression operator (normalizeExpression a) (normalizeExpression b)
 -- Enum default values from pg_dump always have an explicit type cast. Inside the Schema.sql they typically don't have those.
 -- Therefore we remove these typecasts here
 --
@@ -755,6 +919,7 @@ unqualifyExpression scope expression = doUnqualify expression
         doUnqualify e@(NumericExpression {}) = e
         doUnqualify e@(IntExpression {}) = e
         doUnqualify (ConcatenationExpression a b) = ConcatenationExpression (doUnqualify a) (doUnqualify b)
+        doUnqualify (BinaryOperatorExpression operator a b) = BinaryOperatorExpression operator (doUnqualify a) (doUnqualify b)
         doUnqualify (TypeCastExpression a b) = TypeCastExpression (doUnqualify a) b
         doUnqualify e@(SelectExpression Select { columns, from, whereClause, alias }) =
             let recurse = case from of
@@ -800,18 +965,62 @@ resolveAlias (Just alias) fromExpression expression =
         e@(DotExpression a b) -> DotExpression (rec a) b
         e@(ExistsExpression a) -> ExistsExpression (rec a)
         e@(ConcatenationExpression a b) -> ConcatenationExpression (rec a) (rec b)
+        e@(BinaryOperatorExpression operator a b) -> BinaryOperatorExpression operator (rec a) (rec b)
         e@(InArrayExpression exprs) -> InArrayExpression (map rec exprs)
         e@(ArrayLiteralExpression exprs) -> ArrayLiteralExpression (map rec exprs)
         e@(VariadicExpression expr) -> VariadicExpression (rec expr)
 resolveAlias Nothing fromExpression expression = expression
 
 normalizeSqlType :: PostgresType -> PostgresType
-normalizeSqlType (PCustomType customType) = PCustomType (Text.toLower customType)
+normalizeSqlType (PCustomType customType) = PCustomType (normalizeCustomType customType)
 normalizeSqlType (PGeometryWithModifier modifier) = PGeometryWithModifier (Text.intercalate "," (map (Text.toLower . Text.strip) (Text.splitOn "," modifier)))
 normalizeSqlType (PArray elementType) = PArray (normalizeSqlType elementType)
+normalizeSqlType (PSetOf type_) = PSetOf (normalizeSqlType type_)
+normalizeSqlType (PTable columns) = PTable (map (\(name, type_) -> (name, normalizeSqlType type_)) columns)
 normalizeSqlType PBigserial = PBigInt
 normalizeSqlType PSerial = PInt
 normalizeSqlType otherwise = otherwise
+
+normalizeCustomType :: Text -> Text
+normalizeCustomType = canonicalizeRedundantIdentifierQuotes . Text.pack . normalize False . Text.unpack
+    where
+        normalize _ [] = []
+        normalize True ('"' : '"' : rest) = '"' : '"' : normalize True rest
+        normalize quoted ('"' : rest) = '"' : normalize (not quoted) rest
+        normalize False rest@('(' : _) = rest
+        normalize True (character : rest) = character : normalize True rest
+        normalize False (character : rest) = Char.toLower character : normalize False rest
+
+canonicalizeRedundantIdentifierQuotes :: Text -> Text
+canonicalizeRedundantIdentifierQuotes = Text.pack . normalize . Text.unpack
+    where
+        normalize [] = []
+        normalize rest@('(' : _) = rest
+        normalize ('"' : rest) = case quotedIdentifier rest of
+            Just (source, decoded, afterQuote)
+                | isSafeUnquotedIdentifier decoded -> decoded <> normalize afterQuote
+                | otherwise -> '"' : source <> ('"' : normalize afterQuote)
+            Nothing -> '"' : normalize rest
+        normalize (character : rest) = character : normalize rest
+
+        quotedIdentifier [] = Nothing
+        quotedIdentifier ('"' : '"' : rest) = do
+            (source, decoded, afterQuote) <- quotedIdentifier rest
+            pure ('"' : '"' : source, '"' : decoded, afterQuote)
+        quotedIdentifier ('"' : rest) = Just ([], [], rest)
+        quotedIdentifier (character : rest) = do
+            (source, decoded, afterQuote) <- quotedIdentifier rest
+            pure (character : source, character : decoded, afterQuote)
+
+        isSafeUnquotedIdentifier identifier = case identifier of
+            firstCharacter : rest ->
+                (isAsciiLower firstCharacter || firstCharacter == '_')
+                    && all isUnquotedContinuation rest
+                    && compileIdentifier (Text.pack identifier) == Text.pack identifier
+            [] -> False
+        isAsciiLower character = character >= 'a' && character <= 'z'
+        isAsciiDigit character = character >= '0' && character <= '9'
+        isUnquotedContinuation character = isAsciiLower character || isAsciiDigit character || character == '_' || character == '$'
 
 normalizeNumericLiteral :: Text -> Text
 normalizeNumericLiteral value =
