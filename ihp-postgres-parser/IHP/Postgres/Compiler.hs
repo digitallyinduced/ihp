@@ -246,6 +246,10 @@ compilePostgresType PTSVector = "TSVECTOR"
 compilePostgresType (PArray type_) = compilePostgresType type_ <> "[]"
 compilePostgresType PTrigger = "TRIGGER"
 compilePostgresType PEventTrigger = "EVENT_TRIGGER"
+compilePostgresType (PSetOf type_) = "SETOF " <> compilePostgresType type_
+compilePostgresType (PReturnTable columns) = "TABLE(" <> intercalate ", " (map compileReturnTableColumn columns) <> ")"
+    where
+        compileReturnTableColumn (columnName, columnType) = compileIdentifier columnName <> " " <> compilePostgresType columnType
 compilePostgresType (PCustomType theType) = theType
 
 compileQualifiedIdentifier :: Text -> Text

@@ -309,6 +309,31 @@ spec = do
                         ]
                     }
 
+        it "should parse CREATE FUNCTION returning SETOF" do
+            let sql = "CREATE FUNCTION search_ids(query text) RETURNS setof uuid LANGUAGE sql AS $$SELECT 1;$$;"
+            parseSql sql `shouldBe`
+                (function "search_ids")
+                    { functionArguments = [("query", PText)]
+                    , functionBody = "SELECT 1;"
+                    , returns = PSetOf PUUID
+                    , language = "sql"
+                    }
+
+        it "should parse CREATE FUNCTION returning TABLE" do
+            let sql = "CREATE FUNCTION search_rows() RETURNS table(id uuid, label text) LANGUAGE sql AS $$SELECT 1;$$;"
+            parseSql sql `shouldBe`
+                (function "search_rows")
+                    { functionBody = "SELECT 1;"
+                    , returns = PReturnTable [("id", PUUID), ("label", PText)]
+                    , language = "sql"
+                    }
+
+        it "should parse qualified types in function return shapes" do
+            let setReturning = parseSql "CREATE FUNCTION widgets() RETURNS SETOF private.users LANGUAGE sql AS $$SELECT NULL;$$;"
+            let tableReturning = parseSql "CREATE FUNCTION widgets() RETURNS TABLE (status private.status) LANGUAGE sql AS $$SELECT NULL;$$;"
+            setReturning.returns `shouldBe` PSetOf (PCustomType "private.users")
+            tableReturning.returns `shouldBe` PReturnTable [("status", PCustomType "private.status")]
+
         it "should not stop CREATE FUNCTION SET values at keyword prefixes" do
             let sql = "CREATE OR REPLACE FUNCTION set_tz()\nRETURNS TRIGGER\nSET TimeZone = 'Asia/Tokyo'\nAS $$BEGIN\n    RETURN NEW;\nEND;$$ language plpgsql;"
             parseSql sql `shouldBe` CreateFunction

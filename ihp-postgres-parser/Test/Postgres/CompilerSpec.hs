@@ -242,6 +242,12 @@ spec = do
                     }
             compileSql [statement] `shouldBe` sql
 
+        it "should round-trip function-only return types" do
+            let setReturning = (function "search_ids") { returns = PSetOf PUUID, language = "sql" }
+            let tableReturning = (function "search_rows") { returns = PReturnTable [("id", PUUID), ("label", PText)], language = "sql" }
+            parseSql (compileSql [setReturning]) `shouldBe` setReturning
+            parseSql (compileSql [tableReturning]) `shouldBe` tableReturning
+
         it "should keep boolean IS expressions grouped inside equality" do
             let sql = "ALTER TABLE t ADD CONSTRAINT t_pair CHECK ((a IS NULL) = (b IS NULL));"
             compileSql [parseSql sql] `shouldBe` (sql <> "\n")

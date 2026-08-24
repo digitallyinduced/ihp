@@ -698,10 +698,7 @@ sqlType = choice $ map optionalArray
                     pure PEventTrigger
 
                 customType = do
-                    optional do
-                        lexeme "public"
-                        char '.'
-                    theType <- try (takeWhile1P (Just "Custom type") (\c -> isAlphaNum c || c == '_'))
+                    theType <- sourceQualifiedTypeIdentifier
                     -- Custom typmods are flat here; nested parenthesized
                     -- modifiers are not supported by this parser.
                     typeModifier <- optional $ try do
@@ -711,6 +708,22 @@ sqlType = choice $ map optionalArray
                         space
                         pure value
                     pure (PCustomType (maybe theType (\value -> theType <> "(" <> value <> ")") typeModifier))
+
+                sourceQualifiedTypeIdentifier = do
+                    schemaOrName <- sourceTypeIdentifier
+                    maybeName <- optional (char '.' >> sourceTypeIdentifier)
+                    pure case maybeName of
+                        Nothing -> schemaOrName
+                        Just name
+                            | schemaOrName == "public" || schemaOrName == "\"public\"" -> name
+                            | otherwise -> schemaOrName <> "." <> name
+
+                sourceTypeIdentifier = quotedTypeIdentifier <|> unquotedTypeIdentifier
+                quotedTypeIdentifier = fst <$> match do
+                    char '"'
+                    many (try (string "\"\"") <|> (Text.singleton <$> anySingleBut '"'))
+                    char '"'
+                unquotedTypeIdentifier = takeWhile1P (Just "Custom type") (\c -> isAlphaNum c || c == '_')
 
 
 intervalFields :: [Text]
@@ -1017,7 +1030,7 @@ createFunction = do
     functionArguments <- between (char '(') (char ')') (functionArgument `sepBy` (char ',' >> space))
     space
     lexeme "RETURNS"
-    returns <- sqlType
+    returns <- functionReturnType
     space
 
     functionOptions <- many parseFunctionOption
@@ -1045,6 +1058,25 @@ createFunction = do
             pure (argumentName, argumentType)
         isSecurityDefiner FunctionSecurityDefiner = True
         isSecurityDefiner _ = False
+
+-- | Function return positions accept shapes that table columns do not.
+functionReturnType :: Parser PostgresType
+functionReturnType = choice
+    [ try (returnKeyword "SETOF" >> (PSetOf <$> sqlType))
+    , try do
+        returnKeyword "TABLE"
+        columns <- between (char '(' >> space) (space >> char ')') (returnTableColumn `sepBy` (char ',' >> space))
+        pure (PReturnTable columns)
+    , sqlType
+    ]
+    where
+        returnKeyword keyword = lexeme (string' keyword <* notFollowedBy (satisfy \c -> isAlphaNum c || c == '_'))
+
+        returnTableColumn = do
+            space
+            columnName <- identifier
+            columnType <- sqlType
+            pure (columnName, columnType)
 
 parseFunctionOption :: Parser FunctionOption
 parseFunctionOption =

@@ -278,6 +278,10 @@ data PostgresType
     | PArray PostgresType
     | PTrigger
     | PEventTrigger
+    -- | @RETURNS SETOF x@. Only valid as a function return type.
+    | PSetOf PostgresType
+    -- | @RETURNS TABLE (name type, ...)@. Only valid as a function return type.
+    | PReturnTable [(Text, PostgresType)]
     | PCustomType Text
     deriving (Eq, Show)
 
