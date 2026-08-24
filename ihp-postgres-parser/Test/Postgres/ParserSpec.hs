@@ -7,6 +7,7 @@ module Postgres.ParserSpec where
 import Prelude
 import Test.Hspec
 import IHP.Postgres.Parser
+import IHP.Postgres.Compiler (compileSql)
 import IHP.Postgres.Types
 import Data.Text (Text)
 import qualified Data.Text as Text
@@ -22,36 +23,54 @@ spec = do
             parseSql "CREATE TABLE users ();"  `shouldBe` StatementCreateTable (table "users")
 
         it "should parse an CREATE EXTENSION for the UUID extension" do
-            parseSql "CREATE EXTENSION IF NOT EXISTS \"uuid-ossp\";" `shouldBe` CreateExtension { name = "uuid-ossp", ifNotExists = True }
+            parseSql "CREATE EXTENSION IF NOT EXISTS \"uuid-ossp\";" `shouldBe` CreateExtension { name = "uuid-ossp", ifNotExists = True, extensionOptions = [] }
 
         it "should preserve a missing IF NOT EXISTS clause" do
-            parseSql "CREATE EXTENSION \"uuid-ossp\";" `shouldBe` CreateExtension { name = "uuid-ossp", ifNotExists = False }
+            parseSql "CREATE EXTENSION \"uuid-ossp\";" `shouldBe` CreateExtension { name = "uuid-ossp", ifNotExists = False, extensionOptions = [] }
 
         it "should parse an CREATE EXTENSION with schema suffix" do
-            parseSql "CREATE EXTENSION IF NOT EXISTS \"uuid-ossp\" WITH SCHEMA public;" `shouldBe` CreateExtension { name = "uuid-ossp", ifNotExists = True }
+            parseSql "CREATE EXTENSION IF NOT EXISTS \"uuid-ossp\" WITH SCHEMA public;" `shouldBe` CreateExtension { name = "uuid-ossp", ifNotExists = True, extensionOptions = [ExtensionSchema "public"] }
+
+        it "should round-trip quoted extension schema names" do
+            let statement = parseSql "CREATE EXTENSION IF NOT EXISTS postgis WITH SCHEMA \"geo.data\";"
+            parseSql (compileSql [statement]) `shouldBe` statement
+
+        it "should fold an unquoted extension schema to lowercase" do
+            parseSql "CREATE EXTENSION IF NOT EXISTS postgis WITH SCHEMA Geo;" `shouldBe` CreateExtension { name = "postgis", ifNotExists = True, extensionOptions = [ExtensionSchema "geo"] }
+
+        it "should parse CREATE EXTENSION version and cascade options" do
+            parseSql "CREATE EXTENSION pg_trgm VERSION '1.6' CASCADE;" `shouldBe`
+                CreateExtension { name = "pg_trgm", ifNotExists = False, extensionOptions = [ExtensionVersion "1.6", ExtensionCascade] }
+
+        it "should decode doubled quotes in extension versions" do
+            parseSql "CREATE EXTENSION extension_name VERSION '1''beta';" `shouldBe`
+                CreateExtension { name = "extension_name", ifNotExists = False, extensionOptions = [ExtensionVersion "1'beta"] }
 
         describe "parseCreateExtensionMigration" do
             it "accepts one or more extension statements and comments" do
                 parseCreateExtensionMigration "-- Required for earthdistance\nCREATE EXTENSION IF NOT EXISTS cube;\nCREATE EXTENSION IF NOT EXISTS \"earthdistance\" WITH SCHEMA public;"
                     `shouldBe` Right
-                        [ CreateExtension { name = "cube", ifNotExists = True }
-                        , CreateExtension { name = "earthdistance", ifNotExists = True }
+                        [ CreateExtension { name = "cube", ifNotExists = True, extensionOptions = [] }
+                        , CreateExtension { name = "earthdistance", ifNotExists = True, extensionOptions = [ExtensionSchema "public"] }
                         ]
 
             it "is case insensitive" do
                 parseCreateExtensionMigration "create extension if not exists PG_TRGM;"
-                    `shouldBe` Right [CreateExtension { name = "pg_trgm", ifNotExists = True }]
+                    `shouldBe` Right [CreateExtension { name = "pg_trgm", ifNotExists = True, extensionOptions = [] }]
 
             it "accepts PostgreSQL extension options" do
                 parseCreateExtensionMigration "CREATE EXTENSION IF NOT EXISTS PostGIS WITH SCHEMA public VERSION '3.4.2' CASCADE;"
-                    `shouldBe` Right [CreateExtension { name = "postgis", ifNotExists = True }]
+                    `shouldBe` Right [CreateExtension { name = "postgis", ifNotExists = True, extensionOptions = [ExtensionSchema "public", ExtensionVersion "3.4.2", ExtensionCascade] }]
 
                 parseCreateExtensionMigration "CREATE EXTENSION IF NOT EXISTS postgis WITH VERSION stable CASCADE;"
-                    `shouldBe` Right [CreateExtension { name = "postgis", ifNotExists = True }]
+                    `shouldBe` Right [CreateExtension { name = "postgis", ifNotExists = True, extensionOptions = [ExtensionVersion "stable", ExtensionCascade] }]
+
+                parseCreateExtensionMigration "CREATE EXTENSION IF NOT EXISTS postgis CASCADE VERSION '3.4.2' SCHEMA geo;"
+                    `shouldBe` Right [CreateExtension { name = "postgis", ifNotExists = True, extensionOptions = [ExtensionCascade, ExtensionVersion "3.4.2", ExtensionSchema "geo"] }]
 
             it "preserves quoted extension names" do
                 parseCreateExtensionMigration "CREATE EXTENSION IF NOT EXISTS \"MixedCase\";"
-                    `shouldBe` Right [CreateExtension { name = "MixedCase", ifNotExists = True }]
+                    `shouldBe` Right [CreateExtension { name = "MixedCase", ifNotExists = True, extensionOptions = [] }]
 
             it "rejects a mixed migration" do
                 parseCreateExtensionMigration "CREATE EXTENSION IF NOT EXISTS pg_trgm; CREATE TABLE users ();"
@@ -476,7 +495,11 @@ spec = do
             parseSql "DROP TYPE colors;" `shouldBe` DropEnumType { name = "colors" }
 
         it "should parse 'CREATE SEQUENCE ..' statements" do
-            parseSql "CREATE SEQUENCE a;" `shouldBe` CreateSequence { name = "a" }
+            parseSql "CREATE SEQUENCE a;" `shouldBe` CreateSequence { name = "a", sequenceOptions = [] }
+
+        it "should preserve pg_dump sequence options" do
+            let sql = "CREATE SEQUENCE a AS bigint START WITH 1 INCREMENT BY 2 NO MINVALUE MAXVALUE 99 CACHE 4 NO CYCLE;"
+            parseSql (compileSql [parseSql sql]) `shouldBe` parseSql sql
 
         it "should parse 'BEGIN' statements" do
             parseSql "BEGIN;" `shouldBe` Begin

@@ -87,15 +87,16 @@ createExtensionForMigration = do
         extensionKeyword "EXISTS"
     name <- extensionIdentifier
     optional (extensionKeyword "WITH")
-    optional do
-        extensionKeyword "SCHEMA"
-        extensionIdentifier
-    optional do
-        extensionKeyword "VERSION"
-        extensionVersion
-    optional (extensionKeyword "CASCADE")
+    extensionOptions <- many extensionOption
+    when (hasDuplicateExtensionOptions extensionOptions) (fail "duplicate CREATE EXTENSION option")
     extensionSymbol ";"
-    pure CreateExtension { name, ifNotExists }
+    pure CreateExtension { name, ifNotExists, extensionOptions }
+    where
+        extensionOption = choice
+            [ extensionKeyword "SCHEMA" >> (ExtensionSchema <$> extensionIdentifier)
+            , extensionKeyword "VERSION" >> (ExtensionVersion <$> extensionVersionText)
+            , extensionKeyword "CASCADE" $> ExtensionCascade
+            ]
 
 extensionSpaceConsumer :: Parser ()
 extensionSpaceConsumer = Lexer.space
@@ -122,12 +123,12 @@ extensionIdentifier = extensionLexeme (quotedIdentifier <|> unquotedIdentifier)
             remainingCharacters <- many (satisfy isIdentifierCharacter)
             pure (Text.toLower (Text.pack (firstCharacter : remainingCharacters)))
 
-extensionVersion :: Parser ()
-extensionVersion = extensionLexeme (quotedVersion <|> unquotedVersion) $> ()
+extensionVersionText :: Parser Text
+extensionVersionText = extensionLexeme (quotedVersion <|> unquotedVersion)
     where
-        quotedVersion = between (char '\'') (char '\'') (many quotedVersionCharacter)
+        quotedVersion = Text.pack <$> between (char '\'') (char '\'') (many quotedVersionCharacter)
         quotedVersionCharacter = try (string "''" $> '\'') <|> satisfy (/= '\'')
-        unquotedVersion = some (satisfy isIdentifierCharacter)
+        unquotedVersion = Text.pack <$> some (satisfy isIdentifierCharacter)
 
 isIdentifierCharacter :: Char -> Bool
 isIdentifierCharacter character = isAlphaNum character || character == '_' || character == '$'
@@ -262,13 +263,22 @@ createExtension = do
     lexeme "EXTENSION"
     ifNotExists <- isJust <$> optional (lexeme "IF" >> lexeme "NOT" >> lexeme "EXISTS")
     name <- qualifiedIdentifier
-    optional do
-        space
-        lexeme "WITH"
-        lexeme "SCHEMA"
-        lexeme "public"
+    optional (lexeme "WITH")
+    extensionOptions <- many extensionOption
+    when (hasDuplicateExtensionOptions extensionOptions) (fail "duplicate CREATE EXTENSION option")
     char ';'
-    pure CreateExtension { name, ifNotExists }
+    pure CreateExtension { name, ifNotExists, extensionOptions }
+    where
+        extensionOption = choice
+            [ lexeme "SCHEMA" >> (ExtensionSchema <$> extensionIdentifier)
+            , lexeme "VERSION" >> (ExtensionVersion <$> extensionVersionText)
+            , lexeme "CASCADE" $> ExtensionCascade
+            ]
+
+hasDuplicateExtensionOptions :: [ExtensionOption] -> Bool
+hasDuplicateExtensionOptions options = length optionKinds /= length (List.nub optionKinds)
+    where
+        optionKinds = map (\case ExtensionSchema {} -> (0 :: Int); ExtensionVersion {} -> 1; ExtensionCascade -> 2) options
 
 createTable = do
     lexeme "CREATE"
@@ -1291,37 +1301,21 @@ createSequence = do
     lexeme "CREATE"
     lexeme "SEQUENCE"
     name <- qualifiedIdentifier
-
-    -- We accept all the following SEQUENCE attributes, but don't save them
-    -- This is mostly to void issues in migrations when parsing the pg_dump output
-    optional do
-        lexeme "AS"
-        sqlType
-
-    optional do
-        lexeme "START"
-        lexeme "WITH"
-        expression
-
-    optional do
-        lexeme "INCREMENT"
-        lexeme "BY"
-        expression
-
-    optional do
-        lexeme "NO"
-        lexeme "MINVALUE"
-
-    optional do
-        lexeme "NO"
-        lexeme "MAXVALUE"
-
-    optional do
-        lexeme "CACHE"
-        expression
-
+    sequenceOptions <- many sequenceOption
     char ';'
-    pure CreateSequence { name }
+    pure CreateSequence { name, sequenceOptions }
+    where
+        sequenceOption = choice
+            [ lexeme "AS" >> (SequenceAs <$> sqlType)
+            , lexeme "START" >> optional (lexeme "WITH") >> (SequenceStart <$> sequenceValue)
+            , lexeme "INCREMENT" >> optional (lexeme "BY") >> (SequenceIncrement <$> sequenceValue)
+            , lexeme "NO" >> ((lexeme "MINVALUE" $> SequenceNoMinValue) <|> (lexeme "MAXVALUE" $> SequenceNoMaxValue) <|> (lexeme "CYCLE" $> SequenceCycle False))
+            , lexeme "MINVALUE" >> (SequenceMinValue <$> sequenceValue)
+            , lexeme "MAXVALUE" >> (SequenceMaxValue <$> sequenceValue)
+            , lexeme "CACHE" >> (SequenceCache <$> sequenceValue)
+            , lexeme "CYCLE" $> SequenceCycle True
+            ]
+        sequenceValue = lexeme (try doubleExpr <|> intExpr)
 
 addValue typeName = do
     lexeme "ADD"

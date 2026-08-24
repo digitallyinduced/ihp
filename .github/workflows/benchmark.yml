@@ -198,7 +198,10 @@ jobs:
         if [ -n "$COMMENT_ID" ]; then
           gh api "repos/${{ github.repository }}/issues/comments/$COMMENT_ID" -X DELETE 2>/dev/null || true
         fi
-        gh pr comment "${{ github.event.pull_request.number }}" --body-file comment-body.md
+        # Fork pull requests receive a read-only GITHUB_TOKEN, so posting the
+        # report can fail even when the benchmark itself succeeded.
+        gh pr comment "${{ github.event.pull_request.number }}" --body-file comment-body.md \
+          || echo "::warning::Could not post benchmark report as a PR comment"
 
         # Fail if either metric regresses >10%
         if [ "$FAILED" = "1" ]; then

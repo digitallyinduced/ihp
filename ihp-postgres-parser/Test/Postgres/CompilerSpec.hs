@@ -21,7 +21,16 @@ spec = do
             compileSql [StatementCreateTable (table "users")] `shouldBe` "CREATE TABLE users (\n\n);\n"
 
         it "should compile a CREATE EXTENSION for the UUID extension" do
-            compileSql [CreateExtension { name = "uuid-ossp", ifNotExists = True }] `shouldBe` "CREATE EXTENSION IF NOT EXISTS \"uuid-ossp\";\n"
+            compileSql [CreateExtension { name = "uuid-ossp", ifNotExists = True, extensionOptions = [] }] `shouldBe` "CREATE EXTENSION IF NOT EXISTS \"uuid-ossp\";\n"
+
+        it "should quote punctuation in extension schema names" do
+            compileSql [CreateExtension { name = "postgis", ifNotExists = True, extensionOptions = [ExtensionSchema "geo.data"] }] `shouldBe` "CREATE EXTENSION IF NOT EXISTS postgis WITH SCHEMA \"geo.data\";\n"
+
+        it "should escape quotes in extension schema names" do
+            compileSql [CreateExtension { name = "postgis", ifNotExists = True, extensionOptions = [ExtensionSchema "geo\"data"] }] `shouldBe` "CREATE EXTENSION IF NOT EXISTS postgis WITH SCHEMA \"geo\"\"data\";\n"
+
+        it "should emit WITH before arbitrarily ordered extension options" do
+            compileSql [CreateExtension { name = "postgis", ifNotExists = True, extensionOptions = [ExtensionCascade, ExtensionSchema "geo"] }] `shouldBe` "CREATE EXTENSION IF NOT EXISTS postgis WITH CASCADE SCHEMA geo;\n"
 
         it "should compile a line comment" do
             compileSql [Comment { content = " Comment value" }] `shouldBe` "-- Comment value\n"
@@ -363,7 +372,17 @@ spec = do
 
         it "should compile 'CREATE SEQUENCE ..' statements" do
             let sql = "CREATE SEQUENCE a;\n"
-            let statements = [ CreateSequence { name = "a" } ]
+            let statements = [ CreateSequence { name = "a", sequenceOptions = [] } ]
+            compileSql statements `shouldBe` sql
+
+        it "should escape quotes in extension versions" do
+            let sql = "CREATE EXTENSION extension_name VERSION '1''beta';\n"
+            let statements = [ CreateExtension { name = "extension_name", ifNotExists = False, extensionOptions = [ExtensionVersion "1'beta"] } ]
+            compileSql statements `shouldBe` sql
+
+        it "should compile 'ALTER SEQUENCE ..' statements" do
+            let sql = "ALTER SEQUENCE a INCREMENT BY 3 CACHE 10;\n"
+            let statements = [ AlterSequence { name = "a", sequenceOptions = [SequenceIncrement (IntExpression 3), SequenceCache (IntExpression 10)] } ]
             compileSql statements `shouldBe` sql
 
         it "should compile 'DROP TYPE ..;' statements" do

@@ -74,6 +74,136 @@ tests = do
             it "should handle an empty schema" do
                 diffSchemas [] [] `shouldBe` []
 
+            it "normalizes PostgreSQL's implicit sequence options" do
+                let targetSchema = sql "CREATE SEQUENCE events_id_seq;"
+                let actualSchema = sql [i|
+                    CREATE SEQUENCE events_id_seq START WITH 1 INCREMENT BY 1 NO MINVALUE NO MAXVALUE CACHE 1;
+                |]
+
+                diffSchemas targetSchema actualSchema `shouldBe` []
+
+            it "keeps non-default sequence options" do
+                let targetSchema = sql "CREATE SEQUENCE events_id_seq INCREMENT BY 2;"
+                let actualSchema = sql [i|
+                    CREATE SEQUENCE events_id_seq START WITH 1 INCREMENT BY 2 NO MINVALUE NO MAXVALUE CACHE 1;
+                |]
+
+                diffSchemas targetSchema actualSchema `shouldBe` []
+
+            it "canonicalizes sequence option ordering" do
+                let targetSchema = sql "CREATE SEQUENCE events_id_seq CACHE 10 INCREMENT BY 2;"
+                let actualSchema = sql "CREATE SEQUENCE events_id_seq INCREMENT BY 2 CACHE 10;"
+
+                diffSchemas targetSchema actualSchema `shouldBe` []
+
+            it "alters changed options on an existing sequence" do
+                let targetSchema = sql "CREATE SEQUENCE events_id_seq INCREMENT BY 3;"
+                let actualSchema = sql "CREATE SEQUENCE events_id_seq INCREMENT BY 2;"
+
+                diffSchemas targetSchema actualSchema `shouldBe`
+                    [AlterSequence { name = "events_id_seq", sequenceOptions = [SequenceIncrement (IntExpression 3)] }]
+
+            it "resets removed sequence options to PostgreSQL defaults" do
+                let targetSchema = sql "CREATE SEQUENCE events_id_seq;"
+                let actualSchema = sql "CREATE SEQUENCE events_id_seq INCREMENT BY 2 CACHE 10 CYCLE;"
+
+                diffSchemas targetSchema actualSchema `shouldBe`
+                    [ AlterSequence
+                        { name = "events_id_seq"
+                        , sequenceOptions =
+                            [ SequenceIncrement (IntExpression 1)
+                            , SequenceCache (IntExpression 1)
+                            , SequenceCycle False
+                            ]
+                        }
+                    ]
+
+            it "normalizes PostgreSQL's implicit descending sequence start" do
+                let targetSchema = sql "CREATE SEQUENCE events_id_seq INCREMENT BY -1;"
+                let actualSchema = sql [i|
+                    CREATE SEQUENCE events_id_seq START WITH -1 INCREMENT BY -1 NO MINVALUE NO MAXVALUE CACHE 1;
+                |]
+
+                diffSchemas targetSchema actualSchema `shouldBe` []
+
+            it "derives an implicit sequence start from custom bounds" do
+                let targetSchema = sql "CREATE SEQUENCE events_id_seq MINVALUE 10;"
+                let actualSchema = sql "CREATE SEQUENCE events_id_seq START WITH 10 MINVALUE 10;"
+
+                diffSchemas targetSchema actualSchema `shouldBe` []
+
+            it "normalizes explicitly spelled default sequence bounds" do
+                let targetSchema = sql "CREATE SEQUENCE events_id_seq MINVALUE 1 MAXVALUE 9223372036854775807;"
+                let actualSchema = sql "CREATE SEQUENCE events_id_seq NO MINVALUE NO MAXVALUE;"
+
+                diffSchemas targetSchema actualSchema `shouldBe` []
+
+            it "resets a removed sequence start to the target bound" do
+                let targetSchema = sql "CREATE SEQUENCE events_id_seq MINVALUE 10;"
+                let actualSchema = sql "CREATE SEQUENCE events_id_seq START WITH 20 MINVALUE 10;"
+
+                diffSchemas targetSchema actualSchema `shouldBe`
+                    [ AlterSequence
+                        { name = "events_id_seq"
+                        , sequenceOptions =
+                            [ SequenceMinValue (IntExpression 10)
+                            , SequenceStart (IntExpression 10)
+                            ]
+                        }
+                    ]
+
+            it "moves the implicit sequence start when a bound changes" do
+                let targetSchema = sql "CREATE SEQUENCE events_id_seq MINVALUE 20;"
+                let actualSchema = sql "CREATE SEQUENCE events_id_seq START WITH 10 MINVALUE 10;"
+
+                diffSchemas targetSchema actualSchema `shouldBe`
+                    [ AlterSequence
+                        { name = "events_id_seq"
+                        , sequenceOptions =
+                            [ SequenceMinValue (IntExpression 20)
+                            , SequenceStart (IntExpression 20)
+                            ]
+                        }
+                    ]
+
+            it "resets direction-dependent defaults when a sequence becomes descending" do
+                let targetSchema = sql "CREATE SEQUENCE events_id_seq INCREMENT BY -1;"
+                let actualSchema = sql "CREATE SEQUENCE events_id_seq INCREMENT BY 2;"
+
+                diffSchemas targetSchema actualSchema `shouldBe`
+                    [ AlterSequence
+                        { name = "events_id_seq"
+                        , sequenceOptions =
+                            [ SequenceIncrement (IntExpression (-1))
+                            , SequenceStart (IntExpression (-1))
+                            , SequenceNoMinValue
+                            , SequenceNoMaxValue
+                            ]
+                        }
+                    ]
+
+            it "normalizes the default extension schema" do
+                let targetSchema = sql "CREATE EXTENSION IF NOT EXISTS pg_trgm;"
+                let actualSchema = sql "CREATE EXTENSION IF NOT EXISTS pg_trgm WITH SCHEMA public;"
+
+                diffSchemas targetSchema actualSchema `shouldBe` []
+
+            it "leaves extension relocation to explicit migrations" do
+                let targetSchema = sql "CREATE EXTENSION IF NOT EXISTS postgis WITH SCHEMA new_schema;"
+                let actualSchema = sql "CREATE EXTENSION IF NOT EXISTS postgis WITH SCHEMA old_schema;"
+
+                diffSchemas targetSchema actualSchema `shouldBe` []
+
+            it "ignores installation-only extension options" do
+                let targetSchema = sql "CREATE EXTENSION IF NOT EXISTS pg_trgm VERSION '1.6' CASCADE;"
+                let actualSchema = sql "CREATE EXTENSION IF NOT EXISTS pg_trgm;"
+
+                diffSchemas targetSchema actualSchema `shouldBe` []
+
+            it "preserves options when creating a missing extension" do
+                let targetSchema = sql "CREATE EXTENSION IF NOT EXISTS postgis WITH SCHEMA geo VERSION '3.4.2' CASCADE;"
+
+                diffSchemas targetSchema [] `shouldBe` targetSchema
             it "normalizes equivalent geometry modifiers" do
                 let targetSchema = sql "CREATE TABLE locations (shape geometry(Point, 4326));"
                 let actualSchema = sql "CREATE TABLE locations (shape geometry(point,4326));"
