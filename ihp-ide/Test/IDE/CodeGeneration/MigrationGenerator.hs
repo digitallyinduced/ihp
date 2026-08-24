@@ -12,6 +12,7 @@ import qualified Text.Megaparsec as Megaparsec
 import qualified IHP.Postgres.Parser as Parser
 import IHP.Postgres.Types
 import IHP.IDE.CodeGen.Types (GeneratorAction (..))
+import qualified Data.Text as Text
 
 tests = do
     describe "MigrationGenerator" do
@@ -73,6 +74,38 @@ tests = do
         describe "diffSchemas" do
             it "should handle an empty schema" do
                 diffSchemas [] [] `shouldBe` []
+
+            it "removes FORCE ROW LEVEL SECURITY when absent from the target" do
+                let actualSchema = sql "ALTER TABLE tickets FORCE ROW LEVEL SECURITY;"
+                let migration = sql "ALTER TABLE tickets NO FORCE ROW LEVEL SECURITY;"
+
+                diffSchemas [] actualSchema `shouldBe` migration
+
+            it "canonicalizes explicit target NO FORCE to PostgreSQL's omitted default" do
+                let targetSchema = sql "ALTER TABLE tickets NO FORCE ROW LEVEL SECURITY;"
+
+                diffSchemas targetSchema [] `shouldBe` []
+
+            it "does not emit NO FORCE after dropping its table" do
+                let actualSchema = sql [i|
+                    CREATE TABLE tickets (id UUID);
+                    ALTER TABLE tickets FORCE ROW LEVEL SECURITY;
+                |]
+
+                diffSchemas [] actualSchema `shouldBe` sql "DROP TABLE tickets;"
+
+            it "does not emit NO FORCE after dropping multiple tables" do
+                let actualSchema = sql [i|
+                    CREATE TABLE tickets (id UUID);
+                    CREATE TABLE users (id UUID);
+                    ALTER TABLE tickets FORCE ROW LEVEL SECURITY;
+                    ALTER TABLE users FORCE ROW LEVEL SECURITY;
+                |]
+
+                diffSchemas [] actualSchema `shouldBe` sql [i|
+                    DROP TABLE tickets;
+                    DROP TABLE users;
+                |]
 
             it "normalizes explicit default function attributes" do
                 let targetSchema = sql [i|
@@ -676,6 +709,23 @@ tests = do
                 |]
 
                 diffSchemas targetSchema actualSchema `shouldBe` migration 
+
+            it "retargets FORCE statements after table renames" do
+                let targetSchema = sql [i|
+                    CREATE TABLE users (id UUID);
+                    ALTER TABLE users FORCE ROW LEVEL SECURITY;
+                |]
+                let actualSchema = sql [i|
+                    CREATE TABLE profiles (id UUID);
+                    ALTER TABLE profiles FORCE ROW LEVEL SECURITY;
+                |]
+                let migration = sql [i|
+                    ALTER TABLE profiles RENAME TO users;
+                    ALTER TABLE users NO FORCE ROW LEVEL SECURITY;
+                    ALTER TABLE users FORCE ROW LEVEL SECURITY;
+                |]
+
+                diffSchemas targetSchema actualSchema `shouldBe` migration
             
             it "should not do a rename if tables are different" do
                 let targetSchema = sql [i|
@@ -745,6 +795,78 @@ tests = do
                 |]
 
                 diffSchemas targetSchema actualSchema `shouldBe` migration
+
+            it "normalizes explicit PUBLIC to PostgreSQL's omitted policy role" do
+                let targetSchema = sql "CREATE POLICY access ON tickets TO PUBLIC;"
+                let actualSchema = sql "CREATE POLICY access ON tickets;"
+
+                diffSchemas targetSchema actualSchema `shouldBe` []
+
+            it "preserves quotes on literal roles that look special" do
+                let targetSchema = sql "CREATE POLICY access ON tickets TO \"current_user\", \"public\";"
+                let actualSchema = sql "CREATE POLICY access ON tickets TO \"current_user\", \"public\";"
+
+                normalizeSchema targetSchema `shouldBe` actualSchema
+
+            it "preserves quotes on roles that are not valid unquoted identifiers" do
+                let targetSchema = sql "CREATE POLICY access ON tickets TO \"ops.team\", \"ops\"\"team\", \"9ops\", \"ops/team\";"
+
+                normalizeSchema targetSchema `shouldBe` targetSchema
+
+            it "truncates literal policy roles before comparison" do
+                let targetSchema = sql "CREATE POLICY access ON tickets TO aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa;"
+                let actualSchema = sql "CREATE POLICY access ON tickets TO aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa;"
+
+                diffSchemas targetSchema actualSchema `shouldBe` []
+
+            it "truncates policy roles by UTF-8 bytes" do
+                let targetSchema = sql ("CREATE POLICY access ON tickets TO \"" <> Text.replicate 40 "é" <> "\";")
+                let actualSchema = sql ("CREATE POLICY access ON tickets TO \"" <> Text.replicate 31 "é" <> "\";")
+
+                diffSchemas targetSchema actualSchema `shouldBe` []
+
+            it "resolves context-dependent policy roles before comparison" do
+                let targetSchema = sql "CREATE POLICY access ON tickets TO CURRENT_ROLE, CURRENT_USER, SESSION_USER;"
+                let actualSchema = sql "CREATE POLICY access ON tickets TO migration_role, app_user, \"Session User\";"
+                let context = PolicyRoleContext
+                        { policyCurrentRole = "migration_role"
+                        , policyCurrentUser = "app_user"
+                        , policySessionUser = "Session User"
+                        }
+
+                diffSchemas (resolveContextDependentPolicyRoles context targetSchema) actualSchema `shouldBe` []
+
+            it "preserves trailing whitespace in resolved policy roles" do
+                let Right context = parsePolicyRoleContextOutput "[\"migration_role\",\"app_user\",\"app \\t\\n\"]"
+
+                context.policySessionUser `shouldBe` "app \t\n"
+
+            it "preserves quotes when contextual roles resolve to special-looking names" do
+                let targetSchema = sql "CREATE POLICY access ON tickets TO CURRENT_ROLE, CURRENT_USER, SESSION_USER;"
+                let actualSchema = sql "CREATE POLICY access ON tickets TO \"public\", \"current_user\", \"session_user\";"
+                let context = PolicyRoleContext
+                        { policyCurrentRole = "public"
+                        , policyCurrentUser = "current_user"
+                        , policySessionUser = "session_user"
+                        }
+
+                diffSchemas (resolveContextDependentPolicyRoles context targetSchema) actualSchema `shouldBe` []
+
+                let currentRoleTarget = sql "CREATE POLICY access ON tickets TO CURRENT_ROLE;"
+                let currentRoleActual = sql "CREATE POLICY access ON tickets TO \"current_role\";"
+                let currentRoleContext = context { policyCurrentRole = "current_role" }
+
+                diffSchemas (resolveContextDependentPolicyRoles currentRoleContext currentRoleTarget) currentRoleActual `shouldBe` []
+
+            it "keeps context-dependent role keywords in generated policies" do
+                let targetSchema = sql "CREATE POLICY access ON tickets TO CURRENT_ROLE, CURRENT_USER, SESSION_USER;"
+                let context = PolicyRoleContext
+                        { policyCurrentRole = "migration_role"
+                        , policyCurrentUser = "app_user"
+                        , policySessionUser = "Session User"
+                        }
+
+                diffSchemasWithPolicyRoleContext context targetSchema [] `shouldBe` normalizeSchema targetSchema
 
             it "should normalize primary keys" do
                 let targetSchema = sql [i|

@@ -49,7 +49,9 @@ compileStatement Comment { content } = "--" <> content
 compileStatement CreateIndex { indexName, unique, tableName, columns, whereClause, indexType, nullsDistinct } = "CREATE" <> (if unique then " UNIQUE " else " ") <> "INDEX " <> compileIdentifier indexName <> " ON " <> compileQualifiedIdentifier tableName <> (maybe "" (\indexType -> " USING " <> compileIndexType indexType) indexType) <> " (" <> (intercalate ", " (map compileIndexColumn columns)) <> ")" <> (if nullsDistinct then "" else " NULLS NOT DISTINCT") <> (case whereClause of Just expression -> " WHERE " <> compileExpression expression; Nothing -> "") <> ";"
 compileStatement CreateFunction { functionName, functionArguments, functionBody, orReplace, returns, language, securityDefiner, functionAttributes, functionSettings } = "CREATE " <> (if orReplace then "OR REPLACE " else "") <> "FUNCTION " <> compileQualifiedIdentifier functionName <> "(" <> (functionArguments & map (\(argName, argType) -> compileUnqualifiedIdentifier argName <> " " <> compilePostgresType argType) & intercalate  ", ") <> ")" <> " RETURNS " <> compilePostgresType returns <> (if securityDefiner then " SECURITY DEFINER" else "") <> mconcat (map (" " <>) functionAttributes) <> mconcat (map compileFunctionSetting functionSettings) <> " AS " <> dollarQuote functionBody <> functionBody <> dollarQuote functionBody <> " language " <> language <> ";"
 compileStatement EnableRowLevelSecurity { tableName } = "ALTER TABLE " <> compileQualifiedIdentifier tableName <> " ENABLE ROW LEVEL SECURITY;"
-compileStatement CreatePolicy { name, action, tableName, using, check } = "CREATE POLICY " <> compileIdentifier name <> " ON " <> compileQualifiedIdentifier tableName <> maybe "" (\action -> " FOR " <> compilePolicyAction action) action  <> maybe "" (\expr -> " USING (" <> compileExpression expr <> ")") using <> maybe "" (\expr -> " WITH CHECK (" <> compileExpression expr <> ")") check <> ";"
+compileStatement ForceRowLevelSecurity { tableName } = "ALTER TABLE " <> compileQualifiedIdentifier tableName <> " FORCE ROW LEVEL SECURITY;"
+compileStatement NoForceRowLevelSecurity { tableName } = "ALTER TABLE " <> compileQualifiedIdentifier tableName <> " NO FORCE ROW LEVEL SECURITY;"
+compileStatement CreatePolicy { name, action, tableName, roles, using, check } = "CREATE POLICY " <> compileIdentifier name <> " ON " <> compileQualifiedIdentifier tableName <> maybe "" (\action -> " FOR " <> compilePolicyAction action) action <> (if null roles then "" else " TO " <> intercalate ", " (map compilePolicyRole roles)) <> maybe "" (\expr -> " USING (" <> compileExpression expr <> ")") using <> maybe "" (\expr -> " WITH CHECK (" <> compileExpression expr <> ")") check <> ";"
 compileStatement CreateSequence { name, sequenceOptions } = "CREATE SEQUENCE " <> compileQualifiedIdentifier name <> (if null sequenceOptions then "" else " " <> intercalate " " (map compileSequenceOption sequenceOptions)) <> ";"
 compileStatement AlterSequence { name, sequenceOptions } = "ALTER SEQUENCE " <> compileQualifiedIdentifier name <> " " <> intercalate " " (map compileSequenceOption sequenceOptions) <> ";"
 compileStatement DropConstraint { tableName, constraintName } = "ALTER TABLE " <> compileQualifiedIdentifier tableName <> " DROP CONSTRAINT " <> compileIdentifier constraintName <> ";"
@@ -555,6 +557,11 @@ compilePolicyAction PolicyForSelect = "SELECT"
 compilePolicyAction PolicyForInsert = "INSERT"
 compilePolicyAction PolicyForUpdate = "UPDATE"
 compilePolicyAction PolicyForDelete = "DELETE"
+
+compilePolicyRole :: PolicyRole -> Text
+compilePolicyRole (PolicyRole role) = compileIdentifier role
+compilePolicyRole (QuotedPolicyRole role) = "\"" <> Text.replace "\"" "\"\"" role <> "\""
+compilePolicyRole (SpecialPolicyRole role) = Text.toUpper role
 
 compileGenerator :: ColumnGenerator -> Text
 compileGenerator ColumnGenerator { generate, stored } =

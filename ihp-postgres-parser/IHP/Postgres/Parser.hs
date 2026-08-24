@@ -25,10 +25,10 @@ import qualified Data.Text as Text
 import qualified Data.Text.IO as Text
 import Data.ByteString (ByteString)
 import Data.String.Conversions (cs)
-import Data.Maybe (isJust, catMaybes, isNothing, listToMaybe)
+import Data.Maybe (isJust, catMaybes, isNothing, listToMaybe, fromMaybe)
 import Data.Either (lefts, rights)
 import Data.Functor (($>))
-import Data.Char (isAlpha, isAlphaNum, isSpace, toLower)
+import Data.Char (isAlpha, isAlphaNum, isSpace, toLower, toUpper)
 import qualified Data.List as List
 import Control.Monad (when)
 import Text.Megaparsec
@@ -1574,7 +1574,7 @@ alterTable = do
     let alter = do
             lexeme "ALTER"
             alterColumn tableName
-    enableRowLevelSecurity tableName <|> add <|> drop <|> rename <|> alter
+    enableRowLevelSecurity tableName <|> noForceRowLevelSecurity tableName <|> forceRowLevelSecurity tableName <|> add <|> drop <|> rename <|> alter
 
 alterType = do
     lexeme "TYPE"
@@ -1634,6 +1634,23 @@ enableRowLevelSecurity tableName = do
     char ';'
     pure EnableRowLevelSecurity { tableName }
 
+forceRowLevelSecurity tableName = do
+    lexeme "FORCE"
+    lexeme "ROW"
+    lexeme "LEVEL"
+    lexeme "SECURITY"
+    char ';'
+    pure ForceRowLevelSecurity { tableName }
+
+noForceRowLevelSecurity tableName = do
+    lexeme "NO"
+    lexeme "FORCE"
+    lexeme "ROW"
+    lexeme "LEVEL"
+    lexeme "SECURITY"
+    char ';'
+    pure NoForceRowLevelSecurity { tableName }
+
 createPolicy = do
     lexeme "CREATE"
     lexeme "POLICY"
@@ -1642,6 +1659,10 @@ createPolicy = do
     tableName <- qualifiedIdentifier
 
     action <- optional (lexeme "FOR" >> policyAction)
+
+    roles <- fromMaybe [] <$> optional do
+        lexeme "TO"
+        policyRole `sepBy1` (char ',' >> space)
 
     using <- optional do
         lexeme "USING"
@@ -1654,7 +1675,32 @@ createPolicy = do
 
     char ';'
 
-    pure CreatePolicy { name, action, tableName, using, check }
+    pure CreatePolicy { name, action, tableName, roles, using, check }
+
+policyRole :: Parser PolicyRole
+policyRole = quotedRole <|> unquotedRole
+    where
+        quotedRole = do
+            role <- Text.pack <$> between (char '"') (char '"') (some (try (string "\"\"" $> '"') <|> anySingleBut '"'))
+            space
+            pure (QuotedPolicyRole role)
+        unquotedRole = do
+            first <- satisfy (\character -> isAlpha character || character == '_')
+            rest <- takeWhileP (Just "policy role") (\character -> isAlphaNum character || character == '_' || character == '$')
+            space
+            let role = Text.cons first rest
+            let upperRole = foldAsciiUpper role
+            pure if upperRole `elem` ["PUBLIC", "CURRENT_ROLE", "CURRENT_USER", "SESSION_USER"]
+                then SpecialPolicyRole upperRole
+                else PolicyRole (foldAscii role)
+        foldAscii = Text.map \character ->
+            if character >= 'A' && character <= 'Z'
+                then toLower character
+                else character
+        foldAsciiUpper = Text.map \character ->
+            if character >= 'a' && character <= 'z'
+                then toUpper character
+                else character
 
 policyAction =
     (lexeme "ALL" >> pure PolicyForAll)

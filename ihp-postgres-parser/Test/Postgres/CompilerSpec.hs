@@ -251,6 +251,31 @@ spec = do
                     }
             compileSql [statement] `shouldBe` sql
 
+        it "should round-trip RLS policy roles and FORCE" do
+            let statements =
+                    [ ForceRowLevelSecurity { tableName = "tickets" }
+                    , (policy "access" "tickets")
+                        { action = Just PolicyForSelect
+                        , roles = [PolicyRole "ihp_authenticated", SpecialPolicyRole "PUBLIC"]
+                        , using = Just (VarExpression "active")
+                        }
+                    ]
+            parseSqlStatements (compileSql statements) `shouldBe` statements
+
+        it "preserves special policy roles and NO FORCE" do
+            let statements =
+                    [ NoForceRowLevelSecurity { tableName = "tickets" }
+                    , (policy "access" "tickets")
+                        { roles = [SpecialPolicyRole "current_role", SpecialPolicyRole "CURRENT_USER", SpecialPolicyRole "session_user"]
+                        }
+                    ]
+            compileSql statements `shouldBe` "ALTER TABLE tickets NO FORCE ROW LEVEL SECURITY;\nCREATE POLICY \"access\" ON tickets TO CURRENT_ROLE, CURRENT_USER, SESSION_USER;\n"
+
+        it "quotes literal roles that look like special role specifications" do
+            let statement = (policy "access" "tickets")
+                    { roles = [QuotedPolicyRole "current_user", SpecialPolicyRole "CURRENT_USER"] }
+            compileSql [statement] `shouldBe` "CREATE POLICY \"access\" ON tickets TO \"current_user\", CURRENT_USER;\n"
+
         it "should choose a safe dollar quote for function bodies" do
             let statement = (function "uses_dollars") { functionBody = "SELECT '$$' || $1;", returns = PText, language = "sql" }
             parseSql (compileSql [statement]) `shouldBe` statement
@@ -335,7 +360,6 @@ spec = do
         it "should round-trip PostgreSQL 18 named NOT NULL constraints" do
             let sql = "CREATE TABLE users (\n    email TEXT CONSTRAINT users_email_not_null NOT NULL\n);"
             compileSql [parseSql sql] `shouldBe` (sql <> "\n")
-
         it "should round-trip non-public schema-qualified table names" do
             let statement = StatementCreateTable (table "private.users")
             parseSql (compileSql [statement]) `shouldBe` statement
@@ -551,7 +575,12 @@ spec = do
 
 parseSql :: Text -> Statement
 parseSql sql =
+    case parseSqlStatements sql of
+        [statement] -> statement
+        statements -> error $ "Expected single statement but got: " <> show (length statements)
+
+parseSqlStatements :: Text -> [Statement]
+parseSqlStatements sql =
     case Megaparsec.runParser parseDDL "input" sql of
             Left parserError -> error (cs $ Megaparsec.errorBundlePretty parserError)
-            Right [statement] -> statement
-            Right statements -> error $ "Expected single statement but got: " <> show (length statements)
+            Right statements -> statements

@@ -761,6 +761,44 @@ spec = do
             parseSql "CREATE TABLE locations (geom geometry(Point, 4326));"
                 `shouldBe` StatementCreateTable (table "locations") { columns = [col "geom" (PGeometryWithModifier "Point, 4326")] }
 
+        it "should preserve policy roles" do
+            parseSql "CREATE POLICY access ON tickets FOR SELECT TO ihp_authenticated, PUBLIC USING (active);" `shouldBe`
+                (policy "access" "tickets")
+                    { action = Just PolicyForSelect
+                    , roles = [PolicyRole "ihp_authenticated", SpecialPolicyRole "PUBLIC"]
+                    , using = Just (VarExpression "active")
+                    }
+
+        it "should distinguish quoted policy roles from special role specifications" do
+            parseSql "CREATE POLICY access ON tickets TO \"current_user\", CURRENT_USER;" `shouldBe`
+                (policy "access" "tickets")
+                    { roles = [QuotedPolicyRole "current_user", SpecialPolicyRole "CURRENT_USER"] }
+
+        it "should fold unquoted policy roles and decode quoted role escapes" do
+            parseSql "CREATE POLICY access ON tickets TO MyRole, \"ops\"\"team\";" `shouldBe`
+                (policy "access" "tickets")
+                    { roles = [PolicyRole "myrole", QuotedPolicyRole "ops\"team"] }
+
+        it "should fold only ASCII characters in unquoted policy roles" do
+            parseSql "CREATE POLICY access ON tickets TO ÄRole;" `shouldBe`
+                (policy "access" "tickets") { roles = [PolicyRole "Ärole"] }
+
+        it "should recognize special policy roles with ASCII folding only" do
+            parseSql "CREATE POLICY access ON tickets TO publıc;" `shouldBe`
+                (policy "access" "tickets") { roles = [PolicyRole "publıc"] }
+
+        it "should parse dollar signs in unquoted policy roles" do
+            parseSql "CREATE POLICY access ON tickets TO app$user;" `shouldBe`
+                (policy "access" "tickets") { roles = [PolicyRole "app$user"] }
+
+        it "should parse FORCE ROW LEVEL SECURITY" do
+            parseSql "ALTER TABLE tickets FORCE ROW LEVEL SECURITY;" `shouldBe`
+                ForceRowLevelSecurity { tableName = "tickets" }
+
+        it "should parse NO FORCE ROW LEVEL SECURITY" do
+            parseSql "ALTER TABLE tickets NO FORCE ROW LEVEL SECURITY;" `shouldBe`
+                NoForceRowLevelSecurity { tableName = "tickets" }
+
         it "should preserve GRANT and REVOKE statements" do
             parseSql "GRANT SELECT ON TABLE users TO ihp_authenticated;" `shouldBe`
                 UnknownStatement { raw = "GRANT SELECT ON TABLE users TO ihp_authenticated" }

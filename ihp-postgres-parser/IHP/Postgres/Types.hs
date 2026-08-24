@@ -39,8 +39,10 @@ data Statement
     | CreateFunction { functionName :: Text, functionArguments :: [(Text, PostgresType)], functionBody :: Text, orReplace :: Bool, returns :: PostgresType, language :: Text, securityDefiner :: Bool, functionAttributes :: [Text], functionSettings :: [FunctionSetting] }
     -- | ALTER TABLE tableName ENABLE ROW LEVEL SECURITY;
     | EnableRowLevelSecurity { tableName :: Text }
+    | ForceRowLevelSecurity { tableName :: Text }
+    | NoForceRowLevelSecurity { tableName :: Text }
     -- CREATE POLICY name ON tableName USING using WITH CHECK check;
-    | CreatePolicy { name :: Text, tableName :: Text, action :: Maybe PolicyAction, using :: Maybe Expression, check :: Maybe Expression }
+    | CreatePolicy { name :: Text, tableName :: Text, action :: Maybe PolicyAction, roles :: [PolicyRole], using :: Maybe Expression, check :: Maybe Expression }
     -- SET name = value;
     | Set { name :: Text, value :: Expression }
     -- SELECT query;
@@ -311,6 +313,12 @@ data PolicyAction
     | PolicyForDelete
     deriving (Eq, Show)
 
+data PolicyRole
+    = PolicyRole Text
+    | QuotedPolicyRole Text
+    | SpecialPolicyRole Text
+    deriving (Eq, Show)
+
 data IndexType = Btree | Hash | Gist | Spgist | Gin | Brin | Hnsw | Ivfflat
     deriving (Eq, Show)
 
@@ -369,6 +377,7 @@ policy name tableName = CreatePolicy
     { name = name
     , tableName = tableName
     , action = Nothing
+    , roles = []
     , using = Nothing
     , check = Nothing
     }

@@ -8,11 +8,14 @@ module IHP.IDE.CodeGen.MigrationGenerator where
 import IHP.Prelude
 import qualified System.Directory as Directory
 import qualified Data.Text as Text
+import qualified Data.Text.Encoding as TextEncoding
+import qualified Data.ByteString as ByteString
 import qualified Data.Time.Clock.POSIX as POSIX
 import qualified IHP.NameSupport as NameSupport
 import qualified Data.Char as Char
 import qualified Text.Read as Read
 import qualified System.Process as Process
+import qualified Data.Aeson as Aeson
 import qualified IHP.Postgres.Parser as Parser
 import qualified IHP.SchemaCompiler.Parser as SchemaDesignerParser
 import IHP.Postgres.Types
@@ -123,10 +126,71 @@ diffAppDatabase includeIHPSchema databaseUrl = do
             then parseIHPSchema
             else pure (Right [])
     actualSchema <- getAppDBSchema databaseUrl
+    policyRoleContext <- getPolicyRoleContext databaseUrl
 
     let targetSchema = ihpSchemaSql <> schemaSql
 
-    pure (diffSchemas targetSchema actualSchema)
+    pure (diffSchemasWithPolicyRoleContext policyRoleContext targetSchema actualSchema)
+
+data PolicyRoleContext = PolicyRoleContext
+    { policyCurrentRole :: Text
+    , policyCurrentUser :: Text
+    , policySessionUser :: Text
+    }
+
+getPolicyRoleContext :: Text -> IO PolicyRoleContext
+getPolicyRoleContext databaseUrl = do
+    output <- cs <$> Process.readProcess "psql"
+        [ "--no-psqlrc"
+        , "--tuples-only"
+        , "--no-align"
+        , cs databaseUrl
+        , "--command"
+        , "SELECT json_build_array(current_role, current_user, session_user)"
+        ] []
+    either fail pure (parsePolicyRoleContextOutput output)
+
+parsePolicyRoleContextOutput :: ByteString -> Either String PolicyRoleContext
+parsePolicyRoleContextOutput output = do
+    roles <- Aeson.eitherDecodeStrict' output
+    case roles of
+        [policyCurrentRole, policyCurrentUser, policySessionUser] ->
+            pure PolicyRoleContext { policyCurrentRole, policyCurrentUser, policySessionUser }
+        _ -> Left "Could not resolve PostgreSQL policy role context"
+
+resolveContextDependentPolicyRoles :: PolicyRoleContext -> [Statement] -> [Statement]
+resolveContextDependentPolicyRoles context = map \case
+    policy@CreatePolicy { roles } -> policy { roles = map resolveRole roles }
+    statement -> statement
+    where
+        resolveRole (SpecialPolicyRole "CURRENT_ROLE") = resolvedRole context.policyCurrentRole
+        resolveRole (SpecialPolicyRole "CURRENT_USER") = resolvedRole context.policyCurrentUser
+        resolveRole (SpecialPolicyRole "SESSION_USER") = resolvedRole context.policySessionUser
+        resolveRole role = role
+        resolvedRole = literalPolicyRole
+
+diffSchemasWithPolicyRoleContext :: PolicyRoleContext -> [Statement] -> [Statement] -> [Statement]
+diffSchemasWithPolicyRoleContext context targetSchema actualSchema =
+    restoreTargetPolicyRoles targetSchema
+        (diffSchemas (resolveContextDependentPolicyRoles context targetSchema) actualSchema)
+
+-- Context-dependent role keywords are resolved only for comparison. Keeping
+-- the original target roles in emitted CREATE POLICY statements lets each
+-- database resolve CURRENT_ROLE/CURRENT_USER/SESSION_USER at execution time.
+restoreTargetPolicyRoles :: [Statement] -> [Statement] -> [Statement]
+restoreTargetPolicyRoles targetSchema = map restorePolicy
+    where
+        targetPolicies = normalizeSchema targetSchema
+
+        restorePolicy policy@CreatePolicy { name, tableName } =
+            case find (isSamePolicy name tableName) targetPolicies of
+                Just CreatePolicy { roles } -> policy { roles }
+                _ -> policy
+        restorePolicy statement = statement
+
+        isSamePolicy policyName policyTableName CreatePolicy { name, tableName } =
+            name == policyName && tableName == policyTableName
+        isSamePolicy _ _ _ = False
 
 parseIHPSchema :: IO (Either ByteString [Statement])
 parseIHPSchema = do
@@ -287,6 +351,9 @@ diffSchemas targetSchema' actualSchema' = (drop <> create)
                         fixIdentifier :: Statement -> Statement
                         fixIdentifier s@(DropConstraint { tableName }) | tableName == tableFrom = s { tableName = tableTo }
                         fixIdentifier s@(DropPolicy { tableName }) | tableName == tableFrom = s { tableName = tableTo }
+                        fixIdentifier s@(EnableRowLevelSecurity { tableName }) | tableName == tableFrom = s { tableName = tableTo }
+                        fixIdentifier s@(ForceRowLevelSecurity { tableName }) | tableName == tableFrom = s { tableName = tableTo }
+                        fixIdentifier s@(NoForceRowLevelSecurity { tableName }) | tableName == tableFrom = s { tableName = tableTo }
                         fixIdentifier o = o
         applyRenameTable (s:rest) = s:(applyRenameTable rest)
         applyRenameTable [] = []
@@ -302,6 +369,7 @@ diffSchemas targetSchema' actualSchema' = (drop <> create)
         toDropStatement CreateFunction { functionName } = Just DropFunction { functionName }
         toDropStatement CreateTrigger { name, tableName } = Just DropTrigger { name, tableName }
         toDropStatement CreateEventTrigger { name } = Just DropEventTrigger { name }
+        toDropStatement ForceRowLevelSecurity { tableName } = Just NoForceRowLevelSecurity { tableName }
         toDropStatement otherwise = Nothing
 
 
@@ -519,7 +587,7 @@ normalizeStatement StatementCreateTable { unsafeGetCreateTable = table } = State
         (normalizedTable, normalizeTableRest) = normalizeTable table
 normalizeStatement AddConstraint { tableName, constraint, deferrable, deferrableType } = [ AddConstraint { tableName, constraint = normalizeConstraint tableName constraint, deferrable, deferrableType } ]
 normalizeStatement CreateEnumType { name, values } = [ CreateEnumType { name = Text.toLower name, values = map Text.toLower values } ]
-normalizeStatement CreatePolicy { name, action, tableName, using, check } = [ CreatePolicy { name = truncateIdentifier name, tableName, using = (unqualifyExpression tableName . normalizeExpression) <$> using, check = (unqualifyExpression tableName . normalizeExpression) <$> check, action = normalizePolicyAction action } ]
+normalizeStatement CreatePolicy { name, action, tableName, roles, using, check } = [ CreatePolicy { name = truncateIdentifier name, tableName, roles = normalizePolicyRoles roles, using = (unqualifyExpression tableName . normalizeExpression) <$> using, check = (unqualifyExpression tableName . normalizeExpression) <$> check, action = normalizePolicyAction action } ]
 normalizeStatement CreateIndex { columns, indexType, indexName, .. } = [ CreateIndex { columns = map normalizeIndexColumn columns, indexType = normalizeIndexType indexType, indexName = truncateIdentifier indexName, .. } ]
 normalizeStatement CreateFunction { functionArguments, returns, .. } = [ CreateFunction { orReplace = False, language = normalizedLanguage, functionArguments = map (\(name, type_) -> (name, normalizeSqlType type_)) functionArguments, returns = normalizeSqlType returns, functionAttributes = normalizedFunctionAttributes, functionBody = removeIndentation $ normalizeNewLines functionBody, .. } ]
     where
@@ -583,6 +651,7 @@ normalizeStatement CreateFunction { functionArguments, returns, .. } = [ CreateF
             | otherwise = 10
 normalizeStatement statement@CreateSequence { sequenceOptions } = [statement { sequenceOptions = normalizeSequenceOptions sequenceOptions }]
 normalizeStatement statement@CreateExtension { extensionOptions } = [statement { extensionOptions = filter (not . isImplicitExtensionOption) extensionOptions }]
+normalizeStatement NoForceRowLevelSecurity {} = []
 normalizeStatement otherwise = [otherwise]
 
 normalizeSequenceOptions :: [SequenceOption] -> [SequenceOption]
@@ -636,6 +705,42 @@ isImplicitExtensionOption ExtensionCascade = True
 
 normalizePolicyAction (Just PolicyForAll) = Nothing
 normalizePolicyAction otherwise = otherwise
+
+normalizePolicyRoles :: [PolicyRole] -> [PolicyRole]
+normalizePolicyRoles roles
+    | any isPublicRole roles = []
+    | otherwise = map normalizeLiteralRole roles
+    where
+        isPublicRole (SpecialPolicyRole role) = foldAsciiUpper role == "PUBLIC"
+        isPublicRole _ = False
+        normalizeLiteralRole (PolicyRole role) = PolicyRole (truncateIdentifier role)
+        normalizeLiteralRole (QuotedPolicyRole role) = literalPolicyRole (truncateIdentifier role)
+        normalizeLiteralRole role = role
+
+literalPolicyRole :: Text -> PolicyRole
+literalPolicyRole role
+    | isOrdinaryUnquotedRole role && not (isSpecialPolicyRoleName role) = PolicyRole role
+    | otherwise = QuotedPolicyRole role
+
+isOrdinaryUnquotedRole :: Text -> Bool
+isOrdinaryUnquotedRole role = case Text.uncons role of
+    Just (firstCharacter, rest) ->
+        (isAsciiLower firstCharacter || firstCharacter == '_')
+            && Text.all isUnquotedContinuation rest
+    Nothing -> False
+    where
+        isAsciiLower character = character >= 'a' && character <= 'z'
+        isAsciiDigit character = character >= '0' && character <= '9'
+        isUnquotedContinuation character = isAsciiLower character || isAsciiDigit character || character == '_' || character == '$'
+
+isSpecialPolicyRoleName :: Text -> Bool
+isSpecialPolicyRoleName role = foldAsciiUpper role `elem` ["PUBLIC", "CURRENT_ROLE", "CURRENT_USER", "SESSION_USER"]
+
+foldAsciiUpper :: Text -> Text
+foldAsciiUpper = Text.map \character ->
+    if character >= 'a' && character <= 'z'
+        then Char.toUpper character
+        else character
 
 normalizeTable :: CreateTable -> (CreateTable, [Statement])
 normalizeTable table@(CreateTable { .. }) = ( CreateTable { columns = fst normalizedColumns, constraints = normalizedTableConstraints, .. }, (concat $ (snd normalizedColumns)) <> normalizedConstraintsStatements )
@@ -999,7 +1104,7 @@ normalizePrimaryKeys statements = reverse $ normalizePrimaryKeys' [] statements
 -- > DROP TABLE a;
 --
 removeImplicitDeletions :: [Statement] -> [Statement] -> [Statement]
-removeImplicitDeletions actualSchema (statement@dropStatement:rest) | isDropStatement dropStatement = statement:(filter isImplicitlyDeleted rest)
+removeImplicitDeletions actualSchema (statement@dropStatement:rest) | isDropStatement dropStatement = statement : removeImplicitDeletions actualSchema (filter isImplicitlyDeleted rest)
     where
         isImplicitlyDeleted (DropIndex { indexName }) = case findIndexByName indexName of
                 Just CreateIndex { tableName = indexTableName, columns = indexColumns } -> indexTableName /= dropTableName && (
@@ -1013,6 +1118,7 @@ removeImplicitDeletions actualSchema (statement@dropStatement:rest) | isDropStat
                 Nothing -> True
         isImplicitlyDeleted (DropConstraint { tableName = constraintTableName }) = constraintTableName /= dropTableName
         isImplicitlyDeleted (DropPolicy { tableName = policyTableName }) = not (isNothing dropColumnName && policyTableName == dropTableName)
+        isImplicitlyDeleted (NoForceRowLevelSecurity { tableName = forceTableName }) = not (isNothing dropColumnName && forceTableName == dropTableName)
         isImplicitlyDeleted otherwise = True
 
         findIndexByName :: Text -> Maybe Statement
@@ -1104,11 +1210,16 @@ removeIndentation text =
                 |> map (\line -> Text.length (Text.takeWhile Char.isSpace line))
         spacesToDrop = spaces |> minimum
 
--- | Postgres truncates identifiers longer than 63 characters.
+-- | PostgreSQL truncates identifiers longer than 63 UTF-8 bytes.
 --
--- This function truncates a Text to 63 chars max. This way we avoid unnecssary changes in the generated migrations.
+-- This keeps the result on a valid UTF-8 boundary to match PostgreSQL.
 truncateIdentifier :: Text -> Text
-truncateIdentifier identifier =
-    if Text.length identifier > 63
-        then Text.take 63 identifier
-        else identifier
+truncateIdentifier = go 63
+    where
+        go remaining identifier = case Text.uncons identifier of
+            Nothing -> ""
+            Just (character, rest)
+                | byteCount <= remaining -> Text.cons character (go (remaining - byteCount) rest)
+                | otherwise -> ""
+                where
+                    byteCount = ByteString.length (TextEncoding.encodeUtf8 (Text.singleton character))

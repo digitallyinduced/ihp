@@ -93,6 +93,7 @@ tests = do
                     ALTER TABLE tasks ADD CONSTRAINT tasks_ref_user_id FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE NO ACTION;
                     CREATE POLICY "Users can manage their tasks" ON tasks USING (user_id = ihp_user_id()) WITH CHECK (user_id = ihp_user_id());
                     ALTER TABLE tasks ENABLE ROW LEVEL SECURITY;
+                    ALTER TABLE tasks NO FORCE ROW LEVEL SECURITY;
                     CREATE TRIGGER update_tasks_updated_at BEFORE UPDATE ON tasks FOR EACH ROW EXECUTE FUNCTION set_updated_at_to_now();
                 |]
                 let outputSchema = parseSqlStatements [trimming|
@@ -480,6 +481,7 @@ tests = do
                     ALTER TABLE tasks ADD CONSTRAINT tasks_ref_user_id FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE NO ACTION;
                     CREATE POLICY "Users can manage their tasks" ON tasks USING (user_id = ihp_user_id()) WITH CHECK (user_id = ihp_user_id());
                     ALTER TABLE tasks ENABLE ROW LEVEL SECURITY;
+                    ALTER TABLE tasks NO FORCE ROW LEVEL SECURITY;
                     CREATE TRIGGER update_tasks_updated_at BEFORE UPDATE ON tasks FOR EACH ROW EXECUTE FUNCTION set_updated_at_to_now();
                 |]
                 let outputSchema = parseSqlStatements [trimming|
@@ -488,6 +490,7 @@ tests = do
                     ALTER TABLE todos ADD CONSTRAINT todos_ref_user_id FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE NO ACTION;
                     CREATE POLICY "Users can manage their todos" ON todos USING (user_id = ihp_user_id()) WITH CHECK (user_id = ihp_user_id());
                     ALTER TABLE todos ENABLE ROW LEVEL SECURITY;
+                    ALTER TABLE todos NO FORCE ROW LEVEL SECURITY;
                     CREATE TRIGGER update_todos_updated_at BEFORE UPDATE ON todos FOR EACH ROW EXECUTE FUNCTION set_updated_at_to_now();
                 |]
 
