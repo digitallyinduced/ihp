@@ -503,7 +503,16 @@ spec = do
 
         it "should not read INCREMENT as the IN expression operator" do
             parseSql "CREATE SEQUENCE a START WITH 1 INCREMENT BY 1 NO MINVALUE NO MAXVALUE CACHE 1;"
-                `shouldBe` CreateSequence { name = "a" }
+                `shouldBe` CreateSequence
+                    { name = "a"
+                    , sequenceOptions =
+                        [ SequenceStart (IntExpression 1)
+                        , SequenceIncrement (IntExpression 1)
+                        , SequenceNoMinValue
+                        , SequenceNoMaxValue
+                        , SequenceCache (IntExpression 1)
+                        ]
+                    }
 
         it "should parse 'BEGIN' statements" do
             parseSql "BEGIN;" `shouldBe` Begin
