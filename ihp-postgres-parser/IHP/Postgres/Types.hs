@@ -17,7 +17,7 @@ data Statement
     -- | DROP TYPE name;
     | DropEnumType { name :: Text }
     -- | CREATE EXTENSION IF NOT EXISTS "name";
-    | CreateExtension { name :: Text, ifNotExists :: Bool }
+    | CreateExtension { name :: Text, ifNotExists :: Bool, extensionOptions :: [ExtensionOption] }
     -- | ALTER TABLE tableName ADD CONSTRAINT constraint;
     | AddConstraint { tableName :: Text, constraint :: Constraint, deferrable :: Maybe Bool, deferrableType :: Maybe DeferrableType }
     -- | ALTER TABLE tableName DROP CONSTRAINT constraintName;
@@ -46,7 +46,9 @@ data Statement
     -- SELECT query;
     | SelectStatement { query :: Text }
     -- CREATE SEQUENCE name;
-    | CreateSequence { name :: Text }
+    | CreateSequence { name :: Text, sequenceOptions :: [SequenceOption] }
+    -- | ALTER SEQUENCE name sequenceOptions; each item is one clause to emit, not a complete sequence definition.
+    | AlterSequence { name :: Text, sequenceOptions :: [SequenceOption] }
     -- ALTER TABLE tableName RENAME COLUMN from TO to;
     | RenameColumn { tableName :: Text, from :: Text, to :: Text }
     -- ALTER TYPE enumName ADD VALUE newValue;
@@ -89,6 +91,26 @@ data FunctionSetting = FunctionSetting
     }
     deriving (Eq, Show)
 
+-- | PostgreSQL sequence parameters preserved for schema comparison and ALTER SEQUENCE generation.
+data SequenceOption
+    = SequenceAs PostgresType
+    | SequenceStart Expression
+    | SequenceIncrement Expression
+    | SequenceNoMinValue
+    | SequenceNoMaxValue
+    | SequenceMinValue Expression
+    | SequenceMaxValue Expression
+    | SequenceCache Expression
+    | SequenceCycle Bool
+    deriving (Eq, Show)
+
+-- | CREATE EXTENSION installation options. Schema diffs intentionally ignore these; use an explicit migration to relocate or update an installed extension.
+data ExtensionOption
+    = ExtensionSchema Text
+    | ExtensionVersion Text
+    | ExtensionCascade
+    deriving (Eq, Show)
+
 data CreateTable
   = CreateTable
       { name :: Text
@@ -105,6 +127,7 @@ data Column = Column
     , columnType :: PostgresType
     , defaultValue :: Maybe Expression
     , notNull :: Bool
+    , notNullConstraintName :: Maybe Text
     , isUnique :: Bool
     , generator :: Maybe ColumnGenerator
     }
@@ -208,6 +231,13 @@ data Expression =
     | SelectExpression Select
     | DotExpression Expression Text
     | ConcatenationExpression Expression Expression -- ^ a || b
+    -- | An infix operator the schema representation does not model on its own,
+    -- carrying the operator verbatim, e.g. @a + b@ or @name ~ '^[A-Z]+$'@.
+    --
+    -- PostgreSQL has hundreds of operators and accepts user defined ones, so a
+    -- dedicated constructor per operator cannot be complete. Keeping the operator
+    -- as text lets any of them round-trip unchanged.
+    | BinaryOperatorExpression Text Expression Expression
     deriving (Eq, Show)
 
 data Select = Select
@@ -246,7 +276,9 @@ data PostgresType
     | PInet
     | PTSVector
     | PArray PostgresType
+    -- | @RETURNS SETOF x@. Only valid as a function return type.
     | PSetOf PostgresType
+    -- | @RETURNS TABLE (name type, ...)@. Only valid as a function return type.
     | PTable [(Text, PostgresType)]
     | PTrigger
     | PEventTrigger
@@ -308,6 +340,7 @@ col columnName columnType = Column
     , columnType = columnType
     , defaultValue = Nothing
     , notNull = False
+    , notNullConstraintName = Nothing
     , isUnique = False
     , generator = Nothing
     }

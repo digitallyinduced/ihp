@@ -785,6 +785,7 @@ generatedTypesImports table = Text.unlines (ownImports <> referencingImports)
 hasqlSupportsColumnType :: PostgresType -> Bool
 hasqlSupportsColumnType = \case
     PTrigger -> False
+    PSetOf _ -> False
     PEventTrigger -> False
     (PArray inner) -> hasqlSupportsColumnType inner
     _ -> True

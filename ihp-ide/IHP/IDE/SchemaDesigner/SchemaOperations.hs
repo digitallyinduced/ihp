@@ -27,6 +27,7 @@ addTable tableName uuidFunction list = list <> [StatementCreateTable CreateTable
             , columnType = PUUID
             , defaultValue = Just (CallExpression uuidFunction [])
             , notNull = True
+            , notNullConstraintName = Nothing
             , isUnique = False
             , generator = Nothing
             }]
@@ -205,6 +206,7 @@ newColumn AddColumnOptions { .. } = Column
     , columnType = arrayifytype isArray columnType
     , defaultValue = defaultValue
     , notNull = (not allowNull)
+    , notNullConstraintName = Nothing
     , isUnique = isUnique
     , generator = Nothing
     }
@@ -604,6 +606,7 @@ deleteColumn DeleteColumnOptions { .. } schema =
                 isRef (SelectExpression _) = False
                 isRef (DotExpression a _) = isRef a
                 isRef (ConcatenationExpression a b) = isRef a || isRef b
+                isRef (BinaryOperatorExpression _ a b) = isRef a || isRef b
         deletePolicyReferencingPolicy otherwise = True
 
 -- | Returns True if a CreateIndex statement references a specific column
@@ -667,6 +670,7 @@ isIndexStatementReferencingTableColumn statement tableName columnName = isRefere
             SelectExpression _ -> False
             DotExpression a _ -> expressionReferencesColumn a
             ConcatenationExpression a b -> expressionReferencesColumn a || expressionReferencesColumn b
+            BinaryOperatorExpression _ a b -> expressionReferencesColumn a || expressionReferencesColumn b
 
 doesHaveExistingPolicies :: [Statement] -> Text -> Bool
 doesHaveExistingPolicies statements tableName = statements
