@@ -17,13 +17,13 @@ tests = do
             parseSql "CREATE TABLE users ();"  `shouldBe` StatementCreateTable (table "users")
 
         it "should parse an CREATE EXTENSION for the UUID extension" do
-            parseSql "CREATE EXTENSION IF NOT EXISTS \"uuid-ossp\";" `shouldBe` CreateExtension { name = "uuid-ossp", ifNotExists = True }
+            parseSql "CREATE EXTENSION IF NOT EXISTS \"uuid-ossp\";" `shouldBe` CreateExtension { name = "uuid-ossp", ifNotExists = True, extensionOptions = [] }
 
         it "should parse an CREATE EXTENSION with schema suffix" do
-            parseSql "CREATE EXTENSION IF NOT EXISTS \"uuid-ossp\" WITH SCHEMA public;" `shouldBe` CreateExtension { name = "uuid-ossp", ifNotExists = True }
+            parseSql "CREATE EXTENSION IF NOT EXISTS \"uuid-ossp\" WITH SCHEMA public;" `shouldBe` CreateExtension { name = "uuid-ossp", ifNotExists = True, extensionOptions = [ExtensionSchema "public"] }
 
         it "should parse an CREATE EXTENSION without quotes" do
-            parseSql "CREATE EXTENSION IF NOT EXISTS fuzzystrmatch WITH SCHEMA public;" `shouldBe` CreateExtension { name = "fuzzystrmatch", ifNotExists = True }
+            parseSql "CREATE EXTENSION IF NOT EXISTS fuzzystrmatch WITH SCHEMA public;" `shouldBe` CreateExtension { name = "fuzzystrmatch", ifNotExists = True, extensionOptions = [ExtensionSchema "public"] }
 
         it "should parse a line comment" do
             parseSql "-- Comment value" `shouldBe` Comment { content = " Comment value" }
@@ -909,10 +909,10 @@ $$;
             parseSql "ALTER TABLE tasks DROP CONSTRAINT tasks_title_key;" `shouldBe` DropConstraint { tableName = "tasks", constraintName = "tasks_title_key" }
 
         it "should parse 'CREATE SEQUENCE ..' statements" do
-            parseSql "CREATE SEQUENCE a;" `shouldBe` CreateSequence { name = "a" }
+            parseSql "CREATE SEQUENCE a;" `shouldBe` CreateSequence { name = "a", sequenceOptions = [] }
 
         it "should parse 'CREATE SEQUENCE ..' statements with qualified name" do
-            parseSql "CREATE SEQUENCE public.a;" `shouldBe` CreateSequence { name = "a" }
+            parseSql "CREATE SEQUENCE public.a;" `shouldBe` CreateSequence { name = "a", sequenceOptions = [] }
 
         it "should parse 'CREATE SEQUENCE .. AS .. START WITH .. INCREMENT BY .. NO MINVALUE NO MAXVALUE CACHE ..;'" do
             let sql = [trimming|
@@ -924,7 +924,17 @@ $$;
                     NO MAXVALUE
                     CACHE 1;
             |]
-            parseSql sql `shouldBe` CreateSequence { name = "a" }
+            parseSql sql `shouldBe` CreateSequence
+                { name = "a"
+                , sequenceOptions =
+                    [ SequenceAs PInt
+                    , SequenceStart (IntExpression 1)
+                    , SequenceIncrement (IntExpression 1)
+                    , SequenceNoMinValue
+                    , SequenceNoMaxValue
+                    , SequenceCache (IntExpression 1)
+                    ]
+                }
 
         it "should parse 'SET' statements" do
             parseSql "SET statement_timeout = 0;" `shouldBe` Set { name = "statement_timeout", value = IntExpression 0 }
@@ -1026,7 +1036,7 @@ COMMENT ON EXTENSION "uuid-ossp" IS 'generate universally unique identifiers (UU
                     , Comment {content = ""}
                     , Comment {content = " Name: uuid-ossp; Type: EXTENSION; Schema: -; Owner: -"}
                     , Comment {content = ""}
-                    , CreateExtension {name = "uuid-ossp", ifNotExists = True}
+                    , CreateExtension {name = "uuid-ossp", ifNotExists = True, extensionOptions = [ExtensionSchema "public"]}
                     , Comment {content = ""}
                     , Comment {content = " Name: EXTENSION \"uuid-ossp\"; Type: COMMENT; Schema: -; Owner: -"}
                     , Comment {content = ""}
