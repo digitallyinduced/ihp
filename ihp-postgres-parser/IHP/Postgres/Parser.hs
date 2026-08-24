@@ -1066,9 +1066,9 @@ createFunction = do
         quotedArgumentNameCharacter = try (string "\"\"" $> '"') <|> anySingleBut '"'
         unquotedArgumentName = Text.toLower <$> takeWhile1P (Just "function argument name") (\c -> isAlphaNum c || c == '_')
         functionReturnType =
-            try (lexeme "SETOF" >> (PSetOf <$> sqlType))
+            try (symbol' "SETOF" >> (PSetOf <$> sqlType))
             <|> try do
-                lexeme "TABLE"
+                symbol' "TABLE"
                 PTable <$> between (char '(' >> space) (char ')' >> space) (functionArgument `sepBy1` (char ',' >> space))
             <|> sqlType
         isSecurityDefiner FunctionSecurityDefiner = True
