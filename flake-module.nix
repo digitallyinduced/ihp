@@ -150,6 +150,17 @@ ihpFlake:
                     default = null;
                 };
 
+                extraGhcOptions = lib.mkOption {
+                    description = ''
+                        Extra GHC options applied when compiling the generated models
+                        package, the application library and all executables. For
+                        example [ "-Wall" ] to opt into the warnings the generated
+                        build does not enable by default, or linker flags.
+                    '';
+                    type = lib.types.listOf lib.types.str;
+                    default = [];
+                };
+
                 previousAppLibIntermediates = lib.mkOption {
                     description = ''
                         Combined intermediate output from a previous optimized application
@@ -268,7 +279,7 @@ ihpFlake:
                     optimized && cfg.reuseAppLibWithIntermediatesForExecutables;
                 appLibCompileCores = if optimized then cfg.appLibCompileCores else null;
                 appLibGhcAllocationArea = if optimized then cfg.appLibGhcAllocationArea else null;
-                inherit (cfg) buildStaticLibraries ghcAllocationArea;
+                inherit (cfg) buildStaticLibraries ghcAllocationArea extraGhcOptions;
                 appSchemaSql = "${self'.packages.schema}/Schema.sql";
                 ihpSchemaSql = "${self'.packages.ihp-schema}/IHPSchema.sql";
             };
