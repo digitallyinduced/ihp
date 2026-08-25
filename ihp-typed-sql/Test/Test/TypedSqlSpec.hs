@@ -815,6 +815,12 @@ tests = do
         it "parseSql handles leading/trailing whitespace from quasiquoter" do
             parseSql " SELECT 1 " `shouldSatisfy` isJust
 
+        it "parseSql accepts unspaced ANY operators" do
+            parseSql "SELECT 1 WHERE 1=ANY(ARRAY[1])" `shouldSatisfy` isJust
+
+        it "parseSql accepts the JSONB key-existence operator" do
+            parseSql "SELECT '{}'::jsonb ? 'key'" `shouldSatisfy` isJust
+
         it "extractJoinNullableTables detects LEFT JOIN nullable table" do
             let sql = " SELECT i.name, a.name FROM items i LEFT JOIN authors a ON a.id = i.aid LIMIT 1 "
             extractJoinNullableTables sql `shouldBe` Set.fromList ["authors"]

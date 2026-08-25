@@ -20,7 +20,7 @@ import qualified Hasql.DynamicStatements.Snippet as Snippet
 import qualified Language.Haskell.TH            as TH
 import qualified Language.Haskell.TH.Quote      as TH
 import qualified Language.Haskell.TH.Syntax     as TH
-import qualified PostgresqlSyntax.Ast           as Ast
+import qualified PostgresqlSyntax               as Ast
 import           Text.Read                      (readMaybe)
 import qualified Prelude
 import           IHP.Prelude
