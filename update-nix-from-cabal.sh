@@ -30,6 +30,7 @@ hackage_packages=(
   "wai-session-maybe 1.0.0"
   "wai-session-clientsession-deferred 1.0.0"
   "postgresql-connection-string 0.1.0.6"
+  "postgresql-syntax 0.5.0.3"
   "temporary-ospath 1.3"
   "ptr-poker 0.1.3"
   "postgresql-simple-postgresql-types 0.1.1"

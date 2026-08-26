@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Updated `postgresql-syntax` to 0.5.0.3 so valid unspaced `ANY` expressions
+  and the JSONB key-existence operator participate in `typedSql` refinement.
+
 - Added `IHP.TypedSql.Hasql`, a request-context-independent API for converting
   typed queries to Hasql statements, sessions, and pipelines, or running them
   directly on a caller-managed Hasql pool. Pool runners expose Hasql's native

@@ -21,8 +21,7 @@ import qualified Database.PostgreSQL.LibPQ   as PQ
 import qualified Language.Haskell.TH         as TH
 import           IHP.Prelude
 
-import qualified PostgresqlSyntax.Ast        as Ast
-import qualified PostgresqlSyntax.Parsing    as Parsing
+import qualified PostgresqlSyntax            as Ast
 
 import           IHP.TypedSql.Metadata       (ColumnMeta (..), DescribeColumn (..),
                                               PgTypeInfo, TableMeta (..))
@@ -43,9 +42,24 @@ data ParamHint = ParamHint
 -- so we strip it before parsing.
 parseSql :: String -> Maybe Ast.PreparableStmt
 parseSql sql =
-    case Parsing.run Parsing.preparableStmt (Text.strip (Text.pack sql)) of
+    case Ast.parse mempty (Text.strip (Text.pack sql)) of
         Left _err -> Nothing
         Right stmt -> Just stmt
+
+fromClauseItems :: Ast.FromClause -> [Ast.TableRef]
+fromClauseItems (Ast.FromClause (Ast.FromList items)) = toList items
+
+targetListItems :: Ast.TargetList -> [Ast.TargetEl]
+targetListItems (Ast.TargetList items) = toList items
+
+indirectionItems :: Ast.Indirection -> [Ast.IndirectionEl]
+indirectionItems (Ast.Indirection items) = toList items
+
+exprListItems :: Ast.ExprList -> [Ast.AExpr]
+exprListItems (Ast.ExprList items) = toList items
+
+setClauseListItems :: Ast.SetClauseList -> [Ast.SetClause]
+setClauseListItems (Ast.SetClauseList items) = toList items
 
 -- | Extract parameter hints by parsing SQL and walking the AST.
 -- Falls back to empty map if parsing fails.
@@ -82,19 +96,19 @@ nullableTablesFromStmt = \case
     _ -> Set.empty
 
 nullableTablesFromSelectStmt :: Ast.SelectStmt -> Set.Set Text
-nullableTablesFromSelectStmt (Left (Ast.SelectNoParens _with selectClause _sort _limit _lock)) =
+nullableTablesFromSelectStmt (Ast.NoParensSelectStmt (Ast.SelectNoParens _with selectClause _sort _limit _lock)) =
     nullableTablesFromSelectClause selectClause
-nullableTablesFromSelectStmt (Right _) = Set.empty
+nullableTablesFromSelectStmt (Ast.WithParensSelectStmt _) = Set.empty
 
 nullableTablesFromSelectClause :: Ast.SelectClause -> Set.Set Text
-nullableTablesFromSelectClause (Left simpleSelect) = nullableTablesFromSimpleSelect simpleSelect
-nullableTablesFromSelectClause (Right _) = Set.empty
+nullableTablesFromSelectClause (Ast.SimpleSelectSelectClause simpleSelect) = nullableTablesFromSimpleSelect simpleSelect
+nullableTablesFromSelectClause (Ast.WithParensSelectClause _) = Set.empty
 
 nullableTablesFromSimpleSelect :: Ast.SimpleSelect -> Set.Set Text
 nullableTablesFromSimpleSelect = \case
     Ast.NormalSimpleSelect _targeting _into maybeFrom _where _group _having _window ->
         case maybeFrom of
-            Just fromClause -> foldMap nullableTablesFromTableRef (toList fromClause)
+            Just fromClause -> foldMap nullableTablesFromTableRef (fromClauseItems fromClause)
             Nothing -> Set.empty
     Ast.BinSimpleSelect _op left _distinct right ->
         Set.union (nullableTablesFromSelectClause left) (nullableTablesFromSelectClause right)
@@ -108,19 +122,18 @@ nullableTablesFromTableRef = \case
 nullableTablesFromJoinedTable :: Ast.JoinedTable -> Set.Set Text
 nullableTablesFromJoinedTable = \case
     Ast.InParensJoinedTable inner -> nullableTablesFromJoinedTable inner
-    Ast.MethJoinedTable meth left right ->
-        let nested = Set.union (nullableTablesFromTableRef left) (nullableTablesFromTableRef right)
-        in case joinTypeFromMeth meth of
-            Just (Ast.LeftJoinType _)  -> Set.union nested (tableNamesFromTableRef right)
-            Just (Ast.RightJoinType _) -> Set.union nested (tableNamesFromTableRef left)
-            Just (Ast.FullJoinType _)  -> Set.union nested (Set.union (tableNamesFromTableRef left) (tableNamesFromTableRef right))
-            _ -> nested
+    Ast.CrossJoinedTable left right -> nullableTablesFromJoin Nothing left right
+    Ast.QualJoinedTable left maybeJoinType right _qual -> nullableTablesFromJoin maybeJoinType left right
+    Ast.NaturalJoinedTable left maybeJoinType right -> nullableTablesFromJoin maybeJoinType left right
 
-joinTypeFromMeth :: Ast.JoinMeth -> Maybe Ast.JoinType
-joinTypeFromMeth = \case
-    Ast.QualJoinMeth maybeJoinType _ -> maybeJoinType
-    Ast.NaturalJoinMeth maybeJoinType -> maybeJoinType
-    Ast.CrossJoinMeth -> Nothing
+nullableTablesFromJoin :: Maybe Ast.JoinType -> Ast.TableRef -> Ast.TableRef -> Set.Set Text
+nullableTablesFromJoin maybeJoinType left right =
+    let nested = Set.union (nullableTablesFromTableRef left) (nullableTablesFromTableRef right)
+    in case maybeJoinType of
+        Just (Ast.LeftJoinType _)  -> Set.union nested (tableNamesFromTableRef right)
+        Just (Ast.RightJoinType _) -> Set.union nested (tableNamesFromTableRef left)
+        Just (Ast.FullJoinType _)  -> Set.union nested (Set.union (tableNamesFromTableRef left) (tableNamesFromTableRef right))
+        _ -> nested
 
 -- | Collect all resolved table names from a TableRef.
 tableNamesFromTableRef :: Ast.TableRef -> Set.Set Text
@@ -138,7 +151,7 @@ qualifiedNameToText :: Ast.QualifiedName -> Text
 qualifiedNameToText (Ast.SimpleQualifiedName ident) = identToText ident
 qualifiedNameToText (Ast.IndirectedQualifiedName _schema indirection) =
     -- schema.table -> take the last attr name
-    case toList indirection of
+    case indirectionItems indirection of
         [] -> identToText _schema
         els -> case List.last els of
             Ast.AttrNameIndirectionEl ident -> identToText ident
@@ -179,20 +192,20 @@ buildAliasMapFromStmt = \case
     Ast.CallPreparableStmt _ -> Map.empty
 
 buildAliasMapFromSelectStmt :: Ast.SelectStmt -> Map.Map Text Text
-buildAliasMapFromSelectStmt (Left (Ast.SelectNoParens maybeWith selectClause _sort _limit _lock)) =
+buildAliasMapFromSelectStmt (Ast.NoParensSelectStmt (Ast.SelectNoParens maybeWith selectClause _sort _limit _lock)) =
     let withMap = case maybeWith of
             Just (Ast.WithClause _recursive ctes) -> foldMap buildAliasMapFromCte (toList ctes)
             Nothing -> Map.empty
     in Map.union withMap (buildAliasMapFromSelectClause selectClause)
-buildAliasMapFromSelectStmt (Right _parens) = Map.empty
+buildAliasMapFromSelectStmt (Ast.WithParensSelectStmt _parens) = Map.empty
 
 buildAliasMapFromCte :: Ast.CommonTableExpr -> Map.Map Text Text
 buildAliasMapFromCte (Ast.CommonTableExpr _name _cols _mat innerStmt) =
     buildAliasMapFromStmt innerStmt
 
 buildAliasMapFromSelectClause :: Ast.SelectClause -> Map.Map Text Text
-buildAliasMapFromSelectClause (Left simpleSelect) = buildAliasMapFromSimpleSelect simpleSelect
-buildAliasMapFromSelectClause (Right _parens) = Map.empty
+buildAliasMapFromSelectClause (Ast.SimpleSelectSelectClause simpleSelect) = buildAliasMapFromSimpleSelect simpleSelect
+buildAliasMapFromSelectClause (Ast.WithParensSelectClause _parens) = Map.empty
 
 buildAliasMapFromSimpleSelect :: Ast.SimpleSelect -> Map.Map Text Text
 buildAliasMapFromSimpleSelect = \case
@@ -208,7 +221,7 @@ buildAliasMapFromSimpleSelect = \case
     Ast.ValuesSimpleSelect _ -> Map.empty
 
 buildAliasMapFromFrom :: Ast.FromClause -> Map.Map Text Text
-buildAliasMapFromFrom = foldMap buildAliasMapFromTableRef . toList
+buildAliasMapFromFrom = foldMap buildAliasMapFromTableRef . fromClauseItems
 
 buildAliasMapFromTableRef :: Ast.TableRef -> Map.Map Text Text
 buildAliasMapFromTableRef = \case
@@ -230,7 +243,11 @@ buildAliasMapFromTableRef = \case
 buildAliasMapFromJoinedTable :: Ast.JoinedTable -> Map.Map Text Text
 buildAliasMapFromJoinedTable = \case
     Ast.InParensJoinedTable inner -> buildAliasMapFromJoinedTable inner
-    Ast.MethJoinedTable _meth left right ->
+    Ast.CrossJoinedTable left right ->
+        Map.union (buildAliasMapFromTableRef left) (buildAliasMapFromTableRef right)
+    Ast.QualJoinedTable left _joinType right _qual ->
+        Map.union (buildAliasMapFromTableRef left) (buildAliasMapFromTableRef right)
+    Ast.NaturalJoinedTable left _joinType right ->
         Map.union (buildAliasMapFromTableRef left) (buildAliasMapFromTableRef right)
 
 relationExprName :: Ast.RelationExpr -> Text
@@ -247,7 +264,7 @@ collectFromStmt aliasMap defTable = \case
         collectFromSelectStmt aliasMap defTable selectStmt
     Ast.UpdatePreparableStmt (Ast.UpdateStmt _with (Ast.RelationExprOptAlias relExpr _) setClauses _from maybeWhere _ret) ->
         let updateTable = relationExprName relExpr
-            setHints = foldMap (collectFromSetClause aliasMap defTable updateTable) (toList setClauses)
+            setHints = foldMap (collectFromSetClause aliasMap defTable updateTable) (setClauseListItems setClauses)
             whereHints = case maybeWhere of
                 Just (Ast.ExprWhereOrCurrentClause expr) -> collectFromAExpr aliasMap defTable expr
                 _ -> Map.empty
@@ -261,7 +278,7 @@ collectFromStmt aliasMap defTable = \case
             Just (Ast.OnConflict _confExpr (Ast.UpdateOnConflictDo setClauses maybeWhere)) ->
                 let insertTable = case _target of
                         Ast.InsertTarget qname _ -> qualifiedNameToText qname
-                    setHints = foldMap (collectFromSetClause aliasMap defTable insertTable) (toList setClauses)
+                    setHints = foldMap (collectFromSetClause aliasMap defTable insertTable) (setClauseListItems setClauses)
                     whereHints = case maybeWhere of
                         Just whereExpr -> collectFromAExpr aliasMap defTable whereExpr
                         Nothing -> Map.empty
@@ -270,20 +287,20 @@ collectFromStmt aliasMap defTable = \case
     Ast.CallPreparableStmt _ -> Map.empty
 
 collectFromSelectStmt :: Map.Map Text Text -> Maybe Text -> Ast.SelectStmt -> Map.Map Int ParamHint
-collectFromSelectStmt aliasMap defTable (Left (Ast.SelectNoParens _with selectClause _sort _limit _lock)) =
+collectFromSelectStmt aliasMap defTable (Ast.NoParensSelectStmt (Ast.SelectNoParens _with selectClause _sort _limit _lock)) =
     collectFromSelectClause aliasMap defTable selectClause
-collectFromSelectStmt _ _ (Right _) = Map.empty
+collectFromSelectStmt _ _ (Ast.WithParensSelectStmt _) = Map.empty
 
 collectFromSelectClause :: Map.Map Text Text -> Maybe Text -> Ast.SelectClause -> Map.Map Int ParamHint
-collectFromSelectClause aliasMap defTable (Left simpleSelect) =
+collectFromSelectClause aliasMap defTable (Ast.SimpleSelectSelectClause simpleSelect) =
     collectFromSimpleSelect aliasMap defTable simpleSelect
-collectFromSelectClause _ _ (Right _) = Map.empty
+collectFromSelectClause _ _ (Ast.WithParensSelectClause _) = Map.empty
 
 collectFromSimpleSelect :: Map.Map Text Text -> Maybe Text -> Ast.SimpleSelect -> Map.Map Int ParamHint
 collectFromSimpleSelect aliasMap defTable = \case
     Ast.NormalSimpleSelect _targeting _into _from maybeWhere _group _having _window ->
         case maybeWhere of
-            Just whereExpr -> collectFromAExpr aliasMap defTable whereExpr
+            Just (Ast.WhereClause whereExpr) -> collectFromAExpr aliasMap defTable whereExpr
             Nothing -> Map.empty
     Ast.BinSimpleSelect _op left _distinct right ->
         mergeHintMaps
@@ -339,7 +356,7 @@ collectFromAExpr aliasMap defTable = \case
                             , phArray = True
                             }
                     Nothing -> Map.empty
-                    ) (toList exprs)
+                    ) (exprListItems exprs)
             Nothing -> Map.empty
     -- column = ANY($N) pattern via SubqueryAExpr
     Ast.SubqueryAExpr colExpr (Ast.AllSubqueryOp (Ast.MathAllOp Ast.EqualsMathOp)) Ast.AnySubType (Right paramExpr) ->
@@ -378,7 +395,7 @@ resolveColumnRef aliasMap defTable = \case
         case maybeIndirection of
             -- qualified: tableOrAlias.column
             Just indirection ->
-                case toList indirection of
+                case indirectionItems indirection of
                     [Ast.AttrNameIndirectionEl colIdent] ->
                         let tableRef = identToText colId
                             colName = identToText colIdent
@@ -420,27 +437,27 @@ extractNonNullableComputedColumnsFromAst = \case
     _ -> Set.empty
 
 nonNullFromSelectStmt :: Ast.SelectStmt -> Set.Set Int
-nonNullFromSelectStmt (Left (Ast.SelectNoParens maybeWith selectClause _sort _limit _lock)) =
+nonNullFromSelectStmt (Ast.NoParensSelectStmt (Ast.SelectNoParens maybeWith selectClause _sort _limit _lock)) =
     let cteMap = case maybeWith of
             Just (Ast.WithClause _recursive ctes) -> foldMap buildSubqueryTargetMapFromCte (toList ctes)
             Nothing -> Map.empty
     in nonNullFromSelectClause cteMap selectClause
-nonNullFromSelectStmt (Right _) = Set.empty
+nonNullFromSelectStmt (Ast.WithParensSelectStmt _) = Set.empty
 
 nonNullFromSelectClause :: SubqueryTargetMap -> Ast.SelectClause -> Set.Set Int
-nonNullFromSelectClause sqMap (Left simpleSelect) = nonNullFromSimpleSelect sqMap simpleSelect
-nonNullFromSelectClause _ (Right _) = Set.empty
+nonNullFromSelectClause sqMap (Ast.SimpleSelectSelectClause simpleSelect) = nonNullFromSimpleSelect sqMap simpleSelect
+nonNullFromSelectClause _ (Ast.WithParensSelectClause _) = Set.empty
 
 nonNullFromSimpleSelect :: SubqueryTargetMap -> Ast.SimpleSelect -> Set.Set Int
 nonNullFromSimpleSelect sqMap = \case
     Ast.NormalSimpleSelect maybeTargeting _into maybeFrom _where _group _having _window ->
         let fromMap = case maybeFrom of
-                Just fromClause -> foldMap buildSubqueryTargetMapFromTableRef (toList fromClause)
+                Just fromClause -> foldMap buildSubqueryTargetMapFromTableRef (fromClauseItems fromClause)
                 Nothing -> Map.empty
             fullMap = Map.union fromMap sqMap
         in case maybeTargeting of
-            Just (Ast.NormalTargeting targets) -> analyzeTargets fullMap (toList targets)
-            Just (Ast.DistinctTargeting _ targets) -> analyzeTargets fullMap (toList targets)
+            Just (Ast.NormalTargeting targets) -> analyzeTargets fullMap (targetListItems targets)
+            Just (Ast.DistinctTargeting _ targets) -> analyzeTargets fullMap (targetListItems targets)
             _ -> Set.empty
     _ -> Set.empty
 
@@ -474,7 +491,7 @@ isExprNonNullable sqMap = \case
     Ast.CExprAExpr (Ast.AexprConstCExpr constant) -> not (isNullConstant constant)
     -- Column reference: alias.col where alias is a subquery/CTE
     Ast.CExprAExpr (Ast.ColumnrefCExpr (Ast.Columnref aliasId (Just indirection))) ->
-        case toList indirection of
+        case indirectionItems indirection of
             [Ast.AttrNameIndirectionEl colIdent] ->
                 let aliasName = identToText aliasId
                     colName = identToText colIdent
@@ -521,7 +538,7 @@ isSubexprNonNullable :: SubqueryTargetMap -> Ast.FuncExprCommonSubexpr -> Bool
 isSubexprNonNullable sqMap = \case
     -- COALESCE(a, b, ...) is non-null when any argument is non-null
     Ast.CoalesceFuncExprCommonSubexpr args ->
-        any (isExprNonNullable sqMap) (toList args)
+        any (isExprNonNullable sqMap) (exprListItems args)
     -- CAST(expr AS type) preserves nullability
     Ast.CastFuncExprCommonSubexpr inner _ -> isExprNonNullable sqMap inner
     -- CURRENT_DATE, CURRENT_TIME, etc. are always non-null
@@ -548,7 +565,7 @@ funcNameToText :: Ast.FuncName -> Text
 funcNameToText = \case
     Ast.TypeFuncName ident -> identToText ident
     Ast.IndirectedFuncName _ indirection ->
-        case toList indirection of
+        case indirectionItems indirection of
             [Ast.AttrNameIndirectionEl funcIdent] -> identToText funcIdent
             _ -> ""
 
@@ -576,7 +593,11 @@ buildSubqueryTargetMapFromTableRef = \case
 buildSubqueryTargetMapFromJoinedTable :: Ast.JoinedTable -> SubqueryTargetMap
 buildSubqueryTargetMapFromJoinedTable = \case
     Ast.InParensJoinedTable inner -> buildSubqueryTargetMapFromJoinedTable inner
-    Ast.MethJoinedTable _meth left right ->
+    Ast.CrossJoinedTable left right ->
+        Map.union (buildSubqueryTargetMapFromTableRef left) (buildSubqueryTargetMapFromTableRef right)
+    Ast.QualJoinedTable left _joinType right _qual ->
+        Map.union (buildSubqueryTargetMapFromTableRef left) (buildSubqueryTargetMapFromTableRef right)
+    Ast.NaturalJoinedTable left _joinType right ->
         Map.union (buildSubqueryTargetMapFromTableRef left) (buildSubqueryTargetMapFromTableRef right)
 
 -- | Extract (name, expr) pairs from a SelectWithParens.
@@ -588,20 +609,20 @@ extractTargetsFromSelectWithParens = \case
         extractTargetsFromSelectWithParens inner
 
 extractTargetsFromSelectStmt :: Ast.SelectStmt -> Maybe [(Text, Ast.AExpr)]
-extractTargetsFromSelectStmt (Left (Ast.SelectNoParens _with selectClause _sort _limit _lock)) =
+extractTargetsFromSelectStmt (Ast.NoParensSelectStmt (Ast.SelectNoParens _with selectClause _sort _limit _lock)) =
     extractTargetsFromSelectClause selectClause
-extractTargetsFromSelectStmt (Right _) = Nothing
+extractTargetsFromSelectStmt (Ast.WithParensSelectStmt _) = Nothing
 
 extractTargetsFromSelectClause :: Ast.SelectClause -> Maybe [(Text, Ast.AExpr)]
-extractTargetsFromSelectClause (Left simpleSelect) = extractTargetsFromSimpleSelect simpleSelect
-extractTargetsFromSelectClause (Right _) = Nothing
+extractTargetsFromSelectClause (Ast.SimpleSelectSelectClause simpleSelect) = extractTargetsFromSimpleSelect simpleSelect
+extractTargetsFromSelectClause (Ast.WithParensSelectClause _) = Nothing
 
 extractTargetsFromSimpleSelect :: Ast.SimpleSelect -> Maybe [(Text, Ast.AExpr)]
 extractTargetsFromSimpleSelect = \case
     Ast.NormalSimpleSelect maybeTargeting _into _from _where _group _having _window ->
         case maybeTargeting of
-            Just (Ast.NormalTargeting targets) -> Just (map targetToNameExpr (toList targets))
-            Just (Ast.DistinctTargeting _ targets) -> Just (map targetToNameExpr (toList targets))
+            Just (Ast.NormalTargeting targets) -> Just (map targetToNameExpr (targetListItems targets))
+            Just (Ast.DistinctTargeting _ targets) -> Just (map targetToNameExpr (targetListItems targets))
             _ -> Nothing
     _ -> Nothing
 
@@ -621,12 +642,12 @@ implicitName = \case
         case funcName of
             Ast.TypeFuncName ident -> identToText ident
             Ast.IndirectedFuncName _ indirection ->
-                case toList indirection of
+                case indirectionItems indirection of
                     [Ast.AttrNameIndirectionEl ident] -> identToText ident
                     _ -> ""
     Ast.CExprAExpr (Ast.ColumnrefCExpr (Ast.Columnref colId Nothing)) -> identToText colId
     Ast.CExprAExpr (Ast.ColumnrefCExpr (Ast.Columnref _ (Just indirection))) ->
-        case toList indirection of
+        case indirectionItems indirection of
             [Ast.AttrNameIndirectionEl ident] -> identToText ident
             _ -> ""
     _ -> ""
@@ -692,9 +713,9 @@ detectStarSelects = \case
     _ -> []
 
 starFromSelectStmt :: Ast.SelectStmt -> [String]
-starFromSelectStmt (Left (Ast.SelectNoParens _with selectClause _sort _limit _lock)) =
+starFromSelectStmt (Ast.NoParensSelectStmt (Ast.SelectNoParens _with selectClause _sort _limit _lock)) =
     starFromSelectClause selectClause
-starFromSelectStmt (Right parens) = starFromSelectWithParens parens
+starFromSelectStmt (Ast.WithParensSelectStmt parens) = starFromSelectWithParens parens
 
 starFromSelectWithParens :: Ast.SelectWithParens -> [String]
 starFromSelectWithParens (Ast.NoParensSelectWithParens (Ast.SelectNoParens _with selectClause _sort _limit _lock)) =
@@ -703,15 +724,15 @@ starFromSelectWithParens (Ast.WithParensSelectWithParens inner) =
     starFromSelectWithParens inner
 
 starFromSelectClause :: Ast.SelectClause -> [String]
-starFromSelectClause (Left simpleSelect) = starFromSimpleSelect simpleSelect
-starFromSelectClause (Right parens) = starFromSelectWithParens parens
+starFromSelectClause (Ast.SimpleSelectSelectClause simpleSelect) = starFromSimpleSelect simpleSelect
+starFromSelectClause (Ast.WithParensSelectClause parens) = starFromSelectWithParens parens
 
 starFromSimpleSelect :: Ast.SimpleSelect -> [String]
 starFromSimpleSelect = \case
     Ast.NormalSimpleSelect maybeTargeting _into _from _where _group _having _window ->
         case maybeTargeting of
-            Just (Ast.NormalTargeting targets) -> concatMap starFromTargetEl (toList targets)
-            Just (Ast.DistinctTargeting _ targets) -> concatMap starFromTargetEl (toList targets)
+            Just (Ast.NormalTargeting targets) -> concatMap starFromTargetEl (targetListItems targets)
+            Just (Ast.DistinctTargeting _ targets) -> concatMap starFromTargetEl (targetListItems targets)
             _ -> []
     Ast.BinSimpleSelect _op left _distinct right ->
         starFromSelectClause left <> starFromSelectClause right
@@ -729,7 +750,7 @@ starFromTargetEl = \case
 starFromExpr :: Ast.AExpr -> [String]
 starFromExpr = \case
     Ast.CExprAExpr (Ast.ColumnrefCExpr (Ast.Columnref ident (Just indirection)))
-        | any isAllIndirection (toList indirection) ->
+        | any isAllIndirection (indirectionItems indirection) ->
             [Text.unpack (identToText ident) <> ".*"]
     _ -> []
   where
