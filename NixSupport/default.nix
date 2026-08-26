@@ -26,6 +26,7 @@
 , appLibGhcAllocationArea ? null # Optional app-library-specific compile-time RTS allocation area
 , buildStaticLibraries ? true # Build static Haskell libraries in addition to shared libraries
 , ghcAllocationArea ? null # Optional GHC compile-time RTS allocation area, e.g. "128M"
+, extraGhcOptions ? [] # Extra GHC options (e.g. [ "-Wall" ]) applied to the models package, the application library and all executables
 }:
 
 let
@@ -457,7 +458,8 @@ CABAL_EOF
                         "--ghc-option=+RTS"
                         "--ghc-option=-A${ghcAllocationArea}"
                         "--ghc-option=-RTS"
-                    ];
+                    ]
+                    ++ map (opt: "--ghc-option=${opt}") extraGhcOptions;
             });
 
     configureAppLibBuild = pkg:
@@ -568,6 +570,7 @@ CABAL_EOF
                     ${pkgs.lib.optionalString (mainIs != null) "-main-is '${mainIs}'"} \
                     $(make print-ghc-options) \
                     ${if optimized then prodGhcOptions else ""} \
+                    ${pkgs.lib.escapeShellArgs extraGhcOptions} \
                     ${mainPath} -o build/bin/${executableName} \
                     -odir build/obj -hidir build/obj
 
