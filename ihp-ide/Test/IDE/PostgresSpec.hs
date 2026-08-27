@@ -90,7 +90,7 @@ withEnv vars callback = Exception.bracket saveAndSet restore (const callback)
                 pure (name, previousValue)
             pure previous
 
-        restore = mapM_ (uncurry setOrUnset)
+        restore previous = forEach previous \(name, value) -> setOrUnset name value
 
         setOrUnset name = \case
             Just value -> Env.setEnv name value
