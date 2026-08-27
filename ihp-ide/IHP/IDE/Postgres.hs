@@ -8,6 +8,7 @@ import System.Log.FastLogger (toLogStr)
 import qualified IHP.EnvVar as EnvVar
 
 import qualified Control.Exception.Safe as Exception
+import qualified GHC.Clock as Clock
 import qualified System.Directory as Directory
 import System.FilePath ((</>))
 import qualified System.IO.Error as IOError
@@ -27,26 +28,39 @@ waitPostgres = waitPostgresWith (?context.logger . toLogStr)
 -- never comes up surfaces the app's own connection error instead of a dev server
 -- that looks frozen.
 waitPostgresWith :: (Text -> IO ()) -> IO ()
-waitPostgresWith log = go 0
-    where
-        go waited = do
+waitPostgresWith log = do
+    start <- Clock.getMonotonicTime
+    let
+        -- Wall clock, not accumulated sleep: every poll also spends time spawning
+        -- pg_isready, so counting the delays would let the timeout drift.
+        elapsed = do
+            now <- Clock.getMonotonicTime
+            pure (now - start)
+
+        go logAgainAt = do
             ready <- isPostgresReady
             unless ready do
+                waited <- elapsed
                 if waited >= waitTimeout
-                    then log "Postgres is still not ready, starting anyway"
+                    then log ("Postgres is still not ready after " <> tshow (round waitTimeout :: Int) <> "s, starting anyway")
                     else do
                         -- Logged on the first wait and then every 'logInterval', so the
                         -- common case (postgres came up while the app was compiling) stays
                         -- quiet while a real problem doesn't look like a silent hang.
-                        when (waited `mod` logInterval == 0) do
-                            log "Waiting for postgres to become ready (pg_isready, $PGDATA/.devenv_initialized)"
+                        nextLogAt <- if waited < logAgainAt
+                            then pure logAgainAt
+                            else do
+                                log "Waiting for postgres to become ready (pg_isready, $PGDATA/.devenv_initialized)"
+                                pure (logAgainAt + logInterval)
 
                         threadDelay pollInterval
-                        go (waited + pollInterval)
+                        go nextLogAt
 
+    go 0
+    where
         pollInterval = 100000 :: Int -- 100ms
-        logInterval = 5000000 :: Int -- 5s
-        waitTimeout = 60000000 :: Int -- 60s
+        logInterval = 5 :: Double -- seconds
+        waitTimeout = 60 :: Double -- seconds
 
 -- | Whether Postgres can serve queries against the application schema.
 --
