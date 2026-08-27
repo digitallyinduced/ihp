@@ -1,4 +1,4 @@
-module IHP.IDE.Postgres (waitPostgres, isPostgresReady) where
+module IHP.IDE.Postgres (waitPostgres, waitPostgresWith, isPostgresReady) where
 
 import IHP.IDE.Types
 import IHP.Prelude
@@ -10,45 +10,54 @@ import qualified IHP.EnvVar as EnvVar
 import qualified Control.Exception.Safe as Exception
 import qualified System.Directory as Directory
 import System.FilePath ((</>))
+import qualified System.IO.Error as IOError
 import qualified System.Process as Process
 import System.Exit (ExitCode(..))
 
 -- | Blocks until Postgres can serve queries against the application schema.
 --
--- Call this right before the app connects, not before it is compiled: the
--- compile runs in parallel with Postgres starting up, so by then this usually
--- returns immediately.
+-- Call this right before the app connects: the compile overlaps with Postgres
+-- starting up, so by then it usually returns immediately.
 waitPostgres :: (?context :: Context) => IO ()
-waitPostgres = go False
+waitPostgres = waitPostgresWith (?context.logger . toLogStr)
+
+-- | 'waitPostgres' for processes that have no dev server 'Context' to log through.
+--
+-- Gives up after 'waitTimeout' rather than blocking forever, so a Postgres that
+-- never comes up surfaces the app's own connection error instead of a dev server
+-- that looks frozen.
+waitPostgresWith :: (Text -> IO ()) -> IO ()
+waitPostgresWith log = go 0
     where
-        go loggedWaiting = do
+        go waited = do
             ready <- isPostgresReady
             unless ready do
-                -- Mentioned once, and only when we actually have to wait, to keep the
-                -- common case (postgres came up while the app was compiling) quiet.
-                unless loggedWaiting do
-                    ?context.logger (toLogStr ("Waiting for postgres to become ready" :: Text))
+                if waited >= waitTimeout
+                    then log "Postgres is still not ready, starting anyway"
+                    else do
+                        -- Logged on the first wait and then every 'logInterval', so the
+                        -- common case (postgres came up while the app was compiling) stays
+                        -- quiet while a real problem doesn't look like a silent hang.
+                        when (waited `mod` logInterval == 0) do
+                            log "Waiting for postgres to become ready (pg_isready, $PGDATA/.devenv_initialized)"
 
-                threadDelay 100000 -- 100ms between checks
-                go True
+                        threadDelay pollInterval
+                        go (waited + pollInterval)
+
+        pollInterval = 100000 :: Int -- 100ms
+        logInterval = 5000000 :: Int -- 5s
+        waitTimeout = 60000000 :: Int -- 60s
 
 -- | Whether Postgres can serve queries against the application schema.
 --
--- Accepting connections is not enough. In a devenv shell the postgres process is
--- already up while it still imports IHPSchema.sql, Application/Schema.sql and
--- Application/Fixtures.sql. A query issued during that window hits a schema that
--- is only half there; the resulting error leaves the failed statement in the
--- connection's prepared-statement cache, so the pooled connection answers every
--- later request with @prepared statement "…" does not exist@ until the app is
--- restarted.
+-- Accepting connections is not enough: devenv's postgres is up while it still
+-- imports the schema, and a query hitting the half-imported schema poisons the
+-- pooled connection's prepared-statement cache. devenv writes
+-- @$PGDATA/.devenv_initialized@ once the import finished, so that marker is
+-- checked too inside a devenv shell.
 --
--- devenv writes @$PGDATA/.devenv_initialized@ once the import has finished — the
--- same marker its own readiness probe uses — so inside a devenv shell that file
--- is checked in addition to @pg_isready@.
---
--- Reports ready when there is nothing to wait for: when @PGHOST@ is unset because
--- the app talks to a database the dev environment doesn't manage, or when
--- @pg_isready@ isn't available to ask.
+-- Reports ready when there is nothing to wait for: no @PGHOST@ (the database
+-- isn't managed by the dev environment), or no @pg_isready@ to ask.
 isPostgresReady :: IO Bool
 isPostgresReady = do
     socketDir :: Maybe String <- EnvVar.envOrNothing "PGHOST"
@@ -61,20 +70,23 @@ isPostgresReady = do
                 else pure False
     where
         acceptsConnections socketDir = do
-            -- pg_isready returns exit code 0 when ready, non-zero otherwise. When the
-            -- binary is missing there's nothing to ask, so we report ready instead of
-            -- blocking the dev server forever.
             result <- Exception.tryAny (Process.rawSystem "pg_isready" ["-h", socketDir, "-q"])
-            pure $ case result of
+            pure case result of
                 Right ExitSuccess -> True
                 Right (ExitFailure _) -> False
-                Left _ -> True
+                -- No pg_isready to ask, so there is nothing to wait for. Anything else
+                -- (a fork failing under load, say) is transient: report not ready and
+                -- let the caller poll again.
+                Left exception -> binaryIsMissing exception
 
-        -- devenv's postgres process creates this marker after `initialDatabases` has
-        -- been imported. Outside a devenv shell nobody writes it, so there's nothing
-        -- to wait for.
+        binaryIsMissing exception = case Exception.fromException exception of
+            Just ioError -> IOError.isDoesNotExistError ioError
+            Nothing -> False
+
+        -- devenv's postgres writes this marker after importing @initialDatabases@.
+        -- Outside a devenv shell nobody writes it, so there is nothing to wait for.
         databasesInitialized = do
-            isDevenv <- EnvVar.envOrDefault "IHP_DEVENV" False
+            isDevenv <- EnvVar.hasEnvVar "IHP_DEVENV"
             pgData :: Maybe String <- EnvVar.envOrNothing "PGDATA"
             case (isDevenv, pgData) of
                 (True, Just pgData) -> Directory.doesFileExist (pgData </> ".devenv_initialized")
