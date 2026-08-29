@@ -150,124 +150,136 @@ let
                 });
         };
 in
-final: prev: {
-    # nix-prefetch-darcs consumes the top-level darcs attribute directly. Keep it
-    # on the same bounds-relaxed build as the default GHC package set.
-    darcs = final.ghc.darcs;
-
-    # Default: GHC 9.12 — the pinned nixpkgs `haskellPackages` compiler.
-    # The dontCheck overrides below apply to that default build.
-    ghc = final.haskellPackages.override {
-        overrides = final.lib.composeManyExtensions [
-            (ihpOverrides final)
-            (self: super: {
-                # say tests fail due to CRLF newline handling changes
-                say = final.haskell.lib.dontCheck super.say;
-
-                # text-icu tests fail due to newer ICU BlockCode enum range
-                text-icu = final.haskell.lib.dontCheck super.text-icu;
-
-                # cryptonite tests have a flaky failure (1 of 1548)
-                cryptonite = final.haskell.lib.dontCheck super.cryptonite;
-
-                # The GHC 9.12 RC package set builds HLS 2.14 against Cabal 3.16,
-                # while its ormolu/fourmolu/stylish-haskell plugins still use
-                # Cabal 3.14. These are isolated plugin dependencies, but Cabal's
-                # multiple-version warning is fatal in the nixpkgs Haskell
-                # builder unless explicitly allowed.
-                haskell-language-server = final.haskell.lib.allowInconsistentDependencies
-                    super.haskell-language-server;
-
-                # darcs 2.18.5 caps http-client-tls <0.4 and tls <2.2, while
-                # the RC3 package set provides newer compatible releases. A full
-                # doJailbreak conflicts with nixpkgs' patched darcs.cabal, so only
-                # relax these two bounds after the nixpkgs patches are applied.
-                darcs = super.darcs.overrideAttrs (old: {
-                    postPatch = (old.postPatch or "") + ''
-                        substituteInPlace darcs.cabal \
-                            --replace-fail "http-client-tls   >= 0.3.5 && < 0.4" "http-client-tls   >= 0.3.5" \
-                            --replace-fail "tls               >= 2.0.6 && < 2.2" "tls               >= 2.0.6"
-                    '';
-                });
-            })
-        ];
+final: prev:
+let
+    # The RC3 nixpkgs snapshot updated ghc-exactprint to 1.14.1.0,
+    # while its GHC 9.14 configuration still references the removed
+    # 1.14.0.0 attribute. Keep the old name as a compatibility alias
+    # until nixpkgs updates configuration-ghc-9.14.x.nix.
+    exactprintAlias = self: super: {
+        ghc-exactprint_1_14_0_0 = final.haskell.lib.dontCheck super.ghc-exactprint_1_14_1_0;
     };
 
-    # `ghc912` is an alias of the default `ghc` set: the pinned nixpkgs default
-    # compiler is already GHC 9.12, so a separate set would be an exact duplicate.
-    # The alias keeps `pkgs.ghc912.*` references working; drop it once they migrate
-    # to `pkgs.ghc`.
-    ghc912 = final.ghc;
+    ghc914Extras = self: super: {
+        # say tests fail due to CRLF newline handling changes
+        say = final.haskell.lib.dontCheck super.say;
 
-    # GHC 9.14 — opt-in for apps using the digitallyinduced binary cache.
-    # To use: set `ihp.ghcCompiler = pkgs.ghc914;` in your flake-module config.
-    ghc914 =
+        # text-icu tests fail due to newer ICU BlockCode enum range
+        text-icu = final.haskell.lib.dontCheck super.text-icu;
+
+        # cryptonite tests have a flaky failure (1 of 1548)
+        cryptonite = final.haskell.lib.dontCheck super.cryptonite;
+
+        # relude doctests fail due to changed GHC error messages in 9.14
+        relude = final.haskell.lib.dontCheck super.relude;
+
+        # HLS pulls this in; its tests import a hidden containers-0.8 module.
+        enummapset = final.haskell.lib.dontCheck super.enummapset;
+
+        # 0.19 supports GHC 9.14; nixpkgs still pins an older release.
+        ghc-tcplugin-api = self.callPackage "${flakeRoot}/NixSupport/hackage/ghc-tcplugin-api.nix" {};
+
+        # 0.9.6 supports GHC 9.14; nixpkgs still pins an older release.
+        ghc-typelits-natnormalise = final.haskell.lib.dontCheck
+            (self.callPackage "${flakeRoot}/NixSupport/hackage/ghc-typelits-natnormalise.nix" {});
+
+        # 0.8.4 supports GHC 9.14; nixpkgs still pins an older release.
+        ghc-typelits-knownnat = final.haskell.lib.dontCheck
+            (self.callPackage "${flakeRoot}/NixSupport/hackage/ghc-typelits-knownnat.nix" {});
+    };
+
+    # GHC 9.14 ships base-4.22, containers-0.8, template-haskell-2.24.
+    # Many nixpkgs packages have tight upper bounds on these boot libraries.
+    ghc914Jailbreaks =
+        let
+            jailbreak = names: self: super:
+                builtins.listToAttrs (map (name: {
+                    inherit name;
+                    value = final.haskell.lib.doJailbreak super.${name};
+                }) (builtins.filter (name: super ? ${name}) names));
+        in jailbreak [
+            # cabal-install 3.16.1.0 / cabal-install-solver want Cabal &
+            # Cabal-syntax >=3.16.1.0, but GHC 9.14 ships the 3.16.0.0 boot
+            # libs (a patch-release skew) — drop the bound.
+            "cabal-install" "cabal-install-solver" "cabal-install-parsers"
+            "cabal-add"
+            # hlint -> extensions pins Cabal-syntax <3.15, so nixpkgs builds
+            # the Cabal-syntax_3_14_2_0 attr — which caps containers <0.8 /
+            # time <1.15 and fails on GHC 9.14's containers-0.8 / time-1.15.
+            # Jailbreaking lets that pinned version build on the new boot libs.
+            "Cabal-syntax_3_14_2_0"
+            # darcs 2.18.5 caps http-client-tls <0.4 and tls <2.2, while
+            # the RC3 package set provides newer compatible releases.
+            "darcs"
+            "lucid" "lucid2" "clay" "tasty-hspec" "config-ini" "fsnotify"
+            "string-interpolate" "rebase" "rerebase" "with-utf8" "minio-hs"
+            "sandwich" "brick" "postgresql-simple" "hasql-dynamic-statements"
+            "hasql-implicits" "warp-systemd" "ghc-trace-events"
+            "algebraic-graphs" "hie-bios" "stan" "modern-uri"
+            "ghc-lib-parser" "ghc-lib-parser-ex" "ghc-syntax-highlighter"
+            "colourista" "extensions" "trial" "trial-optparse-applicative"
+            "trial-tomland" "tomland" "validation-selective" "slist"
+            "ihp-zip"
+        ];
+
+    ghc912Extras = self: super: {
+        # say tests fail due to CRLF newline handling changes
+        say = final.haskell.lib.dontCheck super.say;
+
+        # text-icu tests fail due to newer ICU BlockCode enum range
+        text-icu = final.haskell.lib.dontCheck super.text-icu;
+
+        # cryptonite tests have a flaky failure (1 of 1548)
+        cryptonite = final.haskell.lib.dontCheck super.cryptonite;
+
+        # The GHC 9.12 package set builds HLS 2.14 against Cabal 3.16,
+        # while its ormolu/fourmolu/stylish-haskell plugins still use
+        # Cabal 3.14. These are isolated plugin dependencies, but Cabal's
+        # multiple-version warning is fatal in the nixpkgs Haskell
+        # builder unless explicitly allowed.
+        haskell-language-server = final.haskell.lib.allowInconsistentDependencies
+            super.haskell-language-server;
+
+        # darcs 2.18.5 caps http-client-tls <0.4 and tls <2.2, while
+        # the 9.12 package set provides newer compatible releases. A full
+        # doJailbreak conflicts with nixpkgs' patched darcs.cabal, so only
+        # relax these two bounds after the nixpkgs patches are applied.
+        darcs = super.darcs.overrideAttrs (old: {
+            postPatch = (old.postPatch or "") + ''
+                substituteInPlace darcs.cabal \
+                    --replace-fail "http-client-tls   >= 0.3.5 && < 0.4" "http-client-tls   >= 0.3.5" \
+                    --replace-fail "tls               >= 2.0.6 && < 2.2" "tls               >= 2.0.6"
+            '';
+        });
+    };
+in {
+    # nix-prefetch-darcs consumes the top-level darcs attribute directly. Keep it
+    # on the same bounds-relaxed build as the default GHC package set.
+    darcs = final.ghc912.darcs;
+
+    # Default: GHC 9.14.1. The default path requires haskell.packages.ghc914.
+    ghc =
         if prev.haskell.packages ? ghc914
         then final.haskell.packages.ghc914.override {
             overrides = final.lib.composeManyExtensions [
-                # The RC3 nixpkgs snapshot updated ghc-exactprint to 1.14.1.0,
-                # while its GHC 9.14 configuration still references the removed
-                # 1.14.0.0 attribute. Keep the old name as a compatibility alias
-                # until nixpkgs updates configuration-ghc-9.14.x.nix.
-                (self: super: {
-                    ghc-exactprint_1_14_0_0 = final.haskell.lib.dontCheck super.ghc-exactprint_1_14_1_0;
-                })
+                exactprintAlias
                 (ihpOverrides final)
-                (self: super: {
-                    say = final.haskell.lib.dontCheck super.say;
-                    text-icu = final.haskell.lib.dontCheck super.text-icu;
-                    cryptonite = final.haskell.lib.dontCheck super.cryptonite;
-
-                    # relude doctests fail due to changed GHC error messages in 9.14
-                    relude = final.haskell.lib.dontCheck super.relude;
-
-                    # HLS pulls this in; its tests import a hidden containers-0.8 module.
-                    enummapset = final.haskell.lib.dontCheck super.enummapset;
-
-                    # 0.19 supports GHC 9.14; nixpkgs still pins an older release.
-                    ghc-tcplugin-api = self.callPackage "${flakeRoot}/NixSupport/hackage/ghc-tcplugin-api.nix" {};
-
-                    # 0.9.6 supports GHC 9.14; nixpkgs still pins an older release.
-                    ghc-typelits-natnormalise = final.haskell.lib.dontCheck
-                        (self.callPackage "${flakeRoot}/NixSupport/hackage/ghc-typelits-natnormalise.nix" {});
-
-                    # 0.8.4 supports GHC 9.14; nixpkgs still pins an older release.
-                    ghc-typelits-knownnat = final.haskell.lib.dontCheck
-                        (self.callPackage "${flakeRoot}/NixSupport/hackage/ghc-typelits-knownnat.nix" {});
-                })
-                # GHC 9.14 ships base-4.22, containers-0.8, template-haskell-2.24.
-                # Many nixpkgs packages have tight upper bounds on these boot libraries.
-                (let
-                    jailbreak = names: self: super:
-                        builtins.listToAttrs (map (name: {
-                            inherit name;
-                            value = final.haskell.lib.doJailbreak super.${name};
-                        }) (builtins.filter (name: super ? ${name}) names));
-                in jailbreak [
-                    # cabal-install 3.16.1.0 / cabal-install-solver want Cabal &
-                    # Cabal-syntax >=3.16.1.0, but GHC 9.14 ships the 3.16.0.0 boot
-                    # libs (a patch-release skew) — drop the bound.
-                    "cabal-install" "cabal-install-solver" "cabal-install-parsers"
-                    "cabal-add"
-                    # hlint -> extensions pins Cabal-syntax <3.15, so nixpkgs builds
-                    # the Cabal-syntax_3_14_2_0 attr — which caps containers <0.8 /
-                    # time <1.15 and fails on GHC 9.14's containers-0.8 / time-1.15.
-                    # Jailbreaking lets that pinned version build on the new boot libs.
-                    "Cabal-syntax_3_14_2_0"
-                    # darcs 2.18.5 caps http-client-tls <0.4 and tls <2.2, while
-                    # the RC3 package set provides newer compatible releases.
-                    "darcs"
-                    "lucid" "lucid2" "clay" "tasty-hspec" "config-ini" "fsnotify"
-                    "string-interpolate" "rebase" "rerebase" "with-utf8" "minio-hs"
-                    "sandwich" "brick" "postgresql-simple" "hasql-dynamic-statements"
-                    "hasql-implicits" "warp-systemd" "ghc-trace-events"
-                    "algebraic-graphs" "hie-bios" "stan" "modern-uri"
-                    "ghc-lib-parser" "ghc-lib-parser-ex" "ghc-syntax-highlighter"
-                    "colourista" "extensions" "trial" "trial-optparse-applicative"
-                    "trial-tomland" "tomland" "validation-selective" "slist"
-                    "ihp-zip"
-                ])
+                ghc914Extras
+                ghc914Jailbreaks
             ];
         }
         else throw "ghc914 is not available in this nixpkgs";
+
+    # Alias so existing `pkgs.ghc914` / `ihp.ghcCompiler = pkgs.ghc914` refs keep working.
+    ghc914 = final.ghc;
+
+    # Rollback set for apps that stay on GHC 9.12 via `ihp.ghcCompiler = pkgs.ghc912`.
+    # Bound to haskell.packages.ghc912, never haskellPackages, so it stays 9.12
+    # even if nixpkgs moves haskellPackages.
+    ghc912 = final.haskell.packages.ghc912.override {
+        overrides = final.lib.composeManyExtensions [
+            (ihpOverrides final)
+            ghc912Extras
+        ];
+    };
 }
