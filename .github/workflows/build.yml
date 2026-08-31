@@ -10,11 +10,14 @@ on:
 permissions:
   contents: read
 
+env:
+  ATTIC_PACKAGE: github:NixOS/nixpkgs/afe3d8ac4395617bdcdac9f188ac8717a062e014#attic-client
+
 jobs:
   build:
     strategy:
       matrix:
-        os: [ubuntu-latest, macos-latest, ARM64]
+        os: [ubuntu-latest, ARM64]
     runs-on: ${{ matrix.os }}
     steps:
     - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
@@ -42,40 +45,73 @@ jobs:
       if: matrix.os != 'ARM64'
     # ARM64 (self-hosted) runs the full check suite including multi-GHC checks.
     # The dedicated non-admin runner has no daemon post-build hook or persistent
-    # cache credential; hosted package jobs below perform explicit cache pushes.
+    # cache credential. Trusted jobs below perform explicit cache pushes.
     - run: nix flake check --impure --override-input ihp-boilerplate/ihp "github:${{ github.event.repository.full_name }}/${{ github.sha }}" -L
       if: matrix.os == 'ARM64'
-    # GitHub-hosted runners only build packages to populate the binary caches.
-    # All checks (tests, benchmarks, multi-GHC) are already covered by ARM64.
+    # Build every package output explicitly so the resulting closure can be
+    # published. ARM64 replaces the redundant GitHub-hosted Darwin package job.
+    # All checks (tests, benchmarks, multi-GHC) are already covered above.
     # Uses --max-jobs 1 to build one derivation at a time, preventing OOM on
     # the 16GB ubuntu-latest runners where nothing-but-nix reduces available memory.
-    - run: |
-        system=$(nix eval --impure --expr builtins.currentSystem --raw)
-        override="--override-input ihp-boilerplate/ihp github:${{ github.event.repository.full_name }}/${{ github.sha }}"
-
-        packages=$(nix eval --impure $override --json ".#packages.$system" --apply builtins.attrNames \
-          | jq -r '.[]')
-
-        targets=""
-        for p in $packages; do
-          targets="$targets .#packages.$system.$p"
-        done
-        nix build --impure --max-jobs 1 $override -L --print-out-paths $targets > built-paths.txt
-        cat built-paths.txt
-      if: matrix.os != 'ARM64'
-    # Also push the freshly-built closures to the self-hosted Attic binary cache
-    # (https://cache.digitallyinduced.com/public), alongside cachix. This is what
-    # gives the Attic cache x86_64-linux + aarch64-darwin coverage (the ARM64
-    # self-hosted job only covers aarch64-darwin).
-    - name: Push to Attic cache
+    - name: Build package closures
+      shell: bash
       run: |
-        if [ ! -s built-paths.txt ]; then echo "no built paths to push"; exit 0; fi
-        nix profile install nixpkgs#attic-client
-        attic login di https://cache.digitallyinduced.com "$ATTIC_TOKEN"
-        xargs attic push public < built-paths.txt
+        set -euo pipefail
+
+        system=$(nix eval --impure --expr builtins.currentSystem --raw)
+        override=(
+          --override-input
+          ihp-boilerplate/ihp
+          "github:${{ github.event.repository.full_name }}/${{ github.sha }}"
+        )
+
+        packages=$(
+          nix eval --impure "${override[@]}" --raw ".#packages.$system" \
+            --apply 'packages: builtins.concatStringsSep "\n" (builtins.attrNames packages)'
+        )
+
+        targets=()
+        while IFS= read -r package; do
+          [[ -n "$package" ]] || continue
+          targets+=(".#packages.$system.$package")
+        done <<< "$packages"
+        if [[ ${#targets[@]} -eq 0 ]]; then
+          echo "No package outputs found" >&2
+          exit 1
+        fi
+
+        nix build --impure --max-jobs 1 "${override[@]}" -L --print-out-paths \
+          "${targets[@]}" > built-paths.txt
+        if [[ ! -s built-paths.txt ]]; then
+          echo "Nix did not report any package outputs" >&2
+          exit 1
+        fi
+        cat built-paths.txt
+
+    - name: Push package closures to public Attic cache
+      shell: bash
+      run: |
+        set -euo pipefail
+
+        if [[ ! -s built-paths.txt ]]; then
+          echo "No built paths to push" >&2
+          exit 1
+        fi
+
+        export HOME="$RUNNER_TEMP/attic-home"
+        export XDG_CONFIG_HOME="$HOME/.config"
+        mkdir -p "$XDG_CONFIG_HOME"
+        chmod 700 "$HOME" "$XDG_CONFIG_HOME"
+        trap 'rm -rf "$HOME"' EXIT
+
+        nix run "$ATTIC_PACKAGE" -- login di \
+          https://cache.digitallyinduced.com \
+          "$ATTIC_TOKEN"
+        nix run "$ATTIC_PACKAGE" -- \
+          push --jobs 4 --stdin di:public < built-paths.txt
       env:
         ATTIC_TOKEN: ${{ secrets.ATTIC_CI_TOKEN }}
-      if: matrix.os != 'ARM64'
+      if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
 
   # Separate ubuntu job so 9.14 devenv-shaped deps are cache-warmed without
   # adding a packages.* output or extra work on the existing packages loop.
@@ -108,10 +144,25 @@ jobs:
           ".#checks.$system.ghc914-dev-env" > built-paths.txt
         cat built-paths.txt
     - name: Push to Attic cache
+      shell: bash
       run: |
-        if [ ! -s built-paths.txt ]; then echo "no built paths to push"; exit 0; fi
-        nix profile install nixpkgs#attic-client
-        attic login di https://cache.digitallyinduced.com "$ATTIC_TOKEN"
-        xargs attic push public < built-paths.txt
+        set -euo pipefail
+
+        if [[ ! -s built-paths.txt ]]; then
+          echo "No built paths to push" >&2
+          exit 1
+        fi
+
+        export HOME="$RUNNER_TEMP/attic-home"
+        export XDG_CONFIG_HOME="$HOME/.config"
+        mkdir -p "$XDG_CONFIG_HOME"
+        chmod 700 "$HOME" "$XDG_CONFIG_HOME"
+        trap 'rm -rf "$HOME"' EXIT
+
+        nix run "$ATTIC_PACKAGE" -- login di \
+          https://cache.digitallyinduced.com \
+          "$ATTIC_TOKEN"
+        nix run "$ATTIC_PACKAGE" -- \
+          push --jobs 4 --stdin di:public < built-paths.txt
       env:
         ATTIC_TOKEN: ${{ secrets.ATTIC_CI_TOKEN }}
