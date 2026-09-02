@@ -17,6 +17,7 @@ import qualified IDE.CodeGeneration.MigrationGenerator
 import qualified IDE.SplitModeSpec
 import qualified IDE.WorkerSignalSpec
 import qualified IDE.PortConfigSpec
+import qualified IDE.PostgresSpec
 import qualified SchemaCompilerSpec
 import qualified IDE.ToolServer.MiddlewareSpec
 import qualified IDE.Logs.ControllerSpec
@@ -39,6 +40,7 @@ main = hspec do
     IDE.SplitModeSpec.tests
     IDE.WorkerSignalSpec.tests
     IDE.PortConfigSpec.tests
+    IDE.PostgresSpec.tests
     SchemaCompilerSpec.tests
     IDE.ToolServer.MiddlewareSpec.tests
     IDE.Logs.ControllerSpec.tests
