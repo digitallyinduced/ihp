@@ -45,7 +45,7 @@ config = do
 ### S3
 
 AWS S3 is a popular cloud storage service that allows you to store and retrieve files. IHP provides a simple way to integrate with S3.
-See MinIo section below to learn how to setup an S3 compatible storage service for your local development. So your application can use the same code for
+See the Garage section below to learn how to setup an S3 compatible storage service for your local development. So your application can use the same code for
 both local development and production.
 
 Open your `Config/Config.hs` and import `import IHP.FileStorage.Config`:
@@ -87,22 +87,33 @@ export AWS_ACCESS_KEY_ID="YOUR KEY"            # <---------
 export AWS_SECRET_ACCESS_KEY="YOUR SECRET"     # <---------
 ```
 
-### Minio
+### Garage
 
-Enable MinIo in your `flake.nix`
+[Garage](https://garagehq.deuxfleurs.fr/) is a lightweight, S3 compatible object storage server. It's a good way to run an S3 compatible service locally, so your application can use the same code path for both local development and production.
+
+Enable Garage in your `flake.nix`
 
 ```nix
 devenv.shells.default = {
-    # Enable S3 compatibility with MinIO.
-    services.minio = {
+    # Enable S3 compatibility with Garage.
+    services.garage = {
         enable = true;
         buckets = [ "ihp-bucket" ];
+
+        # Garage has no default credentials. Import a fixed development key
+        # and grant it access to the bucket. The `key info` check keeps this
+        # idempotent across restarts.
+        afterStart = ''
+            garage key info ihp-dev > /dev/null 2>&1 \
+                || garage key import --yes -n ihp-dev GK00000000000000000000000f 0000000000000000000000000000000000000000000000000000000000000000
+            garage bucket allow --read --write --owner ihp-bucket --key ihp-dev
+        '';
     };
 
 };
 ```
 
-When working locally, the MinIO server is started by the `devenv up` command.
+When working locally, the Garage server is started by the `devenv up` command. Its S3 API listens on `http://127.0.0.1:3900`.
 
 Open your `Config/Config.hs` and import `import IHP.FileStorage.Config`:
 
@@ -110,7 +121,7 @@ Open your `Config/Config.hs` and import `import IHP.FileStorage.Config`:
 import IHP.FileStorage.Config
 ```
 
-Then add a call to [`initMinioStorage`](https://ihp.digitallyinduced.com/api-docs/IHP-FileStorage-Config.html#v:initMinioStorage):
+Then add a call to [`initS3CompatibleStorage`](https://ihp.digitallyinduced.com/api-docs/IHP-FileStorage-Config.html#v:initS3CompatibleStorage):
 
 ```haskell
 module Config where
@@ -125,14 +136,14 @@ config = do
     option Development
     option (AppHostname "localhost")
 
-    -- Local development, we use MinIo.
-    initMinioStorage "http://127.0.0.1:9000" "ihp-bucket"
+    -- Local development, we use Garage.
+    initS3CompatibleStorage "http://127.0.0.1:3900" "ihp-bucket"
 
-    -- Or if you have a remote Minio server:
-    -- initMinioStorage "https://minio.example.com" "my-bucket-name"
+    -- Or if you have a remote server:
+    -- initS3CompatibleStorage "https://storage.example.com" "my-bucket-name"
 ```
 
-The Minio access key and secret key have to be provided using the `MINIO_ACCESS_KEY` and `MINIO_SECRET_KEY` env vars.
+The access key and secret key have to be provided using the `AWS_ACCESS_KEY_ID` and `AWS_SECRET_ACCESS_KEY` env vars, the same names the AWS CLI and other S3 tooling use.
 
 For easy development you can add these env vars to your `.envrc` file:
 
@@ -142,10 +153,12 @@ source_url "https://raw.githubusercontent.com/cachix/devenv/d1f7b48e35e6dee421cf
 use devenv
 
 # ...
-# When working locally, these are the default credentials.
-export MINIO_ACCESS_KEY="minioadmin"
-export MINIO_SECRET_KEY="minioadmin"
+# When working locally, these are the credentials imported above.
+export AWS_ACCESS_KEY_ID="GK00000000000000000000000f"
+export AWS_SECRET_ACCESS_KEY="0000000000000000000000000000000000000000000000000000000000000000"
 ```
+
+If your app already sets `MINIO_ACCESS_KEY` and `MINIO_SECRET_KEY`, those keep working and take precedence.
 
 ### Filebase
 > Filebase provides an S3 compatible API on top of decentralized object storage systems such as Storj, Skynet, Sia and IPFS
