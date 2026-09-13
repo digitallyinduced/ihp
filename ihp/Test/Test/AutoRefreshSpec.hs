@@ -14,7 +14,7 @@ import IHP.ControllerPrelude hiding (get, request)
 import Network.Wai
 import Network.Wai.Internal (ResponseReceived(..))
 import Network.HTTP.Types
-import IHP.AutoRefresh (globalAutoRefreshServerVar)
+import IHP.AutoRefresh (getAvailableSessions, globalAutoRefreshServerVar)
 import IHP.AutoRefresh.Types
 import qualified Control.Concurrent.MVar as MVar
 import IHP.Controller.Response (ResponseException(..))
@@ -24,6 +24,7 @@ import IHP.Log.Types (Logger(..), LogLevel(..))
 import IHP.Server (initMiddlewareStack)
 import IHP.Test.Mocking
 import qualified Network.Wai as Wai
+import qualified Data.UUID as UUID
 
 data WebApplication = WebApplication deriving (Eq, Show, Data)
 
@@ -106,6 +107,41 @@ testLogger = Logger
 tests :: Spec
 tests = beforeAll (mockContextNoDatabase WebApplication config) do
     describe "AutoRefresh" do
+        describe "getAvailableSessions" do
+            let activeId = UUID.fromWords 0 0 0 1
+            let staleId = UUID.fromWords 0 0 0 2
+            let unknownId = UUID.fromWords 0 0 0 3
+            let activeText = cs (UUID.toText activeId)
+            forM_
+                [ ("uses the header snapshot instead of stale cookie entries", [("X-IHP-Auto-Refresh-Sessions", activeText <> cs (UUID.toText unknownId))], [], [activeId, staleId], [activeId])
+                , ("uses the websocket query snapshot instead of stale cookie entries", [], [("autoRefreshSessions", Just activeText)], [activeId, staleId], [activeId])
+                , ("deduplicates explicit snapshots", [("X-IHP-Auto-Refresh-Sessions", activeText)], [("autoRefreshSessions", Just activeText)], [activeId, staleId], [activeId])
+                , ("keeps the cookie fallback for clients without an explicit snapshot", [], [], [activeId, staleId], [activeId, staleId])
+                , ("accepts a live session missing from an overwritten cookie", [], [("autoRefreshSessions", Just activeText)], [staleId], [activeId])
+                , ("ignores malformed UTF-8 and invalid session IDs", [("X-IHP-Auto-Refresh-Sessions", "\xffinvalid")], [], [activeId, staleId], [])
+                ] \(description, headers, queryParams, cookieIds, expected) ->
+                    it description $ withContext do
+                        event <- MVar.newEmptyMVar
+                        now <- getCurrentTime
+                        let session id = AutoRefreshSession
+                                { id
+                                , renderView = \_ _ -> pure ()
+                                , event
+                                , tables = mempty
+                                , lastResponse = ""
+                                , lastPing = now
+                                }
+                        serverRef <- newIORef AutoRefreshServer
+                            { subscriptions = []
+                            , sessions = map session [activeId, staleId]
+                            , subscribedTables = mempty
+                            , pgListener = error "pgListener unused in session selection test"
+                            }
+                        setSession "autoRefreshSessions" (mconcat (map UUID.toText cookieIds))
+                        let clientRequest = ?request { requestHeaders = headers, queryString = queryParams }
+                        let ?request = clientRequest
+                        getAvailableSessions serverRef `shouldReturn` expected
+
         describe "renderView" do
             it "should preserve query parameters when re-rendering with a websocket request" $ withContext do
                 -- Clean up any leftover global state from previous tests

@@ -19,6 +19,9 @@ import qualified Control.Exception as Exception
 import qualified Control.Concurrent.MVar as MVar
 import qualified Data.Maybe as Maybe
 import qualified Data.Text as Text
+import qualified Data.Text.Encoding as Text
+import qualified Data.Text.Encoding.Error as TextEncodingError
+import qualified Data.List as List
 import IHP.WebSocket
 import IHP.Controller.Context
 import IHP.Controller.Response
@@ -97,10 +100,8 @@ autoRefresh runAction = do
                             putContext originalRequest
                             action ?theAction
 
-                    -- We save the allowed session ids to the session cookie to only grant a client access
-                    -- to sessions it initially opened itself
-                    --
-                    -- Otherwise you might try to guess session UUIDs to access other peoples auto refresh sessions
+                    -- Keep the session cookie for clients without an explicit session snapshot.
+                    -- Snapshot-aware clients also send session UUIDs from their rendered views.
                     setSession "autoRefreshSessions" (map UUID.toText (id:availableSessions) |> Text.intercalate "")
 
                     withTableReadTracker do
@@ -231,18 +232,53 @@ registerNotificationTrigger touchedTablesVar autoRefreshServer = do
     modifyIORef' autoRefreshServer (\s -> s { subscriptions = s.subscriptions <> subscriptions })
     pure ()
 
--- | Returns the ids of all sessions available to the client based on what sessions are found in the session cookie
+-- | Returns live sessions from an explicit client snapshot, falling back to the session cookie.
+-- Session UUIDs in explicit snapshots are bearer credentials supplied by the rendered view.
 getAvailableSessions :: (?request :: Request) => IORef AutoRefreshServer -> IO [UUID]
 getAvailableSessions autoRefreshServer = do
     allSessions <- (.sessions) <$> readIORef autoRefreshServer
-    text <- fromMaybe "" <$> getSession "autoRefreshSessions"
+    cookieText <- fromMaybe "" <$> getSession "autoRefreshSessions"
+    let headerText = getClientAutoRefreshSessionsHeader ?request
+    let queryText = getClientAutoRefreshSessionsQuery ?request
     let uuidCharCount = Text.length (UUID.toText UUID.nil)
     let allSessionIds = map (.id) allSessions
+    let requestedSessionIds =
+            -- Explicit client state replaces the older cookie snapshot. Discarded
+            -- fragments can remain on the server until GC, but must not grow the cookie.
+            (if Text.null headerText && Text.null queryText
+                then [cookieText]
+                else [headerText, queryText])
+                |> map (parseSessionIds uuidCharCount)
+                |> concat
+                |> List.nub
+    requestedSessionIds
+        |> filter (\id -> id `elem` allSessionIds)
+        |> pure
+
+-- | Reads the active session snapshot sent by a custom HTTP client.
+getClientAutoRefreshSessionsHeader :: Request -> Text
+getClientAutoRefreshSessionsHeader request =
+    request.requestHeaders
+        |> lookup "X-IHP-Auto-Refresh-Sessions"
+        |> fmap (Text.decodeUtf8With TextEncodingError.lenientDecode)
+        |> fromMaybe ""
+
+-- | Reads the active session snapshot for clients such as browser WebSockets,
+-- which cannot set custom request headers.
+getClientAutoRefreshSessionsQuery :: Request -> Text
+getClientAutoRefreshSessionsQuery request =
+    request.queryString
+        |> lookup "autoRefreshSessions"
+        |> join
+        |> fmap (Text.decodeUtf8With TextEncodingError.lenientDecode)
+        |> fromMaybe ""
+
+-- | Parses concatenated UUID strings, ignoring invalid chunks.
+parseSessionIds :: Int -> Text -> [UUID]
+parseSessionIds uuidCharCount text =
     text
         |> Text.chunksOf uuidCharCount
         |> mapMaybe UUID.fromText
-        |> filter (\id -> id `elem` allSessionIds)
-        |> pure
 
 -- | Returns a session for a given session id. Errors in case the session does not exist.
 getSessionById :: IORef AutoRefreshServer -> UUID -> IO AutoRefreshSession

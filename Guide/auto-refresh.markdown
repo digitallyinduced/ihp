@@ -79,6 +79,28 @@ That's it. When you open your browser dev tools, you will see that a WebSocket c
 
 ## Advanced Auto Refresh
 
+### Active Session Snapshots for Custom Clients
+
+Custom clients that manage several Auto Refresh views can send the session IDs currently present in their DOM. Send the concatenated UUID strings, without separators, in the `X-IHP-Auto-Refresh-Sessions` HTTP header. Browser WebSocket clients can send the same value in the `autoRefreshSessions` query parameter because the WebSocket API does not support custom headers.
+
+For example, a client can collect IDs from the rendered meta tags before an HTTP request:
+
+```javascript
+const sessionIds = Array.from(document.querySelectorAll('meta[property="ihp-auto-refresh-id"]'))
+    .map(meta => meta.content)
+    .join('');
+
+fetch('/YourAutoRefreshAction', {
+    headers: { 'X-IHP-Auto-Refresh-Sessions': sessionIds }
+});
+```
+
+For a WebSocket, append `?autoRefreshSessions=` followed by `encodeURIComponent(sessionIds)` to `/AutoRefreshWSApp`, then send the individual session ID on the socket as usual.
+
+A non-empty explicit snapshot replaces the older cookie snapshot. This prevents discarded responses from accumulating stale session IDs in the encrypted cookie until server garbage collection runs. It also lets a client reconnect to a rendered session whose cookie entry was overwritten by a concurrent response. Duplicate IDs are removed, and malformed IDs or IDs no longer present on the server are ignored. When both explicit values are empty or absent, IHP continues to use the session cookie, so existing clients keep their current behavior. The bundled client continues to use this cookie fallback; custom clients opt in by sending a snapshot.
+
+Explicit session IDs are bearer credentials for the corresponding rendered views: possession of a live ID grants access to its Auto Refresh updates, even if the cookie no longer contains it. Only send IDs obtained from the client's own rendered views, keep them private, and avoid recording the WebSocket query string in shared access logs.
+
 ### Auto Refresh Only for Specific Tables
 
 By default IHP tracks all the tables in an action with Auto Refresh enabled.
