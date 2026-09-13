@@ -13,7 +13,7 @@ import IHP.FrameworkConfig
 import IHP.ControllerPrelude hiding (get, request)
 import Network.Wai
 import Network.HTTP.Types
-import IHP.AutoRefresh (globalAutoRefreshServerVar, sessionResponseHasChanged, updateSession)
+import IHP.AutoRefresh (getAvailableSessions, globalAutoRefreshServerVar, sessionResponseHasChanged, updateSession)
 import IHP.AutoRefresh.Types
 import IHP.AutoRefresh.View (autoRefreshMeta)
 import qualified Control.Concurrent.MVar as MVar
@@ -94,6 +94,41 @@ testLogger = noopLogger
 tests :: Spec
 tests = beforeAll (mockContextNoDatabase WebApplication config) do
     describe "AutoRefresh" do
+        describe "getAvailableSessions" do
+            let activeId = UUID.fromWords 0 0 0 1
+            let staleId = UUID.fromWords 0 0 0 2
+            let unknownId = UUID.fromWords 0 0 0 3
+            let activeText = cs (UUID.toText activeId)
+            forM_
+                [ ("uses the header snapshot instead of stale cookie entries", [("X-IHP-Auto-Refresh-Sessions", activeText <> cs (UUID.toText unknownId))], [], [activeId, staleId], [activeId])
+                , ("uses the websocket query snapshot instead of stale cookie entries", [], [("autoRefreshSessions", Just activeText)], [activeId, staleId], [activeId])
+                , ("deduplicates explicit snapshots", [("X-IHP-Auto-Refresh-Sessions", activeText)], [("autoRefreshSessions", Just activeText)], [activeId, staleId], [activeId])
+                , ("keeps the cookie fallback for clients without an explicit snapshot", [], [], [activeId, staleId], [activeId, staleId])
+                , ("accepts a live session missing from an overwritten cookie", [], [("autoRefreshSessions", Just activeText)], [staleId], [activeId])
+                , ("ignores malformed UTF-8 and invalid session IDs", [("X-IHP-Auto-Refresh-Sessions", "\xffinvalid")], [], [activeId, staleId], [])
+                ] \(description, headers, queryParams, cookieIds, expected) ->
+                    it description $ withContext do
+                        event <- MVar.newEmptyMVar
+                        now <- getCurrentTime
+                        let session id = AutoRefreshSession
+                                { id
+                                , renderView = \_ respond -> respond (Wai.responseLBS status200 [] "")
+                                , event
+                                , tables = mempty
+                                , lastResponse = ""
+                                , lastPing = now
+                                }
+                        serverRef <- newIORef AutoRefreshServer
+                            { subscriptions = []
+                            , sessions = map session [activeId, staleId]
+                            , subscribedTables = mempty
+                            , pgListener = error "pgListener unused in session selection test"
+                            }
+                        setSession "autoRefreshSessions" (mconcat (map UUID.toText cookieIds))
+                        let clientRequest = ?request { requestHeaders = headers, queryString = queryParams }
+                        let ?request = clientRequest
+                        getAvailableSessions serverRef `shouldReturn` expected
+
         describe "autoRefreshMeta" do
             it "renders the ihp-auto-refresh-id meta tag on the initial response" $ withContext do
                 MVar.modifyMVar_ globalAutoRefreshServerVar (\_ -> pure Nothing)
