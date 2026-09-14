@@ -18,7 +18,7 @@ module IHP.Pagination.Internal
 ) where
 
 import IHP.Prelude
-import IHP.Controller.Param (paramOrDefault)
+import IHP.Controller.Param (paramOrError)
 import IHP.Pagination.Types (Options(..))
 import Network.Wai (Request)
 
@@ -26,11 +26,25 @@ import Network.Wai (Request)
 -- passing in query params with a value that could overload the
 -- database (e.g. maxItems=100000)
 pageSize' :: (?request :: Request) => Options -> Int
-pageSize' options = min (max 1 $ paramOrDefault @Int (maxItems options) "maxItems") 200
+pageSize' options = min (max 1 $ intParamOrDefault (maxItems options) "maxItems") 200
 
 -- Page and page size shouldn't be lower than 1.
 page :: (?request :: Request) => Int
-page = max 1 $ paramOrDefault @Int 1 "page"
+page = max 1 $ intParamOrDefault 1 "page"
+
+-- | The @Int@ a pagination parameter carries, or the default when it carries
+-- nothing or carries something that is not a number.
+--
+-- 'paramOrDefault' falls back only when the parameter is missing and throws a
+-- 'ParamCouldNotBeParsedException' when it is there but malformed, which for
+-- @page@ and @maxItems@ means a 500. These two are navigational: they arrive
+-- from a URL somebody typed, an old link, or a crawler, so @?page=abc@ is
+-- answered with the first page rather than with an error page.
+intParamOrDefault :: (?request :: Request) => Int -> ByteString -> Int
+intParamOrDefault defaultValue name =
+    case paramOrError @Int name of
+        Right value -> value
+        Left _ -> defaultValue
 
 offset' :: Int -> Int -> Int
 offset' pageSize page = (page - 1) * pageSize
