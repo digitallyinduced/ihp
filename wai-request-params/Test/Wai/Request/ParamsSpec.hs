@@ -81,6 +81,23 @@ spec = do
                 (IO.evaluate (paramOrDefault @Int requestBody request 10 "page")) `shouldThrow` (== ParamCouldNotBeParsedException { name = "page", parserError = "has to be an integer" })
 
 
+        describe "paramOrDefaultIgnoreInvalid" $ do
+            it "should parse valid input" $ do
+                let (requestBody, request) = createRequestWithParams [("page", "1")]
+                (paramOrDefaultIgnoreInvalid @Int requestBody request 0 "page") `shouldBe` 1
+
+            it "should return default value on empty input" $ do
+                let (requestBody, request) = createRequestWithParams [("page", "")]
+                (paramOrDefaultIgnoreInvalid @Int requestBody request 10 "page") `shouldBe` 10
+
+            it "should return default value if param not provided" $ do
+                let (requestBody, request) = createRequestWithParams []
+                (paramOrDefaultIgnoreInvalid @Int requestBody request 10 "page") `shouldBe` 10
+
+            it "should return default value on invalid input" $ do
+                let (requestBody, request) = createRequestWithParams [("page", "NaN")]
+                (paramOrDefaultIgnoreInvalid @Int requestBody request 10 "page") `shouldBe` 10
+
         describe "paramList" $ do
             it "should parse valid input" $ do
                 let (requestBody, request) = createRequestWithParams [("ingredients", "milk"), ("ingredients", "egg")]

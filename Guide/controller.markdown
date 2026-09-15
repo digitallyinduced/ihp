@@ -81,7 +81,16 @@ action UsersAction = do
     let maxItems = paramOrDefault @Int 50 "maxItems"
 ```
 
-When this action is called without the `maxItems` parameter being set (or when invalid), it will fall back to the default value `50`.
+When this action is called without the `maxItems` parameter being set, it will fall back to the default value `50`. When the parameter *is* set but cannot be parsed, such as `?maxItems=abc`, `paramOrDefault` still throws — an unparseable value is usually a bug worth hearing about.
+
+For parameters read from a URL, where the value is whatever a person typed, an old link carried, or a crawler guessed, use [`paramOrDefaultIgnoreInvalid`](https://ihp.digitallyinduced.com/api-docs/IHP-Controller-Param.html#v:paramOrDefaultIgnoreInvalid) instead. It falls back to the default value for an invalid value as well as a missing one:
+
+```haskell
+action UsersAction = do
+    let page = paramOrDefaultIgnoreInvalid @Int 1 "page"
+```
+
+Here `?page=abc` renders the first page rather than an error page.
 
 There is also [`paramOrNothing`](https://ihp.digitallyinduced.com/api-docs/IHP-Controller-Param.html#v:paramOrNothing) which will return `Nothing` when the parameter is missing and `Just theValue` otherwise.
 
