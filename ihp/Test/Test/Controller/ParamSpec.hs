@@ -56,10 +56,10 @@ tests = do
                 let ?request = ?context
                 (paramOrNothing @UUID "referredBy") `shouldBe` Nothing
 
-            it "should return Nothing on invalid input" do
+            it "should fail with a parser error on invalid input" do
                 let ?context = createControllerContextWithParams [("referredBy", "not a uuid")]
                 let ?request = ?context
-                (paramOrNothing @UUID "referredBy") `shouldBe` Nothing
+                (IO.evaluate (paramOrNothing @UUID "referredBy")) `shouldThrow` (== ParamCouldNotBeParsedException { name = "referredBy", parserError = "has to be an UUID" })
 
         describe "paramOrDefault" do
             it "should parse valid input" do
@@ -77,11 +77,32 @@ tests = do
                 let ?request = ?context
                 (paramOrDefault @Int 10 "page") `shouldBe` 10
 
+            it "should fail with a parser error on invalid input" do
+                let ?context = createControllerContextWithParams [("page", "NaN")]
+                let ?request = ?context
+                (IO.evaluate (paramOrDefault @Int 10 "page")) `shouldThrow` (== ParamCouldNotBeParsedException { name = "page", parserError = "has to be an integer" })
+
+
+        describe "paramOrDefaultIgnoreInvalid" do
+            it "should parse valid input" do
+                let ?context = createControllerContextWithParams [("page", "1")]
+                let ?request = ?context
+                (paramOrDefaultIgnoreInvalid @Int 0 "page") `shouldBe` 1
+
+            it "should return default value on empty input" do
+                let ?context = createControllerContextWithParams [("page", "")]
+                let ?request = ?context
+                (paramOrDefaultIgnoreInvalid @Int 10 "page") `shouldBe` 10
+
+            it "should return default value if param not provided" do
+                let ?context = createControllerContextWithParams []
+                let ?request = ?context
+                (paramOrDefaultIgnoreInvalid @Int 10 "page") `shouldBe` 10
+
             it "should return default value on invalid input" do
                 let ?context = createControllerContextWithParams [("page", "NaN")]
                 let ?request = ?context
-                (paramOrDefault @Int 10 "page") `shouldBe` 10
-
+                (paramOrDefaultIgnoreInvalid @Int 10 "page") `shouldBe` 10
 
         describe "paramList" do
             it "should parse valid input" do

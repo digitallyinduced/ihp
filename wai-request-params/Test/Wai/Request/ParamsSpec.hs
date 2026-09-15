@@ -59,9 +59,9 @@ spec = do
                 let (requestBody, request) = createRequestWithParams []
                 (paramOrNothing @UUID requestBody request "referredBy") `shouldBe` Nothing
 
-            it "should return Nothing on invalid input" $ do
+            it "should fail with a parser error on invalid input" $ do
                 let (requestBody, request) = createRequestWithParams [("referredBy", "not a uuid")]
-                (paramOrNothing @UUID requestBody request "referredBy") `shouldBe` Nothing
+                (IO.evaluate (paramOrNothing @UUID requestBody request "referredBy")) `shouldThrow` (== ParamCouldNotBeParsedException { name = "referredBy", parserError = "has to be an UUID" })
 
         describe "paramOrDefault" $ do
             it "should parse valid input" $ do
@@ -76,10 +76,27 @@ spec = do
                 let (requestBody, request) = createRequestWithParams []
                 (paramOrDefault @Int requestBody request 10 "page") `shouldBe` 10
 
+            it "should fail with a parser error on invalid input" $ do
+                let (requestBody, request) = createRequestWithParams [("page", "NaN")]
+                (IO.evaluate (paramOrDefault @Int requestBody request 10 "page")) `shouldThrow` (== ParamCouldNotBeParsedException { name = "page", parserError = "has to be an integer" })
+
+
+        describe "paramOrDefaultIgnoreInvalid" $ do
+            it "should parse valid input" $ do
+                let (requestBody, request) = createRequestWithParams [("page", "1")]
+                (paramOrDefaultIgnoreInvalid @Int requestBody request 0 "page") `shouldBe` 1
+
+            it "should return default value on empty input" $ do
+                let (requestBody, request) = createRequestWithParams [("page", "")]
+                (paramOrDefaultIgnoreInvalid @Int requestBody request 10 "page") `shouldBe` 10
+
+            it "should return default value if param not provided" $ do
+                let (requestBody, request) = createRequestWithParams []
+                (paramOrDefaultIgnoreInvalid @Int requestBody request 10 "page") `shouldBe` 10
+
             it "should return default value on invalid input" $ do
                 let (requestBody, request) = createRequestWithParams [("page", "NaN")]
-                (paramOrDefault @Int requestBody request 10 "page") `shouldBe` 10
-
+                (paramOrDefaultIgnoreInvalid @Int requestBody request 10 "page") `shouldBe` 10
 
         describe "paramList" $ do
             it "should parse valid input" $ do
