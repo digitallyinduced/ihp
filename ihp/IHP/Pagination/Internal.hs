@@ -34,12 +34,6 @@ page = max 1 $ intParamOrDefault 1 "page"
 
 -- | The @Int@ a pagination parameter carries, or the default when it carries
 -- nothing or carries something that is not a number.
---
--- 'paramOrDefault' falls back only when the parameter is missing and throws a
--- 'ParamCouldNotBeParsedException' when it is there but malformed, which for
--- @page@ and @maxItems@ means a 500. These two are navigational: they arrive
--- from a URL somebody typed, an old link, or a crawler, so @?page=abc@ is
--- answered with the first page rather than with an error page.
 intParamOrDefault :: (?request :: Request) => Int -> ByteString -> Int
 intParamOrDefault defaultValue name =
     case paramOrError @Int name of
