@@ -24,7 +24,6 @@ import IHP.Server (initMiddlewareStack)
 import qualified Network.Wai.Handler.Warp as Warp
 import qualified Network.WebSockets as WebSockets
 import qualified Control.Exception as Exception
-import System.IO.Error (isPermissionError)
 
 -- | Minimal application fixture for 'startWebSocketApp' — just enough to
 -- satisfy the 'InitControllerContext' constraint without any real initialisation.
