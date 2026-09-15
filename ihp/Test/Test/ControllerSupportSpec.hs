@@ -23,6 +23,8 @@ import Network.HTTP.Types (status200, hContentType)
 import IHP.Server (initMiddlewareStack)
 import qualified Network.Wai.Handler.Warp as Warp
 import qualified Network.WebSockets as WebSockets
+import qualified Control.Exception as Exception
+import System.IO.Error (isPermissionError)
 
 -- | Minimal application fixture for 'startWebSocketApp' — just enough to
 -- satisfy the 'InitControllerContext' constraint without any real initialisation.
@@ -147,11 +149,23 @@ tests = do
                         let ?respond = respond
                         let ?application = TestApp
                         startWebSocketAppAndFailOnHTTP @EchoWSApp @TestApp EchoWSApp r respond
-                Warp.testWithApplication (pure app) \port -> do
-                    WebSockets.runClient "127.0.0.1" port "/" \conn -> do
-                        WebSockets.sendTextData conn ("hello" :: Text)
-                        reply <- WebSockets.receiveData conn
-                        reply `shouldBe` ("hello" :: Text)
+                -- Binding a listening socket is forbidden in some sandboxes
+                -- (notably the Nix build sandbox on macOS), where this fails with
+                -- "Network.Socket.bind: permission denied". Skip there rather than
+                -- fail; any other exception, including a genuine regression of
+                -- #2628, still propagates.
+                result <- Exception.try do
+                    Warp.testWithApplication (pure app) \port -> do
+                        WebSockets.runClient "127.0.0.1" port "/" \conn -> do
+                            WebSockets.sendTextData conn ("hello" :: Text)
+                            reply <- WebSockets.receiveData conn
+                            reply `shouldBe` ("hello" :: Text)
+                case result of
+                    Right () -> pure ()
+                    Left exception
+                        | isPermissionError exception ->
+                            pendingWith "Binding a local socket is not permitted in this sandbox"
+                        | otherwise -> Exception.throwIO exception
 
 -- | Build the middleware stack for a given environment.
 withMiddleware :: Environment -> (Wai.Middleware -> IO a) -> IO a
