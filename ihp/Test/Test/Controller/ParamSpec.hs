@@ -56,10 +56,10 @@ tests = do
                 let ?request = ?context
                 (paramOrNothing @UUID "referredBy") `shouldBe` Nothing
 
-            it "should fail with a parser error on invalid input" do
+            it "should return Nothing on invalid input" do
                 let ?context = createControllerContextWithParams [("referredBy", "not a uuid")]
                 let ?request = ?context
-                (IO.evaluate (paramOrNothing @UUID "referredBy")) `shouldThrow` (== ParamCouldNotBeParsedException { name = "referredBy", parserError = "has to be an UUID" })
+                (paramOrNothing @UUID "referredBy") `shouldBe` Nothing
 
         describe "paramOrDefault" do
             it "should parse valid input" do
@@ -77,10 +77,10 @@ tests = do
                 let ?request = ?context
                 (paramOrDefault @Int 10 "page") `shouldBe` 10
 
-            it "should fail with a parser error on invalid input" do
+            it "should return default value on invalid input" do
                 let ?context = createControllerContextWithParams [("page", "NaN")]
                 let ?request = ?context
-                (IO.evaluate (paramOrDefault @Int 10 "page")) `shouldThrow` (== ParamCouldNotBeParsedException { name = "page", parserError = "has to be an integer" })
+                (paramOrDefault @Int 10 "page") `shouldBe` 10
 
 
         describe "paramList" do

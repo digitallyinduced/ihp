@@ -58,7 +58,7 @@ import qualified Control.DeepSeq as DeepSeq
 import Text.Read (readMaybe)
 import qualified Data.Either as Either
 import qualified Network.Wai as Wai
-import Data.Maybe (isJust, fromMaybe, mapMaybe)
+import Data.Maybe (isJust, mapMaybe)
 import Data.Char (toLower)
 import Data.String.Conversions (cs)
 import GHC.TypeLits (TypeError, ErrorMessage (Text), Symbol)
@@ -148,23 +148,33 @@ hasParam :: RequestBody -> Wai.Request -> ByteString -> Bool
 hasParam requestBody request = isJust . queryOrBodyParam requestBody request
 {-# INLINABLE hasParam #-}
 
--- | Like 'param', but returns a default value when the parameter is missing instead of throwing
--- an exception.
+-- | Like 'param', but returns a default value instead of throwing an exception when the
+-- parameter is missing, or is present but cannot be parsed.
+--
+-- These parameters usually come from a URL, where the value is whatever a person typed, an
+-- old link carried, or a crawler guessed. Answering @?page=abc@ with a 500 is rarely what
+-- you want, so an unparseable value falls back to the default just like a missing one does.
+--
+-- Use 'param' or 'paramOrError' when an invalid value should be reported instead of ignored.
 --
 -- Use 'paramOrNothing' when you want to get @Maybe@.
 paramOrDefault :: ParamReader a => RequestBody -> Wai.Request -> a -> ByteString -> a
-paramOrDefault requestBody request !defaultValue = fromMaybe defaultValue . paramOrNothing requestBody request
+paramOrDefault requestBody request !defaultValue name =
+    case paramOrError requestBody request name of
+        Left _ -> defaultValue
+        Right value -> value
 {-# INLINABLE paramOrDefault #-}
 
--- | Like 'param', but returns @Nothing@ when the parameter is missing instead of throwing
--- an exception.
+-- | Like 'param', but returns @Nothing@ instead of throwing an exception when the parameter
+-- is missing, or is present but cannot be parsed.
+--
+-- Use 'param' or 'paramOrError' when an invalid value should be reported instead of ignored.
 --
 -- Use 'paramOrDefault' when you want to deal with a default value.
 paramOrNothing :: forall paramType. ParamReader (Maybe paramType) => RequestBody -> Wai.Request -> ByteString -> Maybe paramType
 paramOrNothing requestBody request !name =
     case paramOrError requestBody request name of
-        Left ParamNotFoundException {} -> Nothing
-        Left otherException -> Exception.throw otherException
+        Left _ -> Nothing
         Right value -> value
 {-# INLINABLE paramOrNothing #-}
 

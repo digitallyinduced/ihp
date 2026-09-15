@@ -2,7 +2,7 @@
 
 ## Unreleased
 
-- `paginate` no longer answers a malformed `page` or `maxItems` with a 500. Both are read from the URL, so `?page=abc` or a stray space in `?maxItems=%2010` used to throw `ParamCouldNotBeParsedException` out of `paramOrDefault` and render the error page; they now fall back to the first page and the configured page size, the same as when the parameter is absent. An out-of-range but numeric value is unchanged: it is still clamped to at least 1 and at most 200.
+- `paramOrDefault` and `paramOrNothing` no longer throw on a value that is present but unparseable. Both already fell back when a parameter was *missing*, but `?page=abc` threw `ParamCouldNotBeParsedException` and rendered the 500 page. Since these parameters usually come from a URL — whatever a person typed, an old link carried, or a crawler guessed — an unparseable value now falls back to the default (or `Nothing`) just as an absent one does. Use `param` or `paramOrError` when an invalid value should be reported rather than ignored; form filling via `fill` is unaffected, as it already reported parse failures as validation errors. As a consequence `paginate` no longer answers a malformed `page` or `maxItems` with a 500, and `?limit=abc` on the DataSync REST API no longer 500s. A numeric but out-of-range page size is unchanged: still clamped to at least 1 and at most 200.
 - `typedSql` `${...}` parameters now accept `Maybe` and `[Maybe]` values, not just bare values and lists. Alongside `${x}` and `${[x]}` you can now write `${Just x}`, `${Nothing}` (binds SQL `NULL`), and `${[Just x]}` — so enum-filtered joins like `WHERE status = ANY(${[Just Active, Just Pending]})` work without fetch-ids-then-`filterWhereIn` or text casts. Bare values still work for every column, and wrong-typed parameters are still rejected at compile time.
 - The schema compiler now also generates a `DefaultParamEncoder [Maybe <Enum>]` instance for each enum type, alongside the existing `<Enum>`, `Maybe <Enum>`, and `[<Enum>]` instances, so `[Maybe <Enum>]` arrays bind as parameters.
 - `IHP.TypedSql` now exposes `sqlQueryTypedPipelined`, explicit cardinality helpers (`sqlQueryTypedRows`, `sqlQueryTypedOneOrNothing`, `sqlQueryTypedSingle`), and `sqlQueryTypedMaybeColumn`. `typedSql` also infers `json[b]_build_object` and `json[b]_build_array` as non-null computed JSON expressions.
@@ -15,6 +15,7 @@
 
 ### Breaking Changes
 
+- `paramOrDefault` and `paramOrNothing` now fall back instead of throwing when a parameter is present but cannot be parsed. Code that relied on the resulting `ParamCouldNotBeParsedException` to reject bad input must use `param` or `paramOrError` instead.
 - `DefaultScope` has been removed. `query @Model` now always starts without
   implicit filters; define and use explicit query functions for reusable scopes.
 - `typedSql` now tracks conservative query cardinality and statement result

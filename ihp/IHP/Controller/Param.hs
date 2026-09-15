@@ -203,8 +203,14 @@ hasParam :: (?request :: Request) => ByteString -> Bool
 hasParam = Params.hasParam ?request.parsedBody ?request
 {-# INLINABLE hasParam #-}
 
--- | Like 'param', but returns a default value when the parameter is missing instead of throwing
--- an exception.
+-- | Like 'param', but returns a default value instead of throwing an exception when the
+-- parameter is missing, or is present but cannot be parsed.
+--
+-- These parameters usually come from a URL, where the value is whatever a person typed, an
+-- old link carried, or a crawler guessed. Answering @?page=abc@ with a 500 is rarely what
+-- you want, so an unparseable value falls back to the default just like a missing one does.
+--
+-- Use 'param' or 'paramOrError' when an invalid value should be reported instead of ignored.
 --
 -- Use 'paramOrNothing' when you want to get @Maybe@.
 --
@@ -216,12 +222,16 @@ hasParam = Params.hasParam ?request.parsedBody ?request
 -- >     let page :: Int = paramOrDefault 0 "page"
 --
 -- When calling @GET /Users?page=1@ the variable @page@ will be set to @1@.
+--
+-- When calling @GET /Users?page=abc@ the variable @page@ will be set to the default value @0@.
 paramOrDefault :: (?request :: Request) => ParamReader a => a -> ByteString -> a
 paramOrDefault !defaultValue name = Params.paramOrDefault ?request.parsedBody ?request defaultValue name
 {-# INLINABLE paramOrDefault #-}
 
--- | Like 'param', but returns @Nothing@ the parameter is missing instead of throwing
--- an exception.
+-- | Like 'param', but returns @Nothing@ instead of throwing an exception when the parameter
+-- is missing, or is present but cannot be parsed.
+--
+-- Use 'param' or 'paramOrError' when an invalid value should be reported instead of ignored.
 --
 -- Use 'paramOrDefault' when you want to deal with a default value.
 --
@@ -233,6 +243,8 @@ paramOrDefault !defaultValue name = Params.paramOrDefault ?request.parsedBody ?r
 -- >     let page :: Maybe Int = paramOrNothing "page"
 --
 -- When calling @GET /Users?page=1@ the variable @page@ will be set to @Just 1@.
+--
+-- When calling @GET /Users?page=abc@ the variable @page@ will be set to @Nothing@.
 paramOrNothing :: forall paramType. (?request :: Request) => ParamReader (Maybe paramType) => ByteString -> Maybe paramType
 paramOrNothing !name = Params.paramOrNothing ?request.parsedBody ?request name
 {-# INLINABLE paramOrNothing #-}

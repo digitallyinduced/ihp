@@ -83,7 +83,9 @@ action UsersAction = do
 
 When this action is called without the `maxItems` parameter being set (or when invalid), it will fall back to the default value `50`.
 
-There is also [`paramOrNothing`](https://ihp.digitallyinduced.com/api-docs/IHP-Controller-Param.html#v:paramOrNothing) which will return `Nothing` when the parameter is missing and `Just theValue` otherwise.
+There is also [`paramOrNothing`](https://ihp.digitallyinduced.com/api-docs/IHP-Controller-Param.html#v:paramOrNothing) which will return `Nothing` when the parameter is missing (or when invalid) and `Just theValue` otherwise.
+
+When an invalid value should be reported rather than ignored, use `param` (which throws) or [`paramOrError`](https://ihp.digitallyinduced.com/api-docs/IHP-Controller-Param.html#v:paramOrError) (which returns an `Either`).
 
 ### Multiple Params With Same Name (Checkboxes)
 
