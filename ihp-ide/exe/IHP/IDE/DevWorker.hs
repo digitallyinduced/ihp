@@ -19,6 +19,7 @@ import Main.Utf8 (withUtf8)
 import qualified Control.Concurrent.Async as Async
 import qualified IHP.EnvVar as EnvVar
 import IHP.IDE.GhciSupport
+import qualified IHP.IDE.Postgres as Postgres
 import qualified IHP.IDE.SplitMode as SplitMode
 import qualified IHP.IDE.WorkerSignal as WorkerSignal
 
@@ -78,7 +79,12 @@ runWithJobs mainThreadId waitForReload = do
         -- is stopped — they never overlap. Mirrors 'IHP.IDE.DevServer'.
         let loop loaded = do
                 if loaded
-                    then withRunningWorker input output err waitForReload
+                    then do
+                        -- The worker is about to poll the jobs table, so it needs the same
+                        -- wait as the web process: a query during devenv's schema import
+                        -- poisons its pool's prepared-statement cache.
+                        Postgres.waitPostgresWith \message -> putStrLn ("[worker] " <> message)
+                        withRunningWorker input output err waitForReload
                     else drainUntilReload output err waitForReload
                 putStrLn "[worker] Reload signal received."
                 result <- refreshGhci input output err
