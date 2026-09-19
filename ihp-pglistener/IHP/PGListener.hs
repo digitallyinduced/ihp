@@ -53,6 +53,7 @@ import qualified Control.Concurrent
 import qualified Hasql.Connection as Hasql
 import qualified Hasql.Connection.Settings as HasqlSettings
 import qualified Hasql.Notifications as HasqlNotifications
+import qualified Pqi.Ffi as Pqi
 
 -- | Local helper: show as Text
 tshow :: Prelude.Show a => a -> Text
@@ -237,7 +238,7 @@ listenToChannelIfNeeded channel pgListener = do
 -- | Acquires a dedicated hasql connection from the given database URL.
 acquireConnection :: ByteString -> IO Hasql.Connection
 acquireConnection databaseUrl = do
-    result <- Hasql.acquire (HasqlSettings.connectionString (cs databaseUrl))
+    result <- Hasql.acquire Pqi.adapter (HasqlSettings.connectionString (cs databaseUrl))
     case result of
         Right connection -> pure connection
         Left err -> Prelude.error ("PGListener: Failed to connect to database: " <> Prelude.show err)

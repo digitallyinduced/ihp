@@ -91,10 +91,11 @@ common shared-properties
             , safe-exceptions
             , countable-inflections
             , ihp-migrate
-            , hasql
+            , hasql >= 2.0.1 && < 2.1
             , hasql-pool
             , hasql-dynamic-statements
             , hasql-implicits
+            , pqi-ffi
     default-extensions:
         OverloadedStrings
         , NoImplicitPrelude

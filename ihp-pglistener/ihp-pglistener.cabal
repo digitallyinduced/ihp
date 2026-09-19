@@ -23,8 +23,9 @@ common shared-properties
         , aeson
         , uuid
         , async
-        , hasql
+        , hasql >= 2.0.1 && < 2.1
         , hasql-notifications
+        , pqi-ffi
         , unagi-chan
         , safe-exceptions
         , containers
@@ -56,5 +57,14 @@ test-suite tests
     build-depends:
           ihp-pglistener
         , hspec
+        , async
+        , bytestring
+        , containers
+        , fast-logger
+        , hasql >= 2.0.1 && < 2.1
+        , pqi-ffi
+        , safe-exceptions
+        , string-conversions
+        , unordered-containers
     other-modules:
         PGListenerSpec

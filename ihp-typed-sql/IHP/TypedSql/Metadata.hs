@@ -1,3 +1,4 @@
+{-# LANGUAGE CPP #-}
 {-# LANGUAGE NamedFieldPuns #-}
 
 module IHP.TypedSql.Metadata
@@ -29,7 +30,14 @@ import qualified Hasql.Decoders                as HasqlDecoders
 import qualified Hasql.Encoders                as HasqlEncoders
 import qualified Hasql.Pipeline                as HasqlPipeline
 import qualified Hasql.Session                 as HasqlSession
-import qualified Hasql.Statement                   as HasqlStatement
+import qualified Hasql.Statement               as HasqlStatement
+-- Backend chosen by the libpq-backend flag (see ihp-typed-sql.cabal):
+-- same adapter name in both packages, so use sites stay unchanged.
+#ifdef LIBPQ_BACKEND
+import qualified Pqi.Ffi as Pqi
+#else
+import qualified Pqi.Native as Pqi
+#endif
 import           Data.Text                     (Text)
 import           IHP.TypedSql.Prelude
 import           System.Directory              (getCurrentDirectory)
@@ -218,7 +226,7 @@ runHasqlMetadataSession :: BS.ByteString -> HasqlSession.Session a -> IO a
 runHasqlMetadataSession dbUrl session = do
     let settings = HasqlSettings.connectionString (CS.cs dbUrl)
     result <- bracket
-        (HasqlConnection.acquire settings >>= \case
+        (HasqlConnection.acquire Pqi.adapter settings >>= \case
             Left connectionError ->
                 fail (CS.cs ("typedSql: could not connect to database at "
                     <> CS.cs dbUrl <> ": " <> (CS.cs (show connectionError) :: Text)

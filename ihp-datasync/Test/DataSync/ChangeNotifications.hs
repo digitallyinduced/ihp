@@ -13,6 +13,7 @@ import qualified Prelude
 import qualified Hasql.Pool
 import qualified Hasql.Pool.Config as Hasql.Pool.Config
 import qualified Hasql.Connection.Settings as HasqlSettings
+import qualified Pqi.Ffi as Pqi
 import qualified Hasql.Session as Session
 import IHP.DataSync.Hasql (runSession)
 import qualified Hasql.Decoders as Decoders
@@ -265,14 +266,14 @@ makePool :: Text -> IO Hasql.Pool.Pool
 makePool = makePoolN 4
 
 makePoolN :: Int -> Text -> IO Hasql.Pool.Pool
-makePoolN poolSize connStr = Hasql.Pool.acquire $ Hasql.Pool.Config.settings
+makePoolN poolSize connStr = Hasql.Pool.acquire Pqi.adapter $ Hasql.Pool.Config.settings
     [ Hasql.Pool.Config.size poolSize
     , Hasql.Pool.Config.staticConnectionSettings
         (HasqlSettings.connectionString connStr)
     ]
 
 makePoolWithTimeout :: Int -> Int -> Text -> IO Hasql.Pool.Pool
-makePoolWithTimeout poolSize timeoutSeconds connStr = Hasql.Pool.acquire $ Hasql.Pool.Config.settings
+makePoolWithTimeout poolSize timeoutSeconds connStr = Hasql.Pool.acquire Pqi.adapter $ Hasql.Pool.Config.settings
     [ Hasql.Pool.Config.size poolSize
     , Hasql.Pool.Config.acquisitionTimeout (fromIntegral timeoutSeconds)
     , Hasql.Pool.Config.staticConnectionSettings

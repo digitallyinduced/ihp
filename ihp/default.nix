@@ -8,7 +8,7 @@
 , hasql-pool, hasql-postgresql-types, hasql-transaction, hspec
 , http-client, http-client-tls, http-media, http-types, ihp-hsx
 , ihp-imagemagick, ihp-modal, ihp-pagehead, ihp-pglistener
-, ihp-router, ihp-typed-sql, inflections, interpolate, lib, mime-types, minio-hs
+, ihp-router, inflections, interpolate, lib, mime-types, minio-hs
 , mono-traversable, mtl, neat-interpolation, network, network-uri
 , parser-combinators, postgresql-simple
 , postgresql-simple-postgresql-types, postgresql-types
@@ -38,7 +38,7 @@ mkDerivation {
     hasql-mapping hasql-pool hasql-postgresql-types hasql-transaction
     http-client http-client-tls http-media http-types ihp-hsx
     ihp-imagemagick ihp-modal ihp-pagehead ihp-pglistener
-    ihp-router ihp-typed-sql inflections interpolate mime-types minio-hs
+    ihp-router inflections interpolate mime-types minio-hs
     mono-traversable mtl neat-interpolation network network-uri
     parser-combinators postgresql-simple
     postgresql-simple-postgresql-types postgresql-types
@@ -62,7 +62,7 @@ mkDerivation {
     hasql-mapping hasql-pool hasql-postgresql-types hasql-transaction
     hspec http-client http-client-tls http-media http-types ihp-hsx
     ihp-imagemagick ihp-modal ihp-pagehead ihp-pglistener
-    ihp-router ihp-typed-sql inflections interpolate mime-types minio-hs
+    ihp-router inflections interpolate mime-types minio-hs
     mono-traversable mtl neat-interpolation network network-uri
     parser-combinators postgresql-simple
     postgresql-simple-postgresql-types postgresql-types
@@ -86,7 +86,7 @@ mkDerivation {
     hasql-mapping hasql-pool hasql-postgresql-types hasql-transaction
     http-client http-client-tls http-media http-types ihp-hsx
     ihp-imagemagick ihp-modal ihp-pagehead ihp-pglistener
-    ihp-router ihp-typed-sql inflections interpolate mime-types minio-hs
+    ihp-router inflections interpolate mime-types minio-hs
     mono-traversable mtl neat-interpolation network network-uri
     parser-combinators postgresql-simple
     postgresql-simple-postgresql-types postgresql-types

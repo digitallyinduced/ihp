@@ -280,7 +280,6 @@ hsxAttributeName = do
         isValidAttributeName name =
             "data-" `Text.isPrefixOf` name
             || "aria-" `Text.isPrefixOf` name
-            || "hx-" `Text.isPrefixOf` name
             -- "_" is a valid HTML attribute name per the WHATWG spec, and is useful
             -- syntax for inline scripting libraries such as hyperscript
             || name == "_"

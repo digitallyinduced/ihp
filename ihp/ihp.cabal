@@ -124,13 +124,14 @@ common shared-properties
             , slugger
             , ihp-imagemagick
             , wai-request-params
-            , hasql
-            , hasql-pool
+            , hasql >= 2.0.1 && < 2.1
+            , hasql-pool >= 1.5 && < 1.6
             , hasql-dynamic-statements
             , hasql-implicits
             , hasql-mapping
             , hasql-postgresql-types
             , hasql-transaction
+            , pqi-ffi
             , ihp-typed-sql
             , postgresql-types
             , postgresql-types-algebra
@@ -310,6 +311,11 @@ test-suite tests
     build-depends:
           ihp
         , hspec
+        , directory
+        , filepath
+        , process
+        , text
+        , unix
     other-modules:
         Test.ValidationSupport.ValidateFieldSpec
         Test.NameSupportSpec
@@ -343,6 +349,7 @@ test-suite tests
         Test.Router.MultiControllerSpec
         Test.Router.TrieSpec
         Test.Router.WebSocketSpec
+        Test.TypedSqlSpec
         Test.ModelFixtures
         Test.Util
 

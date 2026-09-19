@@ -56,6 +56,7 @@ import qualified Hasql.DynamicStatements.Snippet as Snippet
 import qualified Hasql.Decoders as Decoders
 import qualified Hasql.Encoders as Encoders
 import qualified Hasql.Implicits.Encoders
+import qualified Pqi.Ffi as Pqi
 import PostgresqlTypes.Point
 import PostgresqlTypes.Polygon
 import PostgresqlTypes.Geometry
@@ -103,7 +104,7 @@ createModelContext databaseUrl logger = do
             <> maybe [HasqlPoolConfig.size 20] (\size -> [HasqlPoolConfig.size size]) hasqlPoolSize
             <> maybe [] (\idle -> [HasqlPoolConfig.idlenessTimeout (fromIntegral idle)]) hasqlIdleTime
     let hasqlPoolConfig = HasqlPoolConfig.settings hasqlPoolSettings
-    hasqlPool <- HasqlPool.acquire hasqlPoolConfig
+    hasqlPool <- HasqlPool.acquire Pqi.adapter hasqlPoolConfig
 
     let trackTableReadCallback = Nothing
     let transactionRunner = Nothing

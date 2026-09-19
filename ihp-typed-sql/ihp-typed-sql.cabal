@@ -15,6 +15,17 @@ stability:           Experimental
 build-type:          Simple
 extra-source-files:  changelog.md
 
+-- | Which Hasql backend to use for compile-time metadata connections.
+-- The caller decides at build time (like picking an adapter for
+-- 'Hasql.Pool.acquire', but one per build since the connection lives
+-- inside the quoter). Default is the libpq backend: it restores exact
+-- hasql-1.x transport behavior and needs no system libraries beyond the
+-- postgresql-libpq this package already requires.
+flag libpq-backend
+    description: Use the libpq-backed adapter (pqi-ffi) for metadata connections
+    default: True
+    manual: True
+
 common shared-properties
     default-language: GHC2021
     default-extensions:
@@ -71,7 +82,7 @@ library
             , directory
             , filepath
             , hashable
-            , hasql
+            , hasql >= 2.0.1 && < 2.1
             , hasql-dynamic-statements
             , hasql-implicits
             , hasql-mapping
@@ -92,6 +103,11 @@ library
             , unix
             , uuid
             , vector
+    if flag(libpq-backend)
+        build-depends: pqi-ffi
+        cpp-options: -DLIBPQ_BACKEND
+    else
+        build-depends: pqi-native
 
 source-repository head
     type:     git
@@ -113,7 +129,8 @@ test-suite spec
             , containers
             , directory
             , filepath
-            , hasql
+            , hasql >= 2.0.1 && < 2.1
+            , hasql-pool >= 1.5 && < 1.6
             , hasql-dynamic-statements
             , hasql-implicits
             , hasql-mapping
@@ -126,5 +143,12 @@ test-suite spec
             , temporary
             , text
             , unix
+    -- Mirror the library's backend flag so the test suite passes the same
+    -- 'Pqi.Adapter' to 'Hasql.Pool.acquire' that the library was built with.
+    if flag(libpq-backend)
+        build-depends: pqi-ffi
+        cpp-options: -DLIBPQ_BACKEND
+    else
+        build-depends: pqi-native
     other-modules:
         Test.TypedSqlSpec

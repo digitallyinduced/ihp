@@ -29,10 +29,11 @@ common shared-properties
             , transformers
             , mtl
             , text
-            , hasql
+            , hasql >= 2.0.1 && < 2.1
             , hasql-dynamic-statements
             , hasql-pool
             , hasql-transaction
+            , pqi-ffi
             , bytestring
             , aeson
             , uuid
