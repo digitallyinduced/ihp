@@ -287,7 +287,7 @@ that is defined in flake-module.nix
         ;
 
         devenv.shells.default = {
-            packages = with pkgs; [ cabal2nix ps ];
+            packages = with pkgs; [ cabal2nix ps postgresql ];
             containers = lib.mkForce {};  # https://github.com/cachix/devenv/issues/528
 
             languages.haskell.enable = true;
@@ -312,6 +312,7 @@ that is defined in flake-module.nix
                         hasql
                         hasql-notifications
                         hasql-pool
+                        pqi-ffi
                         ihp-pglistener
                         hasql-dynamic-statements
                         hasql-implicits

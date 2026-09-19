@@ -108,23 +108,32 @@ let
             # verbatim for a cache hit. Restore the override only if a reverted
             # nixpkgs pin no longer carries 0.3.2.
 
-            # Hasql 1.10 is the pinned nixpkgs default, including hasql 1.10.3.7
-            # and hasql-pool 1.4.2.3 with the poisoned-connection fixes from
-            # #2765. The surrounding ecosystem (including hasql-interpolate,
-            # postgresql-binary, text-builder and postgresql-connection-string)
-            # also needs no overrides.
+            # Hasql 2.0.1 is required by ihp-typed-sql: the quoter's
+            # compile-time metadata connection threads the 'Pqi.Adapter'
+            # explicitly through 'Hasql.Connection.acquire', which only exists
+            # in the hasql 2.x line. nixpkgs still ships hasql 1.x, so pin the
+            # whole 2.x ecosystem from Hackage.
+            # dontCheck: their tests need a live PostgreSQL server (hasql and
+            # hasql-pool even need Docker via testcontainers-postgresql).
+            hasql = final.haskell.lib.dontCheck (hackagePackage "hasql");
+            hasql-pool = final.haskell.lib.dontCheck (hackagePackage "hasql-pool");
+            hasql-transaction = final.haskell.lib.dontCheck (hackagePackage "hasql-transaction");
+            hasql-dynamic-statements = final.haskell.lib.dontCheck (hackagePackage "hasql-dynamic-statements");
+            hasql-implicits = final.haskell.lib.dontCheck (hackagePackage "hasql-implicits");
+            hasql-mapping = final.haskell.lib.dontCheck (hackagePackage "hasql-mapping");
+            hasql-notifications = final.haskell.lib.dontCheck (hackagePackage "hasql-notifications");
+            pqi = hackagePackage "pqi";
+            pqi-ffi = final.haskell.lib.dontCheck (hackagePackage "pqi-ffi");
 
             # temporary-ospath is shipped by the pinned nixpkgs at 1.3, so it
             # also resolves from the default set with no override needed.
 
-            # postgresql-simple-postgresql-types and hasql-mapping are unbroken in
+            # postgresql-simple-postgresql-types is unbroken in
             # the pinned nixpkgs, so no markUnbroken overrides are needed.
 
-            # The PostGIS-enabled postgresql-types source below still requires
-            # postgresql-types-algebra <0.2. nixpkgs has moved to 0.2, so retain
-            # the compatible 0.1 release until that source updates its bounds.
-            postgresql-types-algebra = final.haskell.lib.doJailbreak
-                (hackagePackage "postgresql-types-algebra");
+            # The PostGIS-enabled postgresql-types source above targets
+            # postgresql-types-algebra 0.2, which the pinned nixpkgs already
+            # ships, so no algebra override is needed.
             postgresql-simple-postgresql-types = final.haskell.lib.dontCheck
                 (hackagePackage "postgresql-simple-postgresql-types");
             hasql-postgresql-types = final.haskell.lib.doJailbreak
@@ -132,17 +141,18 @@ let
 
             # postgresql-types with PostGIS Geometry (merged in
             # nikita-volkov/postgresql-types#69). Pin to git master until a
-            # Hackage release ships Geometry; cabal version is still 0.1.3.2.
+            # Hackage release ships Geometry; cabal version is 0.1.7.0, which
+            # targets postgresql-types-algebra 0.2 (IsPrimitive/IsBinaryPrimitive).
             # dontCheck: tests need a live PostgreSQL server.
             postgresql-types = final.haskell.lib.overrideCabal
                 (final.haskell.lib.addBuildDepend
                     (final.haskell.lib.dontCheck super.postgresql-types)
                     self.postgresql-types-algebra)
                 (old: {
-                    version = "0.1.3.2";
+                    version = "0.1.7.0";
                     src = builtins.fetchTarball {
-                        url = "https://github.com/nikita-volkov/postgresql-types/archive/d8b2fe0ff3ab5d6731eced13d4b8be1d54694259.tar.gz";
-                        sha256 = "1j90y1z8qq8lvcam4h1k17zrirqqi80gshv91pmqsgaqjg099gp7";
+                        url = "https://github.com/nikita-volkov/postgresql-types/archive/3a6dfcafafd9341d8aca00f9cbac9831f730822a.tar.gz";
+                        sha256 = "1mfyrc11rxvw99inr5vn9fqrr12014fm0hflbs9xln6vi40z81jb";
                     };
                     sha256 = null;
                     revision = null;
