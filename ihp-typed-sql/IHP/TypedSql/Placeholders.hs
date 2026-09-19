@@ -9,7 +9,7 @@ module IHP.TypedSql.Placeholders
 import qualified Data.String.Conversions     as CS
 import qualified Language.Haskell.Meta.Parse as HaskellMeta
 import qualified Language.Haskell.TH         as TH
-import           IHP.Prelude
+import           Prelude
 
 -- | Output of placeholder parsing used by the typedSql quasiquoter.
 -- It carries the SQL variant for describe, the SQL variant for runtime execution,

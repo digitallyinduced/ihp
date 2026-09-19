@@ -11,15 +11,17 @@ module IHP.TypedSql.ParamHints
     , detectInsertWithoutColumns
     ) where
 
-import           Data.Foldable                (foldMap, toList)
+import           Data.Foldable                (toList)
 import qualified Data.List                   as List
 import qualified Data.Map.Strict             as Map
+import           Data.Maybe                   (catMaybes, mapMaybe)
 import qualified Data.Set                    as Set
+import           Data.Text                    (Text)
 import qualified Data.Text                   as Text
 import qualified Data.String.Conversions     as CS
 import qualified Database.PostgreSQL.LibPQ   as PQ
 import qualified Language.Haskell.TH         as TH
-import           IHP.Prelude
+import           IHP.TypedSql.Prelude
 
 import qualified PostgresqlSyntax            as Ast
 

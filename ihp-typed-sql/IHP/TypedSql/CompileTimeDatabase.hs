@@ -12,15 +12,19 @@ import           Control.Concurrent       (MVar, forkFinally, forkIO, isEmptyMVa
                                             newMVar, putMVar, readMVar, takeMVar,
                                             tryTakeMVar, withMVar)
 import qualified Control.Exception        as Exception
-import           Control.Monad            (guard, void)
+import           Control.Exception            (IOException, displayException)
+import           Control.Monad            (forM, forM_, forever, guard, join, unless, void, when)
 import           Data.Bits                (xor)
 import qualified Data.ByteString          as BS
 import qualified Data.ByteString.Char8    as BSC
 import qualified Data.Char                as Char
 import           Data.Functor             ((<&>))
 import qualified Data.List                as List
+import           Data.Maybe               (catMaybes, fromMaybe, listToMaybe)
 import qualified Data.String.Conversions  as CS
-import           IHP.Prelude
+import           Data.Time.Clock          (diffUTCTime, getCurrentTime)
+import           Data.Word                (Word64)
+import           Prelude
 import           Numeric                  (showHex)
 import           System.Directory         (canonicalizePath, createDirectory,
                                             createDirectoryIfMissing,
@@ -31,9 +35,10 @@ import           System.Directory         (canonicalizePath, createDirectory,
                                             removeFile, removePathForcibly)
 import           System.Environment       (lookupEnv)
 import           System.Exit              (ExitCode (ExitFailure, ExitSuccess))
-import           System.FilePath          (takeDirectory, takeFileName)
-import           System.IO                (Handle, IOMode (WriteMode), appendFile,
+import           System.FilePath          (takeDirectory, takeFileName, (</>))
+import           System.IO                (Handle, IOMode (WriteMode),
                                             hClose, withFile)
+import           System.IO.Error          (isAlreadyExistsError)
 import           System.IO.Temp           (createTempDirectory)
 import           System.Posix.Files       (fileOwner, getSymbolicLinkStatus,
                                             isDirectory, setFileMode)
@@ -51,7 +56,6 @@ import           System.Process           (CreateProcess (..), ProcessHandle,
 import           System.Timeout           (timeout)
 import           Text.Read                (readMaybe)
 import qualified System.IO.Unsafe         as Unsafe
-import qualified Prelude
 
 data AutoDatabase = AutoDatabase
     { adbUrl        :: !BS.ByteString
