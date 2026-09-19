@@ -9,22 +9,26 @@ module IHP.TypedSql.Quoter
     ) where
 
 import qualified Control.Exception              as Exception
-import           Data.Coerce                    (coerce)
-import qualified Data.Char                      as Char
-import qualified Data.List                      as List
-import qualified Data.Map.Strict                as Map
-import qualified Data.Set                       as Set
-import qualified Data.String.Conversions        as CS
-import qualified Data.Text                      as Text
+import           Control.Monad                   (unless, when)
+import           Data.Coerce                     (coerce)
+import qualified Data.Char                       as Char
+import qualified Data.List                       as List
+import qualified Data.Map.Strict                 as Map
+import           Data.Maybe                      (fromMaybe, isJust, isNothing)
+import qualified Data.Set                        as Set
+import qualified Data.String.Conversions         as CS
+import           Data.Text                       (Text)
+import qualified Data.Text                       as Text
 import qualified Hasql.DynamicStatements.Snippet as Snippet
-import qualified Language.Haskell.TH            as TH
-import qualified Language.Haskell.TH.Quote      as TH
-import qualified Language.Haskell.TH.Syntax     as TH
-import qualified PostgresqlSyntax               as Ast
-import           Text.Read                      (readMaybe)
-import qualified Prelude
-import           IHP.Prelude
-import           IHP.Hasql.Encoders              ()
+import qualified Language.Haskell.TH             as TH
+import qualified Language.Haskell.TH.Quote       as TH
+import qualified Language.Haskell.TH.Syntax      as TH
+import qualified PostgresqlSyntax                as Ast
+import           System.IO.Error                 (ioeGetErrorString)
+import           Text.Read                       (readMaybe)
+import           IHP.TypedSql.Prelude
+import           IHP.TypedSql.Id                 () -- DefaultParamEncoder instances for Int, Id', etc.
+import           IHP.TypedSql.Encoders           () -- ...and for Point, Polygon, Inet, Tsvector, Interval
 
 import           IHP.TypedSql.Cardinality      (inferCardinality)
 import           IHP.TypedSql.CompileTimeDatabase (dependentSchemaFiles)
@@ -340,7 +344,7 @@ rephraseDescribeError exprs originalMsg =
             | paramIdx >= 1 && paramIdx <= length exprs ->
                 let expr = exprs !! (paramIdx - 1)
                 in "typedSql: could not determine the type of `${" <> expr <> "}` "
-                    <> "(parameter $" <> Prelude.show paramIdx <> "). "
+                    <> "(parameter $" <> show paramIdx <> "). "
                     <> "Postgres cannot infer the type because the placeholder appears in a polymorphic-argument context "
                     <> "(e.g. CONCAT, COALESCE, GREATEST, LEAST). "
                     <> "Add an explicit cast, e.g. `${" <> expr <> "}::text`.\n"

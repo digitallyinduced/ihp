@@ -10,7 +10,10 @@ import qualified Data.Map.Strict                  as Map
 import qualified Data.Set                         as Set
 import qualified Data.Text                        as Text
 import qualified Database.PostgreSQL.LibPQ        as PQ
-import           IHP.Prelude
+import           IHP.TypedSql.Prelude
+import           Data.Int                         (Int64)
+import           Data.Maybe                       (isNothing, mapMaybe)
+import           Data.Text                        (Text)
 import qualified PostgresqlSyntax                 as Ast
 
 import           IHP.TypedSql.Metadata            (ColumnMeta (..), TableMeta (..))
