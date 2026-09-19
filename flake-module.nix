@@ -26,8 +26,8 @@ ihpFlake:
                     description = ''
                         The GHC compiler to use for IHP.
 
-                        Defaults to `pkgs.ghc` (GHC 9.10, binary-cached). Set to
-                        `pkgs.ghc914` to opt into GHC 9.14 (built from source).
+                        Defaults to `pkgs.ghc` (GHC 9.14.1). Set to `pkgs.ghc912`
+                        to stay on GHC 9.12.
                     '';
                     default = pkgs.ghc;
                 };
@@ -254,6 +254,16 @@ ihpFlake:
             cfg = config.ihp;
             ihp = ihpFlake.inputs.self;
             ghcCompiler = cfg.ghcCompiler;
+            # apply-refact 0.15 (hlint) does not compile on GHC 9.14.
+            # Completions wrappers may omit pname, so match name too.
+            isHlint = x:
+                let n = lib.toLower (x.pname or x.name or "");
+                in n == "hlint" || lib.hasPrefix "hlint-" n;
+            devGhcPackages = p:
+                let requested = cfg.haskellPackages p ++ cfg.devHaskellPackages p;
+                in if lib.versionOlder ghcCompiler.ghc.version "9.14"
+                   then requested
+                   else lib.filter (x: !(isHlint x)) requested;
             ihpLib = ihpFlake.inputs.self.packages.${system}.ihp-env-var-backwards-compat;
             # Auto-detect whether a build-time PostgreSQL is needed (e.g. ihp-typed-sql)
             buildWithPostgres = builtins.any (p: (p.pname or "") == "ihp-typed-sql") (cfg.haskellPackages ghcCompiler);
@@ -421,7 +431,7 @@ ihpFlake:
                     tests = pkgs.stdenv.mkDerivation {
                             name = "${config.ihp.appName}-tests";
                             src = builtins.path { path = config.ihp.projectPath; name = "source"; };
-                            nativeBuildInputs = with pkgs; [ (ghcCompiler.ghcWithPackages (p: cfg.haskellPackages p ++ cfg.devHaskellPackages p ++ [p.ihp-ide p.ihp-schema-compiler])) ]
+                            nativeBuildInputs = with pkgs; [ (ghcCompiler.ghcWithPackages (p: devGhcPackages p ++ [p.ihp-ide p.ihp-schema-compiler])) ]
                                 # typedSql's quasi-quoter boots an ephemeral PostgreSQL at
                                 # compile time to describe queries (see IHP_TYPED_SQL_AUTO_DB
                                 # below), so the postgres tools must be on PATH whenever the
@@ -456,7 +466,7 @@ ihpFlake:
                             name = "${config.ihp.appName}-integration-tests";
                             src = builtins.path { path = config.ihp.projectPath; name = "source"; };
                             nativeBuildInputs = with pkgs; [
-                                (ghcCompiler.ghcWithPackages (p: cfg.haskellPackages p ++ cfg.devHaskellPackages p ++ [p.ihp-ide p.ihp-schema-compiler]))
+                                (ghcCompiler.ghcWithPackages (p: devGhcPackages p ++ [p.ihp-ide p.ihp-schema-compiler]))
                                 gnumake
                                 postgresql
                             ];
@@ -527,12 +537,13 @@ ihpFlake:
                 languages.haskell.enable = true;
                 languages.haskell.package = (if cfg.withHoogle
                                              then ghcCompiler.ghc.withHoogle
-                                             else ghcCompiler.ghc.withPackages) (p: cfg.haskellPackages p ++ cfg.devHaskellPackages p);
+                                             else ghcCompiler.ghc.withPackages) devGhcPackages;
 
                 languages.haskell.stack.enable = false; # Stack is not used in IHP
                 # Use the package-set HLS. devenv's default override rejects GHC RC version strings.
                 languages.haskell.lsp.package = ghcCompiler.haskell-language-server;
-                languages.haskell.lsp.enable = true;
+                # Off until hie-compat configures on base-4.22 (GHC 9.14.1).
+                languages.haskell.lsp.enable = false;
 
                 scripts.start.exec = ''
                     exec env IHP_STATIC=${ihpFlake.inputs.self.packages.${system}.ihp-static} ${ghcCompiler.ihp-ide}/bin/RunDevServer

@@ -158,132 +158,45 @@ that is defined in flake-module.nix
                 };
             }
 
-            # No separate GHC 9.12 checks: `pkgs.ghc912` aliases the default
-            # `pkgs.ghc` (GHC 9.12), so they would duplicate the default checks above.
-
-            # GHC 9.14 compatibility checks (build and test all IHP packages)
-            // (lib.optionalAttrs (pkgs.haskell.packages ? ghc914) (let
-                ghc914 = pkgs.ghc914;
-                ihpPackageNames = [
-                    "ihp-ide" "ihp-hsx" "ihp-schema-compiler"
-                    "ihp-postgres-parser" "ihp-pagehead"
-                    "ihp-modal" "ihp-mail"
-                    "ihp-migrate" "ihp-openai" "ihp-ssc" "ihp-graphql"
-                    "ihp-datasync-typescript" "ihp-sitemap"
-                    "ihp-job-dashboard" "ihp-imagemagick"
-                    "ihp-hspec" "ihp-welcome"
-                    "wai-asset-path" "wai-flash-messages" "wai-request-params"
-                    "wai-session-maybe" "wai-session-clientsession-deferred"
-                    "ihp-router" "wai-early-return" "ihp-zip"
-                ];
-            in lib.listToAttrs (map (name: {
-                name = "ghc914-${name}";
-                value = ghc914.${name};
-            }) ihpPackageNames)
-
-            # GHC 9.14 packages that need a running PostgreSQL for their tests
+            # First-party packages that are not packages.* outputs still need a
+            # default-compiler check.
             // {
-                ghc914-ihp = withTestPostgres pkgs.ghc914.ihp;
-                ghc914-ihp-datasync = withTestPostgres pkgs.ghc914.ihp-datasync;
-                ghc914-ihp-typed-sql = withTestPostgres pkgs.ghc914.ihp-typed-sql;
-                ghc914-ihp-pglistener = withTestPostgres pkgs.ghc914.ihp-pglistener;
+                ihp-hsx = pkgs.ghc.ihp-hsx;
+                ihp-postgres-parser = pkgs.ghc.ihp-postgres-parser;
+                ihp-pagehead = pkgs.ghc.ihp-pagehead;
+                ihp-modal = pkgs.ghc.ihp-modal;
+                ihp-openai = pkgs.ghc.ihp-openai;
+                ihp-graphql = pkgs.ghc.ihp-graphql;
+                wai-request-params = pkgs.ghc.wai-request-params;
+                wai-session-maybe = pkgs.ghc.wai-session-maybe;
+                wai-session-clientsession-deferred = pkgs.ghc.wai-session-clientsession-deferred;
+                ihp-router = pkgs.ghc.ihp-router;
+                ihp-zip = pkgs.ghc.ihp-zip;
+            }
+
+            # Keep this check name: build.yml's ghc914-dev-env job builds it.
+            // {
                 # HLS omitted: hie-compat-0.3.1.2 requires base <4.22 and does not configure on 9.14.1.
+                # hlint omitted: apply-refact 0.15 does not compile on GHC 9.14.
                 ghc914-dev-env = pkgs.ghc914.ghc.withPackages (p: [
                     p.ihp
                     p.ihp-ide
                     p.ihp-schema-compiler
                     p.cabal-install
-                    p.hlint
                     p.hoogle
                 ]);
+            }
 
-                # Same allocation check as ihp-hsx-bench, on the 9.14 package set.
-                ghc914-ihp-hsx-bench = (pkgs.haskell.lib.doBenchmark pkgs.ghc914.ihp-hsx).overrideAttrs (old: {
-                    postCheck = (old.postCheck or "") + ''
-                        # The shared ARM runner concurrently builds the multi-GHC
-                        # checks. Keep tasty-bench's per-case timeout above its
-                        # 100s default so transient runner load does not turn an
-                        # allocation-regression check into a timing failure.
-                        ./Setup bench --benchmark-options='+RTS -T -RTS --timeout 300s --csv bench-results.csv'
-
-                        # Compare allocations (column 4) against baseline.
-                        # Allocations are deterministic — same code = same count — so
-                        # any increase signals a real regression, not noise.
-                        ${pkgs.gawk}/bin/awk -F, '
-                          NR==FNR && FNR>1 { baseline[$1]=$4; next }
-                          FNR>1 {
-                            name=$1; alloc=$4; base=baseline[name]
-                            if (base > 0 && alloc > base * 1.1) {
-                              printf "REGRESSION: %s allocates %d bytes (baseline %d, +%.0f%%)\n", name, alloc, base, (alloc-base)/base*100
-                              fail=1
-                            }
-                          }
-                          END { if (fail) exit 1 }
-                        ' bench-baseline.csv bench-results.csv
-                    '';
-                });
-
-                # Same app compile as integration-test, but with GHC 9.14.
-                ghc914-integration-test = pkgs.stdenv.mkDerivation {
-                    name = "ihp-ghc914-integration-test";
-                    src = self;
-                    sourceRoot = "source/integration-test";
-                    nativeBuildInputs = [
-                        (pkgs.ghc914.ghc.withPackages (p: with p; [
-                            ihp ihp-hsx ihp-hspec ihp-ide ihp-schema-compiler
-                            ihp-typed-sql
-                            hspec
-                        ]))
-                        pkgs.gnumake
-                        pkgs.postgresql
-                    ];
-                    buildPhase = ''
-                        export IHP_LIB=${ihpLib}
-
-                        # Start temporary PostgreSQL
-                        export PGDATA="$TMPDIR/pgdata"
-                        export PGHOST="$TMPDIR/pghost"
-                        mkdir -p "$PGHOST"
-                        initdb -D "$PGDATA" --no-locale --encoding=UTF8
-                        echo "unix_socket_directories = '$PGHOST'" >> "$PGDATA/postgresql.conf"
-                        echo "listen_addresses = '''" >> "$PGDATA/postgresql.conf"
-                        pg_ctl -D "$PGDATA" -l "$TMPDIR/pg.log" start
-
-                        # Create the test database (withIHPApp replaces '/app' in the URL)
-                        createdb -h "$PGHOST" app
-                        export DATABASE_URL="postgresql:///app?host=$PGHOST"
-
-                        # Test/TypedSqlSpec.hs uses [typedSql| … |], which describes each
-                        # query against DATABASE_URL at COMPILE time, so the schema must
-                        # exist before we compile. (withIHPApp creates its own per-test
-                        # databases at runtime; this load only serves the compile-time
-                        # describe.) Load IHP's schema first, then the app's.
-                        psql -h "$PGHOST" -d app -v ON_ERROR_STOP=1 -f ${self}/ihp-schema-compiler/data/IHPSchema.sql
-                        psql -h "$PGHOST" -d app -v ON_ERROR_STOP=1 -f Application/Schema.sql
-
-                        # Generate types from Schema.sql
-                        make -f $IHP_LIB/lib/IHP/Makefile.dist build/Generated/Types.hs
-
-                        # Compile and run integration tests
-                        GHC_EXTS=$(make -f $IHP_LIB/lib/IHP/Makefile.dist print-ghc-extensions | sed 's/-fbyte-code//g')
-                        ghc --make \
-                            $GHC_EXTS \
-                            -threaded \
-                            -i. -ibuild -iConfig \
-                            -package-env - \
-                            -package ihp -package ihp-hspec -package ihp-typed-sql -package hspec \
-                            -main-is Test.Main \
-                            Test/Main.hs -o test-runner
-                        ./test-runner
-
-                        # Cleanup
-                        pg_ctl -D "$PGDATA" stop || true
-                    '';
-                    installPhase = ''
-                        touch $out
-                    '';
-                };
-            }))
+            # Slim GHC 9.12 dual-support matrix. Default checks are 9.14;
+            # these are the rollback-set cost.
+            // (lib.optionalAttrs (pkgs.haskell.packages ? ghc912) {
+                ghc912-ihp = withTestPostgres pkgs.ghc912.ihp;
+                ghc912-ihp-ide = pkgs.ghc912.ihp-ide;
+                ghc912-ihp-hsx = pkgs.ghc912.ihp-hsx;
+                ghc912-ihp-datasync = withTestPostgres pkgs.ghc912.ihp-datasync;
+                ghc912-ihp-typed-sql = withTestPostgres pkgs.ghc912.ihp-typed-sql;
+                ghc912-ihp-pglistener = withTestPostgres pkgs.ghc912.ihp-pglistener;
+            })
         ;
 
         devenv.shells.default = {
@@ -391,6 +304,8 @@ that is defined in flake-module.nix
 
             languages.haskell.stack.enable = false; # Stack is not used in IHP
             languages.haskell.lsp.package = pkgs.ghc.haskell-language-server;
+            # Off until hie-compat / apply-refact support GHC 9.14.1.
+            languages.haskell.lsp.enable = false;
         };
 
         packages = {

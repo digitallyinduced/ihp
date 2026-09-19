@@ -2,6 +2,61 @@
 This document describes breaking changes, as well as how to fix them, that have occured at given releases.
 After updating your project, please consult the segments from your current release until now.
 
+# Upgrade to GHC 9.14.1 (IHP default compiler)
+
+IHP's default GHC is now 9.14.1. After `nix flake update`, the next
+`direnv allow` / `nix develop` will download (or, if the cache is cold,
+build) the 9.14 closure.
+
+## Stay on GHC 9.12
+
+In your app `flake.nix` `perSystem`:
+
+```nix
+ihp.ghcCompiler = pkgs.ghc912;
+```
+
+Then `nix flake update` / `direnv allow`. This uses IHP's rollback package
+set. 9.12 support will be removed in a later IHP minor.
+
+Do **not** remap the compiler with a local overlay:
+
+```nix
+# WRONG after this upgrade — and a silent 9.12 pin if you already have it
+overlays = lib.mkAfter [ (final: prev: { ghc = prev.ghc912; }) ];
+```
+
+If you copied that snippet from an older Guide ("Switching GHC Versions"),
+**delete it** unless you intentionally want to stay on 9.12. The supported
+switch is `ihp.ghcCompiler`.
+
+## What usually needs no change
+
+- Controllers, views, QueryBuilder, `typedSql`, HSX.
+- `set` / `get` / `IHP.Record.SetField` (not GHC's OverloadedRecordUpdate).
+- `base` bounds already allow 4.22.
+
+## What might need a change
+
+- If you enabled `OverloadedRecordUpdate` and `RebindableSyntax` together,
+  GHC 9.14 flipped `setField`'s argument order. Prefer IHP's `set #field`.
+- Pattern type applications now need the `TypeAbstractions` extension
+  (no longer implied by ScopedTypeVariables + TypeApplications).
+- Incomplete record selectors are in `-Wall`. If you compile with
+  `-Werror -Wall`, fix the selectors or add
+  `-Wno-incomplete-record-selectors`.
+- Extra Hackage deps with `base < 4.22`, `containers < 0.8`,
+  `template-haskell < 2.24`, or `time < 1.15` need a bump or
+  `ihp.doJailbreakPackages = [ "the-package" ];`.
+
+## HLS
+
+App devenv ships with `languages.haskell.lsp.enable = false`. GHC 9.14.1's
+package-set HLS does not configure (`hie-compat` requires `base < 4.22`).
+`hlint` is also omitted from the 9.14 shell (`apply-refact` 0.15 does not
+compile). Stay on 9.12 (`ihp.ghcCompiler = pkgs.ghc912`) if you need HLS or
+hlint now.
+
 # Upgrade to 1.6.0 from 1.5.0
 
 Update your IHP flake input from the `v1.5` release branch to the `v1.6` release branch:
