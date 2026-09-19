@@ -12,11 +12,14 @@ module IHP.TypedSql.Metadata
     , describeStatementWith
     ) where
 
-import           Control.Exception             (bracket)
+import           Control.Exception             (IOException, bracket, displayException)
 import qualified Control.Exception             as Exception
+import           Control.Monad                 (unless)
 import qualified Data.ByteString               as BS
+import           Data.Int                      (Int32)
 import qualified Data.List                     as List
 import qualified Data.Map.Strict               as Map
+import           Data.Maybe                    (fromMaybe)
 import qualified Data.Set                      as Set
 import qualified Data.String.Conversions       as CS
 import qualified Database.PostgreSQL.LibPQ     as PQ
@@ -26,9 +29,11 @@ import qualified Hasql.Decoders                as HasqlDecoders
 import qualified Hasql.Encoders                as HasqlEncoders
 import qualified Hasql.Pipeline                as HasqlPipeline
 import qualified Hasql.Session                 as HasqlSession
-import qualified Hasql.Statement               as HasqlStatement
-import           IHP.FrameworkConfig           (defaultDatabaseUrl)
-import           IHP.Prelude
+import qualified Hasql.Statement                   as HasqlStatement
+import           Data.Text                     (Text)
+import           IHP.TypedSql.Prelude
+import           System.Directory              (getCurrentDirectory)
+import           System.Environment            (lookupEnv)
 import           IHP.TypedSql.CompileTimeDatabase
                                                 (adbUrl, autoDatabaseEnabled,
                                                  withAutoDatabase)
@@ -88,6 +93,16 @@ toOidInt32 (PQ.Oid oid) = fromIntegral oid
 -- | Convert Hasql-decoded Oid value back to libpq Oid.
 fromOidInt32 :: Int32 -> PQ.Oid
 fromOidInt32 oid = PQ.Oid (fromIntegral oid)
+
+-- | Database URL for compile-time describe queries.
+-- Local copy of IHP's 'IHP.FrameworkConfig.defaultDatabaseUrl', kept here so
+-- this package does not depend on @ihp@. Honors @DATABASE_URL@, falling back
+-- to the conventional local development database path.
+defaultDatabaseUrl :: IO BS.ByteString
+defaultDatabaseUrl = do
+    currentDirectory <- getCurrentDirectory
+    let fallback = "postgresql:///app?host=" <> currentDirectory <> "/build/db"
+    maybe (CS.cs fallback) CS.cs <$> lookupEnv "DATABASE_URL"
 
 -- | Describe a statement by asking a real Postgres server.
 describeStatement :: BS.ByteString -> IO DescribeResult
@@ -206,7 +221,7 @@ runHasqlMetadataSession dbUrl session = do
         (HasqlConnection.acquire settings >>= \case
             Left connectionError ->
                 fail (CS.cs ("typedSql: could not connect to database at "
-                    <> CS.cs dbUrl <> ": " <> tshow connectionError
+                    <> CS.cs dbUrl <> ": " <> (CS.cs (show connectionError) :: Text)
                     <> "\nHint: ensure your development database is running (e.g. devenv up), "
                     <> "or set IHP_TYPED_SQL_AUTO_DB=1 inside an IHP nix/devenv shell."))
             Right connection ->
@@ -216,7 +231,7 @@ runHasqlMetadataSession dbUrl session = do
         (\connection -> HasqlConnection.use connection session)
     case result of
         Left sessionError ->
-            fail (CS.cs ("typedSql: metadata query failed: " <> tshow sessionError))
+            fail (CS.cs ("typedSql: metadata query failed: " <> (CS.cs (show sessionError) :: Text)))
         Right value ->
             pure value
 

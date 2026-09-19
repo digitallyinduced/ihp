@@ -43,14 +43,15 @@ library
     import: shared-properties
     hs-source-dirs: .
     exposed-modules:
-        IHP.TypedSql
         IHP.TypedSql.Hasql
+        IHP.TypedSql.Id
+        IHP.TypedSql.Encoders
         IHP.TypedSql.Types
-        IHP.TypedSql.Pagination
         IHP.TypedSql.Quoter
         IHP.TypedSql.Placeholders
         IHP.TypedSql.ParamHints
         IHP.TypedSql.ParamEncoder
+        IHP.TypedSql.Row
         IHP.TypedSql.Metadata
         IHP.TypedSql.TypeMapping
         IHP.TypedSql.Decoders
@@ -58,20 +59,26 @@ library
     other-modules:
         IHP.TypedSql.Cardinality
         IHP.TypedSql.CompileTimeDatabase
+        IHP.TypedSql.Prelude
     build-depends:
             base >= 4.17.0 && < 4.23
-            , ihp
             , aeson
             , bytestring
             , containers
+            , countable-inflections
+            , contravariant
+            , deepseq
             , directory
             , filepath
+            , hashable
             , hasql
             , hasql-dynamic-statements
             , hasql-implicits
             , hasql-mapping
             , hasql-pool
+            , hasql-postgresql-types
             , haskell-src-meta
+            , inflections
             , postgresql-syntax >= 0.5.0.3 && < 0.6
             , postgresql-types
             , postgresql-libpq
@@ -81,14 +88,20 @@ library
             , template-haskell
             , temporary
             , text
+            , time
             , unix
-            , wai
+            , uuid
+            , vector
 
 source-repository head
     type:     git
     location: https://github.com/digitallyinduced/ihp
 
-test-suite tests
+-- Named 'spec' (not 'tests'): with this package's own cabal.project,
+-- `cd ihp-typed-sql && cabal test tests` resolves to this suite. A suite
+-- literally named 'tests' makes that command ambiguous on cabal 3.16
+-- (cwd-package filter vs component) and it errors out.
+test-suite spec
     import: shared-properties
     type: exitcode-stdio-1.0
     main-is: Test/Main.hs
@@ -96,16 +109,21 @@ test-suite tests
     ghc-options: -threaded
     build-depends:
             base >= 4.17.0 && < 4.23
-            , ihp
-            , fast-logger
             , ihp-typed-sql
             , containers
             , directory
             , filepath
+            , hasql
+            , hasql-dynamic-statements
+            , hasql-implicits
+            , hasql-mapping
+            , hasql-pool
+            , hasql-postgresql-types
             , hspec
             , process
             , string-conversions
             , temporary-ospath
+            , temporary
             , text
             , unix
     other-modules:
