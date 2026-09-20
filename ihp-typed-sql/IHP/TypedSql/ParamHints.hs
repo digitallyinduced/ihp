@@ -12,6 +12,7 @@ module IHP.TypedSql.ParamHints
     ) where
 
 import           Data.Foldable                (toList)
+import           Data.Function                ((&))
 import qualified Data.List                   as List
 import qualified Data.Map.Strict             as Map
 import           Data.Maybe                   (catMaybes, mapMaybe)
@@ -21,7 +22,7 @@ import qualified Data.Text                   as Text
 import qualified Data.String.Conversions     as CS
 import qualified Database.PostgreSQL.LibPQ   as PQ
 import qualified Language.Haskell.TH         as TH
-import           IHP.TypedSql.Prelude
+import           Prelude
 
 import qualified PostgresqlSyntax            as Ast
 
@@ -663,9 +664,9 @@ implicitName = \case
 resolveParamHintTypes :: Map.Map PQ.Oid TableMeta -> Map.Map PQ.Oid PgTypeInfo -> Map.Map Int ParamHint -> TH.Q (Map.Map Int TH.Type)
 resolveParamHintTypes tables typeInfo hints = do
     let tablesByName = tables
-            |> Map.toList
-            |> mapMaybe (\(oid, table@TableMeta { tmName }) -> Just (tmName, (oid, table)))
-            |> Map.fromList
+            & Map.toList
+            & mapMaybe (\(oid, table@TableMeta { tmName }) -> Just (tmName, (oid, table)))
+            & Map.fromList
     resolved <- mapM (resolveHint tablesByName) (Map.toList hints)
     pure (Map.fromList (catMaybes resolved))
   where
@@ -691,9 +692,7 @@ resolveParamHintTypes tables typeInfo hints = do
                         pure (Just (index, scalarType))
 
     findColumn columns columnName =
-        columns
-            |> Map.toList
-            |> List.find (\(_, ColumnMeta { cmName }) -> Text.toLower cmName == Text.toLower columnName)
+        columns & Map.toList & List.find (\(_, ColumnMeta { cmName }) -> Text.toLower cmName == Text.toLower columnName)
 
 -- | Strip a top-level Maybe wrapper to get the base column type.
 -- Used when parameter hints should be non-nullable inputs.

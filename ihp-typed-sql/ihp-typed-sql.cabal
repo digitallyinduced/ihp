@@ -59,7 +59,6 @@ library
     other-modules:
         IHP.TypedSql.Cardinality
         IHP.TypedSql.CompileTimeDatabase
-        IHP.TypedSql.Prelude
     build-depends:
             base >= 4.17.0 && < 4.23
             , aeson
@@ -71,7 +70,7 @@ library
             , directory
             , filepath
             , hashable
-            , hasql
+            , hasql >= 1.4 && < 2
             , hasql-dynamic-statements
             , hasql-implicits
             , hasql-mapping
@@ -113,7 +112,7 @@ test-suite spec
             , containers
             , directory
             , filepath
-            , hasql
+            , hasql >= 1.4 && < 2
             , hasql-dynamic-statements
             , hasql-implicits
             , hasql-mapping

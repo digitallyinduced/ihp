@@ -9,6 +9,7 @@ module IHP.TypedSql.TypeMapping
     ) where
 
 import           Control.Monad            (guard, zipWithM)
+import           Data.Function            ((&))
 import qualified Data.Aeson               as Aeson
 import qualified Data.ByteString          as BS
 import           Data.Int                 (Int64)
@@ -21,7 +22,7 @@ import qualified Data.String.Conversions  as CS
 import qualified Database.PostgreSQL.LibPQ as PQ
 import qualified Language.Haskell.TH      as TH
 import           IHP.TypedSql.Id            (Id')
-import           IHP.TypedSql.Prelude
+import           Prelude
 import qualified Data.Text                  as Text
 import           Data.String.Conversions  (cs)
 import           Data.Text                (Text)
@@ -72,8 +73,8 @@ detectFullTable tables cols = do
     guard (not (null cols))
     let grouped =
             cols
-                |> List.groupBy (\a b -> dcTable a == dcTable b)
-                |> mapMaybe (\group -> case List.uncons group of
+                & List.groupBy (\a b -> dcTable a == dcTable b)
+                & mapMaybe (\group -> case List.uncons group of
                         Just (first, _) -> Just (dcTable first, group)
                         Nothing         -> Nothing
                    )

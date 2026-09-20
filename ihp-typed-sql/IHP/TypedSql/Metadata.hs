@@ -30,8 +30,9 @@ import qualified Hasql.Encoders                as HasqlEncoders
 import qualified Hasql.Pipeline                as HasqlPipeline
 import qualified Hasql.Session                 as HasqlSession
 import qualified Hasql.Statement                   as HasqlStatement
+import           Data.Function                 ((&))
 import           Data.Text                     (Text)
-import           IHP.TypedSql.Prelude
+import           Prelude
 import           System.Directory              (getCurrentDirectory)
 import           System.Environment            (lookupEnv)
 import           IHP.TypedSql.CompileTimeDatabase
@@ -179,14 +180,14 @@ describeStatementWith dbUrl sql = do
             pure DescribeColumn { dcName = name, dcType = colType, dcTable = tableOid, dcAttnum = attnum }
             ) [0 .. columnCountInt - 1]
 
-        let tableOids = Set.fromList (map dcTable columns) |> Set.delete (PQ.Oid 0)
+        let tableOids = Set.fromList (map dcTable columns) & Set.delete (PQ.Oid 0)
             typeOids = Set.fromList paramTypes <> Set.fromList (map dcType columns)
 
         tables <- loadTableMeta dbUrl (Set.toList tableOids)
         let referencedOids =
                 tables
-                    |> Map.elems
-                    |> foldl'
+                    & Map.elems
+                    & foldl'
                         (\acc TableMeta { tmForeignKeys } ->
                             acc <> Set.fromList (Map.elems tmForeignKeys)
                         )
@@ -330,18 +331,18 @@ loadTableMeta dbUrl tableOids = do
                 <*> HasqlPipeline.statement tableOidParams foreignKeysStatement
 
     let pkMap = primaryKeys
-            |> foldl' (\acc (relid, attnum) ->
+            & foldl' (\acc (relid, attnum) ->
                     Map.insertWith Set.union (fromOidInt32 relid) (Set.singleton (fromIntegral attnum)) acc
                 ) mempty
 
         fkMap = foreignKeys
-            |> foldl' (\acc (relid, attnum, ref) ->
+            & foldl' (\acc (relid, attnum, ref) ->
                     Map.insertWith Map.union (fromOidInt32 relid) (Map.singleton (fromIntegral attnum) (fromOidInt32 ref)) acc
                 ) mempty
 
         tableGroups =
             rows
-                |> map (\(relid, name, attnum, attname, atttypid, attnotnull) ->
+                & map (\(relid, name, attnum, attname, atttypid, attnotnull) ->
                         ( fromOidInt32 relid
                         , ColumnMeta
                             { cmAttnum = fromIntegral attnum
@@ -352,18 +353,18 @@ loadTableMeta dbUrl tableOids = do
                         , name
                         )
                     )
-                |> List.groupBy (\(l, _, _) (r, _, _) -> l == r)
+                & List.groupBy (\(l, _, _) (r, _, _) -> l == r)
 
     pure $ tableGroups
-        |> foldl'
+        & foldl'
             (\acc group ->
                 case group of
                     [] -> acc
                     (tableOid, _, tableName):_ ->
                         let cols = group
-                                |> map (\(_, column, _) -> (cmAttnum column, column))
-                                |> Map.fromList
-                            order = group |> map (\(_, column, _) -> cmAttnum column)
+                                & map (\(_, column, _) -> (cmAttnum column, column))
+                                & Map.fromList
+                            order = group & map (\(_, column, _) -> cmAttnum column)
                             pks = Map.findWithDefault mempty tableOid pkMap
                             fks = Map.findWithDefault mempty tableOid fkMap
                             meta = TableMeta
@@ -387,7 +388,7 @@ loadTypeInfo dbUrl typeOids = do
     rows <- runHasqlMetadataSession dbUrl (HasqlSession.statement (map toOidInt32 typeOids) typeInfoStatement)
     let (typeMap, missing) =
             rows
-                |> foldl'
+                & foldl'
                     (\(acc, missingAcc) (oid, name, elemOid, typtype, nsp) ->
                         let thisOid = fromOidInt32 oid
                             elemOid' = if elemOid == 0 then Nothing else Just (fromOidInt32 elemOid)
@@ -406,7 +407,7 @@ loadTypeInfo dbUrl typeOids = do
                                 }
                                 acc
                            , nextMissing
-                           )
+                            )
                     )
                     (mempty, [])
     extras <- loadTypeInfo dbUrl (Set.toList (Set.fromList missing))

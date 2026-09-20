@@ -5,12 +5,13 @@ module IHP.TypedSql.Cardinality
     ) where
 
 import           Data.Foldable                    (toList)
+import           Data.Function                    ((&))
 import qualified Data.List                        as List
 import qualified Data.Map.Strict                  as Map
 import qualified Data.Set                         as Set
 import qualified Data.Text                        as Text
 import qualified Database.PostgreSQL.LibPQ        as PQ
-import           IHP.TypedSql.Prelude
+import           Prelude
 import           Data.Int                         (Int64)
 import           Data.Maybe                       (isNothing, mapMaybe)
 import           Data.Text                        (Text)
@@ -98,9 +99,9 @@ inferSimpleSelect tables sourceCardinalities = \case
 cteCardinalities :: Map.Map PQ.Oid TableMeta -> Ast.WithClause -> SourceCardinalityMap
 cteCardinalities tables (Ast.WithClause _recursive ctes) =
     ctes
-        |> toList
-        |> map (\(Ast.CommonTableExpr cteName _cols _materialized stmt) -> (identToText cteName, inferCardinality tables stmt))
-        |> Map.fromList
+        & toList
+        & map (\(Ast.CommonTableExpr cteName _cols _materialized stmt) -> (identToText cteName, inferCardinality tables stmt))
+        & Map.fromList
 
 singleSourceCardinality :: Map.Map PQ.Oid TableMeta -> SourceCardinalityMap -> Maybe Ast.FromClause -> Maybe QueryCardinality
 singleSourceCardinality tables sourceCardinalities maybeFrom = do
@@ -271,9 +272,9 @@ provesPrimaryKeyLookup :: Map.Map PQ.Oid TableMeta -> Maybe Ast.FromClause -> Ma
 provesPrimaryKeyLookup tables maybeFrom maybeWhere =
     let tableByName =
             tables
-                |> Map.elems
-                |> map (\table@TableMeta { tmName } -> (tmName, table))
-                |> Map.fromList
+                & Map.elems
+                & map (\table@TableMeta { tmName } -> (tmName, table))
+                & Map.fromList
     in case (singleSimpleTableRef maybeFrom, maybeWhere) of
         (Just (tableName, tableQualifier), Just (Ast.WhereClause whereExpr)) ->
             case Map.lookup tableName tableByName of
@@ -287,9 +288,9 @@ provesPrimaryKeyLookup tables maybeFrom maybeWhere =
 primaryKeyColumnNames :: TableMeta -> Set.Set Text
 primaryKeyColumnNames TableMeta { tmColumns, tmPrimaryKeys } =
     tmPrimaryKeys
-        |> Set.toList
-        |> mapMaybe (\attnum -> cmName <$> Map.lookup attnum tmColumns)
-        |> Set.fromList
+        & Set.toList
+        & mapMaybe (\attnum -> cmName <$> Map.lookup attnum tmColumns)
+        & Set.fromList
 
 singleSimpleTableRef :: Maybe Ast.FromClause -> Maybe (Text, Text)
 singleSimpleTableRef maybeFrom = do

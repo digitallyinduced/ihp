@@ -11,6 +11,7 @@ module IHP.TypedSql.Quoter
 import qualified Control.Exception              as Exception
 import           Control.Monad                   (unless, when)
 import           Data.Coerce                     (coerce)
+import           Data.Function                   ((&))
 import qualified Data.Char                       as Char
 import qualified Data.List                       as List
 import qualified Data.Map.Strict                 as Map
@@ -26,7 +27,7 @@ import qualified Language.Haskell.TH.Syntax      as TH
 import qualified PostgresqlSyntax                as Ast
 import           System.IO.Error                 (ioeGetErrorString)
 import           Text.Read                       (readMaybe)
-import           IHP.TypedSql.Prelude
+import           Prelude
 import           IHP.TypedSql.Id                 () -- DefaultParamEncoder instances for Int, Id', etc.
 import           IHP.TypedSql.Encoders           () -- ...and for Point, Polygon, Inet, Tsvector, Interval
 
@@ -143,10 +144,10 @@ typedSqlExp allowStar rawSql = do
 
     let nullableTableNames = maybe Set.empty extractJoinNullableTablesFromAst parsedAst
     let joinNullableOids = drTables
-            |> Map.toList
-            |> filter (\(_, TableMeta { tmName }) -> tmName `Set.member` nullableTableNames)
-            |> map fst
-            |> Set.fromList
+            & Map.toList
+            & filter (\(_, TableMeta { tmName }) -> tmName `Set.member` nullableTableNames)
+            & map fst
+            & Set.fromList
 
     let nonNullableColumns = maybe Set.empty extractNonNullableComputedColumnsFromAst parsedAst
     let queryCardinality = maybe ManyRows (inferCardinality drTables) parsedAst

@@ -31,9 +31,6 @@
   stay in `ihp`, which is the only place they are needed. This adds a
   `hasql-postgresql-types` dependency.
 
-- Internal cleanup: the five modules that each defined their own private `(|>)`
-  operator now share one, in the unexposed `IHP.TypedSql.Prelude`.
-
 - Updated `postgresql-syntax` to 0.5.0.3 so valid unspaced `ANY` expressions
   and the JSONB key-existence operator participate in `typedSql` refinement.
 
