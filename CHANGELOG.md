@@ -14,6 +14,7 @@
 
 ### Breaking Changes
 
+- The NixOS `app`, `worker`, `migrate` and `app-keygen` services no longer run as root. They run as the new system user `ihp`, configurable through `services.ihp.user` and `services.ihp.group`. The session secret file is chowned to that user on the next deployment, and with `appWithPostgres` the service user is mapped onto the existing database role, so peer authentication keeps working without touching the database. Apps that write to root-owned paths at runtime need those paths made writable for the service user; `services.ihp.user = "root";` restores the previous behaviour.
 - `DefaultScope` has been removed. `query @Model` now always starts without
   implicit filters; define and use explicit query functions for reusable scopes.
 - `typedSql` now tracks conservative query cardinality and statement result

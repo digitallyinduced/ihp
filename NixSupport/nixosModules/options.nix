@@ -35,6 +35,25 @@ with lib;
             default = true;
         };
 
+        user = mkOption {
+            type = types.str;
+            default = "ihp";
+            description = ''
+                System user the app, worker, migrate and app-keygen services run as.
+
+                The user is created automatically. Set this to "root" to run
+                the services as root.
+            '';
+        };
+
+        group = mkOption {
+            type = types.str;
+            default = config.services.ihp.user;
+            description = ''
+                System group the services run as. Created automatically.
+            '';
+        };
+
         databaseName = mkOption {
             type = types.str;
             default = "app";
