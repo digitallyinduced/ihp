@@ -10,6 +10,7 @@ in
 {
     imports = [
         ihp.nixosModules.options
+        ihp.nixosModules.user
         ihp.nixosModules.binaryCache
         ihp.nixosModules.services_app
         ihp.nixosModules.services_appKeygen
@@ -82,13 +83,23 @@ in
         '';
         authentication = lib.mkBefore ''
             local ${cfg.databaseName} postgres peer map=ihp-migrate-admin
+            local ${cfg.databaseName} ${cfg.databaseUser} peer map=ihp-app
         '';
-        identMap = lib.mkBefore ''
+        # The services connect over the local socket, so the system user they run
+        # as has to be mapped to the database role. Root keeps its mapping for
+        # `psql` on the server.
+        identMap = lib.mkBefore (''
             ihp-migrate-admin root postgres
             ihp-migrate-admin postgres postgres
-        '';
+            ihp-app root ${cfg.databaseUser}
+        '' + lib.optionalString (cfg.user != "root") ''
+            ihp-migrate-admin ${cfg.user} postgres
+            ihp-app ${cfg.user} ${cfg.databaseUser}
+        '');
     };
 
+    # Existing databases are owned by this role, so the name stays although no
+    # service runs as root
     services.ihp.databaseUser = "root";
     services.ihp.databaseUrl = "postgresql://${cfg.databaseUser}@/${cfg.databaseName}";
     services.ihp.databaseAdminUrl = "postgresql://postgres@/${cfg.databaseName}";

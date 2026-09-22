@@ -1648,6 +1648,26 @@ systemctl status migrate
 journalctl -u app -n 50 --no-pager
 ```
 
+### Service User
+
+These services run as the unprivileged system user `ihp`, which the module creates. Both the user and its group are configurable:
+
+```nix
+services.ihp.user = "myapp";
+services.ihp.group = "myapp";
+```
+
+With `appWithPostgres` the local PostgreSQL keeps the database role that owns the database, and the service user is mapped onto it for peer authentication, so no database changes are needed. The session secret file is handed over to the service user on the next deployment.
+
+Everything else the app writes to at runtime has to be writable for that user — a local file storage directory, for example. Give the unit a state directory and point the app at it:
+
+```nix
+# /var/lib/ihp, created and owned by the service user
+systemd.services.app.serviceConfig.StateDirectory = "ihp";
+```
+
+Setting `services.ihp.user = "root";` restores the previous behaviour of running everything as root.
+
 ### Memory Limits and Restart Hardening
 
 By default `services.app` and `services.worker` are configured with `Restart = "always"` but do not set any memory bounds. This means that a memory leak in application code, or a runaway allocation inside a long-running job, can consume all available RAM before the Linux OOM killer intervenes. When that happens, the kernel may kill unrelated processes on the host — for example a colocated PostgreSQL when using `appWithPostgres` — instead of cleanly restarting just the offending unit.
