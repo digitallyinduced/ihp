@@ -613,26 +613,62 @@ ihpFlake:
                 };
 
                 scripts.deploy-to-nixos.exec = ''
+                    set -euo pipefail
+
                     if [[ $# -eq 0 || $1 == "--help" ]]; then
-                        echo "usage: deploy-to-nixos <target-host>"
+                        echo "usage: deploy-to-nixos [user@]<target-host> [nixos-rebuild args...]"
                         echo "example: deploy-to-nixos staging.example.com"
+                        echo "example: deploy-to-nixos deploy@staging.example.com"
                         exit 0
+                    fi
+
+                    target="$1"
+                    shift
+
+                    # The nixosConfigurations key never contains the login user, so
+                    # `deploy@production` still deploys `.#production`.
+                    configuration="''${target##*@}"
+
+                    if [[ "$target" == *@* ]]; then
+                        targetUser="''${target%%@*}"
+                    else
+                        # Without an explicit user ssh takes it from ~/.ssh/config, so ask ssh
+                        # instead of guessing.
+                        targetUser=""
+                        while read -r option value; do
+                            if [[ "$option" == "user" ]]; then
+                                targetUser="$value"
+                                break
+                            fi
+                        done < <(ssh -G "$target")
+                    fi
+
+                    # Activating the configuration and starting migrate still need root on the
+                    # target, so anything but a root login goes through passwordless sudo there.
+                    # nixos-rebuild-ng spells this --sudo, the older shell implementation
+                    # --use-remote-sudo.
+                    elevate=()
+                    remoteSystemctl=(systemctl)
+                    if [[ "$targetUser" != "root" ]]; then
+                        elevate=("${if lib.versionAtLeast (lib.getVersion pkgs.nixos-rebuild) "26.05" then "--sudo" else "--use-remote-sudo"}")
+                        remoteSystemctl=(sudo systemctl)
                     fi
 
                     ${pkgs.nixos-rebuild}/bin/nixos-rebuild switch \
                         -j auto \
                         --use-substitutes \
                         --fast \
-                        --flake .#$1 \
-                        --target-host $1 \
-                        --build-host $1 \
+                        --flake ".#$configuration" \
+                        --target-host "$target" \
+                        --build-host "$target" \
                         --option sandbox false \
                         --option extra-substituters "https://digitallyinduced.cachix.org" \
-                        --option extra-trusted-public-keys "digitallyinduced.cachix.org-1:y+wQvrnxQ+PdEsCt91rmvv39qRCYzEgGQaldK26hCKE="
-                    
+                        --option extra-trusted-public-keys "digitallyinduced.cachix.org-1:y+wQvrnxQ+PdEsCt91rmvv39qRCYzEgGQaldK26hCKE=" \
+                        "''${elevate[@]}" "$@"
+
                     # Only start migrate service if it exists
-                    if ssh $1 systemctl cat migrate.service >/dev/null 2>&1; then
-                        ssh $1 systemctl start migrate
+                    if ssh "$target" systemctl cat migrate.service >/dev/null 2>&1; then
+                        ssh "$target" "''${remoteSystemctl[@]}" start migrate
                     fi
                 '';
 

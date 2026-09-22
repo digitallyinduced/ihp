@@ -11,6 +11,7 @@
 ### Performance, Build, and Tooling
 
 - Reduced type-family work for model and query code by removing unnecessary table-name `KnownSymbol` constraints and generating direct model ID metadata, keeping common paths such as `currentUserId` shallow on large schemas. ([#2766](https://github.com/digitallyinduced/ihp/issues/2766))
+- `deploy-to-nixos` no longer requires a root SSH login. The target may carry a login user (`deploy-to-nixos deploy@production`) while the flake attribute stays the host name, and for a non-root user the activation on the server and `migrate.service` are elevated with `sudo`. Extra arguments are passed through to `nixos-rebuild`, and a failing `nixos-rebuild` now fails the whole command instead of being masked by the migrate step.
 
 ### Breaking Changes
 
