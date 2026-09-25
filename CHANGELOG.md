@@ -10,7 +10,8 @@
 
 ### Performance, Build, and Tooling
 
-- The `nixpkgs-nixos` flake input now tracks NixOS 26.05. NixOS 25.11 reached end of support on 30 June 2026. Apps that follow `ihp/nixpkgs-nixos` pick this up when they update IHP. The Haskell `nixpkgs` input is unchanged.
+- The `nixpkgs-nixos` flake input now tracks NixOS 26.05. NixOS 25.11 reached end of support on 30 June 2026. Apps that follow `ihp/nixpkgs-nixos` pick this up when they update IHP.
+- The Haskell `nixpkgs` input now tracks `haskell-updates` (25 September 2026, Stackage Nightly 2026-09-13). The default compiler is still GHC 9.12.4.20260713, the 9.12.5 release candidate. `nixpkgs-unstable` currently defaults to GHC 9.10, and its GHC 9.12 set is 9.12.3, so following it would downgrade the compiler. Apps that follow `ihp/nixpkgs` pick this up when they update IHP. Haskell Language Server in that set is 2.15.0.0.
 - Reduced type-family work for model and query code by removing unnecessary table-name `KnownSymbol` constraints and generating direct model ID metadata, keeping common paths such as `currentUserId` shallow on large schemas. ([#2766](https://github.com/digitallyinduced/ihp/issues/2766))
 
 ### Breaking Changes

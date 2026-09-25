@@ -2,7 +2,10 @@
     description = "IHP is a modern batteries-included haskell web framework, built on top of Haskell and Nix.";
 
     inputs = {
-        nixpkgs.url = "github:NixOS/nixpkgs/nixpkgs-unstable";             # for Haskell packages
+        # Haskell packages. nixpkgs-unstable's default compiler is GHC 9.10, and its
+        # GHC 9.12 set is older than this pin. haskell-updates keeps GHC 9.12 as
+        # haskellPackages and tracks the current Stackage nightly.
+        nixpkgs.url = "github:NixOS/nixpkgs/haskell-updates";
         nixpkgs-nixos.url = "github:NixOS/nixpkgs/nixos-26.05";     # for NixOS deployments (pin independently)
 
         # pre-defined set of default target systems
