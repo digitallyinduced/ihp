@@ -14,6 +14,7 @@
 
 ### Breaking Changes
 
+- Default GHC is now 9.14.1. Stay on 9.12 with `ihp.ghcCompiler = pkgs.ghc912`. Delete any old `ghc = prev.ghc912` overlay. App HLS and `hlint` are off on 9.14: `hie-compat` requires `base < 4.22`, and `apply-refact` 0.15 does not compile.
 - PostgreSQL 18 is the default for the development server, test and compile-time databases, and `appWithPostgres`. New tables, jobs, and DataSync triggers use `uuidv7()` unless `IHP_POSTGRES_VERSION` is set below 18. A PostgreSQL 17 data directory must be upgraded or recreated.
 - `DefaultScope` has been removed. `query @Model` now always starts without
   implicit filters; define and use explicit query functions for reusable scopes.
