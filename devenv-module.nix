@@ -660,7 +660,7 @@ that is defined in flake-module.nix
 
                 yarnOfflineCache = pkgs.fetchYarnDeps {
                     yarnLock = ./ihp-datasync/data/DataSync/yarn.lock;
-                    hash = "sha256-RFCzBgDYx2CeRjBPDGBKesmOht2uzYH3K39v2BRbK00=";
+                    hash = "sha256-Z0Gmwn54OFl46muTIzjLTBdFPYCTljKi5uNJYj5p8ic=";
                 };
 
                 nativeBuildInputs = [ pkgs.nodejs pkgs.yarn pkgs.yarnConfigHook ];
