@@ -2,6 +2,45 @@
 This document describes breaking changes, as well as how to fix them, that have occured at given releases.
 After updating your project, please consult the segments from your current release until now.
 
+# Unreleased
+
+## PostgreSQL 18 is now the default
+
+IHP now runs PostgreSQL 18 for the development server, test databases, compile-time database access, and the `appWithPostgres` NixOS module. New tables, jobs, and DataSync triggers use `uuidv7()` instead of `uuid_generate_v4()`.
+
+Existing `Schema.sql` files that call `uuid_generate_v4()` continue to work. The `uuid-ossp` extension is still loaded.
+
+### Development database
+
+Check the running server with `psql -c 'SHOW server_version;'`. If it already reports 18, leave the data directory in place. The nixpkgs alias used by recent IHP checkouts was already PostgreSQL 18; this change pins that version explicitly.
+
+A data directory created by PostgreSQL 17 will not start under PostgreSQL 18. Save its rows first. `make dumpdb` overwrites `Application/Fixtures.sql` with the current rows:
+
+```bash
+make dumpdb
+rm -rf .devenv/state/postgres
+devenv up
+```
+
+devenv stores the cluster at `.devenv/state/postgres/`. The next start creates an empty database, and loading the schema imports `Application/Schema.sql` and `Application/Fixtures.sql`.
+
+### Staying on PostgreSQL 17
+
+Set the generator back to `uuid_generate_v4()` and pin the package in the application flake:
+
+```nix
+devenv.shells.default.env.IHP_POSTGRES_VERSION = "17";
+devenv.shells.default.services.postgres.package = pkgs.postgresql_17;
+```
+
+`IHP_POSTGRES_VERSION=17` alone is enough for the code generators. The package pin is what keeps the server on 17.
+
+### Production (`appWithPostgres`)
+
+`appWithPostgres` now selects `pkgs.postgresql_18`. That overrides the version NixOS would otherwise pick from `system.stateVersion`. Deploying this onto a PostgreSQL 17 data directory will not migrate the data. Upgrade with `pg_upgrade` or a dump and restore, as described in the [NixOS PostgreSQL upgrade guide](https://wiki.nixos.org/wiki/PostgreSQL#Upgrading).
+
+A normal `services.postgresql.package = pkgs.postgresql_17;` assignment in `configuration.nix` still wins over the IHP default.
+
 # Upgrade to 1.6.0 from 1.5.0
 
 Update your IHP flake input from the `v1.5` release branch to the `v1.6` release branch:

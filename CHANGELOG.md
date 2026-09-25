@@ -10,10 +10,12 @@
 
 ### Performance, Build, and Tooling
 
+- The `nixpkgs-nixos` flake input now tracks NixOS 26.05. NixOS 25.11 reached end of support on 30 June 2026. Apps that follow `ihp/nixpkgs-nixos` pick this up when they update IHP. The Haskell `nixpkgs` input is unchanged.
 - Reduced type-family work for model and query code by removing unnecessary table-name `KnownSymbol` constraints and generating direct model ID metadata, keeping common paths such as `currentUserId` shallow on large schemas. ([#2766](https://github.com/digitallyinduced/ihp/issues/2766))
 
 ### Breaking Changes
 
+- PostgreSQL 18 is the default for the development server, test and compile-time databases, and `appWithPostgres`. New tables, jobs, and DataSync triggers use `uuidv7()` unless `IHP_POSTGRES_VERSION` is set below 18. A PostgreSQL 17 data directory must be upgraded or recreated.
 - `DefaultScope` has been removed. `query @Model` now always starts without
   implicit filters; define and use explicit query functions for reusable scopes.
 - `typedSql` now tracks conservative query cardinality and statement result

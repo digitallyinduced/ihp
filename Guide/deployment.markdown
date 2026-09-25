@@ -470,7 +470,8 @@ The `appWithPostgres` module sets up PostgreSQL with sensible defaults. For prod
 # Increase connection limit (default is 100)
 services.postgresql.settings.max_connections = 1000;
 
-# Add extensions
+# Add extensions. PostgreSQL 18 already provides uuidv7(); pg_uuidv7 is only
+# needed when the server is older than 18.
 services.postgresql.extensions = plugins: [ plugins.pg_uuidv7 ];
 
 # Automated daily backups

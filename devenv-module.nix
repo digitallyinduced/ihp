@@ -12,7 +12,7 @@ that is defined in flake-module.nix
                     # Wrap a package's check phase with a temporary PostgreSQL server
                     withTestPostgres = pkg: pkg.overrideAttrs (old: {
                         nativeCheckInputs = (old.nativeCheckInputs or [])
-                            ++ [ pkgs.postgresql pkgs.ps ];
+                            ++ [ pkgs.postgresql_18 pkgs.ps ];
                         preCheck = ''
                             ${old.preCheck or ""}
                             export PGDATA="$TMPDIR/pgdata"
@@ -108,7 +108,7 @@ that is defined in flake-module.nix
                             hspec
                         ]))
                         pkgs.gnumake
-                        pkgs.postgresql
+                        pkgs.postgresql_18
                     ];
                     buildPhase = ''
                         export IHP_LIB=${ihpLib}
@@ -235,7 +235,7 @@ that is defined in flake-module.nix
                             hspec
                         ]))
                         pkgs.gnumake
-                        pkgs.postgresql
+                        pkgs.postgresql_18
                     ];
                     buildPhase = ''
                         export IHP_LIB=${ihpLib}
@@ -660,7 +660,7 @@ that is defined in flake-module.nix
 
                 yarnOfflineCache = pkgs.fetchYarnDeps {
                     yarnLock = ./ihp-datasync/data/DataSync/yarn.lock;
-                    hash = "sha256-RFCzBgDYx2CeRjBPDGBKesmOht2uzYH3K39v2BRbK00=";
+                    hash = "sha256-Z0Gmwn54OFl46muTIzjLTBdFPYCTljKi5uNJYj5p8ic=";
                 };
 
                 nativeBuildInputs = [ pkgs.nodejs pkgs.yarn pkgs.yarnConfigHook ];
