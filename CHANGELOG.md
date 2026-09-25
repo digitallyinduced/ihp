@@ -14,6 +14,7 @@
 
 ### Breaking Changes
 
+- PostgreSQL 18 is the default for the development server, test and compile-time databases, and `appWithPostgres`. New tables, jobs, and DataSync triggers use `uuidv7()` unless `IHP_POSTGRES_VERSION` is set below 18. A PostgreSQL 17 data directory must be upgraded or recreated.
 - `DefaultScope` has been removed. `query @Model` now always starts without
   implicit filters; define and use explicit query functions for reusable scopes.
 - `typedSql` now tracks conservative query cardinality and statement result

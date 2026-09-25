@@ -427,7 +427,7 @@ ihpFlake:
                                 # below), so the postgres tools must be on PATH whenever the
                                 # app depends on ihp-typed-sql.
                                 ++ lib.optionals buildWithPostgres
-                                    [ postgresql ps ];
+                                    [ postgresql_18 ps ];
                             buildPhase = ''
                                 export IHP_LIB=${ihpLib}
 
@@ -458,7 +458,7 @@ ihpFlake:
                             nativeBuildInputs = with pkgs; [
                                 (ghcCompiler.ghcWithPackages (p: cfg.haskellPackages p ++ cfg.devHaskellPackages p ++ [p.ihp-ide p.ihp-schema-compiler]))
                                 gnumake
-                                postgresql
+                                postgresql_18
                             ];
                             buildPhase = ''
                                 export IHP_LIB=${ihpLib}
@@ -561,6 +561,8 @@ ihpFlake:
                 # even when `devenv up` is not currently running.
                 env.IHP_TYPED_SQL_AUTO_DB = "1";
 
+                # Pin the major version. pkgs.postgresql follows the nixpkgs alias.
+                services.postgres.package = lib.mkDefault pkgs.postgresql_18;
                 services.postgres.enable = true;
                 services.postgres.settings = {
                     logging_collector = true;
