@@ -1,6 +1,6 @@
 cabal-version:       2.2
 name:                ihp-hsx
-version:             1.5.0
+version:             1.6.0
 synopsis:            JSX-like but for Haskell
 description:         JSX-like templating syntax for Haskell
 license:             MIT
@@ -60,7 +60,7 @@ common common-flags
         -Wredundant-constraints
         -Wunused-imports
         -Wunused-foralls
-        -Wmissing-fields
+        -Werror=missing-fields
         -Winaccessible-code
         -Wmissed-specialisations
         -Wall-missed-specialisations
@@ -70,12 +70,13 @@ common common-flags
         -fexpose-all-unfoldings
         -optc-O3
         -Werror=incomplete-patterns
+        -Werror=missing-home-modules
 
 common common-depends
     build-depends:
-          base >= 4.17.0 && < 4.22
+          base >= 4.17.0 && < 4.23
         , bytestring
-        , template-haskell >= 2.19.0 && < 2.24
+        , template-haskell >= 2.19.0 && < 2.25
         , text
         , containers
         , megaparsec
@@ -86,12 +87,13 @@ library ihp-hsx-parser
     import: common-extensions, common-flags, common-depends
     default-language: GHC2021
     build-depends:
-        ghc >= 9.4.4 && < 9.13
+        ghc >= 9.4.4 && < 9.15
     hs-source-dirs: parser
     exposed-modules:
         IHP.HSX.Parser
         , IHP.HSX.HaskellParser
         , IHP.HSX.HsExpToTH
+        , IHP.HSX.QQCompiler
 
 library
     import: common-extensions, common-flags, common-depends
@@ -100,12 +102,29 @@ library
         , blaze-html
         , blaze-markup
     default-language: GHC2021
-    hs-source-dirs: blaze
+    hs-source-dirs: blaze, direct
     exposed-modules:
         IHP.HSX.QQ
         , IHP.HSX.ToHtml
         , IHP.HSX.ConvertibleStrings
         , IHP.HSX.Attribute
+        , IHP.HSX.Markup
+        , IHP.HSX.MarkupQQ
+    reexported-modules:
+        IHP.HSX.Parser
+        , IHP.HSX.HaskellParser
+        , IHP.HSX.HsExpToTH
+
+library ihp-hsx-direct
+    import: common-extensions, common-flags, common-depends
+    build-depends:
+        ihp-hsx-parser
+        , bytestring-strict-builder
+    default-language: GHC2021
+    hs-source-dirs: direct
+    exposed-modules:
+        IHP.HSX.StrictMarkup
+        , IHP.HSX.StrictMarkupQQ
     reexported-modules:
         IHP.HSX.Parser
         , IHP.HSX.HaskellParser
@@ -136,6 +155,7 @@ test-suite ihp-hsx-tests
     other-modules:
         IHP.HSX.ParserSpec
         IHP.HSX.QQSpec
+        IHP.HSX.MarkupSpec
         IHP.HSX.CustomHsxCases
     default-language:    GHC2021
     build-depends:
@@ -161,3 +181,19 @@ benchmark ihp-hsx-parser-bench
         , ihp-hsx
         , tasty-bench
         , deepseq
+
+benchmark ihp-hsx-render-bench
+    import: common-extensions, common-flags, common-depends
+    type:                exitcode-stdio-1.0
+    hs-source-dirs:      Test
+    main-is:             RenderBench.hs
+    default-language:    GHC2021
+    ghc-options:         -fno-static-argument-transformation
+    build-depends:
+        , ihp-hsx
+        , ihp-hsx-direct
+        , tasty-bench
+        , deepseq
+        , blaze-html
+        , blaze-markup
+        , bytestring-strict-builder

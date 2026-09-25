@@ -16,8 +16,6 @@ module IHP.FrameworkConfig.Types
 , BaseUrl (..)
 , RequestLoggerMiddleware (..)
 , SessionCookie (..)
-, DBPoolIdleTime (..)
-, DBPoolMaxConnections (..)
 , DatabaseUrl (..)
 , ConfigBuilder
 , ExceptionTracker (..)
@@ -25,6 +23,7 @@ module IHP.FrameworkConfig.Types
 , RLSAuthenticatedRole (..)
 , AssetVersion (..)
 , CustomMiddleware (..)
+, AuthMiddleware (..)
 , DataSyncMaxSubscriptionsPerConnection (..)
 , DataSyncMaxTransactionsPerConnection (..)
 , Initializer (..)
@@ -35,7 +34,6 @@ module IHP.FrameworkConfig.Types
 import Prelude
 import Data.ByteString (ByteString)
 import Data.Text (Text)
-import Data.Time.Clock (NominalDiffTime)
 import Control.Exception (SomeException)
 import GHC.Records (HasField(..))
 import qualified Control.Monad.Trans.State.Strict as State
@@ -46,7 +44,7 @@ import qualified Network.Wai.Parse as WaiParse
 import Network.Wai (Middleware, Request)
 import IHP.Environment (Environment)
 import IHP.View.Types (CSSFramework)
-import IHP.Log.Types (Logger)
+import System.Log.FastLogger (FastLogger)
 import IHP.ModelSupport.Types (ModelContext)
 
 newtype AppHostname = AppHostname Text
@@ -77,12 +75,6 @@ newtype RequestLoggerMiddleware = RequestLoggerMiddleware Middleware
 -- > sessionCookie = defaultIHPSessionCookie { Cookie.setCookieMaxAge = Just (fromIntegral (60 * 60 * 24 * 90)) }
 newtype SessionCookie = SessionCookie Cookie.SetCookie
 
--- | How long db connection are kept alive inside the connecton pool when they're idle
-newtype DBPoolIdleTime = DBPoolIdleTime NominalDiffTime
-
--- | Max number of db connections the connection pool can open to the database
-newtype DBPoolMaxConnections = DBPoolMaxConnections Int
-
 newtype DatabaseUrl = DatabaseUrl ByteString
 
 type ConfigBuilder = State.StateT TMap.TMap IO ()
@@ -99,6 +91,22 @@ newtype RLSAuthenticatedRole = RLSAuthenticatedRole Text
 newtype AssetVersion = AssetVersion Text
 
 newtype CustomMiddleware = CustomMiddleware Middleware
+
+-- | Middleware for authentication.
+--
+-- This middleware runs after the session and model context middlewares,
+-- and populates the WAI request vault with the authenticated user/admin.
+--
+-- __Example:__
+--
+-- > -- Config.hs
+-- > import IHP.LoginSupport.Middleware
+-- >
+-- > config :: ConfigBuilder
+-- > config = do
+-- >     option $ AuthMiddleware (authMiddleware @User)
+--
+newtype AuthMiddleware = AuthMiddleware Middleware
 
 newtype DataSyncMaxSubscriptionsPerConnection = DataSyncMaxSubscriptionsPerConnection Int
 newtype DataSyncMaxTransactionsPerConnection = DataSyncMaxTransactionsPerConnection Int
@@ -136,17 +144,12 @@ data FrameworkConfig = FrameworkConfig
     , sessionCookie :: !Cookie.SetCookie
 
     , databaseUrl :: !ByteString
-    -- | How long db connection are kept alive inside the connecton pool when they're idle
-    , dbPoolIdleTime :: !NominalDiffTime
-
-    -- | Max number of db connections the connection pool can open to the database
-    , dbPoolMaxConnections :: !Int
 
     -- | Bootstrap 4 by default
     --
     -- Override this if you use a CSS framework that is not bootstrap
     , cssFramework :: !CSSFramework
-    , logger :: !Logger
+    , logger :: !FastLogger
     , exceptionTracker :: !ExceptionTracker
 
     -- | Custom 'option's from @Config.hs@ are stored here
@@ -166,6 +169,10 @@ data FrameworkConfig = FrameworkConfig
 
     -- | User provided WAI middleware that is run after IHP's middleware stack.
     , customMiddleware :: !CustomMiddleware
+
+    -- | Authentication middleware that populates the request vault with the
+    -- current user/admin. Runs after session and model context middlewares.
+    , authenticationMiddleware :: !AuthMiddleware
     , initializers :: ![Initializer]
     }
 

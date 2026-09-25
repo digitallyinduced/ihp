@@ -8,7 +8,6 @@ import qualified Test.NameSupportSpec
 import qualified Test.HaskellSupportSpec
 import qualified Test.View.CSSFrameworkSpec
 import qualified Test.View.FormSpec
-import qualified Test.Controller.ContextSpec
 import qualified Test.Controller.ParamSpec
 import qualified Test.Controller.CookieSpec
 import qualified Test.Controller.AccessDeniedSpec
@@ -16,10 +15,27 @@ import qualified Test.Controller.NotFoundSpec
 import qualified Test.ModelSupportSpec
 import qualified Test.QueryBuilderSpec
 import qualified Test.RouterSupportSpec
+import qualified Test.Router.CaptureSpec
+import qualified Test.Router.TrieSpec
+import qualified Test.Router.MiddlewareSpec
+import qualified Test.Router.DSLParserSpec
+import qualified Test.Router.DSLQuoterSpec
+import qualified Test.Router.MixedModeSpec
+import qualified Test.Router.MultiControllerSpec
+import qualified Test.Router.AppBindingSpec
+import qualified Test.Router.WebSocketSpec
 import qualified Test.ViewSupportSpec
 import qualified Test.FileStorage.ControllerFunctionsSpec
 import qualified Test.PGListenerSpec
 import qualified Test.MockingSpec
+import qualified Test.HasqlEncoderSpec
+import qualified Test.ControllerSupportSpec
+import qualified Test.AutoRefreshSpec
+import qualified Test.Pagination.ControllerFunctionsSpec
+import qualified Test.FetchPipelinedSpec
+import qualified Test.JobQueueSpec
+import qualified Test.LoginSupport.AuthVaultSpec
+import qualified Test.PGVersionSpec
 
 main :: IO ()
 main = hspec do
@@ -28,15 +44,31 @@ main = hspec do
     Test.HaskellSupportSpec.tests
     Test.View.CSSFrameworkSpec.tests
     Test.View.FormSpec.tests
-    Test.Controller.ContextSpec.tests
     Test.Controller.ParamSpec.tests
     Test.Controller.AccessDeniedSpec.tests
     Test.Controller.NotFoundSpec.tests
     Test.ModelSupportSpec.tests
     Test.QueryBuilderSpec.tests
     Test.RouterSupportSpec.tests
+    Test.Router.CaptureSpec.tests
+    Test.Router.TrieSpec.tests
+    Test.Router.MiddlewareSpec.tests
+    Test.Router.DSLParserSpec.tests
+    Test.Router.DSLQuoterSpec.tests
+    Test.Router.MixedModeSpec.tests
+    Test.Router.MultiControllerSpec.tests
+    Test.Router.AppBindingSpec.tests
+    Test.Router.WebSocketSpec.tests
     Test.ViewSupportSpec.tests
     Test.FileStorage.ControllerFunctionsSpec.tests
     Test.Controller.CookieSpec.tests
     Test.PGListenerSpec.tests
     Test.MockingSpec.tests
+    Test.HasqlEncoderSpec.tests
+    Test.ControllerSupportSpec.tests
+    Test.AutoRefreshSpec.tests
+    Test.Pagination.ControllerFunctionsSpec.tests
+    Test.FetchPipelinedSpec.tests
+    Test.JobQueueSpec.tests
+    Test.LoginSupport.AuthVaultSpec.tests
+    Test.PGVersionSpec.tests

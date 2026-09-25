@@ -1,8 +1,8 @@
 {-|
-Module: Test.GraphQL.ParserSpec
+Module: GraphQL.ParserSpec
 Copyright: (c) digitally induced GmbH, 2022
 -}
-module Test.GraphQL.ParserSpec where
+module GraphQL.ParserSpec where
 
 import Test.Hspec
 import IHP.Prelude

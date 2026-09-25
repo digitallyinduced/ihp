@@ -4,8 +4,8 @@ Description: Schema-aware parameter encoding for DataSync queries
 Copyright: (c) digitally induced GmbH, 2025
 
 Queries column types from @pg_attribute@/@pg_type@ at runtime, caches per-table,
-and uses 'Snippet.encoderAndParam' with the correct typed encoder (e.g. 'Encoders.uuid'
-for UUID columns). This avoids type mismatches like @operator does not exist: uuid = text@
+and uses typed encoders (e.g. 'Encoders.uuid' for UUID columns) via 'Snippet'.
+This avoids type mismatches like @operator does not exist: uuid = text@
 that occur in the extended query protocol when sending text-typed parameters for non-text columns.
 -}
 module IHP.DataSync.TypedEncoder
@@ -19,28 +19,29 @@ module IHP.DataSync.TypedEncoder
 
 import IHP.Prelude
 import IHP.DataSync.DynamicQuery (ColumnTypeMap, ColumnTypeInfo(..), quoteIdentifier)
-import IHP.Postgres.Point (Point(..))
+import PostgresqlTypes.Point (Point, fromCoordinates)
+import qualified Hasql.Mapping.IsScalar as Mapping
+import Hasql.PostgresqlTypes ()
 import qualified Data.HashMap.Strict as HashMap
 import qualified Hasql.Pool
 import qualified Hasql.Session as Session
 import qualified Hasql.Statement as Statement
 import qualified Hasql.Encoders as Encoders
 import qualified Hasql.Decoders as Decoders
-import qualified Hasql.DynamicStatements.Snippet as Snippet
-import Hasql.DynamicStatements.Snippet (Snippet)
 import IHP.DataSync.Hasql (runSession)
 import Data.Aeson (Value(..))
 import qualified Data.Aeson as Aeson
 import qualified Data.Aeson.KeyMap as Aeson
 import qualified Data.UUID as UUID
 import qualified Data.Scientific as Scientific
-import Data.Int (Int16, Int32, Int64)
-import Data.Time (UTCTime, LocalTime, Day)
+import Data.Int (Int16)
 import qualified Data.Time.Format.ISO8601 as ISO8601
 import qualified Data.Attoparsec.Text as Attoparsec
 import qualified Data.Text as Text
 import qualified Data.List as List
 import qualified Data.Vector as Vector
+import qualified Hasql.DynamicStatements.Snippet as Snippet
+import Hasql.DynamicStatements.Snippet (Snippet)
 
 -- | Creates a cached lookup function that queries column types from @pg_attribute@/@pg_type@
 -- and caches the result per table name.
@@ -80,11 +81,16 @@ columnTypesStatement = Statement.preparable
         (,) <$> Decoders.column (Decoders.nonNullable Decoders.text)
             <*> Decoders.column (Decoders.nonNullable Decoders.text)
 
--- | Encode an Aeson 'Value' as a typed Snippet parameter.
+-- | Encode a value with the given encoder as a 'Snippet'.
+encodeValue :: Encoders.NullableOrNot Encoders.Value a -> a -> Snippet
+encodeValue enc val = Snippet.encoderAndParam enc val
+{-# INLINE encodeValue #-}
+
+-- | Encode an Aeson 'Value' as a typed parameter 'Snippet'.
 --
--- When a column type is known (from 'ColumnTypeMap'), uses 'Snippet.encoderAndParam'
--- with the correct typed encoder. Errors when no type info is available, since
--- 'makeCachedColumnTypeLookup' should always provide column types.
+-- When a column type is known (from 'ColumnTypeMap'), uses the correct typed encoder.
+-- Errors when no type info is available, since 'makeCachedColumnTypeLookup' should
+-- always provide column types.
 typedValueParam :: Maybe Text -> Value -> Snippet
 typedValueParam _ Aeson.Null = Snippet.sql "NULL"
 typedValueParam colType (Object values)
@@ -100,13 +106,13 @@ typedValueParam colType (Object values)
                     y <- case yValue of
                             Aeson.Number number -> pure (Scientific.toRealFloat number)
                             _ -> Nothing
-                    pure Point { x, y }
+                    pure (fromCoordinates x y)
         in
             if Aeson.size values == 2
-                then fromMaybe (error "Cannot decode as Point") (pointToSnippet <$> tryDecodeAsPoint)
+                then case tryDecodeAsPoint of
+                    Just point -> encodeValue (Encoders.nonNullable Mapping.encoder) point
+                    Nothing -> error "Cannot decode as Point"
                 else error "Cannot decode as Point: expected {x, y} object"
-    where
-        pointToSnippet (Point x y) = Snippet.sql ("point(" <> cs (tshow x) <> "," <> cs (tshow y) <> ")")
 typedValueParam pgType (Array arr) =
     let elemType = case pgType of
             Just t | "_" `Text.isPrefixOf` t -> Just (Text.drop 1 t)
@@ -116,35 +122,31 @@ typedValueParam (Just pgType) value = encodeWithType pgType value
 typedValueParam Nothing value = error ("typedValueParam: No column type available for value: " <> show value)
 
 -- | Encode an Aeson 'Value' using a specific PostgreSQL type encoder.
---
--- Maps PostgreSQL type names to the corresponding hasql encoder and converts
--- the 'Value' to the appropriate Haskell type.
 encodeWithType :: Text -> Value -> Snippet
 encodeWithType _             Aeson.Null = Snippet.sql "NULL"
-encodeWithType "uuid"        val = Snippet.encoderAndParam (Encoders.nonNullable Encoders.uuid) (toUUID val)
-encodeWithType "text"        val = Snippet.encoderAndParam (Encoders.nonNullable Encoders.text) (toText val)
-encodeWithType "varchar"     val = Snippet.encoderAndParam (Encoders.nonNullable Encoders.text) (toText val)
-encodeWithType "bpchar"      val = Snippet.encoderAndParam (Encoders.nonNullable Encoders.text) (toText val)
-encodeWithType "name"        val = Snippet.encoderAndParam (Encoders.nonNullable Encoders.text) (toText val)
-encodeWithType "int4"        val = Snippet.encoderAndParam (Encoders.nonNullable Encoders.int4) (toInt32 val)
-encodeWithType "int8"        val = Snippet.encoderAndParam (Encoders.nonNullable Encoders.int8) (toInt64 val)
-encodeWithType "int2"        val = Snippet.encoderAndParam (Encoders.nonNullable Encoders.int2) (toInt16 val)
-encodeWithType "bool"        val = Snippet.encoderAndParam (Encoders.nonNullable Encoders.bool) (toBool val)
-encodeWithType "timestamptz" val = Snippet.encoderAndParam (Encoders.nonNullable Encoders.timestamptz) (toUTCTime val)
-encodeWithType "timestamp"   val = Snippet.encoderAndParam (Encoders.nonNullable Encoders.timestamp) (toLocalTime val)
-encodeWithType "date"        val = Snippet.encoderAndParam (Encoders.nonNullable Encoders.date) (toDay val)
-encodeWithType "float8"      val = Snippet.encoderAndParam (Encoders.nonNullable Encoders.float8) (toDouble val)
-encodeWithType "float4"      val = Snippet.encoderAndParam (Encoders.nonNullable Encoders.float4) (toFloat val)
-encodeWithType "numeric"     val = Snippet.encoderAndParam (Encoders.nonNullable Encoders.numeric) (toScientific val)
-encodeWithType "jsonb"       val = Snippet.encoderAndParam (Encoders.nonNullable Encoders.jsonb) val
-encodeWithType "json"        val = Snippet.encoderAndParam (Encoders.nonNullable Encoders.json) val
-encodeWithType "bytea"       val = Snippet.encoderAndParam (Encoders.nonNullable Encoders.bytea) (toByteString val)
--- Interval uses text+cast because PGInterval can contain years/months/days
--- which DiffTime (used by Encoders.interval) cannot represent.
-encodeWithType "interval"    val = Snippet.encoderAndParam (Encoders.nonNullable Encoders.text) (toText val) <> Snippet.sql "::interval"
-encodeWithType pgType        val = Snippet.encoderAndParam (Encoders.nonNullable Encoders.text) (toText val) <> Snippet.sql "::" <> quoteIdentifier pgType
+encodeWithType "uuid"        val = encodeValue (Encoders.nonNullable Encoders.uuid) (toUUID val)
+encodeWithType "text"        val = encodeValue (Encoders.nonNullable Encoders.text) (toText val)
+encodeWithType "varchar"     val = encodeValue (Encoders.nonNullable Encoders.text) (toText val)
+encodeWithType "bpchar"      val = encodeValue (Encoders.nonNullable Encoders.text) (toText val)
+encodeWithType "name"        val = encodeValue (Encoders.nonNullable Encoders.text) (toText val)
+encodeWithType "int4"        val = encodeValue (Encoders.nonNullable Encoders.int4) (toInt32 val)
+encodeWithType "int8"        val = encodeValue (Encoders.nonNullable Encoders.int8) (toInt64 val)
+encodeWithType "int2"        val = encodeValue (Encoders.nonNullable Encoders.int2) (toInt16 val)
+encodeWithType "bool"        val = encodeValue (Encoders.nonNullable Encoders.bool) (toBool val)
+encodeWithType "timestamptz" val = encodeValue (Encoders.nonNullable Encoders.timestamptz) (toUTCTime val)
+encodeWithType "timestamp"   val = encodeValue (Encoders.nonNullable Encoders.timestamp) (toLocalTime val)
+encodeWithType "date"        val = encodeValue (Encoders.nonNullable Encoders.date) (toDay val)
+encodeWithType "float8"      val = encodeValue (Encoders.nonNullable Encoders.float8) (toDouble val)
+encodeWithType "float4"      val = encodeValue (Encoders.nonNullable Encoders.float4) (toFloat val)
+encodeWithType "numeric"     val = encodeValue (Encoders.nonNullable Encoders.numeric) (toScientific val)
+encodeWithType "jsonb"       val = encodeValue (Encoders.nonNullable Encoders.jsonb) val
+encodeWithType "json"        val = encodeValue (Encoders.nonNullable Encoders.json) val
+encodeWithType "bytea"       val = encodeValue (Encoders.nonNullable Encoders.bytea) (toByteString val)
+-- Interval uses text+cast for dynamic DataSync queries where values come as JSON text.
+encodeWithType "interval"    val = encodeValue (Encoders.nonNullable Encoders.text) (toText val) <> Snippet.sql "::interval"
+encodeWithType pgType        val = encodeValue (Encoders.nonNullable Encoders.text) (toText val) <> Snippet.sql ("::" <> quoteIdentifier pgType)
 
--- | Encode an Aeson 'Value' as a typed Snippet parameter for INSERT/UPDATE operations.
+-- | Encode an Aeson 'Value' as a typed parameter for INSERT/UPDATE operations.
 --
 -- Delegates directly to 'typedValueParam'.
 typedAesonValueToSnippet :: Maybe Text -> Value -> Snippet

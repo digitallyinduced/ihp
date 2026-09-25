@@ -1,5 +1,5 @@
 {-# LANGUAGE UndecidableInstances #-}
-module Test.DataSync.DataSyncIntegrationSpec where
+module DataSync.DataSyncIntegrationSpec where
 
 import Test.Hspec
 import IHP.Prelude
@@ -14,18 +14,16 @@ import IHP.DataSync.DynamicQuery (Field(..))
 import IHP.DataSync.DynamicQueryCompiler (camelCaseRenamer)
 import IHP.DataSync.RowLevelSecurity (makeCachedEnsureRLSEnabled)
 import qualified IHP.DataSync.ChangeNotifications as ChangeNotifications
-import IHP.DataSync.Pool (hasqlPoolVaultKey)
 import IHP.RequestVault (pgListenerVaultKey, frameworkConfigVaultKey)
-import IHP.Controller.Context (newControllerContext, putContext, freeze)
-import IHP.LoginSupport.Types (HasNewSessionUrl(..), CurrentUserRecord)
-import IHP.ModelSupport (createModelContext, releaseModelContext)
-import IHP.ModelSupport.Types (ModelContext(..), Id'(..), GetTableName, PrimaryKey)
+import IHP.LoginSupport.Types (HasNewSessionUrl(..), CurrentUserRecord, currentUserVaultKey)
+import qualified IHP.ModelSupport as ModelSupport
+import IHP.ModelSupport (noopLogger)
+import IHP.ModelSupport.Types (Id'(..), PrimaryKey)
 import qualified IHP.PGListener as PGListener
 import IHP.FrameworkConfig (buildFrameworkConfig)
 import IHP.FrameworkConfig.Types
 
 import qualified Data.Vault.Lazy as Vault
-import qualified Data.HashMap.Strict as HashMap
 import qualified Data.UUID.V4 as UUID
 import qualified Data.UUID as UUID
 import qualified Data.Text as Text
@@ -36,8 +34,6 @@ import Data.Aeson (Value(..), object, (.=))
 import qualified Data.Aeson as Aeson
 import Control.Concurrent.STM
 import Control.Concurrent (threadDelay)
-import Data.IORef
-import qualified IHP.Log as Log
 
 -- | Define CurrentUserRecord for this test module
 data TestUser = TestUser { id :: Id' "test_users" }
@@ -146,57 +142,47 @@ withDataSyncController connStr testUserId action = do
         let actualConnStr = if "dbname=" `Text.isPrefixOf` connStr
                 then cs connStr
                 else cs ("dbname=" <> connStr)
-        logger <- Log.newLogger def { Log.level = Log.Error }
-        modelContext <- createModelContext 10 4 actualConnStr logger
-        PGListener.withPGListener actualConnStr logger \pgListener -> do
-            frameworkConfig <- buildFrameworkConfig (pure ())
-            let frameworkConfig' = frameworkConfig { databaseUrl = actualConnStr }
+        let logger = noopLogger
+        ModelSupport.withModelContext actualConnStr logger \modelContext -> do
+            PGListener.withPGListener actualConnStr logger \pgListener -> do
+                frameworkConfig <- buildFrameworkConfig logger (pure ())
+                let frameworkConfig' = frameworkConfig { databaseUrl = actualConnStr }
 
-            let v = Vault.empty
-                    |> Vault.insert hasqlPoolVaultKey hasqlPool
-                    |> Vault.insert pgListenerVaultKey pgListener
-                    |> Vault.insert frameworkConfigVaultKey frameworkConfig'
-            let request = defaultRequest { vault = v }
+                let testUser = Just (TestUser { id = Id testUserId }) :: Maybe TestUser
+                let v = Vault.empty
+                        |> Vault.insert pgListenerVaultKey pgListener
+                        |> Vault.insert frameworkConfigVaultKey frameworkConfig'
+                        |> Vault.insert currentUserVaultKey testUser
+                let request = defaultRequest { vault = v }
 
-            -- Set up ControllerContext with the request and current user
-            let ?request = request
-            context <- newControllerContext
-            let ?context = context
+                -- Set up the request and current user
+                let ?request = request
+                let ?context = ?request
 
-            -- Put the current user into context so currentUserOrNothing can find it
-            putContext (Just (TestUser { id = Id testUserId }) :: Maybe TestUser)
+                -- Create the DataSync state IORef
+                stateRef <- newIORef DataSyncController
+                let ?state = stateRef
 
-            -- Freeze the context so it can be accessed from pure code
-            frozenContext <- freeze ?context
-            let ?context = frozenContext
+                -- Create TQueues for communication
+                inQueue <- newTQueueIO :: IO (TQueue ByteString)
+                outQueue <- newTQueueIO :: IO (TQueue DataSyncResponse)
 
-            -- Create the DataSync state IORef
-            stateRef <- newIORef DataSyncController
-            let ?state = stateRef
+                let receiveData = atomically $ readTQueue inQueue
+                let sendJSON response = atomically $ writeTQueue outQueue response
 
-            -- Create TQueues for communication
-            inQueue <- newTQueueIO :: IO (TQueue ByteString)
-            outQueue <- newTQueueIO :: IO (TQueue DataSyncResponse)
+                -- Build the helper functions
+                ensureRLSEnabled <- makeCachedEnsureRLSEnabled hasqlPool
+                let installTableChangeTriggers = ChangeNotifications.installTableChangeTriggers hasqlPool
 
-            let receiveData = atomically $ readTQueue inQueue
-            let sendJSON response = atomically $ writeTQueue outQueue response
+                -- Start the controller in an async thread
+                let ?modelContext = modelContext
+                controllerAsync <- async $
+                    runDataSyncController hasqlPool ensureRLSEnabled installTableChangeTriggers receiveData sendJSON (\_ _ -> pure ()) (\_ -> camelCaseRenamer)
 
-            -- Build the helper functions
-            ensureRLSEnabled <- makeCachedEnsureRLSEnabled hasqlPool
-            installTableChangeTriggers <- ChangeNotifications.makeCachedInstallTableChangeTriggers hasqlPool
-
-            -- Start the controller in an async thread
-            let ?modelContext = modelContext
-            controllerAsync <- async $
-                runDataSyncController hasqlPool ensureRLSEnabled installTableChangeTriggers receiveData sendJSON (\_ _ -> pure ()) (\_ -> camelCaseRenamer)
-
-            -- Run the test action, then clean up
-            Exception.finally
-                (action (\msg -> atomically $ writeTQueue inQueue msg, readResponseWithTimeout outQueue, controllerAsync))
-                (do
-                    cancel controllerAsync
-                    releaseModelContext modelContext
-                )
+                -- Run the test action, then clean up
+                Exception.finally
+                    (action (\msg -> atomically $ writeTQueue inQueue msg, readResponseWithTimeout outQueue, controllerAsync))
+                    (cancel controllerAsync)
 
 -- | Read the next DataSyncResponse with a timeout
 readResponseWithTimeout :: TQueue DataSyncResponse -> IO DataSyncResponse

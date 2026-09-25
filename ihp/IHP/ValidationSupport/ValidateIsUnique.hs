@@ -11,7 +11,6 @@ import IHP.QueryBuilder
 import IHP.Fetch
 import IHP.Hasql.FromRow (FromRowHasql)
 import Hasql.Implicits.Encoders (DefaultParamEncoder)
-import Database.PostgreSQL.Simple.ToField (ToField)
 
 -- | Validates that e.g. an email (or another field) is unique across all users before inserting.
 --
@@ -33,13 +32,11 @@ import Database.PostgreSQL.Simple.ToField (ToField)
 validateIsUnique :: forall field model savedModel fieldValue modelId savedModelId. (
         savedModel ~ NormalizeModel model
         , ?modelContext :: ModelContext
-        , FromRow savedModel
         , FromRowHasql savedModel
         , KnownSymbol field
         , HasField field model fieldValue
         , HasField field savedModel fieldValue
         , KnownSymbol (GetTableName savedModel)
-        , ToField fieldValue
         , DefaultParamEncoder fieldValue
         , EqOrIsOperator fieldValue
         , HasField "meta" model MetaBag
@@ -76,13 +73,11 @@ validateIsUnique fieldProxy model = validateIsUniqueCaseAware fieldProxy model T
 validateIsUniqueCaseInsensitive :: forall field model savedModel fieldValue modelId savedModelId. (
         savedModel ~ NormalizeModel model
         , ?modelContext :: ModelContext
-        , FromRow savedModel
         , FromRowHasql savedModel
         , KnownSymbol field
         , HasField field model fieldValue
         , HasField field savedModel fieldValue
         , KnownSymbol (GetTableName savedModel)
-        , ToField fieldValue
         , DefaultParamEncoder fieldValue
         , EqOrIsOperator fieldValue
         , HasField "meta" model MetaBag
@@ -101,13 +96,11 @@ validateIsUniqueCaseInsensitive fieldProxy model = validateIsUniqueCaseAware fie
 validateIsUniqueCaseAware :: forall field model savedModel fieldValue modelId savedModelId. (
         savedModel ~ NormalizeModel model
         , ?modelContext :: ModelContext
-        , FromRow savedModel
         , FromRowHasql savedModel
         , KnownSymbol field
         , HasField field model fieldValue
         , HasField field savedModel fieldValue
         , KnownSymbol (GetTableName savedModel)
-        , ToField fieldValue
         , DefaultParamEncoder fieldValue
         , EqOrIsOperator fieldValue
         , HasField "meta" model MetaBag
@@ -149,7 +142,6 @@ validateIsUniqueCaseAware fieldProxy model caseSensitive = do
 withCustomErrorMessageIO :: forall field model savedModel fieldValue modelId savedModelId. (
         savedModel ~ NormalizeModel model
         , ?modelContext :: ModelContext
-        , FromRow savedModel
         , KnownSymbol field
         , HasField field model fieldValue
         , HasField field savedModel fieldValue

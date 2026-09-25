@@ -17,8 +17,6 @@ import IHP.Prelude
 import Network.Wai
 import System.IO.Unsafe (unsafePerformIO)
 import qualified Data.Vault.Lazy as Vault
-import Data.Proxy
-import Data.Typeable
 import IHP.FrameworkConfig
 import IHP.PGListener
 import IHP.RequestVault.Helper

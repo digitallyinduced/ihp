@@ -6,23 +6,16 @@ module Test.View.CSSFrameworkSpec where
 
 import Test.Hspec
 import IHP.Prelude
-import IHP.Controller.Context
 import IHP.FrameworkConfig as FrameworkConfig
-import Control.Exception
 import Wai.Request.Params.Middleware (RequestBody (..))
 import IHP.View.Types
 import IHP.View.CSSFramework
 import Network.Wai.Middleware.FlashMessages (FlashMessage (..))
-import IHP.Controller.Session
-import qualified Text.Blaze.Renderer.Text as Blaze
-import qualified Text.Blaze.Html5 as H
-import IHP.HSX.QQ (hsx)
+import IHP.HSX.Markup (renderMarkupText)
 import IHP.ModelSupport
-import IHP.Breadcrumb.Types
-import IHP.Breadcrumb.ViewFunctions (breadcrumbLink, breadcrumbLinkExternal, breadcrumbText, renderBreadcrumb)
+import IHP.Breadcrumb.ViewFunctions (breadcrumbLinkExternal, breadcrumbText, renderBreadcrumb)
 import IHP.Pagination.Types
 import qualified IHP.Prelude as Text (isInfixOf)
-import qualified Data.TMap as TypeMap
 import qualified Network.Wai as Wai
 import IHP.Pagination.ViewFunctions (renderPagination)
 import qualified Data.Vault.Lazy as Vault
@@ -325,7 +318,7 @@ tests = do
                             , itemsPerPageSelector = mempty
                             }
 
-                    let render = Blaze.renderMarkup $ styledPagination cssFramework cssFramework paginationView
+                    let render = renderMarkupText $ styledPagination cssFramework cssFramework paginationView
                     Text.isInfixOf "<div class=\"d-flex justify-content-md-center\">" (cs render) `shouldBe` True
 
                 it "should render the pagination if there are enough elements" do
@@ -338,9 +331,9 @@ tests = do
 
                     context <- createControllerContextWithCSSFramework cssFramework
                     let ?context = context
-                    let ?request = ?context.request
+                    let ?request = ?context
 
-                    let render = Blaze.renderMarkup $ renderPagination pagination
+                    let render = renderMarkupText $ renderPagination pagination
                     Text.isInfixOf "<nav aria-label=\"Page Navigator\"" (cs render) `shouldBe` True
 
 
@@ -354,7 +347,7 @@ tests = do
 
                     context <- createControllerContextWithCSSFramework cssFramework
                     let ?context = context
-                    let ?request = ?context.request
+                    let ?request = ?context
 
                     renderPagination pagination `shouldRenderTo` mempty
 
@@ -383,7 +376,7 @@ tests = do
 
                     context <- createControllerContextWithCSSFramework cssFramework
                     let ?context = context
-                    let ?request = ?context.request
+                    let ?request = ?context
 
                     renderBreadcrumb breadcrumbs `shouldRenderTo` "<nav><ol class=\"breadcrumb\"><li class=\"breadcrumb-item\">First item</li><li class=\"breadcrumb-item active\">Last item</li></ol></nav>"
 
@@ -537,23 +530,23 @@ tests = do
 
                 it "should render" do
                     let select = baseSelect
-                    styledFormField cssFramework cssFramework select `shouldRenderTo` "<div class=\"form-group\" id=\"form-group-project_user_id\"><label class=\"\" for=\"project_user_id\">User</label><select name=\"user_id\" id=\"project_user_id\" class=\"form-control\" value=\"\"><option selected=\"selected\" disabled=\"disabled\">Please select</option> <option value=\"a\">First Value</option><option value=\"b\">Second Value</option></select>  </div>"
+                    styledFormField cssFramework cssFramework select `shouldRenderTo` "<div class=\"form-group\" id=\"form-group-project_user_id\"><label class=\"\" for=\"project_user_id\">User</label><select name=\"user_id\" id=\"project_user_id\" class=\"form-control\" value=\"\"><option value=\"\" selected=\"selected\" disabled=\"disabled\">Please select</option> <option value=\"a\">First Value</option><option value=\"b\">Second Value</option></select>  </div>"
 
                 it "should render with disabled" do
                     let select = baseSelect { disabled = True }
-                    styledFormField cssFramework cssFramework select `shouldRenderTo` "<div class=\"form-group\" id=\"form-group-project_user_id\"><label class=\"\" for=\"project_user_id\">User</label><select name=\"user_id\" id=\"project_user_id\" class=\"form-control\" value=\"\" disabled=\"disabled\"><option selected=\"selected\" disabled=\"disabled\">Please select</option> <option value=\"a\">First Value</option><option value=\"b\">Second Value</option></select>  </div>"
+                    styledFormField cssFramework cssFramework select `shouldRenderTo` "<div class=\"form-group\" id=\"form-group-project_user_id\"><label class=\"\" for=\"project_user_id\">User</label><select name=\"user_id\" id=\"project_user_id\" class=\"form-control\" value=\"\" disabled=\"disabled\"><option value=\"\" selected=\"selected\" disabled=\"disabled\">Please select</option> <option value=\"a\">First Value</option><option value=\"b\">Second Value</option></select>  </div>"
 
                 it "should render with selected" do
                     let select = baseSelect { fieldValue = "b" }
-                    styledFormField cssFramework cssFramework select `shouldRenderTo` "<div class=\"form-group\" id=\"form-group-project_user_id\"><label class=\"\" for=\"project_user_id\">User</label><select name=\"user_id\" id=\"project_user_id\" class=\"form-control\" value=\"b\"><option disabled=\"disabled\">Please select</option> <option value=\"a\">First Value</option><option value=\"b\" selected=\"selected\">Second Value</option></select>  </div>"
+                    styledFormField cssFramework cssFramework select `shouldRenderTo` "<div class=\"form-group\" id=\"form-group-project_user_id\"><label class=\"\" for=\"project_user_id\">User</label><select name=\"user_id\" id=\"project_user_id\" class=\"form-control\" value=\"b\"><option value=\"\" disabled=\"disabled\">Please select</option> <option value=\"a\">First Value</option><option value=\"b\" selected=\"selected\">Second Value</option></select>  </div>"
 
                 it "should render with custom placeholder" do
                     let select = baseSelect { placeholder = "Pick something" }
-                    styledFormField cssFramework cssFramework select `shouldRenderTo` "<div class=\"form-group\" id=\"form-group-project_user_id\"><label class=\"\" for=\"project_user_id\">User</label><select name=\"user_id\" id=\"project_user_id\" class=\"form-control\" value=\"\"><option selected=\"selected\" disabled=\"disabled\">Pick something</option> <option value=\"a\">First Value</option><option value=\"b\">Second Value</option></select>  </div>"
+                    styledFormField cssFramework cssFramework select `shouldRenderTo` "<div class=\"form-group\" id=\"form-group-project_user_id\"><label class=\"\" for=\"project_user_id\">User</label><select name=\"user_id\" id=\"project_user_id\" class=\"form-control\" value=\"\"><option value=\"\" selected=\"selected\" disabled=\"disabled\">Pick something</option> <option value=\"a\">First Value</option><option value=\"b\">Second Value</option></select>  </div>"
 
                 it "should render with additional attributes" do
                     let select = baseSelect { additionalAttributes = [ ("data-x", "true") ] }
-                    styledFormField cssFramework cssFramework select `shouldRenderTo` "<div class=\"form-group\" id=\"form-group-project_user_id\"><label class=\"\" for=\"project_user_id\">User</label><select name=\"user_id\" id=\"project_user_id\" class=\"form-control\" value=\"\" data-x=\"true\"><option selected=\"selected\" disabled=\"disabled\">Please select</option> <option value=\"a\">First Value</option><option value=\"b\">Second Value</option></select>  </div>"
+                    styledFormField cssFramework cssFramework select `shouldRenderTo` "<div class=\"form-group\" id=\"form-group-project_user_id\"><label class=\"\" for=\"project_user_id\">User</label><select name=\"user_id\" id=\"project_user_id\" class=\"form-control\" value=\"\" data-x=\"true\"><option value=\"\" selected=\"selected\" disabled=\"disabled\">Please select</option> <option value=\"a\">First Value</option><option value=\"b\">Second Value</option></select>  </div>"
 
             describe "textarea field" do
                 let baseTextField = FormField
@@ -624,7 +617,7 @@ tests = do
                             , itemsPerPageSelector = mempty
                             }
 
-                    let render = Blaze.renderMarkup $ styledPagination cssFramework cssFramework paginationView
+                    let render = renderMarkupText $ styledPagination cssFramework cssFramework paginationView
                     Text.isInfixOf "<div class=\"d-flex justify-content-md-center\">" (cs render) `shouldBe` True
 
                 it "should render the pagination if there are enough elements" do
@@ -637,9 +630,9 @@ tests = do
 
                     context <- createControllerContextWithCSSFramework cssFramework
                     let ?context = context
-                    let ?request = ?context.request
+                    let ?request = ?context
 
-                    let render = Blaze.renderMarkup $ renderPagination pagination
+                    let render = renderMarkupText $ renderPagination pagination
                     Text.isInfixOf "<nav aria-label=\"Page Navigator\"" (cs render) `shouldBe` True
 
 
@@ -653,7 +646,7 @@ tests = do
 
                     context <- createControllerContextWithCSSFramework cssFramework
                     let ?context = context
-                    let ?request = ?context.request
+                    let ?request = ?context
 
                     renderPagination pagination `shouldRenderTo` mempty
 
@@ -682,7 +675,7 @@ tests = do
 
                     context <- createControllerContextWithCSSFramework cssFramework
                     let ?context = context
-                    let ?request = ?context.request
+                    let ?request = ?context
 
                     renderBreadcrumb breadcrumbs `shouldRenderTo` "<nav><ol class=\"breadcrumb\"><li class=\"breadcrumb-item\">First item</li><li class=\"breadcrumb-item active\">Last item</li></ol></nav>"
 
@@ -719,16 +712,15 @@ tests = do
 
 
 
-shouldRenderTo renderFunction expectedHtml = Blaze.renderMarkup renderFunction `shouldBe` expectedHtml
+shouldRenderTo renderFunction expectedHtml = renderMarkupText renderFunction `shouldBe` expectedHtml
 
 {-| Mock a Controller context with CSSFramework.
 -}
-createControllerContextWithCSSFramework :: Typeable option => option -> IO ControllerContext
+createControllerContextWithCSSFramework :: Typeable option => option -> IO Wai.Request
 createControllerContextWithCSSFramework cssFramework = do
-    frameworkConfig <- FrameworkConfig.buildFrameworkConfig do
+    frameworkConfig <- FrameworkConfig.buildFrameworkConfig noopLogger do
                 option cssFramework
-    let requestBody = FormBody { params = [], files = [] }
+    let requestBody = FormBody { params = [], files = [], rawPayload = "" }
     let request = Wai.defaultRequest { Wai.vault = Vault.insert IHP.RequestVault.frameworkConfigVaultKey frameworkConfig
                                                  $ Vault.insert IHP.RequestVault.requestBodyVaultKey requestBody Vault.empty }
-    let customFields = TypeMap.insert request TypeMap.empty
-    pure FrozenControllerContext { customFields }
+    pure request

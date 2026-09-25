@@ -1,11 +1,10 @@
-module Test.ServerSpec where
+module ServerSpec where
 
 import IHP.Prelude
 import Test.Hspec
 import Network.Wai
 import Network.Wai.Test
 import Network.HTTP.Types
-import qualified Data.ByteString.Lazy as LBS
 
 import IHP.Static (staticRouteShortcut)
 import Network.Wai.Middleware.AssetPath (assetPathMiddleware, assetPath)

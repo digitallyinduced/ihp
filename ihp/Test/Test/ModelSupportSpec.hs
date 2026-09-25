@@ -7,11 +7,11 @@ module Test.ModelSupportSpec where
 import Test.Hspec
 import IHP.Prelude
 import IHP.ModelSupport
+import Data.Bits ((.&.), (.|.))
 import qualified Data.Aeson as Aeson
 import qualified Data.Dynamic as Dynamic
 import Text.Read (read)
 import Data.Scientific (Scientific)
-import qualified Database.PostgreSQL.Simple.ToField as PG
 
 tests = do
     describe "ModelSupport" do
@@ -114,28 +114,28 @@ tests = do
                 (project |> set #name "Test" |> didChange #name) `shouldBe` False
                 (project |> didChange #id) `shouldBe` False
 
-        describe "withRLSParams" do
-            it "should do nothing if RLS is disabled" do
-                let query = "select 1"
-                let params = ([] :: [PG.Action])
-                let ?modelContext = notConnectedModelContext undefined
-                (withRLSParams (\query params -> (query, params)) query params) `shouldBe` (query, params)
-            
-            it "should add the RLS boilerplate if RLS is enabled" do
-                let query = "select ?"
-                let params = [PG.toField (1337 :: Int)]
-                let rowLevelSecurity = RowLevelSecurityContext { rlsAuthenticatedRole = "ihp_authenticated", rlsUserId = PG.toField ("userId" :: Text) }
-                let ?modelContext = (notConnectedModelContext undefined) { rowLevelSecurity = Just rowLevelSecurity }
-                (withRLSParams (\query params -> (query, params)) query params) `shouldBe`
-                        ( "SET LOCAL ROLE ?; SET LOCAL rls.ihp_user_id = ?; select ?"
-                        , [ PG.EscapeIdentifier "ihp_authenticated", PG.Escape "userId", PG.Plain "1337" ]
-                        )
+        describe "copyRecord" do
+            it "should mark all fields except id as touched" do
+                let project = Project { id = 1, name = "Test", meta = def }
+                let copied = copyRecord project
+                copied.id `shouldBe` 0  -- reset to Default
+                copied.name `shouldBe` "Test"  -- preserved
+                -- id bit (1) should NOT be set, name bit (2) should be set
+                copied.meta.touchedFields .&. 1 `shouldBe` 0
+                copied.meta.touchedFields .&. 2 `shouldBe` 2
 
-instance Eq PG.Action where
-    a == b = tshow a == tshow b
 
 data Project = Project { id :: Int, name :: Text, meta :: MetaBag }
 instance SetField "id" Project Int where
-    setField value project@(Project { id, name, meta }) = project { Test.ModelSupportSpec.id = value, meta = meta { touchedFields = "id":(touchedFields meta) } }
+    setField value project@(Project { id, name, meta }) = project { Test.ModelSupportSpec.id = value, meta = meta { touchedFields = touchedFields meta .|. 1 } }
 instance SetField "name" Project Text where
-    setField value project@(Project { id, name, meta }) = project { name = value, meta = meta { touchedFields = "name":(touchedFields meta) } }
+    setField value project@(Project { id, name, meta }) = project { name = value, meta = meta { touchedFields = touchedFields meta .|. 2 } }
+instance SetField "meta" Project MetaBag where
+    setField value project = project { meta = value }
+instance FieldBit "id" Project where fieldBit = 1
+instance FieldBit "name" Project where fieldBit = 2
+
+type instance GetTableName Project = "projects"
+instance Table Project where
+    columnNames = ["id", "name"]
+    primaryKeyColumnNames = ["id"]

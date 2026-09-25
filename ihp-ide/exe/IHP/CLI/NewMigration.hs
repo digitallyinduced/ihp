@@ -15,9 +15,13 @@ main = withUtf8 do
     let doCreateMigration description = do
             (_, plan) <- MigrationGenerator.buildPlan description Nothing
             executePlan plan
-            let path = MigrationGenerator.migrationPathFromPlan plan
-            putStrLn $ "Created migration: " <> path
-            openEditor path 0 0
+            let paths = MigrationGenerator.migrationPathsFromPlan plan
+            case paths of
+                [path] -> putStrLn $ "Created migration: " <> path
+                _ -> do
+                    putStrLn "Created migrations:"
+                    forM_ paths (putStrLn . ("- " <>))
+            openEditor (MigrationGenerator.migrationPathFromPlan plan) 0 0
     
     args <- Posix.getArgs
     case headMay args of

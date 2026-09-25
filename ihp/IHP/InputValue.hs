@@ -16,7 +16,8 @@ import qualified Data.Aeson as Aeson
 import Data.Scientific (Scientific)
 import Data.String.Conversions (cs)
 import qualified Numeric
-import IHP.Postgres.TimeParser (PGInterval(..))
+import PostgresqlTypes.Interval (Interval)
+import PostgresqlTypes.Inet (Inet)
 
 -- | Provides a way to convert a Haskell value to a Text representation
 -- for use in HTML @\<input value="..."\/>@ attributes.
@@ -71,8 +72,11 @@ instance InputValue Day where
 instance InputValue TimeOfDay where
     inputValue timeOfDay = Text.pack (show timeOfDay)
 
-instance InputValue PGInterval where
-    inputValue (PGInterval pgInterval) = Text.pack (show pgInterval)
+instance InputValue Interval where
+    inputValue interval = Text.pack (show interval)
+
+instance InputValue Inet where
+    inputValue inet = Text.pack (show inet)
 
 instance InputValue fieldType => InputValue (Maybe fieldType) where
     inputValue (Just value) = inputValue value

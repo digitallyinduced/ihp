@@ -8,7 +8,6 @@ module IHP.RequestVault.Helper
 import Prelude
 import Data.IORef
 import Network.Wai
-import System.IO.Unsafe (unsafePerformIO)
 import qualified Data.Vault.Lazy as Vault
 import Data.Proxy
 import Data.Typeable
@@ -29,6 +28,7 @@ lookupRequestVault key req =
 -- | Like 'insertVaultMiddleware', but creates a fresh 'IORef' with the given
 -- default value on each request. Use this for mutable per-request state
 -- (e.g. response headers, modal containers).
+{-# INLINE insertNewIORefVaultMiddleware #-}
 insertNewIORefVaultMiddleware :: Vault.Key (IORef value) -> value -> Middleware
 insertNewIORefVaultMiddleware key defaultValue app req respond = do
     ref <- newIORef defaultValue

@@ -7,7 +7,6 @@ module IHP.GraphQL.Parser where
 
 import IHP.Prelude hiding (Type)
 import IHP.GraphQL.Types
-import qualified Data.Text as Text
 import Data.Attoparsec.Text
 import qualified Data.HashMap.Strict as HashMap
 

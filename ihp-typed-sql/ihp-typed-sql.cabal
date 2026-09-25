@@ -1,0 +1,112 @@
+cabal-version:       2.2
+name:                ihp-typed-sql
+version:             1.7.0
+synopsis:            Compile-time typed SQL quasiquoter for IHP
+description:         A quasiquoter that infers Haskell types from PostgreSQL at compile time.
+license:             MIT
+license-file:        LICENSE
+author:              digitally induced GmbH
+maintainer:          hello@digitallyinduced.com
+homepage:            https://ihp.digitallyinduced.com/
+bug-reports:         https://github.com/digitallyinduced/ihp/issues
+copyright:           (c) digitally induced GmbH
+category:            Web, IHP
+stability:           Experimental
+build-type:          Simple
+extra-source-files:  changelog.md
+
+common shared-properties
+    default-language: GHC2021
+    default-extensions:
+        OverloadedStrings
+        , NoImplicitPrelude
+        , ImplicitParams
+        , DisambiguateRecordFields
+        , DuplicateRecordFields
+        , OverloadedLabels
+        , DataKinds
+        , QuasiQuotes
+        , TypeFamilies
+        , PackageImports
+        , RecordWildCards
+        , DefaultSignatures
+        , FunctionalDependencies
+        , PartialTypeSignatures
+        , BlockArguments
+        , LambdaCase
+        , TemplateHaskell
+        , OverloadedRecordDot
+        , DeepSubsumption
+    ghc-options: -Werror=incomplete-patterns -Werror=unused-imports -Werror=missing-home-modules
+
+library
+    import: shared-properties
+    hs-source-dirs: .
+    exposed-modules:
+        IHP.TypedSql
+        IHP.TypedSql.Hasql
+        IHP.TypedSql.Types
+        IHP.TypedSql.Pagination
+        IHP.TypedSql.Quoter
+        IHP.TypedSql.Placeholders
+        IHP.TypedSql.ParamHints
+        IHP.TypedSql.ParamEncoder
+        IHP.TypedSql.Metadata
+        IHP.TypedSql.TypeMapping
+        IHP.TypedSql.Decoders
+        IHP.TypedSql.RowType
+    other-modules:
+        IHP.TypedSql.Cardinality
+        IHP.TypedSql.CompileTimeDatabase
+    build-depends:
+            base >= 4.17.0 && < 4.23
+            , ihp
+            , aeson
+            , bytestring
+            , containers
+            , directory
+            , filepath
+            , hasql
+            , hasql-dynamic-statements
+            , hasql-implicits
+            , hasql-mapping
+            , hasql-pool
+            , haskell-src-meta
+            , postgresql-syntax >= 0.5.0.3 && < 0.6
+            , postgresql-types
+            , postgresql-libpq
+            , process
+            , scientific
+            , string-conversions
+            , template-haskell
+            , temporary
+            , text
+            , unix
+            , wai
+
+source-repository head
+    type:     git
+    location: https://github.com/digitallyinduced/ihp
+
+test-suite tests
+    import: shared-properties
+    type: exitcode-stdio-1.0
+    main-is: Test/Main.hs
+    hs-source-dirs: Test
+    ghc-options: -threaded
+    build-depends:
+            base >= 4.17.0 && < 4.23
+            , ihp
+            , fast-logger
+            , ihp-typed-sql
+            , containers
+            , directory
+            , filepath
+            , hspec
+            , process
+            , string-conversions
+            , temporary-ospath
+            , text
+            , unix
+    other-modules:
+        Test.TypedSqlSpec

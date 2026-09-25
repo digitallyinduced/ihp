@@ -31,7 +31,11 @@ newtype HaskellExprParser = HaskellExprParser Lexer.ParserOpts
 -- Call this once and reuse for every @{expr}@ splice in the template.
 mkHaskellExprParser :: [TH.Extension] -> HaskellExprParser
 mkHaskellExprParser extensions = HaskellExprParser $
+#if __GLASGOW_HASKELL__ >= 914
+    Lexer.mkParserOpts (EnumSet.fromList extensions) diagOpts False False False False
+#else
     Lexer.mkParserOpts (EnumSet.fromList extensions) diagOpts [] False False False False
+#endif
 
 parseHaskellExpression :: HaskellExprParser -> SourcePos -> String -> Either (Int, Int, String) TH.Exp
 parseHaskellExpression (HaskellExprParser parserOpts) sourcePos input =

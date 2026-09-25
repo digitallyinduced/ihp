@@ -1,4 +1,5 @@
 {-# LANGUAGE UndecidableInstances #-}
+{-# LANGUAGE TypeApplications #-}
 {-# OPTIONS_GHC -Wno-orphans #-}
 {-|
 Module: IHP.Hasql.Encoders
@@ -13,34 +14,41 @@ fixed-width integer types ('Int16', 'Int32', 'Int64'), not Haskell's
 platform-dependent 'Int'. Since most IHP applications use 'Int' for
 integer columns, we provide these instances to make the transition seamless.
 -}
-module IHP.Hasql.Encoders () where
+module IHP.Hasql.Encoders
+( ToSnippetParams(..)
+, sqlToSnippet
+) where
 
 import Prelude
 import Data.Int (Int64)
 import Data.ByteString (ByteString)
+import qualified Data.ByteString.Char8 as BS8
 import Data.Text (Text)
-import Data.Word (Word32, Word8)
-import Data.Bits (shiftR)
+import qualified Data.Text.Encoding as Text
 import qualified Hasql.Encoders as Encoders
 import Hasql.Implicits.Encoders (DefaultParamEncoder(..))
-import Data.Functor.Contravariant (contramap, (>$<))
+import qualified Hasql.DynamicStatements.Snippet as Snippet
+import Hasql.DynamicStatements.Snippet (Snippet)
+import Database.PostgreSQL.Simple (Only(..), (:.)(..))
+import Data.Functor.Contravariant (contramap)
 import Data.Functor.Contravariant.Divisible (divide)
 import Data.Vector (Vector)
-import qualified Data.Vector as Vector
 import IHP.ModelSupport.Types (Id'(..), PrimaryKey)
-import Data.UUID (UUID)
 import Database.PostgreSQL.Simple.Types (Binary(..))
+import Data.String (fromString)
+import qualified Hasql.Decoders as Decoders
 import qualified Hasql.Mapping.IsScalar as Mapping
 import Hasql.PostgresqlTypes ()
-import qualified PostgresqlTypes.Point as PgPoint
-import qualified PostgresqlTypes.Polygon as PgPolygon
-import qualified PostgresqlTypes.Inet as PgInet
-import IHP.Postgres.Point (Point(..))
-import IHP.Postgres.Polygon (Polygon(..))
-import qualified Net.IP
-import qualified Net.IPv4
-import qualified Net.IPv6
-import qualified Data.WideWord.Word128 as Word128
+import PostgresqlTypes.Algebra (IsScalar (binaryDecoder, binaryEncoder, textualEncoder))
+import qualified PtrPeeker
+import qualified PtrPoker.Write as Write
+import qualified TextBuilder
+import PostgresqlTypes.Point (Point)
+import PostgresqlTypes.Polygon (Polygon)
+import PostgresqlTypes.Geometry (Geometry)
+import PostgresqlTypes.Inet (Inet)
+import PostgresqlTypes.Interval (Interval)
+import PostgresqlTypes.Tsvector (Tsvector)
 
 -- | Encode 'Int' as PostgreSQL int8 (bigint)
 --
@@ -66,49 +74,75 @@ instance DefaultParamEncoder [Maybe Int] where
 instance DefaultParamEncoder (Vector Int) where
     defaultParam = Encoders.nonNullable $ Encoders.foldableArray $ Encoders.nonNullable (contramap (fromIntegral :: Int -> Int64) Encoders.int8)
 
--- | Encode 'Id' table' for tables with UUID primary keys
--- This covers the common case in IHP where most tables use UUID as the primary key.
-instance PrimaryKey table ~ UUID => DefaultParamEncoder (Id' table) where
-    defaultParam = Encoders.nonNullable (contramap (\(Id uuid) -> uuid) Encoders.uuid)
+-- | Encode 'Id' table' for tables with any primary key type that has an 'IsScalar' instance.
+-- This covers UUID, Text, Int, and other primary key types.
+instance Mapping.IsScalar (PrimaryKey table) => DefaultParamEncoder (Id' table) where
+    defaultParam = Encoders.nonNullable (contramap (\(Id pk) -> pk) Mapping.encoder)
 
--- | Encode list of 'Id' table' for tables with UUID primary keys
--- Used by filterWhereIdIn for simple primary keys
-instance PrimaryKey table ~ UUID => DefaultParamEncoder [Id' table] where
-    defaultParam = Encoders.nonNullable $ Encoders.foldableArray $ Encoders.nonNullable (contramap (\(Id uuid) -> uuid) Encoders.uuid)
+-- | Encode list of 'Id' table' for tables with any encodable primary key type.
+-- Used by filterWhereIdIn for simple primary keys.
+instance Mapping.IsScalar (PrimaryKey table) => DefaultParamEncoder [Id' table] where
+    defaultParam = Encoders.nonNullable $ Encoders.foldableArray $ Encoders.nonNullable (contramap (\(Id pk) -> pk) Mapping.encoder)
 
--- | Encode 'Maybe (Id' table)' for nullable foreign keys
-instance PrimaryKey table ~ UUID => DefaultParamEncoder (Maybe (Id' table)) where
-    defaultParam = Encoders.nullable (contramap (\(Id uuid) -> uuid) Encoders.uuid)
+-- | Encode 'Maybe (Id' table)' for nullable foreign keys with any encodable primary key type.
+instance Mapping.IsScalar (PrimaryKey table) => DefaultParamEncoder (Maybe (Id' table)) where
+    defaultParam = Encoders.nullable (contramap (\(Id pk) -> pk) Mapping.encoder)
 
--- | Encode '[Maybe (Id' table)]' for filterWhereIn with nullable foreign keys
-instance PrimaryKey table ~ UUID => DefaultParamEncoder [Maybe (Id' table)] where
-    defaultParam = Encoders.nonNullable $ Encoders.foldableArray $ Encoders.nullable (contramap (\(Id uuid) -> uuid) Encoders.uuid)
-
--- | Encode '(UUID, UUID)' as PostgreSQL composite/record type
--- Used for composite primary keys with two UUID columns
-instance DefaultParamEncoder (UUID, UUID) where
-    defaultParam = Encoders.nonNullable $ Encoders.composite (Nothing :: Maybe Text) "" uuidPairComposite
-
--- | Encode '[(UUID, UUID)]' as PostgreSQL array of composite types
--- Used by filterWhereIdIn for tables with composite primary keys of two UUIDs
-instance DefaultParamEncoder [(UUID, UUID)] where
-    defaultParam = Encoders.nonNullable $ Encoders.foldableArray $ Encoders.nonNullable $ Encoders.composite (Nothing :: Maybe Text) "" uuidPairComposite
+-- | Encode '[Maybe (Id' table)]' for filterWhereIn with nullable foreign keys.
+instance Mapping.IsScalar (PrimaryKey table) => DefaultParamEncoder [Maybe (Id' table)] where
+    defaultParam = Encoders.nonNullable $ Encoders.foldableArray $ Encoders.nullable (contramap (\(Id pk) -> pk) Mapping.encoder)
 
 -- | Encode '(Id' a, Id' b)' as PostgreSQL composite/record type
--- Used for composite primary keys with two Id columns (where both resolve to UUID)
-instance (PrimaryKey a ~ UUID, PrimaryKey b ~ UUID) => DefaultParamEncoder (Id' a, Id' b) where
+-- Used for composite primary keys with two Id columns of any scalar PK type
+instance (Mapping.IsScalar (PrimaryKey a), Mapping.IsScalar (PrimaryKey b)) => DefaultParamEncoder (Id' a, Id' b) where
     defaultParam = Encoders.nonNullable $ Encoders.composite (Nothing :: Maybe Text) "" $
-        contramap (\(Id a, Id b) -> (a, b)) uuidPairComposite
+        divide (\(Id a, Id b) -> (a, b))
+            (Encoders.field (Encoders.nonNullable Mapping.encoder))
+            (Encoders.field (Encoders.nonNullable Mapping.encoder))
 
 -- | Encode '[(Id' a, Id' b)]' as PostgreSQL array of composite types
--- Used by filterWhereIdIn for tables with composite primary keys of two Id columns
-instance (PrimaryKey a ~ UUID, PrimaryKey b ~ UUID) => DefaultParamEncoder [(Id' a, Id' b)] where
+-- Used by filterWhereIdIn for tables with two-column composite primary keys
+instance (Mapping.IsScalar (PrimaryKey a), Mapping.IsScalar (PrimaryKey b)) => DefaultParamEncoder [(Id' a, Id' b)] where
     defaultParam = Encoders.nonNullable $ Encoders.foldableArray $ Encoders.nonNullable $ Encoders.composite (Nothing :: Maybe Text) "" $
-        contramap (\(Id a, Id b) -> (a, b)) uuidPairComposite
+        divide (\(Id a, Id b) -> (a, b))
+            (Encoders.field (Encoders.nonNullable Mapping.encoder))
+            (Encoders.field (Encoders.nonNullable Mapping.encoder))
 
--- | Helper: composite encoder for a pair of UUIDs
-uuidPairComposite :: Encoders.Composite (UUID, UUID)
-uuidPairComposite = divide id (Encoders.field (Encoders.nonNullable Encoders.uuid)) (Encoders.field (Encoders.nonNullable Encoders.uuid))
+-- | Encode '(Id' a, Id' b, Id' c)' as PostgreSQL composite/record type
+-- Used for composite primary keys with three Id columns of any scalar PK type
+instance (Mapping.IsScalar (PrimaryKey a), Mapping.IsScalar (PrimaryKey b), Mapping.IsScalar (PrimaryKey c)) => DefaultParamEncoder (Id' a, Id' b, Id' c) where
+    defaultParam = Encoders.nonNullable $ Encoders.composite (Nothing :: Maybe Text) "" $
+        divide (\(Id a, Id b, Id c) -> (a, (b, c)))
+            (Encoders.field (Encoders.nonNullable Mapping.encoder))
+            (divide id (Encoders.field (Encoders.nonNullable Mapping.encoder)) (Encoders.field (Encoders.nonNullable Mapping.encoder)))
+
+-- | Encode '[(Id' a, Id' b, Id' c)]' as PostgreSQL array of composite types
+-- Used by filterWhereIdIn for tables with three-column composite primary keys
+instance (Mapping.IsScalar (PrimaryKey a), Mapping.IsScalar (PrimaryKey b), Mapping.IsScalar (PrimaryKey c)) => DefaultParamEncoder [(Id' a, Id' b, Id' c)] where
+    defaultParam = Encoders.nonNullable $ Encoders.foldableArray $ Encoders.nonNullable $ Encoders.composite (Nothing :: Maybe Text) "" $
+        divide (\(Id a, Id b, Id c) -> (a, (b, c)))
+            (Encoders.field (Encoders.nonNullable Mapping.encoder))
+            (divide id (Encoders.field (Encoders.nonNullable Mapping.encoder)) (Encoders.field (Encoders.nonNullable Mapping.encoder)))
+
+-- | Encode '(Id' a, Id' b, Id' c, Id' d)' as PostgreSQL composite/record type
+-- Used for composite primary keys with four Id columns of any scalar PK type
+instance (Mapping.IsScalar (PrimaryKey a), Mapping.IsScalar (PrimaryKey b), Mapping.IsScalar (PrimaryKey c), Mapping.IsScalar (PrimaryKey d)) => DefaultParamEncoder (Id' a, Id' b, Id' c, Id' d) where
+    defaultParam = Encoders.nonNullable $ Encoders.composite (Nothing :: Maybe Text) "" $
+        divide (\(Id a, Id b, Id c, Id d) -> (a, (b, c, d)))
+            (Encoders.field (Encoders.nonNullable Mapping.encoder))
+            (divide (\(b, c, d) -> (b, (c, d)))
+                (Encoders.field (Encoders.nonNullable Mapping.encoder))
+                (divide id (Encoders.field (Encoders.nonNullable Mapping.encoder)) (Encoders.field (Encoders.nonNullable Mapping.encoder))))
+
+-- | Encode '[(Id' a, Id' b, Id' c, Id' d)]' as PostgreSQL array of composite types
+-- Used by filterWhereIdIn for tables with four-column composite primary keys
+instance (Mapping.IsScalar (PrimaryKey a), Mapping.IsScalar (PrimaryKey b), Mapping.IsScalar (PrimaryKey c), Mapping.IsScalar (PrimaryKey d)) => DefaultParamEncoder [(Id' a, Id' b, Id' c, Id' d)] where
+    defaultParam = Encoders.nonNullable $ Encoders.foldableArray $ Encoders.nonNullable $ Encoders.composite (Nothing :: Maybe Text) "" $
+        divide (\(Id a, Id b, Id c, Id d) -> (a, (b, c, d)))
+            (Encoders.field (Encoders.nonNullable Mapping.encoder))
+            (divide (\(b, c, d) -> (b, (c, d)))
+                (Encoders.field (Encoders.nonNullable Mapping.encoder))
+                (divide id (Encoders.field (Encoders.nonNullable Mapping.encoder)) (Encoders.field (Encoders.nonNullable Mapping.encoder))))
 
 -- | Encode 'Binary ByteString' as PostgreSQL bytea
 -- IHP wraps bytea columns in Binary, so we need to unwrap before encoding
@@ -128,61 +162,148 @@ instance DefaultParamEncoder Integer where
 instance DefaultParamEncoder (Maybe Integer) where
     defaultParam = Encoders.nullable (contramap fromInteger Encoders.int8)
 
--- | Encode IHP 'Point' as PostgreSQL point via postgresql-types binary encoder
+-- | Encode 'Point' as PostgreSQL point via postgresql-types binary encoder
 instance DefaultParamEncoder Point where
-    defaultParam = Encoders.nonNullable (contramap ihpPointToPg Mapping.encoder)
-      where
-        ihpPointToPg :: Point -> PgPoint.Point
-        ihpPointToPg (Point x y) = PgPoint.fromCoordinates x y
+    defaultParam = Encoders.nonNullable Mapping.encoder
 
 -- | Encode 'Maybe Point' as nullable PostgreSQL point
 instance DefaultParamEncoder (Maybe Point) where
-    defaultParam = Encoders.nullable (contramap ihpPointToPg Mapping.encoder)
-      where
-        ihpPointToPg :: Point -> PgPoint.Point
-        ihpPointToPg (Point x y) = PgPoint.fromCoordinates x y
+    defaultParam = Encoders.nullable Mapping.encoder
 
--- | Encode IHP 'Polygon' as PostgreSQL polygon via postgresql-types binary encoder
+-- | Encode 'Polygon' as PostgreSQL polygon via postgresql-types binary encoder
 instance DefaultParamEncoder Polygon where
-    defaultParam = Encoders.nonNullable (contramap ihpPolygonToPg Mapping.encoder)
-      where
-        ihpPolygonToPg :: Polygon -> PgPolygon.Polygon
-        ihpPolygonToPg (Polygon points) =
-            case PgPolygon.refineFromPointList (map (\(Point x y) -> (x, y)) points) of
-                Just pg -> pg
-                Nothing -> error "Polygon must have at least 3 points"
+    defaultParam = Encoders.nonNullable Mapping.encoder
 
 -- | Encode 'Maybe Polygon' as nullable PostgreSQL polygon
 instance DefaultParamEncoder (Maybe Polygon) where
-    defaultParam = Encoders.nullable (contramap ihpPolygonToPg Mapping.encoder)
-      where
-        ihpPolygonToPg :: Polygon -> PgPolygon.Polygon
-        ihpPolygonToPg (Polygon points) =
-            case PgPolygon.refineFromPointList (map (\(Point x y) -> (x, y)) points) of
-                Just pg -> pg
-                Nothing -> error "Polygon must have at least 3 points"
+    defaultParam = Encoders.nullable Mapping.encoder
 
--- | Encode 'Net.IP.IP' as PostgreSQL inet via postgresql-types binary encoder
-instance DefaultParamEncoder Net.IP.IP where
-    defaultParam = Encoders.nonNullable (contramap ipToInet Mapping.encoder)
+-- | 'Hasql.Mapping.IsScalar' bridge for 'Geometry'.
+--
+-- 'Hasql.PostgresqlTypes' ships these instances for every standard
+-- 'postgresql-types' type, but has not yet added 'Geometry' (merged upstream
+-- in nikita-volkov/postgresql-types#69). This mirrors
+-- 'Hasql.PostgresqlTypes.Core' until that package catches up.
+--
+-- Because the PostGIS extension assigns the @geometry@ OID dynamically at
+-- @CREATE EXTENSION@ time, no static OIDs are provided and hasql resolves
+-- the type by @typeName@ at query time.
+instance Mapping.IsScalar Geometry where
+    encoder =
+        Encoders.custom
+            Nothing
+            "geometry"
+            Nothing
+            []
+            (\_ value -> Write.toByteString (binaryEncoder value))
+            (TextBuilder.toText . textualEncoder)
+    decoder =
+        Decoders.custom
+            Nothing
+            "geometry"
+            Nothing
+            []
+            ( \_ bytes ->
+                case PtrPeeker.runVariableOnByteString (binaryDecoder @Geometry) bytes of
+                    Left bytesUnconsumed ->
+                        Left ("Binary decoder did not consume all input bytes, unconsumed bytes: " <> fromString (show bytesUnconsumed))
+                    Right (Left err) -> Left (fromString (show err))
+                    Right (Right value) -> Right value
+            )
 
--- | Encode 'Maybe Net.IP.IP' as nullable PostgreSQL inet
-instance DefaultParamEncoder (Maybe Net.IP.IP) where
-    defaultParam = Encoders.nullable (contramap ipToInet Mapping.encoder)
+-- | Encode 'Geometry' as a PostGIS geometry via postgresql-types binary encoder.
+--   The OID is resolved by name at query time since the PostGIS extension
+--   assigns it dynamically.
+instance DefaultParamEncoder Geometry where
+    defaultParam = Encoders.nonNullable Mapping.encoder
 
--- | Convert 'Net.IP.IP' to 'PostgresqlTypes.Inet.Inet'
-ipToInet :: Net.IP.IP -> PgInet.Inet
-ipToInet ip = Net.IP.case_ ipv4ToInet ipv6ToInet ip
+-- | Encode 'Maybe Geometry' as a nullable PostGIS geometry
+instance DefaultParamEncoder (Maybe Geometry) where
+    defaultParam = Encoders.nullable Mapping.encoder
+
+-- | Encode 'Interval' as PostgreSQL interval via postgresql-types binary encoder
+instance DefaultParamEncoder Interval where
+    defaultParam = Encoders.nonNullable Mapping.encoder
+
+-- | Encode 'Maybe Interval' as nullable PostgreSQL interval
+instance DefaultParamEncoder (Maybe Interval) where
+    defaultParam = Encoders.nullable Mapping.encoder
+
+-- | Encode 'Tsvector' as PostgreSQL tsvector via postgresql-types binary encoder
+instance DefaultParamEncoder Tsvector where
+    defaultParam = Encoders.nonNullable Mapping.encoder
+
+-- | Encode 'Maybe Tsvector' as nullable PostgreSQL tsvector
+instance DefaultParamEncoder (Maybe Tsvector) where
+    defaultParam = Encoders.nullable Mapping.encoder
+
+-- | Encode 'Inet' as PostgreSQL inet via postgresql-types binary encoder
+instance DefaultParamEncoder Inet where
+    defaultParam = Encoders.nonNullable Mapping.encoder
+
+-- | Encode 'Maybe Inet' as nullable PostgreSQL inet
+instance DefaultParamEncoder (Maybe Inet) where
+    defaultParam = Encoders.nullable Mapping.encoder
+
+-- | Converts parameter tuples into a list of hasql 'Snippet' values.
+--
+-- This mirrors postgresql-simple's 'ToRow' typeclass, allowing @sqlQuery@ and @sqlExec@
+-- to use hasql's native parameterized queries instead of 'PG.formatQuery'.
+class ToSnippetParams a where
+    toSnippetParams :: a -> [Snippet]
+
+instance ToSnippetParams () where
+    toSnippetParams () = []
+
+instance DefaultParamEncoder a => ToSnippetParams (Only a) where
+    toSnippetParams (Only a) = [Snippet.param a]
+
+instance (DefaultParamEncoder a, DefaultParamEncoder b) => ToSnippetParams (a, b) where
+    toSnippetParams (a, b) = [Snippet.param a, Snippet.param b]
+
+instance (DefaultParamEncoder a, DefaultParamEncoder b, DefaultParamEncoder c) => ToSnippetParams (a, b, c) where
+    toSnippetParams (a, b, c) = [Snippet.param a, Snippet.param b, Snippet.param c]
+
+instance (DefaultParamEncoder a, DefaultParamEncoder b, DefaultParamEncoder c, DefaultParamEncoder d) => ToSnippetParams (a, b, c, d) where
+    toSnippetParams (a, b, c, d) = [Snippet.param a, Snippet.param b, Snippet.param c, Snippet.param d]
+
+instance (DefaultParamEncoder a, DefaultParamEncoder b, DefaultParamEncoder c, DefaultParamEncoder d, DefaultParamEncoder e) => ToSnippetParams (a, b, c, d, e) where
+    toSnippetParams (a, b, c, d, e) = [Snippet.param a, Snippet.param b, Snippet.param c, Snippet.param d, Snippet.param e]
+
+instance (DefaultParamEncoder a, DefaultParamEncoder b, DefaultParamEncoder c, DefaultParamEncoder d, DefaultParamEncoder e, DefaultParamEncoder f) => ToSnippetParams (a, b, c, d, e, f) where
+    toSnippetParams (a, b, c, d, e, f) = [Snippet.param a, Snippet.param b, Snippet.param c, Snippet.param d, Snippet.param e, Snippet.param f]
+
+instance (DefaultParamEncoder a, DefaultParamEncoder b, DefaultParamEncoder c, DefaultParamEncoder d, DefaultParamEncoder e, DefaultParamEncoder f, DefaultParamEncoder g) => ToSnippetParams (a, b, c, d, e, f, g) where
+    toSnippetParams (a, b, c, d, e, f, g) = [Snippet.param a, Snippet.param b, Snippet.param c, Snippet.param d, Snippet.param e, Snippet.param f, Snippet.param g]
+
+instance (DefaultParamEncoder a, DefaultParamEncoder b, DefaultParamEncoder c, DefaultParamEncoder d, DefaultParamEncoder e, DefaultParamEncoder f, DefaultParamEncoder g, DefaultParamEncoder h) => ToSnippetParams (a, b, c, d, e, f, g, h) where
+    toSnippetParams (a, b, c, d, e, f, g, h) = [Snippet.param a, Snippet.param b, Snippet.param c, Snippet.param d, Snippet.param e, Snippet.param f, Snippet.param g, Snippet.param h]
+
+instance (DefaultParamEncoder a, DefaultParamEncoder b, DefaultParamEncoder c, DefaultParamEncoder d, DefaultParamEncoder e, DefaultParamEncoder f, DefaultParamEncoder g, DefaultParamEncoder h, DefaultParamEncoder i) => ToSnippetParams (a, b, c, d, e, f, g, h, i) where
+    toSnippetParams (a, b, c, d, e, f, g, h, i) = [Snippet.param a, Snippet.param b, Snippet.param c, Snippet.param d, Snippet.param e, Snippet.param f, Snippet.param g, Snippet.param h, Snippet.param i]
+
+instance (DefaultParamEncoder a, DefaultParamEncoder b, DefaultParamEncoder c, DefaultParamEncoder d, DefaultParamEncoder e, DefaultParamEncoder f, DefaultParamEncoder g, DefaultParamEncoder h, DefaultParamEncoder i, DefaultParamEncoder j) => ToSnippetParams (a, b, c, d, e, f, g, h, i, j) where
+    toSnippetParams (a, b, c, d, e, f, g, h, i, j) = [Snippet.param a, Snippet.param b, Snippet.param c, Snippet.param d, Snippet.param e, Snippet.param f, Snippet.param g, Snippet.param h, Snippet.param i, Snippet.param j]
+
+-- | Append two parameter lists (mirrors postgresql-simple's ':.' operator)
+instance (ToSnippetParams a, ToSnippetParams b) => ToSnippetParams (a :. b) where
+    toSnippetParams (a :. b) = toSnippetParams a <> toSnippetParams b
+
+-- | Converts a SQL query with @?@ placeholders and a list of 'Snippet' parameters
+-- into a single 'Snippet' with native hasql @$1, $2, ...@ parameterization.
+--
+-- This mirrors postgresql-simple's @?@ placeholder convention.
+--
+-- __Example:__
+--
+-- > sqlToSnippet "SELECT * FROM users WHERE id = ? AND name = ?" [Snippet.param id, Snippet.param name]
+-- > -- becomes: Snippet.sql "SELECT * FROM users WHERE id = " <> Snippet.param id <> Snippet.sql " AND name = " <> Snippet.param name
+--
+sqlToSnippet :: ByteString -> [Snippet] -> Snippet
+sqlToSnippet sql params = mconcat (interleave sqlParts params)
   where
-    ipv4ToInet :: Net.IPv4.IPv4 -> PgInet.Inet
-    ipv4ToInet addr = PgInet.normalizeFromV4 (Net.IPv4.getIPv4 addr) 32
-    ipv6ToInet :: Net.IPv6.IPv6 -> PgInet.Inet
-    ipv6ToInet addr =
-        let w128 = Net.IPv6.getIPv6 addr
-            hi = Word128.word128Hi64 w128
-            lo = Word128.word128Lo64 w128
-            a = fromIntegral (hi `shiftR` 32)
-            b = fromIntegral hi
-            c = fromIntegral (lo `shiftR` 32)
-            d = fromIntegral lo
-        in PgInet.normalizeFromV6 a b c d 128
+    sqlParts = map (Snippet.sql . Text.decodeUtf8) (BS8.split '?' sql)
+    interleave (s:ss) (p:ps) = s : p : interleave ss ps
+    interleave ss [] = ss
+    interleave [] _ = []
+{-# INLINE sqlToSnippet #-}

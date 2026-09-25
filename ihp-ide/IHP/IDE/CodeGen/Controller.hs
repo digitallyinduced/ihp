@@ -34,12 +34,30 @@ instance Controller CodeGenController where
         let controllerName = paramOrDefault "" "name"
         let applicationName = paramOrDefault "Web" "applicationName"
         let pagination = paramOrDefault False "pagination"
+        let indexAction = paramOrDefault True "indexAction"
+        let newAction = paramOrDefault True "newAction"
+        let showAction = paramOrDefault True "showAction"
+        let createAction = paramOrDefault True "createAction"
+        let editAction = paramOrDefault True "editAction"
+        let updateAction = paramOrDefault True "updateAction"
+        let deleteAction = paramOrDefault True "deleteAction"
         controllerAlreadyExists <- doesControllerExist controllerName applicationName
         applications <- findApplications
         when controllerAlreadyExists do
             setErrorMessage "Controller with this name does already exist."
-            redirectTo NewControllerAction
-        plan <- ControllerGenerator.buildPlan controllerName applicationName pagination
+            earlyReturn $ redirectTo NewControllerAction
+        let config = ControllerGenerator.defaultControllerConfig
+                { ControllerGenerator.applicationName = applicationName
+                , ControllerGenerator.paginationEnabled = pagination
+                , ControllerGenerator.indexActionEnabled = indexAction
+                , ControllerGenerator.newActionEnabled = newAction
+                , ControllerGenerator.showActionEnabled = showAction
+                , ControllerGenerator.createActionEnabled = createAction
+                , ControllerGenerator.editActionEnabled = editAction
+                , ControllerGenerator.updateActionEnabled = updateAction
+                , ControllerGenerator.deleteActionEnabled = deleteAction
+                }
+        plan <- ControllerGenerator.buildPlan controllerName config
         render NewControllerView { .. }
         where
             doesControllerExist controllerName applicationName = Directory.doesFileExist $ textToOsPath $ applicationName <> "/Controller/" <> controllerName <> ".hs"
@@ -48,7 +66,25 @@ instance Controller CodeGenController where
         let controllerName = param "name"
         let applicationName = param "applicationName"
         let pagination = paramOrDefault False "pagination"
-        (Right plan) <- ControllerGenerator.buildPlan controllerName applicationName pagination
+        let indexAction = paramOrDefault True "indexAction"
+        let newAction = paramOrDefault True "newAction"
+        let showAction = paramOrDefault True "showAction"
+        let createAction = paramOrDefault True "createAction"
+        let editAction = paramOrDefault True "editAction"
+        let updateAction = paramOrDefault True "updateAction"
+        let deleteAction = paramOrDefault True "deleteAction"
+        let config = ControllerGenerator.defaultControllerConfig
+                { ControllerGenerator.applicationName = applicationName
+                , ControllerGenerator.paginationEnabled = pagination
+                , ControllerGenerator.indexActionEnabled = indexAction
+                , ControllerGenerator.newActionEnabled = newAction
+                , ControllerGenerator.showActionEnabled = showAction
+                , ControllerGenerator.createActionEnabled = createAction
+                , ControllerGenerator.editActionEnabled = editAction
+                , ControllerGenerator.updateActionEnabled = updateAction
+                , ControllerGenerator.deleteActionEnabled = deleteAction
+                }
+        (Right plan) <- ControllerGenerator.buildPlan controllerName config
         executePlan plan
         setSuccessMessage "Controller generated"
         redirectTo GeneratorsAction
@@ -58,7 +94,7 @@ instance Controller CodeGenController where
         scriptAlreadyExists <- Directory.doesFileExist $ textToOsPath $ "Application/Script/" <> scriptName <> ".hs"
         when scriptAlreadyExists do
             setErrorMessage "Script with this name already exists."
-            redirectTo NewScriptAction
+            earlyReturn $ redirectTo NewScriptAction
         let plan = ScriptGenerator.buildPlan scriptName
         render NewScriptView { .. }
 
@@ -76,7 +112,7 @@ instance Controller CodeGenController where
         viewAlreadyExists <- Directory.doesFileExist $ textToOsPath $ applicationName <> "/View/" <> controllerName <> "/" <> viewName <> ".hs"
         when viewAlreadyExists do
             setErrorMessage "View with this name already exists."
-            redirectTo NewViewAction
+            earlyReturn $ redirectTo NewViewAction
         controllers <- findControllers applicationName
         applications <- findApplications
         plan <- ViewGenerator.buildPlan viewName applicationName controllerName
@@ -98,7 +134,7 @@ instance Controller CodeGenController where
         mailAlreadyExists <- Directory.doesFileExist $ textToOsPath $ applicationName <> "/Mail/" <> controllerName <> "/" <> mailName <> ".hs"
         when mailAlreadyExists do
             setErrorMessage "Mail with this name already exists."
-            redirectTo NewMailAction
+            earlyReturn $ redirectTo NewMailAction
         controllers <- findControllers applicationName
         applications <- findApplications
         plan <- MailGenerator.buildPlan mailName applicationName controllerName

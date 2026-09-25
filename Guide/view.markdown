@@ -6,7 +6,7 @@
 
 ## Introduction
 
-IHP views are usually represented as HTML, but can also be represented as JSON or other formats.
+IHP views are usually represented as HTML. For JSON responses, see the [JSON API guide](json-api.html).
 
 The HTML templating is implemented on top of the well-known blaze-html Haskell library. To quickly build HTML views, IHP supports a JSX-like syntax called HSX. HSX is type-checked and compiled to Haskell code at compile-time.
 
@@ -115,36 +115,41 @@ Here's some examples:
 
 In all of these cases you don't want to deal with passing the information to the layout inside every action of your application.
 
-The general idea is that we store the needed information inside the controller context. The controller context is an implicit parameter that is passed around via the `?context` variable during the request response lifecycle. Think of it as a key-value map which you can write to before rendering, and read from during the view rendering.
+The general idea is to store the needed information in the WAI request vault. A WAI middleware writes the value into the vault before your action runs; the layout reads it back through a small accessor function.
 
 Let's deal with the first case: Our business application wants to display the user's company name as part of the layout on every page.
 
-Open `Web/FrontController.hs` and customize it like this:
+First, define a vault key and a middleware that fills it in. Put this somewhere you can import from both the layout and `Config.hs`:
 
 ```haskell
--- Web/FrontController.hs
+-- Application/CompanyContext.hs
 
-instance InitControllerContext WebApplication where
-    initContext = do
-        -- ...
+import qualified Data.Vault.Lazy as Vault
+import Network.Wai (Middleware, Request, vault)
+import System.IO.Unsafe (unsafePerformIO)
+import IHP.RequestVault.Helper (insertVaultMiddleware, lookupRequestVault)
 
-        initCompanyContext -- <---- ADD THIS
+companyVaultKey :: Vault.Key (Maybe Company)
+companyVaultKey = unsafePerformIO Vault.newKey
+{-# NOINLINE companyVaultKey #-}
 
-initCompanyContext :: (?context :: ControllerContext, ?modelContext :: ModelContext) => IO ()
-initCompanyContext =
-    case currentUserOrNothing of
-        Just currentUser -> do
-            company <- fetch currentUser.companyId
+-- | Fetches the current user's company and stores it in the vault.
+companyMiddleware :: ModelContext -> Middleware
+companyMiddleware modelContext app req respond = do
+    let ?modelContext = modelContext
+    let ?request = req
+    company <- case currentUserOrNothing of
+        Just user -> Just <$> fetch user.companyId
+        Nothing -> pure Nothing
+    let req' = req { vault = Vault.insert companyVaultKey company (vault req) }
+    app req' respond
 
-            -- Here the magic happens: We put the company of the user into the context
-            putContext company
-
-        Nothing -> pure ()
+-- | Read the current company from any view or controller.
+currentCompany :: (?request :: Request) => Maybe Company
+currentCompany = fromMaybe Nothing (Vault.lookup companyVaultKey (vault ?request))
 ```
 
-The [`initContext`](https://ihp.digitallyinduced.com/api-docs/IHP-ControllerSupport.html#v:initContext) is called on every request, just before the action is executed. The `initCompanyContext` fetches the current user's company and then calls [`putContext company`](https://ihp.digitallyinduced.com/api-docs/IHP-Controller-Context.html#v:putContext) to store it inside the controller context.
-
-Next we'll read the company from the `Layout.hs`:
+Then wire `companyMiddleware` into your `Config/Config.hs` after `AuthMiddleware`, and read it from the layout:
 
 ```haskell
 -- Web/View/Layout.hs
@@ -153,27 +158,18 @@ defaultLayout :: Html -> Html
 defaultLayout inner = [hsx|
     {inner}
 
-    {when isLoggedIn renderCompany}
+    {forEach currentCompany renderCompany}
 |]
-    where
-        isLoggedIn = isJust currentUserOrNothing
 
-renderCompany :: Html
-renderCompany = [hsx|
+renderCompany :: Company -> Html
+renderCompany company = [hsx|
     <div class="company">
         {company.name}
     </div>
 |]
-
-company :: (?context :: ControllerContext) => Company
-company = fromFrozenContext
 ```
 
-Here the company is read by using the [`fromFrozenContext`](https://ihp.digitallyinduced.com/api-docs/IHP-Controller-Context.html#v:fromFrozenContext) function.
-
-You might wonder: How does [`fromFrozenContext`](https://ihp.digitallyinduced.com/api-docs/IHP-Controller-Context.html#v:fromFrozenContext) know that I want the company? The context is a key-value map, where the key's are the type of the object. Using the `company :: Company` type annotation the [`fromFrozenContext`](https://ihp.digitallyinduced.com/api-docs/IHP-Controller-Context.html#v:fromFrozenContext) knows we want to read the value with the key `Company`.
-
-Now the `company` variable can be used to read the current user's company across the layout and also in all views (you need to add `company` to the export list of the Layout module for that). If the `company` value is used somewhere during rendering while the user is not logged in, it will raise a runtime error.
+Why a vault key per piece of state? The request vault is the single source of truth for per-request data. A dedicated `Vault.Key Company` makes the dependency explicit, type-safe, and trivial to look up from any view or controller without going through the controller context.
 
 ## Common View Tasks
 
@@ -265,7 +261,34 @@ timeAgo post.createdAt -- "1 minute ago"
 dateTime post.createdAt -- "10.6.2019, 15:58"
 ```
 
-### Customizing Delete Confirmation
+### Delete Buttons
+
+Delete actions require a DELETE HTTP method, but browsers can only send GET and POST from plain HTML. There are two ways to handle this in IHP.
+
+#### Explicit Form Approach
+
+The most transparent way is to use a form with a hidden `_method` field. IHP's [Method Override Middleware](routing.html#method-override-middleware) converts this POST into a DELETE request:
+
+```haskell
+<form method="POST" action={DeleteToolAction tool.id}>
+    <input type="hidden" name="_method" value="DELETE"/>
+    <button type="submit" class="btn btn-danger">Delete Tool</button>
+</form>
+```
+
+This works without JavaScript and makes the HTTP method explicit.
+
+#### `js-delete` Shorthand
+
+IHP's generated code uses a shorthand: adding the `js-delete` CSS class to a link. IHP's JavaScript helpers intercept the click and submit a proper DELETE request via a dynamically created form:
+
+```haskell
+<a href={DeleteToolAction tool.id} class="js-delete">Delete Tool</a>
+```
+
+This is convenient but requires JavaScript. Note that `js-delete` is a special case — you cannot use plain links for other side-effect actions. See the [Actions with Side Effects](form.html#actions-with-side-effects) section in the Forms guide for details.
+
+#### Customizing Delete Confirmation
 
 By default, a message `Are you sure you want to delete this?` is shown as a simple confirmation alert with yes/no choices. The message text can be customized:
 
@@ -344,7 +367,7 @@ WRONG:
 
 RIGHT:
 <head>
-    <title>{pageTitleOrDefault "The default page title, can be overriden in views"}</title>
+    <title>{pageTitleOrDefault "The default page title, can be overridden in views"}</title>
 </head>
 ```
 
@@ -477,9 +500,9 @@ instance View IndexView where
     json IndexView { .. } = toJSON posts -- <---- The new json render function
 ```
 
-In the above code, our [`json`](https://ihp.digitallyinduced.com/api-docs/IHP-ViewSupport.html#v:json) function has access to all arguments passed to the view. Here we call [`toJSON`](https://ihp.digitallyinduced.com/api-docs/IHP-ViewPrelude.html#v:toJSON), which is provided by the [aeson](https://hackage.haskell.org/package/aeson) Haskell library. This simply encodes all the `posts` given to this view as JSON.
+In the above code, our [`json`](https://ihp.digitallyinduced.com/api-docs/IHP-ViewSupport.html#v:json) function has access to all arguments passed to the view. Here we call `toJSON`, which is provided by the [aeson](https://hackage.haskell.org/package/aeson) Haskell library. This simply encodes all the `posts` given to this view as JSON.
 
-Additionally we need to define a [`ToJSON`](https://ihp.digitallyinduced.com/api-docs/IHP-ViewPrelude.html#t:ToJSON) instance which describes how the `Post` record is going to be transformed to JSON. We need to add this to our view:
+Additionally we need to define a `ToJSON` instance which describes how the `Post` record is going to be transformed to JSON. We need to add this to our view:
 
 ```haskell
 instance ToJSON Post where
@@ -587,4 +610,59 @@ instance ToJSON Post where
 
 In this example, no content negotiation takes place as the [`renderJson`](https://ihp.digitallyinduced.com/api-docs/IHP-Controller-Render.html#v:renderJson) is used instead of the normal `render` function.
 
-The [`ToJSON`](https://ihp.digitallyinduced.com/api-docs/IHP-ViewPrelude.html#t:ToJSON) instances have to be defined somewhere, so it's usually placed inside the controller file. This often makes the file harder to read. We recommend not using [`renderJson`](https://ihp.digitallyinduced.com/api-docs/IHP-Controller-Render.html#v:renderJson) most times and instead stick with a separate view file as described in the section above. Using [`renderJson`](https://ihp.digitallyinduced.com/api-docs/IHP-Controller-Render.html#v:renderJson) makes sense only when the controller is very small or you already have a predefined [`ToJSON`](https://ihp.digitallyinduced.com/api-docs/IHP-ViewPrelude.html#t:ToJSON) instance which is not defined in your controller.
+The `ToJSON` instances have to be defined somewhere, so it's usually placed inside the controller file. This often makes the file harder to read. We recommend not using [`renderJson`](https://ihp.digitallyinduced.com/api-docs/IHP-Controller-Render.html#v:renderJson) most times and instead stick with a separate view file as described in the section above. Using [`renderJson`](https://ihp.digitallyinduced.com/api-docs/IHP-Controller-Render.html#v:renderJson) makes sense only when the controller is very small or you already have a predefined `ToJSON` instance which is not defined in your controller.
+
+## Troubleshooting
+
+### HSX Parse Errors
+
+```
+ihp-hsx: Unexpected tag closing, expected </div> but got </span>
+```
+
+HSX requires valid, well-formed HTML. Common causes include unclosed tags, mismatched opening/closing tags, or self-closing tags that are not written correctly. Check that every opening tag has a matching closing tag and that they are properly nested. Void elements like `<br>`, `<hr>`, and `<input>` should not have closing tags.
+
+### "Variable not in scope" in HSX
+
+```
+Variable not in scope: userName :: Text
+```
+
+This means you are using a variable inside `[hsx|...|]` that is not available in the current scope. Either the variable was not passed to the view data structure, it has a typo, or it was not destructured in the pattern match. Make sure it is a field in your view and that you use `{ .. }` to bring all fields into scope:
+
+```haskell
+instance View ShowView where
+    html ShowView { .. } = [hsx|Hello {userName}|]
+    -- The { .. } wildcard brings all fields of ShowView into scope
+```
+
+### "No instance for (View ...)"
+
+```
+No instance for (View ShowView)
+```
+
+You defined the view data structure but forgot to implement the `View` instance. Add the instance with at least the `html` function:
+
+```haskell
+instance View ShowView where
+    html ShowView { .. } = [hsx|...|]
+```
+
+### Blank Page (Layout Not Applied)
+
+If your view renders but you see a blank or unstyled page, the layout may not be applied. Check these:
+
+1. Make sure `Web/View/Layout.hs` exports `defaultLayout` and that it is set in `Web/FrontController.hs`:
+
+    ```haskell
+    instance InitControllerContext WebApplication where
+        initContext = do
+            setLayout defaultLayout
+    ```
+
+2. Verify your view module imports `Web.View.Prelude` (not just `IHP.Prelude`), since the view prelude brings layout-related functions into scope.
+
+### HTML Not Updating After a Change
+
+If you change your view code but the browser still shows the old version, this is typically a caching issue. In development mode, IHP uses diff-based DOM patching which usually handles this automatically. Try a hard refresh in your browser (`Cmd+Shift+R` on macOS, `Ctrl+Shift+R` on Linux/Windows). In production, TurboLinks may cache the page -- you can add `data-turbolinks-preload="false"` to specific links, or clear the TurboLinks cache with `Turbolinks.clearCache()` from JavaScript.

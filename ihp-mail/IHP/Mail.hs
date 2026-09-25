@@ -7,6 +7,7 @@ module IHP.Mail
 ( MailServer (..)
 , BuildMail (..)
 , SMTPEncryption (..)
+, buildMail
 , sendMail
 , sendWithMailServer
 )
@@ -21,16 +22,17 @@ import qualified Network.Mail.Mime.SES                as Mailer
 import qualified Network.Mail.SMTP                    as SMTP
 import qualified Network.HTTP.Client
 import qualified Network.HTTP.Client.TLS
-import Text.Blaze.Html5 (Html)
-import qualified Text.Blaze.Html.Renderer.Text as Blaze
+import IHP.HSX.Markup (Markup, renderMarkupText, renderMarkupLazyText)
 import qualified Data.Text as Text
 import Data.Maybe
 import qualified Data.TMap as TMap
 
+type Html = Markup
+
 buildMail :: (BuildMail mail, ?context :: context, ConfigProvider context) => mail -> Mail
 buildMail mail =
     let ?mail = mail in
-    let mail' = simpleMailInMemory (to mail) from subject (cs $ text mail) (html mail |> Blaze.renderHtml) attachments' in
+    let mail' = simpleMailInMemory (to mail) from subject (cs $ text mail) (html mail |> renderMarkupLazyText) attachments' in
     mail' { mailCc      = cc mail
           , mailBcc     = bcc mail
           , mailHeaders = ("Subject", subject) : h
@@ -151,7 +153,7 @@ class BuildMail mail where
 
     -- | When no plain text version of the email is specified it falls back to using the html version but striping out all the html tags
     text :: (?context :: context, ConfigProvider context) => mail -> Text
-    text mail = stripTags (cs $ Blaze.renderHtml (html mail))
+    text mail = stripTags (renderMarkupText (html mail))
 
     -- | Optional, mail attachments
     --

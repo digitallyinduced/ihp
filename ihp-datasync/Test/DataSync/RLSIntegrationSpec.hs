@@ -1,4 +1,4 @@
-module Test.DataSync.RLSIntegrationSpec where
+module DataSync.RLSIntegrationSpec where
 
 import Test.Hspec
 import IHP.Prelude hiding (head)

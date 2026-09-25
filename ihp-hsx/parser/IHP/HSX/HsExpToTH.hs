@@ -46,8 +46,10 @@ toLit (HsIntPrim _ i) = TH.IntPrimL i
 toLit (HsWordPrim _ i) = TH.WordPrimL i
 toLit (HsInt64Prim _ i) = TH.IntegerL i
 toLit (HsWord64Prim _ i) = TH.WordPrimL i
+#if __GLASGOW_HASKELL__ < 914
 toLit (HsInteger _ i _) = TH.IntegerL i
 toLit (HsRat _ f _) = TH.FloatPrimL (fl_value f)
+#endif
 toLit (HsFloatPrim _ f) = TH.FloatPrimL (fl_value f)
 toLit (HsDoublePrim _ f) = TH.DoublePrimL (fl_value f)
 #if __GLASGOW_HASKELL__ >= 912
@@ -97,7 +99,7 @@ toPat (ParPat xP _ lP _) = (toPat . unLoc) lP
 toPat (ConPat pat_con_ext ((unLoc -> name)) pat_args) = TH.ConP (toName name) (map toType []) (map (toPat . unLoc) (Pat.hsConPatArgs pat_args))
 toPat (ViewPat pat_con pat_args pat_con_ext) = error "TH.ViewPattern not implemented"
 toPat (SumPat _ _ _ _) = error "TH.SumPat not implemented"
-toPat (WildPat _ ) = error "TH.WildPat not implemented"
+toPat (WildPat _) = TH.WildP
 toPat (NPat _ _ _ _ ) = error "TH.NPat not implemented"
 toPat p = todo "toPat" p
 
@@ -108,7 +110,9 @@ toExp (Expr.HsVar _ n) =
         then TH.ConE (toName n')
         else TH.VarE (toName n')
 
-#if __GLASGOW_HASKELL__ >= 906
+#if __GLASGOW_HASKELL__ >= 914
+toExp (Expr.HsHole _)                      = TH.UnboundVarE (TH.mkName "_")
+#elif __GLASGOW_HASKELL__ >= 906
 toExp (Expr.HsUnboundVar _ n)              = TH.UnboundVarE (TH.mkName . occNameString $ occName n)
 #else
 toExp (Expr.HsUnboundVar _ n)              = TH.UnboundVarE (TH.mkName . occNameString $ n)
@@ -142,7 +146,9 @@ toExp (Expr.NegApp _ e _)
   = TH.AppE (TH.VarE 'negate) (toExp . unLoc $ e)
 
 -- NOTE: for lambda, there is only one match
-#if __GLASGOW_HASKELL__ >= 912
+#if __GLASGOW_HASKELL__ >= 914
+toExp (Expr.HsLam _ LamSingle (Expr.MG _ (unLoc -> (map unLoc -> [Expr.Match _ _ (map unLoc . unLoc -> ps) (Expr.GRHSs _ ((unLoc -> Expr.GRHS _ _ (unLoc -> e)) NonEmpty.:| []) _)]))))
+#elif __GLASGOW_HASKELL__ >= 912
 toExp (Expr.HsLam _ LamSingle (Expr.MG _ (unLoc -> (map unLoc -> [Expr.Match _ _ (map unLoc . unLoc -> ps) (Expr.GRHSs _ [unLoc -> Expr.GRHS _ _ (unLoc -> e)] _)]))))
 #elif __GLASGOW_HASKELL__ >= 910
 toExp (Expr.HsLam _ LamSingle (Expr.MG _ (unLoc -> (map unLoc -> [Expr.Match _ _ (map unLoc -> ps) (Expr.GRHSs _ [unLoc -> Expr.GRHS _ _ (unLoc -> e)] _)]))))

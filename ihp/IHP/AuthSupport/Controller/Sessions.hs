@@ -13,14 +13,11 @@ module IHP.AuthSupport.Controller.Sessions
 where
 
 import IHP.Prelude
-import IHP.ControllerPrelude hiding (Success, currentUserOrNothing)
+import IHP.ControllerPrelude
 import IHP.AuthSupport.View.Sessions.New
 import IHP.ViewSupport (View)
 import Data.Data
 import qualified IHP.AuthSupport.Lockable as Lockable
-import System.IO.Unsafe (unsafePerformIO)
-import Wai.Request.Params.Middleware (Respond)
-import Network.Wai (Request)
 import IHP.Hasql.FromRow (FromRowHasql)
 
 -- | Displays the login form.
@@ -28,7 +25,7 @@ import IHP.Hasql.FromRow (FromRowHasql)
 -- In case the user is already logged in, redirects to the home page ('afterLoginRedirectPath').
 newSessionAction :: forall record action.
     ( ?theAction :: action
-    , ?context :: ControllerContext
+    , ?request :: Request
     , ?request :: Request
     , ?respond :: Respond
     , HasNewSessionUrl record
@@ -39,13 +36,15 @@ newSessionAction :: forall record action.
     , Record record
     , HasPath action
     , SessionsControllerConfig record
-    ) => IO ()
+    , KnownSymbol (GetModelName record)
+    ) => IO ResponseReceived
 newSessionAction = do
-    let alreadyLoggedIn = isJust (currentUserOrNothing @record)
-    when alreadyLoggedIn (redirectToPathSeeOther (afterLoginRedirectPath @record))
-
-    let user = newRecord @record
-    render NewView { .. }
+    alreadyLoggedIn <- isJust <$> getSession @Text (sessionKey @record)
+    if alreadyLoggedIn
+        then redirectToPathSeeOther (afterLoginRedirectPath @record)
+        else do
+            let user = newRecord @record
+            render NewView { .. }
 {-# INLINE newSessionAction #-}
 
 -- | Logs in a user when a valid email and password is given
@@ -55,7 +54,7 @@ newSessionAction = do
 -- After a successful login, the user is redirect to 'afterLoginRedirectPath'.
 createSessionAction :: forall record action.
     (?theAction :: action
-    , ?context :: ControllerContext
+    , ?request :: Request
     , ?request :: Request
     , ?respond :: Respond
     , ?modelContext :: ModelContext
@@ -69,11 +68,11 @@ createSessionAction :: forall record action.
     , HasField "failedLoginAttempts" record Int
     , SetField "failedLoginAttempts" record Int
     , CanUpdate record
-    , Show (PrimaryKey (GetTableName record))
+    , PrimaryKey (GetTableName record) ~ UUID
     , record ~ GetModelByTableName (GetTableName record)
     , Table record
     , FromRowHasql record
-    ) => IO ()
+    ) => IO ResponseReceived
 createSessionAction = do
     usersQueryBuilder
     |> filterWhereCaseInsensitive (#email, param "email")
@@ -81,61 +80,52 @@ createSessionAction = do
     >>= \case
         Just (user :: record) -> do
             isLocked <- Lockable.isLocked user
-            when isLocked do
-                setErrorMessage "User is locked"
-                redirectTo buildNewSessionAction
-
-            if verifyPassword user (param @Text "password")
+            if isLocked
                 then do
-                    beforeLogin user
-                    login user
-                    user <- user
-                            |> set #failedLoginAttempts 0
-                            |> updateRecord
-                    redirectUrl <- getSessionAndClear "IHP.LoginSupport.redirectAfterLogin"
-                    redirectToPathSeeOther (fromMaybe (afterLoginRedirectPath @record) redirectUrl)
-                else do
-                    setErrorMessage "Invalid Credentials"
-                    user :: record <- user
-                            |> incrementField #failedLoginAttempts
-                            |> updateRecord
-                    when (user.failedLoginAttempts >= maxFailedLoginAttempts user) do
-                        Lockable.lock user
-                        pure ()
+                    setErrorMessage "User is locked"
                     redirectTo buildNewSessionAction
+                else if verifyPassword user (param @Text "password")
+                    then do
+                        beforeLogin user
+                        login user
+                        user <- user
+                                |> set #failedLoginAttempts 0
+                                |> updateRecord
+                        redirectUrl <- getSessionAndClear "IHP.LoginSupport.redirectAfterLogin"
+                        redirectToPathSeeOther (fromMaybe (afterLoginRedirectPath @record) redirectUrl)
+                    else do
+                        setErrorMessage "Invalid Credentials"
+                        user :: record <- user
+                                |> incrementField #failedLoginAttempts
+                                |> updateRecord
+                        when (user.failedLoginAttempts >= maxFailedLoginAttempts user) do
+                            Lockable.lock user
+                            pure ()
+                        redirectTo buildNewSessionAction
         Nothing -> do
             setErrorMessage "Invalid Credentials"
             redirectTo buildNewSessionAction
 {-# INLINE createSessionAction #-}
 
 -- | Logs out the user and redirects to `afterLogoutRedirectPath` or login page by default
-deleteSessionAction :: forall record action id.
+deleteSessionAction :: forall record action.
     ( ?theAction :: action
-    , ?context :: ControllerContext
+    , ?request :: Request
     , ?request :: Request
     , ?respond :: Respond
     , ?modelContext :: ModelContext
     , Data action
     , HasPath action
-    , Show id
-    , HasField "id" record id
     , SessionsControllerConfig record
-    ) => IO ()
+    , KnownSymbol (GetModelName record)
+    ) => IO ResponseReceived
 deleteSessionAction = do
-    case currentUserOrNothing @record of
-        Just user -> do
-            beforeLogout user
-            logout user
-        Nothing -> pure ()
+    deleteSession (sessionKey @record)
+    -- Note: beforeLogout callback is not called because we no longer
+    -- fetch the user record during logout. If you need beforeLogout,
+    -- implement custom logout logic in your controller.
     redirectToPathSeeOther (afterLogoutRedirectPath @record)
 {-# INLINE deleteSessionAction #-}
-
-currentUserOrNothing :: forall user. (?context :: ControllerContext, HasNewSessionUrl user, Typeable user) => (Maybe user)
-currentUserOrNothing =
-    case unsafePerformIO (maybeFromContext @(Maybe user)) of
-        Just user -> user
-        Nothing -> error "currentUserOrNothing: initAuthentication has not been called in initContext inside FrontController of this application"
-{-# INLINE currentUserOrNothing #-}
 
 -- | Returns the NewSessionAction action for the given SessionsController
 buildNewSessionAction :: forall controller. (?theAction :: controller, Data controller) => controller
@@ -157,7 +147,6 @@ class ( Typeable record
     , KnownSymbol (GetModelName record)
     , HasNewSessionUrl record
     , KnownSymbol (GetTableName record)
-    , FromRow record
     , FromRowHasql record
     ) => SessionsControllerConfig record where
 
@@ -183,13 +172,13 @@ class ( Typeable record
     -- >     unless (user.isConfirmed) do
     -- >         setErrorMessage "Please click the confirmation link we sent to your email before you can use the App"
     -- >         redirectTo NewSessionAction
-    beforeLogin :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => record -> IO ()
+    beforeLogin :: (?request :: Request, ?modelContext :: ModelContext) => record -> IO ()
     beforeLogin _ = pure ()
 
     -- | Callback that is executed just before the user is logged out
     --
     -- This is called only if user session exists
-    beforeLogout :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => record -> IO ()
+    beforeLogout :: (?request :: Request, ?modelContext :: ModelContext) => record -> IO ()
     beforeLogout _ = pure ()
 
     -- | Return's the @query\ \@User@ used by the controller. Customize this to e.g. exclude guest users from logging in.

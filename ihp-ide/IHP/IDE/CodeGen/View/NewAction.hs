@@ -89,6 +89,7 @@ instance View NewActionView where
                         <label class="ps-1" for="doGenerateView">With View</label>
                         <input type="hidden" name="name" value={actionName}/>
                         <input type="hidden" name="controllerName" value={controllerName}/>
+                        <input type="hidden" name="applicationName" value={applicationName}/>
                     </form>
                 </div>
             |]

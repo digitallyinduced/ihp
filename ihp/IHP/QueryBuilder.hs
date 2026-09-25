@@ -15,33 +15,20 @@ module IHP.QueryBuilder
   query
   -- * Core Types
 , QueryBuilder (..)
-, SQLQuery (..)
 , Condition (..)
-, Join (..)
+, ConditionValue (..)
 , OrderByClause (..)
 , OrderByDirection (..)
 , FilterOperator (..)
 , MatchSensitivity (..)
+, queryBuilderTableName
   -- * Type Classes
-, DefaultScope (..)
-, HasQueryBuilder
 , EqOrIsOperator
 , FilterPrimaryKey (..)
-  -- * QueryBuilder Wrappers
-, JoinQueryBuilderWrapper
-, NoJoinQueryBuilderWrapper
-, LabeledQueryBuilderWrapper
-, getQueryBuilder
-, injectQueryBuilder
-  -- * Type-level Join Tracking
-, NoJoins
   -- * SQL Compilation
-, toSQL
-, toSQL'
 , buildQuery
   -- * Hasql Compilation
-, toSnippet
-, snippetToSQL
+, toSQL
   -- * Filtering
 , filterWhere
 , filterWhereCaseInsensitive
@@ -65,27 +52,10 @@ module IHP.QueryBuilder
 , filterWhereLessThanOrEqualTo
 , filterWhereAtMost
 , filterWhereSql
-  -- * Filtering on Joined Tables
-, filterWhereJoinedTable
-, filterWhereCaseInsensitiveJoinedTable
-, filterWhereNotJoinedTable
-, filterWhereInJoinedTable
-, filterWhereNotInJoinedTable
-, filterWhereLikeJoinedTable
-, filterWhereILikeJoinedTable
-, filterWhereMatchesJoinedTable
-, filterWhereIMatchesJoinedTable
-  -- * Joins
-, innerJoin
-, innerJoinThirdTable
-, labelResults
   -- * Ordering
 , orderBy
 , orderByAsc
 , orderByDesc
-, orderByJoinedTable
-, orderByAscJoinedTable
-, orderByDescJoinedTable
   -- * Pagination
 , limit
 , offset
@@ -100,15 +70,11 @@ module IHP.QueryBuilder
 , toEqOrIsOperator
 , compileOperator
 , negateFilterOperator
-  -- * Re-exports
-, In (In)
 ) where
 
 import IHP.QueryBuilder.Types
 import IHP.QueryBuilder.Compiler
-import IHP.QueryBuilder.HasqlCompiler (toSnippet, snippetToSQL)
+import IHP.QueryBuilder.HasqlCompiler (toSQL, compileOperator)
 import IHP.QueryBuilder.Filter
-import IHP.QueryBuilder.Join
 import IHP.QueryBuilder.Order
 import IHP.QueryBuilder.Union
-import Database.PostgreSQL.Simple.Types (In (In))

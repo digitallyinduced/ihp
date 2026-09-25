@@ -1,15 +1,31 @@
-module Test.DataSync.ChangeNotifications where
+module DataSync.ChangeNotifications where
 
 import Test.Hspec
 import IHP.Prelude
 import Data.Aeson
-import qualified Data.Aeson.Key as Aeson
-import IHP.DataSync.ChangeNotifications (Change(..), ChangeNotification(..))
+import IHP.DataSync.ChangeNotifications (Change(..), makeCachedInstallTableChangeTriggers, installTableChangeTriggers)
 import IHP.DataSync.ControllerImpl (changesToValue)
 import IHP.DataSync.DynamicQueryCompiler (Renamer(..))
 import IHP.DataSync.DynamicQuery (ConditionExpression(..), ConditionOperator(..), FunctionCall(..), conditionColumns)
+import IHP.DataSync.RowLevelSecurity (TableWithRLS(..))
 import qualified Data.Set as Set
 import qualified Prelude
+import qualified Hasql.Pool
+import qualified Hasql.Pool.Config as Hasql.Pool.Config
+import qualified Hasql.Connection.Settings as HasqlSettings
+import qualified Hasql.Session as Session
+import IHP.DataSync.Hasql (runSession)
+import qualified Hasql.Decoders as Decoders
+import qualified Hasql.Encoders as Encoders
+import qualified Hasql.Statement as Statement
+import qualified Control.Exception as Exception
+import System.Environment (lookupEnv)
+import Control.Concurrent (threadDelay)
+import Control.Concurrent.MVar (newEmptyMVar, putMVar, readMVar)
+import Control.Monad (replicateM)
+import qualified Data.UUID.V4 as UUID
+import qualified Data.UUID as UUID
+import qualified Data.Text as Text
 
 tests = do
     describe "IHP.DataSync.ChangeNotifications" do
@@ -138,3 +154,175 @@ tests = do
             it "returns empty set for LiteralExpression" do
                 let condition = LiteralExpression (String "hello")
                 conditionColumns condition `shouldBe` Set.empty
+
+        -- https://github.com/digitallyinduced/ihp/issues/2467
+        describe "concurrent trigger installation" do
+            it "does not exhaust the connection pool under concurrent trigger installation" do
+                withDB \connStr -> do
+                    -- Tiny pool (2 connections) + short acquisition timeout to
+                    -- make pool exhaustion visible quickly.
+                    Exception.bracket (makePoolWithTimeout 2 3 connStr) Hasql.Pool.release \pool -> do
+                        execSQL pool "CREATE EXTENSION IF NOT EXISTS \"uuid-ossp\""
+
+                        -- Use a unique table name to avoid stale global MVar state
+                        -- across repeated test runs in the same ghci session
+                        tableUuid <- UUID.nextRandom
+                        let tableName = "test_concurrent_" <> Text.replace "-" "_" (UUID.toText tableUuid)
+                        execSQL pool (cs ("CREATE TABLE " <> tableName <> " (id UUID PRIMARY KEY DEFAULT gen_random_uuid(), body TEXT)"))
+
+                        let table = TableWithRLS tableName
+
+                        -- Create many independent cached installers, simulating
+                        -- concurrent WebSocket connections.
+                        -- On master: each gets its own IORef cache, so all of them
+                        --   call installTableChangeTriggers independently. The DDL
+                        --   requires AccessExclusiveLock, so they queue up behind
+                        --   each other at the DB level, each holding a pool
+                        --   connection while waiting → pool exhausted for seconds.
+                        -- On fix: all share the process-global MVar, so only 1 grabs
+                        --   a pool connection for DDL, the rest wait on the MVar
+                        --   in Haskell without consuming pool connections.
+                        installers <- replicateM 20000 (makeCachedInstallTableChangeTriggers pool)
+
+                        -- Barrier: ensure all 20000 threads are created and waiting
+                        -- before they rush the pool simultaneously.
+                        barrier <- newEmptyMVar
+
+                        result <- Exception.try $ do
+                            installsAsync <- async $
+                                mapConcurrently_ (\install -> readMVar barrier >> install table) installers
+
+                            -- Give threads time to start and block on barrier
+                            threadDelay 500_000
+
+                            -- Release all installers at once
+                            putMVar barrier ()
+
+                            wait installsAsync
+
+                        case result of
+                            Left (_ :: Hasql.Pool.UsageError) ->
+                                expectationFailure
+                                    "Pool exhausted — concurrent trigger installation caused AcquisitionTimeoutUsageError"
+                            Right () -> pure ()
+
+        describe "trigger installation with locked table" do
+            it "succeeds on second call even when a writer holds RowExclusiveLock" do
+                withDB \connStr -> do
+                    Exception.bracket (makePool connStr) Hasql.Pool.release \pool -> do
+                        execSQL pool "CREATE EXTENSION IF NOT EXISTS \"uuid-ossp\""
+
+                        tableUuid <- UUID.nextRandom
+                        let tableName = "test_lock_" <> Text.replace "-" "_" (UUID.toText tableUuid)
+                        execSQL pool (cs ("CREATE TABLE " <> tableName <> " (id UUID PRIMARY KEY DEFAULT gen_random_uuid(), body TEXT)"))
+
+                        let table = TableWithRLS tableName
+
+                        -- First call: install triggers (table is not locked)
+                        installTableChangeTriggers pool table
+
+                        -- Verify triggers were created
+                        triggerCount <- queryTriggerCount pool tableName
+                        triggerCount `shouldBe` 3
+
+                        -- Simulate a long-running writer holding RowExclusiveLock.
+                        -- RowExclusiveLock conflicts with ShareRowExclusiveLock
+                        -- (which CREATE TRIGGER takes), but NOT with the
+                        -- IF NOT EXISTS check (AccessShareLock on pg_trigger).
+                        -- An open SELECT only takes AccessShareLock which does
+                        -- NOT conflict with CREATE TRIGGER, so we must use a
+                        -- writer (INSERT) to properly test this.
+                        lockPool <- makePoolN 1 connStr
+                        execSQL lockPool (cs ("BEGIN; INSERT INTO " <> tableName <> " (body) VALUES ('lock holder')"))
+
+                        -- Second call: triggers already exist, so this should
+                        -- skip CREATE TRIGGER and succeed despite the writer lock.
+                        -- With the old code (DROP TRIGGER + CREATE TRIGGER always),
+                        -- this would block on the table lock.
+                        result <- Exception.try $ do
+                            execSQL pool "SET statement_timeout = '2s'"
+                            installTableChangeTriggers pool table
+                            execSQL pool "SET statement_timeout = '0'"
+
+                        Hasql.Pool.release lockPool
+
+                        case result of
+                            Left (e :: Exception.SomeException) ->
+                                expectationFailure
+                                    (cs ("Second trigger install blocked or failed with locked table: " <> show e))
+                            Right () -> pure ()
+
+-- DB helpers (same pattern as DataSyncIntegrationSpec.hs)
+
+getMasterDatabaseUrl :: IO Text
+getMasterDatabaseUrl = do
+    envUrl <- lookupEnv "DATABASE_URL"
+    case envUrl of
+        Just url -> pure (cs url)
+        Nothing -> pure "postgresql:///postgres"
+
+makePool :: Text -> IO Hasql.Pool.Pool
+makePool = makePoolN 4
+
+makePoolN :: Int -> Text -> IO Hasql.Pool.Pool
+makePoolN poolSize connStr = Hasql.Pool.acquire $ Hasql.Pool.Config.settings
+    [ Hasql.Pool.Config.size poolSize
+    , Hasql.Pool.Config.staticConnectionSettings
+        (HasqlSettings.connectionString connStr)
+    ]
+
+makePoolWithTimeout :: Int -> Int -> Text -> IO Hasql.Pool.Pool
+makePoolWithTimeout poolSize timeoutSeconds connStr = Hasql.Pool.acquire $ Hasql.Pool.Config.settings
+    [ Hasql.Pool.Config.size poolSize
+    , Hasql.Pool.Config.acquisitionTimeout (fromIntegral timeoutSeconds)
+    , Hasql.Pool.Config.staticConnectionSettings
+        (HasqlSettings.connectionString connStr)
+    ]
+
+execSQL :: Hasql.Pool.Pool -> ByteString -> IO ()
+execSQL pool sql = runSession pool (Session.script (cs sql))
+
+canConnectToPostgres :: IO Bool
+canConnectToPostgres = do
+    masterUrl <- getMasterDatabaseUrl
+    result <- Exception.try $ Exception.bracket (makePool masterUrl) Hasql.Pool.release
+        (\pool -> execSQL pool "SELECT 1")
+    case result of
+        Left (_ :: Exception.SomeException) -> pure False
+        Right _ -> pure True
+
+withTestDatabase :: (Text -> IO a) -> IO a
+withTestDatabase action = do
+    masterUrl <- getMasterDatabaseUrl
+    testDbName <- randomDatabaseName
+    Exception.bracket (makePool masterUrl) Hasql.Pool.release \masterPool -> do
+        execSQL masterPool (cs ("CREATE DATABASE " <> testDbName))
+        let testConnStr = "dbname=" <> testDbName
+        Exception.finally
+            (action testConnStr)
+            (execSQL masterPool (cs ("DROP DATABASE " <> testDbName <> " WITH (FORCE)")))
+
+randomDatabaseName :: IO Text
+randomDatabaseName = do
+    uuid <- UUID.nextRandom
+    let name = "ihp_test_cn_" <> (uuid |> UUID.toText |> Text.replace "-" "_")
+    pure name
+
+withHasqlPool :: Text -> (Hasql.Pool.Pool -> IO a) -> IO a
+withHasqlPool connStr action =
+    Exception.bracket (makePool connStr) Hasql.Pool.release action
+
+queryTriggerCount :: Hasql.Pool.Pool -> Text -> IO Int
+queryTriggerCount pool tableName = do
+    let session = Session.statement (cs tableName) $ Statement.preparable
+            "SELECT count(*)::int FROM pg_trigger WHERE tgrelid = $1::regclass AND tgname LIKE 'did_%'"
+            (Encoders.param (Encoders.nonNullable Encoders.text))
+            (Decoders.singleRow (Decoders.column (Decoders.nonNullable (fromIntegral <$> Decoders.int4))))
+    runSession pool session
+
+withDB :: (Text -> IO ()) -> IO ()
+withDB action = do
+    available <- canConnectToPostgres
+    if available
+        then withTestDatabase action
+        else pendingWith "PostgreSQL not available (set DATABASE_URL or start a local Postgres)"

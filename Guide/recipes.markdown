@@ -178,16 +178,16 @@ This is also useful if you need the messages to be in another language.
 
 Use [`validateIsUnique`](https://ihp.digitallyinduced.com/api-docs/IHP-ValidationSupport-ValidateIsUnique.html#v:validateIsUnique).
 
-## Don't auto-open the app in the browser
+## Auto-open the app in the browser
 
-To prevent the IHP development server from automatically opening the development tooling in your web browser when running `devenv up`, set the `IHP_BROWSER` environment variable to `echo`:
+By default, the IHP development server prints the development tooling URL when running `devenv up`. To automatically open it in a browser, set the `IHP_BROWSER` environment variable:
 
 ```bash
-export IHP_BROWSER=echo
+export IHP_BROWSER=firefox
 devenv up
 ```
 
-This will then just print out the URL which would be opened on start.
+You can also set `IHP_BROWSER=open` on macOS or `IHP_BROWSER=xdg-open` on Linux to use the default system browser.
 
 ## Getting an `Id Something` from a `UUID`
 
@@ -233,9 +233,7 @@ The `DeleteSessionAction` expects a `HTTP DELETE` request, which is set by JavaS
 
 ## Making a dynamic Login/Logout button
 
-Depending on the `Maybe User` type in the [ControllerContext](https://ihp.digitallyinduced.com/api-docs/IHP-Controller-Context.html), by using [`fromFrozenContext`](https://ihp.digitallyinduced.com/api-docs/IHP-Controller-Context.html#v:fromFrozenContext) we can tell if no user is logged in when the `Maybe User` is `Nothing`, and confirm someone is logged in if the `Maybe User` is a `Just user`. Here is an example of a navbar, which has a dynamic Login/Logout button. You can define this in your View/Layout to reuse this in your Views.
-
-> The `@` syntax from [`fromFrozenContext @(Maybe User)`](https://ihp.digitallyinduced.com/api-docs/IHP-Controller-Context.html#v:fromFrozenContext) is just syntax sugar for `let maybeUser :: Maybe User = fromFrozenContext`
+Use [`currentUserOrNothing`](https://ihp.digitallyinduced.com/api-docs/IHP-LoginSupport-Helper-View.html#v:currentUserOrNothing) to check whether someone is logged in. It returns `Just user` when a user is authenticated and `Nothing` otherwise. Here is an example of a navbar with a dynamic Login/Logout button that you can place in your View/Layout to reuse across your views.
 
 ```haskell
 navbar :: Html
@@ -259,7 +257,7 @@ navbar = [hsx|
     where
         loginLogoutButton :: Html
         loginLogoutButton =
-            case fromFrozenContext @(Maybe User) of
+            case currentUserOrNothing of
                 Just user -> [hsx|<a class="js-delete js-delete-no-confirm text-secondary" href={DeleteSessionAction}>Logout</a>|]
                 Nothing -> [hsx|<a class="text-secondary" href={NewSessionAction}>Login</a>|]
 ```
@@ -275,11 +273,9 @@ To make an HTTP request, you need [`Wreq`](https://hackage.haskell.org/package/w
 ```bash
 ...
 haskellDeps = p: with p; [
-    cabal-install
     base
     wai
     text
-    hlint
     p.ihp
     wreq <-- Add this
 ];
@@ -332,16 +328,11 @@ do
 
 [Working With Dates](https://zacwood.me/posts/2020-12-29-dates-ihp/)
 
-IHP also supports the [postgres interval type](https://www.postgresql.org/docs/current/datatype-datetime.html#DATATYPE-INTERVAL-INPUT).
-The postgres `interval` fields are bytestrings wrapped in a `PGInterval` data constructor. The wrapped
-bytestring is returned to allow users to provide their own custom parsing logic for how they wish
-to treat intervals and to support all of postgres' different conventions for reporting interval strings.
+IHP supports the [postgres interval type](https://www.postgresql.org/docs/current/datatype-datetime.html#DATATYPE-INTERVAL-INPUT) via the `Interval` type from `postgresql-simple-postgresql-types`, which is re-exported by `IHP.ModelSupport`.
 
-A helper module to parse the postgres standard format interval bytestrings into a haskell data structure is also included in `IHP.Postgres.TimeParser`.
-The `PGTimeInterval` data type stores fields for `pgYears`, `pgMonths`, `pgDays`, and `pgClock`. This helps users model the particular semantics
-of the time intervals and model the way postgres performs `date + interval` arithmetic in their application code.
+The `Interval` type stores months (`Int32`), days (`Int32`), and microseconds (`Int64`) separately. This preserves the distinction postgres makes between calendar and clock units.
 
-The default behaviour of the parser *is not* to directly convert the postgres interval of years, months, days, and clock times
+The `Interval` type does *not* directly convert the postgres interval of years, months, days, and clock times
 into the Haskell `NominalDiffTime`. This is because a day is not necessarily 24 hours nor is a year 365 days.
 
 For example, advancing a timestamp by `1 day` will have a different effect to advancing a timestamp by `24 hours`
@@ -349,24 +340,20 @@ on a day with a daylights savings clock shift resulting in a 25 or 23 hour day. 
 is reached on the succeeding day, in the latter case we can land on a time an hour before or after depending on whether the clock has jumped
 forwards or backwards.
 
-The `PGTimeInterval` and `unpackInterval` is designed to support these kinds of distinctions.
+The separate fields of the `Interval` type are designed to support these kinds of distinctions.
 
-E.g.:
+You can convert between `Interval` and `DiffTime` using `normalizeToDiffTime` and `normalizeFromDiffTime`:
 
 ```haskell
 > import Data.Time
-> import IHP.Postgres.TimeParser
-
-> let myInterval = unpackInterval (PGInterval "42 days")
-> addDays myInterval.pgDays (ModifiedJulianDay 0)
+> let interval = Interval 0 42 0  -- 0 months, 42 days, 0 microseconds
+> addDays (fromIntegral (let Interval _ d _ = interval in d)) (ModifiedJulianDay 0)
 
 1858-12-29
-
 ```
 
-The raw `PGInterval bytestring` that models the database record and the `PGTimeInterval` which maps an interval string to
-standard Haskell Date/Time date types (`Integer`/`Int`/`NominalDiffTime`) allow the user to model
-the time intervals in their application logic according to the postgres standard.
+The `Interval` type that models the database record and the conversion functions `normalizeToDiffTime` / `normalizeFromDiffTime`
+allow the user to model the time intervals in their application logic according to the postgres standard.
 
 
 

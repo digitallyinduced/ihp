@@ -1,6 +1,11 @@
 # Running IHP app + a local Postgres connected to it
 { config, nixpkgs, pkgs, modulesPath, lib, ihp, ... }:
-let cfg = config.services.ihp;
+let
+    cfg = config.services.ihp;
+    schemaExtensions = pkgs.runCommand "ihp-schema-extensions.sql" {} ''
+        ${ihp.apps."${pkgs.system}".migrate.program} --extract-extensions ${ihp}/IHPSchema.sql > $out
+        ${ihp.apps."${pkgs.system}".migrate.program} --extract-extensions ${cfg.schema} >> $out
+    '';
 in
 {
     imports = [
@@ -19,7 +24,7 @@ in
     swapDevices = [ { device = "/swapfile"; size = 8192; } ];
 
     # Vim and psql commands are helpful when accessing the server
-    environment.systemPackages = with pkgs; [ vim postgresql ];
+    environment.systemPackages = with pkgs; [ vim postgresql_18 ];
     programs.vim.defaultEditor = true;
 
     # Allow public access
@@ -63,22 +68,33 @@ in
     # Postgres
     services.postgresql = {
         enable = true;
-        package = pkgs.postgresql_18;
+        # Beat the NixOS stateVersion default (mkDefault, priority 1000) without
+        # blocking a normal assignment in configuration.nix (priority 100).
+        package = lib.mkOverride 999 pkgs.postgresql_18;
         initialScript = pkgs.writeText "ihp-initScript" ''
             CREATE USER ${cfg.databaseUser};
             CREATE DATABASE ${cfg.databaseName} OWNER ${cfg.databaseUser};
             GRANT ALL PRIVILEGES ON DATABASE ${cfg.databaseName} TO "${cfg.databaseUser}";
             \connect ${cfg.databaseName}
+            \i ${schemaExtensions}
             SET ROLE '${cfg.databaseUser}';
             CREATE TABLE IF NOT EXISTS schema_migrations (revision BIGINT NOT NULL UNIQUE);
             \i ${ihp}/IHPSchema.sql
             \i ${cfg.schema}
             \i ${cfg.fixtures}
         '';
+        authentication = lib.mkBefore ''
+            local ${cfg.databaseName} postgres peer map=ihp-migrate-admin
+        '';
+        identMap = lib.mkBefore ''
+            ihp-migrate-admin root postgres
+            ihp-migrate-admin postgres postgres
+        '';
     };
 
     services.ihp.databaseUser = "root";
     services.ihp.databaseUrl = "postgresql://${cfg.databaseUser}@/${cfg.databaseName}";
+    services.ihp.databaseAdminUrl = "postgresql://postgres@/${cfg.databaseName}";
 
     # Enable automatic GC to avoid the disk from filling up
     #
@@ -99,4 +115,3 @@ in
         PGDATABASE = cfg.databaseName;
     };
 }
-

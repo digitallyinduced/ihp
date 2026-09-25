@@ -5,15 +5,33 @@ Copyright: (c) digitally induced GmbH, 2020
 -}
 module IHP.SchemaMigration where
 
-import IHP.Prelude
-import qualified System.Directory.OsPath as Directory
+import Prelude
+import Data.Text (Text)
 import qualified Data.Text as Text
 import qualified Data.Text.IO as Text
-import IHP.ModelSupport hiding (withTransaction)
+import Data.String.Conversions (cs)
+import Data.Maybe (fromMaybe, mapMaybe, isJust, listToMaybe)
+import Data.List (groupBy, sortBy)
+import Data.Ord (comparing)
+import Data.Function ((&), on)
+import Control.Monad (unless, join)
+import Data.Int (Int64)
+import System.Environment (lookupEnv)
+import System.Exit (die)
+import Text.Read (readMaybe)
 import qualified Data.Char as Char
-import IHP.Log.Types
-import IHP.EnvVar
-import System.OsPath (OsPath, encodeUtf, decodeUtf)
+
+import qualified System.Directory.OsPath as Directory
+import System.OsPath (encodeUtf, decodeUtf)
+
+import qualified Hasql.Connection as Connection
+import qualified Hasql.Session as Session
+import qualified Hasql.Statement as Statement
+import qualified Hasql.Decoders as Decoders
+import qualified Hasql.Encoders as Encoders
+import qualified IHP.Postgres.Parser as PostgresParser
+import qualified IHP.Postgres.Compiler as PostgresCompiler
+import IHP.Postgres.Types (Statement (CreateExtension), ifNotExists)
 
 data Migration = Migration
     { revision :: Int
@@ -24,71 +42,264 @@ data MigrateOptions = MigrateOptions
     { minimumRevision :: !(Maybe Int) -- ^ When deploying a fresh install of an existing app that has existing migrations, it might be useful to ignore older migrations as they're already part of the existing schema
     }
 
+-- | Determines which database connection is allowed to execute a migration.
+data MigrationKind
+    = RegularMigration
+    | CreateExtensionMigration
+    deriving (Show, Eq)
+
+-- | Run a session on the bare connection, dying on error
+runSession :: Connection.Connection -> Session.Session a -> IO a
+runSession connection session = Connection.use connection session >>= either (die . show) pure
+
 -- | Migrates the database schema to the latest version
-migrate :: (?modelContext :: ModelContext) => MigrateOptions -> IO ()
-migrate options = do
-    createSchemaMigrationsTable
+--
+-- Returns @Left errorMessage@ if a migration fails, @Right ()@ if all migrations succeed.
+migrate :: Connection.Connection -> MigrateOptions -> IO (Either Text ())
+migrate connection = migrateWithAdminConnectionProvider connection (pure Nothing)
+
+-- | Migrates the database, using the optional admin connection only for
+-- standalone @CREATE EXTENSION@ migrations.
+--
+-- The admin connection executes only the extension statement. Verification
+-- and the @schema_migrations@ revision insert always use the regular
+-- application connection.
+migrateWithAdminConnection :: Connection.Connection -> Maybe Connection.Connection -> MigrateOptions -> IO (Either Text ())
+migrateWithAdminConnection connection adminConnection =
+    migrateWithAdminConnectionProvider connection (pure adminConnection)
+
+-- | Migrates the database while acquiring the optional admin connection only
+-- when the first standalone @CREATE EXTENSION@ migration is encountered.
+migrateWithAdminConnectionProvider :: Connection.Connection -> IO (Maybe Connection.Connection) -> MigrateOptions -> IO (Either Text ())
+migrateWithAdminConnectionProvider connection getAdminConnection options = do
+    createSchemaMigrationsTable connection
 
     let minimumRevision = fromMaybe 0 options.minimumRevision
 
-    openMigrations <- findOpenMigrations minimumRevision
-    forEach openMigrations runMigration
+    openMigrations <- findOpenMigrations connection minimumRevision
+    runOpenMigrations openMigrations
+    where
+        runOpenMigrations [] = pure (Right ())
+        runOpenMigrations (migration : migrations) = do
+            result <- runMigrationWithAdminConnectionProvider connection getAdminConnection migration
+            case result of
+                Left errorMessage -> pure (Left errorMessage)
+                Right () -> runOpenMigrations migrations
 
 -- | The sql statements contained in the migration file are executed. Then the revision is inserted into the @schema_migrations@ table.
 --
 -- All queries are executed inside a database transaction to make sure that it can be restored when something goes wrong.
-runMigration :: (?modelContext :: ModelContext) => Migration -> IO ()
-runMigration migration@Migration { revision, migrationFile } = do
-    -- | User can specify migrations directory as environment variable (defaults to /Application/Migrations/...)
-    migrationFilePath <- migrationPath migration
+runMigration :: Connection.Connection -> Migration -> IO (Either Text ())
+runMigration connection = runMigrationWithAdminConnectionProvider connection (pure Nothing)
+
+-- | Runs one migration on the regular or admin connection according to its
+-- contents. A migration containing @CREATE EXTENSION@ must contain no other
+-- executable SQL.
+runMigrationWithAdminConnection :: Connection.Connection -> Maybe Connection.Connection -> Migration -> IO (Either Text ())
+runMigrationWithAdminConnection connection adminConnection =
+    runMigrationWithAdminConnectionProvider connection (pure adminConnection)
+
+-- | Runs one migration, lazily acquiring the optional admin connection for a
+-- standalone @CREATE EXTENSION@ migration.
+runMigrationWithAdminConnectionProvider :: Connection.Connection -> IO (Maybe Connection.Connection) -> Migration -> IO (Either Text ())
+runMigrationWithAdminConnectionProvider connection getAdminConnection Migration { revision, migrationFile } = do
+    migrationFilePath <- migrationPath Migration { revision, migrationFile }
     migrationSql <- Text.readFile (cs migrationFilePath)
 
-    let fullSql = [trimming|
-        BEGIN;
-            ${migrationSql};
-            INSERT INTO schema_migrations (revision) VALUES (?);
-        COMMIT;
-    |]
-    sqlExec (fromString . cs $ fullSql) [revision]
+    case classifyMigration migrationSql of
+        Left errorMessage -> pure (Left (migrationFile <> ": " <> errorMessage))
+        Right RegularMigration -> runRegularMigration migrationSql
+        Right CreateExtensionMigration -> do
+            adminConnection <- getAdminConnection
+            case adminConnection of
+                Nothing -> runRegularMigration migrationSql
+                Just adminConnection -> runPrivilegedExtensionMigration migrationSql adminConnection
+    where
+        runRegularMigration migrationSql =
+            runTransaction connection do
+                Session.script (cs migrationSql)
+                Session.statement (fromIntegral revision :: Int64) insertRevisionStatement
 
-    pure ()
+        runPrivilegedExtensionMigration migrationSql adminConnection = do
+            databasesMatch <- validateSameDatabase connection adminConnection
+            case databasesMatch of
+                Left errorMessage -> pure (Left errorMessage)
+                Right () -> do
+                    extensionResult <- runTransaction adminConnection (Session.script (cs migrationSql))
+                    case extensionResult of
+                        Left errorMessage -> pure (Left errorMessage)
+                        Right () -> verifyAndRecordExtensions migrationSql
+
+        verifyAndRecordExtensions migrationSql =
+            case extensionNamesFromMigration migrationSql of
+                Left errorMessage -> pure (Left errorMessage)
+                Right extensionNames -> do
+                    installedExtensions <- useSession connection do
+                        traverse (\extensionName -> Session.statement extensionName extensionExistsStatement) extensionNames
+                    case installedExtensions of
+                        Left errorMessage -> pure (Left errorMessage)
+                        Right installed -> case map fst (filter (not . snd) (zip extensionNames installed)) of
+                            [] -> runTransaction connection do
+                                Session.statement (fromIntegral revision :: Int64) insertRevisionStatement
+                            missingExtensions -> pure (Left (Text.unlines
+                                [ "The admin connection completed the migration, but the following extensions are not visible through DATABASE_URL:"
+                                , Text.intercalate ", " missingExtensions
+                                , "Check that DATABASE_ADMIN_URL points to the same PostgreSQL server and database."
+                                ]))
+
+-- | Runs a session in a transaction and attempts to roll it back after an
+-- error so the cached connection remains usable by later migrations.
+runTransaction :: Connection.Connection -> Session.Session a -> IO (Either Text a)
+runTransaction connection session = do
+    result <- Connection.use connection do
+        Session.script "BEGIN"
+        value <- session
+        Session.script "COMMIT"
+        pure value
+    case result of
+        Left error -> do
+            _ <- Connection.use connection (Session.script "ROLLBACK")
+            pure (Left (cs (show error)))
+        Right value -> pure (Right value)
+
+-- | Classifies a migration without ever treating partially parsed SQL as an
+-- extension migration. Unsupported or mixed extension migrations fail closed.
+classifyMigration :: Text -> Either Text MigrationKind
+classifyMigration migrationSql =
+    case PostgresParser.parseCreateExtensionMigration migrationSql of
+        Right statements
+            | all hasIfNotExists statements -> Right CreateExtensionMigration
+            | otherwise -> Left "CREATE EXTENSION migrations must use IF NOT EXISTS"
+        Left _
+            | PostgresParser.containsCreateExtensionStatement migrationSql ->
+                Left (Text.unlines
+                    [ "CREATE EXTENSION migrations must be standalone"
+                    , "The file may only contain CREATE EXTENSION IF NOT EXISTS statements, comments, and whitespace."
+                    , "Move all other SQL into a separate migration."
+                    ])
+            | otherwise -> Right RegularMigration
+    where
+        hasIfNotExists CreateExtension { ifNotExists } = ifNotExists
+        hasIfNotExists _ = False
+
+-- | Returns the PostgreSQL-resolved extension names from a migration already
+-- accepted by 'classifyMigration'.
+extensionNamesFromMigration :: Text -> Either Text [Text]
+extensionNamesFromMigration migrationSql =
+    case PostgresParser.parseCreateExtensionMigration migrationSql of
+        Left parserError -> Left (cs parserError)
+        Right statements -> traverse extensionName statements
+    where
+        extensionName (CreateExtension name _ _) = Right name
+        extensionName _ = Left "Expected a CREATE EXTENSION statement"
+
+-- | Extracts extension creation statements from a complete schema. The result
+-- can be executed as a database administrator before loading the schema as the
+-- application role.
+extractCreateExtensionsSql :: Text -> Either Text Text
+extractCreateExtensionsSql schemaSql =
+    case PostgresParser.parseSqlText schemaSql of
+        Left parserError -> Left (cs parserError)
+        Right statements ->
+            let extensionStatements = filter isCreateExtension statements
+            in if all usesIfNotExists extensionStatements
+                then Right (PostgresCompiler.compileSql extensionStatements)
+                else Left "Schema.sql CREATE EXTENSION statements must use IF NOT EXISTS"
+    where
+        isCreateExtension CreateExtension {} = True
+        isCreateExtension _ = False
+        usesIfNotExists CreateExtension { ifNotExists } = ifNotExists
+        usesIfNotExists _ = False
+
+-- | Checks that the application and admin connections select a database with
+-- the same name.
+validateSameDatabase :: Connection.Connection -> Connection.Connection -> IO (Either Text ())
+validateSameDatabase connection adminConnection = do
+    database <- useSession connection (Session.statement () currentDatabaseStatement)
+    adminDatabase <- useSession adminConnection (Session.statement () currentDatabaseStatement)
+    pure do
+        databaseName <- database
+        adminDatabaseName <- adminDatabase
+        if databaseName == adminDatabaseName
+            then Right ()
+            else Left ("DATABASE_URL connects to database \"" <> databaseName <> "\", but DATABASE_ADMIN_URL connects to \"" <> adminDatabaseName <> "\"")
+
+-- | Runs a Hasql session while retaining connection errors as text.
+useSession :: Connection.Connection -> Session.Session a -> IO (Either Text a)
+useSession connection session = do
+    result <- Connection.use connection session
+    case result of
+        Left error -> pure (Left (cs (show error)))
+        Right value -> pure (Right value)
+
+insertRevisionStatement :: Statement.Statement Int64 ()
+insertRevisionStatement =
+    Statement.preparable
+        "INSERT INTO schema_migrations (revision) VALUES ($1)"
+        (Encoders.param (Encoders.nonNullable Encoders.int8))
+        Decoders.noResult
+
+-- | Checks whether an extension is installed in the selected database.
+extensionExistsStatement :: Statement.Statement Text Bool
+extensionExistsStatement =
+    Statement.preparable
+        "SELECT EXISTS (SELECT 1 FROM pg_catalog.pg_extension WHERE extname = $1)"
+        (Encoders.param (Encoders.nonNullable Encoders.text))
+        (Decoders.singleRow (Decoders.column (Decoders.nonNullable Decoders.bool)))
+
+-- | Reads the name of the currently selected database.
+currentDatabaseStatement :: Statement.Statement () Text
+currentDatabaseStatement =
+    Statement.preparable
+        "SELECT pg_catalog.current_database()::pg_catalog.text"
+        Encoders.noParams
+        (Decoders.singleRow (Decoders.column (Decoders.nonNullable Decoders.text)))
+
+checkSchemaMigrationsExistsStatement :: Statement.Statement () (Maybe Text)
+checkSchemaMigrationsExistsStatement =
+    Statement.preparable
+        "SELECT (to_regclass('schema_migrations')) :: text"
+        Encoders.noParams
+        (Decoders.singleRow (Decoders.column (Decoders.nullable Decoders.text)))
+
+selectMigratedRevisionsStatement :: Statement.Statement () [Int64]
+selectMigratedRevisionsStatement =
+    Statement.preparable
+        "SELECT revision FROM schema_migrations ORDER BY revision"
+        Encoders.noParams
+        (Decoders.rowList (Decoders.column (Decoders.nonNullable Decoders.int8)))
 
 -- | Creates the @schema_migrations@ table if it doesn't exist yet
-createSchemaMigrationsTable :: (?modelContext :: ModelContext) => IO ()
-createSchemaMigrationsTable = do
-    -- Hide this query from the log
-    withoutQueryLogging do
-        -- We don't use CREATE TABLE IF NOT EXISTS as adds a "NOTICE: relation schema_migrations already exists, skipping"
-        -- This sometimes confuses users as they don't know if the this is an error or not (it's not)
-        -- https://github.com/digitallyinduced/ihp/issues/818
-        maybeTableName :: Maybe Text <- sqlQueryScalar "SELECT (to_regclass('schema_migrations')) :: text" ()
-        let schemaMigrationTableExists = isJust maybeTableName
+createSchemaMigrationsTable :: Connection.Connection -> IO ()
+createSchemaMigrationsTable connection = do
+    -- We don't use CREATE TABLE IF NOT EXISTS as adds a "NOTICE: relation schema_migrations already exists, skipping"
+    -- This sometimes confuses users as they don't know if the this is an error or not (it's not)
+    -- https://github.com/digitallyinduced/ihp/issues/818
+    maybeTableName <- runSession connection (Session.statement () checkSchemaMigrationsExistsStatement)
+    let schemaMigrationTableExists = isJust maybeTableName
 
-        unless schemaMigrationTableExists do
-            let ddl = "CREATE TABLE IF NOT EXISTS schema_migrations (revision BIGINT NOT NULL UNIQUE)"
-            _ <- sqlExec ddl ()
-            pure ()
+    unless schemaMigrationTableExists do
+        runSession connection (Session.script "CREATE TABLE IF NOT EXISTS schema_migrations (revision BIGINT NOT NULL UNIQUE)")
 
 -- | Returns all migrations that haven't been executed yet. The result is sorted so that the oldest revision is first.
-findOpenMigrations :: (?modelContext :: ModelContext) => Int -> IO [Migration]
-findOpenMigrations !minimumRevision = do
-    let modelContext = ?modelContext
-    let ?modelContext = modelContext { logger = (modelContext.logger) { write = \_ -> pure ()} }
-
-    migratedRevisions <- findMigratedRevisions
+findOpenMigrations :: Connection.Connection -> Int -> IO [Migration]
+findOpenMigrations connection !minimumRevision = do
+    migratedRevisions <- findMigratedRevisions connection
     migrations <- findAllMigrations
     migrations
-        |> filter (\Migration { revision } -> not (migratedRevisions |> includes revision))
-        |> filter (\Migration { revision } -> revision > minimumRevision)
-        |> pure
+        & filter (\Migration { revision } -> not (revision `elem` migratedRevisions))
+        & filter (\Migration { revision } -> revision > minimumRevision)
+        & pure
 
 -- | Returns all migration revisions applied to the database schema
 --
--- >>> findMigratedRevisions
+-- >>> findMigratedRevisions connection
 -- [ 1604850570, 1604850660 ]
 --
-findMigratedRevisions :: (?modelContext :: ModelContext) => IO [Int]
-findMigratedRevisions = map (\[revision] -> revision) <$> sqlQuery "SELECT revision FROM schema_migrations ORDER BY revision" ()
+findMigratedRevisions :: Connection.Connection -> IO [Int]
+findMigratedRevisions connection = do
+    revisions <- runSession connection (Session.statement () selectMigratedRevisionsStatement)
+    pure (map fromIntegral revisions)
 
 -- | Returns all migrations found in @Application/Migration@
 --
@@ -102,12 +313,43 @@ findAllMigrations = do
     migrationDirOsPath <- encodeUtf (cs migrationDir)
     directoryFiles <- Directory.listDirectory migrationDirOsPath
     fileNames <- mapM decodeUtf directoryFiles
-    fileNames
-        |> map cs
-        |> filter (\path -> ".sql" `isSuffixOf` path)
-        |> mapMaybe pathToMigration
-        |> sortBy (comparing revision)
-        |> pure
+    let textNames = map (cs :: FilePath -> Text) fileNames
+    let migrations = textNames
+            & filter (\path -> ".sql" `Text.isSuffixOf` path)
+            & mapMaybe pathToMigration
+    validateUniqueMigrationRevisions migrations
+    migrations
+        & sortBy (comparing revision)
+        & pure
+
+validateUniqueMigrationRevisions :: [Migration] -> IO ()
+validateUniqueMigrationRevisions migrations =
+    case duplicateMigrationRevisions migrations of
+        [] -> pure ()
+        duplicates -> ioError (userError (cs (formatDuplicateMigrationRevisions duplicates)))
+
+duplicateMigrationRevisions :: [Migration] -> [(Int, [Text])]
+duplicateMigrationRevisions migrations =
+    migrations
+        & sortBy (comparing revision)
+        & groupBy ((==) `on` revision)
+        & mapMaybe toDuplicate
+    where
+        toDuplicate [] = Nothing
+        toDuplicate group@(migration : _)
+            | length group > 1 = Just (migration.revision, map migrationFile group)
+            | otherwise = Nothing
+
+formatDuplicateMigrationRevisions :: [(Int, [Text])] -> Text
+formatDuplicateMigrationRevisions duplicates =
+    "Multiple migrations use the same timestamp. Each migration filename needs a unique numeric prefix:\n"
+    <> Text.unlines (map formatDuplicate duplicates)
+    where
+        formatDuplicate (duplicateRevision, migrationFiles) =
+            "  "
+            <> cs (show duplicateRevision)
+            <> ": "
+            <> Text.intercalate ", " migrationFiles
 
 -- | Given a path such as Application/Migrate/00-initial-migration.sql it returns a Migration
 --
@@ -123,10 +365,10 @@ pathToMigration fileName = case revision of
     where
         revision :: Maybe Int
         revision = fileName
-                |> Text.split (not . Char.isDigit)
-                |> head
-                |> fmap textToInt
-                |> join
+                & Text.split (not . Char.isDigit)
+                & listToMaybe
+                & fmap (readMaybe . Text.unpack)
+                & join
 
 migrationPath :: Migration -> IO Text
 migrationPath Migration { migrationFile } = do
@@ -134,6 +376,6 @@ migrationPath Migration { migrationFile } = do
     pure (migrationDir <> migrationFile)
 
 detectMigrationDir :: IO Text
-detectMigrationDir =
-    envOrDefault "IHP_MIGRATION_DIR" "Application/Migration/"
-
+detectMigrationDir = do
+    envValue <- lookupEnv "IHP_MIGRATION_DIR"
+    pure (maybe "Application/Migration/" cs envValue)

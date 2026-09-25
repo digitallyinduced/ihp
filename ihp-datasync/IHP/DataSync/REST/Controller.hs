@@ -2,7 +2,6 @@
 module IHP.DataSync.REST.Controller where
 
 import IHP.ControllerPrelude hiding (OrderByClause)
-import Network.Wai (Request)
 import IHP.DataSync.REST.Types
 import Data.Aeson
 import qualified Data.Vector as Vector
@@ -13,8 +12,9 @@ import IHP.DataSync.DynamicQuery
 import IHP.DataSync.Types
 import Network.HTTP.Types (status400)
 import IHP.DataSync.DynamicQueryCompiler
-import IHP.DataSync.TypedEncoder (ColumnTypeInfo(..), makeCachedColumnTypeLookup, typedAesonValueToSnippet, lookupColumnType)
-import qualified Data.HashMap.Strict as HashMap
+import IHP.DataSync.TypedEncoder (makeCachedColumnTypeLookup, typedAesonValueToSnippet, lookupColumnType)
+import qualified Hasql.DynamicStatements.Snippet as Snippet
+import Hasql.DynamicStatements.Snippet (Snippet)
 import qualified Data.Text as Text
 import qualified Data.List as List
 
@@ -22,9 +22,7 @@ import qualified Data.ByteString.Builder as ByteString
 import qualified Data.Aeson.Encoding.Internal as Aeson
 import qualified Data.Aeson.KeyMap as Aeson
 import qualified Data.Aeson.Key as Aeson
-import qualified Hasql.DynamicStatements.Snippet as Snippet
-import Hasql.DynamicStatements.Snippet (Snippet)
-import IHP.DataSync.Pool (requestHasqlPool)
+import qualified Hasql.Decoders as Decoders
 
 instance (
     Show (PrimaryKey (GetTableName CurrentUserRecord))
@@ -33,30 +31,31 @@ instance (
     , HasField "id" CurrentUserRecord (Id' (GetTableName CurrentUserRecord))
     ) => Controller ApiController where
     action CreateRecordAction { table } = do
-        let hasqlPool = requestHasqlPool ?request
+        let hasqlPool = ?modelContext.hasqlPool
         ensureRLSEnabled hasqlPool table
 
         columnTypeLookup <- makeCachedColumnTypeLookup hasqlPool
         columnTypes <- columnTypeLookup table
 
-        let payload = requestBodyJSON
+        payload <- requestBodyJSON
 
         case payload of
             Object hashMap -> do
-                let pairs = hashMap
+                let pairsList = hashMap
                         |> Aeson.toList
                         |> map (\(key, val) ->
                             let col = fieldNameToColumnName (Aeson.toText key)
-                            in (col, typedAesonValueToSnippet (lookupColumnType columnTypes col) val)
+                            in (col, lookupColumnType columnTypes col, val)
                         )
 
-                let columns = map fst pairs
-                let values = map snd pairs
+                let columns = map (\(c,_,_) -> c) pairsList
+                let valueSnippets = map (\(_, colType, val) -> typedAesonValueToSnippet colType val) pairsList
 
-                let snippet = compileInsert table columns values camelCaseRenamer columnTypes
+                let insertResult = compileInsert table columns valueSnippets camelCaseRenamer columnTypes
+                let stmt = compiledQueryStatement insertResult
 
                 result :: Either SomeException [[Field]] <- Exception.try do
-                    sqlQueryWriteWithRLS hasqlPool (wrapDynamicQuery snippet) dynamicRowDecoder
+                    sqlQueryWriteWithRLS hasqlPool stmt
 
                 case result of
                     Left e -> renderErrorJson (show e :: Text)
@@ -79,71 +78,65 @@ instance (
                             case mapM parseObject objectList of
                                 Left err -> renderErrorJson (cs err :: Text)
                                 Right hashMaps -> do
-                                    let values = hashMaps
-                                            |> map (\hashMap ->
-                                                    columns
-                                                    |> map (\col ->
-                                                        let fieldName = columnNameToFieldName col
-                                                            val = fromMaybe Data.Aeson.Null (Aeson.lookup (Aeson.fromText fieldName) hashMap)
-                                                        in typedAesonValueToSnippet (lookupColumnType columnTypes col) val
-                                                    )
-                                                )
+                                    let encodeRow hashMap = map
+                                            (\col ->
+                                                let fieldName = columnNameToFieldName col
+                                                    val = fromMaybe Data.Aeson.Null (Aeson.lookup (Aeson.fromText fieldName) hashMap)
+                                                in typedAesonValueToSnippet (lookupColumnType columnTypes col) val)
+                                            columns
+                                    let valueRows = map encodeRow hashMaps
 
-                                    let snippet = compileInsertMany table columns values camelCaseRenamer columnTypes
+                                    let insertResult = compileInsertMany table columns valueRows camelCaseRenamer columnTypes
+                                    let stmt = compiledQueryStatement insertResult
 
-                                    result :: [[Field]] <- sqlQueryWriteWithRLS hasqlPool (wrapDynamicQuery snippet) dynamicRowDecoder
+                                    result :: [[Field]] <- sqlQueryWriteWithRLS hasqlPool stmt
                                     renderJson result
                         _otherwise -> renderErrorJson ("Expected object" :: Text)
 
             _ -> error "Expected JSON object or array"
 
     action UpdateRecordAction { table, id } = do
-        let hasqlPool = requestHasqlPool ?request
+        let hasqlPool = ?modelContext.hasqlPool
         ensureRLSEnabled hasqlPool table
 
         columnTypeLookup <- makeCachedColumnTypeLookup hasqlPool
         columnTypes <- columnTypeLookup table
 
-        let payload = requestBodyJSON
-                |> \case
-                    Object hashMap -> hashMap
-                    _ -> error "Expected JSON object"
+        payload <- requestBodyJSON
+        let hashMap = case payload of
+                Object hm -> hm
+                _ -> error "Expected JSON object"
 
-        let keyValues = payload
-                |> Aeson.toList
-                |> map (\(key, val) ->
-                    let col = fieldNameToColumnName (Aeson.toText key)
-                    in (col, typedAesonValueToSnippet (lookupColumnType columnTypes col) val)
-                )
+        let setSql = encodeKeyMapToSetSql columnTypes hashMap
+        let updateResult = compileUpdate table setSql (Snippet.sql "id = " <> uuidParam id) camelCaseRenamer columnTypes
+        let stmt = compiledQueryStatement updateResult
 
-        let setCalls = keyValues
-                |> map (\(col, val) -> quoteIdentifier col <> Snippet.sql " = " <> val)
-        let setSnippet = mconcat $ List.intersperse (Snippet.sql ", ") setCalls
-        let whereSnippet = Snippet.sql "id = " <> Snippet.param id
-        let snippet = compileUpdate table setSnippet whereSnippet camelCaseRenamer columnTypes
-
-        result :: [[Field]] <- sqlQueryWriteWithRLS hasqlPool (wrapDynamicQuery snippet) dynamicRowDecoder
+        result :: [[Field]] <- sqlQueryWriteWithRLS hasqlPool stmt
 
         renderJson (head result)
 
     -- DELETE /api/:table/:id
     action DeleteRecordAction { table, id } = do
-        let hasqlPool = requestHasqlPool ?request
+        let hasqlPool = ?modelContext.hasqlPool
         ensureRLSEnabled hasqlPool table
 
-        sqlExecWithRLS hasqlPool (Snippet.sql "DELETE FROM " <> quoteIdentifier table <> Snippet.sql " WHERE id = " <> Snippet.param id)
+        let deleteSnippet = Snippet.sql ("DELETE FROM " <> quoteIdentifier table <> " WHERE id = ") <> uuidParam id
+        let stmt = Snippet.toPreparableStatement deleteSnippet Decoders.noResult
+        sqlExecWithRLS hasqlPool stmt
 
         renderJson True
 
     -- GET /api/:table/:id
     action ShowRecordAction { table, id } = do
-        let hasqlPool = requestHasqlPool ?request
+        let hasqlPool = ?modelContext.hasqlPool
         ensureRLSEnabled hasqlPool table
 
         columnTypeLookup <- makeCachedColumnTypeLookup hasqlPool
         columnTypes <- columnTypeLookup table
         let selectColumns = compileSelectedColumns camelCaseRenamer columnTypes SelectAll
-        result :: [[Field]] <- sqlQueryWithRLS hasqlPool (wrapDynamicQuery (Snippet.sql "SELECT " <> selectColumns <> Snippet.sql " FROM " <> quoteIdentifier table <> Snippet.sql " WHERE id = " <> Snippet.param id)) dynamicRowDecoder
+        let selectSnippet = Snippet.sql ("SELECT " <> selectColumns <> " FROM " <> quoteIdentifier table <> " WHERE id = ") <> uuidParam id
+        let stmt = Snippet.toPreparableStatement (wrapDynamicQuery selectSnippet) dynamicRowDecoder
+        result :: [[Field]] <- sqlQueryWithRLS hasqlPool stmt
 
         renderJson (head result)
 
@@ -151,13 +144,14 @@ instance (
     -- GET /api/:table?orderBy=createdAt
     -- GET /api/:table?fields=id,title
     action ListRecordsAction { table } = do
-        let hasqlPool = requestHasqlPool ?request
+        let hasqlPool = ?modelContext.hasqlPool
         ensureRLSEnabled hasqlPool table
 
         columnTypeLookup <- makeCachedColumnTypeLookup hasqlPool
         columnTypes <- columnTypeLookup table
-        let theSnippet = compileQueryTyped camelCaseRenamer columnTypes (buildDynamicQueryFromRequest table)
-        result :: [[Field]] <- sqlQueryWithRLS hasqlPool (wrapDynamicQuery theSnippet) dynamicRowDecoder
+        let querySnippet = compileQueryTyped camelCaseRenamer columnTypes (buildDynamicQueryFromRequest table)
+        let stmt = compiledQueryStatement querySnippet
+        result :: [[Field]] <- sqlQueryWithRLS hasqlPool stmt
 
         renderJson result
 
@@ -193,7 +187,21 @@ instance ParamReader OrderByClause where
             parseOrder "desc" = Right Desc
             parseOrder otherwise = Left ("Invalid order " <> cs otherwise)
 
-renderErrorJson :: (?context :: ControllerContext, ?request :: Request) => ToJSON json => json -> IO ()
+-- | Encode an Aeson KeyMap (from REST JSON payload) into a SQL SET clause 'Snippet'.
+encodeKeyMapToSetSql :: ColumnTypeInfo -> Aeson.KeyMap Value -> Snippet
+encodeKeyMapToSetSql columnTypes hashMap =
+    let pairsList = hashMap
+            |> Aeson.toList
+            |> map (\(key, val) ->
+                let col = fieldNameToColumnName (Aeson.toText key)
+                in (col, lookupColumnType columnTypes col, val)
+            )
+        encodeSetClause (col, colType, val) =
+            Snippet.sql (quoteIdentifier col <> " = ") <> typedAesonValueToSnippet colType val
+        setSnippets = map encodeSetClause pairsList
+    in mconcat $ List.intersperse (Snippet.sql ", ") setSnippets
+
+renderErrorJson :: (?request :: Request, ?respond :: Respond) => ToJSON json => json -> IO ResponseReceived
 renderErrorJson json = renderJsonWithStatusCode status400 json
 {-# INLINABLE renderErrorJson #-}
 

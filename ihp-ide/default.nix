@@ -4,19 +4,19 @@
 , containers, countable-inflections, cryptohash, data-default
 , directory, filepath, fsnotify, hasql, hasql-dynamic-statements
 , hasql-implicits, hasql-pool, hspec, http-types, ihp, ihp-hsx
-, ihp-log, ihp-migrate, ihp-modal, ihp-postgres-parser
+, fast-logger, ihp-migrate, ihp-modal, ihp-postgres-parser
 , ihp-schema-compiler, inflections, interpolate, lib, megaparsec
 , mono-traversable, neat-interpolation, network, network-uri
-, postgresql-simple, process, safe-exceptions, split
-, string-conversions, text, time, transformers, unagi-chan, unix
-, unliftio, uri-encode, uuid, vault, wai, wai-app-static
-, wai-asset-path, wai-extra, wai-request-params, wai-session
-, wai-session-clientsession, wai-util, wai-websockets, warp
-, websockets, with-utf8, wreq
+, process, safe-exceptions, split, string-conversions, text, time
+, temporary, transformers, unagi-chan, unix, unliftio, uri-encode
+, uuid, vault, wai, wai-app-static, wai-asset-path, wai-extra
+, wai-request-params, wai-session-clientsession-deferred
+, wai-session-maybe, wai-util, wai-websockets, warp, websockets
+, with-utf8, wreq
 }:
 mkDerivation {
   pname = "ihp-ide";
-  version = "1.4.0";
+  version = "1.6.0";
   src = ./.;
   isLibrary = true;
   isExecutable = true;
@@ -27,14 +27,14 @@ mkDerivation {
     clientsession containers countable-inflections cryptohash
     data-default directory filepath fsnotify hasql
     hasql-dynamic-statements hasql-implicits hasql-pool http-types ihp
-    ihp-hsx ihp-log ihp-migrate ihp-modal ihp-postgres-parser
+    ihp-hsx fast-logger ihp-migrate ihp-modal ihp-postgres-parser
     ihp-schema-compiler inflections interpolate megaparsec
-    mono-traversable neat-interpolation network network-uri
-    postgresql-simple process safe-exceptions split string-conversions
-    text time transformers unagi-chan unix unliftio uri-encode uuid
-    vault wai wai-app-static wai-extra wai-request-params wai-session
-    wai-session-clientsession wai-util wai-websockets warp websockets
-    with-utf8 wreq
+    mono-traversable neat-interpolation network network-uri process
+    safe-exceptions split string-conversions text time transformers
+    unagi-chan unix unliftio uri-encode uuid vault wai wai-app-static
+    wai-extra wai-request-params wai-session-clientsession-deferred
+    wai-session-maybe wai-util wai-websockets warp websockets with-utf8
+    wreq
   ];
   executableHaskellDepends = [
     aeson async attoparsec auto-update base base16-bytestring
@@ -42,12 +42,12 @@ mkDerivation {
     classy-prelude clientsession containers countable-inflections
     cryptohash data-default directory filepath fsnotify hasql
     hasql-dynamic-statements hasql-implicits hasql-pool http-types ihp
-    ihp-hsx ihp-log ihp-migrate ihp-postgres-parser ihp-schema-compiler
+    ihp-hsx fast-logger ihp-migrate ihp-postgres-parser ihp-schema-compiler
     inflections interpolate megaparsec mono-traversable
-    neat-interpolation network network-uri postgresql-simple process
-    safe-exceptions split string-conversions text time transformers
-    unagi-chan unix unliftio uri-encode uuid vault wai wai-app-static
-    wai-extra wai-session wai-session-clientsession wai-util
+    neat-interpolation network network-uri process safe-exceptions
+    split string-conversions text time transformers unagi-chan unix
+    unliftio uri-encode uuid vault wai wai-app-static wai-extra
+    wai-session-clientsession-deferred wai-session-maybe wai-util
     wai-websockets warp websockets with-utf8 wreq
   ];
   testHaskellDepends = [
@@ -56,13 +56,13 @@ mkDerivation {
     clientsession containers countable-inflections cryptohash
     data-default directory filepath fsnotify hasql
     hasql-dynamic-statements hasql-implicits hasql-pool hspec
-    http-types ihp ihp-hsx ihp-log ihp-migrate ihp-modal
+    http-types ihp ihp-hsx fast-logger ihp-migrate ihp-modal
     ihp-postgres-parser ihp-schema-compiler inflections interpolate
     megaparsec mono-traversable neat-interpolation network network-uri
-    postgresql-simple process safe-exceptions split string-conversions
-    text time transformers unagi-chan unix unliftio uri-encode uuid
-    vault wai wai-app-static wai-asset-path wai-extra
-    wai-request-params wai-session wai-session-clientsession wai-util
+    process safe-exceptions split string-conversions temporary text time
+    transformers unagi-chan unix unliftio uri-encode uuid vault wai
+    wai-app-static wai-asset-path wai-extra wai-request-params
+    wai-session-clientsession-deferred wai-session-maybe wai-util
     wai-websockets warp websockets with-utf8 wreq
   ];
   homepage = "https://ihp.digitallyinduced.com/";

@@ -1,6 +1,7 @@
-module IHP.IDE.ToolServer (runToolServer, buildToolServerApplication, ToolServerApplicationWithConfig(..)) where
+module IHP.IDE.ToolServer (runToolServer, withToolServerApplication, ToolServerApplicationWithConfig(..)) where
 
 import IHP.Prelude
+import System.Log.FastLogger (LogType'(..), withFastLogger, defaultBufSize, toLogStr)
 import qualified Network.Wai as Wai
 import qualified Network.Wai.Handler.Warp as Warp
 import IHP.IDE.Types
@@ -8,10 +9,10 @@ import IHP.IDE.PortConfig
 import qualified IHP.ControllerSupport as ControllerSupport
 import IHP.ModelSupport
 import IHP.RouterSupport hiding (get)
-import Network.Wai.Session.ClientSession (clientsessionStore)
+import Network.Wai.Session.ClientSession.Deferred (clientsessionStore)
 import qualified Web.ClientSession as ClientSession
 import Network.Wai.Middleware.MethodOverridePost (methodOverridePost)
-import Network.Wai.Session (withSession)
+import Network.Wai.Session.Maybe (withSession)
 import qualified Network.WebSockets as Websocket
 import qualified Network.Wai.Handler.WebSockets as Websocket
 
@@ -31,18 +32,12 @@ import IHP.IDE.ToolServer.Types
 import IHP.IDE.ToolServer.Helper.Controller as Helper
 import IHP.IDE.ToolServer.Routes ()
 import qualified System.Process as Process
-import System.Info
 import qualified IHP.EnvVar as EnvVar
-import qualified IHP.AutoRefresh.Types as AutoRefresh
 import qualified IHP.AutoRefresh as AutoRefresh
-import IHP.Controller.Context
-import IHP.RequestVault.Helper (lookupRequestVault)
 import qualified IHP.IDE.ToolServer.Layout as Layout
 import IHP.Controller.Layout
 import qualified IHP.IDE.LiveReloadNotificationServer as LiveReloadNotificationServer
 import qualified IHP.Version as Version
-import qualified IHP.PGListener as PGListener
-import IHP.RequestVault.ModelContext (modelContextMiddleware)
 import qualified Control.Exception.Safe as Exception
 
 import qualified Network.Wai.Application.Static as Static
@@ -56,6 +51,7 @@ import qualified Data.Vault.Lazy as Vault
 import IHP.Controller.Response (responseHeadersVaultKey)
 import IHP.ControllerSupport (rlsContextVaultKey)
 import Wai.Request.Params.Middleware (requestBodyMiddleware)
+import IHP.Modal.Types (modalContainerVaultKey)
 
 runToolServer :: (?context :: Context) => ToolServerApplication -> _ -> IO ()
 runToolServer toolServerApplication liveReloadClients = do
@@ -66,29 +62,27 @@ runToolServer toolServerApplication liveReloadClients = do
 
 startToolServer' :: (?context :: Context) => ToolServerApplication -> Int -> Bool -> _ -> IO ()
 startToolServer' toolServerApplication port isDebugMode liveReloadClients = do
-    weightedApp <- buildToolServerApplication toolServerApplication port liveReloadClients
+    withToolServerApplication toolServerApplication port liveReloadClients \weightedApp -> do
+        let openAppUrl = openUrl ("http://localhost:" <> tshow port <> "/")
+        let warpSettings = Warp.defaultSettings
+                |> Warp.setPort port
+                |> Warp.setBeforeMainLoop openAppUrl
 
-    let openAppUrl = openUrl ("http://localhost:" <> tshow port <> "/")
-    let warpSettings = Warp.defaultSettings
-            |> Warp.setPort port
-            |> Warp.setBeforeMainLoop openAppUrl
+        let logMiddleware = if isDebugMode then weightedApp.frameworkConfig.requestLoggerMiddleware else IHP.Prelude.id
 
-    let logMiddleware = if isDebugMode then weightedApp.frameworkConfig.requestLoggerMiddleware else IHP.Prelude.id
-
-    Warp.runSettings warpSettings (logMiddleware weightedApp.application)
-        `Exception.finally` releaseModelContext weightedApp.modelContext
+        Warp.runSettings warpSettings (logMiddleware weightedApp.application)
 
 -- | Result of building the ToolServer application
 data ToolServerApplicationWithConfig = ToolServerApplicationWithConfig
     { application :: Wai.Application
     , frameworkConfig :: Config.FrameworkConfig
-    , modelContext :: ModelContext
     }
 
--- | Builds the full ToolServer WAI application with all middlewares applied.
+-- | Builds the full ToolServer WAI application with all middlewares applied
+-- and runs the given action with it. The model context is released when the
+-- action completes.
 --
--- This is exported for testing so we can verify the middleware stack works correctly.
--- The returned application includes:
+-- The application includes:
 -- - methodOverridePost (for PUT/DELETE via POST)
 -- - sessionMiddleware (for session handling)
 -- - approotMiddleware (for app root path)
@@ -96,61 +90,69 @@ data ToolServerApplicationWithConfig = ToolServerApplicationWithConfig
 -- - frameworkConfigMiddleware (for framework config in request vault)
 -- - requestBodyMiddleware (for parsing form params - required for controllers)
 -- - websocket support (for live reload)
-buildToolServerApplication :: ToolServerApplication -> Int -> _ -> IO ToolServerApplicationWithConfig
-buildToolServerApplication toolServerApplication port liveReloadClients = do
-    frameworkConfig <- Config.buildFrameworkConfig do
-        Config.option $ Config.AppHostname "localhost"
-        Config.option $ Config.AppPort port
-        Config.option $ Config.AssetVersion Version.ihpVersion
+withToolServerApplication :: ToolServerApplication -> Int -> _ -> (ToolServerApplicationWithConfig -> IO result) -> IO result
+withToolServerApplication toolServerApplication port liveReloadClients action = do
+    withFastLogger (LogStdout defaultBufSize) \logger -> do
+        frameworkConfig <- Config.buildFrameworkConfig logger do
+            Config.option $ Config.AppHostname "localhost"
+            Config.option $ Config.AppPort port
+            Config.option $ Config.AssetVersion Version.ihpVersion
 
-        ihpIdeBaseUrlEnvVar <- EnvVar.envOrNothing "IHP_IDE_BASEURL"
-        case ihpIdeBaseUrlEnvVar of
-            Just baseUrl -> Config.option $ Config.BaseUrl baseUrl
-            Nothing -> pure ()
+            ihpIdeBaseUrlEnvVar <- EnvVar.envOrNothing "IHP_IDE_BASEURL"
+            case ihpIdeBaseUrlEnvVar of
+                Just baseUrl -> Config.option $ Config.BaseUrl baseUrl
+                Nothing -> pure ()
 
-    modelContext <- Config.initModelContext frameworkConfig
+        withModelContext frameworkConfig.databaseUrl frameworkConfig.logger \modelContext -> do
+            store <- fmap clientsessionStore (ClientSession.getKey "Config/client_session_key.aes")
+            let sessionMiddleware :: Wai.Middleware = withSession store "SESSION" (frameworkConfig.sessionCookie) sessionVaultKey
 
-    store <- fmap clientsessionStore (ClientSession.getKey "Config/client_session_key.aes")
-    let sessionMiddleware :: Wai.Middleware = withSession store "SESSION" (frameworkConfig.sessionCookie) sessionVaultKey
+            approotMiddleware <- Approot.envFallbackNamed "IDE_APPROOT"
 
-    approotMiddleware <- Approot.envFallbackNamed "IDE_APPROOT"
+            staticApp <- initStaticApp
 
-    staticApp <- initStaticApp
+            let innerApplication :: Wai.Application = \request respond -> do
+                    frontControllerToWAIApp @ToolServerApplication @AutoRefresh.AutoRefreshWSApp (\app -> app) toolServerApplication staticApp request respond
 
-    let innerApplication :: Wai.Application = \request respond -> do
-            frontControllerToWAIApp @ToolServerApplication @AutoRefresh.AutoRefreshWSApp (\app -> app) toolServerApplication staticApp request respond
+            let responseHeadersMiddleware = insertNewIORefVaultMiddleware responseHeadersVaultKey []
+            let rlsContextMiddleware = insertNewIORefVaultMiddleware rlsContextVaultKey Nothing
+            let modalMiddleware = insertNewIORefVaultMiddleware modalContainerVaultKey Nothing
 
-    let responseHeadersMiddleware = insertNewIORefVaultMiddleware responseHeadersVaultKey []
-    let rlsContextMiddleware = insertNewIORefVaultMiddleware rlsContextVaultKey Nothing
+            let toolServerVaultMiddleware app req respond = do
+                    availableApps <- AvailableApps <$> findApplications
+                    webControllers <- WebControllers <$> findWebControllers
+                    let defaultAppUrl = "http://localhost:" <> tshow toolServerApplication.appPort
+                    appUrl <- AppUrl <$> EnvVar.envOrDefault "IHP_BASEURL" defaultAppUrl
+                    databaseNeedsMigration <- DatabaseNeedsMigration <$> readIORef toolServerApplication.databaseNeedsMigration
+                    hooglePort <- EnvVar.envOrNothing "IHP_HOOGLE_PORT"
+                    let hoogleUrl = HoogleUrl $ case hooglePort of
+                            Just port | port /= "" -> Just ("http://localhost:" <> port)
+                            _ -> Nothing
+                    let req' = req { Wai.vault = Vault.insert availableAppsVaultKey availableApps
+                                           . Vault.insert webControllersVaultKey webControllers
+                                           . Vault.insert appUrlVaultKey appUrl
+                                           . Vault.insert databaseNeedsMigrationVaultKey databaseNeedsMigration
+                                           . Vault.insert hoogleUrlVaultKey hoogleUrl
+                                           . Vault.insert toolServerApplicationVaultKey toolServerApplication
+                                           $ req.vault }
+                    app req' respond
 
-    let toolServerVaultMiddleware app req respond = do
-            availableApps <- AvailableApps <$> findApplications
-            webControllers <- WebControllers <$> findWebControllers
-            let defaultAppUrl = "http://localhost:" <> tshow toolServerApplication.appPort
-            appUrl <- AppUrl <$> EnvVar.envOrDefault "IHP_BASEURL" defaultAppUrl
-            databaseNeedsMigration <- DatabaseNeedsMigration <$> readIORef toolServerApplication.databaseNeedsMigration
-            let req' = req { Wai.vault = Vault.insert availableAppsVaultKey availableApps
-                                   . Vault.insert webControllersVaultKey webControllers
-                                   . Vault.insert appUrlVaultKey appUrl
-                                   . Vault.insert databaseNeedsMigrationVaultKey databaseNeedsMigration
-                                   $ req.vault }
-            app req' respond
+            let application =
+                    methodOverridePost $ sessionMiddleware $ approotMiddleware
+                        $ viewLayoutMiddleware
+                        $ responseHeadersMiddleware
+                        $ rlsContextMiddleware
+                        $ modalMiddleware
+                        $ toolServerVaultMiddleware
+                        $ modelContextMiddleware modelContext
+                        $ frameworkConfigMiddleware frameworkConfig
+                        $ requestBodyMiddleware frameworkConfig.parseRequestBodyOptions
+                        $ Websocket.websocketsOr
+                            Websocket.defaultConnectionOptions
+                            (LiveReloadNotificationServer.app liveReloadClients)
+                            innerApplication
 
-    let application =
-            methodOverridePost $ sessionMiddleware $ approotMiddleware
-                $ viewLayoutMiddleware
-                $ responseHeadersMiddleware
-                $ rlsContextMiddleware
-                $ toolServerVaultMiddleware
-                $ modelContextMiddleware modelContext
-                $ frameworkConfigMiddleware frameworkConfig
-                $ requestBodyMiddleware frameworkConfig.parseRequestBodyOptions
-                $ Websocket.websocketsOr
-                    Websocket.defaultConnectionOptions
-                    (LiveReloadNotificationServer.app liveReloadClients)
-                    innerApplication
-
-    pure ToolServerApplicationWithConfig { application, frameworkConfig, modelContext }
+            action ToolServerApplicationWithConfig { application, frameworkConfig }
 
 initStaticApp :: IO Wai.Application
 initStaticApp = do
@@ -168,16 +170,16 @@ initStaticApp = do
             }
     pure (Static.staticApp toolServerStaticSettings)
 
-openUrl :: Text -> IO ()
+openUrl :: (?context :: Context) => Text -> IO ()
 openUrl url = do
     selectedBrowser <- EnvVar.envOrNothing "IHP_BROWSER"
-    let defaultOSBrowser = case os of
-            "linux" -> "xdg-open"
-            "darwin" -> "open"
-            _ -> "xdg-open"
-    let browser = selectedBrowser |> fromMaybe defaultOSBrowser
-    async $ Process.callCommand (browser <> " " <> cs url)
-    pure ()
+    case selectedBrowser of
+        Just browser | shouldOpenBrowser browser -> do
+            async $ Process.callCommand (browser <> " " <> cs url)
+            pure ()
+        _ -> ?context.logger (toLogStr ("IHP development tooling is available at " <> url))
+    where
+        shouldOpenBrowser browser = browser /= "" && browser /= "none" && browser /= "false"
 
 instance FrontController ToolServerApplication where
     controllers =

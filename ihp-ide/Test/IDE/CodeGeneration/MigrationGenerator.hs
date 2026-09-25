@@ -1,8 +1,8 @@
 {-|
-Module: Test.IDE.CodeGeneration.MigrationGenerator
+Module: IDE.CodeGeneration.MigrationGenerator
 Copyright: (c) digitally induced GmbH, 2021
 -}
-module Test.IDE.CodeGeneration.MigrationGenerator where
+module IDE.CodeGeneration.MigrationGenerator where
 
 import Test.Hspec
 import IHP.Prelude
@@ -10,15 +10,294 @@ import IHP.IDE.CodeGen.MigrationGenerator
 import Data.String.Interpolate.IsString (i)
 import qualified Text.Megaparsec as Megaparsec
 import qualified IHP.Postgres.Parser as Parser
-import IHP.IDE.CodeGen.Types
 import IHP.Postgres.Types
-import IHP.NameSupport
+import IHP.IDE.CodeGen.Types (GeneratorAction (..))
+import qualified Data.Text as Text
 
 tests = do
     describe "MigrationGenerator" do
+        describe "nextMigrationRevision" do
+            it "uses the timestamp when it is newer than existing migrations" do
+                nextMigrationRevision 200 [100, 101] `shouldBe` 200
+
+            it "allocates after future-dated migrations so a split plan cannot collide" do
+                let revision = nextMigrationRevision 100 [200]
+                revision `shouldBe` 201
+                revision + 1 `shouldBe` 202
+
+        describe "migration paths" do
+            it "reports every generated migration and opens the regular migration last" do
+                let plan =
+                        [ EnsureDirectory { directory = textToOsPath "Application/Migration" }
+                        , CreateFile { filePath = textToOsPath "Application/Migration/100-create-extensions.sql", fileContent = "" }
+                        , CreateFile { filePath = textToOsPath "Application/Migration/101-add-places.sql", fileContent = "" }
+                        ]
+
+                migrationPathsFromPlan plan `shouldBe`
+                    [ "Application/Migration/100-create-extensions.sql"
+                    , "Application/Migration/101-add-places.sql"
+                    ]
+                migrationPathFromPlan plan `shouldBe` "Application/Migration/101-add-places.sql"
+
+        describe "migrationFilesFromStatements" do
+            it "places extensions in a standalone migration before regular statements" do
+                let statements = sql [i|
+                    CREATE EXTENSION IF NOT EXISTS "earthdistance";
+                    CREATE TABLE places ();
+                |]
+
+                migrationFilesFromStatements 100 "add-places" statements `shouldBe`
+                    [ ("100-create-extensions.sql", "CREATE EXTENSION IF NOT EXISTS earthdistance;\n")
+                    , ("101-add-places.sql", "CREATE TABLE places (\n\n);\n")
+                    ]
+
+            it "keeps an extension-only diff in the requested migration" do
+                let statements = sql [i|CREATE EXTENSION IF NOT EXISTS "earthdistance";|]
+
+                migrationFilesFromStatements 100 "add-earthdistance" statements `shouldBe`
+                    [("100-add-earthdistance.sql", "CREATE EXTENSION IF NOT EXISTS earthdistance;\n")]
+
+        describe "migrationFilesFromSql" do
+            it "splits a generated SQL preview when it is submitted" do
+                migrationFilesFromSql 100 "add-places" [i|
+                    CREATE EXTENSION IF NOT EXISTS "earthdistance";
+                    CREATE TABLE places ();
+                |] `shouldBe`
+                    [ ("100-create-extensions.sql", "CREATE EXTENSION IF NOT EXISTS earthdistance;\n")
+                    , ("101-add-places.sql", "CREATE TABLE places (\n\n);\n")
+                    ]
+
+            it "preserves manually formatted regular SQL" do
+                migrationFilesFromSql 100 "backfill" "  UPDATE users SET active = TRUE;\n"
+                    `shouldBe` [("100-backfill.sql", "  UPDATE users SET active = TRUE;\n")]
+
         describe "diffSchemas" do
             it "should handle an empty schema" do
                 diffSchemas [] [] `shouldBe` []
+
+            it "does not drop constraint triggers after dropping their table" do
+                let actualSchema = sql [i|
+                    CREATE TABLE entries (id UUID);
+                    CREATE CONSTRAINT TRIGGER entries_check AFTER INSERT ON entries FOR EACH ROW EXECUTE FUNCTION check_entries();
+                |]
+
+                diffSchemas [] actualSchema `shouldBe` sql "DROP TABLE entries;"
+
+            it "normalizes restricted-action column identifiers" do
+                let targetSchema = sql "ALTER TABLE items ADD CONSTRAINT items_fkey FOREIGN KEY (Ticket_ID, Organization_ID) REFERENCES tickets(id, organization_id) ON UPDATE SET DEFAULT (Ticket_ID) ON DELETE SET NULL (Ticket_ID);"
+                let actualSchema = sql "ALTER TABLE items ADD CONSTRAINT items_fkey FOREIGN KEY (ticket_id, organization_id) REFERENCES tickets(id, organization_id) ON UPDATE SET DEFAULT (ticket_id) ON DELETE SET NULL (ticket_id);"
+
+                diffSchemas targetSchema actualSchema `shouldBe` []
+
+            it "normalizes omitted referential actions on composite foreign keys" do
+                let targetSchema = sql [i|
+                    ALTER TABLE items ADD CONSTRAINT items_ref_ticket FOREIGN KEY (ticket_id, organization_id) REFERENCES tickets (id, organization_id);
+                |]
+                let actualSchema = sql [i|
+                    ALTER TABLE items ADD CONSTRAINT items_ref_ticket FOREIGN KEY (ticket_id, organization_id) REFERENCES tickets (id, organization_id) ON UPDATE NO ACTION ON DELETE NO ACTION;
+                |]
+
+                diffSchemas targetSchema actualSchema `shouldBe` []
+
+            it "resolves omitted composite reference columns from the parent primary key" do
+                let targetSchema = sql "CREATE TABLE parents (tenant_id uuid, id uuid, PRIMARY KEY (tenant_id, id)); CREATE TABLE children (tenant_id uuid, parent_id uuid); ALTER TABLE children ADD FOREIGN KEY (tenant_id, parent_id) REFERENCES parents;"
+                let actualSchema = sql "CREATE TABLE parents (tenant_id uuid, id uuid, PRIMARY KEY (tenant_id, id)); CREATE TABLE children (tenant_id uuid, parent_id uuid); ALTER TABLE children ADD FOREIGN KEY (tenant_id, parent_id) REFERENCES parents (tenant_id, id);"
+
+                diffSchemas targetSchema actualSchema `shouldBe` []
+
+            it "normalizes PostgreSQL-generated composite foreign key names" do
+                let targetSchema = sql "ALTER TABLE children ADD FOREIGN KEY (tenant_id, parent_id) REFERENCES parents (tenant_id, id);"
+                let actualSchema = sql "ALTER TABLE children ADD CONSTRAINT children_tenant_id_parent_id_fkey FOREIGN KEY (tenant_id, parent_id) REFERENCES parents (tenant_id, id);"
+
+                diffSchemas targetSchema actualSchema `shouldBe` []
+
+            it "excludes schema names from generated foreign key names" do
+                let targetSchema = sql "ALTER TABLE private.tokens ADD FOREIGN KEY (user_id) REFERENCES private.users (id);"
+                let actualSchema = sql "ALTER TABLE private.tokens ADD CONSTRAINT tokens_user_id_fkey FOREIGN KEY (user_id) REFERENCES private.users (id);"
+
+                diffSchemas targetSchema actualSchema `shouldBe` []
+
+            it "preserves the suffix of long PostgreSQL-generated foreign key names" do
+                let targetSchema = sql "ALTER TABLE very_long_child_table_name_for_foreign_key ADD FOREIGN KEY (very_long_parent_reference_column) REFERENCES parents (id);"
+                let actualSchema = sql "ALTER TABLE very_long_child_table_name_for_foreign_key ADD CONSTRAINT very_long_child_table_name_fo_very_long_parent_reference_c_fkey FOREIGN KEY (very_long_parent_reference_column) REFERENCES parents (id);"
+
+                diffSchemas targetSchema actualSchema `shouldBe` []
+
+            it "normalizes resolved composite primary key identifiers" do
+                let targetSchema = sql "CREATE TABLE parents (Tenant_ID uuid, ID uuid, PRIMARY KEY (Tenant_ID, ID)); CREATE TABLE children (tenant_id uuid, parent_id uuid); ALTER TABLE children ADD FOREIGN KEY (tenant_id, parent_id) REFERENCES parents;"
+                let actualSchema = sql "CREATE TABLE parents (tenant_id uuid, id uuid, PRIMARY KEY (tenant_id, id)); CREATE TABLE children (tenant_id uuid, parent_id uuid); ALTER TABLE children ADD CONSTRAINT children_tenant_id_parent_id_fkey FOREIGN KEY (tenant_id, parent_id) REFERENCES parents (tenant_id, id);"
+
+                diffSchemas targetSchema actualSchema `shouldBe` []
+
+            it "preserves quoted composite foreign key identifiers" do
+                let targetSchema = sql "ALTER TABLE children ADD FOREIGN KEY (\"Tenant_ID\", \"Parent_ID\") REFERENCES \"Parents\" (\"Tenant_ID\", \"ID\");"
+                let [AddConstraint { constraint = CompositeForeignKeyConstraint { columnNames, referenceTable, referenceColumns } }] = diffSchemas targetSchema []
+
+                columnNames `shouldBe` ["Tenant_ID", "Parent_ID"]
+                referenceTable `shouldBe` "Parents"
+                referenceColumns `shouldBe` ["Tenant_ID", "ID"]
+
+            it "preserves quoted restricted-action column identifiers" do
+                let targetSchema = sql "ALTER TABLE children ADD FOREIGN KEY (\"Tenant_ID\", \"Parent_ID\") REFERENCES parents (tenant_id, id) ON UPDATE SET DEFAULT (\"Tenant_ID\") ON DELETE SET NULL (\"Parent_ID\");"
+                let [AddConstraint { constraint = CompositeForeignKeyConstraint { onUpdate, onDelete } }] = diffSchemas targetSchema []
+
+                onUpdate `shouldBe` Just (SetDefault ["Tenant_ID"])
+                onDelete `shouldBe` Just (SetNull ["Parent_ID"])
+
+            it "matches PostgreSQL-generated foreign-key names for quoted identifiers" do
+                let targetSchema = sql "ALTER TABLE \"Children\" ADD FOREIGN KEY (\"Parent_ID\") REFERENCES parents (id);"
+                let actualSchema = sql "ALTER TABLE \"Children\" ADD CONSTRAINT \"Children_Parent_ID_fkey\" FOREIGN KEY (\"Parent_ID\") REFERENCES parents (id);"
+
+                diffSchemas targetSchema actualSchema `shouldBe` []
+
+            it "folds unquoted explicit composite foreign-key names" do
+                let targetSchema = sql "CREATE TABLE children (tenant_id uuid, parent_id uuid); ALTER TABLE children ADD CONSTRAINT Child_FK FOREIGN KEY (tenant_id, parent_id) REFERENCES parents (tenant_id, id);"
+                let actualSchema = sql "CREATE TABLE children (tenant_id uuid, parent_id uuid); ALTER TABLE children ADD CONSTRAINT child_fk FOREIGN KEY (tenant_id, parent_id) REFERENCES parents (tenant_id, id);"
+
+                diffSchemas targetSchema actualSchema `shouldBe` []
+
+            it "disambiguates colliding generated foreign-key names" do
+                let targetSchema = sql "CREATE TABLE children (parent_id uuid); ALTER TABLE children ADD FOREIGN KEY (parent_id) REFERENCES parents(id); ALTER TABLE children ADD FOREIGN KEY (parent_id) REFERENCES archived_parents(id);"
+                let actualSchema = sql "CREATE TABLE children (parent_id uuid); ALTER TABLE children ADD CONSTRAINT children_parent_id_fkey FOREIGN KEY (parent_id) REFERENCES parents(id); ALTER TABLE children ADD CONSTRAINT children_parent_id_fkey1 FOREIGN KEY (parent_id) REFERENCES archived_parents(id);"
+
+                diffSchemas targetSchema actualSchema `shouldBe` []
+
+            it "reserves existing non-foreign-key constraint names" do
+                let targetSchema = sql "CREATE TABLE children (parent_id uuid, CONSTRAINT children_parent_id_fkey CHECK (parent_id IS NOT NULL)); ALTER TABLE children ADD FOREIGN KEY (parent_id) REFERENCES parents(id);"
+                let actualSchema = sql "CREATE TABLE children (parent_id uuid, CONSTRAINT children_parent_id_fkey CHECK (parent_id IS NOT NULL)); ALTER TABLE children ADD CONSTRAINT children_parent_id_fkey1 FOREIGN KEY (parent_id) REFERENCES parents(id);"
+
+                diffSchemas targetSchema actualSchema `shouldBe` []
+
+            it "reserves named primary keys before assigning foreign-key names" do
+                let targetSchema = sql "CREATE TABLE children (id uuid, parent_id uuid); ALTER TABLE children ADD CONSTRAINT children_parent_id_fkey PRIMARY KEY (id); ALTER TABLE children ADD FOREIGN KEY (parent_id) REFERENCES parents(id);"
+                let actualSchema = sql "CREATE TABLE children (id uuid, parent_id uuid); ALTER TABLE children ADD CONSTRAINT children_parent_id_fkey PRIMARY KEY (id); ALTER TABLE children ADD CONSTRAINT children_parent_id_fkey1 FOREIGN KEY (parent_id) REFERENCES parents(id);"
+
+                diffSchemas targetSchema actualSchema `shouldBe` []
+
+            it "truncates explicit foreign-key names by UTF-8 bytes" do
+                let targetName = Text.replicate 40 "é"
+                let actualName = Text.replicate 31 "é"
+                let targetSchema = sql ("ALTER TABLE children ADD CONSTRAINT \"" <> targetName <> "\" FOREIGN KEY (parent_id) REFERENCES parents(id);")
+                let actualSchema = sql ("ALTER TABLE children ADD CONSTRAINT \"" <> actualName <> "\" FOREIGN KEY (parent_id) REFERENCES parents(id);")
+
+                diffSchemas targetSchema actualSchema `shouldBe` []
+
+            it "hoists inline composite foreign keys before comparison" do
+                let targetSchema = sql "CREATE TABLE children (tenant_id uuid, parent_id uuid, FOREIGN KEY (tenant_id, parent_id) REFERENCES parents (tenant_id, id));"
+                let actualSchema = sql "CREATE TABLE children (tenant_id uuid, parent_id uuid); ALTER TABLE children ADD CONSTRAINT children_tenant_id_parent_id_fkey FOREIGN KEY (tenant_id, parent_id) REFERENCES parents (tenant_id, id);"
+
+                diffSchemas targetSchema actualSchema `shouldBe` []
+
+            it "preserves inline composite foreign-key deferrability" do
+                let targetSchema = sql "CREATE TABLE children (tenant_id uuid, parent_id uuid, FOREIGN KEY (tenant_id, parent_id) REFERENCES parents (tenant_id, id) DEFERRABLE INITIALLY DEFERRED);"
+                let actualSchema = sql "CREATE TABLE children (tenant_id uuid, parent_id uuid); ALTER TABLE children ADD CONSTRAINT children_tenant_id_parent_id_fkey FOREIGN KEY (tenant_id, parent_id) REFERENCES parents (tenant_id, id) DEFERRABLE INITIALLY DEFERRED;"
+
+                diffSchemas targetSchema actualSchema `shouldBe` []
+
+            it "drops FROM-dependent constraint triggers before their referenced table" do
+                let targetSchema = sql "CREATE TABLE entries ();"
+                let actualSchema = sql "CREATE TABLE accounts (); CREATE TABLE entries (); CREATE CONSTRAINT TRIGGER entries_accounts AFTER INSERT ON entries FROM accounts FOR EACH ROW EXECUTE FUNCTION check_entries();"
+
+                diffSchemas targetSchema actualSchema `shouldBe`
+                    [ DropTrigger { name = "entries_accounts", tableName = "entries" }
+                    , DropTable { tableName = "accounts" }
+                    ]
+
+            it "drops referencing foreign keys before their target table" do
+                let targetSchema = sql "CREATE TABLE children (parent_id uuid);"
+                let actualSchema = sql "CREATE TABLE parents (id uuid); CREATE TABLE children (parent_id uuid); ALTER TABLE children ADD CONSTRAINT children_parent_id_fkey FOREIGN KEY (parent_id) REFERENCES parents(id);"
+
+                diffSchemas targetSchema actualSchema `shouldBe`
+                    [ DropConstraint { tableName = "children", constraintName = "children_parent_id_fkey" }
+                    , DropTable { tableName = "parents" }
+                    ]
+
+            it "normalizes constraint trigger defaults and UPDATE OF identifiers" do
+                let targetSchema = sql "CREATE CONSTRAINT TRIGGER items_check AFTER UPDATE OF Email ON items FROM Entries FOR EACH ROW WHEN (OLD.Email <> NEW.Email) EXECUTE FUNCTION check_items();"
+                let actualSchema = sql "CREATE CONSTRAINT TRIGGER items_check AFTER UPDATE OF email ON items FROM entries NOT DEFERRABLE INITIALLY IMMEDIATE FOR EACH ROW WHEN (OLD.email <> NEW.email) EXECUTE FUNCTION check_items();"
+
+                diffSchemas targetSchema actualSchema `shouldBe` []
+
+            it "normalizes unquoted constraint trigger identifiers" do
+                let targetSchema = sql "CREATE CONSTRAINT TRIGGER Audit AFTER INSERT ON Entries FROM Accounts FOR EACH ROW EXECUTE FUNCTION Check_Entries();"
+                let actualSchema = sql "CREATE CONSTRAINT TRIGGER audit AFTER INSERT ON entries FROM accounts FOR EACH ROW EXECUTE FUNCTION check_entries();"
+
+                diffSchemas targetSchema actualSchema `shouldBe` []
+
+            it "preserves quoted constraint trigger relation names" do
+                let targetSchema = sql "CREATE CONSTRAINT TRIGGER audit AFTER INSERT ON \"Entries\" FROM \"AuditRows\" FOR EACH ROW EXECUTE FUNCTION check_entries();"
+
+                diffSchemas targetSchema [] `shouldBe` targetSchema
+
+            it "preserves quoted constraint trigger names and UPDATE OF columns" do
+                let targetSchema = sql "CREATE CONSTRAINT TRIGGER \"Audit\" AFTER UPDATE OF \"Email\" ON items FOR EACH ROW EXECUTE FUNCTION check_items();"
+
+                diffSchemas targetSchema [] `shouldBe` targetSchema
+
+            it "normalizes explicit constraint trigger defaults without folding quoted identifiers" do
+                let targetSchema = sql "CREATE CONSTRAINT TRIGGER \"Audit\" AFTER UPDATE OF \"Email\" ON items FOR EACH ROW EXECUTE FUNCTION check_items();"
+                let actualSchema = sql "CREATE CONSTRAINT TRIGGER \"Audit\" AFTER UPDATE OF \"Email\" ON items NOT DEFERRABLE INITIALLY IMMEDIATE FOR EACH ROW EXECUTE FUNCTION check_items();"
+
+                diffSchemas targetSchema actualSchema `shouldBe` []
+
+            it "preserves semantic casts in trigger conditions" do
+                let targetSchema = sql "CREATE TRIGGER items_check BEFORE UPDATE ON items FOR EACH ROW WHEN ((NEW.value::citext) = 'x') EXECUTE FUNCTION check_items();"
+                let actualSchema = sql "CREATE TRIGGER items_check BEFORE UPDATE ON items FOR EACH ROW WHEN ((NEW.value::text) = 'x'::text) EXECUTE FUNCTION check_items();"
+                let pgDumpNoiseSchema = sql "CREATE TRIGGER items_check BEFORE UPDATE ON items FOR EACH ROW WHEN ((NEW.value::citext) = 'x'::text) EXECUTE FUNCTION check_items();"
+
+                diffSchemas targetSchema actualSchema `shouldBe`
+                    ([DropTrigger { name = "items_check", tableName = "items" }] <> normalizeSchema targetSchema)
+                diffSchemas targetSchema pgDumpNoiseSchema `shouldBe` []
+
+                let targetFunctionCast = sql "CREATE TRIGGER items_check BEFORE UPDATE ON items FOR EACH ROW WHEN (is_valid('x'::jsonb)) EXECUTE FUNCTION check_items();"
+                let actualFunctionCast = sql "CREATE TRIGGER items_check BEFORE UPDATE ON items FOR EACH ROW WHEN (is_valid('x'::text)) EXECUTE FUNCTION check_items();"
+                diffSchemas targetFunctionCast actualFunctionCast `shouldBe`
+                    ([DropTrigger { name = "items_check", tableName = "items" }] <> normalizeSchema targetFunctionCast)
+
+                let targetOperatorCast = sql "CREATE TRIGGER items_check BEFORE UPDATE ON items FOR EACH ROW WHEN (('1'::int) = ('1'::bigint)) EXECUTE FUNCTION check_items();"
+                let actualOperatorCast = sql "CREATE TRIGGER items_check BEFORE UPDATE ON items FOR EACH ROW WHEN (('1'::int) = ('1'::int)) EXECUTE FUNCTION check_items();"
+                diffSchemas targetOperatorCast actualOperatorCast `shouldBe`
+                    ([DropTrigger { name = "items_check", tableName = "items" }] <> normalizeSchema targetOperatorCast)
+
+                let targetLiteralCast = sql "CREATE TRIGGER items_check BEFORE UPDATE ON items FOR EACH ROW WHEN (NEW.value = 'x'::citext) EXECUTE FUNCTION check_items();"
+                let actualLiteralCast = sql "CREATE TRIGGER items_check BEFORE UPDATE ON items FOR EACH ROW WHEN (NEW.value = 'x'::text) EXECUTE FUNCTION check_items();"
+                diffSchemas targetLiteralCast actualLiteralCast `shouldBe`
+                    ([DropTrigger { name = "items_check", tableName = "items" }] <> normalizeSchema targetLiteralCast)
+            it "normalizes equivalent geometry modifiers" do
+                let targetSchema = sql "CREATE TABLE locations (shape geometry(Point, 4326));"
+                let actualSchema = sql "CREATE TABLE locations (shape geometry(point,4326));"
+
+                diffSchemas targetSchema actualSchema `shouldBe` []
+
+            it "normalizes equivalent geometry modifiers inside arrays" do
+                let targetSchema = sql "CREATE TABLE locations (shapes geometry(Point, 4326)[]);"
+                let actualSchema = sql "CREATE TABLE locations (shapes geometry(point,4326)[]);"
+
+                diffSchemas targetSchema actualSchema `shouldBe` []
+
+            it "normalizes equivalent numeric defaults" do
+                let targetSchema = sql "CREATE TABLE invoices (amount DOUBLE PRECISION DEFAULT 20.0000);"
+                let actualSchema = sql "CREATE TABLE invoices (amount DOUBLE PRECISION DEFAULT 20);"
+
+                diffSchemas targetSchema actualSchema `shouldBe` []
+
+            it "preserves scale for unconstrained numeric defaults" do
+                let targetSchema = sql "CREATE TABLE invoices (amount NUMERIC DEFAULT 20.0000);"
+                let actualSchema = sql "CREATE TABLE invoices (amount NUMERIC DEFAULT 20);"
+
+                diffSchemas targetSchema actualSchema `shouldNotBe` []
+
+            it "preserves integer distinctions in constraints" do
+                let targetSchema = sql [i|
+                    CREATE TABLE invoices (amount NUMERIC);
+                    ALTER TABLE invoices ADD CONSTRAINT amount_type CHECK (pg_typeof(1.0) = pg_typeof(amount));
+                |]
+                let actualSchema = sql [i|
+                    CREATE TABLE invoices (amount NUMERIC);
+                    ALTER TABLE invoices ADD CONSTRAINT amount_type CHECK (pg_typeof(1) = pg_typeof(amount));
+                |]
+
+                diffSchemas targetSchema actualSchema `shouldNotBe` []
 
             it "should handle a new table" do
                 let targetSchema = sql [i|
@@ -441,7 +720,7 @@ tests = do
                 |]
                 let actualSchema = sql ""
                 let migration = sql [i|
-                    ALTER TABLE messages ADD CONSTRAINT messages_ref_user_id FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE NO ACTION;
+                    ALTER TABLE messages ADD CONSTRAINT messages_ref_user_id FOREIGN KEY (user_id) REFERENCES users (id) ON UPDATE NO ACTION ON DELETE NO ACTION;
                 |]
 
                 diffSchemas targetSchema actualSchema `shouldBe` migration
@@ -656,7 +935,7 @@ tests = do
                         user_id UUID NOT NULL
                     );
                     CREATE INDEX posts_user_id_index ON posts (user_id);
-                    ALTER TABLE posts ADD CONSTRAINT posts_ref_user_id FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE NO ACTION;
+                    ALTER TABLE posts ADD CONSTRAINT posts_ref_user_id FOREIGN KEY (user_id) REFERENCES users (id) ON UPDATE NO ACTION ON DELETE NO ACTION;
                 |]
 
                 diffSchemas targetSchema actualSchema `shouldBe` migration
@@ -769,6 +1048,16 @@ tests = do
                 |]
                 let actualSchema = sql [i|
                     CREATE INDEX users_email_index ON public.users USING btree (lower(email));
+                |]
+
+                diffSchemas targetSchema actualSchema `shouldBe` []
+
+            it "should not diff pgvector indexes with operator classes" do
+                let targetSchema = sql [i|
+                    CREATE INDEX knowledge_chunks_embedding_hnsw_idx ON knowledge_chunks USING HNSW (embedding vector_cosine_ops) WHERE embedding IS NOT NULL;
+                |]
+                let actualSchema = sql [i|
+                    CREATE INDEX knowledge_chunks_embedding_hnsw_idx ON public.knowledge_chunks USING hnsw (embedding vector_cosine_ops) WHERE embedding IS NOT NULL;
                 |]
 
                 diffSchemas targetSchema actualSchema `shouldBe` []
@@ -1120,6 +1409,12 @@ CREATE POLICY "Users can read and edit their own record" ON public.users USING (
 
                 diffSchemas targetSchema actualSchema `shouldBe` migration 
 
+            it "should normalize variadic index expressions" do
+                let targetSchema = sql "CREATE INDEX agent_runs_source_idx ON agent_runs (jsonb_extract_path_text(input, VARIADIC ARRAY['source'::text]));"
+                let actualSchema = sql "CREATE INDEX agent_runs_source_idx ON agent_runs (JSONB_EXTRACT_PATH_TEXT(input, VARIADIC ARRAY['source'::TEXT]));"
+
+                diffSchemas targetSchema actualSchema `shouldBe` []
+
             it "should handle complex renames" do
                 -- See https://github.com/digitallyinduced/thin-backend/issues/66
                 let targetSchema = sql $ cs [plain|
@@ -1191,7 +1486,7 @@ CREATE POLICY "Users can read and edit their own record" ON public.users USING (
                     ALTER TABLE media RENAME TO artefacts;
                     
                     DROP INDEX media_created_at_index;
-                    DROP TRIGGER update_media_updated_at ON media;
+                    DROP TRIGGER update_media_updated_at ON artefacts;
                     DROP INDEX media_user_id_index;
 
                     ALTER TABLE artefacts DROP CONSTRAINT media_ref_user_id;
@@ -1200,7 +1495,7 @@ CREATE POLICY "Users can read and edit their own record" ON public.users USING (
                     CREATE INDEX artefacts_created_at_index ON artefacts (created_at);
                     CREATE TRIGGER update_artefacts_updated_at BEFORE UPDATE ON artefacts FOR EACH ROW EXECUTE FUNCTION set_updated_at_to_now();
                     CREATE INDEX artefacts_user_id_index ON artefacts (user_id);
-                    ALTER TABLE artefacts ADD CONSTRAINT artefacts_ref_user_id FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE NO ACTION;
+                    ALTER TABLE artefacts ADD CONSTRAINT artefacts_ref_user_id FOREIGN KEY (user_id) REFERENCES users (id) ON UPDATE NO ACTION ON DELETE NO ACTION;
                     ALTER TABLE artefacts ENABLE ROW LEVEL SECURITY;
                     CREATE POLICY "Users can manage their artefacts" ON artefacts USING (user_id = ihp_user_id()) WITH CHECK (user_id = ihp_user_id());
                 |]
@@ -1228,8 +1523,8 @@ CREATE POLICY "Users can read and edit their own record" ON public.users USING (
                     CREATE POLICY "Users can manage their artefacts" ON artefacts USING (user_id = ihp_user_id()) WITH CHECK (user_id = ihp_user_id());
                 |]
                 let migration = sql [i|
-                    ALTER TABLE artefacts DROP COLUMN user_id;
                     DROP POLICY "Users can manage their artefacts" ON artefacts;
+                    ALTER TABLE artefacts DROP COLUMN user_id;
                 |]
 
                 diffSchemas targetSchema actualSchema `shouldBe` migration
@@ -1298,7 +1593,7 @@ CREATE POLICY "Users can read and edit their own record" ON public.users USING (
 
             it "should normalize function body whitespace" do
                 -- https://github.com/digitallyinduced/ihp/issues/1628
-                let (Just function) = head $ sql $ cs [trimming|
+                let (Just fn) = head $ sql $ cs [trimming|
                     CREATE FUNCTION public.set_updated_at_to_now() RETURNS trigger
                         LANGUAGE plpgsql
                         AS $$$$BEGIN
@@ -1307,12 +1602,8 @@ CREATE POLICY "Users can read and edit their own record" ON public.users USING (
                         END;$$$$;
                 |]
 
-                (normalizeStatement function) `shouldBe` [CreateFunction
-                    { functionName = "set_updated_at_to_now"
-                    , functionArguments = []
-                    , functionBody = "BEGIN\n    NEW.updated_at = NOW();\n    RETURN NEW;\nEND;"
-                    , orReplace = False
-                    , returns = PTrigger
+                (normalizeStatement fn) `shouldBe` [(function "set_updated_at_to_now")
+                    { functionBody = "BEGIN\n    NEW.updated_at = NOW();\n    RETURN NEW;\nEND;"
                     , language = "PLPGSQL"
                     }]
 
@@ -1345,11 +1636,20 @@ CREATE POLICY "Users can read and edit their own record" ON public.users USING (
                     );
                 |]
                 let migration = sql [i|
-                    ALTER TABLE posts DROP COLUMN updated_at;
                     DROP TRIGGER update_posts_updated_at ON posts;
+                    ALTER TABLE posts DROP COLUMN updated_at;
                 |]
 
                 diffSchemas targetSchema actualSchema `shouldBe` migration
+
+            it "drops a referencing foreign key before its target column" do
+                let targetSchema = sql "CREATE TABLE parents (id uuid); CREATE TABLE children (parent_id uuid);"
+                let actualSchema = sql "CREATE TABLE parents (id uuid, legacy_id uuid); CREATE TABLE children (parent_id uuid); ALTER TABLE children ADD CONSTRAINT children_parent_id_fkey FOREIGN KEY (parent_id) REFERENCES parents(legacy_id);"
+
+                diffSchemas targetSchema actualSchema `shouldBe`
+                    [ DropConstraint { tableName = "children", constraintName = "children_parent_id_fkey" }
+                    , DropColumn { tableName = "parents", columnName = "legacy_id" }
+                    ]
 
             it "should ignore did_update_.. triggers by IHP.PGListener" do
                 let actualSchema = sql $ cs [plain|
@@ -1447,6 +1747,20 @@ CREATE POLICY "Users can read and edit their own record" ON public.users USING (
                     );
                 |]
                 diffSchemas targetSchema actualSchema `shouldBe` []
+
+            it "should ignore unmodelled statements instead of generating raw SQL migrations" do
+                let targetSchema = [UnknownStatement { raw = "CREATE TABLE private.tokens (id UUID)" }]
+                let actualSchema = [UnknownStatement { raw = "CREATE TABLE private.tokens (id uuid NOT NULL)" }]
+
+                diffSchemas targetSchema actualSchema `shouldBe` []
+
+            it "should ignore pg_dump session statements" do
+                let actualSchema =
+                        [ Set { name = "statement_timeout", value = IntExpression 0 }
+                        , SelectStatement { query = "pg_catalog.set_config('search_path', '', false)" }
+                        ]
+
+                diffSchemas [] actualSchema `shouldBe` []
 
 sql :: Text -> [Statement]
 sql code = case Megaparsec.runParser Parser.parseDDL "" code of

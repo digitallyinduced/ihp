@@ -1,20 +1,23 @@
-{-# LANGUAGE MultiParamTypeClasses, TypeFamilies, FlexibleContexts, AllowAmbiguousTypes, UndecidableInstances, FlexibleInstances, IncoherentInstances, DataKinds, PolyKinds, TypeApplications, ScopedTypeVariables, ConstraintKinds, TypeOperators, GADTs, GeneralizedNewtypeDeriving, CPP #-}
+{-# LANGUAGE MultiParamTypeClasses, TypeFamilies, FlexibleContexts, AllowAmbiguousTypes, UndecidableInstances, FlexibleInstances, IncoherentInstances, DataKinds, PolyKinds, TypeApplications, ScopedTypeVariables, ConstraintKinds, TypeOperators, GADTs, GeneralizedNewtypeDeriving, DefaultSignatures, CPP #-}
 
 module IHP.ModelSupport
 ( module IHP.ModelSupport
 , module IHP.ModelSupport.Types
-, module IHP.Postgres.Point
-, module IHP.Postgres.Polygon
-, module IHP.Postgres.Inet
-, module IHP.Postgres.TSVector
-, module IHP.Postgres.TimeParser
+, module PostgresqlTypes.Point
+, module PostgresqlTypes.Polygon
+-- | PostGIS geometry support from @postgresql-types@ (see nikita-volkov/postgresql-types#69).
+-- Shape constructors are suffixed (@PointShape@, @PolygonShape@, …) so they
+-- do not clash with 'PostgresqlTypes.Point.Point' / 'Polygon'.
+, module PostgresqlTypes.Geometry
+, module PostgresqlTypes.Inet
+, module PostgresqlTypes.Tsvector
+, module PostgresqlTypes.Interval
 , module IHP.InputValue
 ) where
 
 import IHP.ModelSupport.Types
 
 import IHP.HaskellSupport
-import IHP.NameSupport
 import IHP.InputValue
 import Prelude
 import Data.ByteString (ByteString)
@@ -22,107 +25,101 @@ import Data.Text (Text)
 import qualified Data.Text as Text
 import Data.Int (Int64)
 import Data.IORef (IORef, newIORef, modifyIORef')
-import Data.Hashable (Hashable)
-import Control.DeepSeq (NFData)
-import Control.Exception (finally, throwIO, catch, Exception)
-import Data.Maybe (fromMaybe, isNothing)
-import Data.List (filter, elem)
-import qualified Data.ByteString.Char8 as BS8
+import Control.Exception (bracket, finally, throwIO, SomeException, try, mask)
+import Data.Maybe (fromMaybe, isNothing, isJust)
 import Data.String (IsString(..))
-import Database.PostgreSQL.Simple (Connection)
-import Database.PostgreSQL.Simple.Types (Query)
-import Database.PostgreSQL.Simple.FromField hiding (Field, name)
-import Database.PostgreSQL.Simple.ToField
+import Database.PostgreSQL.Simple.Types (Query(..))
 import Data.Default
-import Data.Time.Format.ISO8601 (iso8601Show)
+import Data.Bits ((.&.), bit, clearBit)
+import Data.List (elemIndex)
 import Data.String.Conversions (cs ,ConvertibleStrings)
 import Data.Time.Clock
 import Data.Time.LocalTime
 import Data.Time.Calendar
 import Data.UUID
 import qualified Database.PostgreSQL.Simple as PG
-import qualified Database.PostgreSQL.Simple.Types as PG
-import qualified Database.PostgreSQL.Simple.FromRow as PGFR
-import qualified Database.PostgreSQL.Simple.ToField as PG
-import qualified Database.PostgreSQL.Simple.ToRow as PG
 import GHC.Records
 import GHC.TypeLits
-import GHC.Types
 import Data.Proxy
 import Data.Data
 import Data.Aeson (ToJSON (..), FromJSON (..))
 import qualified Data.Aeson as Aeson
 import qualified Data.Set as Set
 import qualified Text.Read as Read
-import qualified Data.Pool as Pool
 import qualified Hasql.Pool as HasqlPool
 import qualified Hasql.Pool.Config as HasqlPoolConfig
 import qualified Hasql.Connection.Settings as HasqlSettings
 import qualified Hasql.Session as Hasql
 import qualified Hasql.Statement as Hasql
+import qualified Hasql.Errors as HasqlErrors
 import qualified Hasql.DynamicStatements.Snippet as Snippet
 import qualified Hasql.Decoders as Decoders
 import qualified Hasql.Encoders as Encoders
 import qualified Hasql.Implicits.Encoders
-import IHP.Postgres.Point
-import IHP.Postgres.Interval ()
-import IHP.Postgres.Polygon
-import IHP.Postgres.Inet ()
-import IHP.Postgres.TSVector
-import IHP.Postgres.TimeParser
-import IHP.Log.Types
-import qualified IHP.Log as Log
+import PostgresqlTypes.Point
+import PostgresqlTypes.Polygon
+import PostgresqlTypes.Geometry
+import PostgresqlTypes.Inet
+import PostgresqlTypes.Interval
+import PostgresqlTypes.Tsvector
+import System.Log.FastLogger (FastLogger, toLogStr)
 import Data.Dynamic
 import IHP.EnvVar
 import Data.Scientific
 import GHC.Stack
-import qualified Numeric
-import qualified Data.Text.Encoding as Text
-import qualified Data.ByteString.Builder as Builder
-import Data.ByteString.Builder (toLazyByteString)
+import qualified Hasql.Transaction as Tx
+import qualified Hasql.Transaction.Sessions as Tx
+import Data.Functor.Contravariant (contramap)
+import Control.Concurrent (forkIO, MVar, newEmptyMVar, putMVar, takeMVar)
+import Control.Monad.IO.Class (liftIO)
+import Control.Monad.Error.Class (catchError)
+import IHP.Hasql.FromRow (FromRowHasql(..), HasqlDecodeColumn(..))
+import IHP.Hasql.Encoders (ToSnippetParams(..), sqlToSnippet)
+import IHP.Hasql.Pool (usePoolWithRetry)
+import IHP.PGSimpleCompat ()
 
 -- | Provides a mock ModelContext to be used when a database connection is not available
-notConnectedModelContext :: Logger -> ModelContext
+notConnectedModelContext :: FastLogger -> ModelContext
 notConnectedModelContext logger = ModelContext
-    { connectionPool = error "Not connected"
-    , hasqlPool = Nothing
-    , transactionConnection = Nothing
+    { hasqlPool = error "Not connected"
+    , transactionRunner = Nothing
     , logger = logger
+    , queryLoggingEnabled = False
     , trackTableReadCallback = Nothing
     , rowLevelSecurity = Nothing
     }
 
-createModelContext :: NominalDiffTime -> Int -> ByteString -> Logger -> IO ModelContext
-createModelContext idleTime maxConnections databaseUrl logger = do
-    -- Create postgresql-simple pool
-    let poolConfig = Pool.defaultPoolConfig (PG.connectPostgreSQL databaseUrl) PG.close (realToFrac idleTime) maxConnections
-    connectionPool <- Pool.newPool poolConfig
-
-    -- Create hasql pool for better fetch performance with prepared statements
-    -- HASQL_POOL_SIZE: pool size (default: 3). Set to 1 for consistent prepared statement caching.
+createModelContext :: ByteString -> FastLogger -> IO ModelContext
+createModelContext databaseUrl logger = do
+    -- Create hasql pool for prepared statement-based queries
+    -- HASQL_POOL_SIZE: pool size (default: 20). Set to 1 for consistent prepared statement caching.
     -- HASQL_IDLE_TIME: seconds before idle connection is closed (default: 600 = 10 min)
     hasqlPoolSize :: Maybe Int <- envOrNothing "HASQL_POOL_SIZE"
     hasqlIdleTime :: Maybe Int <- envOrNothing "HASQL_IDLE_TIME"
     let hasqlPoolSettings =
             [ HasqlPoolConfig.staticConnectionSettings (HasqlSettings.connectionString (cs databaseUrl))
+            , HasqlPoolConfig.initSession (Hasql.script "SET SESSION timezone TO 'UTC'")
             ]
-            <> maybe [] (\size -> [HasqlPoolConfig.size size]) hasqlPoolSize
+            <> maybe [HasqlPoolConfig.size 20] (\size -> [HasqlPoolConfig.size size]) hasqlPoolSize
             <> maybe [] (\idle -> [HasqlPoolConfig.idlenessTimeout (fromIntegral idle)]) hasqlIdleTime
     let hasqlPoolConfig = HasqlPoolConfig.settings hasqlPoolSettings
-    hasqlPoolInstance <- HasqlPool.acquire hasqlPoolConfig
+    hasqlPool <- HasqlPool.acquire hasqlPoolConfig
 
     let trackTableReadCallback = Nothing
-    let transactionConnection = Nothing
+    let transactionRunner = Nothing
     let rowLevelSecurity = Nothing
-    let hasqlPool = Just hasqlPoolInstance
+    queryLoggingEnabled <- envOrDefault "DEBUG" False
     pure ModelContext { .. }
 
 releaseModelContext :: ModelContext -> IO ()
 releaseModelContext modelContext = do
-    Pool.destroyAllResources modelContext.connectionPool
-    case modelContext.hasqlPool of
-        Just pool -> HasqlPool.release pool
-        Nothing -> pure ()
+    HasqlPool.release modelContext.hasqlPool
+
+-- | Bracket-style wrapper around 'createModelContext' that ensures the database
+-- pool is released when the callback completes (or throws an exception).
+withModelContext :: ByteString -> FastLogger -> (ModelContext -> IO a) -> IO a
+withModelContext databaseUrl logger =
+    bracket (createModelContext databaseUrl logger) releaseModelContext
 
 {-# INLINE createRecord #-}
 createRecord :: (?modelContext :: ModelContext, CanCreate model) => model -> IO model
@@ -139,13 +136,16 @@ instance Default Bool where
 #endif
 
 instance Default Point where
-    def = Point def def
+    def = fromCoordinates 0 0
 
 instance Default Polygon where
-    def = Polygon [def]
+    def = fromMaybe (error "Default Polygon: impossible") (refineFromPointList [(0,0), (0,0), (0,0)])
 
-instance Default TSVector where
-    def = TSVector def
+instance Default Geometry where
+    def = fromMaybe (error "Default Geometry: impossible") (refineFromShape (PointShape (XyCoord 0 0)))
+
+instance Default Tsvector where
+    def = normalizeFromLexemeList []
 
 instance Default Scientific where
     def = 0
@@ -200,22 +200,6 @@ recordToInputValue entity =
     |> Text.pack . show
 {-# INLINE recordToInputValue #-}
 
-instance FromField (PrimaryKey model) => FromField (Id' model) where
-    {-# INLINE fromField #-}
-    fromField value metaData = do
-        fieldValue <- fromField value metaData
-        pure (Id fieldValue)
-
-instance ToField (PrimaryKey model) => ToField (Id' model) where
-    {-# INLINE toField #-}
-    toField = toField . unpackId
-
--- | ToField instance for composite primary keys (tuples of two Id' types)
--- Used by filterWhereIdIn for tables with composite primary keys
-instance (ToField (Id' a), ToField (Id' b)) => ToField (Id' a, Id' b) where
-    {-# INLINE toField #-}
-    toField (a, b) = PG.Many [PG.Plain "(", toField a, PG.Plain ",", toField b, PG.Plain ")"]
-
 instance Show (PrimaryKey model) => Show (Id' model) where
     {-# INLINE show #-}
     show = show . unpackId
@@ -235,9 +219,6 @@ packId uuid = Id uuid
 --
 unpackId :: Id' model -> PrimaryKey model
 unpackId (Id uuid) = uuid
-
-instance (FromField label, PG.FromRow a) => PGFR.FromRow (LabeledData label a) where
-    fromRow = LabeledData <$> PGFR.field <*> PGFR.fromRow
 
 -- | Sometimes you have a hardcoded UUID value which represents some record id. This instance allows you
 -- to write the Id like a string:
@@ -270,168 +251,212 @@ textToId text = case parsePrimaryKey (cs text) of
         Nothing -> error (cs $ "Unable to convert " <> (cs text :: Text) <> " to Id value. Is it a valid uuid?")
 {-# INLINE textToId #-}
 
--- | Measure and log the query time for a given query action if the log level is Debug.
--- If the log level is greater than debug, just perform the query action without measuring time.
-measureTimeIfLogging :: (?modelContext :: ModelContext, PG.ToRow q) => Text -> PG.Connection -> IO a -> Query -> q -> IO a
-measureTimeIfLogging logPrefix connection queryAction theQuery theParameters = do
-    let currentLogLevel = ?modelContext.logger.level
-    if currentLogLevel == Debug
-        then do
-            start <- getCurrentTime
-            queryAction `finally` do
-                end <- getCurrentTime
-                let theTime = end `diffUTCTime` start
-                logQuery logPrefix connection theQuery theParameters theTime
-        else queryAction
 
--- | Runs a raw sql query
+-- | Runs a raw sql query. Untyped escape hatch — prefer the typed
+-- @[typedSql| ... |]@ quasi quoter (from "IHP.TypedSql") when the query is
+-- known at compile time.
 --
 -- __Example:__
 --
--- > users <- sqlQuery "SELECT id, firstname, lastname FROM users" ()
+-- > users <- unsafeSqlQuery "SELECT id, firstname, lastname FROM users" ()
 --
 -- Take a look at "IHP.QueryBuilder" for a typesafe approach on building simple queries.
 --
--- *AutoRefresh:* When using 'sqlQuery' with AutoRefresh, you need to use 'trackTableRead' to let AutoRefresh know that you have accessed a certain table. Otherwise AutoRefresh will not watch table of your custom sql query.
+-- *AutoRefresh:* When using 'unsafeSqlQuery' with AutoRefresh, you need to use 'trackTableRead' to let AutoRefresh know that you have accessed a certain table. Otherwise AutoRefresh will not watch table of your custom sql query.
 --
--- Use 'sqlQuerySingleRow' if you expect only a single row to be returned.
+-- Use 'unsafeSqlQuerySingleRow' if you expect only a single row to be returned.
 --
-sqlQuery :: (?modelContext :: ModelContext, PG.ToRow q, PG.FromRow r) => Query -> q -> IO [r]
-sqlQuery theQuery theParameters = do
-    withDatabaseConnection \connection -> enhanceSqlError theQuery theParameters do
-        withRLSParams (\theQuery theParameters -> measureTimeIfLogging "🔍" connection (PG.query connection theQuery theParameters) theQuery theParameters) theQuery theParameters
+unsafeSqlQuery :: (?modelContext :: ModelContext, ToSnippetParams q, FromRowHasql r) => Query -> q -> IO [r]
+unsafeSqlQuery theQuery theParameters = do
+    let pool = ?modelContext.hasqlPool
+    let snippet = sqlToSnippet (fromQuery theQuery) (toSnippetParams theParameters)
+    sqlQueryHasql pool snippet (Decoders.rowList hasqlRowDecoder)
+{-# INLINABLE unsafeSqlQuery #-}
+
+-- | Deprecated alias of 'unsafeSqlQuery'. Prefer @[typedSql| ... |]@ via 'IHP.TypedSql.sqlQueryTyped'.
+{-# DEPRECATED sqlQuery "Use the typed quasi quoter '[typedSql| ... |]' with 'sqlQueryTyped' (from IHP.TypedSql) for compile-time type checking. If you really need untyped raw SQL (e.g. dynamic table names), use 'unsafeSqlQuery' instead." #-}
+sqlQuery :: (?modelContext :: ModelContext, ToSnippetParams q, FromRowHasql r) => Query -> q -> IO [r]
+sqlQuery = unsafeSqlQuery
 {-# INLINABLE sqlQuery #-}
 
 
--- | Runs a raw sql query, that is expected to return a single result row
+-- | Runs a raw sql query, that is expected to return a single result row.
+-- Untyped escape hatch — prefer the typed @[typedSql| ... |]@ quasi quoter.
 --
--- Like 'sqlQuery', but useful when you expect only a single row as the result
+-- Like 'unsafeSqlQuery', but useful when you expect only a single row as the result.
 --
 -- __Example:__
 --
--- > user <- sqlQuerySingleRow "SELECT id, firstname, lastname FROM users WHERE id = ?" (Only user.id)
+-- > user <- unsafeSqlQuerySingleRow "SELECT id, firstname, lastname FROM users WHERE id = ?" (Only user.id)
 --
 -- Take a look at "IHP.QueryBuilder" for a typesafe approach on building simple queries.
 --
--- *AutoRefresh:* When using 'sqlQuerySingleRow' with AutoRefresh, you need to use 'trackTableRead' to let AutoRefresh know that you have accessed a certain table. Otherwise AutoRefresh will not watch table of your custom sql query.
+-- *AutoRefresh:* When using 'unsafeSqlQuerySingleRow' with AutoRefresh, you need to use 'trackTableRead' to let AutoRefresh know that you have accessed a certain table. Otherwise AutoRefresh will not watch table of your custom sql query.
 --
-sqlQuerySingleRow :: (?modelContext :: ModelContext, PG.ToRow query, PG.FromRow record) => Query -> query -> IO record
-sqlQuerySingleRow theQuery theParameters = do
-    result <- sqlQuery theQuery theParameters
+unsafeSqlQuerySingleRow :: (?modelContext :: ModelContext, ToSnippetParams query, FromRowHasql record) => Query -> query -> IO record
+unsafeSqlQuerySingleRow theQuery theParameters = do
+    result <- unsafeSqlQuery theQuery theParameters
     case result of
-        [] -> error ("sqlQuerySingleRow: Expected a single row to be returned. Query: " <> show theQuery)
+        [] -> error ("unsafeSqlQuerySingleRow: Expected a single row to be returned. Query: " <> show theQuery)
         [record] -> pure record
-        otherwise -> error ("sqlQuerySingleRow: Expected a single row to be returned. But got " <> show (length otherwise) <> " rows")
+        otherwise -> error ("unsafeSqlQuerySingleRow: Expected a single row to be returned. But got " <> show (length otherwise) <> " rows")
+{-# INLINABLE unsafeSqlQuerySingleRow #-}
+
+-- | Deprecated alias of 'unsafeSqlQuerySingleRow'.
+{-# DEPRECATED sqlQuerySingleRow "Use the typed quasi quoter '[typedSql| ... |]' with 'sqlQueryTyped' (from IHP.TypedSql) for compile-time type checking. If you really need untyped raw SQL, use 'unsafeSqlQuerySingleRow' instead." #-}
+sqlQuerySingleRow :: (?modelContext :: ModelContext, ToSnippetParams query, FromRowHasql record) => Query -> query -> IO record
+sqlQuerySingleRow = unsafeSqlQuerySingleRow
 {-# INLINABLE sqlQuerySingleRow #-}
 
--- | Runs a sql statement (like a CREATE statement)
+-- | Runs a sql statement (like a CREATE statement). Untyped escape hatch —
+-- prefer the typed @[typedSql| ... |]@ quasi quoter via 'IHP.TypedSql.sqlExecTyped'.
 --
 -- __Example:__
 --
--- > sqlExec "CREATE TABLE users ()" ()
-sqlExec :: (?modelContext :: ModelContext, PG.ToRow q) => Query -> q -> IO Int64
-sqlExec theQuery theParameters = do
-    withDatabaseConnection \connection -> enhanceSqlError theQuery theParameters do
-        withRLSParams (\theQuery theParameters -> measureTimeIfLogging "💾" connection (PG.execute connection theQuery theParameters) theQuery theParameters) theQuery theParameters
+-- > unsafeSqlExec "CREATE TABLE users ()" ()
+unsafeSqlExec :: (?modelContext :: ModelContext, ToSnippetParams q) => Query -> q -> IO Int64
+unsafeSqlExec theQuery theParameters = do
+    let pool = ?modelContext.hasqlPool
+    let snippet = sqlToSnippet (fromQuery theQuery) (toSnippetParams theParameters)
+    sqlExecHasqlCount pool snippet
+{-# INLINABLE unsafeSqlExec #-}
+
+-- | Deprecated alias of 'unsafeSqlExec'.
+{-# DEPRECATED sqlExec "Use the typed quasi quoter '[typedSql| ... |]' with 'sqlExecTyped' (from IHP.TypedSql) for compile-time type checking. If you really need untyped raw SQL (e.g. DDL statements), use 'unsafeSqlExec' instead." #-}
+sqlExec :: (?modelContext :: ModelContext, ToSnippetParams q) => Query -> q -> IO Int64
+sqlExec = unsafeSqlExec
 {-# INLINABLE sqlExec #-}
 
--- | Runs a sql statement (like a CREATE statement), but doesn't return any result
+-- | Runs a sql statement (like a CREATE statement), but doesn't return any result.
+-- Untyped escape hatch — prefer the typed @[typedSql| ... |]@ quasi quoter via 'IHP.TypedSql.sqlExecTyped'.
 --
 -- __Example:__
 --
--- > sqlExecDiscardResult "CREATE TABLE users ()" ()
-sqlExecDiscardResult :: (?modelContext :: ModelContext, PG.ToRow q) => Query -> q -> IO ()
-sqlExecDiscardResult theQuery theParameters = do
-    _ <- sqlExec theQuery theParameters
-    pure ()
+-- > unsafeSqlExecDiscardResult "CREATE TABLE users ()" ()
+unsafeSqlExecDiscardResult :: (?modelContext :: ModelContext, ToSnippetParams q) => Query -> q -> IO ()
+unsafeSqlExecDiscardResult theQuery theParameters = do
+    let pool = ?modelContext.hasqlPool
+    let snippet = sqlToSnippet (fromQuery theQuery) (toSnippetParams theParameters)
+    sqlExecHasql pool snippet
+{-# INLINABLE unsafeSqlExecDiscardResult #-}
+
+-- | Deprecated alias of 'unsafeSqlExecDiscardResult'.
+{-# DEPRECATED sqlExecDiscardResult "Use the typed quasi quoter '[typedSql| ... |]' with 'sqlExecTyped' (from IHP.TypedSql) for compile-time type checking. If you really need untyped raw SQL (e.g. DDL statements), use 'unsafeSqlExecDiscardResult' instead." #-}
+sqlExecDiscardResult :: (?modelContext :: ModelContext, ToSnippetParams q) => Query -> q -> IO ()
+sqlExecDiscardResult = unsafeSqlExecDiscardResult
 {-# INLINABLE sqlExecDiscardResult #-}
 
--- | Wraps the query with Row level security boilerplate, if a row level security context was provided
+
+-- | Prepared statement that sets the RLS role and user id using set_config().
+--
+-- Uses @set_config(setting, value, is_local)@ which is a regular SQL function
+-- that supports parameterized values in the extended query protocol, unlike
+-- @SET LOCAL@ which is a utility command that cannot be parameterized.
+--
+-- The third argument @true@ makes the setting local to the current transaction,
+-- equivalent to @SET LOCAL@.
+setRLSConfigStatement :: Hasql.Statement (Text, Text) ()
+setRLSConfigStatement = Hasql.preparable
+    "SELECT set_config('role', $1, true), set_config('rls.ihp_user_id', $2, true)"
+    (contramap fst (Encoders.param (Encoders.nonNullable Encoders.text))
+     <> contramap snd (Encoders.param (Encoders.nonNullable Encoders.text)))
+    (Decoders.singleRow (Decoders.column (Decoders.nullable Decoders.text) *> Decoders.column (Decoders.nullable Decoders.text) *> pure ()))
+
+-- | Runs a hasql 'Hasql.Statement' directly on the pool.
+--
+-- Core execution function that handles session construction, RLS wrapping,
+-- pool execution, cached plan error retry, and debug logging.
+-- Works with both prepared ('Hasql.preparable') and unprepared statements.
 --
 -- __Example:__
 --
--- If a row level security context is given, this will turn a query like the following
+-- > result <- sqlStatementHasql pool someId myPreparedStatement
 --
--- > withRLSParams runQuery "SELECT * FROM projects WHERE id = ?" (Only "..")
---
--- Into the following equivalent:
---
--- > runQuery "SET LOCAL ROLE ?; SET LOCAL rls.ihp_user_id = ?; SELECT * FROM projects WHERE id = ?" ["ihp_authenticated", "<user id>", .."]
---
-withRLSParams :: (?modelContext :: ModelContext, PG.ToRow params) => (PG.Query -> [PG.Action] -> result) -> PG.Query -> params -> result
-withRLSParams runQuery query params = do
-    case ?modelContext.rowLevelSecurity of
-        Just RowLevelSecurityContext { rlsAuthenticatedRole, rlsUserId } -> do
-            let query' = "SET LOCAL ROLE ?; SET LOCAL rls.ihp_user_id = ?; " <> query
-            let params' = [PG.toField (PG.Identifier rlsAuthenticatedRole), PG.toField rlsUserId] <> PG.toRow params
-            runQuery query' params'
-        Nothing -> runQuery query (PG.toRow params)
+sqlStatementHasql :: (?modelContext :: ModelContext) => HasqlPool.Pool -> a -> Hasql.Statement a b -> IO b
+sqlStatementHasql pool input statement = do
+    let ?context = ?modelContext
+    let session = case (?modelContext.transactionRunner, ?modelContext.rowLevelSecurity) of
+            (Nothing, Just RowLevelSecurityContext { rlsAuthenticatedRole, rlsUserId }) ->
+                Tx.transaction Tx.ReadCommitted Tx.Read $ do
+                    Tx.statement (rlsAuthenticatedRole, rlsUserId) setRLSConfigStatement
+                    Tx.statement input statement
+            _ ->
+                Hasql.statement input statement
+    let runQuery = case ?modelContext.transactionRunner of
+            Just (TransactionRunner runner) -> runner session
+            Nothing -> usePoolWithRetry pool session
+    logQueryTiming ("🔍 " <> truncateQuery (cs (Hasql.toSql statement))) runQuery
+{-# INLINABLE sqlStatementHasql #-}
 
-withDatabaseConnection :: (?modelContext :: ModelContext) => (Connection -> IO a) -> IO a
-withDatabaseConnection block =
-    let
-        ModelContext { connectionPool, transactionConnection, rowLevelSecurity } = ?modelContext
-    in case transactionConnection of
-        Just transactionConnection -> block transactionConnection
-        Nothing -> Pool.withResource connectionPool block
-{-# INLINABLE withDatabaseConnection #-}
-
--- | Runs a query using the hasql pool with prepared statements
+-- | Runs a query built from a dynamic 'Snippet'.
 --
--- This function executes a query using hasql's prepared statement mechanism,
--- which provides better performance than postgresql-simple for repeated queries.
---
--- Note: This function does not support RLS. When RLS is enabled, the fetch functions
--- automatically fall back to postgresql-simple instead of using hasql.
+-- Converts the snippet to a 'Hasql.Statement' and delegates to 'sqlStatementHasql'.
 --
 -- __Example:__
 --
 -- > users <- sqlQueryHasql pool snippet (Decoders.rowList userDecoder)
 --
 sqlQueryHasql :: (?modelContext :: ModelContext) => HasqlPool.Pool -> Snippet.Snippet -> Decoders.Result a -> IO a
-sqlQueryHasql pool snippet decoder = do
-    let ?context = ?modelContext
-    let currentLogLevel = ?modelContext.logger.level
-    let statement = Snippet.toStatement snippet decoder
-    let runQuery = do
-            let session = Hasql.statement () statement
-            result <- HasqlPool.use pool session
-            case result of
-                Left err -> throwIO (HasqlError err)
-                Right a -> pure a
-    if currentLogLevel == Debug
-        then do
-            start <- getCurrentTime
-            runQuery `finally` do
-                end <- getCurrentTime
-                let queryTimeInMs = round (realToFrac (end `diffUTCTime` start) * 1000 :: Double)
-                let sqlText = Hasql.toSql statement
-                Log.debug ("🔍 " <> cs sqlText <> " (" <> Text.pack (show queryTimeInMs) <> "ms)")
-        else runQuery
+sqlQueryHasql pool snippet decoder =
+    sqlStatementHasql pool () (Snippet.toPreparableStatement snippet decoder)
 {-# INLINABLE sqlQueryHasql #-}
 
--- | Like 'sqlQueryHasql' but for statements that don't return results (DELETE, etc.)
-sqlExecHasql :: (?modelContext :: ModelContext) => HasqlPool.Pool -> Snippet.Snippet -> IO ()
-sqlExecHasql pool snippet = do
+-- | Like 'sqlStatementHasql' but for write operations (DELETE, UPDATE, INSERT without results).
+--
+-- Uses 'Tx.Write' for RLS transactions (vs 'Tx.Read' in 'sqlStatementHasql').
+-- Takes a 'Hasql.Statement' directly — use this when you have a pre-built statement
+-- rather than a 'Snippet'.
+--
+-- __Example:__
+--
+-- > sqlExecStatement pool workerId myUpdateStatement
+--
+sqlExecStatement :: (?modelContext :: ModelContext) => HasqlPool.Pool -> a -> Hasql.Statement a () -> IO ()
+sqlExecStatement pool input statement = do
     let ?context = ?modelContext
-    let currentLogLevel = ?modelContext.logger.level
-    let statement = Snippet.toStatement snippet Decoders.noResult
-    let runQuery = do
-            let session = Hasql.statement () statement
-            result <- HasqlPool.use pool session
-            case result of
-                Left err -> throwIO (HasqlError err)
-                Right () -> pure ()
-    if currentLogLevel == Debug
-        then do
-            start <- getCurrentTime
-            runQuery `finally` do
-                end <- getCurrentTime
-                let queryTimeInMs = round (realToFrac (end `diffUTCTime` start) * 1000 :: Double)
-                let sqlText = Hasql.toSql statement
-                Log.debug ("💾 " <> cs sqlText <> " (" <> Text.pack (show queryTimeInMs) <> "ms)")
-        else runQuery
+    let session = case (?modelContext.transactionRunner, ?modelContext.rowLevelSecurity) of
+            (Just _, _) ->
+                Hasql.statement input statement
+            (Nothing, Just RowLevelSecurityContext { rlsAuthenticatedRole, rlsUserId }) ->
+                Tx.transaction Tx.ReadCommitted Tx.Write $ do
+                    Tx.statement (rlsAuthenticatedRole, rlsUserId) setRLSConfigStatement
+                    Tx.statement input statement
+            _ ->
+                Hasql.statement input statement
+    let runQuery = case ?modelContext.transactionRunner of
+            Just (TransactionRunner runner) -> runner session
+            Nothing -> usePoolWithRetry pool session
+    logQueryTiming ("💾 " <> truncateQuery (cs (Hasql.toSql statement))) runQuery
+{-# INLINABLE sqlExecStatement #-}
+
+-- | Like 'sqlQueryHasql' but for statements that don't return results (DELETE, etc.)
+--
+-- When RLS is enabled, the statement is wrapped in a transaction that first sets the
+-- role and user id via 'setRLSConfigStatement'.
+sqlExecHasql :: (?modelContext :: ModelContext) => HasqlPool.Pool -> Snippet.Snippet -> IO ()
+sqlExecHasql pool snippet = sqlExecStatement pool () (Snippet.toPreparableStatement snippet Decoders.noResult)
 {-# INLINABLE sqlExecHasql #-}
+
+-- | Like 'sqlExecHasql' but returns the number of affected rows
+--
+-- When RLS is enabled, the statement is wrapped in a transaction that first sets the
+-- role and user id via 'setRLSConfigStatement'.
+sqlExecHasqlCount :: (?modelContext :: ModelContext) => HasqlPool.Pool -> Snippet.Snippet -> IO Int64
+sqlExecHasqlCount pool snippet = do
+    let ?context = ?modelContext
+    let statement = Snippet.toPreparableStatement snippet Decoders.rowsAffected
+    let session = case (?modelContext.transactionRunner, ?modelContext.rowLevelSecurity) of
+            (Nothing, Just RowLevelSecurityContext { rlsAuthenticatedRole, rlsUserId }) ->
+                Tx.transaction Tx.ReadCommitted Tx.Write $ do
+                    Tx.statement (rlsAuthenticatedRole, rlsUserId) setRLSConfigStatement
+                    Tx.statement () statement
+            _ ->
+                Hasql.statement () statement
+    let runQuery = case ?modelContext.transactionRunner of
+            Just (TransactionRunner runner) -> runner session
+            Nothing -> usePoolWithRetry pool session
+    logQueryTiming ("💾 " <> cs (Hasql.toSql statement)) runQuery
+{-# INLINABLE sqlExecHasqlCount #-}
 
 -- | Like 'sqlExecHasql' but for raw 'Hasql.Session' values (e.g. multi-statement DDL via 'Hasql.sql')
 --
@@ -445,68 +470,86 @@ sqlExecHasql pool snippet = do
 runSessionHasql :: (?modelContext :: ModelContext) => HasqlPool.Pool -> Hasql.Session () -> IO ()
 runSessionHasql pool session = do
     let ?context = ?modelContext
-    let currentLogLevel = ?modelContext.logger.level
-    let runQuery = do
-            result <- HasqlPool.use pool session
-            case result of
-                Left err -> throwIO (HasqlError err)
-                Right () -> pure ()
-    if currentLogLevel == Debug
+    let runQuery = case ?modelContext.transactionRunner of
+            Just (TransactionRunner runner) -> runner session
+            Nothing -> usePoolWithRetry pool session
+    logQueryTiming "💾 runSessionHasql" runQuery
+{-# INLINABLE runSessionHasql #-}
+
+
+-- | Run an IO action, logging its duration when debug mode is enabled.
+-- The label is prepended to the timing message, e.g. @"🔍 SELECT ..."@.
+{-# INLINE logQueryTiming #-}
+logQueryTiming :: (?context :: ModelContext) => Text -> IO a -> IO a
+logQueryTiming label runQuery =
+    if ?context.queryLoggingEnabled
         then do
             start <- getCurrentTime
             runQuery `finally` do
                 end <- getCurrentTime
-                let queryTimeInMs = round (realToFrac (end `diffUTCTime` start) * 1000 :: Double)
-                Log.debug ("💾 runSessionHasql (" <> Text.pack (show queryTimeInMs) <> "ms)")
+                let queryTimeInMs = round (realToFrac (end `diffUTCTime` start) * 1000 :: Double) :: Int
+                ?context.logger (toLogStr (label <> " (" <> Text.pack (show queryTimeInMs) <> "ms)"))
         else runQuery
-{-# INLINABLE runSessionHasql #-}
 
--- | Routes between hasql and pg-simple based on context
---
--- Uses hasql when there's no transaction, a hasql pool is available, and no RLS.
--- Falls back to pg-simple otherwise.
-withHasqlOrPgSimple :: (?modelContext :: ModelContext) => (HasqlPool.Pool -> IO a) -> IO a -> IO a
-withHasqlOrPgSimple hasqlAction pgSimpleAction =
-    case (?modelContext.transactionConnection, ?modelContext.hasqlPool, ?modelContext.rowLevelSecurity) of
-        (Nothing, Just pool, Nothing) -> hasqlAction pool
-        _ -> pgSimpleAction
-{-# INLINABLE withHasqlOrPgSimple #-}
+-- | Existential wrapper for sub-session requests in a transaction
+data SessionRequest where
+    SessionRequest :: Hasql.Session a -> MVar (Either HasqlErrors.SessionError a) -> SessionRequest
 
--- | Exception type for hasql errors
-data HasqlError = HasqlError HasqlPool.UsageError
-    deriving (Show)
+-- | Loop that reads sub-session requests from an MVar and executes them
+-- on the current transaction's connection. Stops when it receives 'Nothing'.
+processRequests :: MVar (Maybe SessionRequest) -> Hasql.Session ()
+processRequests requestMVar = do
+    req <- liftIO (takeMVar requestMVar)
+    case req of
+        Just (SessionRequest session responseVar) -> do
+            result <- catchError (Right <$> session) (pure . Left)
+            liftIO (putMVar responseVar result)
+            processRequests requestMVar
+        Nothing -> pure ()
 
-instance Exception HasqlError
-
--- | Runs a raw sql query which results in a single scalar value such as an integer or string
+-- | Runs a raw sql query which results in a single scalar value such as an integer or string.
+-- Untyped escape hatch — prefer the typed @[typedSql| ... |]@ quasi quoter.
 --
 -- __Example:__
 --
--- > usersCount <- sqlQueryScalar "SELECT COUNT(*) FROM users"
+-- > usersCount <- unsafeSqlQueryScalar "SELECT COUNT(*) FROM users" ()
 --
 -- Take a look at "IHP.QueryBuilder" for a typesafe approach on building simple queries.
-sqlQueryScalar :: (?modelContext :: ModelContext) => (PG.ToRow q, FromField value) => Query -> q -> IO value
-sqlQueryScalar theQuery theParameters = do
-    result <- sqlQuery theQuery theParameters
+unsafeSqlQueryScalar :: (?modelContext :: ModelContext, ToSnippetParams q, HasqlDecodeColumn value) => Query -> q -> IO value
+unsafeSqlQueryScalar theQuery theParameters = do
+    result <- unsafeSqlQuery theQuery theParameters
     pure case result of
         [PG.Only result] -> result
-        _ -> error "sqlQueryScalar: Expected a scalar result value"
+        _ -> error "unsafeSqlQueryScalar: Expected a scalar result value"
+{-# INLINABLE unsafeSqlQueryScalar #-}
+
+-- | Deprecated alias of 'unsafeSqlQueryScalar'.
+{-# DEPRECATED sqlQueryScalar "Use the typed quasi quoter '[typedSql| ... |]' with 'sqlQueryTyped' (from IHP.TypedSql) for compile-time type checking. If you really need untyped raw SQL, use 'unsafeSqlQueryScalar' instead." #-}
+sqlQueryScalar :: (?modelContext :: ModelContext, ToSnippetParams q, HasqlDecodeColumn value) => Query -> q -> IO value
+sqlQueryScalar = unsafeSqlQueryScalar
 {-# INLINABLE sqlQueryScalar #-}
 
--- | Runs a raw sql query which results in a single scalar value such as an integer or string, or nothing
+-- | Runs a raw sql query which results in a single scalar value such as an integer or string, or nothing.
+-- Untyped escape hatch — prefer the typed @[typedSql| ... |]@ quasi quoter.
 --
 -- __Example:__
 --
--- > usersCount <- sqlQueryScalarOrNothing "SELECT COUNT(*) FROM users"
+-- > usersCount <- unsafeSqlQueryScalarOrNothing "SELECT COUNT(*) FROM users" ()
 --
 -- Take a look at "IHP.QueryBuilder" for a typesafe approach on building simple queries.
-sqlQueryScalarOrNothing :: (?modelContext :: ModelContext) => (PG.ToRow q, FromField value) => Query -> q -> IO (Maybe value)
-sqlQueryScalarOrNothing theQuery theParameters = do
-    result <- sqlQuery theQuery theParameters
+unsafeSqlQueryScalarOrNothing :: (?modelContext :: ModelContext, ToSnippetParams q, HasqlDecodeColumn value) => Query -> q -> IO (Maybe value)
+unsafeSqlQueryScalarOrNothing theQuery theParameters = do
+    result <- unsafeSqlQuery theQuery theParameters
     pure case result of
         [] -> Nothing
         [PG.Only result] -> Just result
-        _ -> error "sqlQueryScalarOrNothing: Expected a scalar result value or an empty result set"
+        _ -> error "unsafeSqlQueryScalarOrNothing: Expected a scalar result value or an empty result set"
+{-# INLINABLE unsafeSqlQueryScalarOrNothing #-}
+
+-- | Deprecated alias of 'unsafeSqlQueryScalarOrNothing'.
+{-# DEPRECATED sqlQueryScalarOrNothing "Use the typed quasi quoter '[typedSql| ... |]' with 'sqlQueryTyped' (from IHP.TypedSql) for compile-time type checking. If you really need untyped raw SQL, use 'unsafeSqlQueryScalarOrNothing' instead." #-}
+sqlQueryScalarOrNothing :: (?modelContext :: ModelContext, ToSnippetParams q, HasqlDecodeColumn value) => Query -> q -> IO (Maybe value)
+sqlQueryScalarOrNothing = unsafeSqlQueryScalarOrNothing
 {-# INLINABLE sqlQueryScalarOrNothing #-}
 
 -- | Executes the given block with a database transaction
@@ -525,12 +568,54 @@ sqlQueryScalarOrNothing theQuery theParameters = do
 -- >        |> set #ownerId user.id
 -- >        |> updateRecord
 withTransaction :: (?modelContext :: ModelContext) => ((?modelContext :: ModelContext) => IO a) -> IO a
-withTransaction block = withTransactionConnection do
-    let connection = ?modelContext.transactionConnection
-            |> \case
-                Just connection -> connection
-                Nothing -> error "withTransaction: transactionConnection not set as expected"
-    PG.withTransaction connection block
+withTransaction block
+    | isJust ?modelContext.transactionRunner =
+        error "withTransaction: Nested transactions are not supported. withTransaction was called inside an existing transaction."
+    | otherwise = do
+    let pool = ?modelContext.hasqlPool
+    requestMVar <- newEmptyMVar
+
+    let runner :: forall a. Hasql.Session a -> IO a
+        runner session = do
+            responseVar <- newEmptyMVar
+            putMVar requestMVar (Just (SessionRequest session responseVar))
+            result <- takeMVar responseVar
+            case result of
+                Left err -> throwIO (HasqlSessionError err)
+                Right a -> pure a
+
+    let ?modelContext = ?modelContext { transactionRunner = Just (TransactionRunner runner) }
+
+    let ?context = ?modelContext
+    let transactionSession = do
+            Hasql.script "BEGIN"
+            case ?modelContext.rowLevelSecurity of
+                Just RowLevelSecurityContext { rlsAuthenticatedRole, rlsUserId } ->
+                    Hasql.statement (rlsAuthenticatedRole, rlsUserId) setRLSConfigStatement
+                Nothing -> pure ()
+
+            -- Fork the user's block in a separate thread
+            blockResultVar <- liftIO $ do
+                resultVar <- newEmptyMVar
+                _ <- forkIO $ mask \restore -> do
+                    result <- try @SomeException (restore block)
+                    putMVar requestMVar Nothing   -- Signal processRequests to stop
+                    putMVar resultVar result
+                pure resultVar
+
+            processRequests requestMVar
+
+            blockResult <- liftIO (takeMVar blockResultVar)
+            case blockResult of
+                Left exc -> do
+                    catchError (Hasql.script "ROLLBACK") (\rollbackErr -> liftIO $
+                        ?context.logger (toLogStr ("withTransaction: ROLLBACK failed: " <> Text.pack (show rollbackErr))))
+                    liftIO (throwIO exc)
+                Right a -> do
+                    Hasql.script "COMMIT"
+                    pure a
+
+    usePoolWithRetry pool transactionSession
 {-# INLINABLE withTransaction #-}
 
 -- | Executes the given block with the main database role and temporarly sidesteps the row level security policies.
@@ -554,35 +639,25 @@ withRowLevelSecurityDisabled block = do
     let ?modelContext = currentModelContext { rowLevelSecurity = Nothing } in block
 {-# INLINABLE withRowLevelSecurityDisabled #-}
 
--- | Returns the postgres connection when called within a 'withTransaction' block
---
--- Throws an error if called from outside a 'withTransaction'
-transactionConnectionOrError :: (?modelContext :: ModelContext) => Connection
-transactionConnectionOrError = ?modelContext.transactionConnection
-            |> \case
-                Just connection -> connection
-                Nothing -> error "getTransactionConnectionOrError: Not in a transaction state"
-
 commitTransaction :: (?modelContext :: ModelContext) => IO ()
-commitTransaction = PG.commit transactionConnectionOrError
+commitTransaction = case ?modelContext.transactionRunner of
+    Just (TransactionRunner runner) -> runner (Hasql.script "COMMIT")
+    Nothing -> error "commitTransaction: Not in a transaction"
 {-# INLINABLE commitTransaction #-}
 
 rollbackTransaction :: (?modelContext :: ModelContext) => IO ()
-rollbackTransaction = PG.rollback transactionConnectionOrError
+rollbackTransaction = case ?modelContext.transactionRunner of
+    Just (TransactionRunner runner) -> runner (Hasql.script "ROLLBACK")
+    Nothing -> error "rollbackTransaction: Not in a transaction"
 {-# INLINABLE rollbackTransaction #-}
 
-withTransactionConnection :: (?modelContext :: ModelContext) => ((?modelContext :: ModelContext) => IO a) -> IO a
-withTransactionConnection block = do
-    let ModelContext { connectionPool } = ?modelContext
-    Pool.withResource connectionPool \connection -> do
-        let modelContext = ?modelContext { transactionConnection = Just connection }
-        let ?modelContext = modelContext in block
-{-# INLINABLE withTransactionConnection #-}
-
--- | Access meta data for a database table
-class
-    ( KnownSymbol (GetTableName record)
-    ) => Table record where
+-- | Access meta data for a database table.
+--
+-- Generated instances provide the term-level metadata directly. The default
+-- implementations keep hand-written instances source-compatible without
+-- forcing every use of @Table record@ to also solve @KnownSymbol
+-- (GetTableName record)@.
+class Table record where
     -- | Returns the table name of a given model.
     --
     -- __Example:__
@@ -592,19 +667,24 @@ class
     --
 
     tableName :: Text
+    default tableName :: KnownSymbol (GetTableName record) => Text
     tableName = symbolToText @(GetTableName record)
     {-# INLINE tableName #-}
 
-    -- | Returns the table name of a given model as a bytestring.
+    -- | The ID type of this table. Generated instances set this directly to a
+    -- concrete @Id' "table_name"@, avoiding a @GetTableName@ reduction on
+    -- common paths such as 'currentUserId'.
+    type TableId record
+    type TableId record = Id record
+
+    -- | Returns the primary-key value of a record.
     --
-    -- __Example:__
-    --
-    -- >>> tableNameByteString @User
-    -- "users"
-    --
-    tableNameByteString :: ByteString
-    tableNameByteString = symbolToByteString @(GetTableName record)
-    {-# INLINE tableNameByteString #-}
+    -- Schema-generated instances provide an implementation. The fallback
+    -- keeps existing hand-written 'Table' instances source-compatible; such
+    -- instances should define this method before calling it.
+    modelId :: record -> TableId record
+    modelId _ = error "Table.modelId: no implementation provided by this Table instance"
+    {-# INLINE modelId #-}
 
     -- | Returns the list of column names for a given model
     --
@@ -613,7 +693,7 @@ class
     -- >>> columnNames @User
     -- ["id", "email", "created_at"]
     --
-    columnNames :: [ByteString]
+    columnNames :: [Text]
 
     -- | Returns the list of column names, that are contained in the primary key for a given model
     --
@@ -625,22 +705,8 @@ class
     -- >>> primaryKeyColumnNames @PostTagging
     -- ["post_id", "tag_id"]
     --
-    primaryKeyColumnNames :: [ByteString]
+    primaryKeyColumnNames :: [Text]
 
-    -- | Returns the parameters for a WHERE conditions to match an entity by it's primary key, given the entities id
-    --
-    -- For tables with a simple primary key this simply the id:
-    --
-    -- >>> primaryKeyConditionForId project.id
-    -- Plain "d619f3cf-f355-4614-8a4c-e9ea4f301e39"
-    --
-    -- If the table has a composite primary key, this returns multiple elements:
-    --
-    -- >>> primaryKeyConditionForId postTag.id
-    -- Many [Plain "(", Plain "0ace9270-568f-4188-b237-3789aa520588", Plain ",", Plain "0b58fdf5-4bbb-4e57-a5b7-aa1c57148e1c", Plain ")"]
-    -- 
-    -- The order of the elements for a composite primary key must match the order of the columns returned by 'primaryKeyColumnNames'
-    primaryKeyConditionForId :: Id record -> PG.Action
 
 -- | Returns ByteString, that represents the part of an SQL where clause, that matches on a tuple consisting of all the primary keys
 -- For table with simple primary keys this simply returns the name of the primary key column, without wrapping in a tuple
@@ -648,45 +714,21 @@ class
 -- "(post_tags.post_id, post_tags.tag_id)"
 -- >>> primaryKeyColumnSelector @Post
 -- "post_tags.post_id"
-primaryKeyConditionColumnSelector :: forall record. (Table record) => ByteString
-primaryKeyConditionColumnSelector = 
-    let 
-        qualifyColumnName col = tableNameByteString @record <> "." <> col
+primaryKeyConditionColumnSelector :: forall record. (Table record) => Text
+primaryKeyConditionColumnSelector =
+    let
+        qualifyColumnName col = tableName @record <> "." <> col
     in
     case primaryKeyColumnNames @record of
             [] -> error . cs $ "Impossible happened in primaryKeyConditionColumnSelector. No primary keys found for table " <> tableName @record <> ". At least one primary key is required."
             [s] -> qualifyColumnName s
-            conds -> "(" <> BS8.intercalate ", " (map qualifyColumnName conds) <> ")"
+            conds -> "(" <> Text.intercalate ", " (map qualifyColumnName conds) <> ")"
 
--- | Returns WHERE conditions to match an entity by it's primary key
---
--- For tables with a simple primary key this returns a tuple with the id:
---
--- >>> primaryKeyCondition project
--- Plain "d619f3cf-f355-4614-8a4c-e9ea4f301e39"
---
--- If the table has a composite primary key, this returns multiple elements:
---
--- >>> primaryKeyCondition postTag
--- Many [Plain "(", Plain "0ace9270-568f-4188-b237-3789aa520588", Plain ",", Plain "0b58fdf5-4bbb-4e57-a5b7-aa1c57148e1c", Plain ")"]
-primaryKeyCondition :: forall record. (HasField "id" record (Id record), Table record) => record -> PG.Action
-primaryKeyCondition record = primaryKeyConditionForId @record record.id
 
-logQuery :: (?modelContext :: ModelContext, PG.ToRow parameters) => Text -> PG.Connection -> Query -> parameters -> NominalDiffTime -> IO ()
-logQuery logPrefix connection query parameters time = do
-        let ?context = ?modelContext
-        -- NominalTimeDiff is represented as seconds, and doesn't provide a FormatTime option for printing in ms.
-        -- To get around that we convert to and from a rational so we can format as desired.
-        let queryTimeInMs = round (realToFrac time * 1000 :: Double)
-        let formatRLSInfo userId = " { ihp_user_id = " <> userId <> " }"
-        let rlsInfo = case ?context.rowLevelSecurity of
-                Just RowLevelSecurityContext { rlsUserId = PG.Plain rlsUserId } -> formatRLSInfo (cs (Builder.toLazyByteString rlsUserId))
-                Just RowLevelSecurityContext { rlsUserId = rlsUserId } -> formatRLSInfo (Text.pack (show rlsUserId))
-                Nothing -> ""
-
-        formatted <- PG.formatQuery connection query parameters
-        Log.debug (logPrefix <> " " <> cs formatted <> rlsInfo <> " (" <> Text.pack (show queryTimeInMs) <> "ms)")
-{-# INLINABLE logQuery #-}
+truncateQuery :: Text -> Text
+truncateQuery query
+    | Text.length query > 2000 = Text.take 2000 query <> "... (truncated)"
+    | otherwise = query
 
 -- | Runs a @DELETE@ query for a record.
 --
@@ -708,16 +750,11 @@ deleteRecord record =
 -- DELETE FROM projects WHERE id = '..'
 --
 deleteRecordById :: forall record table. (?modelContext :: ModelContext, Table record, Show (PrimaryKey table), GetTableName record ~ table, record ~ GetModelByTableName table, Hasql.Implicits.Encoders.DefaultParamEncoder (Id' table)) => Id' table -> IO ()
-deleteRecordById id = withHasqlOrPgSimple hasqlPath pgSimplePath
-    where
-        hasqlPath pool = sqlExecHasql pool $
-            Snippet.sql ("DELETE FROM " <> cs (tableNameByteString @record) <> " WHERE " <> cs (primaryKeyConditionColumnSelector @record) <> " = ")
-            <> Snippet.param id
-        pgSimplePath = do
-            let theQuery = "DELETE FROM " <> tableNameByteString @record <> " WHERE " <> (primaryKeyConditionColumnSelector @record) <> " = ?"
-            let theParameters = PG.Only $ primaryKeyConditionForId @record id
-            sqlExec (PG.Query $! theQuery) theParameters
-            pure ()
+deleteRecordById id = do
+    let pool = ?modelContext.hasqlPool
+    sqlExecHasql pool $
+        Snippet.sql ("DELETE FROM " <> tableName @record <> " WHERE " <> primaryKeyConditionColumnSelector @record <> " = ")
+        <> Snippet.param id
 {-# INLINABLE deleteRecordById #-}
 
 -- | Runs a @DELETE@ query for a list of records.
@@ -737,17 +774,12 @@ deleteRecords records =
 -- DELETE FROM projects WHERE id IN ('..')
 --
 deleteRecordByIds :: forall record table. (?modelContext :: ModelContext, Show (PrimaryKey table), Table record, GetTableName record ~ table, record ~ GetModelByTableName table, Hasql.Implicits.Encoders.DefaultParamEncoder [Id' table]) => [Id' table] -> IO ()
-deleteRecordByIds ids = withHasqlOrPgSimple hasqlPath pgSimplePath
-    where
-        hasqlPath pool = sqlExecHasql pool $
-            Snippet.sql ("DELETE FROM " <> cs (tableNameByteString @record) <> " WHERE " <> cs (primaryKeyConditionColumnSelector @record) <> " = ANY(")
-            <> Snippet.param ids
-            <> Snippet.sql ")"
-        pgSimplePath = do
-            let theQuery = "DELETE FROM " <> tableNameByteString @record <> " WHERE " <> (primaryKeyConditionColumnSelector @record) <> " IN ?"
-            let theParameters = PG.Only $ PG.In $ map (primaryKeyConditionForId @record) ids
-            sqlExec (PG.Query $! theQuery) theParameters
-            pure ()
+deleteRecordByIds ids = do
+    let pool = ?modelContext.hasqlPool
+    sqlExecHasql pool $
+        Snippet.sql ("DELETE FROM " <> tableName @record <> " WHERE " <> primaryKeyConditionColumnSelector @record <> " = ANY(")
+        <> Snippet.param ids
+        <> Snippet.sql ")"
 {-# INLINABLE deleteRecordByIds #-}
 
 -- | Runs a @DELETE@ query to delete all rows in a table.
@@ -755,14 +787,9 @@ deleteRecordByIds ids = withHasqlOrPgSimple hasqlPath pgSimplePath
 -- >>> deleteAll @Project
 -- DELETE FROM projects
 deleteAll :: forall record. (?modelContext :: ModelContext, Table record) => IO ()
-deleteAll = withHasqlOrPgSimple hasqlPath pgSimplePath
-    where
-        hasqlPath pool = sqlExecHasql pool $
-            Snippet.sql ("DELETE FROM " <> cs (tableName @record))
-        pgSimplePath = do
-            let theQuery = "DELETE FROM " <> tableName @record
-            sqlExec (PG.Query . cs $! theQuery) ()
-            pure ()
+deleteAll = do
+    let pool = ?modelContext.hasqlPool
+    sqlExecHasql pool $ Snippet.sql ("DELETE FROM " <> tableName @record)
 {-# INLINABLE deleteAll #-}
 
 instance Default NominalDiffTime where
@@ -783,8 +810,11 @@ instance Default UTCTime where
 instance Default (PG.Binary ByteString) where
     def = PG.Binary ""
 
-instance Default PGInterval where
-    def = PGInterval "00:00:00"
+instance Default Interval where
+    def = normalizeFromMonthsDaysAndMicroseconds 0 0 0
+
+instance Default Inet where
+    def = normalizeFromV4 0 32
 
 class Record model where
     newRecord :: model
@@ -801,16 +831,19 @@ ids records = map (.id) records
 {-# INLINE ids #-}
 
 instance Default MetaBag where
-    def = MetaBag { annotations = [], touchedFields = [], originalDatabaseRecord = Nothing }
+    def = MetaBag { annotations = [], touchedFields = 0, originalDatabaseRecord = Nothing }
     {-# INLINE def #-}
 
 instance SetField "annotations" MetaBag [(Text, Violation)] where
     setField value meta = meta { annotations = value }
     {-# INLINE setField #-}
 
-instance SetField "touchedFields" MetaBag [Text] where
+instance SetField "touchedFields" MetaBag Integer where
     setField value meta = meta { touchedFields = value }
     {-# INLINE setField #-}
+
+-- | Returns 'True' if the named field has been touched (is in @touchedFields@).
+-- Used by generated Update statement modules to determine which columns to send.
 
 -- | Returns 'True' if any fields of the record have unsaved changes
 --
@@ -828,7 +861,7 @@ instance SetField "touchedFields" MetaBag [Text] where
 -- >>> project |> set #name "New Name" |> didChangeRecord
 -- True
 didChangeRecord :: (HasField "meta" record MetaBag) => record -> Bool
-didChangeRecord record = isEmpty record.meta.touchedFields
+didChangeRecord record = record.meta.touchedFields /= 0
 
 -- | Returns 'True' if the specific field of the record has unsaved changes
 --
@@ -849,7 +882,7 @@ didChangeRecord record = isEmpty record.meta.touchedFields
 -- __Example:__ Setting a flash message after updating the profile picture
 --
 -- > when (user |> didChange #profilePictureUrl) (setSuccessMessage "Your Profile Picture has been updated. It might take a few minutes until it shows up everywhere")
-didChange :: forall fieldName fieldValue record. (KnownSymbol fieldName, HasField fieldName record fieldValue, HasField "meta" record MetaBag, Eq fieldValue, Typeable record) => Proxy fieldName -> record -> Bool
+didChange :: forall fieldName fieldValue record. (KnownSymbol fieldName, HasField fieldName record fieldValue, HasField "meta" record MetaBag, Eq fieldValue, Typeable record, FieldBit fieldName record) => Proxy fieldName -> record -> Bool
 didChange field record = didTouchField field record && didChangeField
     where
         didChangeField :: Bool
@@ -882,89 +915,9 @@ didChange field record = didTouchField field record && didChangeField
 -- >>> project |> set #name project.name |> didTouchField #name
 -- True
 --
-didTouchField :: forall fieldName fieldValue record. (KnownSymbol fieldName, HasField fieldName record fieldValue, HasField "meta" record MetaBag, Eq fieldValue, Typeable record) => Proxy fieldName -> record -> Bool
+didTouchField :: forall fieldName fieldValue record. (KnownSymbol fieldName, HasField fieldName record fieldValue, HasField "meta" record MetaBag, Eq fieldValue, Typeable record, FieldBit fieldName record) => Proxy fieldName -> record -> Bool
 didTouchField field record =
-    record.meta.touchedFields
-    |> includes (symbolToText @fieldName)
-
-instance ToField valueType => ToField (FieldWithDefault valueType) where
-  toField Default = Plain "DEFAULT"
-  toField (NonDefault a) = toField a
-
--- | Construct a 'FieldWithDefault'
---
---   Use the default SQL value when the field hasn't been touched since the
---   record was created. This information is stored in the 'touchedFields'
---   attribute of the 'meta' field.
-fieldWithDefault
-  :: ( KnownSymbol name
-     , HasField name model value
-     , HasField "meta" model MetaBag
-     )
-  => Proxy name
-  -> model
-  -> FieldWithDefault value
-fieldWithDefault name model
-  | cs (symbolVal name) `elem` model.meta.touchedFields =
-    NonDefault (get name model)
-  | otherwise = Default
-
-instance (KnownSymbol name, ToField value) => ToField (FieldWithUpdate name value) where
-  toField (NoUpdate name) =
-    Plain (Data.String.fromString $ cs $ fieldNameToColumnName $ cs $ symbolVal name)
-  toField (Update a) = toField a
-
--- | Construct a 'FieldWithUpdate'
---
---   Use the current database value when the field hasn't been touched since the
---   record was accessed. This information is stored in the 'touchedFields'
---   attribute of the 'meta' field.
-fieldWithUpdate
-  :: ( KnownSymbol name
-    , HasField name model value
-    , HasField "meta" model MetaBag
-    )
-  => Proxy name
-  -> model
-  -> FieldWithUpdate name value
-fieldWithUpdate name model
-  | cs (symbolVal name) `elem` model.meta.touchedFields =
-    Update (get name model)
-  | otherwise = NoUpdate name
-
--- | Like 'fieldWithDefault' but produces a hasql 'Snippet' instead of a 'FieldWithDefault'
---
---   When the field hasn't been touched, produces @DEFAULT@. Otherwise encodes the value
---   using hasql's 'DefaultParamEncoder'.
-fieldWithDefaultSnippet
-  :: ( KnownSymbol name
-     , HasField name model value
-     , HasField "meta" model MetaBag
-     , Hasql.Implicits.Encoders.DefaultParamEncoder value
-     )
-  => Proxy name
-  -> model
-  -> Snippet.Snippet
-fieldWithDefaultSnippet name model
-  | cs (symbolVal name) `elem` model.meta.touchedFields = Snippet.param (get name model)
-  | otherwise = Snippet.sql "DEFAULT"
-
--- | Like 'fieldWithUpdate' but produces a hasql 'Snippet' instead of a 'FieldWithUpdate'
---
---   When the field hasn't been touched, produces the column name (keeping the current DB value).
---   Otherwise encodes the new value using hasql's 'DefaultParamEncoder'.
-fieldWithUpdateSnippet
-  :: ( KnownSymbol name
-     , HasField name model value
-     , HasField "meta" model MetaBag
-     , Hasql.Implicits.Encoders.DefaultParamEncoder value
-     )
-  => Proxy name
-  -> model
-  -> Snippet.Snippet
-fieldWithUpdateSnippet name model
-  | cs (symbolVal name) `elem` model.meta.touchedFields = Snippet.param (get name model)
-  | otherwise = Snippet.sql (cs $ fieldNameToColumnName $ cs $ symbolVal name)
+    record.meta.touchedFields .&. fieldBit @fieldName @record /= 0
 
 instance (ToJSON (PrimaryKey a)) => ToJSON (Id' a) where
   toJSON (Id a) = toJSON a
@@ -972,23 +925,9 @@ instance (ToJSON (PrimaryKey a)) => ToJSON (Id' a) where
 instance (FromJSON (PrimaryKey a)) => FromJSON (Id' a) where
     parseJSON value = Id <$> parseJSON value
 
--- | Catches 'SqlError' and wraps them in 'EnhancedSqlError'
-enhanceSqlError :: PG.ToRow parameters => Query -> parameters -> IO a -> IO a
-enhanceSqlError sqlErrorQuery sqlErrorQueryParams block = catch block (\sqlError -> throwIO EnhancedSqlError { sqlErrorQuery, sqlErrorQueryParams = PG.toRow sqlErrorQueryParams, sqlError })
-{-# INLINE enhanceSqlError #-}
 
 instance Default Aeson.Value where
     def = Aeson.Null
-
--- | This instance allows us to avoid wrapping lists with PGArray when
--- using sql types such as @INT[]@
-instance ToField value => ToField [value] where
-    toField list = toField (PG.PGArray list)
-
--- | This instancs allows us to avoid wrapping lists with PGArray when
--- using sql types such as @INT[]@
-instance (FromField value, Typeable value) => FromField [value] where
-    fromField field value = PG.fromPGArray <$> (fromField field value)
 
 -- | Useful to manually mark a table read when doing a custom sql query inside AutoRefresh or 'withTableReadTracker'.
 --
@@ -1004,7 +943,7 @@ instance (FromField value, Typeable value) => FromField [value] where
 -- >     render MyView { .. }
 --
 --
-trackTableRead :: (?modelContext :: ModelContext) => ByteString -> IO ()
+trackTableRead :: (?modelContext :: ModelContext) => Text -> IO ()
 trackTableRead tableName = case ?modelContext.trackTableReadCallback of
     Just callback -> callback tableName
     Nothing -> pure ()
@@ -1023,7 +962,7 @@ trackTableRead tableName = case ?modelContext.trackTableReadCallback of
 -- >     tables <- readIORef ?touchedTables
 -- >     -- tables = Set.fromList ["projects", "users"]
 -- >
-withTableReadTracker :: (?modelContext :: ModelContext) => ((?modelContext :: ModelContext, ?touchedTables :: IORef (Set.Set ByteString)) => IO ()) -> IO ()
+withTableReadTracker :: (?modelContext :: ModelContext) => ((?modelContext :: ModelContext, ?touchedTables :: IORef (Set.Set Text)) => IO a) -> IO a
 withTableReadTracker trackedSection = do
     touchedTablesVar <- newIORef Set.empty
     let trackTableReadCallback = Just \tableName -> modifyIORef' touchedTablesVar (Set.insert tableName)
@@ -1119,10 +1058,11 @@ isValid record = isEmpty record.meta.annotations
 copyRecord :: forall record id. (Table record, SetField "id" record id, Default id, SetField "meta" record MetaBag) => record -> record
 copyRecord existingRecord =
     let
-        fieldsExceptId = (columnNames @record) |> filter (\field -> field /= "id")
-
+        columns = columnNames @record
+        numColumns = length columns
+        idIndex = fromMaybe 0 $ elemIndex "id" columns
         meta :: MetaBag
-        meta = def { touchedFields = map (IHP.NameSupport.columnNameToFieldName . cs) fieldsExceptId }
+        meta = def { touchedFields = (bit numColumns - 1) `clearBit` idIndex }
     in
         existingRecord
             |> set #id def
@@ -1138,8 +1078,7 @@ withoutQueryLogging :: (?modelContext :: ModelContext) => ((?modelContext :: Mod
 withoutQueryLogging callback =
     let
         modelContext = ?modelContext
-        nullLogger = modelContext.logger { write = \_ -> pure ()}
     in
-        let ?modelContext = modelContext { logger = nullLogger }
+        let ?modelContext = modelContext { logger = noopLogger }
         in
             callback

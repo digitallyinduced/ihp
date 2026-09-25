@@ -57,6 +57,17 @@ docsIcon = preEscapedToHtml [plain|
 |]
 
 
+searchIcon :: Html
+searchIcon = preEscapedToHtml [plain|
+<svg width="20px" height="20px" viewBox="0 0 20 20" version="1.1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
+    <g stroke="none" stroke-width="1" fill="none" fill-rule="evenodd">
+        <g fill="#E5EAEB">
+            <path d="M8,2 C11.3137,2 14,4.68629 14,8 C14,9.29583 13.5892,10.4957 12.8907,11.4765 L17.7071,16.2929 C18.0976,16.6834 18.0976,17.3166 17.7071,17.7071 C17.3166,18.0976 16.6834,18.0976 16.2929,17.7071 L11.4765,12.8907 C10.4957,13.5892 9.29583,14 8,14 C4.68629,14 2,11.3137 2,8 C2,4.68629 4.68629,2 8,2 Z M8,4 C5.79086,4 4,5.79086 4,8 C4,10.2091 5.79086,12 8,12 C10.2091,12 12,10.2091 12,8 C12,5.79086 10.2091,4 8,4 Z"></path>
+        </g>
+    </g>
+</svg>
+|]
+
 startIcon :: Html
 startIcon = preEscapedToHtml [plain|
 <svg xmlns="http://www.w3.org/2000/svg" enable-background="new 0 0 24 24" fill="currentColor"><g><rect fill="none" height="24" width="24"/></g><g><path d="M12,2C6.48,2,2,6.48,2,12s4.48,10,10,10s10-4.48,10-10S17.52,2,12,2z M12,20c-4.41,0-8-3.59-8-8s3.59-8,8-8s8,3.59,8,8 S16.41,20,12,20z M9.5,16.5l7-4.5l-7-4.5V16.5z"/></g></svg>

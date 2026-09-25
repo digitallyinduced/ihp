@@ -12,14 +12,13 @@ module IHP.Controller.Layout
 
 import Prelude
 import IHP.ViewSupport
-import IHP.Controller.Context
 import Network.Wai (Request, Middleware, vault)
 import System.IO.Unsafe (unsafePerformIO)
 import qualified Data.Vault.Lazy as Vault
 import Data.IORef
 
 -- | Wrapper for a layout function that will be applied to views
-newtype ViewLayout = ViewLayout ((?context :: ControllerContext, ?request :: Request) => Layout)
+newtype ViewLayout = ViewLayout ((?request :: Request) => Layout)
 
 -- | Vault key for storing the mutable layout IORef in each request
 viewLayoutVaultKey :: Vault.Key (IORef ViewLayout)
@@ -43,7 +42,7 @@ viewLayoutMiddleware app request respond = do
 -- >     initContext = do
 -- >         setLayout defaultLayout
 --
-setLayout :: (?context :: ControllerContext, ?request :: Request) => ((?context :: ControllerContext, ?request :: Request) => Layout) -> IO ()
+setLayout :: (?request :: Request) => ((?request :: Request) => Layout) -> IO ()
 setLayout layout =
     case Vault.lookup viewLayoutVaultKey (vault ?request) of
         Just ref -> writeIORef ref (ViewLayout layout)

@@ -15,6 +15,7 @@ module IHP.ModelSupport.Types
 ( -- * Model Context
   ModelContext (..)
 , RowLevelSecurityContext (..)
+, TransactionRunner (..)
   -- * Type Families
 , GetModelById
 , GetTableName
@@ -34,45 +35,63 @@ module IHP.ModelSupport.Types
   -- * Field Wrappers
 , FieldWithDefault (..)
 , FieldWithUpdate (..)
-  -- * Utility Types
-, LabeledData (..)
   -- * Exceptions
 , RecordNotFoundException (..)
 , EnhancedSqlError (..)
+, enhancedSqlErrorMessage
+, HasqlSessionError (..)
+, HasqlError (..)
   -- * Type Classes
 , CanCreate (..)
 , CanUpdate (..)
 , ParsePrimaryKey (..)
+, FieldBit (..)
+  -- * Logging
+, noopLogger
 ) where
 
 import Prelude
 import Data.ByteString (ByteString)
 import Data.Text (Text)
+import qualified Data.Text.Encoding
 import Data.Hashable (Hashable)
 import Control.DeepSeq (NFData)
 import Control.Exception (Exception)
-import Database.PostgreSQL.Simple (Connection)
 import Database.PostgreSQL.Simple.Types (Query)
-import Database.PostgreSQL.Simple.ToField (Action)
 import qualified Database.PostgreSQL.Simple as PG
-import qualified Data.Pool as Pool
 import qualified Hasql.Pool as Hasql
+import qualified Hasql.Session as HasqlSession
+import qualified Hasql.Errors as HasqlErrors
 import GHC.TypeLits
 import GHC.Types
 import Data.Data
 import Data.Dynamic
-import Data.Proxy
-import IHP.Log.Types (Logger)
+import System.Log.FastLogger (FastLogger)
+
+-- | Runner that executes a hasql Session on the current transaction's connection
+newtype TransactionRunner = TransactionRunner
+    { runInTransaction :: forall a. HasqlSession.Session a -> IO a }
+
+-- | Wrapper to make 'HasqlErrors.SessionError' an 'Exception', since it doesn't have one by default
+data HasqlSessionError = HasqlSessionError HasqlErrors.SessionError
+    deriving (Show)
+
+instance Exception HasqlSessionError
+
+-- | Exception type for hasql pool usage errors
+data HasqlError = HasqlError Hasql.UsageError
+    deriving (Show)
+
+instance Exception HasqlError
 
 -- | Provides the db connection and some IHP-specific db configuration
 data ModelContext = ModelContext
-    { connectionPool :: Pool.Pool Connection -- ^ Used to get database connections when no 'transactionConnection' is set
-    , hasqlPool :: Maybe Hasql.Pool -- ^ Optional hasql pool for prepared statement-based fetch queries (better performance)
-    , transactionConnection :: Maybe Connection -- ^ Set to a specific database connection when executing a database transaction
-    -- | Logs all queries to this logger at log level info
-    , logger :: Logger
+    { hasqlPool :: Hasql.Pool -- ^ Hasql pool for prepared statement-based queries
+    , transactionRunner :: Maybe TransactionRunner -- ^ When set, queries are sent through this runner instead of 'HasqlPool.use' directly
+    , logger :: FastLogger
+    , queryLoggingEnabled :: !Bool
     -- | A callback that is called whenever a specific table is accessed using a SELECT query
-    , trackTableReadCallback :: Maybe (ByteString -> IO ())
+    , trackTableReadCallback :: Maybe (Text -> IO ())
     -- | Is set to a value if row level security was enabled at runtime
     , rowLevelSecurity :: Maybe RowLevelSecurityContext
     }
@@ -81,7 +100,7 @@ data ModelContext = ModelContext
 -- logged in user and the postgresql role to switch to.
 data RowLevelSecurityContext = RowLevelSecurityContext
     { rlsAuthenticatedRole :: Text -- ^ Default is @ihp_authenticated@. This value comes from the @IHP_RLS_AUTHENTICATED_ROLE@  env var.
-    , rlsUserId :: Action -- ^ The user id of the current logged in user
+    , rlsUserId :: Text -- ^ The user id of the current logged in user
     }
 
 type family GetModelById id :: Type where
@@ -129,7 +148,7 @@ deriving instance (Eq (PrimaryKey table)) => Eq (Id' table)
 deriving instance (Ord (PrimaryKey table)) => Ord (Id' table)
 deriving instance (Hashable (PrimaryKey table)) => Hashable (Id' table)
 deriving instance (KnownSymbol table, Data (PrimaryKey table)) => Data (Id' table)
-deriving instance (KnownSymbol table, NFData (PrimaryKey table)) => NFData (Id' table)
+deriving instance NFData (PrimaryKey table) => NFData (Id' table)
 
 -- | We need to map the model to its table name to prevent infinite recursion in the model data definition
 -- E.g. `type Project = Project' { id :: Id Project }` will not work
@@ -147,12 +166,18 @@ data Violation
 -- | Every IHP database record has a magic @meta@ field which keeps a @MetaBag@ inside. This data structure is used e.g. to keep track of the validation errors that happend.
 data MetaBag = MetaBag
     { annotations            :: ![(Text, Violation)] -- ^ Stores validation failures, as a list of (field name, error) pairs. E.g. @annotations = [ ("name", TextViolation "cannot be empty") ]@
-    , touchedFields          :: ![Text] -- ^ Whenever a 'set' is callled on a field, it will be marked as touched. Only touched fields are saved to the database when you call 'updateRecord'
+    , touchedFields          :: !Integer -- ^ Bitmask of touched fields. Whenever a 'set' is called on a field, its bit is set via '.|.'. Only touched fields are saved to the database when you call 'updateRecord'. For ≤64 columns, fits in a single machine word.
     , originalDatabaseRecord :: Maybe Dynamic -- ^ When the record has been fetched from the database, we save the initial database record here. This is used by 'didChange' to check if a field value is different from the initial database value.
     } deriving (Show)
 
+-- | Maps a field name to its bit position in the 'touchedFields' bitmask.
+-- Instances are generated by the schema compiler for each table's fields.
+class FieldBit (name :: Symbol) model where
+    fieldBit :: Integer
+
 instance Eq MetaBag where
     MetaBag { annotations, touchedFields } == MetaBag { annotations = annotations', touchedFields = touchedFields' } = annotations == annotations' && touchedFields == touchedFields'
+    {-# INLINE (==) #-}
 
 -- | Represents fields that have a default value in an SQL schema
 --
@@ -169,13 +194,9 @@ data FieldWithUpdate name value
   | Update value
   deriving (Eq, Show)
 
--- | Record type for objects of model types labeled with values from different database tables. (e.g. comments labeled with the IDs of the posts they belong to).
-data LabeledData a b = LabeledData { labelValue :: a, contentValue :: b }
-    deriving (Show)
-
 -- | Thrown by 'fetchOne' when the query result is empty
 data RecordNotFoundException
-    = RecordNotFoundException { queryAndParams :: (ByteString, [Action]) }
+    = RecordNotFoundException { queryAndParams :: Text }
     deriving (Show)
 
 instance Exception RecordNotFoundException
@@ -186,11 +207,19 @@ instance Exception RecordNotFoundException
 data EnhancedSqlError
     = EnhancedSqlError
     { sqlErrorQuery :: Query
-    , sqlErrorQueryParams :: [Action]
+    , sqlErrorQueryParams :: Text
     , sqlError :: PG.SqlError
     } deriving (Show)
 
 instance Exception EnhancedSqlError
+
+-- | Extract the SQL error message as Text from an EnhancedSqlError.
+--
+-- This avoids downstream packages needing to import postgresql-simple
+-- to access the 'sqlErrorMsg' field on 'PG.SqlError'.
+enhancedSqlErrorMessage :: EnhancedSqlError -> Text
+enhancedSqlErrorMessage e = Data.Text.Encoding.decodeUtf8 e.sqlError.sqlErrorMsg
+{-# INLINE enhancedSqlErrorMessage #-}
 
 class CanCreate a where
     create :: (?modelContext :: ModelContext) => a -> IO a
@@ -213,3 +242,7 @@ class CanUpdate a where
 
 class ParsePrimaryKey primaryKey where
     parsePrimaryKey :: Text -> Maybe primaryKey
+
+-- | A logger that discards all messages. Useful in tests and for 'withoutQueryLogging'.
+noopLogger :: FastLogger
+noopLogger = \_ -> pure ()

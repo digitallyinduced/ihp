@@ -10,13 +10,12 @@ module IHP.ViewSupport
 , Layout
 , Html
 , View (..)
+, JsonView (..)
 , currentViewId
 , forEach
 , isActivePath
 , isActivePathOrSub
 , css
-, onClick
-, onLoad
 , theRequest
 , ViewFetchHelpMessage
 , param
@@ -34,7 +33,7 @@ module IHP.ViewSupport
 ) where
 
 import IHP.Prelude
-import qualified Text.Blaze.Html5 as Html5
+import IHP.HSX.Markup (Markup, ToHtml(..))
 import IHP.ControllerSupport
 import IHP.ModelSupport
 import qualified Data.Aeson as JSON
@@ -46,29 +45,28 @@ import GHC.TypeLits as T
 import qualified Data.ByteString as ByteString
 import IHP.Router.UrlGenerator (HasPath(..))
 import Network.Wai
-import Text.Blaze.Html5.Attributes as A
-import IHP.HSX.QQ (hsx)
-import IHP.HSX.ToHtml
+import IHP.HSX.MarkupQQ (hsx)
+import IHP.HSX.Markup (ApplyAttribute(..), AttributeValue(..))
 import qualified Data.Sequences as Sequences
 import qualified IHP.View.CSSFramework as CSSFramework ()
 import IHP.View.Types
 import qualified IHP.FrameworkConfig as FrameworkConfig
-import IHP.Controller.Context
-import qualified IHP.HSX.Attribute as HSX
+import IHP.HSX.Markup (preEscapedToHtml)
 import qualified Network.Wai.Middleware.AssetPath as AssetPath
 import IHP.ActionType (isActiveController)
 
 class View theView where
     -- | Hook which is called before the render is called
-    beforeRender :: (?context :: ControllerContext, ?request :: Request) => theView -> IO ()
+    beforeRender :: (?context :: Request, ?request :: Request) => theView -> IO ()
     beforeRender view = pure ()
 
     -- Renders the view as html
-    html :: (?context :: ControllerContext, ?view :: theView, ?request :: Request) => theView -> Html5.Html
+    html :: (?context :: Request, ?view :: theView, ?request :: Request) => theView -> Markup
 
-    -- | Renders the view to a JSON
+-- | Implement this for views that can be rendered as JSON.
+-- Use 'renderHtmlOrJson' in your controller to dispatch based on the Accept header.
+class JsonView theView where
     json :: theView -> JSON.Value
-    json = error "Json View for this route is not implemented"
 
 -- | Returns a string to be used as a html id attribute for the current view.
 -- E.g. when calling @currentViewId@ while rendering the view @Web.View.Projects.Show@, this will return @"projects-show"@
@@ -162,10 +160,8 @@ isActiveAction :: forall controllerAction. (?request :: Request, HasPath control
 isActiveAction controllerAction =
     isActivePath (pathTo controllerAction)
 
-css = plain
-
-onClick = A.onclick
-onLoad = A.onload
+css :: Text -> Markup
+css = preEscapedToHtml
 
 -- | Returns the current request
 theRequest :: (?request :: Request) => Request
@@ -211,13 +207,13 @@ theCSSFramework = ?request.frameworkConfig.cssFramework
 --
 -- >>> nl2br "Hello\nWorld!"
 -- [hsx|Hello<br/>World!|]
-nl2br :: (Sequences.Textual text, ToHtml text) => text -> Html5.Html
+nl2br :: (Sequences.Textual text, ToHtml text) => text -> Markup
 nl2br content = content
     |> Sequences.lines
     |> map (\line -> [hsx|{line}<br/>|])
     |> mconcat
 
-type Html = HtmlWithContext ControllerContext
+type Html = HtmlWithContext Request
 
 -- | The URL for the dev-mode live reload server. Typically "ws://localhost:8001"
 liveReloadWebsocketUrl :: (?request :: Request) => Text
@@ -225,8 +221,11 @@ liveReloadWebsocketUrl = ?request.frameworkConfig.ideBaseUrl
     |> Text.replace "http://" "ws://"
     |> Text.replace "https://" "wss://"
 
-instance InputValue (PrimaryKey table) => HSX.ApplyAttribute (Id' table) where
-    applyAttribute attr attr' value h = HSX.applyAttribute attr attr' (inputValue value) h
+instance InputValue (PrimaryKey table) => ApplyAttribute (Id' table) where
+    applyAttribute attr attr' value = applyAttribute attr attr' (inputValue value)
+
+instance {-# OVERLAPPABLE #-} HasPath action => AttributeValue action where
+    attributeValue = attributeValue . pathTo
 
 
 -- | Adds a cache buster to a asset path

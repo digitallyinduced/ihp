@@ -134,12 +134,12 @@ instance Controller ColumnsController where
         let name = tableName
         statements <- readSchema
         let tableNames = nameList (getCreateTable statements)
-        let (Just statement) = find (\statement -> statement == AddConstraint { tableName = tableName, deferrable = Nothing, deferrableType = Nothing, constraint = ForeignKeyConstraint { name = Just constraintName, columnName = columnName, referenceTable = referenceTable, referenceColumn = "id", onDelete = statement.constraint.onDelete }}) statements
+        let (Just statement) = find (\statement -> statement == AddConstraint { tableName = tableName, deferrable = Nothing, deferrableType = Nothing, constraint = ForeignKeyConstraint { name = Just constraintName, columnName = columnName, referenceTable = referenceTable, referenceColumn = "id", onDelete = statement.constraint.onDelete, onUpdate = statement.constraint.onUpdate, constraintDeferrable = Nothing, constraintDeferrableType = Nothing }}) statements
         onDelete <- case statement.constraint.onDelete of
             Just NoAction -> do pure "NoAction"
             Just Restrict -> do pure "Restrict"
-            Just SetNull -> do pure "SetNull"
-            Just SetDefault -> do pure "SetDefault"
+            Just (SetNull _) -> do pure "SetNull"
+            Just (SetDefault _) -> do pure "SetDefault"
             Just Cascade -> do pure "Cascade"
             Nothing -> do pure "NoAction"
         render EditForeignKeyView { .. }
@@ -157,8 +157,8 @@ instance Controller ColumnsController where
         let onDeleteParam = param @Text "onDelete"
         let onDelete = case onDeleteParam of
                 "Restrict" -> Restrict
-                "SetNull" -> SetNull
-                "SetDefault" -> SetDefault
+                "SetNull" -> SetNull []
+                "SetDefault" -> SetDefault []
                 "Cascade" -> Cascade
                 _ -> NoAction
         case constraintId of
@@ -185,7 +185,11 @@ deleteColumnInTable tableName columnId statement = statement
 
 
 updateForeignKeyConstraint :: Text -> Text -> Text -> Text -> OnDelete -> Int -> [Statement] -> [Statement]
-updateForeignKeyConstraint tableName columnName constraintName referenceTable onDelete constraintId list = replace constraintId AddConstraint { tableName = tableName, deferrable = Nothing, deferrableType = Nothing, constraint = ForeignKeyConstraint { name = Just constraintName, columnName = columnName, referenceTable = referenceTable, referenceColumn = "id", onDelete = (Just onDelete) } } list
+updateForeignKeyConstraint tableName columnName constraintName referenceTable onDelete constraintId list = replace constraintId AddConstraint { tableName = tableName, deferrable = Nothing, deferrableType = Nothing, constraint = ForeignKeyConstraint { name = Just constraintName, columnName = columnName, referenceTable = referenceTable, referenceColumn = "id", onDelete = (Just onDelete), onUpdate = currentOnUpdate, constraintDeferrable = Nothing, constraintDeferrableType = Nothing } } list
+    where
+        currentOnUpdate = case list !! constraintId of
+            AddConstraint { constraint = ForeignKeyConstraint { onUpdate } } -> onUpdate
+            _ -> Nothing
 
 deleteForeignKeyConstraint :: Text -> [Statement] -> [Statement]
 deleteForeignKeyConstraint constraintName = filter \case

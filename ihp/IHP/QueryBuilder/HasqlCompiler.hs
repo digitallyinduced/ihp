@@ -2,127 +2,164 @@
 
 {-|
 Module: IHP.QueryBuilder.HasqlCompiler
-Description: Compile QueryBuilder to Hasql Snippet
+Description: Compile QueryBuilder to Hasql Statement
 Copyright: (c) digitally induced GmbH, 2025
 
-This module compiles QueryBuilder queries to Hasql's Snippet type for execution
-with prepared statements. This provides better performance than the text-based
-postgresql-simple approach.
-
-The compilation is parallel to 'IHP.QueryBuilder.Compiler.toSQL' but produces
-Snippet values instead of (ByteString, [Action]) tuples.
+This module compiles QueryBuilder queries directly to Hasql 'Statement' values
+by threading a parameter counter and encoder accumulator through compilation.
 -}
 module IHP.QueryBuilder.HasqlCompiler
-( toSnippet
-, buildSnippet
-, snippetToSQL
+( buildStatement
+, buildWrappedStatement
+, toSQL
+, compileOperator
+, CompilerState(..)
+, emptyCompilerState
+, nextParam
 ) where
 
 import IHP.Prelude
-import qualified Hasql.DynamicStatements.Snippet as Snippet
-import Hasql.DynamicStatements.Snippet (Snippet)
+import qualified Hasql.Encoders as Encoders
+import qualified Hasql.Decoders as Decoders
+import qualified Hasql.Statement as Hasql
+import Data.Functor.Contravariant (contramap)
+import Data.Functor.Contravariant.Divisible (conquer)
 import IHP.QueryBuilder.Types
 import IHP.QueryBuilder.Compiler (buildQuery)
-import qualified Data.ByteString as BS
-import qualified Data.ByteString.Char8 as BS8
 import qualified Data.List as List
 
--- | Snippet.sql takes Text in hasql-dynamic-statements 0.5+.
--- This helper converts ByteString to Text for convenience since
--- the query builder types use ByteString.
-sqlBS :: ByteString -> Snippet
-sqlBS = Snippet.sql . cs
-{-# INLINE sqlBS #-}
+-- | Compile context: parameter counter + accumulated encoder.
+data CompilerState = CompilerState !Int !(Encoders.Params ())
 
--- | Compile a QueryBuilder to a Hasql Snippet
+-- | Initial compile context: counter starts at 1, no params.
+emptyCompilerState :: CompilerState
+emptyCompilerState = CompilerState 1 conquer
+{-# INLINE emptyCompilerState #-}
+
+-- | Assign the next @$N@ placeholder and accumulate the encoder.
+nextParam :: Encoders.Params () -> CompilerState -> (Text, CompilerState)
+nextParam enc (CompilerState n acc) = ("$" <> tshow n, CompilerState (n + 1) (acc <> enc))
+{-# INLINE nextParam #-}
+
+-- | Build a Hasql 'Statement' from a compiled 'SQLQuery' and a result decoder.
+buildStatement :: SQLQuery -> Decoders.Result a -> Hasql.Statement () a
+buildStatement sqlQuery decoder =
+    let (sql, CompilerState _ encoder) = compileQuery emptyCompilerState sqlQuery
+    in Hasql.preparable sql encoder decoder
+
+-- | Like 'buildStatement', but wraps the compiled SQL with a prefix and suffix.
+-- Used for @SELECT COUNT(*) FROM (inner) AS alias@ patterns.
+buildWrappedStatement :: Text -> SQLQuery -> Text -> Decoders.Result a -> Hasql.Statement () a
+buildWrappedStatement prefix sqlQuery suffix decoder =
+    let (innerSql, CompilerState _ encoder) = compileQuery emptyCompilerState sqlQuery
+    in Hasql.preparable (prefix <> innerSql <> suffix) encoder decoder
+
+-- | Compile a QueryBuilder to SQL text (for testing / error messages).
+-- Discards the encoder.
+toSQL :: QueryBuilder table -> Text
+toSQL queryBuilder =
+    let (sql, _) = compileQuery emptyCompilerState (buildQuery queryBuilder)
+    in sql
+
+-- | Compile a full SQLQuery to SQL text + updated compile context.
 --
--- This is the hasql equivalent of 'toSQL' from IHP.QueryBuilder.Compiler.
--- Note: When RLS is enabled, the fetch functions fall back to postgresql-simple
--- instead of using hasql, so this function doesn't need to handle RLS.
-toSnippet :: forall table queryBuilderProvider joinRegister. (KnownSymbol table, HasQueryBuilder queryBuilderProvider joinRegister) => queryBuilderProvider table -> Snippet
-toSnippet queryBuilderProvider = buildSnippet (buildQuery queryBuilderProvider)
-{-# INLINE toSnippet #-}
+-- Structured so that the Nothing/empty branches contribute no concatenation;
+-- GHC can see through the case alternatives and eliminate dead appends.
+compileQuery :: CompilerState -> SQLQuery -> (Text, CompilerState)
+compileQuery cc0 SQLQuery { selectFrom, distinctClause, distinctOnClause, whereCondition, orderByClause, limitClause, offsetClause, columnsSql } =
+    let -- Build the fixed prefix: SELECT [DISTINCT] [DISTINCT ON (...)] cols FROM table
+        selectPart = case distinctClause of
+            True -> case distinctOnClause of
+                Just col -> "SELECT DISTINCT DISTINCT ON (" <> col <> ") " <> columnsSql <> " FROM " <> selectFrom
+                Nothing  -> "SELECT DISTINCT " <> columnsSql <> " FROM " <> selectFrom
+            False -> case distinctOnClause of
+                Just col -> "SELECT DISTINCT ON (" <> col <> ") " <> columnsSql <> " FROM " <> selectFrom
+                Nothing  -> "SELECT " <> columnsSql <> " FROM " <> selectFrom
 
--- | Build a Snippet from a compiled SQLQuery
-buildSnippet :: SQLQuery -> Snippet
-buildSnippet sqlQuery@SQLQuery { queryIndex, selectFrom, distinctClause, distinctOnClause, orderByClause, limitClause, offsetClause, columns } =
-    Snippet.sql "SELECT"
-    <> optionalSnippet distinctClause
-    <> optionalSnippet distinctOnClause
-    <> Snippet.sql " " <> selectorsSnippet
-    <> Snippet.sql " FROM"
-    <> Snippet.sql " " <> sqlBS selectFrom
-    <> optionalSnippet joinClause
-    <> whereSnippet (whereCondition sqlQuery)
-    <> orderBySnippet orderByClause
-    <> optionalSnippet limitClause
-    <> optionalSnippet offsetClause
+        -- WHERE: only append when there is a condition
+        (withWhere, cc1) = case whereCondition of
+            Nothing -> (selectPart, cc0)
+            Just condition ->
+                let (condText, cc') = compileCondition cc0 condition
+                in (selectPart <> " WHERE " <> condText, cc')
+
+        -- ORDER BY: only append when there are clauses
+        withOrderBy = case orderByClause of
+            [] -> withWhere
+            clauses -> withWhere <> " ORDER BY " <> compileOrderByClauses clauses
+
+        -- LIMIT: only append when set
+        (withLimit, cc2) = case limitClause of
+            Nothing -> (withOrderBy, cc1)
+            Just n ->
+                let enc = contramap (const n) (Encoders.param (Encoders.nonNullable Encoders.int8))
+                    (placeholder, cc') = nextParam enc cc1
+                in (withOrderBy <> " LIMIT " <> placeholder, cc')
+
+        -- OFFSET: only append when set
+        (result, cc3) = case offsetClause of
+            Nothing -> (withLimit, cc2)
+            Just n ->
+                let enc = contramap (const n) (Encoders.param (Encoders.nonNullable Encoders.int8))
+                    (placeholder, cc') = nextParam enc cc2
+                in (withLimit <> " OFFSET " <> placeholder, cc')
+
+    in (result, cc3)
+
+compileCondition :: CompilerState -> Condition -> (Text, CompilerState)
+compileCondition cc (ColumnCondition column operator value applyLeft applyRight) =
+    let applyFn fn txt = case fn of
+            Just f -> f <> "(" <> txt <> ")"
+            Nothing -> txt
+        colText = applyFn applyLeft column
+        opText = compileOperator operator
+        (valText, cc') = case operator of
+            IsOp -> ("NULL", cc)
+            IsNotOp -> ("NULL", cc)
+            _ -> compileConditionValue cc value
+        valWrapped = case operator of
+            InOp -> "(" <> valText <> ")"
+            NotInOp -> "(" <> valText <> ")"
+            SqlOp -> valText
+            _ -> applyFn applyRight valText
+    in case operator of
+        SqlOp -> (colText <> " " <> valWrapped, cc')
+        _ -> (colText <> " " <> opText <> " " <> valWrapped, cc')
+compileCondition cc (OrCondition a b) =
+    let (aText, cc1) = compileCondition cc a
+        (bText, cc2) = compileCondition cc1 b
+    in ("(" <> aText <> ") OR (" <> bText <> ")", cc2)
+compileCondition cc (AndCondition a b) =
+    let (aText, cc1) = compileCondition cc a
+        (bText, cc2) = compileCondition cc1 b
+    in ("(" <> aText <> ") AND (" <> bText <> ")", cc2)
+
+compileConditionValue :: CompilerState -> ConditionValue -> (Text, CompilerState)
+compileConditionValue cc (Param enc) = nextParam enc cc
+compileConditionValue cc (Literal t) = (t, cc)
+
+compileOrderByClauses :: [OrderByClause] -> Text
+compileOrderByClauses clauses = mconcat (List.intersperse "," (map compileOrderByClause clauses))
     where
-        optionalSnippet :: Maybe ByteString -> Snippet
-        optionalSnippet Nothing = mempty
-        optionalSnippet (Just bs) = Snippet.sql " " <> sqlBS bs
-        {-# INLINE optionalSnippet #-}
+        compileOrderByClause OrderByClause { orderByColumn, orderByDirection } =
+            orderByColumn <> (if orderByDirection == Desc then " DESC" else "")
 
-        selectorsSnippet :: Snippet
-        selectorsSnippet =
-            let indexParts = case queryIndex of
-                    Just idx -> [sqlBS idx]
-                    Nothing -> []
-                columnParts = map (\column -> sqlBS selectFrom <> Snippet.sql "." <> sqlBS column) columns
-            in mconcat $ List.intersperse (Snippet.sql ", ") (indexParts <> columnParts)
-
-        joinClause :: Maybe ByteString
-        joinClause = buildJoinClause $ reverse $ joins sqlQuery
-
-        buildJoinClause :: [Join] -> Maybe ByteString
-        buildJoinClause [] = Nothing
-        buildJoinClause (joinClause:joinClauses) = Just $
-            "INNER JOIN " <> table joinClause <> " ON " <> tableJoinColumn joinClause <>
-            " = " <> table joinClause <> "." <> otherJoinColumn joinClause <>
-            maybe "" (" " <>) (buildJoinClause joinClauses)
-{-# INLINE buildSnippet #-}
-
--- | Convert a WHERE condition to a Snippet
-whereSnippet :: Maybe Condition -> Snippet
-whereSnippet Nothing = mempty
-whereSnippet (Just condition) = Snippet.sql " WHERE " <> conditionToSnippet condition
-{-# INLINE whereSnippet #-}
-
--- | Convert a Condition to a Snippet
---
--- Uses the hasql-specific template (with = ANY/<> ALL for IN/NOT IN).
-conditionToSnippet :: Condition -> Snippet
-conditionToSnippet (VarCondition _ hasqlTemplate _ snippet) =
-    -- VarCondition stores hasql template (e.g., "id = ANY(?)") and a snippet parameter
-    -- We substitute the ? with the actual parameter
-    substituteSnippet hasqlTemplate snippet
-conditionToSnippet (OrCondition a b) =
-    Snippet.sql "(" <> conditionToSnippet a <> Snippet.sql ") OR (" <> conditionToSnippet b <> Snippet.sql ")"
-conditionToSnippet (AndCondition a b) =
-    Snippet.sql "(" <> conditionToSnippet a <> Snippet.sql ") AND (" <> conditionToSnippet b <> Snippet.sql ")"
-{-# INLINE conditionToSnippet #-}
-
--- | Substitute a ? placeholder in a template with the snippet parameter
-substituteSnippet :: ByteString -> Snippet -> Snippet
-substituteSnippet template snippet =
-    let (before, after) = BS8.break (== '?') template
-    in if BS.null after
-        then sqlBS template  -- No ? found, just use the template (e.g., for raw SQL conditions)
-        else sqlBS before <> snippet <> sqlBS (BS.drop 1 after)
-{-# INLINE substituteSnippet #-}
-
--- | Convert ORDER BY clause to Snippet
-orderBySnippet :: [OrderByClause] -> Snippet
-orderBySnippet [] = mempty
-orderBySnippet clauses = Snippet.sql " ORDER BY " <> mconcat (List.intersperse (Snippet.sql ",") (map orderByClauseToSnippet clauses))
-    where
-        orderByClauseToSnippet OrderByClause { orderByColumn, orderByDirection } =
-            sqlBS orderByColumn <> (if orderByDirection == Desc then Snippet.sql " DESC" else mempty)
-{-# INLINE orderBySnippet #-}
-
--- | Extract the SQL ByteString from a Snippet (for testing purposes)
---
--- This converts a Snippet to a Statement and extracts the SQL text.
--- Useful for verifying the hasql compilation path in tests.
-snippetToSQL :: Snippet -> Text
-snippetToSQL snippet = Snippet.toSql snippet
+-- | Compiles a 'FilterOperator' to its SQL representation
+compileOperator :: FilterOperator -> Text
+compileOperator EqOp = "="
+compileOperator NotEqOp = "!="
+compileOperator InOp = "= ANY"
+compileOperator NotInOp = "<> ALL"
+compileOperator IsOp = "IS"
+compileOperator IsNotOp = "IS NOT"
+compileOperator (LikeOp CaseSensitive) = "LIKE"
+compileOperator (LikeOp CaseInsensitive) = "ILIKE"
+compileOperator (NotLikeOp CaseSensitive) = "NOT LIKE"
+compileOperator (NotLikeOp CaseInsensitive) = "NOT ILIKE"
+compileOperator (MatchesOp CaseSensitive) = "~"
+compileOperator (MatchesOp CaseInsensitive) = "~*"
+compileOperator GreaterThanOp = ">"
+compileOperator GreaterThanOrEqualToOp = ">="
+compileOperator LessThanOp = "<"
+compileOperator LessThanOrEqualToOp = "<="
+compileOperator SqlOp = ""

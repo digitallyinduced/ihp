@@ -1,7 +1,6 @@
 :set prompt "\ESC[38;5;208m\STXIHP>\ESC[m\STX "
 :set -i.
 :set -iIHP/ihp-hsx
-:set -iIHP/ihp-postgresql-simple-extra
 :set -iConfig
 :set -ibuild
 :set -iIHP
@@ -50,7 +49,7 @@
 :set -XDeepSubsumption
 :set -XOverloadedRecordDot
 :set -Werror=missing-fields
-:set -fwarn-incomplete-patterns
+:set -Werror=incomplete-patterns
 :set -package ghc
 :set -fno-warn-ambiguous-fields 
 :l Main.hs

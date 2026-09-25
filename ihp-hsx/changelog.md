@@ -1,5 +1,15 @@
 # Changelog for `ihp-hsx`
 
+## Version 1.6.0
+
+- Replace the Blaze `MarkupM` tree with a direct `ByteString.Builder` markup
+  backend for faster rendering.
+- Support GHC 9.12 and 9.14
+- Add `isEmpty` helper
+- Add `renderMarkupText` and `renderMarkupLazyText`
+- Restore `ConvertibleStrings` `Text`/`String` `Html` instances for
+  compatibility
+
 ## Version 1.5.0
 
 - Suport for GHC 9.10.x and 9.12.x

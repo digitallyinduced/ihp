@@ -226,7 +226,7 @@ buildCompany company = company
 
 The call to [`uploadToStorage #logoUrl`](https://ihp.digitallyinduced.com/api-docs/IHP-FileStorage-ControllerFunctions.html#v:uploadToStorage) will upload the file provided by the user. It will be saved as `companies/<some uuid>` on the configured storage. The the file url will be written to the `logoUrl` attribute.
 
-After calling [`uploadToStorage`](https://ihp.digitallyinduced.com/api-docs/IHP-FileStorage-ControllerFunctions.html#v:uploadToStorage) inside a action, you typically need to use [`>>=`](https://ihp.digitallyinduced.com/api-docs/IHP-Prelude.html#v:-62--62--61-) instead of [`|>`](https://ihp.digitallyinduced.com/api-docs/IHP-HaskellSupport.html#v:-124--62-):
+After calling [`uploadToStorage`](https://ihp.digitallyinduced.com/api-docs/IHP-FileStorage-ControllerFunctions.html#v:uploadToStorage) inside a action, you typically need to use `>>=` instead of [`|>`](https://ihp.digitallyinduced.com/api-docs/IHP-HaskellSupport.html#v:-124--62-):
 
 ```haskell
 -- Bad, will cause a type error:
@@ -408,7 +408,7 @@ uploadOrRemoveMaybeImage imageProperty isRemove record = do
 
 Note that the above function doesn't actually remove the file from the storage. It just removes the reference to the file from the record. To remove the file from storage you would need to call [`removeFileFromStorage`](https://ihp.digitallyinduced.com/api-docs/IHP-FileStorage-ControllerFunctions.html#v:removeFileFromStorage).
 
-Finally, let's add some Javacript, that would take care of removing the image from the file input, as well as hiding the "Remove image" checkbox when there's no image to remove.
+Finally, let's add some Javascript, that would take care of removing the image from the file input, as well as hiding the "Remove image" checkbox when there's no image to remove.
 
 ```javascript
 # app.js
@@ -1012,7 +1012,6 @@ We start by adding the `jwt` package to the `flake.nix` file.
 haskellPackages = p: with p; [
     # Haskell dependencies go here
     p.ihp
-    cabal-install
     base
     # ...
     jwt # <-- ADD THIS LINE

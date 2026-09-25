@@ -34,13 +34,10 @@ module IHP.Job.Dashboard (
 import IHP.Prelude
 import IHP.ModelSupport
 import IHP.ControllerPrelude
-import Wai.Request.Params.Middleware (Respond)
 import Unsafe.Coerce
 import IHP.Job.Queue ()
 import IHP.Pagination.Types
-import qualified Database.PostgreSQL.Simple.FromField as PG
-import qualified Database.PostgreSQL.Simple.ToField as PG
-import Network.Wai (Request, requestMethod)
+import Network.Wai (requestMethod)
 import Network.HTTP.Types.Method (methodPost)
 
 import IHP.Job.Dashboard.Types
@@ -59,11 +56,8 @@ import qualified Hasql.DynamicStatements.Snippet as Snippet
 -- for your job type. Your custom implementations will then be used instead of the defaults.
 class ( job ~ GetModelByTableName (GetTableName job)
     , FilterPrimaryKey (GetTableName job)
-    , FromRow job
     , FromRowHasql job
     , Show (PrimaryKey (GetTableName job))
-    , PG.FromField (PrimaryKey (GetTableName job))
-    , PG.ToField (PrimaryKey (GetTableName job))
     , KnownSymbol (GetTableName job)
     , HasField "id" job (Id job)
     , HasField "status" job JobStatus
@@ -82,27 +76,27 @@ class ( job ~ GetModelByTableName (GetTableName job)
 
     -- | How this job's section should be displayed in the dashboard. By default it's displayed as a table,
     -- but this can be any arbitrary view! Make some cool graphs :)
-    makeDashboardSection :: (?context :: ControllerContext, ?modelContext :: ModelContext) => IO SomeView
+    makeDashboardSection :: (?request :: Request, ?modelContext :: ModelContext) => IO SomeView
 
-    makePageView :: (?context :: ControllerContext, ?modelContext :: ModelContext) => Int -> Int -> IO SomeView
+    makePageView :: (?request :: Request, ?modelContext :: ModelContext) => Int -> Int -> IO SomeView
 
     -- | The content of the page that will be displayed for a detail view of this job.
     -- By default, the ID, Status, Created/Updated at times, and last error are displayed.
     -- Can be defined as any arbitrary view.
-    makeDetailView :: (?context :: ControllerContext, ?modelContext :: ModelContext) => job -> IO SomeView
+    makeDetailView :: (?request :: Request, ?modelContext :: ModelContext) => job -> IO SomeView
     makeDetailView job = do
         pure $ SomeView $ HtmlView $ renderBaseJobDetailView (buildBaseJob job)
 
     -- | The content of the page that will be displayed for the "new job" form of this job.
     -- By default, only the submit button is rendered. For additonal form data, define your own implementation.
     -- Can be defined as any arbitrary view, but it should be a form.
-    makeNewJobView :: (?context :: ControllerContext, ?modelContext :: ModelContext) => IO SomeView
+    makeNewJobView :: (?request :: Request, ?modelContext :: ModelContext) => IO SomeView
     makeNewJobView = pure $ SomeView $ HtmlView $ renderNewBaseJobForm $ tableName @job
 
     -- | The action run to create and insert a new value of this job into the database.
     -- By default, create an empty record and insert it.
     -- To add more data, define your own implementation.
-    createNewJob :: (?context :: ControllerContext, ?modelContext :: ModelContext) => IO ()
+    createNewJob :: (?request :: Request, ?modelContext :: ModelContext) => IO ()
     createNewJob = do
         newRecord @job |> create
         pure ()
@@ -118,32 +112,32 @@ class ( job ~ GetModelByTableName (GetTableName job)
 -- so you'll get a compile error if you try and include a type that is not a job.
 class JobsDashboard (jobs :: [Type]) where
     -- | Creates the entire dashboard by recursing on the type list and calling 'makeDashboardSection' on each type.
-    makeDashboard :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => IO SomeView
+    makeDashboard :: (?request :: Request, ?modelContext :: ModelContext) => IO SomeView
 
     includedJobTables :: [Text]
 
     -- | Renders the index page, which is the view returned from 'makeDashboard'.
-    indexPage :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?respond :: Respond, ?request :: Request) => IO ()
+    indexPage :: (?request :: Request, ?modelContext :: ModelContext, ?respond :: Respond) => IO ResponseReceived
 
-    listJob :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?respond :: Respond, ?request :: Request) => Text -> IO ()
-    listJob' :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?respond :: Respond, ?request :: Request) => Bool -> IO ()
+    listJob :: (?request :: Request, ?modelContext :: ModelContext, ?respond :: Respond) => Text -> IO ResponseReceived
+    listJob' :: (?request :: Request, ?modelContext :: ModelContext, ?respond :: Respond) => Bool -> IO ResponseReceived
 
     -- | Renders the detail view page. Rescurses on the type list to find a type with the
     -- same table name as the "tableName" query parameter.
-    viewJob :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?respond :: Respond, ?request :: Request) => Text -> UUID -> IO ()
-    viewJob' :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?respond :: Respond, ?request :: Request) => Bool -> IO ()
+    viewJob :: (?request :: Request, ?modelContext :: ModelContext, ?respond :: Respond) => Text -> UUID -> IO ResponseReceived
+    viewJob' :: (?request :: Request, ?modelContext :: ModelContext, ?respond :: Respond) => Bool -> IO ResponseReceived
 
     -- | If performed in a POST request, creates a new job depending on the "tableName" query parameter.
     -- If performed in a GET request, renders the new job from depending on said parameter.
-    newJob :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?respond :: Respond, ?request :: Request) => Text -> IO ()
-    newJob' :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?respond :: Respond, ?request :: Request) => Bool -> IO ()
+    newJob :: (?request :: Request, ?modelContext :: ModelContext, ?respond :: Respond) => Text -> IO ResponseReceived
+    newJob' :: (?request :: Request, ?modelContext :: ModelContext, ?respond :: Respond) => Bool -> IO ResponseReceived
 
     -- | Deletes a job from the database.
-    deleteJob :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?respond :: Respond, ?request :: Request) => Text -> UUID -> IO ()
-    deleteJob' :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?respond :: Respond, ?request :: Request) => Bool -> IO ()
+    deleteJob :: (?request :: Request, ?modelContext :: ModelContext, ?respond :: Respond) => Text -> UUID -> IO ResponseReceived
+    deleteJob' :: (?request :: Request, ?modelContext :: ModelContext, ?respond :: Respond) => Bool -> IO ResponseReceived
 
-    retryJob :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?respond :: Respond, ?request :: Request) => Text -> UUID -> IO ()
-    retryJob' :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?respond :: Respond, ?request :: Request) => IO ()
+    retryJob :: (?request :: Request, ?modelContext :: ModelContext, ?respond :: Respond) => Text -> UUID -> IO ResponseReceived
+    retryJob' :: (?request :: Request, ?modelContext :: ModelContext, ?respond :: Respond) => IO ResponseReceived
 
 -- If no types are passed, try to get all tables dynamically and render them as BaseJobs
 instance JobsDashboard '[] where
@@ -175,7 +169,7 @@ instance JobsDashboard '[] where
         render $ SomeView tables
         where
             getAllTableNames = sqlQueryHasql getHasqlPool
-                (Snippet.sql "SELECT table_name FROM information_schema.tables WHERE table_name LIKE '%_jobs'")
+                (Snippet.sql "SELECT table_name::text FROM information_schema.tables WHERE table_name LIKE '%_jobs'")
                 (Decoders.rowList (Decoders.column (Decoders.nonNullable Decoders.text)))
 
     listJob = error "listJob: Requested job type not in JobsDashboard Type"
@@ -265,7 +259,7 @@ instance {-# OVERLAPPABLE #-} (DisplayableJob job, JobsDashboard rest) => JobsDa
 
         when isFirstTime $ do
             notIncluded <- getNotIncludedTableNames (includedJobTables @(job:rest))
-            when (table `elem` notIncluded) (listJob' @'[] False)
+            when (table `elem` notIncluded) (earlyReturn $ listJob' @'[] False)
 
         if tableName @job == table
             then listJob @(job:rest) table
@@ -288,7 +282,7 @@ instance {-# OVERLAPPABLE #-} (DisplayableJob job, JobsDashboard rest) => JobsDa
 
         when isFirstTime $ do
             notIncluded <- getNotIncludedTableNames (includedJobTables @(job:rest))
-            when (table `elem` notIncluded) (viewJob' @'[] False)
+            when (table `elem` notIncluded) (earlyReturn $ viewJob' @'[] False)
 
         if tableName @job == table
             then viewJob @(job:rest) table (param "id")
@@ -316,7 +310,7 @@ instance {-# OVERLAPPABLE #-} (DisplayableJob job, JobsDashboard rest) => JobsDa
 
         when isFirstTime $ do
             notIncluded <- getNotIncludedTableNames (includedJobTables @(job:rest))
-            when (table `elem` notIncluded) (newJob' @'[] False)
+            when (table `elem` notIncluded) (earlyReturn $ newJob' @'[] False)
 
         if tableName @job == table
             then newJob @(job:rest) table
@@ -337,7 +331,7 @@ instance {-# OVERLAPPABLE #-} (DisplayableJob job, JobsDashboard rest) => JobsDa
 
         when isFirstTime $ do
             notIncluded <- getNotIncludedTableNames (includedJobTables @(job:rest))
-            when (table `elem` notIncluded) (deleteJob' @'[] False)
+            when (table `elem` notIncluded) (earlyReturn $ deleteJob' @'[] False)
 
         if tableName @job == table
             then deleteJob @(job:rest) table (param "id")
@@ -378,11 +372,12 @@ baseJobDecoder = BaseJob
 
 getNotIncludedTableNames :: (?modelContext :: ModelContext) => [Text] -> IO [Text]
 getNotIncludedTableNames includedNames = sqlQueryHasql getHasqlPool
-    (Snippet.sql "SELECT table_name FROM information_schema.tables WHERE table_name LIKE '%_jobs' AND NOT (table_name = ANY(" <> Snippet.param includedNames <> Snippet.sql "))")
+    (Snippet.sql "SELECT table_name::text FROM information_schema.tables WHERE table_name LIKE '%_jobs' AND NOT (table_name = ANY(" <> Snippet.param includedNames <> Snippet.sql "))")
     (Decoders.rowList (Decoders.column (Decoders.nonNullable Decoders.text)))
 
-buildBaseJobTable :: (?modelContext :: ModelContext, ?context :: ControllerContext, ?request :: Request) => Text -> IO SomeView
+buildBaseJobTable :: (?modelContext :: ModelContext, ?request :: Request) => Text -> IO SomeView
 buildBaseJobTable tableName = do
+    let ?context = ?request
     baseJobs <- sqlQueryHasql getHasqlPool
         (Snippet.sql "SELECT " <> Snippet.param tableName <> Snippet.sql ", id, status, updated_at, created_at, last_error FROM "
             <> sqlIdentifier tableName <> Snippet.sql " ORDER BY created_at DESC LIMIT 10")

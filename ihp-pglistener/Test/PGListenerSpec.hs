@@ -2,7 +2,7 @@
 Module: Test.PGListenerSpec
 Copyright: (c) digitally induced GmbH, 2025
 -}
-module Test.PGListenerSpec where
+module PGListenerSpec where
 
 import Prelude
 import Test.Hspec
@@ -18,21 +18,15 @@ import qualified Control.Concurrent.Async as Async
 import qualified Control.Exception.Safe as Exception
 import System.Environment (lookupEnv)
 
-import IHP.Log.Types (Logger(..), LogLevel(..))
+import System.Log.FastLogger (FastLogger)
 import qualified IHP.PGListener as PGListener
 
 import qualified Hasql.Connection as Hasql
 import qualified Hasql.Connection.Settings as HasqlSettings
 import qualified Hasql.Session as Session
 
-logger :: Logger
-logger = Logger
-    { write = \_ -> pure ()
-    , level = Debug
-    , formatter = \_ _ msg -> msg
-    , timeCache = pure ""
-    , cleanup = pure ()
-    }
+logger :: FastLogger
+logger = \_ -> pure ()
 
 getDatabaseUrl :: IO ByteString
 getDatabaseUrl = do

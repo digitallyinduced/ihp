@@ -15,18 +15,24 @@ import qualified IHP.SchemaMigration as SchemaMigration
 import qualified IHP.IDE.CodeGen.MigrationGenerator as MigrationGenerator
 import IHP.IDE.CodeGen.Controller
 import IHP.IDE.ToolServer.Helper.Controller (openEditor, clearDatabaseNeedsMigration)
-import IHP.Log.Types
 import qualified Control.Exception.Safe as Exception
 import qualified System.Directory.OsPath as Directory
-import qualified Database.PostgreSQL.Simple as PG
 import System.OsPath (encodeUtf)
+import qualified Hasql.Connection as Connection
+import qualified Hasql.Connection.Settings as ConnectionSettings
 
 instance Controller MigrationsController where
     beforeAction = setLayout schemaDesignerLayout
 
     action MigrationsAction = do
         migrations <- findRecentMigrations
-        migratedRevisions <- findMigratedRevisions
+
+        result <- Exception.try findMigratedRevisions
+        migratedRevisions <- case result of
+            Left (exception :: SomeException) -> do
+                setErrorMessage ("Could not connect to the database: " <> tshow exception)
+                pure []
+            Right revisions -> pure revisions
 
         migrationsWithSql <- forM migrations $ \migration -> do
                 sql <- readSqlStatements migration
@@ -46,6 +52,7 @@ instance Controller MigrationsController where
         let description = paramOrDefault "" "description"
         let sqlStatements = paramOrNothing "sqlStatements"
         (revision, plan) <- MigrationGenerator.buildPlan description sqlStatements
+        let paths = MigrationGenerator.migrationPathsFromPlan plan
         let path = MigrationGenerator.migrationPathFromPlan plan
 
         executePlan plan
@@ -53,23 +60,21 @@ instance Controller MigrationsController where
         let createOnly = paramOrDefault False "createOnly"
         if createOnly
             then do
-                setSuccessMessage ("Migration generated: " <> path)
+                setSuccessMessage (case paths of
+                    [_] -> "Migration generated: " <> intercalate ", " paths
+                    _ -> "Migrations generated: " <> intercalate ", " paths
+                    )
                 openEditor path 0 0
+                redirectTo MigrationsAction
             else do
-                result <- Exception.try (migrateAppDB revision)
+                result <- migrateAppDB revision
                 case result of
-                    Left (exception :: SomeException) -> do
-                        let errorMessage = case fromException exception of
-                                Just (exception :: EnhancedSqlError) -> cs exception.sqlError.sqlErrorMsg
-                                Nothing -> tshow exception
-
+                    Left errorMessage -> do
                         setErrorMessage errorMessage
                         redirectTo MigrationsAction
                     Right _ -> do
                         clearDatabaseNeedsMigration
                         redirectTo MigrationsAction
-
-        redirectTo MigrationsAction
 
     action EditMigrationAction { migrationId } = do
         migration <- findMigrationByRevision migrationId
@@ -97,13 +102,9 @@ instance Controller MigrationsController where
     action RunMigrationAction { migrationId } = do
         migration <- findMigrationByRevision migrationId
 
-        result <- Exception.try (migrateAppDB migrationId)
+        result <- migrateAppDB migrationId
         case result of
-            Left (exception :: SomeException) -> do
-                let errorMessage = case fromException exception of
-                        Just (exception :: EnhancedSqlError) -> cs exception.sqlError.sqlErrorMsg
-                        Nothing -> tshow exception
-
+            Left errorMessage -> do
                 setErrorMessage errorMessage
                 redirectTo MigrationsAction
             Right _ -> do
@@ -124,39 +125,28 @@ findMigrationByRevision migrationRevision = do
     let (Just migration) = migrations |> find (\SchemaMigration.Migration { revision } -> revision == migrationRevision)
     pure migration
 
-migrateAppDB :: Int -> IO ()
-migrateAppDB revision = withAppModelContext do
+migrateAppDB :: Int -> IO (Either Text ())
+migrateAppDB revision = withMigrateConnection \connection -> do
     let minimumRevision = Just (revision - 1)
-    SchemaMigration.migrate SchemaMigration.MigrateOptions { minimumRevision }
+    SchemaMigration.migrate connection SchemaMigration.MigrateOptions { minimumRevision }
 
 findMigratedRevisions :: IO [Int]
-findMigratedRevisions = emptyListIfTablesDoesntExists (withAppModelContext SchemaMigration.findMigratedRevisions)
+findMigratedRevisions = emptyListIfTablesDoesntExists (withMigrateConnection SchemaMigration.findMigratedRevisions)
     where
         -- The schema_migrations table might not have been created yet
         -- In that case there cannot be any migrations that have been run yet
         emptyListIfTablesDoesntExists operation = do
             result <- Exception.try operation
             case result of
-                Left (EnhancedSqlError { sqlError }) | sqlError.sqlErrorMsg == "relation \"schema_migrations\" does not exist" -> pure []
-                Left error -> Exception.throwIO error
+                Left (exception :: SomeException)
+                    | "schema_migrations" `isInfixOf` tshow exception -> pure []
+                    | otherwise -> Exception.throwIO exception
                 Right result -> pure result
 
-withAppModelContext :: ((?modelContext :: ModelContext) => IO result) -> IO result
-withAppModelContext inner =
-        Exception.bracket initModelContext cleanupModelContext callback
+withMigrateConnection :: (Connection.Connection -> IO result) -> IO result
+withMigrateConnection inner = Exception.bracket acquire Connection.release inner
     where
-        callback (frameworkConfig, logger, modelContext) = let ?modelContext = modelContext in inner
-        initModelContext = do
-            frameworkConfig <- buildFrameworkConfig (pure ())
-            logger <- defaultLogger
-
-            modelContext <- createModelContext
-                (frameworkConfig.dbPoolIdleTime)
-                (frameworkConfig.dbPoolMaxConnections)
-                (frameworkConfig.databaseUrl)
-                logger
-
-            pure (frameworkConfig, logger, modelContext)
-
-        cleanupModelContext (frameworkConfig, logger, modelContext) = do
-            logger |> cleanup
+        acquire = do
+            frameworkConfig <- buildFrameworkConfig noopLogger (pure ())
+            Connection.acquire (ConnectionSettings.connectionString (cs frameworkConfig.databaseUrl))
+                >>= either (\e -> error ("DB connect failed: " <> show e)) pure

@@ -4,7 +4,7 @@
 }:
 mkDerivation {
   pname = "ihp-openai";
-  version = "1.4.0";
+  version = "1.5.0";
   src = ./.;
   libraryHaskellDepends = [
     aeson attoparsec-aeson base bytestring HsOpenSSL http-streams

@@ -1,0 +1,388 @@
+{-# LANGUAGE NamedFieldPuns  #-}
+{-# LANGUAGE QuasiQuotes     #-}
+{-# LANGUAGE RecordWildCards #-}
+{-# LANGUAGE TemplateHaskell #-}
+
+module IHP.TypedSql.Quoter
+    ( typedSql
+    , typedSqlStar
+    ) where
+
+import qualified Control.Exception              as Exception
+import           Data.Coerce                    (coerce)
+import qualified Data.Char                      as Char
+import qualified Data.List                      as List
+import qualified Data.Map.Strict                as Map
+import qualified Data.Set                       as Set
+import qualified Data.String.Conversions        as CS
+import qualified Data.Text                      as Text
+import qualified Hasql.DynamicStatements.Snippet as Snippet
+import qualified Language.Haskell.TH            as TH
+import qualified Language.Haskell.TH.Quote      as TH
+import qualified Language.Haskell.TH.Syntax     as TH
+import qualified PostgresqlSyntax               as Ast
+import           Text.Read                      (readMaybe)
+import qualified Prelude
+import           IHP.Prelude
+import           IHP.Hasql.Encoders              ()
+
+import           IHP.TypedSql.Cardinality      (inferCardinality)
+import           IHP.TypedSql.CompileTimeDatabase (dependentSchemaFiles)
+import           IHP.TypedSql.Decoders          (resultDecoderForColumns)
+import           IHP.TypedSql.Metadata          (DescribeColumn (..), DescribeResult (..), PgTypeInfo (..), TableMeta (..),
+                                                 describeStatement)
+import           IHP.TypedSql.ParamHints        (extractParamHintsFromAst, extractJoinNullableTablesFromAst,
+                                                 extractNonNullableComputedColumnsFromAst,
+                                                 parseSql, resolveParamHintTypes, detectStarSelects,
+                                                 detectInsertWithoutColumns)
+import           IHP.TypedSql.ParamEncoder      (typedSqlParam)
+import           IHP.TypedSql.Placeholders      (PlaceholderPlan (..), parseExpr,
+                                                 planPlaceholders)
+import           IHP.TypedSql.RowType           (SqlRow (..), sanitizeColumnName, deduplicateNames, sqlRowType)
+import           IHP.TypedSql.TypeMapping       (hsTypeForColumns, hsTypesForColumns, hsTypeForParam, detectFullTable)
+import           IHP.TypedSql.Types             (QueryCardinality (..), QueryExecResult (..), TypedQuery (..))
+
+-- | QuasiQuoter entry point for typed SQL.
+-- Disallows SELECT * and SELECT table.* by default to prevent production errors
+-- when the schema changes. Use 'typedSqlStar' to opt in to star selects.
+typedSql :: TH.QuasiQuoter
+typedSql =
+    TH.QuasiQuoter
+        { TH.quoteExp = typedSqlExp False
+        , TH.quotePat = \_ -> fail "typedSql: not supported in patterns"
+        , TH.quoteType = \_ -> fail "typedSql: not supported in types"
+        , TH.quoteDec = \_ -> fail "typedSql: not supported at top-level"
+        }
+
+-- | Like 'typedSql' but allows SELECT * and SELECT table.* patterns.
+-- Use this when you understand that star selects can break at runtime if the
+-- schema changes between compilation and deployment.
+typedSqlStar :: TH.QuasiQuoter
+typedSqlStar =
+    TH.QuasiQuoter
+        { TH.quoteExp = typedSqlExp True
+        , TH.quotePat = \_ -> fail "typedSqlStar: not supported in patterns"
+        , TH.quoteType = \_ -> fail "typedSqlStar: not supported in types"
+        , TH.quoteDec = \_ -> fail "typedSqlStar: not supported at top-level"
+        }
+
+-- | Build the TH expression for a typed SQL quasiquote.
+-- This is the heart of typedSql: parse placeholders, describe SQL, and assemble a TypedQuery.
+typedSqlExp :: Bool -> String -> TH.ExpQ
+typedSqlExp allowStar rawSql = do
+    schemaFiles <- TH.runIO dependentSchemaFiles
+    mapM_ TH.addDependentFile schemaFiles
+
+    let PlaceholderPlan { ppDescribeSql, ppRuntimeSql, ppExprs } = planPlaceholders rawSql
+    parsedExprs <- mapM parseExpr ppExprs
+
+    describeResultE <- TH.runIO $ Exception.try (describeStatement (CS.cs ppDescribeSql))
+    describeResult <- case describeResultE of
+        Right ok -> pure ok
+        Left (e :: Exception.IOException) ->
+            fail (rephraseDescribeError ppExprs (ioeGetErrorString e))
+
+    let DescribeResult { drParams, drColumns, drTables, drTypes } = describeResult
+    when (length drParams /= length parsedExprs) $
+        fail (CS.cs ("typedSql: placeholder count mismatch. SQL expects " <> show (length drParams) <> " parameters but found " <> show (length parsedExprs) <> " ${..} expressions."))
+
+    paramTypes <- mapM (hsTypeForParam drTypes) drParams
+
+    let parsedAst = parseSql ppDescribeSql
+    when (isNothing parsedAst) do
+        TH.reportWarning "typedSql: could not parse SQL for type refinement; parameter hints and LEFT/RIGHT JOIN nullability detection are disabled for this query."
+
+    unless allowStar do
+        case parsedAst of
+            Just ast -> do
+                let stars = detectStarSelects ast
+                unless (null stars) do
+                    let columnNames = map (CS.cs . dcName) drColumns
+                    let suggestion = List.intercalate ", " columnNames
+                    fail ("typedSql: SELECT " <> List.intercalate ", " stars
+                        <> " is not allowed because it can break at runtime when the schema changes. "
+                        <> "List columns explicitly:\n  SELECT " <> suggestion <> " FROM ...\n"
+                        <> "Or use [typedSqlStar| ... |] if you understand the risk.")
+                let inserts = detectInsertWithoutColumns ast
+                unless (null inserts) do
+                    fail ("typedSql: " <> List.intercalate ", " inserts
+                        <> " without an explicit column list is not allowed because "
+                        <> "column order can drift between dev and production. "
+                        <> "List columns explicitly:\n  INSERT INTO table (col1, col2, ...) VALUES (...)\n"
+                        <> "Or use [typedSqlStar| ... |] if you understand the risk.")
+            Nothing -> pure ()
+
+    let paramHints = maybe Map.empty extractParamHintsFromAst parsedAst
+    paramHintTypes <- resolveParamHintTypes drTables drTypes paramHints
+
+    -- For each ${...} placeholder with a column hint, emit @typedSqlParam \@col expr@,
+    -- where @col@ is the column's __scalar__ Haskell type. 'typedSqlParam' returns a
+    -- hasql 'Snippet' and accepts the value as the bare type, a 'Maybe', a list, or a
+    -- list of 'Maybe' (see "IHP.TypedSql.ParamEncoder"). When Postgres itself infers an
+    -- array parameter and we have no scalar column hint, keep the array as the scalar
+    -- parameter value instead of interpreting it as a list of scalar values.
+    let paramSnippets =
+            zipWith3
+                (\index expr paramTy ->
+                    let maybeHintType = Map.lookup index paramHintTypes
+                        colType = fromMaybe paramTy maybeHintType
+                        paramExpr = disambiguateAmbiguousParam colType expr
+                    in case maybeHintType of
+                        Nothing | isListType paramTy ->
+                            TH.AppE (TH.VarE 'Snippet.param) (TH.SigE (TH.AppE (TH.VarE 'coerce) expr) paramTy)
+                        _ ->
+                            TH.AppE (TH.AppTypeE (TH.VarE 'typedSqlParam) colType) paramExpr
+                )
+                [1..]
+                parsedExprs
+                paramTypes
+
+    let nullableTableNames = maybe Set.empty extractJoinNullableTablesFromAst parsedAst
+    let joinNullableOids = drTables
+            |> Map.toList
+            |> filter (\(_, TableMeta { tmName }) -> tmName `Set.member` nullableTableNames)
+            |> map fst
+            |> Set.fromList
+
+    let nonNullableColumns = maybe Set.empty extractNonNullableComputedColumnsFromAst parsedAst
+    let queryCardinality = maybe ManyRows (inferCardinality drTables) parsedAst
+    let queryExecResult = inferExecResult parsedAst (CS.cs ppDescribeSql) drColumns
+
+    let isCompositeColumn =
+            case drColumns of
+                [DescribeColumn { dcType }] ->
+                    case Map.lookup dcType drTypes of
+                        Just PgTypeInfo { ptiType = 'c' } -> True
+                        _ -> False
+                _ -> False
+    when (length drColumns == 1 && isCompositeColumn) $
+        fail
+            ("typedSql: composite columns must be expanded (use SELECT table.* "
+                <> "or list columns explicitly)")
+
+    let isFullTable = isJust (detectFullTable drTables drColumns)
+    let isMultiColumnAdhoc = not isFullTable && length drColumns > 1
+
+    (resultType, resultDecoder) <-
+        if isMultiColumnAdhoc
+            then do
+                -- Wrap the tuple in SqlRow for labeled field access
+                columnTypes <- hsTypesForColumns drTypes drTables joinNullableOids nonNullableColumns drColumns
+                let colNames = deduplicateNames (map (sanitizeColumnName . dcName) drColumns)
+                let fields = zip colNames columnTypes
+                let rowType = sqlRowType fields
+                tupleDecoder <- resultDecoderForColumns drTypes drTables joinNullableOids nonNullableColumns drColumns
+                -- fmap SqlRow tupleDecoder
+                let wrappedDecoder = TH.AppE (TH.AppE (TH.VarE 'fmap) (TH.ConE 'SqlRow)) tupleDecoder
+                pure (rowType, wrappedDecoder)
+            else do
+                rt <- hsTypeForColumns drTypes drTables joinNullableOids nonNullableColumns drColumns
+                decoder <- resultDecoderForColumns drTypes drTables joinNullableOids nonNullableColumns drColumns
+                pure (rt, decoder)
+
+    snippetExpr <- buildSnippetExpression ppRuntimeSql paramSnippets
+    let typedQueryExpr =
+            TH.AppE
+                (TH.AppE
+                    (TH.ConE 'TypedQuery)
+                    snippetExpr
+                )
+                resultDecoder
+
+    pure
+        ( TH.SigE
+            typedQueryExpr
+            ( TH.AppT
+                ( TH.AppT
+                    (TH.AppT (TH.ConT ''TypedQuery) (cardinalityType queryCardinality))
+                    (execResultType queryExecResult)
+                )
+                resultType
+            )
+        )
+
+cardinalityType :: QueryCardinality -> TH.Type
+cardinalityType = \case
+    ManyRows -> TH.PromotedT 'ManyRows
+    AtMostOneRow -> TH.PromotedT 'AtMostOneRow
+    ExactlyOneRow -> TH.PromotedT 'ExactlyOneRow
+
+execResultType :: QueryExecResult -> TH.Type
+execResultType = \case
+    ReturnsRows -> TH.PromotedT 'ReturnsRows
+    ReturnsAffectedRows -> TH.PromotedT 'ReturnsAffectedRows
+    ReturnsNoResult -> TH.PromotedT 'ReturnsNoResult
+
+inferExecResult :: Maybe Ast.PreparableStmt -> Text -> [DescribeColumn] -> QueryExecResult
+inferExecResult _ _ (_:_) =
+    ReturnsRows
+inferExecResult parsedAst sql [] =
+    case parsedAst of
+        Just (Ast.InsertPreparableStmt _) -> ReturnsAffectedRows
+        Just (Ast.UpdatePreparableStmt _) -> ReturnsAffectedRows
+        Just (Ast.DeletePreparableStmt _) -> ReturnsAffectedRows
+        Just (Ast.CallPreparableStmt _) -> ReturnsNoResult
+        _ ->
+            case firstSqlKeyword sql of
+                Just keyword | keyword `elem` noResultKeywords -> ReturnsNoResult
+                _ -> ReturnsAffectedRows
+
+noResultKeywords :: [Text]
+noResultKeywords =
+    -- Keep no-result classification explicit. Unknown statements should keep
+    -- the affected-rows decoder so unparsed DML cannot silently return ().
+    [ "alter"
+    , "analyze"
+    , "begin"
+    , "call"
+    , "cluster"
+    , "comment"
+    , "commit"
+    , "create"
+    , "deallocate"
+    , "discard"
+    , "drop"
+    , "grant"
+    , "listen"
+    , "lock"
+    , "notify"
+    , "prepare"
+    , "refresh"
+    , "reindex"
+    , "release"
+    , "reset"
+    , "revoke"
+    , "rollback"
+    , "savepoint"
+    , "set"
+    , "start"
+    , "truncate"
+    , "unlisten"
+    , "vacuum"
+    ]
+
+firstSqlKeyword :: Text -> Maybe Text
+firstSqlKeyword sql =
+    let trimmed = dropSqlTrivia sql
+        keyword = Text.takeWhile isKeywordChar trimmed
+    in if Text.null keyword
+        then Nothing
+        else Just (Text.toLower keyword)
+
+dropSqlTrivia :: Text -> Text
+dropSqlTrivia sql =
+    let stripped = Text.dropWhile Char.isSpace sql
+    in if "--" `Text.isPrefixOf` stripped
+        then dropSqlTrivia (dropLineComment stripped)
+        else if "/*" `Text.isPrefixOf` stripped
+            then dropSqlTrivia (dropBlockComment stripped)
+            else stripped
+
+dropLineComment :: Text -> Text
+dropLineComment sql =
+    Text.drop 1 (Text.dropWhile (/= '\n') sql)
+
+dropBlockComment :: Text -> Text
+dropBlockComment sql =
+    let rest = Text.drop 2 sql
+        (_, afterComment) = Text.breakOn "*/" rest
+    in if Text.null afterComment
+        then ""
+        else Text.drop 2 afterComment
+
+isKeywordChar :: Char -> Bool
+isKeywordChar char =
+    Char.isAlphaNum char || char == '_'
+
+isListType :: TH.Type -> Bool
+isListType = \case
+    TH.AppT TH.ListT _ -> True
+    _ -> False
+
+-- | Give inherently polymorphic literal placeholders the expected shape.
+--
+-- Variables and constructors like @Just value@ usually carry enough type
+-- information from @value@. Bare @Nothing@ and empty/all-@Nothing@ list literals
+-- do not, so without this annotation the overlapping 'TypedSqlParam' instances
+-- cannot choose between scalar, Maybe, list, and list-of-Maybe shapes.
+disambiguateAmbiguousParam :: TH.Type -> TH.Exp -> TH.Exp
+disambiguateAmbiguousParam colType expr =
+    case expr of
+        TH.ConE name
+            | isNothingName name ->
+                TH.SigE expr (TH.AppT (TH.ConT ''Maybe) colType)
+        TH.VarE name
+            | isNothingName name ->
+                TH.SigE expr (TH.AppT (TH.ConT ''Maybe) colType)
+        TH.ListE [] ->
+            TH.SigE expr (TH.AppT TH.ListT colType)
+        TH.ListE values
+            | all isNothingExpression values ->
+                TH.SigE expr (TH.AppT TH.ListT (TH.AppT (TH.ConT ''Maybe) colType))
+        _ ->
+            expr
+  where
+    isNothingName name = TH.nameBase name == "Nothing"
+
+    isNothingExpression = \case
+        TH.ConE name -> isNothingName name
+        TH.VarE name -> isNothingName name
+        _ -> False
+
+-- | Rephrase a describe-step error to point at the offending ${...} placeholder.
+-- Postgres reports type-inference failures as "could not determine data type of parameter $N".
+-- Map $N back to the corresponding ${expr} on the Haskell side and suggest the fix
+-- (an explicit ::type cast). Other errors are passed through unchanged.
+rephraseDescribeError :: [String] -> String -> String
+rephraseDescribeError exprs originalMsg =
+    case extractUnknownParamIndex originalMsg of
+        Just paramIdx
+            | paramIdx >= 1 && paramIdx <= length exprs ->
+                let expr = exprs !! (paramIdx - 1)
+                in "typedSql: could not determine the type of `${" <> expr <> "}` "
+                    <> "(parameter $" <> Prelude.show paramIdx <> "). "
+                    <> "Postgres cannot infer the type because the placeholder appears in a polymorphic-argument context "
+                    <> "(e.g. CONCAT, COALESCE, GREATEST, LEAST). "
+                    <> "Add an explicit cast, e.g. `${" <> expr <> "}::text`.\n"
+                    <> "Original error: " <> originalMsg
+        _ -> originalMsg
+
+-- | Parse the parameter index out of a Postgres "could not determine data type of parameter $N" error.
+extractUnknownParamIndex :: String -> Maybe Int
+extractUnknownParamIndex = go
+  where
+    needle = "could not determine data type of parameter $"
+    go [] = Nothing
+    go str
+        | needle `List.isPrefixOf` str =
+            let rest = drop (length needle) str
+                digits = takeWhile (\c -> c >= '0' && c <= '9') rest
+            in if null digits then Nothing else readMaybe digits
+        | otherwise = go (drop 1 str)
+
+-- | Assemble the runtime SQL and the parameter 'Snippet' expressions into a single
+-- snippet. Each entry of @params@ is already a 'Snippet' (produced by 'typedSqlParam'),
+-- so it is interleaved with the SQL chunks directly.
+buildSnippetExpression :: String -> [TH.Exp] -> TH.ExpQ
+buildSnippetExpression sql params = do
+    let chunks = splitOnSentinel sql
+    when (length chunks /= length params + 1) do
+        fail "typedSql: internal error while building hasql snippet"
+    let sqlSnippets = map (TH.AppE (TH.VarE 'Snippet.sql) . TH.LitE . TH.StringL) chunks
+    let pieces = interleave sqlSnippets params
+    case pieces of
+        [] -> pure (TH.AppE (TH.VarE 'Snippet.sql) (TH.LitE (TH.StringL "")))
+        firstPiece:restPieces ->
+            pure (foldl (\acc piece -> TH.InfixE (Just acc) (TH.VarE '(<>) ) (Just piece)) firstPiece restPieces)
+
+splitOnSentinel :: String -> [String]
+splitOnSentinel input = go "" [] input
+  where
+    go current acc [] = reverse (reverse current : acc)
+    go current acc ('\0':rest) = go "" (reverse current : acc) rest
+    go current acc (char:rest) = go (char:current) acc rest
+
+interleave :: [a] -> [a] -> [a]
+interleave [] ys = ys
+interleave xs [] = xs
+interleave (x:xs) (y:ys) = x : y : interleave xs ys

@@ -4,11 +4,13 @@ module IHP.LoginSupport.Helper.Controller
 ( currentUser
 , currentUserOrNothing
 , currentUserId
+, currentUserIdOrNothing
 , ensureIsUser
 , HasNewSessionUrl
 , currentAdmin
 , currentAdminOrNothing
 , currentAdminId
+, currentAdminIdOrNothing
 , ensureIsAdmin
 , login
 , sessionKey
@@ -17,97 +19,113 @@ module IHP.LoginSupport.Helper.Controller
 , CurrentAdminRecord
 , module IHP.AuthSupport.Authentication
 , enableRowLevelSecurityIfLoggedIn
-, currentRoleOrNothing
-, currentRole
-, currentRoleId
-, ensureIsRole
 ) where
 
 import IHP.Prelude
 import IHP.Controller.Redirect
 import IHP.Controller.Session
 import IHP.LoginSupport.Types
-import qualified IHP.Controller.Session as Session
-import Network.Wai (Request)
 import IHP.FlashMessages
 import qualified IHP.ModelSupport as ModelSupport
 import IHP.ControllerSupport
 import IHP.RequestVault.Helper (lookupRequestVault)
 import System.IO.Unsafe (unsafePerformIO)
 import IHP.AuthSupport.Authentication
-import IHP.Controller.Context
 import qualified IHP.FrameworkConfig as FrameworkConfig
-import qualified Database.PostgreSQL.Simple.ToField as PG
-import Data.Typeable
+import qualified Data.UUID as UUID
 
-currentRoleOrNothing :: forall user. (?context :: ControllerContext, HasNewSessionUrl user, Typeable user) => Maybe user
-currentRoleOrNothing = case unsafePerformIO (maybeFromContext @(Maybe user)) of
-    Just user -> user
-    Nothing -> error ("initAuthentication @" <> show (typeRep (Proxy @user)) <> " has not been called in initContext inside FrontController of this application")
-{-# INLINE currentRoleOrNothing #-}
+-- | Returns the current user or 'Nothing' if not logged in.
+--
+-- Reads from the WAI request vault, populated by 'authMiddleware'.
+--
+-- Requires @AuthMiddleware (authMiddleware \@User)@ in Config.hs.
+currentUserOrNothing :: forall user. (?request :: Request, user ~ CurrentUserRecord, Typeable user) => Maybe user
+currentUserOrNothing = lookupAuthVault currentUserVaultKey ?request
+{-# INLINE currentUserOrNothing #-}
 
-currentRole :: forall user. (?context :: ControllerContext, ?request :: Request, HasNewSessionUrl user, Typeable user) => user
-currentRole = fromMaybe (redirectToLogin (newSessionUrl (Proxy @user))) (currentRoleOrNothing @user)
-{-# INLINE currentRole #-}
-
-currentRoleId :: forall user userId. (?context :: ControllerContext, ?request :: Request, HasNewSessionUrl user, HasField "id" user userId, Typeable user) => userId
-currentRoleId = (currentRole @user).id
-{-# INLINE currentRoleId #-}
-
-ensureIsRole :: forall (user :: Type). (?context :: ControllerContext, ?request :: Request, HasNewSessionUrl user, Typeable user) => IO ()
-ensureIsRole =
-    case currentRoleOrNothing @user of
-        Just _ -> pure ()
-        Nothing -> redirectToLoginWithMessage (newSessionUrl (Proxy :: Proxy user))
-{-# INLINABLE ensureIsRole #-}
-
-currentUser :: forall user. (?context :: ControllerContext, ?request :: Request, HasNewSessionUrl user, Typeable user, user ~ CurrentUserRecord) => user
-currentUser = currentRole @user
+-- | Returns the current user. Redirects to login if not logged in.
+currentUser :: forall user. (?request :: Request, ?respond :: Respond, HasNewSessionUrl user, Typeable user, user ~ CurrentUserRecord) => user
+currentUser = fromMaybe (redirectToLogin (newSessionUrl (Proxy @user))) currentUserOrNothing
 {-# INLINABLE currentUser #-}
 
-currentUserOrNothing :: forall user. (?context :: ControllerContext, HasNewSessionUrl user, Typeable user, user ~ CurrentUserRecord) => (Maybe user)
-currentUserOrNothing = currentRoleOrNothing @user
-{-# INLINABLE currentUserOrNothing #-}
-
-currentUserId :: forall user userId. (?context :: ControllerContext, ?request :: Request, HasNewSessionUrl user, HasField "id" user userId, Typeable user, user ~ CurrentUserRecord) => userId
-currentUserId = currentRoleId @user
+-- | Returns the ID of the current user. Redirects to login if not logged in.
+currentUserId :: forall user. (?request :: Request, ?respond :: Respond, HasNewSessionUrl user, ModelSupport.Table user, Typeable user, user ~ CurrentUserRecord) => ModelSupport.TableId user
+currentUserId = ModelSupport.modelId (currentUser @user)
 {-# INLINABLE currentUserId #-}
 
-ensureIsUser :: forall user. (?context :: ControllerContext, ?request :: Request, HasNewSessionUrl user, Typeable user, user ~ CurrentUserRecord) => IO ()
-ensureIsUser = ensureIsRole @user
+-- | Ensures that a user is logged in. Redirects to login page if not.
+ensureIsUser :: forall user. (?request :: Request, ?respond :: Respond, HasNewSessionUrl user, Typeable user, user ~ CurrentUserRecord) => IO ()
+ensureIsUser =
+    case currentUserOrNothing @user of
+        Just _ -> pure ()
+        Nothing -> redirectToLoginWithMessage (newSessionUrl (Proxy :: Proxy user))
 {-# INLINABLE ensureIsUser #-}
 
-currentAdmin :: forall admin. (?context :: ControllerContext, ?request :: Request, HasNewSessionUrl admin, Typeable admin, admin ~ CurrentAdminRecord) => admin
-currentAdmin = currentRole @admin
+-- | Returns the current user's UUID or 'Nothing' if not logged in.
+--
+-- This only requires 'userIdMiddleware', no database query is needed.
+--
+-- > userId <- currentUserIdOrNothing
+currentUserIdOrNothing :: (?request :: Request, ModelSupport.PrimaryKey (ModelSupport.GetTableName CurrentUserRecord) ~ UUID) => Maybe (ModelSupport.Id CurrentUserRecord)
+currentUserIdOrNothing = ModelSupport.Id <$> lookupAuthVault currentUserIdVaultKey ?request
+{-# INLINE currentUserIdOrNothing #-}
+
+-- | Returns the current admin or 'Nothing' if not logged in.
+--
+-- Reads from the WAI request vault, populated by 'authMiddleware'.
+--
+-- Requires @AdminAuthMiddleware (adminAuthMiddleware \@Admin)@ in Config.hs.
+currentAdminOrNothing :: forall admin. (?request :: Request, admin ~ CurrentAdminRecord, Typeable admin) => Maybe admin
+currentAdminOrNothing = lookupAuthVault currentAdminVaultKey ?request
+{-# INLINE currentAdminOrNothing #-}
+
+-- | Returns the current admin. Redirects to login if not logged in.
+currentAdmin :: forall admin. (?request :: Request, ?respond :: Respond, HasNewSessionUrl admin, Typeable admin, admin ~ CurrentAdminRecord) => admin
+currentAdmin = fromMaybe (redirectToLogin (newSessionUrl (Proxy @admin))) currentAdminOrNothing
 {-# INLINABLE currentAdmin #-}
 
-currentAdminOrNothing :: forall admin. (?context :: ControllerContext, HasNewSessionUrl admin, Typeable admin, admin ~ CurrentAdminRecord) => (Maybe admin)
-currentAdminOrNothing = currentRoleOrNothing @admin
-{-# INLINABLE currentAdminOrNothing #-}
-
-currentAdminId :: forall admin adminId. (?context :: ControllerContext, ?request :: Request, HasNewSessionUrl admin, HasField "id" admin adminId, Typeable admin, admin ~ CurrentAdminRecord) => adminId
-currentAdminId = currentRoleId @admin
+-- | Returns the ID of the current admin. Redirects to login if not logged in.
+currentAdminId :: forall admin. (?request :: Request, ?respond :: Respond, HasNewSessionUrl admin, ModelSupport.Table admin, Typeable admin, admin ~ CurrentAdminRecord) => ModelSupport.TableId admin
+currentAdminId = ModelSupport.modelId (currentAdmin @admin)
 {-# INLINABLE currentAdminId #-}
 
-ensureIsAdmin :: forall (admin :: Type). (?context :: ControllerContext, ?request :: Request, HasNewSessionUrl admin, Typeable admin, admin ~ CurrentAdminRecord) => IO ()
-ensureIsAdmin = ensureIsRole @admin
+-- | Returns the current admin's UUID or 'Nothing' if not logged in.
+--
+-- This only requires 'adminIdMiddleware', no database query is needed.
+currentAdminIdOrNothing :: (?request :: Request, ModelSupport.PrimaryKey (ModelSupport.GetTableName CurrentAdminRecord) ~ UUID) => Maybe (ModelSupport.Id CurrentAdminRecord)
+currentAdminIdOrNothing = ModelSupport.Id <$> lookupAuthVault currentAdminIdVaultKey ?request
+{-# INLINE currentAdminIdOrNothing #-}
+
+-- | Ensures that an admin is logged in. Redirects to login page if not.
+ensureIsAdmin :: forall (admin :: Type). (?request :: Request, ?respond :: Respond, HasNewSessionUrl admin, Typeable admin, admin ~ CurrentAdminRecord) => IO ()
+ensureIsAdmin =
+    case currentAdminOrNothing @admin of
+        Just _ -> pure ()
+        Nothing -> redirectToLoginWithMessage (newSessionUrl (Proxy :: Proxy admin))
 {-# INLINABLE ensureIsAdmin #-}
 
--- | Log's in a user
+-- | Log in a user
+--
+-- Stores the user's UUID in the session as raw ASCII bytes (36 bytes).
 --
 -- Examples:
--- 
+--
 -- > action ExampleAction = do
 -- >     user <- query @User |> fetchOne
 -- >     login user
--- >     
+-- >
 -- >     redirectToPath "/"
 --
-login :: forall user id. (?request :: Request, KnownSymbol (ModelSupport.GetModelName user), HasField "id" user id, Show id) => user -> IO ()
-login user = Session.setSession (sessionKey @user) (tshow (user.id))
+login :: forall user.
+    ( ?request :: Request
+    , KnownSymbol (ModelSupport.GetModelName user)
+    , HasField "id" user (ModelSupport.Id user)
+    , ModelSupport.PrimaryKey (ModelSupport.GetTableName user) ~ UUID
+    ) => user -> IO ()
+login user = sessionInsert (sessionKey @user) (UUID.toASCIIBytes (ModelSupport.unpackId user.id))
 {-# INLINABLE login #-}
 
--- | Log's out a user
+-- | Log out a user
 --
 -- Example:
 --
@@ -118,24 +136,23 @@ login user = Session.setSession (sessionKey @user) (tshow (user.id))
 -- >     redirectToPath "/"
 --
 logout :: forall user. (?request :: Request, KnownSymbol (ModelSupport.GetModelName user)) => user -> IO ()
-logout user = Session.setSession (sessionKey @user) ("" :: Text)
+logout user = deleteSession (sessionKey @user)
 {-# INLINABLE logout #-}
 
 sessionKey :: forall user. (KnownSymbol (ModelSupport.GetModelName user)) => ByteString
 sessionKey = "login." <> cs (ModelSupport.getModelName @user)
 {-# INLINABLE sessionKey #-}
 
-redirectToLoginWithMessage :: (?request :: Request) => Text -> IO ()
+redirectToLoginWithMessage :: (?request :: Request, ?respond :: Respond) => Text -> IO ()
 redirectToLoginWithMessage newSessionPath = do
     setSuccessMessage "Please log in to access this page"
     setSession "IHP.LoginSupport.redirectAfterLogin" getRequestPathAndQuery
-    redirectToPath newSessionPath
-    error "Unreachable"
+    earlyReturn $ redirectToPath newSessionPath
 
 
-redirectToLogin :: (?request :: Request) => Text -> a
+redirectToLogin :: (?request :: Request, ?respond :: Respond) => Text -> a
 redirectToLogin newSessionPath = unsafePerformIO $ do
-    redirectToPath newSessionPath
+    earlyReturn $ redirectToPath newSessionPath
     error "Unreachable"
 
 -- | After this call the security policies defined in your Schema.sql will be applied to the controller actions called after this
@@ -144,7 +161,6 @@ redirectToLogin newSessionPath = unsafePerformIO $ do
 --
 -- > instance InitControllerContext WebApplication where
 -- >     initContext = do
--- >         initAuthentication @User
 -- >         enableRowLevelSecurityIfLoggedIn
 --
 -- Let's assume we have a policy defined in our Schema.sql that only allows users to see and edit rows in the projects table that have @projects.user_id = current_user_id@:
@@ -159,18 +175,14 @@ redirectToLogin newSessionPath = unsafePerformIO $ do
 -- >     projects <- query @Project |> fetch
 --
 enableRowLevelSecurityIfLoggedIn ::
-    ( ?context :: ControllerContext
-    , ?request :: Request
-    , Typeable CurrentUserRecord
-    , HasNewSessionUrl CurrentUserRecord
-    , HasField "id" CurrentUserRecord userId
-    , PG.ToField userId
+    ( ?request :: Request
+    , ModelSupport.PrimaryKey (ModelSupport.GetTableName CurrentUserRecord) ~ UUID
     ) => IO ()
 enableRowLevelSecurityIfLoggedIn = do
-    case currentUserOrNothing of
-        Just user -> do
-            let rlsAuthenticatedRole = ?context.frameworkConfig.rlsAuthenticatedRole
-            let rlsUserId = PG.toField user.id
+    case currentUserIdOrNothing of
+        Just userId -> do
+            let rlsAuthenticatedRole = ?request.frameworkConfig.rlsAuthenticatedRole
+            let rlsUserId = tshow userId
             let rlsContext = ModelSupport.RowLevelSecurityContext { rlsAuthenticatedRole, rlsUserId}
             writeIORef (lookupRequestVault rlsContextVaultKey ?request) (Just rlsContext)
         Nothing -> pure ()

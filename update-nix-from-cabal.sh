@@ -11,6 +11,7 @@
 set -euo pipefail
 cd "$(dirname "$0")"
 
+# --- Local IHP packages ---
 for cabal_file in */*.cabal; do
   dir=$(dirname "$cabal_file")
   echo "Generating $dir/default.nix from $cabal_file"
@@ -18,4 +19,37 @@ for cabal_file in */*.cabal; do
   # to the package root (not a subdirectory). The overlay overrides src anyway,
   # but this keeps the generated file correct if used standalone.
   (cd "$dir" && cabal2nix .) > "./$dir/default.nix"
+done
+
+# --- Third-party Hackage packages ---
+# Pre-generated to avoid IFD (Import From Derivation).
+# Update versions here when upgrading dependencies.
+mkdir -p NixSupport/hackage
+
+hackage_packages=(
+  "wai-session-maybe 1.0.0"
+  "wai-session-clientsession-deferred 1.0.0"
+  "postgresql-connection-string 0.1.0.6"
+  "postgresql-syntax 0.5.0.3"
+  "temporary-ospath 1.3"
+  "ptr-poker 0.1.3"
+  "postgresql-simple-postgresql-types 0.1.1"
+  "postgresql-types-algebra 0.1"
+  "postgresql-types 0.1.2"
+  "hasql-mapping 0.1"
+  "hasql-postgresql-types 0.2"
+  "ihp-zip 0.1.2"
+  "ghc-tcplugin-api 0.19.0.0"
+  "ghc-typelits-natnormalise 0.9.6"
+  "ghc-typelits-knownnat 0.8.4"
+)
+# Note: hasql/postgresql-binary/postgresql-types/hasql-mapping and friends
+# are pulled directly from nixpkgs via versioned attributes (hasql_1_10_3
+# etc.) since NixOS/nixpkgs#519795. See NixSupport/overlay.nix.
+
+for entry in "${hackage_packages[@]}"; do
+  name="${entry%% *}"
+  ver="${entry##* }"
+  echo "Generating NixSupport/hackage/${name}.nix from Hackage: ${name}-${ver}"
+  cabal2nix "cabal://${name}-${ver}" > "NixSupport/hackage/${name}.nix"
 done

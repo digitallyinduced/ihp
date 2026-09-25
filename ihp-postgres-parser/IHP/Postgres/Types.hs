@@ -17,7 +17,7 @@ data Statement
     -- | DROP TYPE name;
     | DropEnumType { name :: Text }
     -- | CREATE EXTENSION IF NOT EXISTS "name";
-    | CreateExtension { name :: Text, ifNotExists :: Bool }
+    | CreateExtension { name :: Text, ifNotExists :: Bool, extensionOptions :: [ExtensionOption] }
     -- | ALTER TABLE tableName ADD CONSTRAINT constraint;
     | AddConstraint { tableName :: Text, constraint :: Constraint, deferrable :: Maybe Bool, deferrableType :: Maybe DeferrableType }
     -- | ALTER TABLE tableName DROP CONSTRAINT constraintName;
@@ -32,21 +32,25 @@ data Statement
     | Comment { content :: Text }
     -- | CREATE INDEX indexName ON tableName (columnName); CREATE INDEX indexName ON tableName (LOWER(columnName));
     -- | CREATE UNIQUE INDEX name ON table (column [, ...]);
-    | CreateIndex { indexName :: Text, unique :: Bool, tableName :: Text, columns :: [IndexColumn], whereClause :: Maybe Expression, indexType :: Maybe IndexType }
+    | CreateIndex { indexName :: Text, unique :: Bool, tableName :: Text, columns :: [IndexColumn], whereClause :: Maybe Expression, indexType :: Maybe IndexType, nullsDistinct :: Bool }
     -- | DROP INDEX indexName;
     | DropIndex { indexName :: Text }
     -- | CREATE OR REPLACE FUNCTION functionName(param1 TEXT, param2 INT) RETURNS TRIGGER AS $$functionBody$$ language plpgsql;
-    | CreateFunction { functionName :: Text, functionArguments :: [(Text, PostgresType)], functionBody :: Text, orReplace :: Bool, returns :: PostgresType, language :: Text }
+    | CreateFunction { functionName :: Text, functionArguments :: [(Text, PostgresType)], functionBody :: Text, orReplace :: Bool, returns :: PostgresType, language :: Text, securityDefiner :: Bool, functionAttributes :: [Text], functionSettings :: [FunctionSetting] }
     -- | ALTER TABLE tableName ENABLE ROW LEVEL SECURITY;
     | EnableRowLevelSecurity { tableName :: Text }
+    | ForceRowLevelSecurity { tableName :: Text }
+    | NoForceRowLevelSecurity { tableName :: Text }
     -- CREATE POLICY name ON tableName USING using WITH CHECK check;
-    | CreatePolicy { name :: Text, tableName :: Text, action :: Maybe PolicyAction, using :: Maybe Expression, check :: Maybe Expression }
+    | CreatePolicy { name :: Text, tableName :: Text, action :: Maybe PolicyAction, roles :: [PolicyRole], using :: Maybe Expression, check :: Maybe Expression }
     -- SET name = value;
     | Set { name :: Text, value :: Expression }
     -- SELECT query;
     | SelectStatement { query :: Text }
     -- CREATE SEQUENCE name;
-    | CreateSequence { name :: Text }
+    | CreateSequence { name :: Text, sequenceOptions :: [SequenceOption] }
+    -- | ALTER SEQUENCE name sequenceOptions; each item is one clause to emit, not a complete sequence definition.
+    | AlterSequence { name :: Text, sequenceOptions :: [SequenceOption] }
     -- ALTER TABLE tableName RENAME COLUMN from TO to;
     | RenameColumn { tableName :: Text, from :: Text, to :: Text }
     -- ALTER TYPE enumName ADD VALUE newValue;
@@ -64,7 +68,9 @@ data Statement
     -- ALTER TABLE tableName ALTER COLUMN columnName DROP DEFAULT;
     | DropDefaultValue { tableName :: Text, columnName :: Text }
     -- | CREATE TRIGGER ..;
-    | CreateTrigger { name :: !Text, eventWhen :: !TriggerEventWhen, event :: !TriggerEvent, tableName :: !Text, for :: !TriggerFor, whenCondition :: Maybe Expression, functionName :: !Text, arguments :: ![Expression] }
+    | CreateTrigger { name :: !Text, eventWhen :: !TriggerEventWhen, event :: ![TriggerEvent], tableName :: !Text, for :: !TriggerFor, whenCondition :: Maybe Expression, functionName :: !Text, arguments :: ![Expression] }
+    -- | CREATE CONSTRAINT TRIGGER ..;
+    | CreateConstraintTrigger { name :: !Text, eventWhen :: !TriggerEventWhen, event :: ![TriggerEvent], tableName :: !Text, referencedTableName :: !(Maybe Text), deferrable :: Maybe Bool, deferrableType :: Maybe DeferrableType, for :: !TriggerFor, whenCondition :: Maybe Expression, functionName :: !Text, arguments :: ![Expression] }
     -- | CREATE EVENT TRIGGER ..;
     | CreateEventTrigger { name :: !Text, eventOn :: !Text, whenCondition :: Maybe Expression, functionName :: !Text, arguments :: ![Expression] }
     -- | DROP TRIGGER .. ON ..;
@@ -83,6 +89,32 @@ data DeferrableType
     | InitiallyDeferred
     deriving (Eq, Show)
 
+data FunctionSetting = FunctionSetting
+    { settingName :: Text
+    , settingValue :: Text
+    }
+    deriving (Eq, Show)
+
+-- | PostgreSQL sequence parameters preserved for schema comparison and ALTER SEQUENCE generation.
+data SequenceOption
+    = SequenceAs PostgresType
+    | SequenceStart Expression
+    | SequenceIncrement Expression
+    | SequenceNoMinValue
+    | SequenceNoMaxValue
+    | SequenceMinValue Expression
+    | SequenceMaxValue Expression
+    | SequenceCache Expression
+    | SequenceCycle Bool
+    deriving (Eq, Show)
+
+-- | CREATE EXTENSION installation options. Schema diffs intentionally ignore these; use an explicit migration to relocate or update an installed extension.
+data ExtensionOption
+    = ExtensionSchema Text
+    | ExtensionVersion Text
+    | ExtensionCascade
+    deriving (Eq, Show)
+
 data CreateTable
   = CreateTable
       { name :: Text
@@ -90,6 +122,7 @@ data CreateTable
       , primaryKeyConstraint :: PrimaryKeyConstraint
       , constraints :: [Constraint]
       , unlogged :: !Bool
+      , inherits :: !(Maybe Text)
       }
   deriving (Eq, Show)
 
@@ -98,6 +131,7 @@ data Column = Column
     , columnType :: PostgresType
     , defaultValue :: Maybe Expression
     , notNull :: Bool
+    , notNullConstraintName :: Maybe Text
     , isUnique :: Bool
     , generator :: Maybe ColumnGenerator
     }
@@ -106,9 +140,16 @@ data Column = Column
 data OnDelete
     = NoAction
     | Restrict
-    | SetNull
-    | SetDefault
+    | SetNull [Text]
+    | SetDefault [Text]
     | Cascade
+    deriving (Show, Eq)
+
+-- | PostgreSQL foreign-key matching semantics.
+data ForeignKeyMatchType
+    = MatchFull
+    | MatchPartial
+    | MatchSimple
     deriving (Show, Eq)
 
 data ColumnGenerator
@@ -129,6 +170,20 @@ data Constraint
         , referenceTable :: !Text
         , referenceColumn :: !(Maybe Text)
         , onDelete :: !(Maybe OnDelete)
+        , onUpdate :: !(Maybe OnDelete)
+        , constraintDeferrable :: !(Maybe Bool)
+        , constraintDeferrableType :: !(Maybe DeferrableType)
+        }
+    | CompositeForeignKeyConstraint
+        { name :: !(Maybe Text)
+        , columnNames :: ![Text]
+        , referenceTable :: !Text
+        , referenceColumns :: ![Text]
+        , matchType :: !(Maybe ForeignKeyMatchType)
+        , onDelete :: !(Maybe OnDelete)
+        , onUpdate :: !(Maybe OnDelete)
+        , constraintDeferrable :: !(Maybe Bool)
+        , constraintDeferrableType :: !(Maybe DeferrableType)
         }
     | UniqueConstraint
         { name :: !(Maybe Text)
@@ -172,6 +227,10 @@ data Expression =
     | InExpression Expression Expression
     -- | ('a', 'b')
     | InArrayExpression [Expression]
+    -- | ARRAY['a', 'b']
+    | ArrayLiteralExpression [Expression]
+    -- | VARIADIC ARRAY['a', 'b']
+    | VariadicExpression Expression
     -- | NOT a
     | NotExpression Expression
     -- | EXISTS a
@@ -188,6 +247,8 @@ data Expression =
     | GreaterThanOrEqualToExpression Expression Expression
     -- | Double literal value, e.g. 0.1337
     | DoubleExpression Double
+    -- | Exact SQL decimal literal, retaining significant scale and exponent.
+    | NumericExpression Text
     -- | Integer literal value, e.g. 1337
     | IntExpression Int
     -- | value::type
@@ -195,6 +256,13 @@ data Expression =
     | SelectExpression Select
     | DotExpression Expression Text
     | ConcatenationExpression Expression Expression -- ^ a || b
+    -- | An infix operator the schema representation does not model on its own,
+    -- carrying the operator verbatim, e.g. @a + b@ or @name ~ '^[A-Z]+$'@.
+    --
+    -- PostgreSQL has hundreds of operators and accepts user defined ones, so a
+    -- dedicated constructor per operator cannot be complete. Keeping the operator
+    -- as text lets any of them round-trip unchanged.
+    | BinaryOperatorExpression Text Expression Expression
     deriving (Eq, Show)
 
 data Select = Select
@@ -217,6 +285,8 @@ data PostgresType
     | PDouble
     | PPoint
     | PPolygon
+    | PGeometry
+    | PGeometryWithModifier Text
     | PDate
     | PBinary
     | PTime
@@ -231,6 +301,10 @@ data PostgresType
     | PInet
     | PTSVector
     | PArray PostgresType
+    -- | @RETURNS SETOF x@. Only valid as a function return type.
+    | PSetOf PostgresType
+    -- | @RETURNS TABLE (name type, ...)@. Only valid as a function return type.
+    | PTable [(Text, PostgresType)]
     | PTrigger
     | PEventTrigger
     | PCustomType Text
@@ -245,6 +319,7 @@ data TriggerEventWhen
 data TriggerEvent
     = TriggerOnInsert
     | TriggerOnUpdate
+    | TriggerOnUpdateOf ![Text]
     | TriggerOnDelete
     | TriggerOnTruncate
     deriving (Eq, Show)
@@ -262,13 +337,89 @@ data PolicyAction
     | PolicyForDelete
     deriving (Eq, Show)
 
-data IndexType = Btree | Gin | Gist
+data PolicyRole
+    = PolicyRole Text
+    | QuotedPolicyRole Text
+    | SpecialPolicyRole Text
+    deriving (Eq, Show)
+
+data IndexType = Btree | Hash | Gist | Spgist | Gin | Brin | Hnsw | Ivfflat
     deriving (Eq, Show)
 
 data IndexColumn
-    = IndexColumn { column :: Expression, columnOrder :: [IndexColumnOrder] }
+    = IndexColumn { column :: Expression, columnOperatorClass :: Maybe Text, columnOrder :: [IndexColumnOrder] }
     deriving (Eq, Show)
 
 data IndexColumnOrder
     = Asc | Desc | NullsFirst | NullsLast
     deriving (Eq, Show)
+
+-- | Helper to create a 'CreateTable' with sensible defaults (empty columns, no constraints, logged).
+table :: Text -> CreateTable
+table name = CreateTable
+    { name = name
+    , columns = []
+    , primaryKeyConstraint = PrimaryKeyConstraint []
+    , constraints = []
+    , unlogged = False
+    , inherits = Nothing
+    }
+
+-- | Helper to create a 'Column' with sensible defaults (nullable, no default, not unique, no generator).
+col :: Text -> PostgresType -> Column
+col columnName columnType = Column
+    { name = columnName
+    , columnType = columnType
+    , defaultValue = Nothing
+    , notNull = False
+    , notNullConstraintName = Nothing
+    , isUnique = False
+    , generator = Nothing
+    }
+
+-- | Helper to create a 'CreateFunction' with sensible defaults (no args, empty body, plpgsql trigger).
+function :: Text -> Statement
+function functionName = CreateFunction
+    { functionName = functionName
+    , functionArguments = []
+    , functionBody = ""
+    , orReplace = False
+    , returns = PTrigger
+    , language = "plpgsql"
+    , securityDefiner = False
+    , functionAttributes = []
+    , functionSettings = []
+    }
+
+-- | Helper to create an 'IndexColumn' with no column ordering.
+indexCol :: Expression -> IndexColumn
+indexCol column = IndexColumn { column = column, columnOperatorClass = Nothing, columnOrder = [] }
+
+-- | Helper to create a 'CreatePolicy' with sensible defaults (no action, no using, no check).
+policy :: Text -> Text -> Statement
+policy name tableName = CreatePolicy
+    { name = name
+    , tableName = tableName
+    , action = Nothing
+    , roles = []
+    , using = Nothing
+    , check = Nothing
+    }
+
+-- | Helper to create an 'AddConstraint' with a foreign key (no name, no onDelete, no deferrable).
+foreignKey :: Text -> Text -> Text -> Statement
+foreignKey tableName columnName referenceTable = AddConstraint
+    { tableName = tableName
+    , constraint = ForeignKeyConstraint
+        { name = Nothing
+        , columnName = columnName
+        , referenceTable = referenceTable
+        , referenceColumn = Nothing
+        , onDelete = Nothing
+        , onUpdate = Nothing
+        , constraintDeferrable = Nothing
+        , constraintDeferrableType = Nothing
+        }
+    , deferrable = Nothing
+    , deferrableType = Nothing
+    }

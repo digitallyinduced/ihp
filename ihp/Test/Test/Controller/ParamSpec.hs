@@ -5,132 +5,130 @@ Copyright: (c) digitally induced GmbH, 2020
 module Test.Controller.ParamSpec where
 
 import IHP.Prelude
-import IHP.HaskellSupport
 import Test.Hspec
 import IHP.Controller.Param
-import IHP.Controller.Context
 import Wai.Request.Params.Middleware (RequestBody (..), requestBodyVaultKey)
 import qualified Data.Vault.Lazy as Vault
 import IHP.ModelSupport
+import Data.Bits ((.|.))
 import qualified Data.Aeson as Aeson
-import qualified Data.UUID as UUID
-import qualified Data.TMap as TypeMap
 import qualified Network.Wai as Wai
 import qualified GHC.IO as IO
 import Data.Scientific (Scientific)
+import Data.Either (isLeft)
 
 tests = do
     describe "IHP.Controller.Param" do
         describe "param" do
             it "should parse valid input" do
                 let ?context = createControllerContextWithParams [("page", "1")]
-                let ?request = ?context.request
+                let ?request = ?context
                 (param @Int "page") `shouldBe` 1
 
             it "should fail on empty input" do
                 let ?context = createControllerContextWithParams [("page", "")]
-                let ?request = ?context.request
+                let ?request = ?context
                 (IO.evaluate (param @Int "page")) `shouldThrow` (== ParamCouldNotBeParsedException { name = "page", parserError = "has to be an integer" })
 
             it "should fail if param not provided" do
                 let ?context = createControllerContextWithParams []
-                let ?request = ?context.request
+                let ?request = ?context
                 (IO.evaluate (param @Int "page")) `shouldThrow` (== ParamNotFoundException { name = "page" })
 
             it "should fail with a parser error on invalid input" do
                 let ?context = createControllerContextWithParams [("page", "NaN")]
-                let ?request = ?context.request
+                let ?request = ?context
                 (IO.evaluate (param @Int "page")) `shouldThrow` (== ParamCouldNotBeParsedException { name = "page", parserError = "has to be an integer" })
 
         describe "paramOrNothing" do
             it "should parse valid input" do
                 let ?context = createControllerContextWithParams [("referredBy", "776ab71d-327f-41b3-90a8-7b5a251c4b88")]
-                let ?request = ?context.request
+                let ?request = ?context
                 (paramOrNothing @UUID "referredBy") `shouldBe` (Just "776ab71d-327f-41b3-90a8-7b5a251c4b88")
 
             it "should return Nothing on empty input" do
                 let ?context = createControllerContextWithParams [("referredBy", "")]
-                let ?request = ?context.request
+                let ?request = ?context
                 (paramOrNothing @UUID "referredBy") `shouldBe` Nothing
 
             it "should return Nothing if param not provided" do
                 let ?context = createControllerContextWithParams []
-                let ?request = ?context.request
+                let ?request = ?context
                 (paramOrNothing @UUID "referredBy") `shouldBe` Nothing
 
             it "should fail with a parser error on invalid input" do
                 let ?context = createControllerContextWithParams [("referredBy", "not a uuid")]
-                let ?request = ?context.request
+                let ?request = ?context
                 (IO.evaluate (paramOrNothing @UUID "referredBy")) `shouldThrow` (== ParamCouldNotBeParsedException { name = "referredBy", parserError = "has to be an UUID" })
 
         describe "paramOrDefault" do
             it "should parse valid input" do
                 let ?context = createControllerContextWithParams [("page", "1")]
-                let ?request = ?context.request
+                let ?request = ?context
                 (paramOrDefault @Int 0 "page") `shouldBe` 1
 
             it "should return default value on empty input" do
                 let ?context = createControllerContextWithParams [("page", "")]
-                let ?request = ?context.request
+                let ?request = ?context
                 (paramOrDefault @Int 10 "page") `shouldBe` 10
 
             it "should return default value if param not provided" do
                 let ?context = createControllerContextWithParams []
-                let ?request = ?context.request
+                let ?request = ?context
                 (paramOrDefault @Int 10 "page") `shouldBe` 10
 
             it "should fail with a parser error on invalid input" do
                 let ?context = createControllerContextWithParams [("page", "NaN")]
-                let ?request = ?context.request
+                let ?request = ?context
                 (IO.evaluate (paramOrDefault @Int 10 "page")) `shouldThrow` (== ParamCouldNotBeParsedException { name = "page", parserError = "has to be an integer" })
 
 
         describe "paramList" do
             it "should parse valid input" do
                 let ?context = createControllerContextWithParams [("ingredients", "milk"), ("ingredients", "egg")]
-                let ?request = ?context.request
+                let ?request = ?context
                 (paramList @Text "ingredients") `shouldBe` ["milk", "egg"]
 
             it "should fail on invalid input" do
                 let ?context = createControllerContextWithParams [("numbers", "1"), ("numbers", "NaN")]
-                let ?request = ?context.request
+                let ?request = ?context
                 (IO.evaluate (paramList @Int "numbers")) `shouldThrow` (errorCall "param: Parameter 'numbers' is invalid")
 
             it "should deal with empty input" do
                 let ?context = createControllerContextWithParams []
-                let ?request = ?context.request
+                let ?request = ?context
                 (paramList @Int "numbers") `shouldBe` []
 
         describe "paramListOrNothing" do
             it "should parse valid input" do
                 let ?context = createControllerContextWithParams [("ingredients", "milk"), ("ingredients", ""), ("ingredients", "egg")]
-                let ?request = ?context.request
+                let ?request = ?context
                 (paramListOrNothing @Text "ingredients") `shouldBe` [Just "milk", Nothing, Just "egg"]
 
             it "should not fail on invalid input" do
                 let ?context = createControllerContextWithParams [("numbers", "1"), ("numbers", "NaN")]
-                let ?request = ?context.request
+                let ?request = ?context
                 (paramListOrNothing @Int "numbers") `shouldBe` [Just 1, Nothing]
 
             it "should deal with empty input" do
                 let ?context = createControllerContextWithParams []
-                let ?request = ?context.request
+                let ?request = ?context
                 (paramListOrNothing @Int "numbers") `shouldBe` []
 
         describe "hasParam" do
             it "returns True if param given" do
                 let ?context = createControllerContextWithParams [("a", "test")]
-                let ?request = ?context.request
+                let ?request = ?context
                 hasParam "a" `shouldBe` True
 
             it "returns True if param given but empty" do
                 let ?context = createControllerContextWithParams [("a", "")]
-                let ?request = ?context.request
+                let ?request = ?context
                 hasParam "a" `shouldBe` True
 
             it "returns False if param missing" do
                 let ?context = createControllerContextWithParams []
-                let ?request = ?context.request
+                let ?request = ?context
                 hasParam "a" `shouldBe` False
 
         describe "ParamReader" do
@@ -230,16 +228,16 @@ tests = do
 
             describe "Point" do
                 it "should accept integer input" do
-                    (readParameter @Point "1337,1338") `shouldBe` (Right Point { x = 1337, y = 1338 })
+                    (readParameter @Point "1337,1338") `shouldBe` (Right (fromCoordinates 1337 1338))
 
                 it "should accept floating point input" do
-                    (readParameter @Point "1.2,1.3") `shouldBe` (Right Point { x = 1.2, y = 1.3 })
+                    (readParameter @Point "1.2,1.3") `shouldBe` (Right (fromCoordinates 1.2 1.3))
 
                 it "should accept JSON integer input" do
-                    (readParameterJSON @Point (json "\"1337,1338\"")) `shouldBe` (Right Point { x = 1337, y = 1338 })
+                    (readParameterJSON @Point (json "\"1337,1338\"")) `shouldBe` (Right (fromCoordinates 1337 1338))
 
                 it "should accept JSON floating point input" do
-                    (readParameterJSON @Point (json "\"1.2,1.3\"")) `shouldBe` (Right Point { x = 1.2, y = 1.3 })
+                    (readParameterJSON @Point (json "\"1.2,1.3\"")) `shouldBe` (Right (fromCoordinates 1.2 1.3))
 
                 it "should fail on other JSON input " do
                     (readParameterJSON @Point (json "true")) `shouldBe` (Left "Expected Point")
@@ -247,21 +245,28 @@ tests = do
                     (readParameterJSON @Point (json "\"1.2\"")) `shouldBe` (Left "has to be two numbers with a comma, e.g. '1,2'")
 
             describe "Polygon" do
+                let mkPolygon pts = case refineFromPointList pts of
+                        Just p -> p
+                        Nothing -> error "test: invalid polygon"
+
                 it "should accept integer input" do
-                    (readParameter @Polygon "(100,200),(300,400)") `shouldBe`
-                        (Right Polygon { points = [ Point { x = 100, y = 200 }, Point { x = 300, y = 400 } ] })
+                    (readParameter @Polygon "(100,200),(300,400),(500,600)") `shouldBe`
+                        (Right (mkPolygon [(100, 200), (300, 400), (500, 600)]))
 
                 it "should accept floating-point input" do
-                    (readParameter @Polygon "(100.1,200.2),(300.3,400.4)") `shouldBe`
-                        (Right Polygon { points = [ Point { x = 100.1, y = 200.2 }, Point { x = 300.3, y = 400.4 } ] })
+                    (readParameter @Polygon "(100.1,200.2),(300.3,400.4),(500.5,600.6)") `shouldBe`
+                        (Right (mkPolygon [(100.1, 200.2), (300.3, 400.4), (500.5, 600.6)]))
 
                 it "should accept JSON integer input" do
-                    (readParameterJSON @Polygon (json "\"(100,200),(300,400)\"")) `shouldBe`
-                        (Right Polygon { points = [ Point { x = 100, y = 200 }, Point { x = 300, y = 400 } ] })
+                    (readParameterJSON @Polygon (json "\"(100,200),(300,400),(500,600)\"")) `shouldBe`
+                        (Right (mkPolygon [(100, 200), (300, 400), (500, 600)]))
 
                 it "should accept JSON floating-point input" do
-                    (readParameterJSON @Polygon (json "\"(100.1,200.2),(300.3,400.4)\"")) `shouldBe`
-                        (Right Polygon { points = [ Point { x = 100.1, y = 200.2 }, Point { x = 300.3, y = 400.4 } ] })
+                    (readParameterJSON @Polygon (json "\"(100.1,200.2),(300.3,400.4),(500.5,600.6)\"")) `shouldBe`
+                        (Right (mkPolygon [(100.1, 200.2), (300.3, 400.4), (500.5, 600.6)]))
+
+                it "should reject polygon with fewer than 3 points" do
+                    (readParameter @Polygon "(100,200),(300,400)") `shouldSatisfy` isLeft
 
             describe "Text" do
                 it "should handle text input" do
@@ -328,7 +333,7 @@ tests = do
                     (tshow (readParameter @UTCTime "2020-11-08")) `shouldBe` ("Right 2020-11-08 00:00:00 UTC")
 
                 it "should fail on invalid inputs" do
-                    (readParameter @UTCTime "not a timestamp") `shouldBe` (Left "has to be a valid date and time, e.g. 2020-11-08T12:03:35Z")
+                    (readParameter @UTCTime "not a timestamp") `shouldBe` (Left "has to be a valid date and time, e.g. 2020-11-08T12:03:35Z or 2020-11-08T12:03")
 
                 it "should accept JSON strings" do
                     (tshow (readParameterJSON @UTCTime (json "\"2020-11-08T12:03:35Z\""))) `shouldBe` ("Right 2020-11-08 12:03:35 UTC")
@@ -341,7 +346,7 @@ tests = do
                     (tshow (readParameter @LocalTime "2020-11-08")) `shouldBe` ("Right 2020-11-08 00:00:00")
 
                 it "should fail on invalid inputs" do
-                    (readParameter @LocalTime "not a timestamp") `shouldBe` (Left "has to be a valid date and time, e.g. 2020-11-08T12:03:35Z")
+                    (readParameter @LocalTime "not a timestamp") `shouldBe` (Left "has to be a valid date and time, e.g. 2020-11-08T12:03:35Z or 2020-11-08T12:03")
 
                 it "should accept JSON strings" do
                     (tshow (readParameterJSON @LocalTime (json "\"2020-11-08T12:03:35Z\""))) `shouldBe` ("Right 2020-11-08 12:03:35")
@@ -409,27 +414,27 @@ tests = do
         describe "fill" do
             it "should fill provided values if valid" do
                 let ?context = createControllerContextWithParams [("boolField", "on"), ("colorField", "Red")]
-                let ?request = ?context.request
+                let ?request = ?context
 
                 let emptyRecord = FillRecord { boolField = False, colorField = Yellow, meta = def }
-                let expectedRecord = FillRecord { boolField = True, colorField = Red, meta = def { touchedFields = ["colorField", "boolField"] } }
+                let expectedRecord = FillRecord { boolField = True, colorField = Red, meta = def { touchedFields = 3 } }
 
                 let filledRecord = emptyRecord |> fill @["boolField", "colorField"]
                 filledRecord `shouldBe` expectedRecord
 
             it "should not touch fields if a field is missing" do
                 let ?context = createControllerContextWithParams [("colorField", "Red")]
-                let ?request = ?context.request
+                let ?request = ?context
 
                 let emptyRecord = FillRecord { boolField = False, colorField = Yellow, meta = def }
-                let expectedRecord = FillRecord { boolField = False, colorField = Red, meta = def { touchedFields = ["colorField"] } }
+                let expectedRecord = FillRecord { boolField = False, colorField = Red, meta = def { touchedFields = 2 } }
 
                 let filledRecord = emptyRecord |> fill @["boolField", "colorField"]
                 filledRecord `shouldBe` expectedRecord
 
             it "should add validation errors if the parsing fails" do
                 let ?context = createControllerContextWithParams [("colorField", "invalid color")]
-                let ?request = ?context.request
+                let ?request = ?context
 
                 let emptyRecord = FillRecord { boolField = False, colorField = Yellow, meta = def }
                 let expectedRecord = FillRecord { boolField = False, colorField = Yellow, meta = def { annotations = [("colorField", TextViolation "Invalid value")] } }
@@ -439,17 +444,17 @@ tests = do
 
             it "should deal with json values" do
                 let ?context = createControllerContextWithJson "{\"colorField\":\"Red\",\"boolField\":true}"
-                let ?request = ?context.request
+                let ?request = ?context
 
                 let emptyRecord = FillRecord { boolField = False, colorField = Yellow, meta = def }
-                let expectedRecord = FillRecord { boolField = True, colorField = Red, meta = def { touchedFields = ["colorField", "boolField"] } }
+                let expectedRecord = FillRecord { boolField = True, colorField = Red, meta = def { touchedFields = 3 } }
 
                 let filledRecord = emptyRecord |> fill @["boolField", "colorField"]
                 filledRecord `shouldBe` expectedRecord
 
             it "should deal with empty json values" do
                 let ?context = createControllerContextWithJson "{}"
-                let ?request = ?context.request
+                let ?request = ?context
 
                 let emptyRecord = FillRecord { boolField = False, colorField = Yellow, meta = def }
                 let expectedRecord = FillRecord { boolField = False, colorField = Yellow, meta = def }
@@ -459,17 +464,15 @@ tests = do
 
 createControllerContextWithParams params =
         let
-            requestBody = FormBody { params, files = [] }
+            requestBody = FormBody { params, files = [], rawPayload = "" }
             request = Wai.defaultRequest { Wai.vault = Vault.insert requestBodyVaultKey requestBody Vault.empty }
-            customFields = TypeMap.insert request TypeMap.empty
-        in FrozenControllerContext { customFields }
+        in request
 
 createControllerContextWithJson params =
         let
             requestBody = JSONBody { jsonPayload = Just (json params), rawPayload = cs params }
             request = Wai.defaultRequest { Wai.vault = Vault.insert requestBodyVaultKey requestBody Vault.empty }
-            customFields = TypeMap.insert request TypeMap.empty
-        in FrozenControllerContext { customFields }
+        in request
 
 json :: Text -> Aeson.Value
 json string =
@@ -487,10 +490,13 @@ data FillRecord = FillRecord { boolField :: Bool, colorField :: Color, meta :: M
     deriving (Show, Eq)
 
 instance SetField "boolField" FillRecord Bool where
-    setField value record = record { boolField = value } |> modify #meta (modify #touchedFields ("boolField":))
+    setField value record = record { boolField = value, meta = (record.meta) { touchedFields = touchedFields record.meta .|. 1 } }
 
 instance SetField "colorField" FillRecord Color where
-    setField value record = record { colorField = value } |> modify #meta (modify #touchedFields ("colorField":))
+    setField value record = record { colorField = value, meta = (record.meta) { touchedFields = touchedFields record.meta .|. 2 } }
 
 instance SetField "meta" FillRecord MetaBag where
     setField value record = record { meta = value }
+
+instance FieldBit "boolField" FillRecord where fieldBit = 1
+instance FieldBit "colorField" FillRecord where fieldBit = 2

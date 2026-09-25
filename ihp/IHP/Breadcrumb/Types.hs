@@ -2,8 +2,7 @@ module IHP.Breadcrumb.Types where
 
 import Prelude (Show(..), Maybe, (<>), ($))
 import Data.Text (Text)
-import Text.Blaze.Html (Html)
-import Text.Blaze.Html.Renderer.String (renderHtml)
+import IHP.HSX.Markup (Html)
 
 data BreadcrumbItem =
     BreadcrumbItem
@@ -11,9 +10,9 @@ data BreadcrumbItem =
     , url :: Maybe Text -- ^ The URL of the item. If Nothing, it will only show the label.
     }
 
--- Html doesn't have a Show instance, so we define it manually and use 'renderHtml' for that.
+-- Markup doesn't have a Show instance, so we define it manually and use 'renderMarkup' for that.
 instance Show BreadcrumbItem where
     show breadcrumbItem = "{ breadcrumbLabel = \"" <> renderedLabel <> "\", url = " <> renderedUrl <> " }"
         where
-            renderedLabel = renderHtml $ breadcrumbLabel breadcrumbItem
+            renderedLabel = show $ breadcrumbLabel breadcrumbItem
             renderedUrl = show $ url breadcrumbItem

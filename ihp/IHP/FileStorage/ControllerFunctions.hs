@@ -22,7 +22,6 @@ module IHP.FileStorage.ControllerFunctions
 
 import IHP.Prelude
 import IHP.FileStorage.Types
-import IHP.Controller.Context
 import IHP.Controller.FileUpload
 import IHP.FrameworkConfig
 import qualified IHP.ModelSupport as ModelSupport
@@ -41,9 +40,11 @@ import qualified Data.ByteString.Lazy as LBS
 import qualified System.Directory.OsPath as Directory
 import qualified Control.Exception.Safe as Exception
 import System.OsPath (encodeUtf)
-import qualified Network.Wreq as Wreq
-import Control.Lens hiding ((|>), set)
+import qualified Network.HTTP.Client as HTTP
+import qualified Network.HTTP.Client.TLS as HTTP
+import qualified Network.HTTP.Types.Header as HTTP
 import qualified Network.Mime as Mime
+import qualified Network.HTTP.Types.URI as URI
 
 -- | Uploads a file to a directory in the storage
 --
@@ -152,11 +153,13 @@ storeFileWithOptions fileInfo options = do
 --
 storeFileFromUrl :: (?context :: context, ConfigProvider context) => Text -> StoreFileOptions -> IO StoredFile
 storeFileFromUrl url options = do
-    (contentType, responseBody) <- do
-        response <- Wreq.get (cs url)
-        let contentType = response ^. Wreq.responseHeader "Content-Type"
-        let responseBody = response ^. Wreq.responseBody
-        pure (contentType, responseBody)
+    manager <- HTTP.newTlsManager
+    baseRequest <- HTTP.parseRequest (cs url)
+    -- Throw on non-2xx so a 404/500 from upstream doesn't get stored as an HTML error page (matching Wreq.get semantics)
+    let request = baseRequest { HTTP.checkResponse = HTTP.throwErrorStatusCodes }
+    response <- HTTP.httpLbs request manager
+    let contentType = fromMaybe "" (lookup HTTP.hContentType (HTTP.responseHeaders response))
+    let responseBody = HTTP.responseBody response
 
     let file = Wai.FileInfo
             { fileName = ""
@@ -313,7 +316,9 @@ refreshTemporaryDownloadUrlFromFile record = do
             pure record
 
 contentDispositionAttachmentAndFileName :: Wai.FileInfo LByteString -> IO (Maybe Text)
-contentDispositionAttachmentAndFileName fileInfo = pure (Just ("attachment; filename=\"" <> cs (fileInfo.fileName) <> "\""))
+contentDispositionAttachmentAndFileName fileInfo =
+    let encodedFileName = cs (URI.urlEncode False (fileInfo.fileName))
+    in pure (Just ("attachment; filename*=UTF-8''" <> encodedFileName))
 
 -- | Saves an upload to the storage and sets the record attribute to the url.
 --
@@ -334,8 +339,7 @@ contentDispositionAttachmentAndFileName fileInfo = pure (Just ("attachment; file
 -- >                 redirectTo EditCompanyAction { .. }
 --
 uploadToStorageWithOptions :: forall (fieldName :: Symbol) record (tableName :: Symbol). (
-        ?context :: ControllerContext
-        , ?request :: Request
+        ?request :: Request
         , SetField fieldName record (Maybe Text)
         , KnownSymbol fieldName
         , HasField "id" record (ModelSupport.Id (ModelSupport.NormalizeModel record))
@@ -346,6 +350,7 @@ uploadToStorageWithOptions :: forall (fieldName :: Symbol) record (tableName :: 
         , SetField "meta" record MetaBag
     ) => StoreFileOptions -> Proxy fieldName -> record -> IO record
 uploadToStorageWithOptions options field record = do
+    let ?context = ?request
     let fieldName :: ByteString = cs (symbolVal (Proxy @fieldName))
     let tableName :: Text = cs (symbolVal (Proxy @tableName))
     let directory = tableName <> "/" <> cs fieldName
@@ -384,7 +389,7 @@ uploadToStorageWithOptions options field record = do
 -- >                 redirectTo EditCompanyAction { .. }
 --
 uploadToStorage :: forall (fieldName :: Symbol) record (tableName :: Symbol). (
-        ?context :: ControllerContext
+        ?request :: Request
         , ?request :: Request
         , SetField fieldName record (Maybe Text)
         , KnownSymbol fieldName
@@ -428,7 +433,9 @@ storage = ?context.frameworkConfig.appConfig
         |> fromMaybe (error "Could not find FileStorage in config. Did you call initS3Storage from your Config.hs?")
 
 -- | Returns the prefix for the storage. This is either @static/@ or an empty string depending on the storage.
-storagePrefix :: (?context :: ControllerContext) => Text
-storagePrefix = case storage of
-    StaticDirStorage { directory } -> directory
-    S3Storage { baseUrl} -> baseUrl
+storagePrefix :: (?request :: Request) => Text
+storagePrefix =
+    let ?context = ?request
+    in case storage of
+        StaticDirStorage { directory } -> directory
+        S3Storage { baseUrl} -> baseUrl

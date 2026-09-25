@@ -25,8 +25,11 @@ ihpFlake:
                 ghcCompiler = lib.mkOption {
                     description = ''
                         The GHC compiler to use for IHP.
+
+                        Defaults to `pkgs.ghc` (GHC 9.10, binary-cached). Set to
+                        `pkgs.ghc914` to opt into GHC 9.14 (built from source).
                     '';
-                    default = pkgs.haskellPackages;
+                    default = pkgs.ghc;
                 };
 
                 packages = lib.mkOption {
@@ -40,16 +43,27 @@ ihpFlake:
                 haskellPackages = lib.mkOption {
                     description = ''
                         Function returning a list of Haskell packages to be installed in the IHP environment.
+                        These packages are included in both the development shell and production builds.
+                        The set of Haskell packages is passed to the function.
+                    '';
+                    default = p: [
+                        p.base
+                        p.wai
+                        p.text
+                        p.ihp
+                        p.hasql # Required for generated Types.hs (FromRowHasql instances)
+                    ];
+                };
+
+                devHaskellPackages = lib.mkOption {
+                    description = ''
+                        Function returning a list of Haskell packages that are only available in the
+                        development shell (ghci, etc.) but NOT included in production builds.
                         The set of Haskell packages is passed to the function.
                     '';
                     default = p: [
                         p.cabal-install
-                        p.base
-                        p.wai
-                        p.text
                         p.hlint
-                        p.ihp
-                        p.hasql # Required for generated Types.hs (FromRowHasql instances)
                     ];
                 };
 
@@ -70,10 +84,11 @@ ihpFlake:
 
                 withHoogle = lib.mkOption {
                     description = ''
-                        Enable Hoogle support. Adds `hoogle` command to PATH.
+                        Enable Hoogle support. Adds `hoogle` command to PATH
+                        and auto-starts a Hoogle server on port 8002.
                     '';
                     type = lib.types.bool;
-                    default = false;
+                    default = true;
                 };
 
                 dontCheckPackages = lib.mkOption {
@@ -116,6 +131,89 @@ ihpFlake:
                     default = "1";
                 };
 
+                buildStaticLibraries = lib.mkOption {
+                    description = ''
+                        Whether production-server builds compile static Haskell libraries
+                        in addition to shared libraries.
+                    '';
+                    type = lib.types.bool;
+                    default = true;
+                };
+
+                ghcAllocationArea = lib.mkOption {
+                    description = ''
+                        Optional GHC compile-time RTS allocation area for production-server
+                        builds, such as "128M". When unset, the nixpkgs Haskell builder
+                        default is used.
+                    '';
+                    type = lib.types.nullOr lib.types.str;
+                    default = null;
+                };
+
+                extraGhcOptions = lib.mkOption {
+                    description = ''
+                        Extra GHC options applied when compiling the generated models
+                        package, the application library and all executables. For
+                        example [ "-Wall" ] to opt into the warnings the generated
+                        build does not enable by default, or linker flags.
+                    '';
+                    type = lib.types.listOf lib.types.str;
+                    default = [];
+                };
+
+                previousAppLibIntermediates = lib.mkOption {
+                    description = ''
+                        Combined intermediate output from a previous optimized application
+                        build. When set, GHC reuses still-valid objects and interfaces for
+                        generated models, the application library, the production server,
+                        the job runner, and optimized script binaries.
+                    '';
+                    type = lib.types.nullOr lib.types.package;
+                    default = null;
+                };
+
+                reuseAppLibWithIntermediatesForExecutables = lib.mkOption {
+                    description = ''
+                        Reuse the optimized application's cache-producing library
+                        package when linking the production server, job runner, and
+                        scripts. This avoids realizing a second library package and
+                        is intended for build pipelines that keep the intermediate
+                        output on the machine performing the build. Leave disabled
+                        for remote builders where transferring every derivation
+                        output would copy the multi-gigabyte intermediate tree.
+                    '';
+                    type = lib.types.bool;
+                    default = false;
+                };
+
+                appLibCompileCores = lib.mkOption {
+                    description = ''
+                        Optional fixed GHC module parallelism for optimized
+                        application-library builds. When set, IHP passes -jN to
+                        GHC instead of relying on the builder daemon's core count.
+                    '';
+                    type = lib.types.nullOr lib.types.ints.positive;
+                    default = null;
+                };
+
+                appLibGhcAllocationArea = lib.mkOption {
+                    description = ''
+                        Optional compile-time GHC RTS allocation area used only
+                        for the application library, such as "64M".
+                    '';
+                    type = lib.types.nullOr lib.types.str;
+                    default = null;
+                };
+
+                scripts.optimized = lib.mkOption {
+                    description = ''
+                        Whether packages.script-<Name> flake outputs are compiled with optimizations.
+                        Defaults to false for fast script builds.
+                    '';
+                    type = lib.types.bool;
+                    default = false;
+                };
+
                 relationSupport = lib.mkOption {
                     description = ''
                         Enable relation support (Include/fetchRelated type machinery).
@@ -146,6 +244,7 @@ ihpFlake:
                         If your app doesn't use the Makefile to bundle the CSS, you can disable this for faster builds.
                     '';
                 };
+
             };
         }
     );
@@ -154,59 +253,71 @@ ihpFlake:
         perSystem = { self', lib, pkgs, system, config, ... }: let
             cfg = config.ihp;
             ihp = ihpFlake.inputs.self;
-            ghcCompiler = pkgs.ghc;
-            hsDataDir = package:
-                    let
-                        ghcName   = package.passthru.compiler.haskellCompilerName;         # e.g. "ghc-9.10.1"
-                        shareRoot = "${package.data}/share/${ghcName}";
-                        # Pick the first (typically only) platform-specific directory, filtering out "doc"
-                        dirs = builtins.filter (d: d != "doc") (builtins.attrNames (builtins.readDir shareRoot));
-                        sys = lib.head dirs;
-                    in
-                        "${shareRoot}/${sys}/${package.name}";
+            ghcCompiler = cfg.ghcCompiler;
+            ihpLib = ihpFlake.inputs.self.packages.${system}.ihp-env-var-backwards-compat;
+            # Auto-detect whether a build-time PostgreSQL is needed (e.g. ihp-typed-sql)
+            buildWithPostgres = builtins.any (p: (p.pname or "") == "ihp-typed-sql") (cfg.haskellPackages ghcCompiler);
+            mkProdServer = { optimized, optimizationLevel }: import "${ihp}/NixSupport/default.nix" {
+                ihp = ihp;
+                haskellDeps = cfg.haskellPackages;
+                otherDeps = p: cfg.packages;
+                projectPath = cfg.projectPath;
+                inherit optimized;
+                ghc = ghcCompiler;
+                pkgs = pkgs;
+                rtsFlags = cfg.rtsFlags;
+                inherit optimizationLevel;
+                relationSupport = cfg.relationSupport;
+                appName = cfg.appName;
+                filter = ihpFlake.inputs.nix-filter.lib;
+                ihp-env-var-backwards-compat = ihpLib;
+                ihp-static = ihpFlake.inputs.self.packages.${system}.ihp-static;
+                static = self'.packages.static;
+                inherit buildWithPostgres;
+                previousIntermediates = if optimized then cfg.previousAppLibIntermediates else null;
+                reuseAppLibWithIntermediatesForExecutables =
+                    optimized && cfg.reuseAppLibWithIntermediatesForExecutables;
+                appLibCompileCores = if optimized then cfg.appLibCompileCores else null;
+                appLibGhcAllocationArea = if optimized then cfg.appLibGhcAllocationArea else null;
+                inherit (cfg) buildStaticLibraries ghcAllocationArea extraGhcOptions;
+                appSchemaSql = "${self'.packages.schema}/Schema.sql";
+                ihpSchemaSql = "${self'.packages.ihp-schema}/IHPSchema.sql";
+            };
+            optimizedProdServer = mkProdServer {
+                optimized = true;
+                optimizationLevel = cfg.optimizationLevel;
+            };
+            unoptimizedProdServer = mkProdServer {
+                optimized = false;
+                optimizationLevel = "0";
+            };
+            scriptBinaries =
+                if cfg.scripts.optimized
+                then optimizedProdServer.passthru.scriptBinaries
+                else unoptimizedProdServer.passthru.scriptBinaries;
+            scriptPackages =
+                lib.mapAttrs' (scriptName: scriptBinary:
+                    lib.nameValuePair "script-${scriptName}" scriptBinary
+                ) scriptBinaries;
+            scriptApps =
+                lib.mapAttrs' (scriptName: scriptBinary:
+                    lib.nameValuePair "script-${scriptName}" {
+                        type = "app";
+                        program = "${scriptBinary}/bin/${scriptName}";
+                    }
+                ) scriptBinaries;
         in lib.mkIf cfg.enable {
-            _module.args.pkgs = import inputs.nixpkgs { inherit system; overlays = config.devenv.shells.default.overlays; config = { }; };
+            _module.args.pkgs = lib.mkDefault (import inputs.nixpkgs { inherit system; overlays = config.devenv.shells.default.overlays; config = { }; });
+
+            apps = scriptApps;
 
             # release build package
             packages = {
-                default = self'.packages.unoptimized-prod-server;
+                default = unoptimizedProdServer;
 
-                optimized-prod-server = import "${ihp}/NixSupport/default.nix" {
-                    ihp = ihp;
-                    haskellDeps = cfg.haskellPackages;
-                    otherDeps = p: cfg.packages;
-                    projectPath = cfg.projectPath;
-                    # Set optimized = true to get more optimized binaries, but slower build times
-                    optimized = true;
-                    ghc = ghcCompiler;
-                    pkgs = pkgs;
-                    rtsFlags = cfg.rtsFlags;
-                    optimizationLevel = cfg.optimizationLevel;
-                    relationSupport = cfg.relationSupport;
-                    appName = cfg.appName;
-                    filter = ihpFlake.inputs.nix-filter.lib;
-                    ihp-env-var-backwards-compat = ihpFlake.inputs.self.packages.${system}.ihp-env-var-backwards-compat;
-                    ihp-static = ihpFlake.inputs.self.packages.${system}.ihp-static;
-                    static = self'.packages.static;
-                };
+                optimized-prod-server = optimizedProdServer;
 
-                unoptimized-prod-server = import "${ihp}/NixSupport/default.nix" {
-                    ihp = ihp;
-                    haskellDeps = cfg.haskellPackages;
-                    otherDeps = p: cfg.packages;
-                    projectPath = cfg.projectPath;
-                    optimized = false;
-                    ghc = ghcCompiler;
-                    pkgs = pkgs;
-                    rtsFlags = cfg.rtsFlags;
-                    optimizationLevel = "0";
-                    relationSupport = cfg.relationSupport;
-                    appName = cfg.appName;
-                    filter = ihpFlake.inputs.nix-filter.lib;
-                    ihp-env-var-backwards-compat = ihpFlake.inputs.self.packages.${system}.ihp-env-var-backwards-compat;
-                    ihp-static = ihpFlake.inputs.self.packages.${system}.ihp-static;
-                    static = self'.packages.static;
-                };
+                unoptimized-prod-server = unoptimizedProdServer;
 
                 static =
                     let
@@ -234,8 +345,19 @@ ihpFlake:
                     config = { Cmd = [ "${self'.packages.optimized-prod-server}/bin/RunProdServer" ]; };
                 };
 
+                unoptimized-docker-image-worker = pkgs.dockerTools.buildImage {
+                    name = "ihp-worker";
+                    config = { Cmd = [ "${self'.packages.unoptimized-prod-server}/bin/RunJobs" ]; };
+                };
+
+                optimized-docker-image-worker = pkgs.dockerTools.buildImage {
+                    name = "ihp-worker";
+                    config = { Cmd = [ "${self'.packages.optimized-prod-server}/bin/RunJobs" ]; };
+                };
 
                 migrate = ghcCompiler.ihp-migrate;
+
+                migration-check = unoptimizedProdServer.passthru.migrationCheck;
 
                 ihp-schema = pkgs.stdenv.mkDerivation {
                     name = "ihp-schema";
@@ -258,7 +380,8 @@ ihpFlake:
                         cp Application/Schema.sql $out/
                     '';
                 };
-            } // (if cfg.static.makeBundling then {
+            } // scriptPackages
+            // (if cfg.static.makeBundling then {
                 staticFilesCompiledByMake = pkgs.stdenv.mkDerivation {
                     name = "${config.ihp.appName}-staticFilesCompiledByMake";
                     buildPhase = ''
@@ -272,10 +395,10 @@ ihpFlake:
                         # See https://github.com/svanderburg/node2nix/issues/217#issuecomment-751311272
                         export HOME=/tmp
 
-                        export IHP_LIB=${ihpFlake.inputs.self.packages.${system}.ihp-env-var-backwards-compat}
-                        export IHP=${ihpFlake.inputs.self.packages.${system}.ihp-env-var-backwards-compat}
+                        export IHP_LIB=${ihpLib}
+                        export IHP=${ihpLib}
 
-                        make -j static/app.css static/app.js
+                        make -j static/prod.css static/prod.js
                         runHook postBuild
                     '';
                     installPhase = ''
@@ -298,15 +421,80 @@ ihpFlake:
                     tests = pkgs.stdenv.mkDerivation {
                             name = "${config.ihp.appName}-tests";
                             src = builtins.path { path = config.ihp.projectPath; name = "source"; };
-                            nativeBuildInputs = with pkgs; [ (ghcCompiler.ghcWithPackages (p: cfg.haskellPackages p ++ [p.ihp-ide p.ihp-schema-compiler])) ];
+                            nativeBuildInputs = with pkgs; [ (ghcCompiler.ghcWithPackages (p: cfg.haskellPackages p ++ cfg.devHaskellPackages p ++ [p.ihp-ide p.ihp-schema-compiler])) ]
+                                # typedSql's quasi-quoter boots an ephemeral PostgreSQL at
+                                # compile time to describe queries (see IHP_TYPED_SQL_AUTO_DB
+                                # below), so the postgres tools must be on PATH whenever the
+                                # app depends on ihp-typed-sql.
+                                ++ lib.optionals buildWithPostgres
+                                    [ postgresql_18 ps ];
                             buildPhase = ''
-                                # shellcheck disable=SC2046
-                                make -f ${hsDataDir ghcCompiler.ihp-ide.data}/lib/IHP/Makefile.dist build/Generated/Types.hs
+                                export IHP_LIB=${ihpLib}
+
+                                # typedSql describes each [typedSql|…|] query against a live
+                                # database at COMPILE time. IHP_TYPED_SQL_AUTO_DB=1 makes the
+                                # quasi-quoter boot its own throwaway PostgreSQL and load
+                                # IHPSchema.sql (found via IHP_LIB) plus Application/Schema.sql
+                                # (found from the project root) before describing, so test
+                                # modules that use typedSql compile here without a running dev
+                                # server. The dev shell sets the same variable.
+                                export IHP_TYPED_SQL_AUTO_DB=1
 
                                 # shellcheck disable=SC2046
-                                runghc $(make -f ${hsDataDir ghcCompiler.ihp-ide.data}/lib/IHP/Makefile.dist print-ghc-extensions) -i. -ibuild -iConfig Test/Main.hs
+                                make -f ${ihpLib}/lib/IHP/Makefile.dist build/Generated/Types.hs
+
+                                # shellcheck disable=SC2046
+                                runghc $(make -f ${ihpLib}/lib/IHP/Makefile.dist print-ghc-extensions) -i. -ibuild -iConfig Test/Main.hs
                                 touch $out
                             '';
+                            installPhase = "true";
+                        };
+                } else {})
+            // (if builtins.pathExists "${cfg.projectPath}/Test/Integration.hs"
+                then {
+                    "integration-tests" = pkgs.stdenv.mkDerivation {
+                            name = "${config.ihp.appName}-integration-tests";
+                            src = builtins.path { path = config.ihp.projectPath; name = "source"; };
+                            nativeBuildInputs = with pkgs; [
+                                (ghcCompiler.ghcWithPackages (p: cfg.haskellPackages p ++ cfg.devHaskellPackages p ++ [p.ihp-ide p.ihp-schema-compiler]))
+                                gnumake
+                                postgresql_18
+                            ];
+                            buildPhase = ''
+                                export IHP_LIB=${ihpLib}
+
+                                # Start temporary PostgreSQL
+                                export PGDATA="$TMPDIR/pgdata"
+                                export PGHOST="$TMPDIR/pghost"
+                                mkdir -p "$PGHOST"
+                                initdb -D "$PGDATA" --no-locale --encoding=UTF8
+                                echo "unix_socket_directories = '$PGHOST'" >> "$PGDATA/postgresql.conf"
+                                echo "listen_addresses = '''" >> "$PGDATA/postgresql.conf"
+                                pg_ctl -D "$PGDATA" -l "$TMPDIR/pg.log" start
+
+                                createdb -h "$PGHOST" app
+                                export DATABASE_URL="postgresql:///app?host=$PGHOST"
+
+                                # typedSql describes each [typedSql| … |] query against
+                                # DATABASE_URL at COMPILE time, so the schema must exist
+                                # before we compile. (The hspec harness creates its own
+                                # per-test databases at runtime; this load only serves the
+                                # compile-time describe.) Load IHP's schema first, then the
+                                # app's.
+                                psql -h "$PGHOST" -d app -v ON_ERROR_STOP=1 -f ${self'.packages.ihp-schema}/IHPSchema.sql
+                                psql -h "$PGHOST" -d app -v ON_ERROR_STOP=1 -f Application/Schema.sql
+
+                                # Generate types and run integration tests
+                                make -f $IHP_LIB/lib/IHP/Makefile.dist build/Generated/Types.hs
+
+                                # shellcheck disable=SC2046
+                                runghc $(make -f $IHP_LIB/lib/IHP/Makefile.dist print-ghc-extensions) -i. -ibuild -iConfig Test/Integration.hs
+
+                                # Cleanup
+                                pg_ctl -D "$PGDATA" stop || true
+                                touch $out
+                            '';
+                            installPhase = "true";
                         };
                 } else {});
 
@@ -314,6 +502,7 @@ ihpFlake:
                 packages = [ ghcCompiler.ihp ghcCompiler.ihp-ide pkgs.gnumake ihpFlake.inputs.self.packages."${system}".run-script ]
                     ++ cfg.packages
                     ++ [pkgs.mktemp] # Without this 'make build/bin/RunUnoptimizedProdServer' fails on macOS
+                    ++ [ pkgs.ps ]
                     ++ [(let cfg = config.devenv.shells.default.services.postgres; in
                         if cfg.extensions != null
                         then
@@ -338,26 +527,50 @@ ihpFlake:
                 languages.haskell.enable = true;
                 languages.haskell.package = (if cfg.withHoogle
                                              then ghcCompiler.ghc.withHoogle
-                                             else ghcCompiler.ghc.withPackages) cfg.haskellPackages;
+                                             else ghcCompiler.ghc.withPackages) (p: cfg.haskellPackages p ++ cfg.devHaskellPackages p);
 
                 languages.haskell.stack.enable = false; # Stack is not used in IHP
+                # Use the package-set HLS. devenv's default override rejects GHC RC version strings.
+                languages.haskell.lsp.package = ghcCompiler.haskell-language-server;
+                languages.haskell.lsp.enable = true;
 
                 scripts.start.exec = ''
-                    IHP_STATIC=${ihpFlake.inputs.self.packages.${system}.ihp-static} ${ghcCompiler.ihp-ide}/bin/RunDevServer
+                    exec env IHP_STATIC=${ihpFlake.inputs.self.packages.${system}.ihp-static} ${ghcCompiler.ihp-ide}/bin/RunDevServer
                 '';
 
-                processes.ihp.exec = "start";
+                scripts.start-worker.exec = ''
+                    exec env IHP_STATIC=${ihpFlake.inputs.self.packages.${system}.ihp-static} ${ghcCompiler.ihp-ide}/bin/RunDevWorker
+                '';
+
+                process.manager.implementation = "process-compose";
+
+                # The web server (RunDevServer) and the job worker (RunDevWorker) run as
+                # separate process-compose processes. The web process owns the file watcher,
+                # status server, schema compiler, and tool server; it signals the worker
+                # over a Unix socket whenever a Haskell change should reload it. The worker
+                # process idles when no Job/ modules exist in the project.
+                processes.web.exec = "start";
+                processes.worker.exec = "start-worker";
 
                 # Disabled for now
                 # Can be re-enabled once postgres is provided by devenv instead of IHP
                 env.IHP_DEVENV = "1";
                 env.DATABASE_URL = "postgres:///app?host=${config.devenv.shells.default.env.PGHOST}";
+                env.PGDATABASE = "app";
+                # Lets typedSql typecheck in non-interactive GHCi/build sessions
+                # even when `devenv up` is not currently running.
+                env.IHP_TYPED_SQL_AUTO_DB = "1";
 
-                # Disabled for now
-                # As the devenv postgres uses a different location for the socket
-                # this would break lots of known commands such as `make db`
+                # Pin the major version. pkgs.postgresql follows the nixpkgs alias.
+                services.postgres.package = lib.mkDefault pkgs.postgresql_18;
                 services.postgres.enable = true;
-                services.postgres.package = pkgs.postgresql_18;
+                services.postgres.settings = {
+                    logging_collector = true;
+                    log_directory = "log";
+                    log_filename = "postgresql.log";
+                    log_rotation_age = 0;
+                    log_rotation_size = 0;
+                };
                 services.postgres.initialDatabases = [
                     {
                     name = "app";
@@ -380,6 +593,7 @@ ihpFlake:
                     }
                 ];
 
+
                 # Used in the Makefile https://github.com/digitallyinduced/ihp-boilerplate/blob/master/Makefile
                 env.IHP = ihpFlake.inputs.self.packages.${system}.ihp-env-var-backwards-compat;
 
@@ -387,6 +601,18 @@ ihpFlake:
                 env.IHP_LIB = config.devenv.shells.default.env.IHP;
 
                 env.IHP_RELATION_SUPPORT = if cfg.relationSupport then "1" else "0";
+
+                # Set env var so IDE knows Hoogle port (empty when disabled)
+                env.IHP_HOOGLE_PORT = if cfg.withHoogle then "8002" else "";
+
+                # Auto-start Hoogle search server when withHoogle is enabled
+                # Disable CSP security headers: Hoogle v5.0.18.4 sends `upgrade-insecure-requests`
+                # even over plain HTTP, which causes Safari to try loading CSS/JS over HTTPS and fail.
+                # Fixed upstream (github.com/ndmitchell/hoogle/issues/432) but not yet released.
+                # Since Hoogle only runs on localhost for development, these headers aren't needed.
+                processes.hoogle = lib.mkIf cfg.withHoogle {
+                    exec = "hoogle server --local -p 8002 --no-security-headers";
+                };
 
                 scripts.deploy-to-nixos.exec = ''
                     if [[ $# -eq 0 || $1 == "--help" ]]; then
@@ -416,7 +642,7 @@ ihpFlake:
             };
 
             checks = (lib.filterAttrs (n: v:
-                   n != "unoptimized-docker-image" && n != "optimized-docker-image" # Docker imagee builds are very slow, so we ignore them
+                   n != "unoptimized-docker-image" && n != "optimized-docker-image" && n != "unoptimized-docker-image-worker" && n != "optimized-docker-image-worker" # Docker image builds are very slow, so we ignore them
                 && n != "migrate"
                 && lib.isDerivation v
                 ) self.packages.${system});

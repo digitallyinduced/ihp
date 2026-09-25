@@ -15,11 +15,8 @@ module IHP.QueryBuilder.Union
 import IHP.Prelude
 import IHP.ModelSupport
 import IHP.QueryBuilder.Types
-import IHP.QueryBuilder.Compiler (query)
-import Database.PostgreSQL.Simple.ToField (Action(..))
-import qualified Hasql.DynamicStatements.Snippet as Snippet
 
--- | Merges the results of two query builders.
+-- | Merges the results of two query builders by ORing their WHERE conditions.
 --
 -- Take a look at 'queryOr'  as well, as this might be a bit shorter.
 --
@@ -28,14 +25,17 @@ import qualified Hasql.DynamicStatements.Snippet as Snippet
 -- > let userPages = query @Page |> filterWhere (#ownerId, currentUserId)
 -- > let teamPages = query @Page |> filterWhere (#teamId, currentTeamId)
 -- > pages <- queryUnion userPages teamPages |> fetch
--- > -- (SELECT * FROM pages WHERE owner_id = '..') UNION (SELECT * FROM pages WHERE team_id = '..')
-queryUnion :: (HasQueryBuilder queryBuilderProvider joinRegister, HasQueryBuilder r joinRegister') => queryBuilderProvider model -> r model -> NoJoinQueryBuilderWrapper model
-queryUnion firstQueryBuilderProvider secondQueryBuilderProvider = NoJoinQueryBuilderWrapper (UnionQueryBuilder { firstQueryBuilder, secondQueryBuilder })
-    where
-        firstQueryBuilder = getQueryBuilder firstQueryBuilderProvider
-        secondQueryBuilder = getQueryBuilder secondQueryBuilderProvider
-
-
+-- > -- SELECT * FROM pages WHERE (owner_id = '..') OR (team_id = '..')
+queryUnion :: QueryBuilder model -> QueryBuilder model -> QueryBuilder model
+queryUnion (QueryBuilder first) (QueryBuilder second) =
+    let isSimple q = null (orderByClause q) && isNothing (limitClause q) && isNothing (offsetClause q)
+        unionWhere = case (whereCondition first, whereCondition second) of
+            (Nothing, wc) -> wc
+            (wc, Nothing) -> wc
+            (Just a, Just b) -> Just (OrCondition a b)
+    in if isSimple first && isSimple second
+        then QueryBuilder first { whereCondition = unionWhere }
+        else error "queryUnion: Union of complex queries (with ORDER BY, LIMIT, or OFFSET) not supported"
 {-# INLINE queryUnion #-}
 
 -- | Like 'queryUnion', but applied on all the elements on the list
@@ -53,11 +53,21 @@ queryUnion firstQueryBuilderProvider secondQueryBuilderProvider = NoJoinQueryBui
 -- >
 -- >      projects <- fetch theQuery
 -- >      render IndexView { .. }
-queryUnionList :: forall table. (Table (GetModelByTableName table), KnownSymbol table, GetTableName (GetModelByTableName table) ~ table) => [QueryBuilder table] -> QueryBuilder table
+queryUnionList :: forall table. Table (GetModelByTableName table) => [QueryBuilder table] -> QueryBuilder table
 -- For empty list, create a condition that is always false: id <> id (which is always false for non-null)
-queryUnionList [] = FilterByQueryBuilder { queryBuilder = query @(GetModelByTableName table) @table, queryFilter = ("id", NotEqOp, Plain mempty, Snippet.sql "id"), applyLeft = Nothing, applyRight = Nothing }
-queryUnionList (firstQueryBuilder:secondQueryBuilder:[]) = UnionQueryBuilder { firstQueryBuilder, secondQueryBuilder }
-queryUnionList (firstQueryBuilder:rest) = UnionQueryBuilder { firstQueryBuilder, secondQueryBuilder = queryUnionList @table rest }
+queryUnionList [] = addCondition (ColumnCondition "id" NotEqOp (Literal "id") Nothing Nothing) (def :: QueryBuilder table)
+queryUnionList [single] = single
+queryUnionList (first:rest) =
+    let QueryBuilder firstSq = first
+        QueryBuilder restSq = queryUnionList @table rest
+        isSimple q = null (orderByClause q) && isNothing (limitClause q) && isNothing (offsetClause q)
+        unionWhere = case (whereCondition firstSq, whereCondition restSq) of
+            (Nothing, wc) -> wc
+            (wc, Nothing) -> wc
+            (Just a, Just b) -> Just (OrCondition a b)
+    in if isSimple firstSq && isSimple restSq
+        then QueryBuilder firstSq { whereCondition = unionWhere }
+        else error "queryUnionList: Union of complex queries (with ORDER BY, LIMIT, or OFFSET) not supported"
 
 
 -- | Adds an @a OR b@ condition
@@ -70,10 +80,14 @@ queryUnionList (firstQueryBuilder:rest) = UnionQueryBuilder { firstQueryBuilder,
 -- >         (filterWhere (#public, True))
 -- >     |> fetch
 -- > -- SELECT * FROM pages WHERE created_by = '..' OR public = True
-queryOr :: (HasQueryBuilder queryBuilderProvider joinRegister, HasQueryBuilder queryBuilderProvider'' joinRegister'', HasQueryBuilder queryBuilderProvider''' joinRegister''') => (queryBuilderProvider model -> queryBuilderProvider''' model) -> (queryBuilderProvider model -> queryBuilderProvider'' model) -> queryBuilderProvider model -> queryBuilderProvider model
-queryOr firstQuery secondQuery queryBuilder = injectQueryBuilder
-    (UnionQueryBuilder {
-        firstQueryBuilder = getQueryBuilder $ firstQuery queryBuilder,
-        secondQueryBuilder = getQueryBuilder $ secondQuery queryBuilder}
-    )
+queryOr :: (QueryBuilder model -> QueryBuilder model) -> (QueryBuilder model -> QueryBuilder model) -> QueryBuilder model -> QueryBuilder model
+queryOr firstQuery secondQuery queryBuilder =
+    let QueryBuilder firstSq = firstQuery queryBuilder
+        QueryBuilder secondSq = secondQuery queryBuilder
+        unionWhere = case (whereCondition firstSq, whereCondition secondSq) of
+            (Nothing, wc) -> wc
+            (wc, Nothing) -> wc
+            (Just a, Just b) -> Just (OrCondition a b)
+        QueryBuilder baseSq = queryBuilder
+    in QueryBuilder baseSq { whereCondition = unionWhere }
 {-# INLINE queryOr #-}

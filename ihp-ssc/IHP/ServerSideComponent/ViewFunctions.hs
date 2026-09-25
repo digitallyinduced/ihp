@@ -8,7 +8,7 @@ module IHP.ServerSideComponent.ViewFunctions where
 import IHP.Prelude
 import IHP.ViewSupport
 import IHP.ServerSideComponent.Types
-import IHP.HSX.QQ (hsx)
+import IHP.HSX.MarkupQQ (hsx)
 
 import qualified Data.Typeable as Typeable
 

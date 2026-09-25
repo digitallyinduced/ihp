@@ -75,7 +75,7 @@ Use [`setSuccessMessage`](https://ihp.digitallyinduced.com/api-docs/IHP-FlashMes
 ```haskell
 action CreatePostAction = do
     ...
-    setSuccessMessage "Your Post has been created succesfully"
+    setSuccessMessage "Your Post has been created successfully"
     redirectTo ShowPostAction { .. }
 ```
 
@@ -121,7 +121,7 @@ The rendered HTML looks like this:
 <div class="alert alert-danger">{errorMessage}</div>
 ```
 
-To display the Flash Messages in a custom way, you can always access them using `let flashMessages :: [FlashMessage] = fromFrozenContext` in your views. This returns a list of [`FlashMessage`](https://ihp.digitallyinduced.com/api-docs/IHP-FlashMessages-Types.html#t:FlashMessage). You can also take a look at the [`renderFlashMessages`](https://ihp.digitallyinduced.com/api-docs/IHP-FlashMessages-ViewFunctions.html#v:renderFlashMessages) implementation and copy the code into your view, and then make customizations.
+To display the Flash Messages in a custom way, call `requestFlashMessages ?request` in your view. This returns a list of [`FlashMessage`](https://ihp.digitallyinduced.com/api-docs/IHP-FlashMessages-Types.html#t:FlashMessage). You can also take a look at the [`renderFlashMessages`](https://ihp.digitallyinduced.com/api-docs/IHP-FlashMessages-ViewFunctions.html#v:renderFlashMessages) implementation and copy the code into your view, and then make customizations.
 
 ## Session Cookie
 

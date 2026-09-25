@@ -1,18 +1,15 @@
 {-|
-Module: Test.IDE.CodeGeneration.MailGenerator
+Module: IDE.CodeGeneration.MailGenerator
 Copyright: (c) digitally induced GmbH, 2020
 -}
-module Test.IDE.CodeGeneration.MailGenerator where
+module IDE.CodeGeneration.MailGenerator where
 
 import Test.Hspec
 import IHP.Prelude
 import qualified IHP.IDE.CodeGen.MailGenerator as MailGenerator
-import IHP.ViewPrelude (cs, plain)
-import qualified Text.Megaparsec as Megaparsec
 import IHP.IDE.CodeGen.Types
 import IHP.Postgres.Types
-import IHP.NameSupport
-import Test.IDE.SchemaDesigner.ParserSpec (col, table)
+
 
 
 tests = do

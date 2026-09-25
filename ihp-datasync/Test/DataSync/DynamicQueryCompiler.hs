@@ -1,22 +1,16 @@
 {-|
 Copyright: (c) digitally induced GmbH, 2021
 -}
-module Test.DataSync.DynamicQueryCompiler where
+module DataSync.DynamicQueryCompiler where
 
 import Test.Hspec
 import IHP.Prelude
 import IHP.DataSync.DynamicQueryCompiler
 import IHP.DataSync.DynamicQuery
-import IHP.DataSync.TypedEncoder (ColumnTypeInfo(..))
 import IHP.QueryBuilder hiding (OrderByClause)
-import Hasql.DynamicStatements.Snippet (Snippet)
-import qualified Hasql.DynamicStatements.Snippet as Snippet
 import qualified Data.HashMap.Strict as HashMap
 import qualified Data.Aeson as Aeson
-
--- | Convert a Snippet to its SQL text representation for testing purposes.
-snippetToSql :: Snippet -> ByteString
-snippetToSql snippet = cs (Snippet.toSql snippet)
+import qualified Hasql.DynamicStatements.Snippet as Snippet
 
 -- | Column types for the "posts" table used in tests.
 -- Simulates database column order: id first, then other columns in schema definition order.
@@ -41,12 +35,12 @@ productsTypes = ColumnTypeInfo
     }
 
 -- | Compile a query with the camelCase renamer and typed encoding.
-compile :: ColumnTypeInfo -> DynamicSQLQuery -> Snippet
+compile :: ColumnTypeInfo -> DynamicSQLQuery -> Snippet.Snippet
 compile = compileQueryTyped camelCaseRenamer
 
 -- | Expected SELECT clause for postsTypes when using SelectAll
 -- Columns appear in database schema order (from orderedColumns), with camelCase aliases
-postsSelectAll :: ByteString
+postsSelectAll :: Text
 postsSelectAll = "\"id\", \"user_id\" AS \"userId\", \"title\", \"a\", \"ts\", \"group_id\" AS \"groupId\""
 
 tests = do
@@ -64,7 +58,7 @@ tests = do
                         }
 
                 -- SelectAll expands to all columns with appropriate camelCase aliases (id first, then alphabetically)
-                snippetToSql (compile postsTypes query) `shouldBe`
+                Snippet.toSql (compile postsTypes query) `shouldBe`
                         ("SELECT " <> postsSelectAll <> " FROM \"posts\"")
 
             it "compile a select query with order by" do
@@ -78,7 +72,7 @@ tests = do
                         , offset = Nothing
                         }
 
-                snippetToSql (compile postsTypes query) `shouldBe`
+                Snippet.toSql (compile postsTypes query) `shouldBe`
                         ("SELECT " <> postsSelectAll <> " FROM \"posts\" ORDER BY \"title\" DESC")
 
             it "compile a select query with multiple order bys" do
@@ -95,7 +89,7 @@ tests = do
                         , offset = Nothing
                         }
 
-                snippetToSql (compile postsTypes query) `shouldBe`
+                Snippet.toSql (compile postsTypes query) `shouldBe`
                         ("SELECT " <> postsSelectAll <> " FROM \"posts\" ORDER BY \"created_at\" DESC, \"title\"")
 
             it "compile a basic select query with a where condition" do
@@ -109,7 +103,7 @@ tests = do
                         , offset = Nothing
                         }
 
-                snippetToSql (compile postsTypes query) `shouldBe`
+                Snippet.toSql (compile postsTypes query) `shouldBe`
                         ("SELECT " <> postsSelectAll <> " FROM \"posts\" WHERE (\"user_id\") = ($1)")
 
             it "compile a basic select query with a where condition and an order by" do
@@ -123,7 +117,7 @@ tests = do
                         , offset = Nothing
                         }
 
-                snippetToSql (compile postsTypes query) `shouldBe`
+                Snippet.toSql (compile postsTypes query) `shouldBe`
                         ("SELECT " <> postsSelectAll <> " FROM \"posts\" WHERE (\"user_id\") = ($1) ORDER BY \"created_at\" DESC")
 
             it "compile a basic select query with a limit" do
@@ -137,7 +131,7 @@ tests = do
                         , offset = Nothing
                         }
 
-                snippetToSql (compile postsTypes query) `shouldBe`
+                Snippet.toSql (compile postsTypes query) `shouldBe`
                         ("SELECT " <> postsSelectAll <> " FROM \"posts\" WHERE (\"user_id\") = ($1) LIMIT $2")
 
             it "compile a basic select query with an offset" do
@@ -151,7 +145,7 @@ tests = do
                         , offset = Just 50
                         }
 
-                snippetToSql (compile postsTypes query) `shouldBe`
+                Snippet.toSql (compile postsTypes query) `shouldBe`
                         ("SELECT " <> postsSelectAll <> " FROM \"posts\" WHERE (\"user_id\") = ($1) OFFSET $2")
 
             it "compile a basic select query with a limit and an offset" do
@@ -165,7 +159,7 @@ tests = do
                         , offset = Just 50
                         }
 
-                snippetToSql (compile postsTypes query) `shouldBe`
+                Snippet.toSql (compile postsTypes query) `shouldBe`
                         ("SELECT " <> postsSelectAll <> " FROM \"posts\" WHERE (\"user_id\") = ($1) LIMIT $2 OFFSET $3")
 
             it "compile 'field = NULL' conditions to 'field IS NULL'" do
@@ -179,7 +173,7 @@ tests = do
                         , offset = Nothing
                         }
 
-                snippetToSql (compile postsTypes query) `shouldBe`
+                Snippet.toSql (compile postsTypes query) `shouldBe`
                         ("SELECT " <> postsSelectAll <> " FROM \"posts\" WHERE (\"user_id\") IS NULL")
 
             it "compile 'field <> NULL' conditions to 'field IS NOT NULL'" do
@@ -193,7 +187,7 @@ tests = do
                         , offset = Nothing
                         }
 
-                snippetToSql (compile postsTypes query) `shouldBe`
+                Snippet.toSql (compile postsTypes query) `shouldBe`
                         ("SELECT " <> postsSelectAll <> " FROM \"posts\" WHERE (\"user_id\") IS NOT NULL")
 
             it "compile 'field IN (NULL)' conditions to 'field IS NULL'" do
@@ -207,7 +201,7 @@ tests = do
                         , offset = Nothing
                         }
 
-                snippetToSql (compile postsTypes query) `shouldBe`
+                Snippet.toSql (compile postsTypes query) `shouldBe`
                         ("SELECT " <> postsSelectAll <> " FROM \"posts\" WHERE (\"a\") IS NULL")
 
             it "compile 'field IN (NULL, 'string')' conditions to 'field IS NULL OR field IN ('string')'" do
@@ -221,7 +215,7 @@ tests = do
                         , offset = Nothing
                         }
 
-                snippetToSql (compile postsTypes query) `shouldBe`
+                Snippet.toSql (compile postsTypes query) `shouldBe`
                         ("SELECT " <> postsSelectAll <> " FROM \"posts\" WHERE ((\"a\") IN ($1)) OR ((\"a\") IS NULL)")
 
             it "compile queries with TS expressions" do
@@ -236,7 +230,7 @@ tests = do
                         }
 
                 -- productsTypes only has "ts" column (no rename needed since it's already snake_case = camelCase)
-                snippetToSql (compile productsTypes query) `shouldBe`
+                Snippet.toSql (compile productsTypes query) `shouldBe`
                         "SELECT \"ts\" FROM \"products\" WHERE (\"ts\") @@ (to_tsquery('english', $1)) ORDER BY ts_rank(\"ts\", to_tsquery('english', $2))"
 
             it "compile a basic select query with distinctOn" do
@@ -250,7 +244,7 @@ tests = do
                         , offset = Nothing
                         }
 
-                snippetToSql (compile postsTypes query) `shouldBe`
+                Snippet.toSql (compile postsTypes query) `shouldBe`
                         ("SELECT DISTINCT ON (\"group_id\") " <> postsSelectAll <> " FROM \"posts\"")
 
             it "compile a WHERE IN query" do
@@ -264,7 +258,7 @@ tests = do
                         , offset = Nothing
                         }
 
-                snippetToSql (compile postsTypes query) `shouldBe`
+                Snippet.toSql (compile postsTypes query) `shouldBe`
                         ("SELECT " <> postsSelectAll <> " FROM \"posts\" WHERE (\"id\") IN ($1, $2)")
 
             it "compile an empty WHERE IN query to FALSE" do
@@ -278,7 +272,7 @@ tests = do
                         , offset = Nothing
                         }
 
-                snippetToSql (compile postsTypes query) `shouldBe`
+                Snippet.toSql (compile postsTypes query) `shouldBe`
                         ("SELECT " <> postsSelectAll <> " FROM \"posts\" WHERE FALSE")
 
             it "compile SelectSpecific with camelCase to snake_case aliases" do
@@ -293,5 +287,5 @@ tests = do
                         }
 
                 -- SelectSpecific columns get renamed to snake_case and aliased back to camelCase
-                snippetToSql (compile postsTypes query) `shouldBe`
+                Snippet.toSql (compile postsTypes query) `shouldBe`
                         "SELECT \"user_id\" AS \"userId\", \"title\" FROM \"posts\""

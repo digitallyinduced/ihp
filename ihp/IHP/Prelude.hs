@@ -1,4 +1,8 @@
+{-# LANGUAGE CPP #-}
 {-# OPTIONS_HADDOCK not-home, hide #-}
+#if __GLASGOW_HASKELL__ >= 912
+{-# LANGUAGE NamedDefaults #-}
+#endif
 module IHP.Prelude
 ( module CorePrelude
 , module Data.Text.IO
@@ -33,7 +37,6 @@ module IHP.Prelude
 , module IHP.NameSupport
 , module IHP.ModelSupport
 , module Data.TMap
-, module Database.PostgreSQL.Simple
 , module Data.IORef
 , module Data.Time.Format
 , null
@@ -47,6 +50,9 @@ module IHP.Prelude
 , OsPath
 , textToOsPath
 , osPathToText
+#if __GLASGOW_HASKELL__ >= 912
+, default IsString
+#endif
 )
 where
 
@@ -72,9 +78,8 @@ import GHC.OverloadedLabels
 import Data.Data (Data)
 import GHC.TypeLits (KnownSymbol, Symbol, symbolVal)
 import IHP.NameSupport
-import IHP.ModelSupport (ModelContext (..), CanUpdate, NormalizeModel, Id, GetTableName, GetModelName, updateRecord, updateRecordDiscardResult, createRecord, deleteRecord, MetaBag (..))
+import IHP.ModelSupport (ModelContext (..), CanUpdate, NormalizeModel, Id, GetTableName, GetModelName, updateRecord, updateRecordDiscardResult, createRecord, deleteRecord, MetaBag (..), FieldBit (..))
 import Data.TMap (TMap)
-import Database.PostgreSQL.Simple (FromRow)
 import Data.IORef
 import Data.Time.Format
 import Control.Exception.Safe (throw, throwIO, catch)
@@ -145,3 +150,7 @@ osPathToText path = cs (unsafePerformIO (OsPath.decodeUtf path))
 instance IsString OsPath where
     fromString s = unsafePerformIO (OsPath.encodeUtf s)
     {-# NOINLINE fromString #-}
+
+#if __GLASGOW_HASKELL__ >= 912
+default IsString (Text, String)
+#endif

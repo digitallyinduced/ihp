@@ -17,6 +17,7 @@ You will also find steps on how to get autocompletion and smart IDE features. Th
 - [`direnv`](https://marketplace.visualstudio.com/items?itemName=mkhl.direnv), this loads the project `.envrc` file, so all the right Haskell packages are available to VSCode
 - [`Haskell`](https://marketplace.visualstudio.com/items?itemName=haskell.haskell), this gets smart IDE features with haskell-language-server
 - [`Haskell HSX`](https://marketplace.visualstudio.com/items?itemName=s0kil.vscode-hsx), provides support for [HSX](https://ihp.digitallyinduced.com/Guide/hsx.html)
+- [`IHP Routes QQ`](https://marketplace.visualstudio.com/items?itemName=avitkauskas.ihp-routes-quasi), provides support for IHP `[routes|...|]` quasiquote syntax highlighting
 
 To make file paths clickable inside the web browser (e.g. when a type error happens), export this env var in your shell (e.g. in `.bashrc`):
 
@@ -254,18 +255,22 @@ When something goes wrong you can also run `haskell-language-server` inside the 
 
 ## IHP Dev Server
 
-### Customizing the Web Browser used by IHP
+### Opening the IHP Dev Server in a Browser
 
-When running `devenv up` the application will automatically be opened in your default browser. You can manually specify a browser by setting the env var `IHP_BROWSER` in `.envrc`:
+When running `devenv up`, IHP prints the development tooling URL to the terminal. To open it automatically in a browser, set the env var `IHP_BROWSER` in `.envrc`:
 
 ```bash
 export IHP_BROWSER=firefox
 ```
 
-You can disable the auto-start of the browser completely using `echo` as your browser:
+You can also use the system browser opener for your platform:
 
 ```bash
-export IHP_BROWSER=echo
+# macOS
+export IHP_BROWSER=open
+
+# Linux
+export IHP_BROWSER=xdg-open
 ```
 
 ### Running the IHP Dev Server On a Host Different From `localhost`
@@ -281,48 +286,23 @@ Next time you use the dev server via `devenv up` all links will use the right `I
 
 ### Hoogle
 
-To quickly look up function type signatures you can use the built-in hoogle server.
+To quickly look up function type signatures you can use the built-in Hoogle support.
 
-To install it:
-
-1. Open `flake.nix`
-2. Add `withHoogle = true;` to the `ihp` project block, inside `perSystem` function invocation like this:
+To enable it, add `withHoogle = true;` to your `flake.nix`:
 
 ```nix
-...
-outputs = inputs@{ ihp, flake-parts, systems, ... }:
-    flake-parts.lib.mkFlake { inherit inputs; } {
-
-        systems = import systems;
-        imports = [ ihp.flakeModules.default ];
-
-        perSystem = { pkgs, ... }: {
-            ihp = {
-                enable = true;
-                projectPath = ./.;
-                packages = with pkgs; [
-                    # Native dependencies, e.g. imagemagick
-                ];
-                haskellPackages = p: with p; [
-                    # Haskell dependencies go here
-                    p.ihp
-                    cabal-install
-                    base
-                    wai
-                    text
-                    hlint
-                ];
-                withHoogle = true; # <-------
-            };
-        };
-
+perSystem = { pkgs, ... }: {
+    ihp = {
+        enable = true;
+        projectPath = ./.;
+        withHoogle = true;
     };
+};
 ```
 
-Run `devenv up` to remake your dev environment.
+Run `devenv up` to remake your dev environment. A Hoogle server will automatically start on port 8002. You can access it via:
 
-After that you can use the following command to start hoogle at `localhost:8080`:
+- The **HOOGLE** link in the IHP IDE sidebar
+- Directly at `http://localhost:8002`
 
-```bash
-hoogle server --local -p 8080
-```
+Note: Enabling Hoogle adds time to the initial `nix develop` (for Hoogle database generation). Set `withHoogle = false;` to disable it again.

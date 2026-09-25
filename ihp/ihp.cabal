@@ -1,6 +1,6 @@
 cabal-version:       2.2
 name:                ihp
-version:             1.4.0
+version:             1.6.0
 synopsis:            Haskell Web Framework
 description:         The Integrated Haskell Platform is a full stack framework focused on rapid application development while striving for robust code quality.
                      Full guide available at: <https://ihp.digitallyinduced.com/Guide/index.html>
@@ -23,7 +23,6 @@ data-files:
     
     , static/vendor/*.min.css
     , static/vendor/*.min.js
-    , static/vendor/*.min.js.map
     , static/vendor/*.js
 
     , static/vendor/popper-2.11.6.min.js
@@ -35,7 +34,7 @@ extra-source-files: CHANGELOG.md
 common shared-properties
     default-language: GHC2021
     build-depends:
-            base >= 4.17.0 && < 4.22
+            base >= 4.17.0 && < 4.23
             , classy-prelude
             , mono-traversable
             , transformers
@@ -45,6 +44,7 @@ common shared-properties
             , warp
             , warp-systemd
             , wai
+            , wai-early-return
             , mtl
             , blaze-html
             , blaze-markup
@@ -60,8 +60,8 @@ common shared-properties
             , network-uri
             , uri-encode
             , aeson
-            , wai-session
-            , wai-session-clientsession
+            , wai-session-maybe
+            , wai-session-clientsession-deferred
             , clientsession
             , pwstore-fast
             , vault
@@ -98,29 +98,22 @@ common shared-properties
             , hashable
             , scientific
             , vector
-            , wreq
             , deepseq
             , parser-combinators
-            , ip
             , fast-logger
             , minio-hs
-            , temporary
             , conduit-extra
             , wai-cors
-            , lens
             , random
-            , hspec
             , cereal
             , cereal-text
             , neat-interpolation
             , unagi-chan
             , with-utf8
             , ihp-hsx
-            , ihp-postgresql-simple-extra
-            , ihp-context
             , ihp-pagehead
-            , ihp-log
             , ihp-modal
+            , ihp-router
             , mime-types
             , safe-exceptions
             , resourcet
@@ -137,9 +130,14 @@ common shared-properties
             , hasql-implicits
             , hasql-mapping
             , hasql-postgresql-types
+            , hasql-transaction
             , postgresql-types
+            , postgresql-types-algebra
+            , postgresql-simple-postgresql-types
+            , ptr-peeker
+            , ptr-poker
+            , text-builder
             , contravariant
-            , wide-word
     default-extensions:
         OverloadedStrings
         , NoImplicitPrelude
@@ -160,7 +158,7 @@ common shared-properties
         , TemplateHaskell
         , OverloadedRecordDot
         , DeepSubsumption
-    ghc-options: -Werror=incomplete-patterns
+    ghc-options: -Werror=incomplete-patterns -Werror=unused-imports -Werror=missing-fields -Werror=missing-home-modules
 
 library
     import: shared-properties
@@ -174,7 +172,6 @@ library
         , IHP.Controller.Redirect
         , IHP.Controller.Render
         , IHP.Controller.Session
-        , IHP.Controller.Context
         , IHP.Controller.Layout
         , IHP.Controller.BasicAuth
         , IHP.Controller.Cookie
@@ -189,6 +186,9 @@ library
         , IHP.ValidationSupport.ValidateField
         , IHP.ValidationSupport.ValidateIsUnique
         , IHP.View.Form
+        , IHP.View.Form.Fields
+        , IHP.View.Form.FormFor
+        , IHP.View.Form.Select
         , IHP.View.TimeAgo
         , IHP.RequestVault
         , IHP.RequestVault.Helper
@@ -209,12 +209,13 @@ library
         , IHP.QueryBuilder.Types
         , IHP.QueryBuilder.Compiler
         , IHP.QueryBuilder.Filter
-        , IHP.QueryBuilder.Join
         , IHP.QueryBuilder.Order
         , IHP.QueryBuilder.Union
         , IHP.QueryBuilder.HasqlCompiler
         , IHP.QueryBuilder.HasqlHelpers
         , IHP.Fetch
+        , IHP.Fetch.Statement
+        , IHP.FetchPipelined
         , IHP.RouterPrelude
         , IHP.Server
         , IHP.Static
@@ -223,7 +224,8 @@ library
         , IHP.ViewSupport
         , IHP.RouterSupport
         , IHP.Router.Types
-        , IHP.Router.UrlGenerator
+        , IHP.Router.IHP
+        , IHP.Router.DSL
         , IHP.Prelude
         , IHP.ErrorController
         , IHP.ScriptSupport
@@ -244,6 +246,18 @@ library
         , IHP.Job.Queue
         , IHP.Job.Runner
         , IHP.Job.Types
+        , IHP.Job.Types.BackoffStrategy
+        , IHP.Job.Types.Class
+        , IHP.Job.Types.Status
+        , IHP.Job.Types.Worker
+        , IHP.Job.Queue.Pool
+        , IHP.Job.Queue.Fetch
+        , IHP.Job.Queue.Watch
+        , IHP.Job.Queue.Result
+        , IHP.Job.Queue.StatusInstances
+        , IHP.Job.Queue.STM
+        , IHP.Job.Runner.MainLoop
+        , IHP.Job.Runner.WorkerLoop
         , IHP.Breadcrumb.Types
         , IHP.Breadcrumb.ViewFunctions
         , IHP.FileStorage.Types
@@ -253,13 +267,32 @@ library
         , IHP.Pagination.ViewFunctions
         , IHP.Pagination.Types
         , IHP.Pagination.Helpers
+        , IHP.Pagination.Internal
         , IHP.EnvVar
         , IHP.Hasql.FromRow
         , IHP.Hasql.Encoders
+        , IHP.Hasql.Pool
+        , IHP.PGSimpleCompat
         , IHP.PGVersion
-    reexported-modules: IHP.PGListener
+    reexported-modules:
+          IHP.PGListener
+        -- Re-export the ihp-router modules under the same paths so
+        -- existing user imports (`import IHP.Router.Trie`, etc.) keep
+        -- working without users adding `ihp-router` to their own cabal
+        -- build-depends. The IHP-flavoured `routes` quoter from
+        -- IHP.Router.IHP shadows the generic one in IHP.Router.DSL.TH;
+        -- the latter is still importable directly for plain WAI use.
+        , IHP.Router.UrlGenerator
+        , IHP.Router.Capture
+        , IHP.Router.Trie
+        , IHP.Router.Middleware
+        , IHP.Router.DSL.AST
+        , IHP.Router.DSL.Parser
+        , IHP.Router.DSL.Runtime
+        , IHP.Router.DSL.TH
     autogen-modules: Paths_ihp
-    other-modules: Paths_ihp
+    other-modules:
+        Paths_ihp
 
 source-repository head
     type:     git
@@ -270,14 +303,16 @@ test-suite tests
     type: exitcode-stdio-1.0
     main-is: Test/Main.hs
     hs-source-dirs: Test
-    build-depends: ihp 
+    ghc-options: -threaded
+    build-depends:
+          ihp
+        , hspec
     other-modules:
         Test.ValidationSupport.ValidateFieldSpec
         Test.NameSupportSpec
         Test.HaskellSupportSpec
         Test.View.CSSFrameworkSpec
         Test.View.FormSpec
-        Test.Controller.ContextSpec
         Test.Controller.ParamSpec
         Test.Controller.AccessDeniedSpec
         Test.Controller.NotFoundSpec
@@ -288,4 +323,35 @@ test-suite tests
         Test.FileStorage.ControllerFunctionsSpec
         Test.Controller.CookieSpec
         Test.PGListenerSpec
+        Test.PGVersionSpec
         Test.MockingSpec
+        Test.ControllerSupportSpec
+        Test.HasqlEncoderSpec
+        Test.AutoRefreshSpec
+        Test.Pagination.ControllerFunctionsSpec
+        Test.FetchPipelinedSpec
+        Test.JobQueueSpec
+        Test.LoginSupport.AuthVaultSpec
+        Test.Router.AppBindingSpec
+        Test.Router.CaptureSpec
+        Test.Router.DSLParserSpec
+        Test.Router.DSLQuoterSpec
+        Test.Router.MiddlewareSpec
+        Test.Router.MixedModeSpec
+        Test.Router.MultiControllerSpec
+        Test.Router.TrieSpec
+        Test.Router.WebSocketSpec
+        Test.ModelFixtures
+        Test.Util
+
+benchmark ihp-router-bench
+    import: shared-properties
+    type: exitcode-stdio-1.0
+    hs-source-dirs: .
+    main-is: Test/RouterBench.hs
+    -- tasty-bench requires -fno-static-argument-transformation to prevent
+    -- GHC from defeating the re-evaluation trick used for measurement
+    ghc-options: -fno-static-argument-transformation
+    build-depends:
+        , ihp
+        , tasty-bench

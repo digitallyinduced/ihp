@@ -7,7 +7,7 @@ module IHP.Modal.ControllerFunctions (setModal) where
 
 import Prelude
 import Data.IORef (writeIORef)
-import Text.Blaze.Html5 (Html)
+import IHP.HSX.Markup (Html)
 import Network.Wai (Request)
 import IHP.Modal.Types
 

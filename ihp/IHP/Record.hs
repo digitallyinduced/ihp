@@ -22,7 +22,6 @@ module IHP.Record
 
 import Data.Proxy
 import GHC.TypeLits
-import GHC.OverloadedLabels
 import qualified GHC.Records as Record
 import Prelude
 

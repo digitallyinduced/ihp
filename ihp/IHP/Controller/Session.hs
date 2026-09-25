@@ -24,6 +24,7 @@ module IHP.Controller.Session
   , getSessionEither
   , deleteSession
   , getSessionAndClear
+  , sessionInsert
   , sessionVaultKey
   , lookupSessionVault
   ) where
@@ -31,9 +32,8 @@ module IHP.Controller.Session
 import Prelude
 import Data.ByteString (ByteString)
 import Data.Maybe (isJust)
-import GHC.Records (HasField(..))
 import Control.Monad (when)
-import IHP.ModelSupport.Types (PrimaryKey, Id'(..), Id)
+import IHP.ModelSupport.Types (PrimaryKey, Id'(..))
 import Data.UUID (UUID)
 import qualified Data.UUID as UUID
 import qualified Data.Vault.Lazy as Vault
@@ -41,7 +41,7 @@ import Network.Wai
 import qualified Data.Serialize as Serialize
 import Data.Serialize (Serialize)
 import Data.Serialize.Text ()
-import qualified Network.Wai.Session
+import qualified Network.Wai.Session.Maybe
 import System.IO.Unsafe (unsafePerformIO)
 
 -- | Types of possible errors as a result of
@@ -171,6 +171,6 @@ sessionVault = case lookupSessionVault ?request of
 lookupSessionVault :: Request -> Maybe (ByteString -> IO (Maybe ByteString), ByteString -> ByteString -> IO ())
 lookupSessionVault request = Vault.lookup sessionVaultKey request.vault
 
-sessionVaultKey :: Vault.Key (Network.Wai.Session.Session IO ByteString ByteString)
+sessionVaultKey :: Vault.Key (Network.Wai.Session.Maybe.Session IO ByteString ByteString)
 sessionVaultKey = unsafePerformIO Vault.newKey
 {-# NOINLINE sessionVaultKey #-}

@@ -1,6 +1,6 @@
 cabal-version:       2.2
 name:                wai-request-params
-version:             1.4.0
+version:             1.0.0
 synopsis:            Generic parameter parsing for WAI requests
 description:         A standalone parameter parsing library for WAI requests, supporting form-encoded and JSON request bodies.
 license:             MIT
@@ -15,13 +15,13 @@ build-type:          Simple
 
 library
     default-language: GHC2021
-    ghc-options: -Werror=incomplete-patterns
+    ghc-options: -Werror=incomplete-patterns -Werror=unused-imports -Werror=missing-fields -Werror=missing-home-modules
     hs-source-dirs: .
     exposed-modules:
           Wai.Request.Params
         , Wai.Request.Params.Middleware
     build-depends:
-            base >= 4.17.0 && < 4.22
+            base >= 4.17.0 && < 4.23
           , wai
           , wai-extra
           , aeson
@@ -43,6 +43,7 @@ library
 
 test-suite spec
     default-language: GHC2021
+    ghc-options: -Werror=missing-home-modules
     type: exitcode-stdio-1.0
     hs-source-dirs: Test
     main-is: Spec.hs
@@ -50,7 +51,7 @@ test-suite spec
           Wai.Request.ParamsSpec
         , Wai.Request.Params.MiddlewareSpec
     build-depends:
-            base >= 4.17.0 && < 4.22
+            base >= 4.17.0 && < 4.23
           , wai-request-params
           , hspec
           , wai

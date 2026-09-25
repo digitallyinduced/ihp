@@ -72,7 +72,12 @@ generateGenericAction schema config doGenerateView =
             idType = "Id " <> singularName
             model = ucfirst singularName
 
-            actionBodyConfig = ActionBodyConfig { singularName, modelVariableSingular, idFieldName, model, indexAction = name <> "Action" }
+            tableFound = [ modelNameToTableName modelVariableSingular, modelVariableSingular ]
+                    |> mapMaybe (columnsForTable schema)
+                    |> headMay
+                    |> isJust
+
+            actionBodyConfig = ActionBodyConfig { singularName, modelVariableSingular, idFieldName, model, indexAction = name <> "Action", tableFound }
 
             indexContent =
                 ""

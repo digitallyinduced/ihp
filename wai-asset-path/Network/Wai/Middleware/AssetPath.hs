@@ -12,7 +12,6 @@ import Network.Wai
 import qualified Data.Vault.Lazy as Vault
 import System.IO.Unsafe (unsafePerformIO)
 import System.Environment
-import Data.Maybe
 
 -- | Middleware used for cache busting of static files
 -- You need to provide an asset version and optionally a base url.

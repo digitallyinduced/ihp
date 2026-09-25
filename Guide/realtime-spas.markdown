@@ -151,7 +151,7 @@ Now open the view in the browser. You should see `Hello from react!` on the page
 
 ### Building a Realtime SPA with IHP DataSync
 
-*The following section asumes that your app already has a login as described in the [Authentication](https://ihp.digitallyinduced.com/Guide/authentication.html#setup) section.*
+*The following section assumes that your app already has a login as described in the [Authentication](https://ihp.digitallyinduced.com/Guide/authentication.html#setup) section.*
 
 IHP DataSync is an IHP API that allows your to query your app's database from within JS. Basically it provides functions like `query`, `fetchOne` or `createRecord`, which you're already familiar with from the Haskell side, but makes them available in JavaScript land.
 
@@ -163,7 +163,7 @@ const posts = await query('posts')
     .fetch()
 ```
 
-This is very similiar to how you would do it on the Haskell backend side:
+This is very similar to how you would do it on the Haskell backend side:
 
 ```haskell
 posts <- query @Post
@@ -473,7 +473,7 @@ Next we're going to add a todo form to create new todos:
 
 Our todo app is already realtime. Open the app again and enter a new todo. You will now see it showing up instantly. You can also open a second browser window (keep in mind that you need to be logged in), and changes will appear in both windows at the same time.
 
-The `useQuery(query('todos'))` call in our `TodoList` has set up a subscription behind the scences. Whenever the result set of our `query('todos')` we fired here changes, it will trigger a re-render of our component.
+The `useQuery(query('todos'))` call in our `TodoList` has set up a subscription behind the scenes. Whenever the result set of our `query('todos')` we fired here changes, it will trigger a re-render of our component.
 
 ##### Checking off Todos
 
@@ -498,7 +498,7 @@ function TodoItem({ todo }) {
 }
 ```
 
-This displays a checkbox next to the todo title. When the checkbox is toggled it will call `updateRecord('todos', todo.id, { isCompleted: !todo.isCompleted })`. This function is similiar to the `updateRecord` on the Haskell side, but only takes a patch object as a argument.
+This displays a checkbox next to the todo title. When the checkbox is toggled it will call `updateRecord('todos', todo.id, { isCompleted: !todo.isCompleted })`. This function is similar to the `updateRecord` on the Haskell side, but only takes a patch object as a argument.
 
 Now we need to use this new `TodoItem` component inside our `TodoList`. Change the `render()` function of the `TodoList` to this:
 
@@ -920,4 +920,30 @@ console.log(articles);
 
 ### Advanced Policies
 
-TODO
+#### SECURITY DEFINER Functions
+
+When you use Row Level Security with IHP DataSync, queries run as the `ihp_authenticated` role. This role only has limited permissions, so if your RLS policy calls a function that accesses other tables, the policy check may fail with a permission error.
+
+To fix this, mark the function as `SECURITY DEFINER`. A `SECURITY DEFINER` function runs with the permissions of the user who created it (typically the table owner) rather than the calling user. This allows the function to access tables that `ihp_authenticated` cannot.
+
+A common example is a policy that checks whether a user is an admin:
+
+```sql
+CREATE FUNCTION is_admin() RETURNS BOOLEAN SECURITY DEFINER AS $$
+    SELECT EXISTS (SELECT 1 FROM admins WHERE user_id = ihp_user_id())
+$$ language sql;
+
+CREATE POLICY "Admins can manage all projects" ON projects USING (is_admin());
+```
+
+Without `SECURITY DEFINER`, the `is_admin()` function would fail because `ihp_authenticated` doesn't have direct access to the `admins` table.
+
+You can add `SECURITY DEFINER` to a function in the Schema Designer by editing the function's SQL directly, or by writing it in a migration:
+
+```sql
+CREATE OR REPLACE FUNCTION is_admin() RETURNS BOOLEAN SECURITY DEFINER AS $$
+    SELECT EXISTS (SELECT 1 FROM admins WHERE user_id = ihp_user_id())
+$$ language sql;
+```
+
+**Note:** Use `SECURITY DEFINER` only when needed, as it elevates privileges. Keep the function body minimal and ensure it cannot be exploited to bypass intended access controls.

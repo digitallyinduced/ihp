@@ -14,7 +14,6 @@ module IHP.Job.Dashboard.Auth (
 import IHP.Prelude
 import IHP.ControllerPrelude
 import qualified IHP.EnvVar as EnvVar
-import Network.Wai (Request)
 
 -- | Defines one method, 'authenticate', called before every action. Use to authenticate user.
 --
@@ -25,7 +24,7 @@ import Network.Wai (Request)
 --
 -- Define your own implementation to use custom authentication for production.
 class AuthenticationMethod a where
-    authenticate :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => IO ()
+    authenticate :: (?request :: Request, ?modelContext :: ModelContext, ?respond :: Respond) => IO ()
 
 -- | Don't use any authentication for jobs.
 data NoAuth

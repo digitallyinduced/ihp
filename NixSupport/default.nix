@@ -16,6 +16,17 @@
 , ihp-env-var-backwards-compat
 , ihp-static
 , static
+, buildWithPostgres ? false  # Start a temporary PostgreSQL during build (e.g. for typedSql TH)
+, appSchemaSql ? null       # Path to Application/Schema.sql (required when buildWithPostgres = true)
+, ihpSchemaSql ? null       # Path to IHPSchema.sql (required when buildWithPostgres = true)
+, migrationCheck ? null     # Optional derivation that validates Application/Migration before building the app
+, previousIntermediates ? null # Optional combined intermediate output from a previous optimized app build
+, reuseAppLibWithIntermediatesForExecutables ? false # Reuse the cache-producing app lib when builds stay on one machine
+, appLibCompileCores ? null # Optional fixed GHC module parallelism for the optimized application library
+, appLibGhcAllocationArea ? null # Optional app-library-specific compile-time RTS allocation area
+, buildStaticLibraries ? true # Build static Haskell libraries in addition to shared libraries
+, ghcAllocationArea ? null # Optional GHC compile-time RTS allocation area, e.g. "128M"
+, extraGhcOptions ? [] # Extra GHC options (e.g. [ "-Wall" ]) applied to the models package, the application library and all executables
 }:
 
 let
@@ -26,6 +37,59 @@ let
         export IHP_LIB=${ihp-env-var-backwards-compat}
         export IHP=${ihp-env-var-backwards-compat}
     '';
+
+    migrationDir = projectPath + "/Application/Migration";
+
+    defaultMigrationCheck = pkgs.runCommand "${appName}-migration-check" {} (''
+        set -euo pipefail
+    '' + pkgs.lib.optionalString (builtins.pathExists migrationDir) ''
+        cd ${migrationDir}
+
+        revisions="$(
+            for file in *.sql; do
+                [ -e "$file" ] || continue
+                printf '%s\n' "$file" | sed -n 's/^\([0-9][0-9]*\).*/\1/p'
+            done | sort
+        )"
+        duplicates="$(printf '%s\n' "$revisions" | uniq -d)"
+
+        if [ -n "$duplicates" ]; then
+            echo "error: multiple migrations use the same timestamp. Each migration filename needs a unique numeric prefix:" >&2
+            for revision in $duplicates; do
+                echo "  $revision:" >&2
+                for file in "$revision"*.sql; do
+                    [ -e "$file" ] || continue
+                    echo "    Application/Migration/$file" >&2
+                done
+            done
+            exit 1
+        fi
+    '' + ''
+        mkdir -p $out
+        touch $out/ok
+    '');
+
+    effectiveMigrationCheck =
+        if migrationCheck == null
+        then defaultMigrationCheck
+        else migrationCheck;
+
+    modelsPackageVersion = "0.1.0";
+    modelsIntermediatesDir = "share/haskell/${ghc.ghc.version}/${appName}-models-${modelsPackageVersion}/dist";
+    reusableModelsIntermediates =
+        if previousIntermediates != null
+            && builtins.pathExists "${previousIntermediates}/${modelsIntermediatesDir}/build"
+        then previousIntermediates
+        else null;
+
+    # Manual GHC builds do not use nixpkgs' Cabal intermediate-cache hooks, so
+    # keep their objects under a separate, stable namespace in the same cache.
+    executableIntermediatesRoot = "share/ihp-executable-intermediates/${ghc.ghc.version}/${appName}";
+    reusableExecutableIntermediates =
+        if previousIntermediates != null
+            && builtins.pathExists "${previousIntermediates}/${executableIntermediatesRoot}"
+        then "${previousIntermediates}/${executableIntermediatesRoot}"
+        else null;
 
     # Generate the models package source from Schema.sql
     modelsPackageSrc = pkgs.stdenv.mkDerivation {
@@ -53,7 +117,7 @@ let
             cat > ${appName}-models.cabal <<'CABAL_EOF'
 cabal-version: 2.2
 name: ${appName}-models
-version: 0.1.0
+version: ${modelsPackageVersion}
 build-type: Simple
 
 library
@@ -71,14 +135,16 @@ library
         , postgresql-simple
         , deepseq
         , data-default
-        , ip
         , scientific
         , string-conversions
         , hasql
         , hasql-dynamic-statements
         , hasql-implicits
+        , hasql-mapping
+        , hasql-postgresql-types
         , hasql-pool
         , unordered-containers
+        , postgresql-types
     exposed-modules:
 CABAL_EOF
 
@@ -120,35 +186,47 @@ CABAL_EOF
 
     # Inline mkDerivation instead of callCabal2nix to avoid IFD (Import From Derivation).
     # The dependencies here must match the .cabal template generated in modelsPackageSrc above.
-    modelsPackage = pkgs.haskell.lib.disableLibraryProfiling (pkgs.haskell.lib.dontHaddock (
-        ghc.callPackage ({ mkDerivation, base, ihp, basic-prelude, text, bytestring, time, uuid, aeson, postgresql-simple, deepseq, data-default, ip, scientific, string-conversions, hasql, hasql-dynamic-statements, hasql-implicits, hasql-pool, unordered-containers }: mkDerivation {
-            pname = "${appName}-models";
-            version = "0.1.0";
-            src = modelsPackageSrc;
-            libraryHaskellDepends = [
-                base
-                ihp
-                basic-prelude
-                text
-                bytestring
-                time
-                uuid
-                aeson
-                postgresql-simple
-                deepseq
-                data-default
-                ip
-                scientific
-                string-conversions
-                hasql
-                hasql-dynamic-statements
-                hasql-implicits
-                hasql-pool
-                unordered-containers
-            ];
-            license = pkgs.lib.licenses.free;
-        }) {}
-    ));
+    # Every generated table expands into several modules. With large schemas,
+    # split sections create enough archive members for the final library
+    # assembly to exceed the platform's argument-size limit.
+    modelsPackage = configureHaskellBuild (pkgs.haskell.lib.overrideCabal (
+        pkgs.haskell.lib.disableLibraryProfiling (pkgs.haskell.lib.dontHaddock (
+            ghc.callPackage ({ mkDerivation, base, ihp, basic-prelude, text, bytestring, time, uuid, aeson, postgresql-simple, deepseq, data-default, scientific, string-conversions, hasql, hasql-dynamic-statements, hasql-implicits, hasql-mapping, hasql-postgresql-types, hasql-pool, unordered-containers, postgresql-types }: mkDerivation {
+                pname = "${appName}-models";
+                version = modelsPackageVersion;
+                src = modelsPackageSrc;
+                doInstallIntermediates = optimized;
+                enableSeparateIntermediatesOutput = optimized;
+                previousIntermediates = if optimized then reusableModelsIntermediates else null;
+                libraryHaskellDepends = [
+                    base
+                    ihp
+                    basic-prelude
+                    text
+                    bytestring
+                    time
+                    uuid
+                    aeson
+                    postgresql-simple
+                    deepseq
+                    data-default
+                    scientific
+                    string-conversions
+                    hasql
+                    hasql-dynamic-statements
+                    hasql-implicits
+                    hasql-mapping
+                    hasql-postgresql-types
+                    hasql-pool
+                    unordered-containers
+                    postgresql-types
+                ];
+                license = pkgs.lib.licenses.free;
+            }) {}
+        ))
+    ) (old: {
+        configureFlags = (old.configureFlags or []) ++ [ "--disable-split-sections" ];
+    }));
 
     allHaskellPackages =
         (if withHoogle
@@ -164,8 +242,6 @@ CABAL_EOF
     commonNativeBuildInputs = [ pkgs.gnumake ];
 
     prodGhcOptions = "-funbox-strict-fields -fconstraint-solver-iterations=100 -fdicts-strict -with-rtsopts=\"${rtsFlags}\"";
-
-    appSrc = filter { root = pkgs.nix-gitignore.gitignoreSource [] projectPath; include = [filter.isDirectory "Makefile" (filter.matchExt "hs")]; exclude = ["static" "Frontend"]; name = "${appName}-source"; };
 
     scriptDir = projectPath + "/Application/Script";
 
@@ -188,51 +264,392 @@ CABAL_EOF
         else
             [];
 
+    appSrcRoot = pkgs.nix-gitignore.gitignoreSource [] projectPath;
 
-    mkScript =
-        scriptName:
-            pkgs.stdenv.mkDerivation {
-                name = "${appName}-script-${scriptName}";
-                src = appSrc;
+    appSrcInclude = [ filter.isDirectory "Makefile" (filter.matchExt "hs") ];
 
-                buildInputs = commonBuildInputs;
-                nativeBuildInputs = commonNativeBuildInputs;
+    scriptPath = scriptName: "Application/Script/${scriptName}.hs";
 
-                buildPhase = ''
-                    mkdir -p build/bin
-                    ${ihpEnvSetup}
+    appSrc = filter {
+        root = appSrcRoot;
+        include = appSrcInclude;
+        exclude = ["static" "Frontend"] ++ map scriptPath scriptNames;
+        name = "${appName}-source";
+    };
 
-                    mkdir -p build/Script/Main
-                    cat > build/Script/Main/${scriptName}.hs <<'EOF'
-                    module Main (main) where
-                    import IHP.ScriptSupport
-                    import qualified Config
-                    import Application.Script.${scriptName} (run)
-                    main = runScript Config.config run
-                    EOF
+    scriptSrc = scriptName: filter {
+        root = appSrcRoot;
+        include = ["Makefile" (scriptPath scriptName)];
+        name = "${appName}-${scriptName}-source";
+    };
 
-                    mkdir -p build/RunScript/${scriptName}
+    # Generate .cabal file for the app library package.
+    # build-depends is populated at derivation build time by querying ghc-pkg
+    # for all registered package names, ensuring all transitive deps of ihp are available.
+    appLibSrc = pkgs.stdenv.mkDerivation {
+        name = "${appName}-lib-src";
+        src = appSrc;
+        nativeBuildInputs = [ pkgs.findutils allHaskellPackages ];
+        buildPhase = ''
+            # Find all .hs modules excluding entry points and tests
+            # Modules under Config/ are found via the "Config" source dir,
+            # so their module names are relative to Config/ (e.g. Config/Config.hs -> Config)
+            CONFIG_MODULES=""
+            if [ -d Config ]; then
+                CONFIG_MODULES=$(find Config -name '*.hs' \
+                    | sed 's|^Config/||' \
+                    | sed 's|\.hs$||' \
+                    | sed 's|/|.|g' \
+                    | sort)
+            fi
 
-                    ghc -j"''${NIX_BUILD_CORES:-1}" +RTS -N -RTS -O${if optimized then optimizationLevel else "0"} ${splitSections} \
-                        $(make print-ghc-options) \
-                        ${if optimized then prodGhcOptions else ""} \
-                        build/Script/Main/${scriptName}.hs \
-                        -o build/bin/${scriptName} \
-                        -odir build/RunScript/${scriptName} \
-                        -hidir build/RunScript/${scriptName}
-                '';
+            # All other modules are relative to "." source dir
+            OTHER_MODULES=$(find . -name '*.hs' \
+                -not -name 'Main.hs' \
+                -not -name 'Setup.hs' \
+                -not -path './build/*' \
+                -not -path './Config/*' \
+                -not -path './lib/*' \
+                -not -path './Test/*' \
+                | sed 's|^\./||' \
+                | sed 's|\.hs$||' \
+                | sed 's|/|.|g' \
+                | sort)
 
-                installPhase = ''
-                    mkdir -p $out/bin
-                    mv build/bin/${scriptName} $out/bin/${scriptName}
-                '';
+            # Get all registered package names from the GHC environment
+            # This includes ihp and ALL its transitive deps (aeson, bytestring, lens, etc.)
+            # Filter out internal sub-libraries (z-* prefixed names) as they are private
+            ALL_PKG_NAMES=$(ghc-pkg list --simple-output | tr ' ' '\n' | sed 's/-[0-9].*//' | sort -u | grep -v '^$' | grep -v '^z-')
 
-                enableParallelBuilding = true;
-                disallowedReferences = [ ihp ];
-            };
+            cat > ${appName}-lib.cabal <<'CABAL_HEADER'
+cabal-version: 2.2
+name: ${appName}-lib
+version: 0.1.0
+build-type: Simple
 
-    scriptPackages = map mkScript scriptNames;
-    allScripts = pkgs.symlinkJoin { name = "${appName}-scripts"; paths = scriptPackages; };
+library
+    default-language: GHC2021
+    hs-source-dirs: . Config
+    build-depends:
+CABAL_HEADER
+
+            # Add all registered packages as build-depends
+            FIRST=true
+            for pkg in $ALL_PKG_NAMES; do
+                if [ "$FIRST" = true ]; then
+                    echo "        $pkg" >> ${appName}-lib.cabal
+                    FIRST=false
+                else
+                    echo "        , $pkg" >> ${appName}-lib.cabal
+                fi
+            done
+
+            echo "    exposed-modules:" >> ${appName}-lib.cabal
+
+            for mod in $OTHER_MODULES $CONFIG_MODULES; do
+                echo "        $mod" >> ${appName}-lib.cabal
+            done
+
+            cat >> ${appName}-lib.cabal <<'CABAL_EOF'
+    default-extensions:
+        OverloadedStrings
+        NoImplicitPrelude
+        ImplicitParams
+        Rank2Types
+        DisambiguateRecordFields
+        NamedFieldPuns
+        DuplicateRecordFields
+        OverloadedLabels
+        FlexibleContexts
+        TypeSynonymInstances
+        FlexibleInstances
+        QuasiQuotes
+        TypeFamilies
+        PackageImports
+        ScopedTypeVariables
+        RecordWildCards
+        TypeApplications
+        DataKinds
+        InstanceSigs
+        DeriveGeneric
+        MultiParamTypeClasses
+        TypeOperators
+        DeriveDataTypeable
+        MultiWayIf
+        UndecidableInstances
+        BlockArguments
+        PartialTypeSignatures
+        LambdaCase
+        DefaultSignatures
+        EmptyDataDeriving
+        BangPatterns
+        FunctionalDependencies
+        StandaloneDeriving
+        DerivingVia
+        TemplateHaskell
+        DeepSubsumption
+        OverloadedRecordDot
+    ghc-options:
+        -Wno-unsafe
+        -Wno-name-shadowing
+        -Wno-monomorphism-restriction
+        -Wno-safe
+        -Wno-missing-local-signatures
+        -Wno-missing-home-modules
+        -Wno-partial-type-signatures
+        -Werror=missing-fields
+        -Werror=incomplete-patterns
+CABAL_EOF
+        '';
+        installPhase = ''
+            mkdir -p $out
+
+            # Copy all source files preserving directory structure (excluding entry points and tests)
+            find . -name '*.hs' -not -name 'Main.hs' -not -name 'Setup.hs' -not -path './build/*' -not -path './lib/*' -not -path './Test/*' | while read f; do
+                mkdir -p "$out/$(dirname "$f")"
+                cp "$f" "$out/$f"
+            done
+
+            cp ${appName}-lib.cabal $out/
+        '';
+        disallowedReferences = [ ihp ];
+    };
+
+    # Shared setup for compile-time DB access (e.g. typedSql).
+    buildTimePostgresSetup = ''
+        export PGDATA="$TMPDIR/pgdata"
+        export PGHOST="$TMPDIR/pghost"
+        mkdir -p "$PGHOST"
+        initdb -D "$PGDATA" --no-locale --encoding=UTF8
+        echo "unix_socket_directories = '$PGHOST'" >> "$PGDATA/postgresql.conf"
+        echo "listen_addresses = '''" >> "$PGDATA/postgresql.conf"
+        pg_ctl -D "$PGDATA" -l "$TMPDIR/pg.log" start
+
+        createdb -h "$PGHOST" app
+        psql -h "$PGHOST" app < ${ihpSchemaSql}
+        psql -h "$PGHOST" app < ${appSchemaSql}
+        export DATABASE_URL="postgresql:///app?host=$PGHOST"
+    '';
+
+    buildTimePostgresTeardown = ''
+        pg_ctl -D "$PGDATA" stop || true
+    '';
+
+    # Override that starts a temporary PostgreSQL during build for compile-time DB access (e.g. typedSql)
+    withBuildTimePostgres = pkg: pkgs.haskell.lib.overrideCabal pkg (old: {
+        libraryToolDepends = (old.libraryToolDepends or []) ++ [ pkgs.postgresql_18 ];
+        preBuild = (old.preBuild or "") + ''
+            ${buildTimePostgresSetup}
+        '';
+        postBuild = (old.postBuild or "") + ''
+            ${buildTimePostgresTeardown}
+        '';
+    });
+
+    configureHaskellBuild = pkg:
+        pkgs.haskell.lib.overrideCabal
+            (if buildStaticLibraries then pkg else pkgs.haskell.lib.disableStaticLibraries pkg)
+            (old: {
+                configureFlags = (old.configureFlags or [])
+                    ++ pkgs.lib.optionals (!buildStaticLibraries) [
+                        "--disable-library-vanilla"
+                    ]
+                    ++ pkgs.lib.optionals (ghcAllocationArea != null) [
+                        "--ghc-option=+RTS"
+                        "--ghc-option=-A${ghcAllocationArea}"
+                        "--ghc-option=-RTS"
+                    ]
+                    ++ map (opt: "--ghc-option=${opt}") extraGhcOptions;
+            });
+
+    configureAppLibBuild = pkg:
+        let configured = configureHaskellBuild pkg;
+        in if appLibCompileCores == null && appLibGhcAllocationArea == null
+            then configured
+            else pkgs.haskell.lib.overrideCabal configured (old: ({
+                configureFlags = (old.configureFlags or [])
+                    ++ pkgs.lib.optionals (appLibCompileCores != null) [
+                        "--ghc-option=-j${toString appLibCompileCores}"
+                    ]
+                    ++ pkgs.lib.optionals (appLibGhcAllocationArea != null) [
+                        "--ghc-option=+RTS"
+                        "--ghc-option=-A${appLibGhcAllocationArea}"
+                        "--ghc-option=-RTS"
+                    ];
+            } // pkgs.lib.optionalAttrs (appLibCompileCores != null) {
+                # Avoid a second, daemon-derived parallelism flag alongside the
+                # explicit GHC module-job count above.
+                enableParallelBuilding = false;
+            }));
+
+    mkAppLibPackage = withIntermediates: configureAppLibBuild (pkgs.haskell.lib.disableLibraryProfiling (pkgs.haskell.lib.dontHaddock (
+        ghc.callPackage ({ mkDerivation, base }: mkDerivation {
+            pname = "${appName}-lib";
+            version = "0.1.0";
+            src = appLibSrc;
+            libraryHaskellDepends = [ base modelsPackage ] ++ builtins.filter (p: p != null) (haskellDeps ghc);
+            doInstallIntermediates = withIntermediates;
+            enableSeparateIntermediatesOutput = withIntermediates;
+            inherit previousIntermediates;
+            # The app library remains the first cache stage. Carry forward
+            # executable objects from the previous combined cache so the
+            # server, worker, and scripts can reuse them when they are built
+            # in the second stage. Generated models are folded in here too.
+            postInstall = pkgs.lib.optionalString withIntermediates ''
+                mkdir -p "$intermediates/share"
+                ${pkgs.lib.optionalString (reusableExecutableIntermediates != null) ''
+                    mkdir -p "$intermediates/${executableIntermediatesRoot}"
+                    cp -r ${reusableExecutableIntermediates}/. "$intermediates/${executableIntermediatesRoot}/"
+                ''}
+                cp -r ${modelsPackage.intermediates}/share/. "$intermediates/share/"
+                # Store paths are read-only. Cabal's following
+                # installIntermediatesPhase must still be able to add the app
+                # library alongside the copied model and executable trees.
+                find "$intermediates" -exec chmod u+w {} +
+            '';
+            license = pkgs.lib.licenses.free;
+        }) {}
+    )));
+
+    withAppLibPostgres = pkg:
+        if buildWithPostgres
+        then withBuildTimePostgres pkg
+        else pkg;
+
+    appLibPackageWithIntermediates = withAppLibPostgres (mkAppLibPackage optimized);
+    # Remote builders copy every output of a derivation back to the requesting
+    # host. Keep the smaller, separate executable dependency by default, but
+    # allow single-host build pipelines to reuse the cache-producing package's
+    # `out` and avoid realizing the application library twice.
+    appLibPackage =
+        if reuseAppLibWithIntermediatesForExecutables
+        then appLibPackageWithIntermediates
+        else withAppLibPostgres (mkAppLibPackage false);
+
+    allHaskellPackagesWithAppLib = ghc.ghcWithPackages (p: [ appLibPackage ]);
+
+    compileExecutable = { executableName, cacheKey, mainPath, mainIs ? null, prepareMain, src ? appSrc, needsBuildTimePostgres ? false }:
+        let
+            executableIntermediatesDir = "${executableIntermediatesRoot}/${cacheKey}";
+            reusableIntermediates =
+                if optimized && previousIntermediates != null
+                    && builtins.pathExists "${previousIntermediates}/${executableIntermediatesDir}/obj"
+                then "${previousIntermediates}/${executableIntermediatesDir}/obj"
+                else null;
+        in pkgs.stdenv.mkDerivation {
+            name = "${appName}-${executableName}-binary";
+            inherit src;
+            outputs = [ "out" ] ++ pkgs.lib.optional optimized "intermediates";
+
+            buildInputs = [ allHaskellPackagesWithAppLib ];
+            nativeBuildInputs = commonNativeBuildInputs ++ pkgs.lib.optional needsBuildTimePostgres pkgs.postgresql_18;
+
+            buildPhase = ''
+                mkdir -p build/bin build/obj
+                ${pkgs.lib.optionalString (reusableIntermediates != null) ''
+                    cp -r ${reusableIntermediates}/. build/obj/
+                    find build/obj -exec chmod u+w {} +
+                    find build/obj -exec touch -d '1970-01-01T00:00:00Z' {} +
+                ''}
+                ${ihpEnvSetup}
+
+                ${prepareMain}
+                touch -d '1970-01-01T00:00:00Z' ${mainPath}
+
+                ${pkgs.lib.optionalString needsBuildTimePostgres ''
+                    ${buildTimePostgresSetup}
+                    cleanupBuildPostgres() {
+                        ${buildTimePostgresTeardown}
+                    }
+                    trap cleanupBuildPostgres EXIT
+                ''}
+
+                ghc -j1 +RTS -N1 -RTS \
+                    ${pkgs.lib.optionalString (!buildStaticLibraries) "-dynamic"} \
+                    -O${if optimized then optimizationLevel else "0"} ${splitSections} \
+                    ${pkgs.lib.optionalString (mainIs != null) "-main-is '${mainIs}'"} \
+                    $(make print-ghc-options) \
+                    ${if optimized then prodGhcOptions else ""} \
+                    ${pkgs.lib.escapeShellArgs extraGhcOptions} \
+                    ${mainPath} -o build/bin/${executableName} \
+                    -odir build/obj -hidir build/obj
+
+                ${pkgs.lib.optionalString needsBuildTimePostgres ''
+                    cleanupBuildPostgres
+                    trap - EXIT
+                ''}
+            '';
+
+            installPhase = ''
+                mkdir -p $out/bin
+                cp build/bin/${executableName} $out/bin/
+                ${pkgs.lib.optionalString optimized ''
+                    mkdir -p "$intermediates/${executableIntermediatesDir}"
+                    cp -r build/obj "$intermediates/${executableIntermediatesDir}/"
+                ''}
+            '';
+
+            disallowedReferences = [ ihp ];
+        };
+
+    runProdServerBinary = compileExecutable {
+        executableName = "RunProdServer";
+        cacheKey = "server";
+        mainPath = "Main.hs";
+        prepareMain = ''
+            # Delete all .hs files except Main.hs so GHC uses the library package
+            # instead of recompiling from source.
+            find . -name '*.hs' -not -name 'Main.hs' -not -path './build/*' -not -path './lib/*' -delete
+        '';
+    };
+
+    runJobsBinary = compileExecutable {
+        executableName = "RunJobs";
+        cacheKey = "worker";
+        mainPath = "build/RunJobs.hs";
+        mainIs = "RunJobs.main";
+        prepareMain = ''
+            # Delete project .hs files so GHC uses the library package instead of
+            # recompiling from source, then generate the job runner entry point.
+            find . -name '*.hs' -not -path './build/*' -not -path './lib/*' -delete
+            cat > build/RunJobs.hs <<'EOF'
+            module RunJobs (main) where
+            import Application.Script.Prelude
+            import IHP.ScriptSupport
+            import IHP.Job.Runner
+            import qualified Config
+            import WorkerMain ()
+            main :: IO ()
+            main = runScript Config.config (runJobWorkers (workers RootApplication))
+            EOF
+        '';
+    };
+
+    scriptBinary = scriptName: compileExecutable {
+        executableName = scriptName;
+        cacheKey = "scripts/${scriptName}";
+        mainPath = "build/Script/Main/${scriptName}.hs";
+        src = scriptSrc scriptName;
+        needsBuildTimePostgres = buildWithPostgres;
+        prepareMain = ''
+            # Delete project .hs files so GHC uses the library package instead of
+            # recompiling from source. Keep the target script module so only this
+            # script is compiled on top of the application library.
+            find . -name '*.hs' \
+                -not -path './${scriptPath scriptName}' \
+                -not -path './build/*' \
+                -not -path './lib/*' \
+                -delete
+            mkdir -p build/Script/Main
+            cat > build/Script/Main/${scriptName}.hs <<'EOF'
+            module Main (main) where
+            import IHP.ScriptSupport
+            import qualified Config
+            import Application.Script.${scriptName} (run)
+            main = runScript Config.config run
+            EOF
+        '';
+    };
 
     hasJobs =
         let
@@ -260,77 +677,36 @@ CABAL_EOF
         in
             anyJobHsIn projectPath;
 
-    runJobs =
-        pkgs.stdenv.mkDerivation {
-            name = "${appName}-run-jobs";
-            src = appSrc;
-
-            buildInputs = commonBuildInputs;
-            nativeBuildInputs = commonNativeBuildInputs;
-
-            buildPhase = ''
-                mkdir -p build/bin build/RunProdServer
-                ${ihpEnvSetup}
-
-                cat > build/RunJobs.hs <<'EOF'
-                module RunJobs (main) where
-                import Application.Script.Prelude
-                import IHP.ScriptSupport
-                import IHP.Job.Runner
-                import qualified Config
-                import Main ()
-                main :: IO ()
-                main = runScript Config.config (runJobWorkers (workers RootApplication))
-                EOF
-
-                ghc -j"''${NIX_BUILD_CORES:-1}" +RTS -N -RTS -O${if optimized then optimizationLevel else "0"} ${splitSections} \
-                    -main-is 'RunJobs.main' \
-                    $(make print-ghc-options) \
-                    ${if optimized then prodGhcOptions else ""} \
-                    build/RunJobs.hs -o build/bin/RunJobs \
-                    -odir build/RunProdServer -hidir build/RunProdServer
-            '';
-
-            installPhase = ''
-                mkdir -p $out/bin
-                mv build/bin/RunJobs $out/bin/RunJobs
-            '';
-
-            enableParallelBuilding = true;
-            disallowedReferences = [ ihp ];
-        };
-
-    runServer =
-        pkgs.stdenv.mkDerivation {
-            name = appName + "-binaries";
-            src = appSrc;
-
-            buildInputs = commonBuildInputs;
-            nativeBuildInputs = commonNativeBuildInputs;
-
-            buildPhase = ''
-                mkdir -p build/bin build/RunProdServer
-                ${ihpEnvSetup}
-
-                ghc -j"''${NIX_BUILD_CORES:-1}" +RTS -N -RTS -O${if optimized then optimizationLevel else "0"} ${splitSections} $(make print-ghc-options) ${if optimized then prodGhcOptions else ""} Main.hs -o build/bin/RunProdServer -odir build/RunProdServer -hidir build/RunProdServer
-            '';
-
-            installPhase = ''
-                mkdir -p $out/bin
-                mv build/bin/RunProdServer $out/bin/RunProdServer
-            '';
-
-            enableParallelBuilding = true;
-            disallowedReferences = [ ihp ]; # Prevent including the large full IHP source code
-        };
+    scriptBinaries =
+        builtins.listToAttrs (map (scriptName: {
+            name = scriptName;
+            value = scriptBinary scriptName;
+        }) scriptNames);
 
     binaries =
         pkgs.symlinkJoin {
             name = "${appName}-binaries";
-            paths = [ runServer allScripts ] ++ pkgs.lib.optional hasJobs runJobs;
+            paths =
+                [ runProdServerBinary ]
+                ++ pkgs.lib.optional hasJobs runJobsBinary;
         };
 in
-    pkgs.runCommand appName { inherit static binaries; nativeBuildInputs = [ pkgs.makeWrapper ]; } ''
+    pkgs.runCommand appName {
+        inherit static binaries;
+        nativeBuildInputs = [ pkgs.makeWrapper ];
+        # appLibPackage stays the with-intermediates variant here: consumers
+        # reach it as passthru.appLibPackage.intermediates (see mkAppLibPackage).
+        passthru = {
+            appLibPackage = appLibPackageWithIntermediates;
+            appLibPackageForExecutables = appLibPackage;
+            inherit runProdServerBinary;
+            runJobsBinary = if hasJobs then runJobsBinary else null;
+            inherit scriptBinaries;
+            migrationCheck = effectiveMigrationCheck;
+        };
+    } ''
+            test -e ${effectiveMigrationCheck}
+
             # Hash that changes only when `static` changes:
             INPUT_HASH="$(basename ${static} | cut -d- -f1)"
             makeWrapper ${binaries}/bin/RunProdServer $out/bin/RunProdServer \
@@ -347,11 +723,4 @@ in
                     --set-default IHP_STATIC ${ihp-static} \
                     --prefix PATH : ${pkgs.lib.makeBinPath (otherDeps pkgs)}
             fi;
-
-            # Copy other binaries, excluding RunProdServer and RunJobs
-            find ${binaries}/bin/ -type l -not -name 'RunProdServer' -not -name 'RunJobs' -print0 |
-                while read -d $'\0' binary; do
-                    binary_basename=$(basename "$binary")
-                    cp "$binary" "$out/bin/$binary_basename";
-                done
     ''

@@ -1,15 +1,14 @@
 {-|
-Module: Test.GraphQL.CompilerSpec
+Module: GraphQL.CompilerSpec
 Copyright: (c) digitally induced GmbH, 2022
 -}
-module Test.GraphQL.CompilerSpec where
+module GraphQL.CompilerSpec where
 
 import Test.Hspec
 import IHP.Prelude
 import qualified IHP.GraphQL.Compiler as Compiler
 import IHP.GraphQL.Types
-import qualified Data.Attoparsec.Text as Attoparsec
-import Test.GraphQL.ParserSpec (parseGQL, parseValue)
+import GraphQL.ParserSpec (parseGQL, parseValue)
 import qualified Database.PostgreSQL.Simple.Types as PG
 import qualified Database.PostgreSQL.Simple.ToField as PG
 import qualified Data.Text as Text
@@ -141,5 +140,7 @@ substituteParams (PG.Query query, params) =
         actionToText (PG.Escape escape) = "'" <> cs escape <> "'"
         actionToText (PG.EscapeIdentifier escape) | cs escape == Text.toLower (cs escape) = cs escape
         actionToText (PG.EscapeIdentifier escape) = "\"" <> cs escape <> "\""
+        actionToText (PG.EscapeByteA bytes) = cs bytes
+        actionToText (PG.Many actions) = mconcat (map actionToText actions)
 
 

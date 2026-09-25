@@ -10,9 +10,9 @@ import Data.IORef (readIORef)
 import Data.Text (Text)
 import System.IO.Unsafe (unsafePerformIO)
 import Network.Wai (Request)
-import IHP.HSX.QQ (hsx)
+import IHP.HSX.MarkupQQ (hsx)
 import IHP.Modal.Types
-import Text.Blaze.Html5 (Html)
+import IHP.HSX.Markup (Html)
 
 renderModal :: Modal -> Html
 renderModal modal = renderModal' modal True
@@ -51,7 +51,7 @@ renderModalHeader :: Text -> Text -> Html
 renderModalHeader title closeUrl = [hsx|
     <div class="modal-header">
       <h5 class="modal-title" id="modal-title">{title}</h5>
-      <a href={closeUrl} class="btn-close" data-bs-dismiss="modal" aria-label="Close"></a>
+      <a href={closeUrl} class="btn-close" aria-label="Close"></a>
     </div>
 |]
 

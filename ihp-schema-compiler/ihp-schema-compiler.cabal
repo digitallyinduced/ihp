@@ -1,9 +1,10 @@
 cabal-version:       2.2
 name:                ihp-schema-compiler
-version:             1.4.0
+version:             1.6.0
 synopsis:            Lightweight schema compiler for IHP
 description:         Compiles Schema.sql to Generated Types.hs for IHP applications. This is a minimal package with few dependencies, suitable for production builds that don't need the full ihp-ide.
 license:             MIT
+license-file:        LICENSE
 author:              digitally induced GmbH
 maintainer:          hello@digitallyinduced.com
 homepage:            https://ihp.digitallyinduced.com/
@@ -13,6 +14,7 @@ category:            Web, IHP
 stability:           Stable
 tested-with:         GHC == 9.8.4
 build-type:          Simple
+extra-source-files:  changelog.md
 data-dir: data
 data-files: IHPSchema.sql
 
@@ -23,7 +25,7 @@ Flag FastBuild
 common shared-properties
     default-language: GHC2021
     build-depends:
-            base >= 4.17.0 && < 4.22
+            base >= 4.17.0 && < 4.23
           , classy-prelude
           , text
           , bytestring
@@ -56,10 +58,11 @@ common shared-properties
         ghc-options:
             -Wunused-imports
             -Wunused-foralls
-            -Wmissing-fields
+            -Werror=missing-fields
             -Winaccessible-code
             -Wno-ambiguous-fields
             -Werror=incomplete-patterns
+            -Werror=missing-home-modules
     else
         ghc-options:
             -fstatic-argument-transformation
@@ -68,11 +71,12 @@ common shared-properties
 
             -Wunused-imports
             -Wunused-foralls
-            -Wmissing-fields
+            -Werror=missing-fields
             -Winaccessible-code
             -fspecialise-aggressively
             -Wno-ambiguous-fields
             -Werror=incomplete-patterns
+            -Werror=missing-home-modules
 
 library
     import: shared-properties

@@ -7,19 +7,12 @@ that is defined in flake-module.nix
 {
     perSystem = { config, system, nix-filter, pkgs, lib, ... }:
     let
-                    hsDataDir = package:
-                            let
-                                ghcName   = package.passthru.compiler.haskellCompilerName;         # e.g. "ghc-9.10.1"
-                                shareRoot = "${package.data}/share/${ghcName}";
-                                # Pick the first (typically only) platform-specific directory, filtering out "doc"
-                                dirs = builtins.filter (d: d != "doc") (builtins.attrNames (builtins.readDir shareRoot));
-                                sys = lib.head dirs;
-                            in
-                                "${shareRoot}/${sys}/${package.name}";
+                    ihpLib = config.packages.ihp-env-var-backwards-compat;
 
                     # Wrap a package's check phase with a temporary PostgreSQL server
                     withTestPostgres = pkg: pkg.overrideAttrs (old: {
-                        nativeCheckInputs = (old.nativeCheckInputs or []) ++ [ pkgs.postgresql_18 ];
+                        nativeCheckInputs = (old.nativeCheckInputs or [])
+                            ++ [ pkgs.postgresql_18 pkgs.ps ];
                         preCheck = ''
                             ${old.preCheck or ""}
                             export PGDATA="$TMPDIR/pgdata"
@@ -30,12 +23,14 @@ that is defined in flake-module.nix
                             echo "listen_addresses = '''" >> "$PGDATA/postgresql.conf"
                             pg_ctl -D "$PGDATA" -l "$TMPDIR/pg.log" start
                             export DATABASE_URL="postgresql:///postgres?host=$PGHOST"
+                            export IHP_MIGRATE_TEST_DATABASE_URL="$DATABASE_URL"
                         '';
                         postCheck = ''
                             pg_ctl -D "$PGDATA" stop || true
                             ${old.postCheck or ""}
                         '';
                     });
+
     in
     {
         _module.args.pkgs = import inputs.nixpkgs { inherit system; overlays = [ self.overlays.default ]; config = { }; };
@@ -65,7 +60,10 @@ that is defined in flake-module.nix
 
             # Override checks that need a running PostgreSQL for integration tests
             // {
+                default = withTestPostgres self.packages.${system}.default;
                 ihp-datasync = withTestPostgres self.packages.${system}.ihp-datasync;
+                ihp-migrate = withTestPostgres pkgs.ghc.ihp-migrate;
+                ihp-typed-sql = withTestPostgres self.packages.${system}.ihp-typed-sql;
                 ihp-pglistener = withTestPostgres pkgs.ghc.ihp-pglistener;
             }
 
@@ -73,7 +71,11 @@ that is defined in flake-module.nix
             // {
                 ihp-hsx-bench = (pkgs.haskell.lib.doBenchmark pkgs.ghc.ihp-hsx).overrideAttrs (old: {
                     postCheck = (old.postCheck or "") + ''
-                        ./Setup bench --benchmark-options='+RTS -T -RTS --csv bench-results.csv'
+                        # The shared ARM runner concurrently builds the multi-GHC
+                        # checks. Keep tasty-bench's per-case timeout above its
+                        # 100s default so transient runner load does not turn an
+                        # allocation-regression check into a timing failure.
+                        ./Setup bench --benchmark-options='+RTS -T -RTS --timeout 300s --csv bench-results.csv'
 
                         # Compare allocations (column 4) against baseline.
                         # Allocations are deterministic — same code = same count — so
@@ -102,13 +104,14 @@ that is defined in flake-module.nix
                     nativeBuildInputs = [
                         (pkgs.ghc.ghc.withPackages (p: with p; [
                             ihp ihp-hsx ihp-hspec ihp-ide ihp-schema-compiler
+                            ihp-typed-sql
                             hspec
                         ]))
                         pkgs.gnumake
                         pkgs.postgresql_18
                     ];
                     buildPhase = ''
-                        export IHP_LIB=${hsDataDir pkgs.ghc.ihp-ide.data}
+                        export IHP_LIB=${ihpLib}
 
                         # Start temporary PostgreSQL
                         export PGDATA="$TMPDIR/pgdata"
@@ -123,6 +126,14 @@ that is defined in flake-module.nix
                         createdb -h "$PGHOST" app
                         export DATABASE_URL="postgresql:///app?host=$PGHOST"
 
+                        # Test/TypedSqlSpec.hs uses [typedSql| … |], which describes each
+                        # query against DATABASE_URL at COMPILE time, so the schema must
+                        # exist before we compile. (withIHPApp creates its own per-test
+                        # databases at runtime; this load only serves the compile-time
+                        # describe.) Load IHP's schema first, then the app's.
+                        psql -h "$PGHOST" -d app -v ON_ERROR_STOP=1 -f ${self}/ihp-schema-compiler/data/IHPSchema.sql
+                        psql -h "$PGHOST" -d app -v ON_ERROR_STOP=1 -f Application/Schema.sql
+
                         # Generate types from Schema.sql
                         make -f $IHP_LIB/lib/IHP/Makefile.dist build/Generated/Types.hs
 
@@ -133,7 +144,7 @@ that is defined in flake-module.nix
                             -threaded \
                             -i. -ibuild -iConfig \
                             -package-env - \
-                            -package ihp -package ihp-hspec -package hspec \
+                            -package ihp -package ihp-hspec -package ihp-typed-sql -package hspec \
                             -main-is Test.Main \
                             Test/Main.hs -o test-runner
                         ./test-runner
@@ -146,14 +157,138 @@ that is defined in flake-module.nix
                     '';
                 };
             }
+
+            # No separate GHC 9.12 checks: `pkgs.ghc912` aliases the default
+            # `pkgs.ghc` (GHC 9.12), so they would duplicate the default checks above.
+
+            # GHC 9.14 compatibility checks (build and test all IHP packages)
+            // (lib.optionalAttrs (pkgs.haskell.packages ? ghc914) (let
+                ghc914 = pkgs.ghc914;
+                ihpPackageNames = [
+                    "ihp-ide" "ihp-hsx" "ihp-schema-compiler"
+                    "ihp-postgres-parser" "ihp-pagehead"
+                    "ihp-modal" "ihp-mail"
+                    "ihp-migrate" "ihp-openai" "ihp-ssc" "ihp-graphql"
+                    "ihp-datasync-typescript" "ihp-sitemap"
+                    "ihp-job-dashboard" "ihp-imagemagick"
+                    "ihp-hspec" "ihp-welcome"
+                    "wai-asset-path" "wai-flash-messages" "wai-request-params"
+                    "wai-session-maybe" "wai-session-clientsession-deferred"
+                    "ihp-router" "wai-early-return" "ihp-zip"
+                ];
+            in lib.listToAttrs (map (name: {
+                name = "ghc914-${name}";
+                value = ghc914.${name};
+            }) ihpPackageNames)
+
+            # GHC 9.14 packages that need a running PostgreSQL for their tests
+            // {
+                ghc914-ihp = withTestPostgres pkgs.ghc914.ihp;
+                ghc914-ihp-datasync = withTestPostgres pkgs.ghc914.ihp-datasync;
+                ghc914-ihp-typed-sql = withTestPostgres pkgs.ghc914.ihp-typed-sql;
+                ghc914-ihp-pglistener = withTestPostgres pkgs.ghc914.ihp-pglistener;
+                # HLS omitted: hie-compat-0.3.1.2 requires base <4.22 and does not configure on 9.14.1.
+                ghc914-dev-env = pkgs.ghc914.ghc.withPackages (p: [
+                    p.ihp
+                    p.ihp-ide
+                    p.ihp-schema-compiler
+                    p.cabal-install
+                    p.hlint
+                    p.hoogle
+                ]);
+
+                # Same allocation check as ihp-hsx-bench, on the 9.14 package set.
+                ghc914-ihp-hsx-bench = (pkgs.haskell.lib.doBenchmark pkgs.ghc914.ihp-hsx).overrideAttrs (old: {
+                    postCheck = (old.postCheck or "") + ''
+                        # The shared ARM runner concurrently builds the multi-GHC
+                        # checks. Keep tasty-bench's per-case timeout above its
+                        # 100s default so transient runner load does not turn an
+                        # allocation-regression check into a timing failure.
+                        ./Setup bench --benchmark-options='+RTS -T -RTS --timeout 300s --csv bench-results.csv'
+
+                        # Compare allocations (column 4) against baseline.
+                        # Allocations are deterministic — same code = same count — so
+                        # any increase signals a real regression, not noise.
+                        ${pkgs.gawk}/bin/awk -F, '
+                          NR==FNR && FNR>1 { baseline[$1]=$4; next }
+                          FNR>1 {
+                            name=$1; alloc=$4; base=baseline[name]
+                            if (base > 0 && alloc > base * 1.1) {
+                              printf "REGRESSION: %s allocates %d bytes (baseline %d, +%.0f%%)\n", name, alloc, base, (alloc-base)/base*100
+                              fail=1
+                            }
+                          }
+                          END { if (fail) exit 1 }
+                        ' bench-baseline.csv bench-results.csv
+                    '';
+                });
+
+                # Same app compile as integration-test, but with GHC 9.14.
+                ghc914-integration-test = pkgs.stdenv.mkDerivation {
+                    name = "ihp-ghc914-integration-test";
+                    src = self;
+                    sourceRoot = "source/integration-test";
+                    nativeBuildInputs = [
+                        (pkgs.ghc914.ghc.withPackages (p: with p; [
+                            ihp ihp-hsx ihp-hspec ihp-ide ihp-schema-compiler
+                            ihp-typed-sql
+                            hspec
+                        ]))
+                        pkgs.gnumake
+                        pkgs.postgresql_18
+                    ];
+                    buildPhase = ''
+                        export IHP_LIB=${ihpLib}
+
+                        # Start temporary PostgreSQL
+                        export PGDATA="$TMPDIR/pgdata"
+                        export PGHOST="$TMPDIR/pghost"
+                        mkdir -p "$PGHOST"
+                        initdb -D "$PGDATA" --no-locale --encoding=UTF8
+                        echo "unix_socket_directories = '$PGHOST'" >> "$PGDATA/postgresql.conf"
+                        echo "listen_addresses = '''" >> "$PGDATA/postgresql.conf"
+                        pg_ctl -D "$PGDATA" -l "$TMPDIR/pg.log" start
+
+                        # Create the test database (withIHPApp replaces '/app' in the URL)
+                        createdb -h "$PGHOST" app
+                        export DATABASE_URL="postgresql:///app?host=$PGHOST"
+
+                        # Test/TypedSqlSpec.hs uses [typedSql| … |], which describes each
+                        # query against DATABASE_URL at COMPILE time, so the schema must
+                        # exist before we compile. (withIHPApp creates its own per-test
+                        # databases at runtime; this load only serves the compile-time
+                        # describe.) Load IHP's schema first, then the app's.
+                        psql -h "$PGHOST" -d app -v ON_ERROR_STOP=1 -f ${self}/ihp-schema-compiler/data/IHPSchema.sql
+                        psql -h "$PGHOST" -d app -v ON_ERROR_STOP=1 -f Application/Schema.sql
+
+                        # Generate types from Schema.sql
+                        make -f $IHP_LIB/lib/IHP/Makefile.dist build/Generated/Types.hs
+
+                        # Compile and run integration tests
+                        GHC_EXTS=$(make -f $IHP_LIB/lib/IHP/Makefile.dist print-ghc-extensions | sed 's/-fbyte-code//g')
+                        ghc --make \
+                            $GHC_EXTS \
+                            -threaded \
+                            -i. -ibuild -iConfig \
+                            -package-env - \
+                            -package ihp -package ihp-hspec -package ihp-typed-sql -package hspec \
+                            -main-is Test.Main \
+                            Test/Main.hs -o test-runner
+                        ./test-runner
+
+                        # Cleanup
+                        pg_ctl -D "$PGDATA" stop || true
+                    '';
+                    installPhase = ''
+                        touch $out
+                    '';
+                };
+            }))
         ;
 
         devenv.shells.default = {
-            packages = with pkgs; [ cabal2nix ];
+            packages = with pkgs; [ cabal2nix ps ];
             containers = lib.mkForce {};  # https://github.com/cachix/devenv/issues/528
-            # Required for devenv v1.11+ to fix flake check
-            process.manager.implementation = "process-compose";
-            process.managers.process-compose.enable = true;
 
             languages.haskell.enable = true;
             languages.haskell.package =
@@ -188,8 +323,8 @@ that is defined in flake-module.nix
                         wai-util
                         aeson
                         uuid
-                        wai-session
-                        wai-session-clientsession
+                        wai-session-maybe
+                        wai-session-clientsession-deferred
                         clientsession
                         pwstore-fast
                         template-haskell
@@ -221,7 +356,7 @@ that is defined in flake-module.nix
                         ip
                         fast-logger
                         minio-hs
-                        temporary
+                        temporary-ospath
                         wai-cors
                         random
                         cereal-text
@@ -232,7 +367,8 @@ that is defined in flake-module.nix
                         # Development Specific Tools (not in ihp.nix)
                         hspec
                         ihp-hsx
-                        ihp-postgresql-simple-extra
+                        postgresql-simple-postgresql-types
+                        postgresql-syntax
                         tasty-bench
 
                         # Packages needed for ghci to load IHP modules
@@ -254,7 +390,7 @@ that is defined in flake-module.nix
             '';
 
             languages.haskell.stack.enable = false; # Stack is not used in IHP
-            languages.haskell.languageServer = pkgs.ghc.haskell-language-server;
+            languages.haskell.lsp.package = pkgs.ghc.haskell-language-server;
         };
 
         packages = {
@@ -302,7 +438,7 @@ that is defined in flake-module.nix
                     pkgs.symlinkJoin {
                         name = "ihp-static";
                         paths = [
-                            (hsDataDir pkgs.ghc.ihp.data + "/static")
+                            ("${self}/ihp/data/static")
                             (pkgs.linkFarm "ihp-vendor-js" [
                                 # jQuery — current version
                                 { name = "vendor/jquery-4.0.0.min.js"; path = jquery "4.0.0.min.js" "1amdfbjdqncpv9x00n8f8xg43nvaapwfiq6kypx8nzyrkbm4d99r"; }
@@ -341,15 +477,17 @@ that is defined in flake-module.nix
             ihp-new = pkgs.callPackage ./ihp-new/default.nix {};
             ihp-sitemap = pkgs.ghc.ihp-sitemap;
             ihp-datasync = pkgs.ghc.ihp-datasync;
+            ihp-typed-sql = pkgs.ghc.ihp-typed-sql;
             ihp-pglistener = pkgs.ghc.ihp-pglistener;
             ihp-job-dashboard = pkgs.ghc.ihp-job-dashboard;
             wai-asset-path = pkgs.ghc.wai-asset-path;
             wai-flash-messages = pkgs.ghc.wai-flash-messages;
+            wai-early-return = pkgs.ghc.wai-early-return;
             ihp-imagemagick = pkgs.ghc.ihp-imagemagick;
             ihp-hspec = pkgs.ghc.ihp-hspec;
             ihp-welcome = pkgs.ghc.ihp-welcome;
             ihp-mail = pkgs.ghc.ihp-mail;
-            
+
             run-script = pkgs.stdenv.mkDerivation {
                 pname = "run-script";
                 version = "1.0.0";
@@ -364,11 +502,34 @@ that is defined in flake-module.nix
 
             guide =
                 let
-                    node-modules = pkgs.mkYarnModules {
+                    # node_modules derivation built from yarn.lock + package.json.
+                    # Replaces the removed `mkYarnModules` (yarn2nix) with the standard
+                    # `fetchYarnDeps` + `yarnConfigHook` pipeline from nixpkgs.
+                    node-modules = pkgs.stdenv.mkDerivation {
                         pname = "guide-node_modules";
-                        packageJSON = ./Guide/package.json;
-                        yarnLock = ./Guide/yarn.lock;
                         version = "1.0.0";
+
+                        src = pkgs.runCommand "guide-yarn-src" {} ''
+                            mkdir -p $out
+                            cp ${./Guide/package.json} $out/package.json
+                            cp ${./Guide/yarn.lock}    $out/yarn.lock
+                        '';
+
+                        yarnOfflineCache = pkgs.fetchYarnDeps {
+                            yarnLock = ./Guide/yarn.lock;
+                            hash = "sha256-Alr/Bh3T7Bqvs+HgB9a2l730SNnfKGUPPK23SVlUSt0=";
+                        };
+
+                        nativeBuildInputs = [ pkgs.nodejs pkgs.yarn pkgs.yarnConfigHook ];
+
+                        dontBuild = true;
+
+                        installPhase = ''
+                            runHook preInstall
+                            mkdir -p $out
+                            cp -r node_modules $out/
+                            runHook postInstall
+                        '';
                     };
                 in
                     pkgs.stdenv.mkDerivation {
@@ -410,12 +571,51 @@ that is defined in flake-module.nix
 
 
             reference =
+                let
+                    hackageHtmlLocationFlag = "--html-location='https://hackage.haskell.org/package/$pkgid/docs'";
+                    withHackageLinks = package: pkgs.haskell.lib.overrideCabal package (old: {
+                        haddockFlags = (old.haddockFlags or []) ++ [ hackageHtmlLocationFlag ];
+                    });
+
+                    # Subpackages whose Haddock should be merged into the reference docs.
+                    # Order matters: ihp-with-docs MUST be first so its index.html /
+                    # doc-index-*.html / linuwial.css / quick-jump.js win on conflicts.
+                    # Subpackages contribute their unique IHP-*.html module pages.
+                    docPackages = with pkgs.ghc; map withHackageLinks [
+                        ihp-with-docs
+                        ihp-pglistener
+                        ihp-router
+                        ihp-mail
+                        ihp-modal
+                        ihp-ssc
+                        # ihp-hsx ships with `doHaddock = false` in its default.nix
+                        # (multi-library cabal makes the default haddock build messy).
+                        # Re-enable it here so IHP-HSX-QQ.html etc. land in api-docs.
+                        (pkgs.haskell.lib.overrideCabal ihp-hsx (old: { doHaddock = true; }))
+                        ihp-pagehead
+                        ihp-job-dashboard
+                        ihp-imagemagick
+                        ihp-typed-sql
+                    ];
+                in
                 pkgs.stdenv.mkDerivation {
                     name = "ihp-reference";
                     src = self;
-                    nativeBuildInputs = with pkgs; [ pkgs.ghc.ihp-with-docs ];
+                    nativeBuildInputs = docPackages ++ [ pkgs.perl ];
                     buildPhase = ''
-                        cp -r ${pkgs.ghc.ihp-with-docs.doc}/share/doc/ihp-*/html haddock-build
+                        mkdir -p haddock-build
+
+                        # Merge each package's Haddock html dir into haddock-build/.
+                        # cp -rn ("recursive, no clobber") = first-writer-wins, so the
+                        # core ihp-with-docs index/css/js stay authoritative.
+                        for src in ${lib.concatMapStringsSep " " (p: p.doc.outPath or "") (lib.filter (p: p ? doc) docPackages)}; do
+                            for html_dir in "$src"/share/doc/*/html; do
+                                if [ -d "$html_dir" ]; then
+                                    cp -rn "$html_dir"/. haddock-build/ 2>/dev/null || true
+                                fi
+                            done
+                        done
+
                         chmod -R u+w haddock-build
 
                         cd haddock-build
@@ -427,6 +627,18 @@ that is defined in flake-module.nix
                         cp ../ihp-haddock.css ihp-haddock.css
                         find . -type f \( -iname "*.html" \) -exec sed -i 's#<\/head>#<link href="ihp-haddock.css" rel="stylesheet"/><\/head>#g' '{}' +
 
+                        # Haddock's --html-location keeps prerequisite package links
+                        # stable. After merging IHP subpackage docs into one directory,
+                        # link sibling package references to the local merged pages.
+                        #
+                        find . -type f \( -iname "*.html" \) -exec perl -0pi -e '
+                            s{href="https://hackage\.haskell\.org/package/[^"/]+/docs/([^"#?]+(?:#[^"]*)?)"}{
+                                my ($target) = ($1);
+                                my ($page) = split /#/, $target, 2;
+                                (-e $page) ? qq{href="$target"} : $&
+                            }ge;
+                        ' '{}' +
+
                         # Link title to index
                         find . -type f \( -iname "*.html" \) -exec sed -i 's#<span class=\"caption\">IHP Api Reference</span>#<a href=\"index.html\" class=\"caption\"><img src=\"https://ihp.digitallyinduced.com/Guide/images/ihp-logo-readme.svg\"/>IHP Api Reference</a>#g' '{}' +
 
@@ -435,14 +647,37 @@ that is defined in flake-module.nix
                     # allowedReferences = [];
             };
 
-            datasync-js = pkgs.mkYarnPackage {
-                name = "datasync-js";
+            # DataSync TypeScript SDK: build + tests + typecheck.
+            # Replaces the removed `mkYarnPackage` (yarn2nix) with the standard
+            # `fetchYarnDeps` + `yarnConfigHook` pipeline from nixpkgs.
+            datasync-js = pkgs.stdenv.mkDerivation {
+                pname = "datasync-js";
+                version = "0.1.0";
+
                 src = let filter = inputs.nix-filter.lib; in filter {
                     root = "${self}/ihp-datasync/data/DataSync";
                 };
-                postConfigure = ''
-                    yarn run test
-                    yarn run typecheck
+
+                yarnOfflineCache = pkgs.fetchYarnDeps {
+                    yarnLock = ./ihp-datasync/data/DataSync/yarn.lock;
+                    hash = "sha256-RFCzBgDYx2CeRjBPDGBKesmOht2uzYH3K39v2BRbK00=";
+                };
+
+                nativeBuildInputs = [ pkgs.nodejs pkgs.yarn pkgs.yarnConfigHook ];
+
+                buildPhase = ''
+                    runHook preBuild
+                    yarn --offline run build
+                    yarn --offline run test
+                    yarn --offline run typecheck
+                    runHook postBuild
+                '';
+
+                installPhase = ''
+                    runHook preInstall
+                    mkdir -p $out
+                    cp -r . $out/
+                    runHook postInstall
                 '';
             };
 
@@ -452,10 +687,20 @@ that is defined in flake-module.nix
                 pkgs.symlinkJoin {
                     name = "ihp-env-var-backwards-compat";
                     paths = [
-                        (hsDataDir pkgs.ghc.ihp-ide.data + "/lib/IHP")
-                        (hsDataDir pkgs.ghc.ihp-ide.data)
-                        (hsDataDir pkgs.ghc.ihp.data)
+                        ("${self}/ihp-ide/data/lib/IHP")
+                        ("${self}/ihp-ide/data")
+                        ("${self}/ihp/data")
                     ];
+                    # The Makefile references $(IHP)/static/vendor/bootstrap.min.css etc.
+                    # These vendor files (bootstrap, jquery, select2) are fetched via Nix
+                    # in ihp-static, not in the ihp cabal data-files.
+                    postBuild = ''
+                        for f in ${config.packages.ihp-static}/vendor/*; do
+                            ln -sf "$f" "$out/static/vendor/$(basename "$f")" 2>/dev/null || true
+                        done
+                        # Backwards compat: old Makefiles reference popper.min.js
+                        ln -sf "$out/static/vendor/popper-2.11.6.min.js" "$out/static/vendor/popper.min.js" 2>/dev/null || true
+                    '';
                 };
         };
     };

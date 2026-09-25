@@ -3,7 +3,7 @@
 }:
 mkDerivation {
   pname = "ihp-postgres-parser";
-  version = "1.4.0";
+  version = "1.0.0";
   src = ./.;
   libraryHaskellDepends = [
     base bytestring filepath megaparsec parser-combinators

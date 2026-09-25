@@ -1,16 +1,14 @@
 {-|
-Module: Test.IDE.SchemaDesigner.CompilerSpec
+Module: IDE.SchemaDesigner.CompilerSpec
 Copyright: (c) digitally induced GmbH, 2020
 -}
-module Test.IDE.SchemaDesigner.CompilerSpec where
+module IDE.SchemaDesigner.CompilerSpec where
 
 import Test.Hspec
 import IHP.Prelude
 import IHP.Postgres.Compiler (compileSql)
 import IHP.Postgres.Types
-import IHP.ViewPrelude (cs, plain)
-import qualified Text.Megaparsec as Megaparsec
-import Test.IDE.SchemaDesigner.ParserSpec (col, table, parseSql)
+import IDE.SchemaDesigner.ParserSpec (parseSql)
 
 tests = do
     describe "The Schema.sql Compiler" do
@@ -18,7 +16,7 @@ tests = do
             compileSql [StatementCreateTable (table "users")] `shouldBe` "CREATE TABLE users (\n\n);\n"
 
         it "should compile a CREATE EXTENSION for the UUID extension" do
-            compileSql [CreateExtension { name = "uuid-ossp", ifNotExists = True }] `shouldBe` "CREATE EXTENSION IF NOT EXISTS \"uuid-ossp\";\n"
+            compileSql [CreateExtension { name = "uuid-ossp", ifNotExists = True, extensionOptions = [] }] `shouldBe` "CREATE EXTENSION IF NOT EXISTS \"uuid-ossp\";\n"
 
         it "should compile a line comment" do
             compileSql [Comment { content = " Comment value" }] `shouldBe` "-- Comment value\n"
@@ -64,7 +62,10 @@ tests = do
                         , columnName = "company_id"
                         , referenceTable = "companies"
                         , referenceColumn = "id"
-                        , onDelete = Just Cascade
+                            , onDelete = Just Cascade
+                            , onUpdate = Nothing
+                            , constraintDeferrable = Nothing
+                            , constraintDeferrableType = Nothing
                         }
                     , deferrable = Nothing
                     , deferrableType = Nothing
@@ -79,7 +80,10 @@ tests = do
                         , columnName = "company_id"
                         , referenceTable = "companies"
                         , referenceColumn = "id"
-                        , onDelete = Just SetDefault
+                            , onDelete = Just (SetDefault [])
+                            , onUpdate = Nothing
+                            , constraintDeferrable = Nothing
+                            , constraintDeferrableType = Nothing
                         }
                     , deferrable = Nothing
                     , deferrableType = Nothing
@@ -94,7 +98,10 @@ tests = do
                         , columnName = "company_id"
                         , referenceTable = "companies"
                         , referenceColumn = "id"
-                        , onDelete = Just SetNull
+                            , onDelete = Just (SetNull [])
+                            , onUpdate = Nothing
+                            , constraintDeferrable = Nothing
+                            , constraintDeferrableType = Nothing
                         }
                     , deferrable = Nothing
                     , deferrableType = Nothing
@@ -109,7 +116,10 @@ tests = do
                         , columnName = "company_id"
                         , referenceTable = "companies"
                         , referenceColumn = "id"
-                        , onDelete = Just Restrict
+                            , onDelete = Just Restrict
+                            , onUpdate = Nothing
+                            , constraintDeferrable = Nothing
+                            , constraintDeferrableType = Nothing
                         }
                     , deferrable = Nothing
                     , deferrableType = Nothing
@@ -124,7 +134,10 @@ tests = do
                         , columnName = "company_id"
                         , referenceTable = "companies"
                         , referenceColumn = "id"
-                        , onDelete = Just NoAction
+                            , onDelete = Just NoAction
+                            , onUpdate = Nothing
+                            , constraintDeferrable = Nothing
+                            , constraintDeferrableType = Nothing
                         }
                     , deferrable = Nothing
                     , deferrableType = Nothing
@@ -139,7 +152,10 @@ tests = do
                         , columnName = "company_id"
                         , referenceTable = "companies"
                         , referenceColumn = "id"
-                        , onDelete = Nothing
+                            , onDelete = Nothing
+                            , onUpdate = Nothing
+                            , constraintDeferrable = Nothing
+                            , constraintDeferrableType = Nothing
                         }
                     , deferrable = Nothing
                     , deferrableType = Nothing
@@ -492,15 +508,23 @@ tests = do
                     }
             compileSql [statement] `shouldBe` sql
 
+        it "should compile a CREATE TABLE statement with a PostGIS geometry column" do
+            let sql = cs [plain|CREATE TABLE location_tests (\n    geom GEOMETRY\n);\n|]
+            let statement = StatementCreateTable (table "location_tests")
+                    { columns = [ col "geom" PGeometry ]
+                    }
+            compileSql [statement] `shouldBe` sql
+
         it "should compile a CREATE INDEX statement" do
             let sql = cs [plain|CREATE INDEX users_index ON users (user_name);\n|]
             let statement = CreateIndex
                     { indexName = "users_index"
                     , unique = False
                     , tableName = "users"
-                    , columns = [IndexColumn { column = VarExpression "user_name", columnOrder = [] }]
+                    , columns = [indexCol (VarExpression "user_name")]
                     , whereClause = Nothing
                     , indexType = Nothing
+                    , nullsDistinct = True
                     }
             compileSql [statement] `shouldBe` sql
         
@@ -510,9 +534,10 @@ tests = do
                     { indexName = "Some Index"
                     , unique = False
                     , tableName = "Some Table"
-                    , columns = [IndexColumn { column = VarExpression "Some Col", columnOrder = [] }]
+                    , columns = [indexCol (VarExpression "Some Col")]
                     , whereClause = Nothing
                     , indexType = Nothing
+                    , nullsDistinct = True
                     }
             compileSql [statement] `shouldBe` sql
 
@@ -522,9 +547,10 @@ tests = do
                     { indexName = "users_index"
                     , unique = False
                     , tableName = "users"
-                    , columns = [IndexColumn { column = VarExpression "user_name", columnOrder = [] }]
+                    , columns = [indexCol (VarExpression "user_name")]
                     , whereClause = Nothing
                     , indexType = Just Gin
+                    , nullsDistinct = True
                     }
             compileSql [statement] `shouldBe` sql
 
@@ -534,9 +560,10 @@ tests = do
                     { indexName = "users_index"
                     , unique = False
                     , tableName = "users"
-                    , columns = [IndexColumn { column = VarExpression "user_name", columnOrder = [] }]
+                    , columns = [indexCol (VarExpression "user_name")]
                     , whereClause = Nothing
                     , indexType = Just Btree
+                    , nullsDistinct = True
                     }
             compileSql [statement] `shouldBe` sql
 
@@ -546,9 +573,10 @@ tests = do
                     { indexName = "users_index"
                     , unique = False
                     , tableName = "users"
-                    , columns = [IndexColumn { column = VarExpression "user_name", columnOrder = [] }]
+                    , columns = [indexCol (VarExpression "user_name")]
                     , whereClause = Nothing
                     , indexType = Just Gist
+                    , nullsDistinct = True
                     }
             compileSql [statement] `shouldBe` sql
 
@@ -559,11 +587,12 @@ tests = do
                     , unique = False
                     , tableName = "users"
                     , columns =
-                        [ IndexColumn { column = VarExpression "user_name", columnOrder = [] }
-                        , IndexColumn { column = VarExpression "project_id", columnOrder = [] }
+                        [ indexCol (VarExpression "user_name")
+                        , indexCol (VarExpression "project_id")
                         ]
                     , whereClause = Nothing
                     , indexType = Nothing
+                    , nullsDistinct = True
                     }
             compileSql [statement] `shouldBe` sql
 
@@ -573,9 +602,10 @@ tests = do
                     { indexName = "users_email_index"
                     , unique = False
                     , tableName = "users"
-                    , columns = [IndexColumn { column = CallExpression "LOWER" [VarExpression "email"], columnOrder = []}]
+                    , columns = [indexCol (CallExpression "LOWER" [VarExpression "email"])]
                     , whereClause = Nothing
                     , indexType = Nothing
+                    , nullsDistinct = True
                     }
             compileSql [statement] `shouldBe` sql
 
@@ -585,9 +615,10 @@ tests = do
                     { indexName = "users_index"
                     , unique = True
                     , tableName = "users"
-                    , columns = [IndexColumn { column = VarExpression "user_name", columnOrder = []}]
+                    , columns = [indexCol (VarExpression "user_name")]
                     , whereClause = Nothing
                     , indexType = Nothing
+                    , nullsDistinct = True
                     }
             compileSql [statement] `shouldBe` sql
 
@@ -597,9 +628,10 @@ tests = do
                     { indexName = "users_index"
                     , unique = True
                     , tableName = "users"
-                    , columns = [IndexColumn { column = VarExpression "user_name", columnOrder = [Asc, NullsFirst]}]
+                    , columns = [IndexColumn { column = VarExpression "user_name", columnOperatorClass = Nothing, columnOrder = [Asc, NullsFirst]}]
                     , whereClause = Nothing
                     , indexType = Nothing
+                    , nullsDistinct = True
                     }
             compileSql [statement] `shouldBe` sql
 
@@ -609,64 +641,91 @@ tests = do
                     { indexName = "users_index"
                     , unique = True
                     , tableName = "users"
-                    , columns = [IndexColumn { column = VarExpression "user_name", columnOrder = [Desc, NullsLast]}]
+                    , columns = [IndexColumn { column = VarExpression "user_name", columnOperatorClass = Nothing, columnOrder = [Desc, NullsLast]}]
                     , whereClause = Nothing
                     , indexType = Nothing
+                    , nullsDistinct = True
+                    }
+            compileSql [statement] `shouldBe` sql
+
+        it "should compile pgvector column types with dimensions" do
+            let sql = "ALTER TABLE knowledge_chunks ADD COLUMN embedding VECTOR(1536) DEFAULT NULL;\n"
+            let statement = AddColumn
+                    { tableName = "knowledge_chunks"
+                    , column = (col "embedding" (PCustomType "VECTOR(1536)")) { defaultValue = Just (VarExpression "NULL") }
+                    }
+            compileSql [statement] `shouldBe` sql
+
+        it "should compile pgvector HNSW indexes with operator classes" do
+            let sql = "CREATE INDEX knowledge_chunks_embedding_hnsw_idx ON knowledge_chunks USING HNSW (embedding vector_cosine_ops) WHERE embedding IS NOT NULL;\n"
+            let statement = CreateIndex
+                    { indexName = "knowledge_chunks_embedding_hnsw_idx"
+                    , unique = False
+                    , tableName = "knowledge_chunks"
+                    , columns = [IndexColumn { column = VarExpression "embedding", columnOperatorClass = Just "vector_cosine_ops", columnOrder = [] }]
+                    , whereClause = Just (IsExpression (VarExpression "embedding") (NotExpression (VarExpression "NULL")))
+                    , indexType = Just Hnsw
+                    , nullsDistinct = True
+                    }
+            compileSql [statement] `shouldBe` sql
+
+        it "should compile pgvector IVFFLAT indexes with operator classes" do
+            let sql = "CREATE INDEX knowledge_chunks_embedding_ivfflat_idx ON knowledge_chunks USING IVFFLAT (embedding vector_l2_ops);\n"
+            let statement = CreateIndex
+                    { indexName = "knowledge_chunks_embedding_ivfflat_idx"
+                    , unique = False
+                    , tableName = "knowledge_chunks"
+                    , columns = [IndexColumn { column = VarExpression "embedding", columnOperatorClass = Just "vector_l2_ops", columnOrder = [] }]
+                    , whereClause = Nothing
+                    , indexType = Just Ivfflat
+                    , nullsDistinct = True
                     }
             compileSql [statement] `shouldBe` sql
 
         it "should compile a CREATE OR REPLACE FUNCTION ..() RETURNS TRIGGER .." do
             let sql = cs [plain|CREATE OR REPLACE FUNCTION notify_did_insert_webrtc_connection() RETURNS TRIGGER AS $$ BEGIN PERFORM pg_notify('did_insert_webrtc_connection', json_build_object('id', NEW.id, 'floor_id', NEW.floor_id, 'source_user_id', NEW.source_user_id, 'target_user_id', NEW.target_user_id)::text); RETURN NEW; END; $$ language plpgsql;\n|]
-            let statement = CreateFunction
-                    { functionName = "notify_did_insert_webrtc_connection"
-                    , functionArguments = []
-                    , functionBody = " BEGIN PERFORM pg_notify('did_insert_webrtc_connection', json_build_object('id', NEW.id, 'floor_id', NEW.floor_id, 'source_user_id', NEW.source_user_id, 'target_user_id', NEW.target_user_id)::text); RETURN NEW; END; "
+            let statement = (function "notify_did_insert_webrtc_connection")
+                    { functionBody = " BEGIN PERFORM pg_notify('did_insert_webrtc_connection', json_build_object('id', NEW.id, 'floor_id', NEW.floor_id, 'source_user_id', NEW.source_user_id, 'target_user_id', NEW.target_user_id)::text); RETURN NEW; END; "
                     , orReplace = True
-                    , returns = PTrigger
-                    , language = "plpgsql"
                     }
 
             compileSql [statement] `shouldBe` sql
 
         it "should compile a CREATE OR REPLACE FUNCTION ..() RETURNS EVENT_TRIGGER .." do
             let sql = cs [plain|CREATE OR REPLACE FUNCTION a() RETURNS EVENT_TRIGGER AS $$$$ language plpgsql;\n|]
-            let statement = CreateFunction
-                    { functionName = "a"
-                    , functionArguments = []
-                    , functionBody = ""
-                    , orReplace = True
+            let statement = (function "a")
+                    { orReplace = True
                     , returns = PEventTrigger
-                    , language = "plpgsql"
                     }
 
             compileSql [statement] `shouldBe` sql
 
         it "should compile a CREATE FUNCTION ..() RETURNS TRIGGER .." do
             let sql = cs [plain|CREATE FUNCTION notify_did_insert_webrtc_connection() RETURNS TRIGGER AS $$ BEGIN PERFORM pg_notify('did_insert_webrtc_connection', json_build_object('id', NEW.id, 'floor_id', NEW.floor_id, 'source_user_id', NEW.source_user_id, 'target_user_id', NEW.target_user_id)::text); RETURN NEW; END; $$ language plpgsql;\n|]
-            let statement = CreateFunction
-                    { functionName = "notify_did_insert_webrtc_connection"
-                    , functionArguments = []
-                    , functionBody = " BEGIN PERFORM pg_notify('did_insert_webrtc_connection', json_build_object('id', NEW.id, 'floor_id', NEW.floor_id, 'source_user_id', NEW.source_user_id, 'target_user_id', NEW.target_user_id)::text); RETURN NEW; END; "
-                    , orReplace = False
-                    , returns = PTrigger
-                    , language = "plpgsql"
+            let statement = (function "notify_did_insert_webrtc_connection")
+                    { functionBody = " BEGIN PERFORM pg_notify('did_insert_webrtc_connection', json_build_object('id', NEW.id, 'floor_id', NEW.floor_id, 'source_user_id', NEW.source_user_id, 'target_user_id', NEW.target_user_id)::text); RETURN NEW; END; "
                     }
 
             compileSql [statement] `shouldBe` sql
 
         it "should compile a CREATE FUNCTION with parameters ..() RETURNS TRIGGER .." do
             let sql = cs [plain|CREATE FUNCTION notify_did_insert_webrtc_connection(param1 TEXT, param2 INT) RETURNS TRIGGER AS $$ BEGIN PERFORM pg_notify('did_insert_webrtc_connection', json_build_object('id', NEW.id, 'floor_id', NEW.floor_id, 'source_user_id', NEW.source_user_id, 'target_user_id', NEW.target_user_id)::text); RETURN NEW; END; $$ language plpgsql;\n|]
-            let statement = CreateFunction
-                    { functionName = "notify_did_insert_webrtc_connection"
-                    , functionArguments = [("param1", PText), ("param2", PInt)]
+            let statement = (function "notify_did_insert_webrtc_connection")
+                    { functionArguments = [("param1", PText), ("param2", PInt)]
                     , functionBody = " BEGIN PERFORM pg_notify('did_insert_webrtc_connection', json_build_object('id', NEW.id, 'floor_id', NEW.floor_id, 'source_user_id', NEW.source_user_id, 'target_user_id', NEW.target_user_id)::text); RETURN NEW; END; "
-                    , orReplace = False
-                    , returns = PTrigger
-                    , language = "plpgsql"
                     }
 
             compileSql [statement] `shouldBe` sql
 
+
+        it "should compile a CREATE FUNCTION with SECURITY DEFINER" do
+            let sql = cs [plain|CREATE FUNCTION my_func() RETURNS TRIGGER SECURITY DEFINER AS $$ BEGIN RETURN NEW; END; $$ language plpgsql;\n|]
+            let statement = (function "my_func")
+                    { functionBody = " BEGIN RETURN NEW; END; "
+                    , securityDefiner = True
+                    }
+
+            compileSql [statement] `shouldBe` sql
 
         it "should compile a CREATE TRIGGER .." do
             let sql = cs [plain|CREATE TRIGGER t AFTER INSERT ON x FOR EACH ROW EXECUTE PROCEDURE y();\n|]
@@ -675,7 +734,7 @@ tests = do
 
         it "should compile a decimal default value with a type-cast" do
             let sql = "CREATE TABLE a (\n    electricity_unit_price DOUBLE PRECISION DEFAULT 0.17::DOUBLE PRECISION NOT NULL\n);\n"
-            let statement = StatementCreateTable (table "a") { columns = [(col "electricity_unit_price" PDouble) { defaultValue = Just (TypeCastExpression (DoubleExpression 0.17) PDouble), notNull = True }] }
+            let statement = StatementCreateTable (table "a") { columns = [(col "electricity_unit_price" PDouble) { defaultValue = Just (TypeCastExpression (NumericExpression "0.17") PDouble), notNull = True }] }
             compileSql [statement] `shouldBe` sql
 
         it "should compile a integer default value" do
@@ -690,14 +749,15 @@ tests = do
                     , unique = True
                     , tableName = "listings"
                     , columns =
-                        [ IndexColumn { column = VarExpression "source", columnOrder = [] }
-                        , IndexColumn { column = VarExpression "source_id", columnOrder = [] }
+                        [ indexCol (VarExpression "source")
+                        , indexCol (VarExpression "source_id")
                         ]
                     , whereClause = Just (
                         AndExpression
                             (IsExpression (VarExpression "source") (NotExpression (VarExpression "NULL")))
                             (IsExpression (VarExpression "source_id") (NotExpression (VarExpression "NULL"))))
                     , indexType = Nothing
+                    , nullsDistinct = True
                     }
             compileSql [index] `shouldBe` sql
 
@@ -713,11 +773,8 @@ tests = do
 
         it "should compile 'CREATE POLICY' statements" do
             let sql = "CREATE POLICY \"Users can manage their tasks\" ON tasks USING (user_id = ihp_user_id()) WITH CHECK (user_id = ihp_user_id());\n"
-            let policy = CreatePolicy
-                    { name = "Users can manage their tasks"
-                    , action = Nothing
-                    , tableName = "tasks"
-                    , using = Just (
+            let p = (policy "Users can manage their tasks" "tasks")
+                    { using = Just (
                         EqExpression
                             (VarExpression "user_id")
                             (CallExpression "ihp_user_id" [])
@@ -728,16 +785,13 @@ tests = do
                             (CallExpression "ihp_user_id" [])
                         )
                     }
-            compileSql [policy] `shouldBe` sql
-        
+            compileSql [p] `shouldBe` sql
+
         it "should compile 'CREATE POLICY' statements with a 'ihp_user_id() IS NOT NULL' expression" do
             -- https://github.com/digitallyinduced/ihp/issues/1412
             let sql = "CREATE POLICY \"Users can manage tasks if logged in\" ON tasks USING (ihp_user_id() IS NOT NULL) WITH CHECK (ihp_user_id() IS NOT NULL);\n"
-            let policy = CreatePolicy
-                    { name = "Users can manage tasks if logged in"
-                    , action = Nothing
-                    , tableName = "tasks"
-                    , using = Just (
+            let p = (policy "Users can manage tasks if logged in" "tasks")
+                    { using = Just (
                         IsExpression
                             (CallExpression "ihp_user_id" [])
                             (NotExpression (VarExpression "NULL"))
@@ -748,18 +802,19 @@ tests = do
                             (NotExpression (VarExpression "NULL"))
                         )
                     }
-            compileSql [policy] `shouldBe` sql
+            compileSql [p] `shouldBe` sql
 
         it "should compile 'CREATE POLICY .. FOR SELECT' statements" do
             let sql = "CREATE POLICY \"Messages are public\" ON messages FOR SELECT USING (true);\n"
-            let policy = CreatePolicy
+            let p = CreatePolicy
                     { name = "Messages are public"
                     , action = Just PolicyForSelect
                     , tableName = "messages"
+                    , roles = []
                     , using = Just (VarExpression "true")
                     , check = Nothing
                     }
-            compileSql [policy] `shouldBe` sql
+            compileSql [p] `shouldBe` sql
 
         it "should use parentheses where needed" do
             -- https://github.com/digitallyinduced/ihp/issues/1087
@@ -778,7 +833,7 @@ tests = do
 
         it "should compile 'CREATE SEQUENCE ..' statements" do
             let sql = "CREATE SEQUENCE a;\n"
-            let statements = [ CreateSequence { name = "a" } ]
+            let statements = [ CreateSequence { name = "a", sequenceOptions = [] } ]
             compileSql statements `shouldBe` sql
 
         it "should compile 'ALTER TABLE .. RENAME COLUMN .. TO ..' statements" do
@@ -838,17 +893,14 @@ tests = do
 
         it "should compile 'CREATE EXTENSION IF NOT EXISTS;' statements with an unqualified name" do
             let sql = "CREATE EXTENSION IF NOT EXISTS fuzzystrmatch;\n"
-            let statements = [ CreateExtension { name = "fuzzystrmatch", ifNotExists = True } ]
+            let statements = [ CreateExtension { name = "fuzzystrmatch", ifNotExists = True, extensionOptions = [] } ]
             compileSql statements `shouldBe` sql
 
         it "should compile 'CREATE POLICY ..;' statements with an EXISTS condition" do
             let sql = cs [plain|CREATE POLICY "Users can manage their project's migrations" ON migrations USING (EXISTS (SELECT 1 FROM public.projects WHERE projects.id = migrations.project_id)) WITH CHECK (EXISTS (SELECT 1 FROM public.projects WHERE projects.id = migrations.project_id));\n|]
             let statements =
-                    [ CreatePolicy
-                        { name = "Users can manage their project's migrations"
-                        , action = Nothing
-                        , tableName = "migrations"
-                        , using = Just (ExistsExpression (SelectExpression (Select {columns = [IntExpression 1], from = DotExpression (VarExpression "public") "projects", alias = Nothing, whereClause = EqExpression (DotExpression (VarExpression "projects") "id") (DotExpression (VarExpression "migrations") "project_id")})))
+                    [ (policy "Users can manage their project's migrations" "migrations")
+                        { using = Just (ExistsExpression (SelectExpression (Select {columns = [IntExpression 1], from = DotExpression (VarExpression "public") "projects", alias = Nothing, whereClause = EqExpression (DotExpression (VarExpression "projects") "id") (DotExpression (VarExpression "migrations") "project_id")})))
                         , check = Just (ExistsExpression (SelectExpression (Select {columns = [IntExpression 1], from = DotExpression (VarExpression "public") "projects", alias = Nothing, whereClause = EqExpression (DotExpression (VarExpression "projects") "id") (DotExpression (VarExpression "migrations") "project_id")})))
                         }
                     ]
@@ -864,12 +916,26 @@ tests = do
             let statements = [ CreateTrigger
                     { name = "call_test_function_for_new_users"
                     , eventWhen = After
-                    , event = TriggerOnInsert
+                    , event = [TriggerOnInsert]
                     , tableName = "users"
                     , for = ForEachRow
                     , whenCondition = Nothing
                     , functionName = "call_test_function"
                     , arguments = [TextExpression "hello"]
+                    } ]
+            compileSql statements `shouldBe` sql
+
+        it "should compile 'CREATE TRIGGER .. AFTER INSERT OR UPDATE ON ..' statements" do
+            let sql = "CREATE TRIGGER my_trigger AFTER INSERT OR UPDATE ON posts FOR EACH ROW EXECUTE FUNCTION my_function();\n"
+            let statements = [ CreateTrigger
+                    { name = "my_trigger"
+                    , eventWhen = After
+                    , event = [TriggerOnInsert, TriggerOnUpdate]
+                    , tableName = "posts"
+                    , for = ForEachRow
+                    , whenCondition = Nothing
+                    , functionName = "my_function"
+                    , arguments = []
                     } ]
             compileSql statements `shouldBe` sql
 
@@ -932,7 +998,7 @@ tests = do
             |] <> "\n"
             let statements = [
                         StatementCreateTable (table "pg_large_notifications")
-                            { unlogged = True
+                            { unlogged = True, inherits = Nothing
                             }
                         ]
             compileSql statements `shouldBe` sql
@@ -942,11 +1008,8 @@ tests = do
                 CREATE POLICY "Public" ON plans USING (true) WITH CHECK (false);
             |] <> "\n"
             let statements = [
-                        CreatePolicy
-                            { name = "Public"
-                            , action = Nothing
-                            , tableName = "plans"
-                            , using = Just (VarExpression "true")
+                        (policy "Public" "plans")
+                            { using = Just (VarExpression "true")
                             , check = Just (VarExpression "false")
                             }
                         ]

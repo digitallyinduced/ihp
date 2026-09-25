@@ -7,12 +7,11 @@ Copyright: (c) digitally induced GmbH, 2021
 module IHP.DataSync.DynamicQuery where
 
 import IHP.ControllerPrelude hiding (OrderByClause)
-import Data.Aeson
 import qualified Data.Aeson as Aeson
 import qualified IHP.QueryBuilder as QueryBuilder
 import qualified Hasql.Decoders as Decoders
-import qualified Hasql.DynamicStatements.Snippet as Snippet
-import Hasql.DynamicStatements.Snippet (Snippet)
+import qualified Hasql.Encoders as Encoders
+import qualified Hasql.Statement as Hasql
 import Data.Aeson.TH
 import qualified GHC.Generics
 import qualified Control.DeepSeq as DeepSeq
@@ -22,17 +21,17 @@ import qualified Data.Scientific as Scientific
 import qualified Data.UUID as UUID
 import qualified Data.Vector as Vector
 import qualified Data.List as List
-import qualified Data.Text as Text
 import qualified Data.HashMap.Strict as HashMap
-import qualified IHP.QueryBuilder.HasqlHelpers as HasqlHelpers
-import IHP.Postgres.Point (Point(..))
-import Data.Int (Int64)
 import qualified Data.Set as Set
+import qualified Data.Text as Text
+import qualified Hasql.DynamicStatements.Snippet as Snippet
+import Hasql.DynamicStatements.Snippet (Snippet)
 
 data Field = Field { fieldName :: Text, fieldValue :: Value }
 
 newtype UndecodedJSON = UndecodedJSON ByteString
     deriving (Show, Eq)
+
 
 -- | Similiar to IHP.QueryBuilder.SQLQuery, but is designed to be accessed by external users
 --
@@ -160,21 +159,22 @@ data ColumnTypeInfo = ColumnTypeInfo
     , orderedColumns :: ![Text]
     } deriving (Show, Eq)
 
--- | Encode an Aeson 'Value' as a Snippet parameter using native Haskell types.
+-- | Encode an Aeson 'Value' as a parameterized SQL 'Snippet'.
 --
 -- Used for expressions without column context (e.g. bare literals in WHERE clauses).
 -- When column types are known, prefer 'IHP.DataSync.TypedEncoder.typedValueParam'
 -- for correctly typed parameters.
 dynamicValueParam :: Value -> Snippet
 dynamicValueParam Aeson.Null = Snippet.sql "NULL"
-dynamicValueParam (Aeson.Bool b) = Snippet.param b
-dynamicValueParam (Aeson.String t) = Snippet.param t
+dynamicValueParam (Aeson.Bool b) = Snippet.encoderAndParam (Encoders.nonNullable Encoders.bool) b
+dynamicValueParam (Aeson.String t) = Snippet.encoderAndParam (Encoders.nonNullable Encoders.text) t
 dynamicValueParam (Aeson.Number n) =
     case Scientific.floatingOrInteger n of
-        Left (d :: Double) -> Snippet.param d
-        Right (i :: Integer) -> Snippet.param (fromIntegral i :: Int64)
-dynamicValueParam (Aeson.Array arr) = Snippet.sql "ARRAY[" <> mconcat (List.intersperse (Snippet.sql ", ") (map dynamicValueParam (Vector.toList arr))) <> Snippet.sql "]"
-dynamicValueParam (Aeson.Object obj) = Snippet.param (cs (encode (Object obj)) :: Text)
+        Left (d :: Double) -> Snippet.encoderAndParam (Encoders.nonNullable Encoders.float8) d
+        Right (i :: Integer) -> Snippet.encoderAndParam (Encoders.nonNullable Encoders.int8) (fromIntegral i :: Int64)
+dynamicValueParam (Aeson.Array arr) =
+    Snippet.sql "ARRAY[" <> mconcat (List.intersperse (Snippet.sql ", ") (map dynamicValueParam (Vector.toList arr))) <> Snippet.sql "]"
+dynamicValueParam (Aeson.Object obj) = Snippet.encoderAndParam (Encoders.nonNullable Encoders.text) (cs (encode (Object obj)) :: Text)
 
 -- | Extracts all column names referenced in a 'ConditionExpression'
 conditionColumns :: ConditionExpression -> Set.Set Text
@@ -184,13 +184,31 @@ conditionColumns (LiteralExpression _) = Set.empty
 conditionColumns (CallExpression _) = Set.empty
 conditionColumns (ListExpression _) = Set.empty
 
--- | Re-exported from "IHP.QueryBuilder.HasqlHelpers" for backward compatibility.
+-- | Wraps a SQL query so that each row is returned as a JSON object.
+--
+-- Uses a CTE (Common Table Expression) which works for both SELECT queries
+-- and DML statements (INSERT, UPDATE, DELETE) with RETURNING.
 wrapDynamicQuery :: Snippet -> Snippet
-wrapDynamicQuery = HasqlHelpers.wrapDynamicQuery
+wrapDynamicQuery innerQuery =
+    Snippet.sql "WITH _ihp_dynamic_result AS (" <> innerQuery <> Snippet.sql ") SELECT row_to_json(t)::jsonb FROM _ihp_dynamic_result AS t"
 
--- | Re-exported from "IHP.QueryBuilder.HasqlHelpers" for backward compatibility.
-quoteIdentifier :: Text -> Snippet
-quoteIdentifier = HasqlHelpers.quoteIdentifier
+-- | Quote a SQL identifier (table name, column name) to prevent SQL injection.
+--
+-- Wraps the identifier in double quotes and escapes any embedded double quotes
+-- by doubling them, following the SQL standard.
+quoteIdentifier :: Text -> Text
+quoteIdentifier name = "\"" <> Text.replace "\"" "\"\"" name <> "\""
+
+-- | Convert a query 'Snippet' into a prepared statement that returns dynamic JSON rows.
+-- Wraps the query SQL with the CTE that produces @row_to_json@ output.
+compiledQueryStatement :: Snippet -> Hasql.Statement () [[Field]]
+compiledQueryStatement snippet = Snippet.toPreparableStatement (wrapDynamicQuery snippet) dynamicRowDecoder
+{-# INLINE compiledQueryStatement #-}
+
+-- | Encode a UUID as a parameterized SQL 'Snippet'.
+uuidParam :: UUID -> Snippet
+uuidParam id = Snippet.encoderAndParam (Encoders.nonNullable Encoders.uuid) id
+{-# INLINE uuidParam #-}
 
 $(deriveFromJSON defaultOptions ''FunctionCall)
 $(deriveFromJSON defaultOptions ''QueryBuilder.OrderByDirection)

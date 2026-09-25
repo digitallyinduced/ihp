@@ -128,7 +128,7 @@ For example, when dealing with users, you usually want to make sure that an emai
 
 This function queries the database and checks whether there exists a record with the same email value. The function ignores the current entity of course.
 
-This function does IO, so any further arrows have to be [`>>=`](https://ihp.digitallyinduced.com/api-docs/IHP-Prelude.html#v:-62--62--61-), like this:
+This function does IO, so any further arrows have to be `>>=`, like this:
 
 ```haskell
 action CreateUserAction = do
@@ -341,7 +341,7 @@ buildComment comment = comment
     |> fill @'["postId", "body", "commentModeration"]
 ```
 
-We'll start with the `postId`. Once a comment is refernecing a post it will never have the reference change. So it means we should fill it only upon creation.
+We'll start with the `postId`. Once a comment is referencing a post it will never have the reference change. So it means we should fill it only upon creation.
 
 ```haskell
 buildComment comment = comment

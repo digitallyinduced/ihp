@@ -1,16 +1,17 @@
 { mkDerivation, base, blaze-html, blaze-markup, hspec, http-types
-, ihp, ihp-hsx, ihp-log, lib, text, wai, wai-extra
+, ihp, ihp-hsx, lib, text, wai, wai-extra
 }:
 mkDerivation {
   pname = "ihp-sitemap";
-  version = "1.4.0";
+  version = "1.6.0";
   src = ./.;
   libraryHaskellDepends = [
     base blaze-html blaze-markup ihp text wai
   ];
   testHaskellDepends = [
-    base hspec http-types ihp ihp-hsx ihp-log wai wai-extra
+    base hspec http-types ihp ihp-hsx wai wai-extra
   ];
+  homepage = "https://ihp.digitallyinduced.com/";
   description = "SEO";
   license = lib.licenses.mit;
 }

@@ -6,37 +6,17 @@ Tests for view support functions.
 {-# LANGUAGE AllowAmbiguousTypes #-}
 
 module Test.ViewSupportSpec where
-import qualified Prelude
 import ClassyPrelude
 import Test.Hspec
-import IHP.Test.Mocking hiding (application)
+import IHP.Test.Mocking
 import IHP.Prelude
-import IHP.QueryBuilder
 import IHP.Environment
 import IHP.FrameworkConfig
-import IHP.HaskellSupport
 import IHP.RouterSupport hiding (get)
-import IHP.FrameworkConfig
-import IHP.Job.Types
-import Wai.Request.Params.Middleware (RequestBody (..), Respond)
 import IHP.ViewPrelude
 import IHP.ControllerPrelude hiding (get, request)
-import qualified IHP.Server as Server
-import Data.Attoparsec.ByteString.Char8 (string, Parser, (<?>), parseOnly, take, endOfInput, choice, takeTill, takeByteString)
-import Network.Wai
 import Network.Wai.Test
-import Network.HTTP.Types
-import qualified IHP.ErrorController as ErrorController
-import Data.String.Conversions
-import Data.Text as Text
-import Unsafe.Coerce
-import IHP.RequestVault (frameworkConfigMiddleware, modelContextMiddleware)
-import IHP.Controller.Layout (viewLayoutMiddleware)
-import System.IO.Unsafe (unsafePerformIO)
-import IHP.Log.Types (newLogger, LoggerSettings(..), LogLevel(..))
-
-import qualified Network.Wai.Session as Session
-import qualified Network.Wai.Session.Map as Session
+import Test.Util (testGet)
 
 data WebApplication = WebApplication deriving (Eq, Show, Data)
 
@@ -47,6 +27,11 @@ data TestController
 
 data AnotherTestController
     = AnotherTestAction
+  deriving (Eq, Show, Data)
+
+data CustomPathController
+    = CustomPathAction
+    | CustomPathWithIdAction { customId :: Text }
   deriving (Eq, Show, Data)
 
 instance Controller TestController where
@@ -61,6 +46,10 @@ instance Controller AnotherTestController where
 
 instance AutoRoute TestController
 instance AutoRoute AnotherTestController
+
+instance HasPath CustomPathController where
+    pathTo CustomPathAction = "/custom/path"
+    pathTo CustomPathWithIdAction { customId } = "/custom/path/" <> customId
 
 instance FrontController WebApplication where
   controllers = [ parseRoute @TestController, parseRoute @AnotherTestController ]
@@ -89,53 +78,49 @@ instance InitControllerContext WebApplication where
 instance FrontController RootApplication where
     controllers = [ mountFrontController WebApplication ]
 
-testGet :: ByteString -> Session SResponse
-testGet url = request $ setPath defaultRequest { requestMethod = methodGet } url
-
-assertTextExists :: Text -> SResponse -> IO ()
-assertTextExists body response = do
-    response.simpleStatus `shouldBe` status200
-    Text.isInfixOf body (cs response.simpleBody) `shouldBe` True
-
 config = do
     option Development
     option (AppPort 8000)
 
-initApplication :: IO Application
-initApplication = do
-    frameworkConfig <- buildFrameworkConfig (pure ())
-    logger <- newLogger def { level = Warn }
-    modelContext <- createModelContext frameworkConfig.dbPoolIdleTime frameworkConfig.dbPoolMaxConnections frameworkConfig.databaseUrl logger
-    middleware <- Server.initMiddlewareStack frameworkConfig modelContext Nothing
-    pure (middleware $ Server.application handleNotFound (\app -> app))
-
-application :: Application
-application = unsafePerformIO initApplication
-
 tests :: Spec
-tests = beforeAll (mockContextNoDatabase WebApplication config) do
+tests = aroundAll (withMockContextAndApp WebApplication config) do
     describe "isActiveAction" $ do
-        it "should return True on the same route" $ withContext do
-            runSession (testGet "test/TestWithParam?param=foo") application >>= assertTextExists "isActiveAction foo: True"
-        it "should return False on a different route" $ withContext do
-            runSession (testGet "test/TestWithParam?param=foo") application >>= assertTextExists "isActiveAction bar: False"
+        it "should return True on the same route" $ withContextAndApp \application -> do
+            runSession (testGet "test/TestWithParam?param=foo" >>= \r -> assertStatus 200 r >> assertBodyContains "isActiveAction foo: True" r) application
+        it "should return False on a different route" $ withContextAndApp \application -> do
+            runSession (testGet "test/TestWithParam?param=foo" >>= \r -> assertStatus 200 r >> assertBodyContains "isActiveAction bar: False" r) application
     describe "isActivePath" $ do
-        it "should return True on the same route" $ withContext do
-            runSession (testGet "test/TestWithParam?param=foo") application >>= assertTextExists "isActivePath foo: True"
-        it "should return False on a different route" $ withContext do
-            runSession (testGet "test/TestWithParam?param=foo") application >>= assertTextExists "isActivePath bar: False"
+        it "should return True on the same route" $ withContextAndApp \application -> do
+            runSession (testGet "test/TestWithParam?param=foo" >>= \r -> assertStatus 200 r >> assertBodyContains "isActivePath foo: True" r) application
+        it "should return False on a different route" $ withContextAndApp \application -> do
+            runSession (testGet "test/TestWithParam?param=foo" >>= \r -> assertStatus 200 r >> assertBodyContains "isActivePath bar: False" r) application
     describe "isActiveController" $ do
-        it "should return True on the same route" $ withContext do
-            runSession (testGet "test/TestWithParam?param=foo") application >>= assertTextExists "isActiveController TestController: True"
-        it "should return False on a different route" $ withContext do
-            runSession (testGet "test/TestWithParam?param=foo") application >>= assertTextExists "isActiveController AnotherTestAction: False"
+        it "should return True on the same route" $ withContextAndApp \application -> do
+            runSession (testGet "test/TestWithParam?param=foo" >>= \r -> assertStatus 200 r >> assertBodyContains "isActiveController TestController: True" r) application
+        it "should return False on a different route" $ withContextAndApp \application -> do
+            runSession (testGet "test/TestWithParam?param=foo" >>= \r -> assertStatus 200 r >> assertBodyContains "isActiveController AnotherTestAction: False" r) application
 
     describe "HSX" $ do
-        it "allow using Id's in HSX attributes without explicitly calling inputValue" $ withContext do
+        it "allow using Id's in HSX attributes without explicitly calling inputValue" $ withContextAndApp \_ -> do
             let
                 id :: Id' "users"
                 id = Id ("70a10b53-a776-470a-91a8-900cdda06aa2" :: UUID)
-            
+
             (ClassyPrelude.tshow [hsx|<input value={id} />|]) `shouldBe` "<input value=\"70a10b53-a776-470a-91a8-900cdda06aa2\">"
+
+        it "should render Int values in attributes" $ withContextAndApp \_ -> do
+            let count :: Int = 42
+            (ClassyPrelude.tshow [hsx|<input type="text" value={count} />|]) `shouldBe` "<input type=\"text\" value=\"42\">"
+
+        it "should render Text values in attributes" $ withContextAndApp \_ -> do
+            let name :: Text = "hello"
+            (ClassyPrelude.tshow [hsx|<input type="text" value={name} />|]) `shouldBe` "<input type=\"text\" value=\"hello\">"
+
+        it "should render action URLs in href attributes via pathTo" $ withContextAndApp \_ -> do
+            (ClassyPrelude.tshow [hsx|<a href={TestAction}>Test</a>|]) `shouldBe` "<a href=\"/test/Test\">Test</a>"
+
+        it "should render custom pathTo implementations in href attributes" $ withContextAndApp \_ -> do
+            (ClassyPrelude.tshow [hsx|<a href={CustomPathAction}>Link</a>|]) `shouldBe` "<a href=\"/custom/path\">Link</a>"
+            (ClassyPrelude.tshow [hsx|<a href={CustomPathWithIdAction "abc-123"}>Link</a>|]) `shouldBe` "<a href=\"/custom/path/abc-123\">Link</a>"
 
 type instance PrimaryKey "users" = UUID

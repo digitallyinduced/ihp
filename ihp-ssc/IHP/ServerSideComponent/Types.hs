@@ -15,14 +15,14 @@ class Component state action | state -> action where
     action ::
         ( ?instanceRef :: IORef (ComponentInstance state)
         , ?connection :: WebSocket.Connection
-        , ?context :: ControllerContext
+        , ?request :: Request
         , ?modelContext :: ModelContext
         ) => state -> action -> IO state
 
     componentDidMount ::
         ( ?instanceRef :: IORef (ComponentInstance state)
         , ?connection :: WebSocket.Connection
-        , ?context :: ControllerContext
+        , ?request :: Request
         , ?modelContext :: ModelContext
         ) => state -> IO state
     componentDidMount state = pure state

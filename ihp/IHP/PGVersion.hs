@@ -4,9 +4,11 @@ import IHP.Prelude
 import qualified System.Environment as Env
 import Text.Read (readMaybe)
 
--- | Returns the default UUID function based on the @IHP_POSTGRES_VERSION@ env var.
--- When set to 18 or higher, returns @"uuidv7"@ (PostgreSQL 18+ native function).
--- Otherwise returns @"uuid_generate_v4"@ (requires uuid-ossp extension).
+-- | Returns the default UUID function for new tables, jobs, and DataSync triggers.
+--
+-- Reads @IHP_POSTGRES_VERSION@. The default is @18@, which selects the
+-- built-in @"uuidv7"@ function. A value below 18 selects @"uuid_generate_v4"@
+-- from the @uuid-ossp@ extension. An unparseable value uses the default.
 defaultUuidFunction :: IO Text
 defaultUuidFunction = do
     pgVersion <- fromMaybe "18" <$> Env.lookupEnv "IHP_POSTGRES_VERSION"

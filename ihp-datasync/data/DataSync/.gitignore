@@ -1,0 +1,9 @@
+# TypeScript compiled output
+*.js
+*.d.ts
+*.js.map
+*.d.ts.map
+
+# Keep test files and config
+!*.test.js
+!jest.config.js

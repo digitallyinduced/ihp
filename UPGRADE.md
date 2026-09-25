@@ -2,38 +2,858 @@
 This document describes breaking changes, as well as how to fix them, that have occured at given releases.
 After updating your project, please consult the segments from your current release until now.
 
-# PostgreSQL 18 Upgrade
+# Unreleased
 
-IHP now defaults to PostgreSQL 18, which provides the native `uuidv7()` function for time-ordered UUIDs. New tables and jobs created by the code generators will use `uuidv7()` instead of `uuid_generate_v4()`.
+## PostgreSQL 18 is now the default
 
-Existing `Schema.sql` files using `uuid_generate_v4()` continue to work — the `uuid-ossp` extension is still loaded.
+IHP now runs PostgreSQL 18 for the development server, test databases, compile-time database access, and the `appWithPostgres` NixOS module. New tables, jobs, and DataSync triggers use `uuidv7()` instead of `uuid_generate_v4()`.
 
-### Upgrading your dev database
+Existing `Schema.sql` files that call `uuid_generate_v4()` continue to work. The `uuid-ossp` extension is still loaded.
 
-1. Save your local data (if needed):
-   ```bash
-   make dumpdb
+### Development database
+
+Check the running server with `psql -c 'SHOW server_version;'`. If it already reports 18, leave the data directory in place. The nixpkgs alias used by recent IHP checkouts was already PostgreSQL 18; this change pins that version explicitly.
+
+A data directory created by PostgreSQL 17 will not start under PostgreSQL 18. Save its rows first. `make dumpdb` overwrites `Application/Fixtures.sql` with the current rows:
+
+```bash
+make dumpdb
+rm -rf .devenv/state/postgres
+devenv up
+```
+
+devenv stores the cluster at `.devenv/state/postgres/`. The next start creates an empty database, and loading the schema imports `Application/Schema.sql` and `Application/Fixtures.sql`.
+
+### Staying on PostgreSQL 17
+
+Set the generator back to `uuid_generate_v4()` and pin the package in the application flake:
+
+```nix
+devenv.shells.default.env.IHP_POSTGRES_VERSION = "17";
+devenv.shells.default.services.postgres.package = pkgs.postgresql_17;
+```
+
+`IHP_POSTGRES_VERSION=17` alone is enough for the code generators. The package pin is what keeps the server on 17.
+
+### Production (`appWithPostgres`)
+
+`appWithPostgres` now selects `pkgs.postgresql_18`. That overrides the version NixOS would otherwise pick from `system.stateVersion`. Deploying this onto a PostgreSQL 17 data directory will not migrate the data. Upgrade with `pg_upgrade` or a dump and restore, as described in the [NixOS PostgreSQL upgrade guide](https://wiki.nixos.org/wiki/PostgreSQL#Upgrading).
+
+A normal `services.postgresql.package = pkgs.postgresql_17;` assignment in `configuration.nix` still wins over the IHP default.
+
+# Upgrade to 1.6.0 from 1.5.0
+
+Update your IHP flake input from the `v1.5` release branch to the `v1.6` release branch:
+
+```diff
+-        ihp.url = "github:digitallyinduced/ihp/v1.5";
++        ihp.url = "github:digitallyinduced/ihp/v1.6";
+```
+
+Then update your lock file:
+
+```bash
+nix flake update
+```
+
+## Controller actions and response helpers return `ResponseReceived`
+
+Controller actions now return `IO ResponseReceived` instead of `IO ()`. Response helpers such as `render`, `redirectTo`, `renderJson`, `renderPlain`, `renderXml`, `renderFile`, `renderNotFound`, and `renderAccessDenied` now send the WAI response directly and return the response token.
+
+Most actions need no body change when the response helper is the final expression:
+
+```haskell
+action ShowPostAction { postId } = do
+    post <- fetch postId
+    render ShowView { .. }
+```
+
+Fix explicit action/helper signatures that still mention `IO ()`:
+
+```diff
+-myResponse :: (?context :: ControllerContext) => IO ()
++myResponse :: (?request :: Request, ?respond :: Respond) => IO ResponseReceived
+ myResponse = redirectTo PostsAction
+```
+
+`IHP.ControllerPrelude` already exports `Request`, `Respond`, `ResponseReceived`, `earlyReturn`, `respondWith`, and `respondAndExit`. If the helper is outside controller modules, import those from `IHP.ControllerSupport`.
+
+Code that conditionally sends a response now needs `earlyReturn`, because `when`/`unless` still expect `IO ()`:
+
+```diff
+ action CreatePostAction = do
+     post <- fill @Post
+     when (not (isValid post)) do
+-        redirectTo NewPostAction
++        earlyReturn $ redirectTo NewPostAction
+     post <- createRecord post
+     redirectTo ShowPostAction { postId = post.id }
+```
+
+For custom raw WAI responses, use `respondWith` when it is the final result and `respondAndExit` when you need to stop execution in the middle of a handler:
+
+```haskell
+import Network.HTTP.Types.Status (status204)
+import Network.Wai (responseLBS)
+
+action HealthCheckAction =
+    respondWith $ responseLBS status204 [] ""
+```
+
+Code that caught `ResponseException` or called `handleNoResponseReturned` / `handleRouterException` should be removed. Normal responses are no longer implemented by throwing `ResponseException`.
+
+## Production Script Binaries Are Separate Flake Outputs
+
+`nix build .#optimized-prod-server`, `nix build .#unoptimized-prod-server`, and `nix build` now build only the web server and job runner binaries. Scripts in `Application/Script/*.hs` are no longer copied into the production app package.
+
+Build or run scripts through their dedicated flake outputs instead:
+
+```bash
+nix build .#script-MyScript
+nix run .#script-MyScript
+```
+
+If you deploy scheduled scripts through systemd timers or cron, update paths that referenced the app package:
+
+```diff
+- ExecStart = "${config.services.ihp.package}/bin/MyScript";
++ ExecStart = "${self.packages.${pkgs.system}.script-MyScript}/bin/MyScript";
+```
+
+Script outputs are unoptimized by default for faster builds. To build all `script-*` outputs with the same optimization settings as `optimized-prod-server`, set:
+
+```nix
+ihp.scripts.optimized = true;
+```
+
+## `ihp-log` Has Been Removed
+
+The `ihp-log` package and the `IHP.Log.*` modules have been removed. IHP now uses `fast-logger` directly.
+
+If your application imports `IHP.Log` or `IHP.Log.Types`, replace those imports with `System.Log.FastLogger` and log through the logger already available in the IHP context:
+
+```haskell
+import System.Log.FastLogger (toLogStr)
+
+action PostsAction = do
+    ?context.frameworkConfig.logger (toLogStr ("Loading posts" :: Text))
+    posts <- query @Post |> fetch
+    render IndexView { .. }
+```
+
+In controllers and views the logger lives on the framework config (`?context.frameworkConfig.logger`) — there is no `logger` field on the `Request` itself. In model code, use `?modelContext.logger`. In setup code, use `FrameworkConfig.logger`.
+
+The old `LogLevel` filtering API is no longer available. Control verbosity at the call site or in your deployment/log aggregation setup. Query timing logs are still controlled by the `DEBUG` environment variable.
+
+## Incomplete Pattern Matches Are Now App Compile Errors
+
+IHP now promotes incomplete pattern match warnings to compile errors in app-facing defaults:
+
+- `applicationGhciConfig`, used by the default app `.ghci`
+- the generated `Makefile`
+- the generated Cabal configuration used by `NixSupport`
+
+This makes missing pattern matches fail fast during local development and agent-assisted coding.
+
+If you want to temporarily keep warning-only behavior while exploring incomplete code, add an override after loading IHP's GHCi config in your app `.ghci`:
+
+```haskell
+:set -Wwarn=incomplete-patterns
+```
+
+For app package builds, add `-Wwarn=incomplete-patterns` after IHP's generated `ghc-options` or replace `-Werror=incomplete-patterns` with `-fwarn-incomplete-patterns` in your local generated configuration.
+
+## Dev mode now runs the web server and the job worker as separate processes
+
+`devenv up` previously launched a single `ihp` process that ran both the web server and the in-process job worker. It now launches two processes: `web` (the existing `RunDevServer`) and `worker` (a new `RunDevWorker`). They each own one GHCi session and reload independently. This mirrors the production split between `RunProdServer` and `RunJobs`.
+
+Action required if your project has jobs:
+
+1. **Move the `instance Worker RootApplication` out of `Main.hs`.** Create a new file `WorkerMain.hs` at the project root (parallel to `Main.hs`):
+
+   ```haskell
+   module WorkerMain () where
+
+   import IHP.Prelude
+   import IHP.FrameworkConfig (RootApplication (..))
+   import IHP.Job.Types (Worker (..))
+   import Web.Types (WebApplication (..))
+   import Web.Worker ()
+
+   instance Worker RootApplication where
+       workers _ =
+           workers WebApplication
+           -- Generator Marker
    ```
 
-2. Remove the old database files:
-   ```bash
-   # devenv users:
-   rm -rf .devenv/state/postgres/
+   Keep the `-- Generator Marker` line. When you later scaffold the first job of another application with `new-job`, it appends `++ workers <App>Application` (and the matching imports) after the marker automatically — the same mechanism the per-application `Worker.hs` uses. You can still extend `workers _` by hand for multi-application projects (`workers WebApplication ++ workers AdminApplication`, etc.); note that a hand-written `WorkerMain.hs` *without* the marker won't be auto-amended by `new-job`.
 
-   # non-devenv users:
-   rm -rf build/db
+2. **Delete the `instance Worker RootApplication` block from `Main.hs`** along with the `import Web.Worker` (and `IHP.Job.Runner` import if it's only used for `Worker`). `Main.hs` no longer needs to depend on the job module dep graph.
+
+3. **`IHP.Server.run`'s type signature relaxed** — it no longer requires `Job.Worker RootApplication`. Existing app `Main.hs` files keep working unchanged once step 2 is done.
+
+4. **`IHP.Server.withBackgroundWorkers` and `IHP.Job.Runner.devServerMainLoop` were removed.** They were undocumented internal helpers; if you imported them downstream, switch to running `RunJobs` (or its dev equivalent `RunDevWorker`) as a separate process.
+
+5. **devenv users:** the `processes.ihp` entry has been renamed to `processes.web` and a sibling `processes.worker` runs the new dev worker. If you have CI scripts targeting the old name, update them.
+
+The `new-job` codegen now creates `WorkerMain.hs` automatically the first time it runs in a project, so newly scaffolded projects don't need any manual migration.
+
+## Dev mode no longer opens the browser by default
+
+`devenv up` now prints the IHP tool server URL instead of opening a browser automatically.
+
+If your local workflow or editor task relied on automatic browser opening, opt back in through `IHP_BROWSER`:
+
+```bash
+# macOS default browser
+export IHP_BROWSER=open
+
+# Linux default browser
+export IHP_BROWSER=xdg-open
+
+# Specific browser
+export IHP_BROWSER=firefox
+```
+
+Put the export in `.envrc` if you want it for every dev shell.
+
+## `render` No Longer Handles JSON
+
+The `render` function now only renders HTML. Previously it used Accept header negotiation to serve both HTML and JSON, but the JSON path was unused in practice.
+
+If you had a `View` instance that defined `json`, move it to a separate `JsonView` instance and use `renderHtmlOrJson`:
+
+```haskell
+-- Before
+instance View ShowView where
+    html ShowView { .. } = [hsx|...|]
+    json ShowView { .. } = toJSON post
+
+action ShowPostAction { postId } = do
+    post <- fetch postId
+    render ShowView { post }
+
+-- After
+instance View ShowView where
+    html ShowView { .. } = [hsx|...|]
+
+instance JsonView ShowView where
+    json ShowView { .. } = toJSON post
+
+action ShowPostAction { postId } = do
+    post <- fetch postId
+    renderHtmlOrJson ShowView { post }
+```
+
+If your `View` instances only defined `html` (the common case), no changes are needed.
+
+The `renderJson` function is unchanged and can still be used directly in controllers.
+
+## `renderXmlSitemap` returns `ResponseReceived`
+
+`renderXmlSitemap` from `ihp-sitemap` follows the same response handling change as the controller helpers. Most sitemap actions need no body change when it is the final expression:
+
+```haskell
+action SitemapAction = do
+    posts <- query @Post |> fetch
+    renderXmlSitemap (Sitemap (map postSitemapLink posts))
+```
+
+Update helper signatures that still return `IO ()`:
+
+```diff
+-renderSitemap :: (?context :: ControllerContext) => Sitemap -> IO ()
++renderSitemap :: (?request :: Request, ?respond :: Respond) => Sitemap -> IO ResponseReceived
+ renderSitemap = renderXmlSitemap
+```
+
+If you call it inside `when` / `unless`, wrap it with `earlyReturn` just like `render` or `redirectTo`.
+
+## Authentication moved to WAI middleware
+
+The `initAuthentication` function has been removed in favor of a WAI middleware approach. Authentication now runs as middleware before your controllers, storing the current user in the WAI request vault.
+
+**Migration steps:**
+
+1. Remove `initAuthentication @User` from your `InitControllerContext` instances:
+
+    ```diff
+    instance InitControllerContext WebApplication where
+        initContext = do
+            setLayout defaultLayout
+            initAutoRefresh
+    -       initAuthentication @User
+    ```
+
+2. Add the `AuthMiddleware` option to your `Config.hs`:
+
+    ```haskell
+    import IHP.LoginSupport.Middleware
+
+    config :: ConfigBuilder
+    config = do
+        option $ AuthMiddleware (authMiddleware @User)
+    ```
+
+3. If you use both User and Admin authentication, compose the middleware:
+
+    ```haskell
+    option $ AuthMiddleware (authMiddleware @User . adminAuthMiddleware @Admin)
+    ```
+
+**Removed functions:** `initAuthentication`, `currentRoleOrNothing`, `currentRole`, `currentRoleId`, `ensureIsRole`. Use the type-specific variants instead: `currentUserOrNothing`/`currentAdminOrNothing`, `currentUser`/`currentAdmin`, `currentUserId`/`currentAdminId`, `ensureIsUser`/`ensureIsAdmin`.
+
+## Authentication sessions use raw UUID bytes
+
+IHP's `login` helper now stores the authenticated user id as raw UUID ASCII bytes, and the auth middleware reads that format directly. Existing legacy 44-byte cereal-encoded UUID session values are still accepted by `parseSessionUUID`, but custom login/session code should stop writing the cereal form.
+
+If you wrote custom login code that used `setSession (sessionKey @User) user.id`, switch to writing the raw UUID bytes through `sessionInsert`:
+
+```diff
+-setSession (sessionKey @User) user.id
++sessionInsert (sessionKey @User) (UUID.toASCIIBytes (unpackId user.id))
+```
+
+Add imports if needed:
+
+```haskell
+import qualified Data.UUID as UUID
+import IHP.LoginSupport.Helper.Controller (sessionKey)
+import IHP.ModelSupport (unpackId)
+```
+
+Normal apps using IHP's `login user` / `logout user` helpers need no changes.
+
+## ControllerContext TMap API removed
+
+The typed-map storage on `ControllerContext` has been removed. The functions `putContext`, `fromContext`, `maybeFromContext`, `fromFrozenContext`, `maybeFromFrozenContext`, `freeze`, and `unfreeze` no longer exist, and the `FrozenControllerContext` constructor is gone. The `ihp-context` package has also been deleted — drop it from your `cabal.project`/`build-depends` if you referenced it directly.
+
+`ControllerContext` is now a thin wrapper around the WAI `Request`. All per-request state (auth user, framework config, logger, page head, modal state, ...) lives in the request vault. To store your own per-request value, define a `Vault.Key` and a small middleware:
+
+```haskell
+import qualified Data.Vault.Lazy as Vault
+import IHP.RequestVault.Helper (insertVaultMiddleware, lookupRequestVault)
+import System.IO.Unsafe (unsafePerformIO)
+
+myValueVaultKey :: Vault.Key MyValue
+myValueVaultKey = unsafePerformIO Vault.newKey
+{-# NOINLINE myValueVaultKey #-}
+
+-- In Config.hs:
+option $ CustomMiddleware (insertVaultMiddleware myValueVaultKey someValue)
+
+-- In a controller or view:
+let value = lookupRequestVault myValueVaultKey ?request
+```
+
+If you need mutable per-request state, store an `IORef` in the vault (use `insertNewIORefVaultMiddleware`). See how `IHP.LoginSupport.Types.currentUserVaultKey`, `IHP.RequestVault.loggerVaultKey`, and `IHP.PageHead.Types.pageHeadVaultKey` are defined for working examples.
+
+**`FrameworkConfig` field rename:** the `authMiddleware` record field on `FrameworkConfig` has been renamed to `authenticationMiddleware` to avoid an ambiguity with the `authMiddleware` function from `IHP.LoginSupport.Middleware`. Typical apps only set this via `option $ AuthMiddleware (authMiddleware @User)` in `Config.hs` and need no changes. Only code that reads the field directly (e.g. `frameworkConfig.authMiddleware`) needs to update to `frameworkConfig.authenticationMiddleware`.
+
+## `ControllerContext` no longer exported from `IHP.ViewPrelude`
+
+The `IHP.Controller.Context` module has been deleted. `ControllerContext` is now a plain type alias `type ControllerContext = Request`, defined in and exported from `IHP.ControllerSupport`. It is no longer re-exported from `IHP.ViewPrelude`.
+
+Controller code is unaffected — `IHP.ControllerPrelude` still re-exports `IHP.ControllerSupport`. But **view** modules (and view helpers, e.g. a custom `Application/Helper/*.hs`) that mention `ControllerContext` in a type signature now fail to compile:
+
+```
+Not in scope: type constructor or class 'ControllerContext'
+```
+
+The recommended fix is to drop `ControllerContext` and use the WAI `Request` directly. `IHP.ViewPrelude` already exports `Request` (via `Network.Wai`), so no new import is needed:
+
+```diff
+-renderMyWidget :: (?context :: ControllerContext) => Html
++renderMyWidget :: (?request :: Request) => Html
+```
+
+`?context` and `?request` carry the same value (the alias is literally `Request`), and the framework is migrating signatures from `?context` to `?request`. IHP's own helpers made this switch — e.g. `renderPagination :: (?request :: Request) => Pagination -> Html`.
+
+If your helper calls `urlTo`/`pathTo` (or config helpers like `isDevelopment`), keep a `?context` constraint instead — those need `ConfigProvider` (`HasField "frameworkConfig"`), which `Request` satisfies, so just spell it `?context :: Request`:
+
+```diff
+-renderLink :: (?context :: ControllerContext) => Html
++renderLink :: (?context :: Request) => Html
+```
+
+Inside a `View` instance's `html` method you don't need to declare anything: the `View` class already keeps `?context :: Request` in scope, so `urlTo`/`pathTo` keep working there unchanged.
+
+Logging needs no `?context` at all — there is no `logger` field on `Request`. Reach the logger through the framework config: `?request.frameworkConfig.logger (toLogStr ("..." :: Text))`.
+
+To make a minimal change without touching every signature, import the alias explicitly instead:
+
+```haskell
+import IHP.ControllerSupport (ControllerContext)
+```
+
+## `sqlQueryTyped` now returns scalars for singleton queries
+
+`typedSql` now tracks conservative query cardinality. `sqlQueryTyped` still
+returns a list for ordinary many-row queries, but returns a scalar directly when
+the query is proven to return exactly one row, and returns `Maybe result` when
+the query is proven to return at most one row.
+
+Common updates:
+
+```diff
+-[count] <- sqlQueryTyped [typedSql| SELECT COUNT(*) FROM posts |]
++count <- sqlQueryTyped [typedSql| SELECT COUNT(*) FROM posts |]
+ -- count :: Int64
+```
+
+```diff
+-names <- sqlQueryTyped [typedSql| SELECT name FROM posts ORDER BY created_at DESC LIMIT 1 |]
+-case names of
+-    [name] -> ...
+-    [] -> ...
++maybeName <- sqlQueryTyped [typedSql| SELECT name FROM posts ORDER BY created_at DESC LIMIT 1 |]
++case maybeName of
++    Just name -> ...
++    Nothing -> ...
+```
+
+Explicit `TypedQuery` signatures also need cardinality and statement-result
+arguments. Row-returning queries use `'ReturnsRows`:
+
+```diff
+-query :: TypedQuery Text
++query :: TypedQuery 'ManyRows 'ReturnsRows Text
+ query = [typedSql| SELECT name FROM posts ORDER BY name |]
+```
+
+Use `'AtMostOneRow` for `LIMIT 1` / primary-key lookups and `'ExactlyOneRow`
+for singleton queries such as `COUNT(*)`. Import `QueryExecResult (..)` when
+you write explicit signatures using `'ReturnsRows`.
+
+You can also use cardinality-specific helper names when that makes migrations
+easier to read:
+
+```haskell
+names <- sqlQueryTypedRows [typedSql| SELECT name FROM posts ORDER BY name |]
+maybeName <- sqlQueryTypedOneOrNothing [typedSql| SELECT name FROM posts LIMIT 1 |]
+count <- sqlQueryTypedSingle [typedSql| SELECT COUNT(*) FROM posts |]
+```
+
+Nullable single-column queries with `LIMIT 1` have the precise shape
+`Maybe (Maybe a)` because "no row" and "row with SQL NULL" are independent.
+Use `sqlQueryTypedMaybeColumn` when you want both to become `Nothing`:
+
+```diff
+-maybeScore <- sqlQueryTyped [typedSql| SELECT score FROM posts WHERE id = ${postId} LIMIT 1 |]
++maybeScore <- sqlQueryTypedMaybeColumn [typedSql| SELECT score FROM posts WHERE id = ${postId} LIMIT 1 |]
+```
+
+## `typedSql` is stricter and uses `Int64` for `bigint`
+
+`typedSql` now rejects `SELECT *`, `SELECT table.*`, and `INSERT` statements without an explicit column list by default. This prevents compiled decoders from silently depending on development database column order.
+
+Replace star selects with explicit columns:
+
+```diff
+-posts <- sqlQueryTyped [typedSql| SELECT * FROM posts |]
++posts <- sqlQueryTyped [typedSql|
++    SELECT id, title, body, created_at, updated_at
++    FROM posts
++|]
+```
+
+Replace inserts that depend on table column order:
+
+```diff
+-sqlExecTyped [typedSql| INSERT INTO posts VALUES (${id}, ${title}, ${body}) |]
++sqlExecTyped [typedSql|
++    INSERT INTO posts (id, title, body)
++    VALUES (${id}, ${title}, ${body})
++|]
+```
+
+If you intentionally want a star select, import and use `typedSqlStar`:
+
+```haskell
+import IHP.TypedSql (typedSqlStar)
+
+rows <- sqlQueryTyped [typedSqlStar| SELECT * FROM posts |]
+```
+
+`int8` / `bigint` columns and placeholders now map to `Int64` instead of `Integer`. This affects `COUNT(*)`, `row_number()`, `rank()`, `dense_rank()`, and schema columns declared as `bigint`:
+
+```diff
+-let count :: Integer = row.count
++let count :: Int64 = row.count
+```
+
+Import `Data.Int (Int64)` where you add explicit signatures.
+
+`IHP.QueryBuilder.limit` and `IHP.QueryBuilder.offset` also take `Int64`. Numeric literals still work, but values already typed as `Int` need conversion:
+
+```diff
+ let pageSize :: Int = 50
+ posts <- query @Post
+-    |> limit pageSize
++    |> limit (fromIntegral pageSize)
+     |> fetch
+```
+
+`sqlExecTyped` returns `Int64` for the affected-row count of DML statements. If your code annotated the result, update the annotation:
+
+```diff
+-rowsUpdated <- (sqlExecTyped [typedSql| UPDATE posts SET published = true |] :: IO Integer)
++rowsUpdated <- (sqlExecTyped [typedSql| UPDATE posts SET published = true |] :: IO Int64)
+```
+
+Known no-result utility statements, such as `SET CONSTRAINTS`, return `()`:
+
+```haskell
+sqlExecTyped [typedSql| SET CONSTRAINTS ALL DEFERRED |] :: IO ()
+```
+
+## Join Support Removed from QueryBuilder
+
+The query builder's join functions (`innerJoin`, `innerJoinThirdTable`, `labelResults`) and all `*JoinedTable` filter/order functions have been removed. Use `typedSql` instead, which provides full SQL expressiveness with compile-time type safety.
+
+**Simple inner join with filter:**
+
+```haskell
+-- Before
+query @Post
+    |> innerJoin @User (#authorId, #id)
+    |> filterWhereJoinedTable @User (#name, "Tom" :: Text)
+    |> fetch
+
+-- After: results have named field access via OverloadedRecordDot
+posts <- sqlQueryTyped [typedSql|
+    SELECT posts.id, posts.title, posts.created_at
+    FROM posts
+    INNER JOIN users ON posts.author_id = users.id
+    WHERE users.name = ${"Tom" :: Text}
+|]
+forEach posts \post -> putStrLn post.title
+```
+
+**Three-table join:**
+
+```haskell
+-- Before
+query @Post
+    |> innerJoin @User (#authorId, #id)
+    |> innerJoinThirdTable @Department @User (#id, #departmentId)
+    |> filterWhereJoinedTable @Department (#number, 5)
+    |> fetch
+
+-- After
+posts <- sqlQueryTyped [typedSql|
+    SELECT posts.id, posts.title, posts.body
+    FROM posts
+    INNER JOIN users ON posts.author_id = users.id
+    INNER JOIN departments ON users.department_id = departments.id
+    WHERE departments.number = ${5 :: Int}
+|]
+```
+
+**Many-to-many with filter:**
+
+```haskell
+-- Before
+query @Post
+    |> innerJoin @Tagging (#id, #postId)
+    |> innerJoinThirdTable @Tag @Tagging (#id, #tagId)
+    |> filterWhereInJoinedTable @Tag (#tagText, ["haskell", "ihp"])
+    |> fetch
+
+-- After
+posts <- sqlQueryTyped [typedSql|
+    SELECT posts.id, posts.title
+    FROM posts
+    INNER JOIN taggings ON posts.id = taggings.post_id
+    INNER JOIN tags ON taggings.tag_id = tags.id
+    WHERE tags.tag_text = ANY(${["haskell", "ihp"] :: [Text]})
+|]
+```
+
+**Ordering on joined table:**
+
+```haskell
+-- Before
+query @Post
+    |> innerJoin @User (#authorId, #id)
+    |> orderByAscJoinedTable @User #name
+    |> fetch
+
+-- After
+posts <- sqlQueryTyped [typedSql|
+    SELECT posts.id, posts.title
+    FROM posts
+    INNER JOIN users ON posts.author_id = users.id
+    ORDER BY users.name ASC
+|]
+```
+
+**`labelResults` (indexed many-to-many):**
+
+```haskell
+-- Before
+labeledPosts <- query @Post
+    |> innerJoin @Tagging (#id, #postId)
+    |> innerJoinThirdTable @Tag @Tagging (#id, #tagId)
+    |> labelResults @Tag #id
+    |> fetch
+-- labeledPosts :: [LabeledData (Id' "tags") Post]
+
+-- After: select the columns you need, access via named fields
+rows <- sqlQueryTyped [typedSql|
+    SELECT tags.id, posts.id, posts.title
+    FROM posts
+    INNER JOIN taggings ON posts.id = taggings.post_id
+    INNER JOIN tags ON taggings.tag_id = tags.id
+|]
+forEach rows \row -> putStrLn (show row.id <> ": " <> row.title)
+```
+
+The following types have also been removed: `HasQueryBuilder`, `JoinQueryBuilderWrapper`, `NoJoinQueryBuilderWrapper`, `LabeledQueryBuilderWrapper`, `LabeledData`, `NoJoins`. If your code references these types, replace with `QueryBuilder table` directly. For `LabeledData`, use a tuple with `typedSql` instead (see `labelResults` example above).
+
+## Raw SQL helpers are deprecated
+
+`sqlQuery`, `sqlQuerySingleRow`, `sqlExec`, `sqlExecDiscardResult`, `sqlQueryScalar`, and `sqlQueryScalarOrNothing` now emit deprecation warnings. They still work unchanged in 1.6 — you'll just see a warning on each call site. Two ways to resolve them:
+
+1. **Preferred — switch to typed SQL** for compile-time checking:
+
+   ```diff
+   -posts <- sqlQuery "SELECT id, title FROM posts WHERE published = true" ()
+   +posts <- sqlQueryTyped [typedSql| SELECT id, title FROM posts WHERE published = true |]
    ```
 
-3. Start the dev server — the database will be recreated with PG 18:
-   ```bash
-   devenv up
+2. **Keep untyped/dynamic SQL** (dynamic table names, DDL, etc.) by switching to the `unsafe*` variant — same behavior, no warning:
+
+   ```diff
+   -sqlExec "CREATE INDEX ..." ()
+   +unsafeSqlExec "CREATE INDEX ..." ()
    ```
 
-If you need to stay on PostgreSQL 17, set `IHP_POSTGRES_VERSION=17` in your environment.
+If you build with `-Werror` or a strict CI, either migrate the call sites or add `-Wno-deprecations` during the transition.
 
-### Upgrading production (NixOS)
+## hspec response assertions moved to `IHP.Hspec`
 
-If your production server uses the IHP `appWithPostgres` NixOS module, deploying will automatically use PG 18. Follow the [PostgreSQL upgrade guide on the NixOS wiki](https://wiki.nixos.org/wiki/PostgreSQL#Upgrading) to migrate your production data.
+The response assertion helpers now live in the `ihp-hspec` package instead of `IHP.Test.Mocking`. If tests fail with missing helpers such as `responseStatusShouldBe`, `responseBodyShouldContain`, or `responseBodyShouldNotContain`, import them from `IHP.Hspec`:
+
+```diff
+ import IHP.Test.Mocking
++import IHP.Hspec
++    ( responseStatusShouldBe
++    , responseBodyShouldContain
++    , responseBodyShouldNotContain
++    , withIHPApp
++    )
+```
+
+If your test suite did not already depend on `ihp-hspec`, add it to the app's test dependencies. In the standard IHP flake layout, add `ihp-hspec` next to `hspec` in the Haskell package list used by tests.
+
+## Optional: Migrate from `AutoRoute` to the explicit-routes DSL
+
+1.6.0 ships a new `[routes|…|]` quasi-quoter for declaring routes explicitly. `instance AutoRoute` is **fully supported** and existing apps need no changes — this is a recommendation, not a breaking change. New projects scaffolded with `ihp-new` and new controllers scaffolded with `new-controller` use the DSL by default; you can convert existing controllers at your own pace, one at a time, or leave them on `AutoRoute` forever.
+
+Why migrate? URLs and methods become visible at the route site (no decoder-from-constructor-name guessing); compile-time validation catches typos and unbound fields; dispatch is 10–50× faster on apps with many controllers because routing is one app-wide trie instead of a per-controller linear scan.
+
+### What URL shapes are preserved
+
+The DSL emits the same URL shapes `AutoRoute` does, so converting a controller is **byte-identical for existing deep links** as long as you spell the routes the way the migration recipe below shows. `pathTo` renders the same strings, links in views keep working, third-party callers keep working, search engines keep their indexed URLs.
+
+### Recipe: convert one controller
+
+Suppose `Web/Types.hs` has a typical CRUD controller:
+
+```haskell
+data PostsController
+    = PostsAction
+    | NewPostAction
+    | ShowPostAction { postId :: !(Id Post) }
+    | CreatePostAction
+    | EditPostAction { postId :: !(Id Post) }
+    | UpdatePostAction { postId :: !(Id Post) }
+    | DeletePostAction { postId :: !(Id Post) }
+    deriving (Eq, Show, Data)
+```
+
+And `Web/Routes.hs` has:
+
+```haskell
+instance AutoRoute PostsController
+```
+
+To migrate, **replace the `instance AutoRoute` line** with a `[routes|…|]` block:
+
+```haskell
+[routes|PostsController
+GET    /Posts                 PostsAction
+GET    /NewPost               NewPostAction
+POST   /CreatePost            CreatePostAction
+GET    /ShowPost?postId       ShowPostAction
+GET    /EditPost?postId       EditPostAction
+POST   /UpdatePost?postId     UpdatePostAction
+DELETE /DeletePost?postId     DeletePostAction
+|]
+```
+
+`Web/FrontController.hs` is unchanged — `parseRoute @PostsController` still works, the splice emits the same `CanRoute` instance under the hood. `Web/Types.hs` is unchanged — the splice reifies the existing action ADT. Views, controllers, callers — all unchanged.
+
+URL shapes the splice emits are deliberately identical to AutoRoute's:
+
+| Action | URL | Method |
+|---|---|---|
+| `PostsAction` | `/Posts` | `GET` |
+| `NewPostAction` | `/NewPost` | `GET` |
+| `CreatePostAction` | `/CreatePost` | `POST` |
+| `ShowPostAction { postId }` | `/ShowPost?postId=<uuid>` | `GET` |
+| `EditPostAction { postId }` | `/EditPost?postId=<uuid>` | `GET` |
+| `UpdatePostAction { postId }` | `/UpdatePost?postId=<uuid>` | `POST` |
+| `DeletePostAction { postId }` | `/DeletePost?postId=<uuid>` | `DELETE` |
+
+### What the `?fieldName` syntax means
+
+After the path, `?postId` declares that the action's `postId` record field is carried as a query-string parameter. The field's Haskell type drives parsing and rendering:
+
+- Plain `a` (e.g. `Id Post`, `Int`, `Text`) — required; missing or unparseable returns 404.
+- `Maybe a` — optional; absent decodes to `Nothing`, omitted from `pathTo` output when `Nothing`.
+- `[a]` — collected from repeated `?key=v` pairs; `pathTo` emits one `key=value` entry per element; an empty list is omitted.
+
+Multiple query params separate with `&`:
+
+```haskell
+GET /search?q&page&tags    SearchAction
+```
+
+### Coverage check — every record field must be bound
+
+The splice fails at compile time if a record field on the action constructor isn't covered by either a path capture (`{postId}`) or a query param (`?postId`). The error names the missing fields, so fixing it is usually a one-line change.
+
+If you have an action like `ShowPostAction { postId :: Id Post, viewMode :: Maybe Text }` and forget to mention `viewMode`:
+
+```
+routes (line 4): action 'ShowPostAction' has fields not covered by the route: viewMode.
+Add each to the path (e.g. '/path/{viewMode}') or the query list (e.g. '/path?viewMode').
+```
+
+Fix by adding `&viewMode` to the query list.
+
+### Field renaming — when the URL name differs from the field name
+
+If the URL spells the parameter differently from the record field (e.g. legacy `?id` carrying a `postId` value), use the `{ field = #captureName }` syntax after the action:
+
+```haskell
+GET /ShowPost?id    ShowPostAction { postId = #id }
+```
+
+Same syntax works for path captures:
+
+```haskell
+GET /orgs/{org}/users/{user}    ShowMemberAction { organizationId = #org, userId = #user }
+```
+
+### HTTP methods
+
+The DSL declares the method explicitly per route. To accept multiple methods on the same path, separate with `|`:
+
+```haskell
+GET|POST /api/widgets    WidgetsEndpointAction
+```
+
+`ANY` expands to every standard method:
+
+```haskell
+ANY /api/echo            EchoAction
+```
+
+`GET` automatically also accepts `HEAD` (matching `AutoRoute`'s built-in behaviour).
+
+If you previously overrode methods via `allowedMethodsForAction`:
+
+```haskell
+-- Before
+instance AutoRoute HelloWorldController where
+    allowedMethodsForAction "HelloAction" = [ GET ]
+```
+
+Just spell the methods directly in the DSL:
+
+```haskell
+[routes|HelloWorldController
+GET /Hello    HelloAction
+|]
+```
+
+### Path captures with non-RESTful URLs
+
+If you want to drop `?postId` and use a more RESTful path-style URL, change the path itself to capture a segment:
+
+```haskell
+-- Before (AutoRoute-compatible):
+GET /ShowPost?postId       ShowPostAction
+
+-- After (RESTful):
+GET /posts/{postId}        ShowPostAction
+```
+
+Splat captures match the rest of the path:
+
+```haskell
+GET /files/{+path}    DownloadAction    -- path :: Text captures everything after /files/
+```
+
+**Note**: changing path shapes breaks deep links. Keep the AutoRoute-shaped URLs (`/ShowPost?postId`) if existing URLs need to stay valid.
+
+### Mixed mode — converting one controller at a time
+
+You don't need to migrate the whole app at once. One controller using `instance AutoRoute` and another using `[routes|…|]` is a fully supported configuration in the same `FrontController`:
+
+```haskell
+instance FrontController WebApplication where
+    controllers =
+        [ parseRoute @LegacyPostsController    -- still on AutoRoute
+        , parseRoute @NewWidgetsController     -- migrated to [routes|…|]
+        ]
+```
+
+Both compile into the same underlying route trie at startup; there is no behavioural difference for users hitting either set of URLs.
+
+### Multi-controller blocks (advanced)
+
+For an entire application wired in one place, the lowercase-header form emits a `[ControllerRoute app]` binding you splat into `controllers`:
+
+```haskell
+-- Web/Routes.hs
+[routes|webRoutes
+GET    /Posts                 PostsAction
+GET    /ShowPost?postId       ShowPostAction
+GET    /Users                 UsersAction
+GET    /ShowUser?userId       ShowUserAction
+|]
+
+-- Web/FrontController.hs
+instance FrontController WebApplication where
+    controllers = webRoutes
+```
+
+The splice reifies each action constructor to find its parent type and emits one `HasPath` + `CanRoute` instance per type plus the `webRoutes` binding.
+
+### Edge cases
+
+Almost everything `AutoRoute` does maps directly onto the DSL — including **non-`UUID` id types**. A capture typed as `Id MyModel` is parsed through the model's primary-key type, so tables with an `Integer`, `Int`, or `Text` primary key work out of the box with no extra configuration — the old `autoRouteWithIdType` override is not needed. If a primary-key type has no built-in parser, add a one-line `UrlCapture` instance for it rather than reaching for a hand-written parser.
+
+Two rare setups can still drop down to the lower-level `IHP.RouterSupport` API (`parseRoute'`) *alongside* your `[routes|…|]` blocks — the DSL is additive, so you don't have to choose one or the other:
+
+- `allowedMethodsForAction` logic that branches dynamically on action data. The DSL declares the allowed methods per route, which covers the common case.
+- Routes generated programmatically by something other than the splice.
+
+`AutoRoute` remains fully supported in 1.6, but it is now considered legacy and is planned for removal in a future IHP release. Prefer the `[routes|…|]` DSL for both new and existing controllers.
+
+### Codegen behaviour
+
+- **`ihp-new`** scaffolds new projects with a `[routes|StaticController GET / WelcomeAction|]` block in `Web/Routes.hs` instead of `instance AutoRoute StaticController`.
+- **`new-controller`** appends a per-controller `[routes|…|]` block to `Web/Routes.hs` instead of `instance AutoRoute Foo`. URL shapes match the AutoRoute defaults shown in the recipe above.
+- **Existing projects** are not touched. If you generated controllers before 1.6.0, they keep using `AutoRoute` until you choose to convert them.
+
+### Reference
+
+Full DSL syntax, including the three header forms and the compile-time validation rules, lives in [Guide/routing.markdown](Guide/routing.markdown#explicit-routes-dsl).
 
 # Upgrade to 1.5.0 from 1.4.0
 
@@ -52,7 +872,83 @@ If your production server uses the IHP `appWithPostgres` NixOS module, deploying
 
     Visit https://ihp.digitallyinduced.com/Builds and copy the latest v1.5 URL into your `flake.nix`.
 
-## 2. Remake Env
+## 2. Update `.envrc`
+
+Replace your `.envrc` with the new devenv-root pattern:
+
+```bash
+#!/usr/bin/env bash
+# See https://github.com/cachix/devenv/blob/main/templates/flake-parts/.envrc
+
+if ! has nix_direnv_version || ! nix_direnv_version 3.1.0; then
+    source_url "https://raw.githubusercontent.com/nix-community/nix-direnv/3.1.0/direnvrc" "sha256-yMJ2OVMzrFaDPn7q8nCBZFRYpL/f0RcHzhmw/i6btJM="
+fi
+
+export DEVENV_IN_DIRENV_SHELL=true
+
+watch_file flake.nix
+watch_file flake.lock
+
+mkdir -p "$PWD/.devenv"
+DEVENV_ROOT_FILE="$PWD/.devenv/root"
+printf %s "$PWD" >"$DEVENV_ROOT_FILE"
+if ! use flake . --override-input devenv-root "file+file://$DEVENV_ROOT_FILE" --accept-flake-config; then
+    echo "devenv could not be built. The devenv environment was not loaded. Make the necessary changes to devenv.nix and hit enter to try again." >&2
+fi
+
+# Include .env file if it exists locally. Use the .env file to load env vars that you don't want to commit to git
+if [ -f .env ]
+then
+    dotenv .env
+fi
+```
+
+## 3. Update `flake.nix`
+
+Add the `devenv-root` input to your `flake.nix` inputs:
+
+```diff
+     inputs = {
+         ihp.url = "github:digitallyinduced/ihp/v1.5";
+         flake-parts.follows = "ihp/flake-parts";
+         devenv.follows = "ihp/devenv";
+         systems.follows = "ihp/systems";
++        devenv-root = {
++            url = "file+file:///dev/null";
++            flake = false;
++        };
+     };
+```
+
+Also enable the binary caches for faster builds by adding/updating the `nixConfig` at the bottom of `flake.nix`:
+
+```nix
+    nixConfig = {
+        extra-substituters = [
+            "https://devenv.cachix.org"
+            "https://cachix.cachix.org"
+            "https://digitallyinduced.cachix.org"
+        ];
+        extra-trusted-public-keys = [
+            "devenv.cachix.org-1:w1cLUi8dv3hnoSPGAuibQv+f9TZLr6cv/Hm9XgU50cw="
+            "cachix.cachix.org-1:eWNHQldwUO7G2VkjpnjDbWwy4KQ/HNxht7H4SSoMckM="
+            "digitallyinduced.cachix.org-1:y+wQvrnxQ+PdEsCt91rmvv39qRCYzEgGQaldK26hCKE="
+        ];
+    };
+```
+
+## 4. Update `hie.yaml`
+
+Add `/bin/sh` prefix to the bios shell command:
+
+```diff
+ cradle:
+     bios:
+-        shell: "$IHP/.hie-bios"
++        shell: "/bin/sh $IHP/.hie-bios"
+```
+
+## 5. Remake Env
 
 Run the following commands:
 
@@ -63,7 +959,7 @@ direnv reload
 
 Now you can start your project as usual with `devenv up`.
 
-## 3. Bootstrap 5 Migration
+## 6. Bootstrap 5 Migration
 
 IHP 1.5 upgrades the bundled frontend dependencies:
 
@@ -119,7 +1015,7 @@ Bootstrap 5 namespaces its data attributes with `bs`:
 
 jQuery 4.0.0 drops support for some deprecated APIs. If you use jQuery directly, review the [jQuery 4.0 upgrade guide](https://jquery.com/upgrade-guide/4.0/). Old jQuery versions are still included in `ihp-static` for backwards compatibility during migration.
 
-## 4. `addStyle` Removed
+## 7. `addStyle` Removed
 
 The `addStyle` function has been removed. Replace usage with inline `<style>` tags in your HSX:
 
@@ -128,27 +1024,68 @@ The `addStyle` function has been removed. Replace usage with inline `<style>` ta
 +[hsx|<style>body { background: red; }</style>|]
 ```
 
-## 5. `toSlug` Now Uses `slugger` Package
+## 8. `toSlug` Now Uses `slugger` Package
 
 The `toSlug` function now uses the `slugger` package instead of IHP's custom implementation. The behavior is mostly compatible, but edge cases (special characters, Unicode handling) may differ slightly. If you depend on exact slug output, test your slugs after upgrading.
 
-## 6. `?request` Implicit Parameter
+## 9. `?request` Implicit Parameter
 
 A new `?request :: Request` implicit parameter is now available alongside `?context`. This provides direct access to the WAI `Request` object.
 
 If you have custom view rendering functions or middleware that manually constructs the implicit parameter environment, you may need to add `?request` to the implicit parameter constraints. Most applications using standard IHP patterns are unaffected.
 
-## 7. `RequestContext` Removed
+## 10. `RequestContext` Removed
 
-The `RequestContext` type has been removed and replaced with WAI request vault storage and a `?respond` implicit parameter. The `ActionType` is now also stored in the WAI request vault.
+The `RequestContext` type, the `IHP.Controller.RequestContext` module, and the `?requestContext` implicit parameter have been removed. Their functionality is replaced by `?request`, `?respond`, and the WAI request vault.
 
-This is an internal change. Most applications are unaffected unless you directly imported or pattern-matched on `RequestContext`.
+In IHP 1.4, `IHP.ControllerPrelude` re-exported `IHP.Controller.RequestContext`, so every controller had access to `RequestContext`, `Respond`, and `RequestBody` types. These are now gone.
 
-## 8. `Fixtures.sql` Now Optional
+**Remove explicit imports** if you have them:
+
+```diff
+-import IHP.Controller.RequestContext
+```
+
+**Update `InitControllerContext` instances** that reference `?requestContext`:
+
+```diff
+-instance InitControllerContext WebApplication where
+-    initContext = do
+-        let req = ?requestContext.request
++instance InitControllerContext WebApplication where
++    initContext = do
++        let req = ?request
+```
+
+**Update code using `RequestBody` pattern matching:**
+
+```diff
+-case ?context.requestContext.requestBody of
+-    RequestContext.JSONBody { rawPayload } -> ...
+-    RequestContext.FormBody { params, files } -> ...
++-- Use the provided helper functions instead:
++body <- getRequestBody       -- returns the raw body
++jsonBody <- requestBodyJSON   -- returns IO Aeson.Value
+```
+
+**Update `Respond` type references:**
+
+```diff
+-myFunction :: (?requestContext :: RequestContext) => ...
+-myFunction = do
+-    let respond = ?requestContext.respond
++myFunction :: (?respond :: (Response -> IO ResponseReceived)) => ...
++myFunction = do
++    let respond = ?respond
+```
+
+Most applications using standard IHP controller patterns (`action`, `render`, `redirectTo`, etc.) are unaffected — only custom middleware or low-level request handling code needs changes.
+
+## 11. `Fixtures.sql` Now Optional
 
 `Application/Fixtures.sql` is no longer required to exist. If your project doesn't use fixtures, you can safely delete this file.
 
-## 9. Internal Packages Extracted from `ihp`
+## 12. Internal Packages Extracted from `ihp`
 
 Several internal modules have been extracted into separate packages. This should not affect most applications as they are re-exported through the standard preludes. However, if you import these modules directly, you may need to add the corresponding package to your dependencies:
 
@@ -184,19 +1121,19 @@ The welcome page controller has been moved to its own package `ihp-welcome`. If 
 
 Most production applications don't use the welcome controller and can safely ignore this change.
 
-## 10. OsPath Migration
+## 13. OsPath Migration
 
 IHP internally now uses `OsPath` instead of `FilePath` for file system operations. This is an internal change and most applications are unaffected. If you use IHP internal file APIs directly (e.g., code generator types), you may need to update `FilePath` references to `OsPath`.
 
-## 11. `Generated.ActualTypes` Split
+## 14. `Generated.ActualTypes` Split
 
 The generated `Types.hs` / `Generated.ActualTypes` module is now split into per-table modules for parallel compilation. This is transparent to application code — all types are still re-exported from the same locations. This change improves compile times for projects with many database tables.
 
-## 12. `compileRelationSupport` Flag
+## 15. `compileRelationSupport` Flag
 
 A new `compileRelationSupport` flag has been added to the schema compiler. Setting it to `False` disables generation of relation type machinery (`Include`, `fetch` relations, etc.), which can significantly speed up compilation for large schemas where you don't use `fetch` relations. To use this, add `relationSupport = false;` to the `ihp` section of your `flake.nix`.
 
-## 13. Deprecated Makefile Targets
+## 16. Deprecated Makefile Targets
 
 Several Makefile targets (`build/bin/RunUnoptimizedProdServer`, etc.) have been deprecated. Use `nix build` instead:
 
@@ -211,10 +1148,24 @@ nix build
 nix flake check --impure
 ```
 
-## 14. GHC 9.12 Support (Experimental)
+## 17. `postgresql-simple` → `hasql` Migration
 
-IHP now supports GHC 9.12 as an experimental opt-in. The default remains GHC 9.10 (binary-cached). To try GHC 9.12, see [Switching GHC Versions](https://ihp.digitallyinduced.com/Guide/package-management.html#switching-ghc-versions) in the Guide.
+All database access in IHP has been migrated from `postgresql-simple` to `hasql`. Applications using IHP's standard APIs (`fetch`, `query`, `createRecord`, `updateRecord`, etc.) are unaffected — the migration is internal.
 
+If your application uses `postgresql-simple` directly (importing `Database.PostgreSQL.Simple`), you need to migrate those call sites to use IHP's query builder or the new `typedSql` macro.
+
+## 18. `touchedFields` Bitmask Change
+
+The internal `touchedFields` representation changed from `[Text]` to an `Integer` bitmask for better performance. This is an internal change. If you have custom `SetField` instances or code that reads `touchedFields` directly, you will need to update it to use the bitmask API.
+
+## 19. `CSSFramework` Changes
+
+- `instance Default CSSFramework` has been removed. If you use `def` to get a CSS framework value, replace it with `unstyled`.
+- A new `styledLabelClass` field has been added to the `CSSFramework` record. If you define a custom CSS framework, add this field to your record.
+
+## 20. devenv v2.0
+
+devenv has been upgraded from v1.11.2 to v2.0.2. This should be transparent for most users. If you have custom `devenv.nix` configuration, consult the [devenv changelog](https://devenv.sh/changelog/) for any breaking changes.
 
 ## AI Assisted Upgrade
 

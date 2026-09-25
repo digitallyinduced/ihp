@@ -321,6 +321,10 @@
     min-height: 800px;
 }
 
+.modal-body {
+    overflow: visible;
+}
+
 .select2-results__option span.key {
     opacity: 0.5;
     margin-right: 12px;

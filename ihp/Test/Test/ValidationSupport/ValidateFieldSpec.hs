@@ -8,8 +8,6 @@ import Test.Hspec
 import IHP.Prelude
 import IHP.ValidationSupport.ValidateField
 import IHP.ValidationSupport.Types
-import IHP.ViewPrelude (cs, plain)
-import Data.Text (Text, length)
 
 tests = do
     describe "The nonEmpty validator" do

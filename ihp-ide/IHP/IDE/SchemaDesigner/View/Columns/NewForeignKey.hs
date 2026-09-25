@@ -36,7 +36,7 @@ instance View NewForeignKeyView where
 
 -- | Shared form modal for creating and editing foreign key constraints.
 foreignKeyFormModal
-    :: (?context :: ControllerContext, ?request :: Request)
+    :: (?request :: Request)
     => Text           -- ^ Form action URL
     -> Text           -- ^ Table name
     -> Text           -- ^ Column name

@@ -34,13 +34,13 @@ Once you have created your project, the first step is to define a database schem
 
 In a new project, this file will be empty.
 
-IHP uses PostgreSQL 18 by default, which provides the native `uuidv7()` function for time-ordered UUIDs that are better for database indexing. New tables and jobs will use `uuidv7()` as the default UUID function. If you need to use PostgreSQL 17, set the environment variable `IHP_POSTGRES_VERSION=17` to fall back to `uuid_generate_v4()`.
+IHP uses PostgreSQL 18 by default. New tables and jobs use the built-in `uuidv7()` function, which produces time-ordered UUIDs that index better than `uuid_generate_v4()`. Existing `Schema.sql` files that call `uuid_generate_v4()` keep working: IHP still loads the `uuid-ossp` extension. To generate `uuid_generate_v4()` defaults instead, set `IHP_POSTGRES_VERSION=17` and pin the PostgreSQL package back to 17.
 
 To define your database schema add your `CREATE TABLE ...` statements to the `Schema.sql`. For a users table this can look like this:
 
 ```sql
 CREATE TABLE users (
-    id UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL,
+    id UUID DEFAULT uuidv7() PRIMARY KEY NOT NULL,
     firstname TEXT NOT NULL,
     lastname TEXT NOT NULL
 );
@@ -210,7 +210,7 @@ action ShowTask { taskId } = do
             Nothing -> pure Nothing
 ```
 
-This contains a lot of boilerplate for wrapping and unwrapping the [`Maybe`](https://ihp.digitallyinduced.com/api-docs/IHP-Prelude.html#t:Maybe) value. Therefore you can just call [`fetchOneOrNothing`](https://ihp.digitallyinduced.com/api-docs/IHP-Fetch.html#v:fetchOneOrNothing) directly on the `Maybe (Id User)` value:
+This contains a lot of boilerplate for wrapping and unwrapping the `Maybe` value. Therefore you can just call [`fetchOneOrNothing`](https://ihp.digitallyinduced.com/api-docs/IHP-Fetch.html#v:fetchOneOrNothing) directly on the `Maybe (Id User)` value:
 
 ```haskell
 action ShowTask { taskId } = do
@@ -268,6 +268,19 @@ do
     -- SELECT COUNT(*) FROM users WHERE is_active = 1
 ```
 
+### Fetching records as a Vector
+
+Use [`fetchVector`](https://ihp.digitallyinduced.com/api-docs/IHP-Fetch.html#v:fetchVector) instead of [`fetch`](https://ihp.digitallyinduced.com/api-docs/IHP-Fetch.html#v:fetch) to get results as a `Vector` instead of a list. This avoids the overhead of building a linked list, which can be beneficial for large result sets:
+
+```haskell
+do
+    users <- query @User |> fetchVector
+
+    -- SELECT * FROM users
+```
+
+The returned `Vector` works with `forEach` in HSX views just like a list does.
+
 ### Fetching distinct records
 
 Use [`distinct`](https://ihp.digitallyinduced.com/api-docs/IHP-QueryBuilder.html#v:distinct) to fetch distinct records:
@@ -292,78 +305,126 @@ do
 
 The IHP query builder is designed to be able to easily express many basic sql queries. When your application is growing you will typically hit a point where a complex SQL query cannot be easily expressed with the IHP query builder. In that case it's recommended to use handwritten SQL to access your data.
 
-Use the function [`sqlQuery`](https://ihp.digitallyinduced.com/api-docs/IHP-ModelSupport.html#v:sqlQuery) to run a raw SQL query:
+> **Recommended:** Use the `[typedSql| ... |]` quasi quoter from [`IHP.TypedSql`](typed-sql.html). It connects to your development database at compile time and infers Haskell types for parameters and results — so mistakes surface as compile errors instead of runtime crashes. `sqlQuery`, `sqlQuerySingleRow`, `sqlQueryScalar`, `sqlQueryScalarOrNothing`, `sqlExec`, and `sqlExecDiscardResult` are **deprecated**; use `typedSql` with `sqlQueryTyped` / `sqlExecTyped`, or fall back to the `unsafeSql*` variants when a truly raw query is required.
+
+### Typed queries (preferred)
+
+Use [`typedSql`](https://ihp.digitallyinduced.com/api-docs/IHP-TypedSql.html#v:typedSql) with [`sqlQueryTyped`](https://ihp.digitallyinduced.com/api-docs/IHP-TypedSql.html#v:sqlQueryTyped) for any query you can write as a literal. Parameters are interpolated via `${expr}` and the result type is inferred from the SELECT list:
+
+```haskell
+import IHP.TypedSql (typedSql, sqlQueryTyped, sqlExecTyped)
+
+do
+    result <- sqlQueryTyped [typedSql|
+        SELECT id, title, body FROM projects WHERE id = ${id}
+    |]
+
+    -- WHERE id IN (...) via an array parameter
+    let ids :: [Id Project] = [id]
+    inList <- sqlQueryTyped [typedSql|
+        SELECT id, title, body FROM projects WHERE id = ANY(${ids})
+    |]
+
+    -- Post ids with their comment counts
+    commentsCount <- sqlQueryTyped [typedSql|
+        SELECT post_id, COUNT(*) FROM comments WHERE post_id = ANY(${postIds}) GROUP BY post_id
+    |]
+    -- commentsCount :: [(Id Post, Int64)]
+```
+
+For a single value use the same quoter. `sqlQueryTyped` returns the scalar directly when `typedSql` can prove the query returns exactly one row:
 
 ```haskell
 do
-    result <- sqlQuery "SELECT * FROM projects WHERE id = ?" (Only id)
-
-    -- Query with WHERE id IN
-    result <- sqlQuery "SELECT * FROM projects WHERE id IN ?" (Only (In [id]))
-
-    -- Get a lists of posts with their Comment count
-    let postIds :: [Id Post] = ["1c3a81ff-55ca-42a8-82e0-31d04f642e53"]
-    commentsCount :: [(Id Post, Int)] <- sqlQuery "SELECT post_id, count(*) FROM comments WHERE post_id IN ? GROUP BY post_id" (Only (In postIds))
+    count <- sqlQueryTyped [typedSql| SELECT COUNT(*) FROM projects |]
+    -- count :: Int64
 ```
 
-You might need to specify the expected result type, as type inference might not be able to guess it:
+For `INSERT`/`UPDATE`/`DELETE` use [`sqlExecTyped`](https://ihp.digitallyinduced.com/api-docs/IHP-TypedSql.html#v:sqlExecTyped) to get the affected row count:
 
 ```haskell
 do
-    result :: [Project] <- sqlQuery "SELECT * FROM projects WHERE id = ?" (Only id)
+    rowsAffected <- sqlExecTyped [typedSql|
+        UPDATE projects SET archived = true WHERE id = ${projectId}
+    |]
 ```
 
-If you would like to have your query dynamically built with an argument you could:
+See the [Typed SQL Guide](typed-sql.html) for full details including RETURNING clauses, no-result utility statements, JOINs with nullable columns, and schema-change safety.
+
+### Unsafe raw SQL (escape hatch)
+
+Some queries cannot be expressed with `typedSql` — for example, queries whose table or column names are computed at runtime, or DDL statements that cannot be described without a dev database. For those, use [`unsafeSqlQuery`](https://ihp.digitallyinduced.com/api-docs/IHP-ModelSupport.html#v:unsafeSqlQuery) and friends:
 
 ```haskell
 import qualified Database.PostgreSQL.Simple as PG
 import qualified Database.PostgreSQL.Simple.Types as PG
 
 do
-    -- Get all Projects
+    -- Dynamically-chosen table name — typedSql can't describe this
     let table :: Text = "projects"
-    -- Use PG.Identifier to prevent SQL injection
-    result :: [Project] <- sqlQuery "SELECT * FROM ?" [PG.Identifier table]
+    result :: [Project] <- unsafeSqlQuery "SELECT * FROM ?" [PG.Identifier table]
 ```
 
-If you need to fetch only a single column, for example only the ID of a record, you need to help the compiler and type hint
-the result, with an `Only` prefix. Here's an example of fetching only the IDs of a `project` table, and converting them to
-`Id Project`:
+If you need to fetch only a single column, type-hint the result with `Only`:
 
 ```haskell
 do
-    allProjectUuids :: [Only UUID] <- sqlQuery "SELECT projects.id FROM projects" ()
+    allProjectUuids :: [Only UUID] <- unsafeSqlQuery "SELECT projects.id FROM projects" ()
 
     let projectIds =
             allProjectUuids
-                -- Extract the UUIDs, and convert to an ID.
                 |> map (\(Only uuid) -> Id uuid :: Id Project)
 ```
 
+The `unsafe*` family skips compile-time checking; getting a column order or type wrong will fail only at runtime. Prefer `typedSql` whenever the query shape is known statically.
+
 ### Scalar Results
 
-The [`sqlQuery`](https://ihp.digitallyinduced.com/api-docs/IHP-ModelSupport.html#v:sqlQuery) function always returns a list of rows as the result. When the result of your query is a single value (such as an integer or string) use [`sqlQueryScalar`](https://ihp.digitallyinduced.com/api-docs/IHP-ModelSupport.html#v:sqlQueryScalar):
+Use [`unsafeSqlQueryScalar`](https://ihp.digitallyinduced.com/api-docs/IHP-ModelSupport.html#v:unsafeSqlQueryScalar) when you have a raw query that returns a single value. When possible, prefer `sqlQueryTyped` with `[typedSql| ... |]` — it infers the type from the SELECT list automatically.
 
 ```haskell
 do
-    count :: Int <- sqlQueryScalar "SELECT COUNT(*) FROM projects" ()
+    count :: Int <- unsafeSqlQueryScalar "SELECT COUNT(*) FROM projects" ()
 
-    randomString :: Text <- sqlQueryScalar "SELECT md5(random()::text)" ()
+    randomString :: Text <- unsafeSqlQueryScalar "SELECT md5(random()::text)" ()
 ```
 
 ### Dealing With Complex Query Results
 
-Let's say you're querying posts and a count of comments on each post:
-
+With `typedSql`, complex result shapes are handled automatically — you do not need to define a `FromRow` instance. Selecting multiple columns returns a tuple or a labeled `SqlRow`:
 
 ```haskell
-do
-    result :: [Post] <- sqlQuery "SELECT posts.id, posts.title, (SELECT COUNT(*) FROM comments WHERE comments.post_id = posts.id) AS comments_count FROM posts" ()
+import IHP.TypedSql (typedSql, sqlQueryTyped)
+
+fetchPostsWithCommentsCount :: (?modelContext :: ModelContext) => IO [(Id Post, Text, Int64)]
+fetchPostsWithCommentsCount = sqlQueryTyped [typedSql|
+    SELECT posts.id, posts.title,
+        (SELECT COUNT(*) FROM comments WHERE comments.post_id = posts.id) AS comments_count
+    FROM posts
+|]
 ```
 
-This will fail at runtime because the result set cannot be decoded as expected. The result has the columns `id`, `title` and `comments_count` but a Post record consists of `id`, `title`, `body`.
+If you need a named record type for readability, map over the result:
 
-The solution here is to write our own data type and mapping code:
+```haskell
+data PostWithCommentsCount = PostWithCommentsCount
+    { id :: Id Post
+    , title :: Text
+    , commentsCount :: Int64
+    }
+    deriving (Eq, Show)
+
+fetchPostsWithCommentsCount :: (?modelContext :: ModelContext) => IO [PostWithCommentsCount]
+fetchPostsWithCommentsCount = do
+    rows <- sqlQueryTyped [typedSql|
+        SELECT posts.id, posts.title,
+            (SELECT COUNT(*) FROM comments WHERE comments.post_id = posts.id) AS comments_count
+        FROM posts
+    |]
+    pure (map (\(id, title, commentsCount) -> PostWithCommentsCount { id, title, commentsCount }) rows)
+```
+
+If you must use `unsafeSqlQuery` for a complex result, define a record type and a manual `FromRow` instance:
 
 ```haskell
 module Application.PostsQuery where
@@ -390,7 +451,7 @@ instance FromRow PostWithCommentsCount where
 fetchPostsWithCommentsCount :: (?modelContext :: ModelContext) => IO [PostWithCommentsCount]
 fetchPostsWithCommentsCount = do
     trackTableRead "posts" -- This is needed when using auto refresh, so auto refresh knows that your action is accessing the posts table
-    sqlQuery "SELECT posts.id, posts.title, (SELECT COUNT(*) FROM comments WHERE comments.post_id = posts.id) AS comments_count FROM posts" ()
+    unsafeSqlQuery "SELECT posts.id, posts.title, (SELECT COUNT(*) FROM comments WHERE comments.post_id = posts.id) AS comments_count FROM posts" ()
 ```
 
 You can now fetch posts with their comments count like this:
@@ -446,7 +507,7 @@ fetchActiveWorkers = do
     trackTableRead "worker_settings"
     trackTableRead "action_run_states"
     trackTableRead "send_message_actions"
-    sqlQuery query ()
+    unsafeSqlQuery query ()
 
 query :: Query
 query =
@@ -789,6 +850,8 @@ IHP currently has support for the following Postgres column types:
 - REAL, FLOAT4
 - DOUBLE PRECISION, FLOAT8
 - POINT
+- POLYGON
+- GEOMETRY (PostGIS — see [PostGIS Geometry Columns](#postgis-geometry-columns))
 - DATE
 - BYTEA
 - TIME
@@ -801,6 +864,109 @@ IHP currently has support for the following Postgres column types:
 - TSVECTOR
 - Arrays of all the above types
 - Custom types, usually enums
+
+## PostGIS Geometry Columns
+
+IHP ships native support for PostGIS `geometry` columns, including the
+`geometry(SubType, SRID)` syntax used in most PostGIS schemas.
+
+### 1. Enable the PostGIS extension
+
+Add the extension to your project's `flake.nix` (see
+[Building Postgres With Extensions](package-management.html#building-postgres-with-extensions)):
+
+```nix
+devenv.shells.default = {
+    services.postgres.extensions = extensions: [ extensions.postgis ];
+};
+```
+
+Then run `CREATE EXTENSION postgis;` once (either via `Application/Fixtures.sql`
+or manually in `make psql`).
+
+### 2. Declare the column
+
+In `Application/Schema.sql`:
+
+```sql
+CREATE TABLE locations (
+    id UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL,
+    name TEXT NOT NULL,
+    geom geometry(Point, 4326) NOT NULL
+);
+```
+
+The generated Haskell field has type `Geometry` from
+[`postgresql-types`](https://hackage.haskell.org/package/postgresql-types)
+(`PostgresqlTypes.Geometry`). It is an opaque structured ADT matching the
+PostGIS / OGC geometry subtypes:
+
+```haskell
+-- Opaque: construct with refineFromShape / refineFromShapeAndSrid
+data Geometry  -- accessors: toSrid, toShape
+
+data Shape
+  = PointShape Coord
+  | LineStringShape [Coord]
+  | PolygonShape [[Coord]]
+  | MultiPointShape [Coord]
+  | MultiLineStringShape [[Coord]]
+  | MultiPolygonShape [[[Coord]]]
+  | GeometryCollectionShape [Shape]
+
+data Coord
+  = XyCoord Double Double
+  | XyzCoord Double Double Double
+  | XymCoord Double Double Double
+  | XyzmCoord Double Double Double Double
+```
+
+Because the PostGIS extension assigns the `geometry` OID dynamically, IHP
+resolves it by name at query time — no extra wiring is needed. Values
+round-trip through
+[EWKB](https://postgis.net/docs/using_postgis_dbmanagement.html#EWKB_EWKT) on
+the wire and through PostGIS's canonical upper-case hex EWKB in text form.
+
+### 3. Reading and writing values
+
+`IHP.ModelSupport` re-exports `PostgresqlTypes.Geometry` (including `Shape`
+and `Coord`). Shape constructors use the `*Shape` suffix so they do not
+clash with the built-in PostgreSQL `Point` / `Polygon` types:
+
+```haskell
+-- Fetch records normally; the `geom` field is a `Geometry`.
+locations <- query @Location |> fetch
+
+-- Construct a value structurally (Maybe-returning smart constructors
+-- reject mixed-dimensionality coordinate trees):
+let Just point = refineFromShapeAndSrid (PointShape (XyCoord 13.4 52.5)) (Just 4326)
+sqlExec "INSERT INTO locations (name, geom) VALUES (?, ?)"
+    ("Berlin" :: Text, point)
+
+-- Or let PostGIS parse WKT for you:
+sqlExec
+    "INSERT INTO locations (name, geom) VALUES (?, ST_GeomFromText(?, 4326))"
+    ("Hamburg" :: Text, "POINT(10.0 53.5)" :: Text)
+
+-- Pattern-match on fetched shapes in Haskell:
+forEach locations \location ->
+    case toShape location.geom of
+        PointShape (XyCoord x y) -> print (x, y)
+        _ -> pure ()
+```
+
+### Known limitations
+
+- The `geometry(SubType, SRID)` modifier is accepted by the parser but not
+  preserved in the Schema Designer AST — round-trip edits in the visual
+  designer keep the DDL-level constraint PostgreSQL enforces, but the
+  subtype/SRID hint is only stored in the SQL file itself.
+- `FromField` / `ToField` (postgresql-simple) instances for `Geometry` are
+  not shipped yet — IHP reads and writes geometry values through hasql. If
+  you still use postgresql-simple for a geometry column, provide a
+  project-local instance (or use hasql / `sqlExec` with `Geometry`).
+- The `geography` type is not yet supported natively; model it via a
+  project-local newtype or `PCustomType` for now.
 
 ## Transactions
 
@@ -822,18 +988,9 @@ withTransaction do
 In this example, when the creation of the User fails, the creation of the company will be rolled back. So that no
 incomplete data is left in the database when there's an error.
 
-The [`withTransaction`](https://ihp.digitallyinduced.com/api-docs/IHP-ModelSupport.html#v:withTransaction) function will automatically commit after it succesfully executed the passed do-block. When any exception is thrown, it will automatically rollback.
+The [`withTransaction`](https://ihp.digitallyinduced.com/api-docs/IHP-ModelSupport.html#v:withTransaction) function will automatically commit after it successfully executed the passed do-block. When any exception is thrown, it will automatically rollback.
 
-Keep in mind that some IHP functions like [`redirectTo`](https://ihp.digitallyinduced.com/api-docs/IHP-Controller-Redirect.html#v:redirectTo) or [`render`](https://ihp.digitallyinduced.com/api-docs/IHP-Controller-Render.html#v:render) throw a [`ResponseException`](https://ihp.digitallyinduced.com/api-docs/IHP-ControllerSupport.html#t:ResponseException). So code like below will not work as expected:
-
-```haskell
-action CreateUserAction = do
-    withTransaction do
-        user <- newRecord @User |> createRecord
-        redirectTo NewSessionAction
-```
-
-The [`redirectTo`](https://ihp.digitallyinduced.com/api-docs/IHP-Controller-Redirect.html#v:redirectTo) throws a [`ResponseException`](https://ihp.digitallyinduced.com/api-docs/IHP-ControllerSupport.html#t:ResponseException) and will cause a rollback. This code should be structured like this:
+It's good practice to keep your transaction blocks focused on database operations only:
 
 ```haskell
 action CreateUserAction = do
@@ -855,3 +1012,82 @@ CREATE TABLE users (
     UNIQUE (email, username)
 );
 ```
+
+PostgreSQL constraint names have a **63-byte** limit.
+
+For a multi-column unique constraint, Postgres auto-generates a name from table + column names.  
+For `strategy_factor_regime_online` + `(symbol_id, timeframe, ts, version)`, this becomes a long name (truncated form: `strategy_factor_regime_online_symbol_id_timeframe_ts_version_ke`) and can trigger noisy migrations like:
+
+```sql
+ALTER TABLE strategy_factor_regime_online DROP CONSTRAINT strategy_factor_regime_online_symbol_id_timeframe_ts_version_ke;
+```
+
+Solution: use a short explicit constraint name after `CREATE TABLE strategy_factor_regime_online`:
+
+```sql
+ALTER TABLE strategy_factor_regime_online
+    ADD CONSTRAINT uq_sfr_on_main UNIQUE (symbol_id, timeframe, ts, version);
+```
+
+Alternative: use `CREATE UNIQUE INDEX ...`.
+
+## Troubleshooting
+
+### "relation does not exist"
+
+```
+QueryError "SELECT ... FROM posts" ... (PGRES_FATAL_ERROR,"ERROR:  relation \"posts\" does not exist")
+```
+
+The table has not been created in your database. This usually means you added a table to `Application/Schema.sql` but have not pushed the schema to the database yet. Run `make db` while the development server is running to re-create the database from your schema. Also check for typos in the table name.
+
+### "column does not exist"
+
+```
+QueryError "SELECT ... " ... (PGRES_FATAL_ERROR,"ERROR:  column \"my_column\" does not exist")
+```
+
+Your database schema is out of sync with the generated Haskell types. This happens when you add or rename a column in `Schema.sql` but the actual database has not been updated. Run `make db` to re-import the schema into the database, or use `Migrate DB` from the Schema Designer. If you renamed a column, also run the appropriate `ALTER TABLE` statement as described in the "Renaming a Column" section above.
+
+### Connection Refused
+
+```
+libpq: failed (connection to server on socket ... failed: No such file or directory)
+```
+
+The PostgreSQL database is not running. Make sure the IHP development server is started with `devenv up`. The built-in development server automatically manages a PostgreSQL instance -- it is not available until the dev server is running.
+
+### "Couldn't match type 'Maybe'" on a Column
+
+```
+Couldn't match type 'Maybe Text' with 'Text'
+```
+
+This happens when a column in your schema is nullable (no `NOT NULL` constraint) but your code treats it as a non-nullable value, or vice versa. Nullable columns generate `Maybe` types in Haskell. Either add `NOT NULL` to the column in `Schema.sql` if it should never be null, or handle the `Maybe` in your code:
+
+```haskell
+-- For a nullable column:
+case user.bio of
+    Just bio -> [hsx|{bio}|]
+    Nothing  -> [hsx|No bio provided|]
+```
+
+### N+1 Query Issues
+
+If you see many repeated queries in your server log like this:
+
+```
+Query (SELECT * FROM comments WHERE post_id = ?) ...
+Query (SELECT * FROM comments WHERE post_id = ?) ...
+Query (SELECT * FROM comments WHERE post_id = ?) ...
+```
+
+You have an N+1 query problem. This happens when you fetch a list of records and then individually fetch related records for each one inside a loop. Fix this by using `fetch` with `include` to eagerly load the related records in a single query. See the [Relationships guide](relationships.html) for details on how to use `include`.
+
+### Type Mismatch on Query Results
+
+```
+Couldn't match type 'Post' with '[Post]'
+```
+
+Check whether you are using the right fetch function. `fetch` on an `Id` returns a single record, while `query @Post |> fetch` returns a list `[Post]`. Use `fetchOne` if you want a single result from a query, or `fetchOrNothing` if you want `Maybe Post` when fetching by id.

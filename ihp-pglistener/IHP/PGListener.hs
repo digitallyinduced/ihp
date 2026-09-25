@@ -19,6 +19,7 @@ module IHP.PGListener
 , subscribe
 , subscribeJSON
 , unsubscribe
+, onReconnect
 ) where
 
 import Prelude hiding (init, show, error)
@@ -30,14 +31,13 @@ import Data.IORef
 import Data.String.Conversions (cs)
 import Data.UUID (UUID)
 import qualified Data.UUID.V4 as UUID
-import Control.Monad (forever, unless, void, forM_)
-import GHC.Records (HasField)
+import Control.Monad (forever, unless, forM_)
 import Data.Maybe (fromMaybe)
 import Control.Exception (SomeException, displayException, uninterruptibleMask_)
 import Control.Concurrent.Async (Async, async, cancel, uninterruptibleCancel)
 import Data.Function ((&))
 
-import IHP.Log.Types (Logger)
+import System.Log.FastLogger (FastLogger, toLogStr)
 import Data.Set (Set)
 import qualified Data.Set as Set
 import Control.Concurrent.MVar (MVar)
@@ -46,7 +46,6 @@ import Data.HashMap.Strict as HashMap
 import qualified Control.Concurrent.Async as Async
 import qualified Data.List as List
 import qualified Data.Aeson as Aeson
-import qualified IHP.Log as Log
 import qualified Control.Exception.Safe as Exception
 import qualified Control.Concurrent.Chan.Unagi as Queue
 import qualified Control.Concurrent
@@ -59,8 +58,8 @@ import qualified Hasql.Notifications as HasqlNotifications
 tshow :: Prelude.Show a => a -> Text
 tshow = Text.pack . Prelude.show
 
--- | Wrapper to satisfy 'LoggingProvider' constraint for standalone logging
-data LogContext = LogContext { logger :: !Logger }
+-- | Logger type alias for PGListener
+type Logger = FastLogger
 
 -- TODO: How to deal with timeout of the connection?
 
@@ -99,6 +98,7 @@ data PGListener = PGListener
     , listenTo :: !(MVar Channel)
     , subscriptions :: !(IORef (HashMap Channel [Subscription]))
     , notifyLoopAsync :: !(Async ())
+    , reconnectCallbacks :: !(IORef [Hasql.Connection -> IO ()])
     }
 
 -- | Creates a new 'PGListener' object
@@ -113,9 +113,10 @@ init databaseUrl logger = do
     listeningTo <- MVar.newMVar Set.empty
     subscriptions <- newIORef HashMap.empty
     listenTo <- MVar.newEmptyMVar
+    reconnectCallbacks <- newIORef []
 
-    notifyLoopAsync <- async (notifyLoop logger databaseUrl listeningTo listenTo subscriptions)
-    pure PGListener { logger, databaseUrl, listeningTo, subscriptions, listenTo, notifyLoopAsync }
+    notifyLoopAsync <- async (notifyLoop logger databaseUrl listeningTo listenTo subscriptions reconnectCallbacks)
+    pure PGListener { logger, databaseUrl, listeningTo, subscriptions, listenTo, notifyLoopAsync, reconnectCallbacks }
 
 -- | Stops the database listener async and releases the database connection
 --
@@ -208,6 +209,20 @@ unsubscribe subscription@(Subscription { .. }) pgListener = do
     uninterruptibleCancel reader
     pure ()
 
+-- | Register a callback to be called when the PGListener reconnects after a connection loss.
+--
+-- The callback receives the live 'Hasql.Connection' so callers can run SQL directly
+-- on the known-good connection (e.g. to recreate notification triggers).
+--
+-- > PGListener.onReconnect (\connection -> do
+-- >     Hasql.Session.run (Hasql.Session.script triggerSQL) connection
+-- >     pure ()
+-- > ) pgListener
+--
+onReconnect :: (Hasql.Connection -> IO ()) -> PGListener -> IO ()
+onReconnect callback pgListener =
+    modifyIORef' (pgListener.reconnectCallbacks) (callback :)
+
 -- | Runs a @LISTEN ..;@ statements on the postgres connection, if not already listening on that channel
 listenToChannelIfNeeded :: Channel -> PGListener -> IO ()
 listenToChannelIfNeeded channel pgListener = do
@@ -230,8 +245,8 @@ acquireConnection databaseUrl = do
 -- | The main loop that is receiving events from the database and triggering callbacks
 --
 -- Todo: What happens when the connection dies?
-notifyLoop :: Logger -> ByteString -> MVar (Set Channel) -> MVar Channel -> IORef (HashMap Channel [Subscription]) -> IO ()
-notifyLoop logger databaseUrl listeningToVar listenToVar subscriptions = do
+notifyLoop :: Logger -> ByteString -> MVar (Set Channel) -> MVar Channel -> IORef (HashMap Channel [Subscription]) -> IORef [Hasql.Connection -> IO ()] -> IO ()
+notifyLoop logger databaseUrl listeningToVar listenToVar subscriptions reconnectCallbacksRef = do
     -- Wait until the first LISTEN is requested before opening a database connection
     MVar.readMVar listenToVar
 
@@ -244,6 +259,14 @@ notifyLoop logger databaseUrl listeningToVar listenToVar subscriptions = do
                 -- died, so we're restarting here. Therefore we need to replay all LISTEN calls to restore the previous state
                 listeningTo <- MVar.readMVar listeningToVar
                 forM_ listeningTo (listenToChannel connection)
+
+                -- Fire reconnection callbacks (non-empty listeningTo = reconnection, not initial connect)
+                unless (Set.null listeningTo) do
+                    callbacks <- readIORef reconnectCallbacksRef
+                    forM_ callbacks \callback ->
+                        Exception.tryAny (callback connection) >>= \case
+                            Left e -> logger (toLogStr ("PGListener reconnect callback failed: " <> displayException e))
+                            Right _ -> pure ()
 
                 -- We use 'race' to alternate between waiting for notifications and
                 -- processing new LISTEN requests. This avoids a deadlock: both
@@ -303,14 +326,13 @@ notifyLoop logger databaseUrl listeningToVar listenToVar subscriptions = do
             result <- Exception.tryAny innerLoop
             case result of
                 Left error -> do
-                    let ?context = LogContext logger
                     if isFirstError then do
-                        Log.info ("PGListener is going to restart, loop failed with exception: " <> (displayException error) <> ". Retrying immediately.")
+                        logger (toLogStr ("PGListener is going to restart, loop failed with exception: " <> (displayException error) <> ". Retrying immediately."))
                         retryLoop delay False -- Retry with no delay interval on first error, but will increase delay interval in subsequent retries
                     else do
                         let increasedDelay = delay * 2 -- Double current delay
                         let nextDelay = min increasedDelay maxDelay -- Picks whichever delay is lowest of increasedDelay * 2 or maxDelay
-                        Log.info ("PGListener is going to restart, loop failed with exception: " <> (displayException error) <> ". Retrying in " <> cs (printTimeToNextRetry delay) <> ".")
+                        logger (toLogStr ("PGListener is going to restart, loop failed with exception: " <> (displayException error) <> ". Retrying in " <> cs (printTimeToNextRetry delay) <> "."))
                         Control.Concurrent.threadDelay delay -- Sleep for the current delay
                         retryLoop nextDelay False -- Retry with longer interval
                 Right _ ->
@@ -329,4 +351,4 @@ listenToChannel connection channel = do
     HasqlNotifications.listen connection (HasqlNotifications.toPgIdentifier (cs channel))
 
 logError :: PGListener -> Text -> IO ()
-logError pgListener message = let ?context = LogContext pgListener.logger in Log.error message
+logError pgListener message = pgListener.logger (toLogStr message)

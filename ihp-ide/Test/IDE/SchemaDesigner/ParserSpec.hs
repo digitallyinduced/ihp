@@ -1,30 +1,29 @@
 {-|
-Module: Test.IDE.SchemaDesigner.ParserSpec
+Module: IDE.SchemaDesigner.ParserSpec
 Copyright: (c) digitally induced GmbH, 2020
 -}
-module Test.IDE.SchemaDesigner.ParserSpec where
+module IDE.SchemaDesigner.ParserSpec where
 
 import Test.Hspec
 import IHP.Prelude
 import qualified IHP.Postgres.Parser as Parser
 import IHP.Postgres.Types
-import IHP.ViewPrelude (cs, plain)
 import qualified Text.Megaparsec as Megaparsec
 import GHC.IO (evaluate)
 
 tests = do
     describe "The Schema.sql Parser" do
         it "should parse an empty CREATE TABLE statement" do
-            parseSql "CREATE TABLE users ();"  `shouldBe` StatementCreateTable CreateTable { name = "users", columns = [], primaryKeyConstraint = PrimaryKeyConstraint [], constraints = [], unlogged = False }
+            parseSql "CREATE TABLE users ();"  `shouldBe` StatementCreateTable (table "users")
 
         it "should parse an CREATE EXTENSION for the UUID extension" do
-            parseSql "CREATE EXTENSION IF NOT EXISTS \"uuid-ossp\";" `shouldBe` CreateExtension { name = "uuid-ossp", ifNotExists = True }
+            parseSql "CREATE EXTENSION IF NOT EXISTS \"uuid-ossp\";" `shouldBe` CreateExtension { name = "uuid-ossp", ifNotExists = True, extensionOptions = [] }
 
         it "should parse an CREATE EXTENSION with schema suffix" do
-            parseSql "CREATE EXTENSION IF NOT EXISTS \"uuid-ossp\" WITH SCHEMA public;" `shouldBe` CreateExtension { name = "uuid-ossp", ifNotExists = True }
+            parseSql "CREATE EXTENSION IF NOT EXISTS \"uuid-ossp\" WITH SCHEMA public;" `shouldBe` CreateExtension { name = "uuid-ossp", ifNotExists = True, extensionOptions = [ExtensionSchema "public"] }
 
         it "should parse an CREATE EXTENSION without quotes" do
-            parseSql "CREATE EXTENSION IF NOT EXISTS fuzzystrmatch WITH SCHEMA public;" `shouldBe` CreateExtension { name = "fuzzystrmatch", ifNotExists = True }
+            parseSql "CREATE EXTENSION IF NOT EXISTS fuzzystrmatch WITH SCHEMA public;" `shouldBe` CreateExtension { name = "fuzzystrmatch", ifNotExists = True, extensionOptions = [ExtensionSchema "public"] }
 
         it "should parse a line comment" do
             parseSql "-- Comment value" `shouldBe` Comment { content = " Comment value" }
@@ -57,6 +56,7 @@ tests = do
                     , primaryKeyConstraint = PrimaryKeyConstraint ["id"]
                     , constraints = []
                     , unlogged = False
+                    , inherits = Nothing
                     }
 
         it "should parse a CREATE TABLE with a generated column" do
@@ -96,7 +96,10 @@ tests = do
                         , columnName = "company_id"
                         , referenceTable = "companies"
                         , referenceColumn = "id"
-                        , onDelete = Just Cascade
+                            , onDelete = Just Cascade
+                            , onUpdate = Nothing
+                            , constraintDeferrable = Nothing
+                            , constraintDeferrableType = Nothing
                         }
                     , deferrable = Nothing
                     , deferrableType = Nothing
@@ -110,7 +113,10 @@ tests = do
                         , columnName = "company_id"
                         , referenceTable = "companies"
                         , referenceColumn = "id"
-                        , onDelete = Just SetDefault
+                            , onDelete = Just (SetDefault [])
+                            , onUpdate = Nothing
+                            , constraintDeferrable = Nothing
+                            , constraintDeferrableType = Nothing
                         }
                     , deferrable = Nothing
                     , deferrableType = Nothing
@@ -124,7 +130,10 @@ tests = do
                         , columnName = "company_id"
                         , referenceTable = "companies"
                         , referenceColumn = "id"
-                        , onDelete = Just SetNull
+                            , onDelete = Just (SetNull [])
+                            , onUpdate = Nothing
+                            , constraintDeferrable = Nothing
+                            , constraintDeferrableType = Nothing
                         }
                     , deferrable = Nothing
                     , deferrableType = Nothing
@@ -138,7 +147,10 @@ tests = do
                         , columnName = "company_id"
                         , referenceTable = "companies"
                         , referenceColumn = "id"
-                        , onDelete = Just Restrict
+                            , onDelete = Just Restrict
+                            , onUpdate = Nothing
+                            , constraintDeferrable = Nothing
+                            , constraintDeferrableType = Nothing
                         }
                     , deferrable = Nothing
                     , deferrableType = Nothing
@@ -152,7 +164,10 @@ tests = do
                         , columnName = "company_id"
                         , referenceTable = "companies"
                         , referenceColumn = "id"
-                        , onDelete = Just NoAction
+                            , onDelete = Just NoAction
+                            , onUpdate = Nothing
+                            , constraintDeferrable = Nothing
+                            , constraintDeferrableType = Nothing
                         }
                     , deferrable = Nothing
                     , deferrableType = Nothing
@@ -166,7 +181,10 @@ tests = do
                         , columnName = "company_id"
                         , referenceTable = "companies"
                         , referenceColumn = "id"
-                        , onDelete = Nothing
+                            , onDelete = Nothing
+                            , onUpdate = Nothing
+                            , constraintDeferrable = Nothing
+                            , constraintDeferrableType = Nothing
                         }
                     , deferrable = Nothing
                     , deferrableType = Nothing
@@ -219,6 +237,49 @@ tests = do
                             LessThanExpression
                                 (CallExpression ("length") [VarExpression "title"])
                                 (IntExpression 20)
+                        }
+                    , deferrable = Nothing
+                    , deferrableType = Nothing
+                    }
+
+        -- Regression for https://github.com/digitallyinduced/ihp/issues/2613:
+        -- pg_dump normalizes `kind IN ('a', 'b', 'c')` to `kind = ANY (ARRAY['a'::text, ...])`,
+        -- so the parser must accept the normalized form or it breaks on every schema reload.
+        it "should parse ALTER TABLE .. ADD CONSTRAINT .. CHECK with ANY(ARRAY[...]) as emitted by pg_dump" do
+            parseSql "ALTER TABLE foo ADD CONSTRAINT foo_kind_valid CHECK ((kind = ANY (ARRAY['a'::text, 'b'::text, 'c'::text])));" `shouldBe` AddConstraint
+                    { tableName = "foo"
+                    , constraint = CheckConstraint
+                        { name = "foo_kind_valid"
+                        , checkExpression =
+                            EqExpression
+                                (VarExpression "kind")
+                                (CallExpression "ANY"
+                                    [ ArrayLiteralExpression
+                                        [ TypeCastExpression (TextExpression "a") PText
+                                        , TypeCastExpression (TextExpression "b") PText
+                                        , TypeCastExpression (TextExpression "c") PText
+                                        ]
+                                    ])
+                        }
+                    , deferrable = Nothing
+                    , deferrableType = Nothing
+                    }
+
+        it "should parse ALTER TABLE .. ADD CONSTRAINT .. CHECK with ANY(ARRAY[...]) of integers" do
+            parseSql "ALTER TABLE foo ADD CONSTRAINT foo_n_valid CHECK ((n = ANY (ARRAY[1, 2, 3])));" `shouldBe` AddConstraint
+                    { tableName = "foo"
+                    , constraint = CheckConstraint
+                        { name = "foo_n_valid"
+                        , checkExpression =
+                            EqExpression
+                                (VarExpression "n")
+                                (CallExpression "ANY"
+                                    [ ArrayLiteralExpression
+                                        [ IntExpression 1
+                                        , IntExpression 2
+                                        , IntExpression 3
+                                        ]
+                                    ])
                         }
                     , deferrable = Nothing
                     , deferrableType = Nothing
@@ -491,6 +552,7 @@ tests = do
                     , primaryKeyConstraint = PrimaryKeyConstraint ["id"]
                     , constraints = [ UniqueConstraint { name = Nothing, columnNames = [ "user_id", "follower_id" ] } ]
                     , unlogged = False
+                    , inherits = Nothing
                     }
 
         it "should fail to parse a CREATE TABLE statement with an empty UNIQUE () constraint" do
@@ -552,14 +614,30 @@ tests = do
                     { columns = [ col "poly" PPolygon ]
                     }
 
+        it "should parse a CREATE TABLE statement with a PostGIS geometry column" do
+            parseSql "CREATE TABLE locations (\n    geom GEOMETRY\n);\n" `shouldBe` StatementCreateTable (table "locations")
+                    { columns = [ col "geom" PGeometry ]
+                    }
+
+        it "should parse a CREATE TABLE statement with a PostGIS geometry(subtype, srid) column" do
+            parseSql "CREATE TABLE locations (\n    geom geometry(Point, 4326)\n);\n" `shouldBe` StatementCreateTable (table "locations")
+                    { columns = [ col "geom" (PGeometryWithModifier "Point, 4326") ]
+                    }
+
+        it "should parse a CREATE TABLE statement with a PostGIS geometry(subtype) column" do
+            parseSql "CREATE TABLE areas (\n    shape geometry(MultiPolygon)\n);\n" `shouldBe` StatementCreateTable (table "areas")
+                    { columns = [ col "shape" (PGeometryWithModifier "MultiPolygon") ]
+                    }
+
         it "should parse a CREATE INDEX statement" do
             parseSql "CREATE INDEX users_index ON users (user_name);\n" `shouldBe` CreateIndex
                     { indexName = "users_index"
                     , unique = False
                     , tableName = "users"
-                    , columns = [IndexColumn { column = VarExpression "user_name", columnOrder = [] }]
+                    , columns = [indexCol (VarExpression "user_name")]
                     , whereClause = Nothing
                     , indexType = Nothing
+                    , nullsDistinct = True
                     }
 
         it "should parse a 'CREATE INDEX .. ON .. USING GIN' statement" do
@@ -567,9 +645,10 @@ tests = do
                     { indexName = "users_index"
                     , unique = False
                     , tableName = "users"
-                    , columns = [IndexColumn { column = VarExpression "user_name", columnOrder = [] }]
+                    , columns = [indexCol (VarExpression "user_name")]
                     , whereClause = Nothing
                     , indexType = Just Gin
+                    , nullsDistinct = True
                     }
 
         it "should parse a 'CREATE INDEX .. ON .. USING btree' statement" do
@@ -577,9 +656,10 @@ tests = do
                     { indexName = "users_index"
                     , unique = False
                     , tableName = "users"
-                    , columns = [IndexColumn { column = VarExpression "user_name", columnOrder = [] }]
+                    , columns = [indexCol (VarExpression "user_name")]
                     , whereClause = Nothing
                     , indexType = Just Btree
+                    , nullsDistinct = True
                     }
 
         it "should parse a 'CREATE INDEX .. ON .. USING GIST' statement" do
@@ -587,9 +667,10 @@ tests = do
                     { indexName = "users_index"
                     , unique = False
                     , tableName = "users"
-                    , columns = [IndexColumn { column = VarExpression "user_name", columnOrder = [] }]
+                    , columns = [indexCol (VarExpression "user_name")]
                     , whereClause = Nothing
                     , indexType = Just Gist
+                    , nullsDistinct = True
                     }
 
         it "should parse a CREATE INDEX statement with multiple columns" do
@@ -598,29 +679,32 @@ tests = do
                     , unique = False
                     , tableName = "users"
                     , columns =
-                        [ IndexColumn { column = VarExpression "user_name", columnOrder = [] }
-                        , IndexColumn { column = VarExpression "project_id", columnOrder = [] }
+                        [ indexCol (VarExpression "user_name")
+                        , indexCol (VarExpression "project_id")
                         ]
                     , whereClause = Nothing
                     , indexType = Nothing
+                    , nullsDistinct = True
                     }
         it "should parse a CREATE INDEX statement with a LOWER call" do
             parseSql "CREATE INDEX users_email_index ON users (LOWER(email));\n" `shouldBe` CreateIndex
                     { indexName = "users_email_index"
                     , unique = False
                     , tableName = "users"
-                    , columns = [IndexColumn { column = CallExpression "LOWER" [VarExpression "email"], columnOrder = [] }]
+                    , columns = [indexCol (CallExpression "LOWER" [VarExpression "email"])]
                     , whereClause = Nothing
                     , indexType = Nothing
+                    , nullsDistinct = True
                     }
         it "should parse a CREATE UNIQUE INDEX statement" do
             parseSql "CREATE UNIQUE INDEX users_index ON users (user_name);\n" `shouldBe` CreateIndex
                     { indexName = "users_index"
                     , unique = True
                     , tableName = "users"
-                    , columns = [IndexColumn { column = VarExpression "user_name", columnOrder = [] }]
+                    , columns = [indexCol (VarExpression "user_name")]
                     , whereClause = Nothing
                     , indexType = Nothing
+                    , nullsDistinct = True
                     }
 
         it "should parse a CREATE INDEX with column order ASC NULLS FIRST statement" do
@@ -628,9 +712,10 @@ tests = do
                     { indexName = "users_index"
                     , unique = True
                     , tableName = "users"
-                    , columns = [IndexColumn { column = VarExpression "user_name", columnOrder = [Asc, NullsFirst] }]
+                    , columns = [IndexColumn { column = VarExpression "user_name", columnOperatorClass = Nothing, columnOrder = [Asc, NullsFirst] }]
                     , whereClause = Nothing
                     , indexType = Nothing
+                    , nullsDistinct = True
                     }
 
         it "should parse a CREATE INDEX with column order DESC NULLS LAST statement" do
@@ -638,9 +723,38 @@ tests = do
                     { indexName = "users_index"
                     , unique = True
                     , tableName = "users"
-                    , columns = [IndexColumn { column = VarExpression "user_name", columnOrder = [Desc, NullsLast] }]
+                    , columns = [IndexColumn { column = VarExpression "user_name", columnOperatorClass = Nothing, columnOrder = [Desc, NullsLast] }]
                     , whereClause = Nothing
                     , indexType = Nothing
+                    , nullsDistinct = True
+                    }
+
+        it "should parse pgvector column types with dimensions" do
+            parseSql "ALTER TABLE knowledge_chunks ADD COLUMN embedding VECTOR(1536) DEFAULT NULL;" `shouldBe` AddColumn
+                    { tableName = "knowledge_chunks"
+                    , column = (col "embedding" (PCustomType "vector(1536)")) { defaultValue = Just (VarExpression "NULL") }
+                    }
+
+        it "should parse pgvector HNSW indexes with operator classes" do
+            parseSql "CREATE INDEX knowledge_chunks_embedding_hnsw_idx ON knowledge_chunks USING hnsw (embedding vector_cosine_ops) WHERE embedding IS NOT NULL;" `shouldBe` CreateIndex
+                    { indexName = "knowledge_chunks_embedding_hnsw_idx"
+                    , unique = False
+                    , tableName = "knowledge_chunks"
+                    , columns = [IndexColumn { column = VarExpression "embedding", columnOperatorClass = Just "vector_cosine_ops", columnOrder = [] }]
+                    , whereClause = Just (IsExpression (VarExpression "embedding") (NotExpression (VarExpression "NULL")))
+                    , indexType = Just Hnsw
+                    , nullsDistinct = True
+                    }
+
+        it "should parse pgvector IVFFLAT indexes with operator classes" do
+            parseSql "CREATE INDEX knowledge_chunks_embedding_ivfflat_idx ON knowledge_chunks USING ivfflat (embedding vector_l2_ops);" `shouldBe` CreateIndex
+                    { indexName = "knowledge_chunks_embedding_ivfflat_idx"
+                    , unique = False
+                    , tableName = "knowledge_chunks"
+                    , columns = [IndexColumn { column = VarExpression "embedding", columnOperatorClass = Just "vector_l2_ops", columnOrder = [] }]
+                    , whereClause = Nothing
+                    , indexType = Just Ivfflat
+                    , nullsDistinct = True
                     }
 
         it "should parse a CREATE INDEX with a coalesce expression" do
@@ -649,42 +763,71 @@ tests = do
                     , unique = True
                     , tableName = "user_invites"
                     , columns =
-                            [ IndexColumn { column = VarExpression "organization_id", columnOrder = [] }
-                            , IndexColumn { column = VarExpression "email", columnOrder = [] }
-                            , IndexColumn { column = CallExpression "coalesce" [VarExpression "expires_at", TextExpression "0001-01-01 01:01:01-04"], columnOrder = [] }
+                            [ indexCol (VarExpression "organization_id")
+                            , indexCol (VarExpression "email")
+                            , indexCol (CallExpression "coalesce" [VarExpression "expires_at", TextExpression "0001-01-01 01:01:01-04"])
                             ]
                     , whereClause = Nothing
                     , indexType = Nothing
+                    , nullsDistinct = True
+                    }
+
+        it "should parse a pg_dump CREATE INDEX with VARIADIC function arguments" do
+            let sql = cs [plain|
+CREATE INDEX agent_runs_ingest_gmail_message_latest_idx ON public.agent_runs USING btree (organization_id, jsonb_extract_path_text(input, VARIADIC ARRAY['gmailMessageId'::text]), COALESCE(completed_at, last_event_at, started_at, created_at) DESC, id DESC) WHERE ((type = 'ingest'::public.agent_run_type) AND (jsonb_extract_path_text(input, VARIADIC ARRAY['source'::text]) = 'gmail_email_ingest'::text));
+            |]
+            parseSql sql `shouldBe` CreateIndex
+                    { indexName = "agent_runs_ingest_gmail_message_latest_idx"
+                    , unique = False
+                    , tableName = "agent_runs"
+                    , columns =
+                            [ indexCol (VarExpression "organization_id")
+                            , indexCol (CallExpression "jsonb_extract_path_text"
+                                [ VarExpression "input"
+                                , VariadicExpression (ArrayLiteralExpression [TypeCastExpression (TextExpression "gmailMessageId") PText])
+                                ])
+                            , IndexColumn
+                                { column = CallExpression "COALESCE"
+                                    [ VarExpression "completed_at"
+                                    , VarExpression "last_event_at"
+                                    , VarExpression "started_at"
+                                    , VarExpression "created_at"
+                                    ]
+                                , columnOperatorClass = Nothing
+                                , columnOrder = [Desc]
+                                }
+                            , IndexColumn { column = VarExpression "id", columnOperatorClass = Nothing, columnOrder = [Desc] }
+                            ]
+                    , whereClause = Just
+                        (AndExpression
+                            (EqExpression
+                                (VarExpression "type")
+                                (TypeCastExpression (TextExpression "ingest") (PCustomType "agent_run_type")))
+                            (EqExpression
+                                (CallExpression "jsonb_extract_path_text"
+                                    [ VarExpression "input"
+                                    , VariadicExpression (ArrayLiteralExpression [TypeCastExpression (TextExpression "source") PText])
+                                    ])
+                                (TypeCastExpression (TextExpression "gmail_email_ingest") PText)))
+                    , indexType = Just Btree
+                    , nullsDistinct = True
                     }
 
         it "should parse a CREATE OR REPLACE FUNCTION ..() RETURNS TRIGGER .." do
-            parseSql "CREATE OR REPLACE FUNCTION notify_did_insert_webrtc_connection() RETURNS TRIGGER AS $$ BEGIN PERFORM pg_notify('did_insert_webrtc_connection', json_build_object('id', NEW.id, 'floor_id', NEW.floor_id, 'source_user_id', NEW.source_user_id, 'target_user_id', NEW.target_user_id)::text); RETURN NEW; END; $$ language plpgsql;" `shouldBe` CreateFunction
-                    { functionName = "notify_did_insert_webrtc_connection"
-                    , functionArguments = []
-                    , functionBody = " BEGIN PERFORM pg_notify('did_insert_webrtc_connection', json_build_object('id', NEW.id, 'floor_id', NEW.floor_id, 'source_user_id', NEW.source_user_id, 'target_user_id', NEW.target_user_id)::text); RETURN NEW; END; "
+            parseSql "CREATE OR REPLACE FUNCTION notify_did_insert_webrtc_connection() RETURNS TRIGGER AS $$ BEGIN PERFORM pg_notify('did_insert_webrtc_connection', json_build_object('id', NEW.id, 'floor_id', NEW.floor_id, 'source_user_id', NEW.source_user_id, 'target_user_id', NEW.target_user_id)::text); RETURN NEW; END; $$ language plpgsql;" `shouldBe` (function "notify_did_insert_webrtc_connection")
+                    { functionBody = " BEGIN PERFORM pg_notify('did_insert_webrtc_connection', json_build_object('id', NEW.id, 'floor_id', NEW.floor_id, 'source_user_id', NEW.source_user_id, 'target_user_id', NEW.target_user_id)::text); RETURN NEW; END; "
                     , orReplace = True
-                    , returns = PTrigger
-                    , language = "plpgsql"
                     }
 
         it "should parse a CREATE FUNCTION ..() RETURNS TRIGGER .." do
-            parseSql "CREATE FUNCTION notify_did_insert_webrtc_connection() RETURNS TRIGGER AS $$ BEGIN PERFORM pg_notify('did_insert_webrtc_connection', json_build_object('id', NEW.id, 'floor_id', NEW.floor_id, 'source_user_id', NEW.source_user_id, 'target_user_id', NEW.target_user_id)::text); RETURN NEW; END; $$ language plpgsql;" `shouldBe` CreateFunction
-                    { functionName = "notify_did_insert_webrtc_connection"
-                    , functionArguments = []
-                    , functionBody = " BEGIN PERFORM pg_notify('did_insert_webrtc_connection', json_build_object('id', NEW.id, 'floor_id', NEW.floor_id, 'source_user_id', NEW.source_user_id, 'target_user_id', NEW.target_user_id)::text); RETURN NEW; END; "
-                    , orReplace = False
-                    , returns = PTrigger
-                    , language = "plpgsql"
+            parseSql "CREATE FUNCTION notify_did_insert_webrtc_connection() RETURNS TRIGGER AS $$ BEGIN PERFORM pg_notify('did_insert_webrtc_connection', json_build_object('id', NEW.id, 'floor_id', NEW.floor_id, 'source_user_id', NEW.source_user_id, 'target_user_id', NEW.target_user_id)::text); RETURN NEW; END; $$ language plpgsql;" `shouldBe` (function "notify_did_insert_webrtc_connection")
+                    { functionBody = " BEGIN PERFORM pg_notify('did_insert_webrtc_connection', json_build_object('id', NEW.id, 'floor_id', NEW.floor_id, 'source_user_id', NEW.source_user_id, 'target_user_id', NEW.target_user_id)::text); RETURN NEW; END; "
                     }
 
         it "should parse a CREATE FUNCTION with parameters ..() RETURNS TRIGGER .." do
-            parseSql "CREATE FUNCTION notify_did_insert_webrtc_connection(param1 INT, param2 TEXT) RETURNS TRIGGER AS $$ BEGIN PERFORM pg_notify('did_insert_webrtc_connection', json_build_object('id', NEW.id, 'floor_id', NEW.floor_id, 'source_user_id', NEW.source_user_id, 'target_user_id', NEW.target_user_id)::text); RETURN NEW; END; $$ language plpgsql;" `shouldBe` CreateFunction
-                    { functionName = "notify_did_insert_webrtc_connection"
-                    , functionArguments = [("param1", PInt), ("param2", PText)]
+            parseSql "CREATE FUNCTION notify_did_insert_webrtc_connection(param1 INT, param2 TEXT) RETURNS TRIGGER AS $$ BEGIN PERFORM pg_notify('did_insert_webrtc_connection', json_build_object('id', NEW.id, 'floor_id', NEW.floor_id, 'source_user_id', NEW.source_user_id, 'target_user_id', NEW.target_user_id)::text); RETURN NEW; END; $$ language plpgsql;" `shouldBe` (function "notify_did_insert_webrtc_connection")
+                    { functionArguments = [("param1", PInt), ("param2", PText)]
                     , functionBody = " BEGIN PERFORM pg_notify('did_insert_webrtc_connection', json_build_object('id', NEW.id, 'floor_id', NEW.floor_id, 'source_user_id', NEW.source_user_id, 'target_user_id', NEW.target_user_id)::text); RETURN NEW; END; "
-                    , orReplace = False
-                    , returns = PTrigger
-                    , language = "plpgsql"
                     }
 
         it "should parse CREATE FUNCTION statements that are outputted by pg_dump" do
@@ -696,13 +839,8 @@ CREATE FUNCTION public.notify_did_change_projects() RETURNS trigger
     RETURN new;END;
 $$;
             |]
-            parseSql sql `shouldBe` CreateFunction
-                    { functionName = "notify_did_change_projects"
-                    , functionArguments = []
-                    , functionBody = "BEGIN\n    PERFORM pg_notify('did_change_projects', '');\n    RETURN new;END;\n"
-                    , orReplace = False
-                    , returns = PTrigger
-                    , language = "plpgsql"
+            parseSql sql `shouldBe` (function "notify_did_change_projects")
+                    { functionBody = "BEGIN\n    PERFORM pg_notify('did_change_projects', '');\n    RETURN new;END;\n"
                     }
 
         it "should parse CREATE FUNCTION statements that returns an event_trigger" do
@@ -711,26 +849,28 @@ $$;
                     LANGUAGE plpgsql
                     AS $$ BEGIN SELECT 1; END; $$;
             |]
-            parseSql sql `shouldBe` CreateFunction
-                    { functionName = "a"
-                    , functionArguments = []
-                    , functionBody = " BEGIN SELECT 1; END; "
-                    , orReplace = False
+            parseSql sql `shouldBe` (function "a")
+                    { functionBody = " BEGIN SELECT 1; END; "
                     , returns = PEventTrigger
-                    , language = "plpgsql"
+                    }
+
+        it "should parse a CREATE FUNCTION with SECURITY DEFINER" do
+            parseSql "CREATE FUNCTION my_func() RETURNS TRIGGER LANGUAGE plpgsql SECURITY DEFINER AS $$ BEGIN RETURN NEW; END; $$ ;" `shouldBe` (function "my_func")
+                    { functionBody = " BEGIN RETURN NEW; END; "
+                    , securityDefiner = True
                     }
 
         it "should parse a decimal default value with a type-cast" do
             let sql = "CREATE TABLE a(electricity_unit_price DOUBLE PRECISION DEFAULT 0.17::double precision NOT NULL);"
             let statements =
-                    [ StatementCreateTable CreateTable { name = "a", columns = [Column {name = "electricity_unit_price", columnType = PDouble, defaultValue = Just (TypeCastExpression (DoubleExpression 0.17) PDouble), notNull = True, isUnique = False, generator = Nothing}], primaryKeyConstraint = PrimaryKeyConstraint [], constraints = [], unlogged = False }
+                    [ StatementCreateTable (table "a") { columns = [(col "electricity_unit_price" PDouble) { defaultValue = Just (TypeCastExpression (NumericExpression "0.17") PDouble), notNull = True }] }
                     ]
             parseSqlStatements sql `shouldBe` statements
 
         it "should parse a integer default value" do
             let sql = "CREATE TABLE a(electricity_unit_price INT DEFAULT 0 NOT NULL);"
             let statements =
-                    [ StatementCreateTable CreateTable { name = "a", columns = [Column {name = "electricity_unit_price", columnType = PInt, defaultValue = Just (IntExpression 0), notNull = True, isUnique = False, generator = Nothing}], primaryKeyConstraint = PrimaryKeyConstraint [], constraints = [], unlogged = False }
+                    [ StatementCreateTable (table "a") { columns = [(col "electricity_unit_price" PInt) { defaultValue = Just (IntExpression 0), notNull = True }] }
                     ]
             parseSqlStatements sql `shouldBe` statements
 
@@ -740,25 +880,24 @@ $$;
                     , unique = True
                     , tableName = "listings"
                     , columns =
-                        [ IndexColumn { column = VarExpression "source", columnOrder = [] }
-                        , IndexColumn { column = VarExpression "source_id", columnOrder = [] }
+                        [ indexCol (VarExpression "source")
+                        , indexCol (VarExpression "source_id")
                         ]
                     , whereClause = Just (
                         AndExpression
                             (IsExpression (VarExpression "source") (NotExpression (VarExpression "NULL")))
                             (IsExpression (VarExpression "source_id") (NotExpression (VarExpression "NULL"))))
                     , indexType = Nothing
+                    , nullsDistinct = True
                     }
 
         it "should parse 'ENABLE ROW LEVEL SECURITY' statements" do
             parseSql "ALTER TABLE tasks ENABLE ROW LEVEL SECURITY;" `shouldBe` EnableRowLevelSecurity { tableName = "tasks" }
 
         it "should parse 'CREATE POLICY' statements" do
-            parseSql "CREATE POLICY \"Users can manage their tasks\" ON tasks USING (user_id = ihp_user_id()) WITH CHECK (user_id = ihp_user_id());" `shouldBe` CreatePolicy
-                    { name = "Users can manage their tasks"
-                    , action = Nothing
-                    , tableName = "tasks"
-                    , using = Just (
+            parseSql "CREATE POLICY \"Users can manage their tasks\" ON tasks USING (user_id = ihp_user_id()) WITH CHECK (user_id = ihp_user_id());" `shouldBe`
+                    (policy "Users can manage their tasks" "tasks")
+                    { using = Just (
                         EqExpression
                             (VarExpression "user_id")
                             (CallExpression "ihp_user_id" [])
@@ -770,7 +909,7 @@ $$;
                         )
                     }
         it "should parse 'ALTER TABLE .. ADD COLUMN' statements" do
-            parseSql "ALTER TABLE a ADD COLUMN b INT NOT NULL;" `shouldBe` AddColumn { tableName = "a", column = Column { name ="b", columnType = PInt, defaultValue = Nothing, notNull = True, isUnique = False, generator = Nothing}}
+            parseSql "ALTER TABLE a ADD COLUMN b INT NOT NULL;" `shouldBe` AddColumn { tableName = "a", column = (col "b" PInt) { notNull = True } }
 
         it "should parse 'ALTER TABLE .. DROP COLUMN ..' statements" do
             parseSql "ALTER TABLE tasks DROP COLUMN description;" `shouldBe` DropColumn { tableName = "tasks", columnName = "description" }
@@ -788,10 +927,10 @@ $$;
             parseSql "ALTER TABLE tasks DROP CONSTRAINT tasks_title_key;" `shouldBe` DropConstraint { tableName = "tasks", constraintName = "tasks_title_key" }
 
         it "should parse 'CREATE SEQUENCE ..' statements" do
-            parseSql "CREATE SEQUENCE a;" `shouldBe` CreateSequence { name = "a" }
+            parseSql "CREATE SEQUENCE a;" `shouldBe` CreateSequence { name = "a", sequenceOptions = [] }
 
         it "should parse 'CREATE SEQUENCE ..' statements with qualified name" do
-            parseSql "CREATE SEQUENCE public.a;" `shouldBe` CreateSequence { name = "a" }
+            parseSql "CREATE SEQUENCE public.a;" `shouldBe` CreateSequence { name = "a", sequenceOptions = [] }
 
         it "should parse 'CREATE SEQUENCE .. AS .. START WITH .. INCREMENT BY .. NO MINVALUE NO MAXVALUE CACHE ..;'" do
             let sql = [trimming|
@@ -803,7 +942,17 @@ $$;
                     NO MAXVALUE
                     CACHE 1;
             |]
-            parseSql sql `shouldBe` CreateSequence { name = "a" }
+            parseSql sql `shouldBe` CreateSequence
+                { name = "a"
+                , sequenceOptions =
+                    [ SequenceAs PInt
+                    , SequenceStart (IntExpression 1)
+                    , SequenceIncrement (IntExpression 1)
+                    , SequenceNoMinValue
+                    , SequenceNoMaxValue
+                    , SequenceCache (IntExpression 1)
+                    ]
+                }
 
         it "should parse 'SET' statements" do
             parseSql "SET statement_timeout = 0;" `shouldBe` Set { name = "statement_timeout", value = IntExpression 0 }
@@ -812,13 +961,13 @@ $$;
         it "should parse 'SELECT' statements" do
             parseSql "SELECT pg_catalog.set_config('search_path', '', false);" `shouldBe` SelectStatement { query = "pg_catalog.set_config('search_path', '', false)" }
         it "should parse 'COMMENT' statements" do
-            parseSql "COMMENT ON EXTENSION \"uuid-ossp\" IS 'generate universally unique identifiers (UUIDs)';" `shouldBe` Comment { content = "ON EXTENSION \"uuid-ossp\" IS 'generate universally unique identifiers (UUIDs)'" }
+            parseSql "COMMENT ON EXTENSION \"uuid-ossp\" IS 'generate universally unique identifiers (UUIDs)';" `shouldBe` UnknownStatement { raw = "COMMENT ON EXTENSION \"uuid-ossp\" IS 'generate universally unique identifiers (UUIDs)'" }
 
         it "should parse a column with a default value that has a qualified function call" do
             let sql = cs [plain|
                 CREATE TABLE a(id UUID DEFAULT public.uuid_generate_v4() NOT NULL);
             |]
-            let statement = StatementCreateTable CreateTable { name = "a", columns = [Column {name = "id", columnType = PUUID, defaultValue = Just (CallExpression "uuid_generate_v4" []), notNull = True, isUnique = False, generator = Nothing}], primaryKeyConstraint = PrimaryKeyConstraint [], constraints = [], unlogged = False }
+            let statement = StatementCreateTable (table "a") { columns = [(col "id" PUUID) { defaultValue = Just (CallExpression "uuid_generate_v4" []), notNull = True }] }
             parseSql sql `shouldBe` statement
 
 
@@ -905,11 +1054,11 @@ COMMENT ON EXTENSION "uuid-ossp" IS 'generate universally unique identifiers (UU
                     , Comment {content = ""}
                     , Comment {content = " Name: uuid-ossp; Type: EXTENSION; Schema: -; Owner: -"}
                     , Comment {content = ""}
-                    , CreateExtension {name = "uuid-ossp", ifNotExists = True}
+                    , CreateExtension {name = "uuid-ossp", ifNotExists = True, extensionOptions = [ExtensionSchema "public"]}
                     , Comment {content = ""}
                     , Comment {content = " Name: EXTENSION \"uuid-ossp\"; Type: COMMENT; Schema: -; Owner: -"}
                     , Comment {content = ""}
-                    , Comment {content = "ON EXTENSION \"uuid-ossp\" IS 'generate universally unique identifiers (UUIDs)'"}
+                    , UnknownStatement {raw = "COMMENT ON EXTENSION \"uuid-ossp\" IS 'generate universally unique identifiers (UUIDs)'"}
                     ]
             parseSqlStatements sql `shouldBe` statements
 
@@ -940,27 +1089,24 @@ COMMENT ON EXTENSION "uuid-ossp" IS 'generate universally unique identifiers (UU
                     { name = "Messages are public"
                     , action = Just PolicyForSelect
                     , tableName = "messages"
+                    , roles = []
                     , using = Just (VarExpression "true")
                     , check = Nothing
                     }
 
         it "should parse policies with an EXISTS condition" do
             let sql = cs [plain|CREATE POLICY "Users can manage their project's migrations" ON migrations USING (EXISTS (SELECT 1 FROM projects WHERE id = project_id)) WITH CHECK (EXISTS (SELECT 1 FROM projects WHERE id = project_id));|]
-            parseSql sql `shouldBe` CreatePolicy
-                    { name = "Users can manage their project's migrations"
-                    , action = Nothing
-                    , tableName = "migrations"
-                    , using = Just (ExistsExpression (SelectExpression (Select {columns = [IntExpression 1], from = VarExpression "projects", alias = Nothing, whereClause = EqExpression (VarExpression "id") (VarExpression "project_id")})))
+            parseSql sql `shouldBe`
+                    (policy "Users can manage their project's migrations" "migrations")
+                    { using = Just (ExistsExpression (SelectExpression (Select {columns = [IntExpression 1], from = VarExpression "projects", alias = Nothing, whereClause = EqExpression (VarExpression "id") (VarExpression "project_id")})))
                     , check = Just (ExistsExpression (SelectExpression (Select {columns = [IntExpression 1], from = VarExpression "projects", alias = Nothing, whereClause = EqExpression (VarExpression "id") (VarExpression "project_id")})))
                     }
 
         it "should parse policies with an EXISTS condition and a qualified table name" do
             let sql = cs [plain|CREATE POLICY "Users can manage their project's migrations" ON migrations USING (EXISTS (SELECT 1 FROM public.projects WHERE projects.id = migrations.project_id)) WITH CHECK (EXISTS (SELECT 1 FROM public.projects WHERE projects.id = migrations.project_id));|]
-            parseSql sql `shouldBe` CreatePolicy
-                    { name = "Users can manage their project's migrations"
-                    , action = Nothing
-                    , tableName = "migrations"
-                    , using = Just (ExistsExpression (SelectExpression (Select {columns = [IntExpression 1], from = DotExpression (VarExpression "public") "projects", alias = Nothing, whereClause = EqExpression (DotExpression (VarExpression "projects") "id") (DotExpression (VarExpression "migrations") "project_id")})))
+            parseSql sql `shouldBe`
+                    (policy "Users can manage their project's migrations" "migrations")
+                    { using = Just (ExistsExpression (SelectExpression (Select {columns = [IntExpression 1], from = DotExpression (VarExpression "public") "projects", alias = Nothing, whereClause = EqExpression (DotExpression (VarExpression "projects") "id") (DotExpression (VarExpression "migrations") "project_id")})))
                     , check = Just (ExistsExpression (SelectExpression (Select {columns = [IntExpression 1], from = DotExpression (VarExpression "public") "projects", alias = Nothing, whereClause = EqExpression (DotExpression (VarExpression "projects") "id") (DotExpression (VarExpression "migrations") "project_id")})))
                     }
 
@@ -980,12 +1126,24 @@ COMMENT ON EXTENSION "uuid-ossp" IS 'generate universally unique identifiers (UU
             parseSql "CREATE TRIGGER call_test_function_for_new_users AFTER INSERT ON public.users FOR EACH ROW EXECUTE FUNCTION call_test_function('hello');" `shouldBe` CreateTrigger
                     { name = "call_test_function_for_new_users"
                     , eventWhen = After
-                    , event = TriggerOnInsert
+                    , event = [TriggerOnInsert]
                     , tableName = "users"
                     , for = ForEachRow
                     , whenCondition = Nothing
                     , functionName = "call_test_function"
                     , arguments = [TextExpression "hello"]
+                    }
+
+        it "should parse 'CREATE TRIGGER .. AFTER INSERT OR UPDATE ON ..' statements" do
+            parseSql "CREATE TRIGGER my_trigger AFTER INSERT OR UPDATE ON public.posts FOR EACH ROW EXECUTE FUNCTION my_function();" `shouldBe` CreateTrigger
+                    { name = "my_trigger"
+                    , eventWhen = After
+                    , event = [TriggerOnInsert, TriggerOnUpdate]
+                    , tableName = "posts"
+                    , for = ForEachRow
+                    , whenCondition = Nothing
+                    , functionName = "my_function"
+                    , arguments = []
                     }
 
         it "should parse 'CREATE EVENT TRIGGER ..' statements" do
@@ -1013,11 +1171,11 @@ COMMENT ON EXTENSION "uuid-ossp" IS 'generate universally unique identifiers (UU
         it "should parse negative IntExpression's" do
             parseExpression "-1" `shouldBe` (IntExpression (-1))
 
-        it "should parse positive DoubleExpression's" do
-            parseExpression "1.337" `shouldBe` (DoubleExpression 1.337)
+        it "should preserve positive numeric literals exactly" do
+            parseExpression "1.337" `shouldBe` NumericExpression "1.337"
 
-        it "should parse negative DoubleExpression's" do
-            parseExpression "-1.337" `shouldBe` (DoubleExpression (-1.337))
+        it "should preserve negative numeric literals exactly" do
+            parseExpression "-1.337" `shouldBe` NumericExpression "-1.337"
 
         it "should parse lower-cased SELECT expressions" do
             parseExpression "(select company_id from users where id = ihp_user_id())" `shouldBe` SelectExpression (Select {columns = [VarExpression "company_id"], from = VarExpression "users", alias = Nothing, whereClause = EqExpression (VarExpression "id") (CallExpression "ihp_user_id" [])})
@@ -1028,12 +1186,9 @@ COMMENT ON EXTENSION "uuid-ossp" IS 'generate universally unique identifiers (UU
                    FROM public.users users_1
                   WHERE (users_1.id = public.ihp_user_id()))));
             |]
-            parseSql sql `shouldBe` CreatePolicy
-                    { name = "Users can see other users in their company"
-                    , action = Nothing
-                    , tableName = "users"
-                    , using = Just (EqExpression (VarExpression "company_id") (SelectExpression (Select {columns = [DotExpression (VarExpression "users_1") "company_id"], from = DotExpression (VarExpression "public") "users", alias = Just "users_1", whereClause = EqExpression (DotExpression (VarExpression "users_1") "id") (CallExpression "ihp_user_id" [])})))
-                    , check = Nothing
+            parseSql sql `shouldBe`
+                    (policy "Users can see other users in their company" "users")
+                    { using = Just (EqExpression (VarExpression "company_id") (SelectExpression (Select {columns = [DotExpression (VarExpression "users_1") "company_id"], from = DotExpression (VarExpression "public") "users", alias = Just "users_1", whereClause = EqExpression (DotExpression (VarExpression "users_1") "id") (CallExpression "ihp_user_id" [])})))
                     }
 
         it "should parse 'BEGIN' statements" do
@@ -1050,10 +1205,10 @@ COMMENT ON EXTENSION "uuid-ossp" IS 'generate universally unique identifiers (UU
         
         it "should parse 'CREATE TABLE ..' statements when the table name starts with public" do
             let sql = cs [plain|CREATE TABLE public_variables (id UUID);|]
-            parseSql sql `shouldBe` StatementCreateTable {unsafeGetCreateTable = CreateTable {name = "public_variables", columns = [Column {name = "id", columnType = PUUID, defaultValue = Nothing, notNull = False, isUnique = False, generator = Nothing}], primaryKeyConstraint = PrimaryKeyConstraint {primaryKeyColumnNames = []}, constraints = [], unlogged = False}}
+            parseSql sql `shouldBe` StatementCreateTable (table "public_variables") { columns = [col "id" PUUID] }
 
         it "should parse an 'CREATE UNLOGGED TABLE' statement" do
-            parseSql "CREATE UNLOGGED TABLE pg_large_notifications ();"  `shouldBe` StatementCreateTable CreateTable { name = "pg_large_notifications", columns = [], primaryKeyConstraint = PrimaryKeyConstraint [], constraints = [], unlogged = True }
+            parseSql "CREATE UNLOGGED TABLE pg_large_notifications ();"  `shouldBe` StatementCreateTable (table "pg_large_notifications") { unlogged = True }
 
         it "should ignore restrict lines" do
             let sql = [trimming|
@@ -1061,25 +1216,6 @@ COMMENT ON EXTENSION "uuid-ossp" IS 'generate universally unique identifiers (UU
                 \unrestrict LjgPjBgHVdXUE0a19ZenYCd3Zs2dsdUxghYk15OGwb4zzkNflnbsZ4rQo7Eqm5G
             |]
             parseSqlStatements sql `shouldBe` [Comment { content = "" }, Comment { content = "" }]
-
-col :: Text -> PostgresType -> Column
-col columnName columnType = Column
-    { name = columnName
-    , columnType = columnType
-    , defaultValue = Nothing
-    , notNull = False
-    , isUnique = False
-    , generator = Nothing
-    }
-
-table :: Text -> CreateTable
-table name = CreateTable
-    { name = name
-    , columns = []
-    , primaryKeyConstraint = PrimaryKeyConstraint []
-    , constraints = []
-    , unlogged = False
-    }
 
 parseSql :: Text -> Statement
 parseSql sql = let [statement] = parseSqlStatements sql in statement

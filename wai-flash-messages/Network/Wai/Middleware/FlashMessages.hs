@@ -13,10 +13,9 @@ import Prelude
 import Network.Wai
 import Data.ByteString
 import qualified Data.Serialize as Serialize
-import Data.Serialize (Serialize)
 import Data.Serialize.Text ()
 import qualified Data.Vault.Lazy as Vault
-import qualified Network.Wai.Session as Session
+import qualified Network.Wai.Session.Maybe as Session
 import qualified Data.Maybe as Maybe
 import Data.Text (Text)
 

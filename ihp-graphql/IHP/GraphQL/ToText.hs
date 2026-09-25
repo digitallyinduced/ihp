@@ -13,6 +13,8 @@ toText definitions =
 definitionToText :: Definition -> Text
 definitionToText ExecutableDefinition { operation } = operationToText operation
 definitionToText TypeSystemDefinition { typeSystemDefinition } = typeSystemDefinitionToText typeSystemDefinition
+definitionToText TypeSystemExtension = "# type system extension (not implemented)"
+definitionToText (FragmentDefinition _) = "# fragment definition (not implemented)"
 
 operationToText :: OperationDefinition -> Text
 operationToText operation = type_
@@ -34,6 +36,7 @@ typeSystemDefinitionToText SchemaDefinition { queryType, mutationType } = [trimm
         mutation = typeToText mutationType
 
 typeSystemDefinitionToText (TypeDefinition typeDefinition) = typeDefinitionToText typeDefinition
+typeSystemDefinitionToText DirectiveDefinition = "# directive definition (not implemented)"
 
 typeDefinitionToText ScalarTypeDefinition { name } = [trimming|
     scalar $name
@@ -56,6 +59,9 @@ typeDefinitionToText InputObjectTypeDefinition { name, fieldDefinitions } = [tri
         fields = fieldDefinitions
             |> map fieldDefinitionToText
             |> Text.intercalate "\n"
+typeDefinitionToText InterfaceTypeDefinition = "# interface type definition (not implemented)"
+typeDefinitionToText UnionTypeDefinition = "# union type definition (not implemented)"
+typeDefinitionToText EnumTypeDefinition = "# enum type definition (not implemented)"
 
 fieldDefinitionToText :: FieldDefinition -> Text
 fieldDefinitionToText FieldDefinition { description, name, argumentsDefinition, type_ } =
