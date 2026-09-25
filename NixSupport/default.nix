@@ -20,9 +20,13 @@
 , appSchemaSql ? null       # Path to Application/Schema.sql (required when buildWithPostgres = true)
 , ihpSchemaSql ? null       # Path to IHPSchema.sql (required when buildWithPostgres = true)
 , migrationCheck ? null     # Optional derivation that validates Application/Migration before building the app
-, previousIntermediates ? null # Optional intermediate output from a previous optimized app library build
+, previousIntermediates ? null # Optional combined intermediate output from a previous optimized app build
+, reuseAppLibWithIntermediatesForExecutables ? false # Reuse the cache-producing app lib when builds stay on one machine
+, appLibCompileCores ? null # Optional fixed GHC module parallelism for the optimized application library
+, appLibGhcAllocationArea ? null # Optional app-library-specific compile-time RTS allocation area
 , buildStaticLibraries ? true # Build static Haskell libraries in addition to shared libraries
 , ghcAllocationArea ? null # Optional GHC compile-time RTS allocation area, e.g. "128M"
+, extraGhcOptions ? [] # Extra GHC options (e.g. [ "-Wall" ]) applied to the models package, the application library and all executables
 }:
 
 let
@@ -70,6 +74,23 @@ let
         then defaultMigrationCheck
         else migrationCheck;
 
+    modelsPackageVersion = "0.1.0";
+    modelsIntermediatesDir = "share/haskell/${ghc.ghc.version}/${appName}-models-${modelsPackageVersion}/dist";
+    reusableModelsIntermediates =
+        if previousIntermediates != null
+            && builtins.pathExists "${previousIntermediates}/${modelsIntermediatesDir}/build"
+        then previousIntermediates
+        else null;
+
+    # Manual GHC builds do not use nixpkgs' Cabal intermediate-cache hooks, so
+    # keep their objects under a separate, stable namespace in the same cache.
+    executableIntermediatesRoot = "share/ihp-executable-intermediates/${ghc.ghc.version}/${appName}";
+    reusableExecutableIntermediates =
+        if previousIntermediates != null
+            && builtins.pathExists "${previousIntermediates}/${executableIntermediatesRoot}"
+        then "${previousIntermediates}/${executableIntermediatesRoot}"
+        else null;
+
     # Generate the models package source from Schema.sql
     modelsPackageSrc = pkgs.stdenv.mkDerivation {
         name = "${appName}-models-src";
@@ -96,7 +117,7 @@ let
             cat > ${appName}-models.cabal <<'CABAL_EOF'
 cabal-version: 2.2
 name: ${appName}-models
-version: 0.1.0
+version: ${modelsPackageVersion}
 build-type: Simple
 
 library
@@ -172,8 +193,11 @@ CABAL_EOF
         pkgs.haskell.lib.disableLibraryProfiling (pkgs.haskell.lib.dontHaddock (
             ghc.callPackage ({ mkDerivation, base, ihp, basic-prelude, text, bytestring, time, uuid, aeson, postgresql-simple, deepseq, data-default, scientific, string-conversions, hasql, hasql-dynamic-statements, hasql-implicits, hasql-mapping, hasql-postgresql-types, hasql-pool, unordered-containers, postgresql-types }: mkDerivation {
                 pname = "${appName}-models";
-                version = "0.1.0";
+                version = modelsPackageVersion;
                 src = modelsPackageSrc;
+                doInstallIntermediates = optimized;
+                enableSeparateIntermediatesOutput = optimized;
+                previousIntermediates = if optimized then reusableModelsIntermediates else null;
                 libraryHaskellDepends = [
                     base
                     ihp
@@ -434,10 +458,31 @@ CABAL_EOF
                         "--ghc-option=+RTS"
                         "--ghc-option=-A${ghcAllocationArea}"
                         "--ghc-option=-RTS"
-                    ];
+                    ]
+                    ++ map (opt: "--ghc-option=${opt}") extraGhcOptions;
             });
 
-    mkAppLibPackage = withIntermediates: configureHaskellBuild (pkgs.haskell.lib.disableLibraryProfiling (pkgs.haskell.lib.dontHaddock (
+    configureAppLibBuild = pkg:
+        let configured = configureHaskellBuild pkg;
+        in if appLibCompileCores == null && appLibGhcAllocationArea == null
+            then configured
+            else pkgs.haskell.lib.overrideCabal configured (old: ({
+                configureFlags = (old.configureFlags or [])
+                    ++ pkgs.lib.optionals (appLibCompileCores != null) [
+                        "--ghc-option=-j${toString appLibCompileCores}"
+                    ]
+                    ++ pkgs.lib.optionals (appLibGhcAllocationArea != null) [
+                        "--ghc-option=+RTS"
+                        "--ghc-option=-A${appLibGhcAllocationArea}"
+                        "--ghc-option=-RTS"
+                    ];
+            } // pkgs.lib.optionalAttrs (appLibCompileCores != null) {
+                # Avoid a second, daemon-derived parallelism flag alongside the
+                # explicit GHC module-job count above.
+                enableParallelBuilding = false;
+            }));
+
+    mkAppLibPackage = withIntermediates: configureAppLibBuild (pkgs.haskell.lib.disableLibraryProfiling (pkgs.haskell.lib.dontHaddock (
         ghc.callPackage ({ mkDerivation, base }: mkDerivation {
             pname = "${appName}-lib";
             version = "0.1.0";
@@ -446,6 +491,22 @@ CABAL_EOF
             doInstallIntermediates = withIntermediates;
             enableSeparateIntermediatesOutput = withIntermediates;
             inherit previousIntermediates;
+            # The app library remains the first cache stage. Carry forward
+            # executable objects from the previous combined cache so the
+            # server, worker, and scripts can reuse them when they are built
+            # in the second stage. Generated models are folded in here too.
+            postInstall = pkgs.lib.optionalString withIntermediates ''
+                mkdir -p "$intermediates/share"
+                ${pkgs.lib.optionalString (reusableExecutableIntermediates != null) ''
+                    mkdir -p "$intermediates/${executableIntermediatesRoot}"
+                    cp -r ${reusableExecutableIntermediates}/. "$intermediates/${executableIntermediatesRoot}/"
+                ''}
+                cp -r ${modelsPackage.intermediates}/share/. "$intermediates/share/"
+                # Store paths are read-only. Cabal's following
+                # installIntermediatesPhase must still be able to add the app
+                # library alongside the copied model and executable trees.
+                find "$intermediates" -exec chmod u+w {} +
+            '';
             license = pkgs.lib.licenses.free;
         }) {}
     )));
@@ -455,33 +516,45 @@ CABAL_EOF
         then withBuildTimePostgres pkg
         else pkg;
 
-    # The executables link against a lib variant WITHOUT the intermediates
-    # output: a nix remote builder copies back every output of each derivation
-    # it builds, so the multi-GB .hi/.o tree would otherwise travel with every
-    # offloaded build even though only the next incremental compile needs it.
-    # The with-intermediates variant exists solely to seed that next build; it
-    # is published as passthru.appLibPackage so existing flakes that reference
-    # .intermediates (the optimized-app-lib-intermediates output consumed via
-    # the prevBuild input, including older revisions of consuming repos) keep
-    # evaluating unchanged.
-    appLibPackage = withAppLibPostgres (mkAppLibPackage false);
     appLibPackageWithIntermediates = withAppLibPostgres (mkAppLibPackage optimized);
+    # Remote builders copy every output of a derivation back to the requesting
+    # host. Keep the smaller, separate executable dependency by default, but
+    # allow single-host build pipelines to reuse the cache-producing package's
+    # `out` and avoid realizing the application library twice.
+    appLibPackage =
+        if reuseAppLibWithIntermediatesForExecutables
+        then appLibPackageWithIntermediates
+        else withAppLibPostgres (mkAppLibPackage false);
 
     allHaskellPackagesWithAppLib = ghc.ghcWithPackages (p: [ appLibPackage ]);
 
-    compileExecutable = { executableName, mainPath, mainIs ? null, prepareMain, src ? appSrc, needsBuildTimePostgres ? false }:
-        pkgs.stdenv.mkDerivation {
+    compileExecutable = { executableName, cacheKey, mainPath, mainIs ? null, prepareMain, src ? appSrc, needsBuildTimePostgres ? false }:
+        let
+            executableIntermediatesDir = "${executableIntermediatesRoot}/${cacheKey}";
+            reusableIntermediates =
+                if optimized && previousIntermediates != null
+                    && builtins.pathExists "${previousIntermediates}/${executableIntermediatesDir}/obj"
+                then "${previousIntermediates}/${executableIntermediatesDir}/obj"
+                else null;
+        in pkgs.stdenv.mkDerivation {
             name = "${appName}-${executableName}-binary";
             inherit src;
+            outputs = [ "out" ] ++ pkgs.lib.optional optimized "intermediates";
 
             buildInputs = [ allHaskellPackagesWithAppLib ];
             nativeBuildInputs = commonNativeBuildInputs ++ pkgs.lib.optional needsBuildTimePostgres pkgs.postgresql;
 
             buildPhase = ''
                 mkdir -p build/bin build/obj
+                ${pkgs.lib.optionalString (reusableIntermediates != null) ''
+                    cp -r ${reusableIntermediates}/. build/obj/
+                    find build/obj -exec chmod u+w {} +
+                    find build/obj -exec touch -d '1970-01-01T00:00:00Z' {} +
+                ''}
                 ${ihpEnvSetup}
 
                 ${prepareMain}
+                touch -d '1970-01-01T00:00:00Z' ${mainPath}
 
                 ${pkgs.lib.optionalString needsBuildTimePostgres ''
                     ${buildTimePostgresSetup}
@@ -497,6 +570,7 @@ CABAL_EOF
                     ${pkgs.lib.optionalString (mainIs != null) "-main-is '${mainIs}'"} \
                     $(make print-ghc-options) \
                     ${if optimized then prodGhcOptions else ""} \
+                    ${pkgs.lib.escapeShellArgs extraGhcOptions} \
                     ${mainPath} -o build/bin/${executableName} \
                     -odir build/obj -hidir build/obj
 
@@ -509,6 +583,10 @@ CABAL_EOF
             installPhase = ''
                 mkdir -p $out/bin
                 cp build/bin/${executableName} $out/bin/
+                ${pkgs.lib.optionalString optimized ''
+                    mkdir -p "$intermediates/${executableIntermediatesDir}"
+                    cp -r build/obj "$intermediates/${executableIntermediatesDir}/"
+                ''}
             '';
 
             disallowedReferences = [ ihp ];
@@ -516,6 +594,7 @@ CABAL_EOF
 
     runProdServerBinary = compileExecutable {
         executableName = "RunProdServer";
+        cacheKey = "server";
         mainPath = "Main.hs";
         prepareMain = ''
             # Delete all .hs files except Main.hs so GHC uses the library package
@@ -526,6 +605,7 @@ CABAL_EOF
 
     runJobsBinary = compileExecutable {
         executableName = "RunJobs";
+        cacheKey = "worker";
         mainPath = "build/RunJobs.hs";
         mainIs = "RunJobs.main";
         prepareMain = ''
@@ -547,6 +627,7 @@ CABAL_EOF
 
     scriptBinary = scriptName: compileExecutable {
         executableName = scriptName;
+        cacheKey = "scripts/${scriptName}";
         mainPath = "build/Script/Main/${scriptName}.hs";
         src = scriptSrc scriptName;
         needsBuildTimePostgres = buildWithPostgres;
@@ -618,6 +699,8 @@ in
         passthru = {
             appLibPackage = appLibPackageWithIntermediates;
             appLibPackageForExecutables = appLibPackage;
+            inherit runProdServerBinary;
+            runJobsBinary = if hasJobs then runJobsBinary else null;
             inherit scriptBinaries;
             migrationCheck = effectiveMigrationCheck;
         };

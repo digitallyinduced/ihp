@@ -150,13 +150,58 @@ ihpFlake:
                     default = null;
                 };
 
+                extraGhcOptions = lib.mkOption {
+                    description = ''
+                        Extra GHC options applied when compiling the generated models
+                        package, the application library and all executables. For
+                        example [ "-Wall" ] to opt into the warnings the generated
+                        build does not enable by default, or linker flags.
+                    '';
+                    type = lib.types.listOf lib.types.str;
+                    default = [];
+                };
+
                 previousAppLibIntermediates = lib.mkOption {
                     description = ''
-                        Intermediate output from a previous optimized application build.
-                        When set, GHC reuses still-valid object and interface files and
-                        recompiles only modules affected by source changes.
+                        Combined intermediate output from a previous optimized application
+                        build. When set, GHC reuses still-valid objects and interfaces for
+                        generated models, the application library, the production server,
+                        the job runner, and optimized script binaries.
                     '';
                     type = lib.types.nullOr lib.types.package;
+                    default = null;
+                };
+
+                reuseAppLibWithIntermediatesForExecutables = lib.mkOption {
+                    description = ''
+                        Reuse the optimized application's cache-producing library
+                        package when linking the production server, job runner, and
+                        scripts. This avoids realizing a second library package and
+                        is intended for build pipelines that keep the intermediate
+                        output on the machine performing the build. Leave disabled
+                        for remote builders where transferring every derivation
+                        output would copy the multi-gigabyte intermediate tree.
+                    '';
+                    type = lib.types.bool;
+                    default = false;
+                };
+
+                appLibCompileCores = lib.mkOption {
+                    description = ''
+                        Optional fixed GHC module parallelism for optimized
+                        application-library builds. When set, IHP passes -jN to
+                        GHC instead of relying on the builder daemon's core count.
+                    '';
+                    type = lib.types.nullOr lib.types.ints.positive;
+                    default = null;
+                };
+
+                appLibGhcAllocationArea = lib.mkOption {
+                    description = ''
+                        Optional compile-time GHC RTS allocation area used only
+                        for the application library, such as "64M".
+                    '';
+                    type = lib.types.nullOr lib.types.str;
                     default = null;
                 };
 
@@ -240,7 +285,11 @@ ihpFlake:
                 static = self'.packages.static;
                 inherit buildWithPostgres;
                 previousIntermediates = if optimized then cfg.previousAppLibIntermediates else null;
-                inherit (cfg) buildStaticLibraries ghcAllocationArea;
+                reuseAppLibWithIntermediatesForExecutables =
+                    optimized && cfg.reuseAppLibWithIntermediatesForExecutables;
+                appLibCompileCores = if optimized then cfg.appLibCompileCores else null;
+                appLibGhcAllocationArea = if optimized then cfg.appLibGhcAllocationArea else null;
+                inherit (cfg) buildStaticLibraries ghcAllocationArea extraGhcOptions;
                 appSchemaSql = "${self'.packages.schema}/Schema.sql";
                 ihpSchemaSql = "${self'.packages.ihp-schema}/IHPSchema.sql";
             };

@@ -11,13 +11,13 @@ tests = do
         describe "getAllObjectNames" do
             it "should return a list of all names of tables and enum types" do
                 getAllObjectNames [] `shouldBe` []
-                getAllObjectNames [ CreateExtension { name ="a", ifNotExists = True } ] `shouldBe` []
+                getAllObjectNames [ CreateExtension { name ="a", ifNotExists = True, extensionOptions = [] } ] `shouldBe` []
                 getAllObjectNames [ CreateEnumType { name = "first_enum", values=["a", "b", "c"] }] `shouldBe` ["first_enum"]
                 getAllObjectNames [ StatementCreateTable (table "table_name") ]
                     `shouldBe` ["table_name"]
                 getAllObjectNames
                     [ CreateEnumType {name = "first_enum", values = ["a", "b"]}
-                    , CreateExtension {name = "extension", ifNotExists = True}
+                    , CreateExtension {name = "extension", ifNotExists = True, extensionOptions = []}
                     , StatementCreateTable (table "table_name")
                     , CreateEnumType {name = "second_enum", values = []}
                     ]

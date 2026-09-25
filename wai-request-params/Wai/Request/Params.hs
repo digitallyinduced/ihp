@@ -38,6 +38,7 @@ import Prelude
 import Data.ByteString (ByteString)
 import qualified Data.ByteString.Char8 as Char8
 import Data.Text (Text)
+import qualified Data.Text.Encoding as TextEncoding
 import Data.UUID (UUID)
 import qualified Data.UUID as UUID
 import Data.Time.Clock (UTCTime)
@@ -278,7 +279,10 @@ instance ParamReader Float where
 
 instance ParamReader Text where
     {-# INLINABLE readParameter #-}
-    readParameter byteString = pure (cs byteString)
+    readParameter byteString =
+        case TextEncoding.decodeUtf8' byteString of
+            Right text -> Right text
+            Left _ -> Left "has to be valid UTF-8"
 
     readParameterJSON (Aeson.String text) = Right text
     readParameterJSON _ = Left "Expected String"

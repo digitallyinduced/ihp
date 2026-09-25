@@ -2,6 +2,15 @@
 
 ## Unreleased
 
+- Updated `postgresql-syntax` to 0.5.0.3 so valid unspaced `ANY` expressions
+  and the JSONB key-existence operator participate in `typedSql` refinement.
+
+- Added `IHP.TypedSql.Hasql`, a request-context-independent API for converting
+  typed queries to Hasql statements, sessions, and pipelines, or running them
+  directly on a caller-managed Hasql pool. Pool runners expose Hasql's native
+  `Either UsageError` result, while the existing IHP-aware helpers remain
+  unchanged.
+
 - Each compiler process now uses a compact private compile-time PostgreSQL
   cluster under the worktree's `.devenv/state` directory. PostgreSQL stops after
   metadata operations become idle, the disposable cluster is rebuilt on schema

@@ -10,39 +10,39 @@ module IHP.TypedSql
     , TypedQueryResult
     , SqlExecTypedResult
     , DecodeTypedQuery
+    , DecodeTypedExec
     , RunTypedExec
     , sqlQueryTyped
     , sqlQueryTypedRows
     , sqlQueryTypedOneOrNothing
     , sqlQueryTypedSingle
     , sqlQueryTypedMaybeColumn
+    , sqlQueryTypedStatement
+    , sqlQueryTypedSession
+    , sqlQueryTypedWithPool
     , sqlQueryTypedPipelined
     , sqlQueryTypedMaybeColumnPipelined
     , sqlExecTyped
+    , sqlExecTypedStatement
+    , sqlExecTypedSession
+    , sqlExecTypedWithPool
     ) where
 
 import qualified Hasql.Decoders                  as HasqlDecoders
 import qualified Hasql.DynamicStatements.Snippet as Snippet
-import qualified Hasql.Pipeline                  as HasqlPipeline
 import           IHP.ModelSupport                (sqlExecHasql, sqlExecHasqlCount, sqlQueryHasql)
 import           IHP.Prelude
 import           GHC.TypeLits                    (ErrorMessage (Text), TypeError)
 
-import           IHP.TypedSql.Quoter                 (typedSql, typedSqlStar)
-import           IHP.TypedSql.Types                  (QueryCardinality (..), QueryExecResult (..), SqlExecTypedResult,
-                                                     TypedQuery (..), TypedQueryResult)
-
-class DecodeTypedQuery (cardinality :: QueryCardinality) where
-    typedQueryResultDecoder :: Proxy cardinality -> HasqlDecoders.Row result -> HasqlDecoders.Result (TypedQueryResult cardinality result)
-
-instance DecodeTypedQuery 'ManyRows where
-    typedQueryResultDecoder _ = HasqlDecoders.rowList
-
-instance DecodeTypedQuery 'AtMostOneRow where
-    typedQueryResultDecoder _ = HasqlDecoders.rowMaybe
-
-instance DecodeTypedQuery 'ExactlyOneRow where
-    typedQueryResultDecoder _ = HasqlDecoders.singleRow
+import           IHP.TypedSql.Hasql              (DecodeTypedExec, DecodeTypedQuery (typedQueryResultDecoder),
+                                                  sqlExecTypedSession, sqlExecTypedStatement,
+                                                  sqlExecTypedWithPool,
+                                                  sqlQueryTypedMaybeColumnPipelined,
+                                                  sqlQueryTypedPipelined, sqlQueryTypedSession,
+                                                  sqlQueryTypedStatement, sqlQueryTypedWithPool)
+import           IHP.TypedSql.Quoter             (typedSql, typedSqlStar)
+import           IHP.TypedSql.Types              (QueryCardinality (..), QueryExecResult (..), SqlExecTypedResult,
+                                                  TypedQuery (..), TypedQueryResult)
 
 -- | Run a typed SELECT query.
 --
@@ -99,24 +99,6 @@ sqlQueryTypedMaybeColumn :: (?modelContext :: ModelContext) => TypedQuery 'AtMos
 sqlQueryTypedMaybeColumn query = do
     value <- sqlQueryTyped query
     pure case value of
-        Nothing -> Nothing
-        Just inner -> inner
-
--- | Pipeline variant of 'sqlQueryTyped'.
---
--- Compose this with 'IHP.FetchPipelined.pipeline' to run independent typed SQL
--- queries in one PostgreSQL pipeline batch.
-sqlQueryTypedPipelined :: forall cardinality result. DecodeTypedQuery cardinality => TypedQuery cardinality 'ReturnsRows result -> HasqlPipeline.Pipeline (TypedQueryResult cardinality result)
-sqlQueryTypedPipelined TypedQuery { tqSnippet, tqResultDecoder } =
-    HasqlPipeline.statement () $
-        Snippet.toPreparableStatement tqSnippet (typedQueryResultDecoder (Proxy :: Proxy cardinality) tqResultDecoder)
-
--- | Pipeline variant of 'sqlQueryTypedMaybeColumn'.
-sqlQueryTypedMaybeColumnPipelined :: TypedQuery 'AtMostOneRow 'ReturnsRows (Maybe result) -> HasqlPipeline.Pipeline (Maybe result)
-sqlQueryTypedMaybeColumnPipelined query =
-    flatten <$> sqlQueryTypedPipelined query
-  where
-    flatten = \case
         Nothing -> Nothing
         Just inner -> inner
 

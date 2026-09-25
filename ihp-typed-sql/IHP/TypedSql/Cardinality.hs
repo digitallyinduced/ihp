@@ -11,12 +11,27 @@ import qualified Data.Set                         as Set
 import qualified Data.Text                        as Text
 import qualified Database.PostgreSQL.LibPQ        as PQ
 import           IHP.Prelude
-import qualified PostgresqlSyntax.Ast             as Ast
+import qualified PostgresqlSyntax                 as Ast
 
 import           IHP.TypedSql.Metadata            (ColumnMeta (..), TableMeta (..))
 import           IHP.TypedSql.Types               (QueryCardinality (..))
 
 type SourceCardinalityMap = Map.Map Text QueryCardinality
+
+fromClauseItems :: Ast.FromClause -> [Ast.TableRef]
+fromClauseItems (Ast.FromClause (Ast.FromList items)) = toList items
+
+targetListItems :: Ast.TargetList -> [Ast.TargetEl]
+targetListItems (Ast.TargetList items) = toList items
+
+indirectionItems :: Ast.Indirection -> [Ast.IndirectionEl]
+indirectionItems (Ast.Indirection items) = toList items
+
+exprListItems :: Ast.ExprList -> [Ast.AExpr]
+exprListItems (Ast.ExprList items) = toList items
+
+valuesClauseItems :: Ast.ValuesClause -> [Ast.ExprList]
+valuesClauseItems (Ast.ValuesClause items) = toList items
 
 -- | Conservatively infer the maximum number of rows a parsed statement can
 -- return. Unknown cases intentionally stay at 'ManyRows'.
@@ -39,8 +54,8 @@ inferInsertStmt tables (Ast.InsertStmt _with _target insertRest _onConflict mayb
 
 inferSelectStmt :: Map.Map PQ.Oid TableMeta -> Ast.SelectStmt -> QueryCardinality
 inferSelectStmt tables = \case
-    Left selectNoParens -> inferSelectNoParens tables selectNoParens
-    Right selectWithParens -> inferSelectWithParens tables selectWithParens
+    Ast.NoParensSelectStmt selectNoParens -> inferSelectNoParens tables selectNoParens
+    Ast.WithParensSelectStmt selectWithParens -> inferSelectWithParens tables selectWithParens
 
 inferSelectWithParens :: Map.Map PQ.Oid TableMeta -> Ast.SelectWithParens -> QueryCardinality
 inferSelectWithParens tables = \case
@@ -54,8 +69,8 @@ inferSelectNoParens tables (Ast.SelectNoParens maybeWith selectClause _sort mayb
 
 inferSelectClause :: Map.Map PQ.Oid TableMeta -> SourceCardinalityMap -> Ast.SelectClause -> QueryCardinality
 inferSelectClause tables sourceCardinalities = \case
-    Left simpleSelect -> inferSimpleSelect tables sourceCardinalities simpleSelect
-    Right selectWithParens -> inferSelectWithParens tables selectWithParens
+    Ast.SimpleSelectSelectClause simpleSelect -> inferSimpleSelect tables sourceCardinalities simpleSelect
+    Ast.WithParensSelectClause selectWithParens -> inferSelectWithParens tables selectWithParens
 
 inferSimpleSelect :: Map.Map PQ.Oid TableMeta -> SourceCardinalityMap -> Ast.SimpleSelect -> QueryCardinality
 inferSimpleSelect tables sourceCardinalities = \case
@@ -72,7 +87,7 @@ inferSimpleSelect tables sourceCardinalities = \case
         | otherwise ->
             ManyRows
     Ast.ValuesSimpleSelect values
-        | length (toList values) == 1 -> ExactlyOneRow
+        | length (valuesClauseItems values) == 1 -> ExactlyOneRow
         | otherwise -> ManyRows
     Ast.TableSimpleSelect _ -> ManyRows
     Ast.BinSimpleSelect _op _left _distinct _right -> ManyRows
@@ -87,7 +102,7 @@ cteCardinalities tables (Ast.WithClause _recursive ctes) =
 singleSourceCardinality :: Map.Map PQ.Oid TableMeta -> SourceCardinalityMap -> Maybe Ast.FromClause -> Maybe QueryCardinality
 singleSourceCardinality tables sourceCardinalities maybeFrom = do
     fromClause <- maybeFrom
-    case toList fromClause of
+    case fromClauseItems fromClause of
         [tableRef] -> tableRefCardinality tables sourceCardinalities tableRef
         _ -> Nothing
 
@@ -150,7 +165,7 @@ exprAtMostOne = \case
 
 cExprAtMostOne :: Ast.CExpr -> Bool
 cExprAtMostOne = \case
-    Ast.AexprConstCExpr (Ast.IAexprConst value) -> value <= 1
+    Ast.AexprConstCExpr (Ast.IAexprConst (Ast.Iconst value)) -> value <= 1
     _ -> False
 
 numericLimitAtMostOne :: Either Int64 Double -> Bool
@@ -160,8 +175,8 @@ numericLimitAtMostOne = \case
 
 isAggregateTargeting :: Maybe Ast.Targeting -> Bool
 isAggregateTargeting = \case
-    Just (Ast.NormalTargeting targets) -> any targetContainsAggregate (toList targets)
-    Just (Ast.DistinctTargeting _ targets) -> any targetContainsAggregate (toList targets)
+    Just (Ast.NormalTargeting targets) -> any targetContainsAggregate (targetListItems targets)
+    Just (Ast.DistinctTargeting _ targets) -> any targetContainsAggregate (targetListItems targets)
     _ -> False
 
 targetContainsAggregate :: Ast.TargetEl -> Bool
@@ -181,7 +196,6 @@ exprContainsAggregate = \case
     Ast.MinusAExpr expr -> exprContainsAggregate expr
     Ast.SymbolicBinOpAExpr left _ right -> exprContainsAggregate left || exprContainsAggregate right
     Ast.PrefixQualOpAExpr _ expr -> exprContainsAggregate expr
-    Ast.SuffixQualOpAExpr expr _ -> exprContainsAggregate expr
     Ast.AndAExpr left right -> exprContainsAggregate left || exprContainsAggregate right
     Ast.OrAExpr left right -> exprContainsAggregate left || exprContainsAggregate right
     Ast.NotAExpr expr -> exprContainsAggregate expr
@@ -210,9 +224,9 @@ cExprContainsAggregate = \case
 
 subexprContainsAggregate :: Ast.FuncExprCommonSubexpr -> Bool
 subexprContainsAggregate = \case
-    Ast.CoalesceFuncExprCommonSubexpr args -> any exprContainsAggregate (toList args)
-    Ast.GreatestFuncExprCommonSubexpr args -> any exprContainsAggregate (toList args)
-    Ast.LeastFuncExprCommonSubexpr args -> any exprContainsAggregate (toList args)
+    Ast.CoalesceFuncExprCommonSubexpr args -> any exprContainsAggregate (exprListItems args)
+    Ast.GreatestFuncExprCommonSubexpr args -> any exprContainsAggregate (exprListItems args)
+    Ast.LeastFuncExprCommonSubexpr args -> any exprContainsAggregate (exprListItems args)
     Ast.NullIfFuncExprCommonSubexpr left right -> exprContainsAggregate left || exprContainsAggregate right
     Ast.CastFuncExprCommonSubexpr expr _ -> exprContainsAggregate expr
     Ast.CollationForFuncExprCommonSubexpr expr -> exprContainsAggregate expr
@@ -224,7 +238,7 @@ reversibleOpContainsAggregate = \case
     Ast.DistinctFromAExprReversableOp expr -> exprContainsAggregate expr
     Ast.BetweenAExprReversableOp _ _ right -> exprContainsAggregate right
     Ast.BetweenSymmetricAExprReversableOp _ right -> exprContainsAggregate right
-    Ast.InAExprReversableOp (Ast.ExprListInExpr exprs) -> any exprContainsAggregate (toList exprs)
+    Ast.InAExprReversableOp (Ast.ExprListInExpr exprs) -> any exprContainsAggregate (exprListItems exprs)
     Ast.InAExprReversableOp (Ast.SelectInExpr _) -> False
     _ -> False
 
@@ -258,7 +272,7 @@ provesPrimaryKeyLookup tables maybeFrom maybeWhere =
                 |> map (\table@TableMeta { tmName } -> (tmName, table))
                 |> Map.fromList
     in case (singleSimpleTableRef maybeFrom, maybeWhere) of
-        (Just (tableName, tableQualifier), Just whereExpr) ->
+        (Just (tableName, tableQualifier), Just (Ast.WhereClause whereExpr)) ->
             case Map.lookup tableName tableByName of
                 Just tableMeta ->
                     let primaryKeyColumns = primaryKeyColumnNames tableMeta
@@ -277,7 +291,7 @@ primaryKeyColumnNames TableMeta { tmColumns, tmPrimaryKeys } =
 singleSimpleTableRef :: Maybe Ast.FromClause -> Maybe (Text, Text)
 singleSimpleTableRef maybeFrom = do
     fromClause <- maybeFrom
-    case toList fromClause of
+    case fromClauseItems fromClause of
         [Ast.RelationExprTableRef relExpr maybeAlias _sample] ->
             let tableName = relationExprName relExpr
                 qualifier = case maybeAlias of
@@ -304,7 +318,7 @@ columnRefForQualifier qualifier = \case
                 | qualifier == "" -> Just (identToText ident)
                 | otherwise -> Just (identToText ident)
             Just indirection ->
-                case toList indirection of
+                case indirectionItems indirection of
                     [Ast.AttrNameIndirectionEl columnIdent]
                         | identToText ident == qualifier -> Just (identToText columnIdent)
                     _ -> Nothing
@@ -319,7 +333,7 @@ qualifiedNameToText :: Ast.QualifiedName -> Text
 qualifiedNameToText = \case
     Ast.SimpleQualifiedName ident -> identToText ident
     Ast.IndirectedQualifiedName schema indirection ->
-        case toList indirection of
+        case indirectionItems indirection of
             [] -> identToText schema
             els -> case List.last els of
                 Ast.AttrNameIndirectionEl ident -> identToText ident
@@ -329,7 +343,7 @@ funcNameToText :: Ast.FuncName -> Text
 funcNameToText = \case
     Ast.TypeFuncName ident -> identToText ident
     Ast.IndirectedFuncName _ indirection ->
-        case toList indirection of
+        case indirectionItems indirection of
             [Ast.AttrNameIndirectionEl ident] -> identToText ident
             _ -> ""
 

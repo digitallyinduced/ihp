@@ -190,7 +190,7 @@ extensionNamesFromMigration migrationSql =
         Left parserError -> Left (cs parserError)
         Right statements -> traverse extensionName statements
     where
-        extensionName (CreateExtension name _) = Right name
+        extensionName (CreateExtension name _ _) = Right name
         extensionName _ = Left "Expected a CREATE EXTENSION statement"
 
 -- | Extracts extension creation statements from a complete schema. The result

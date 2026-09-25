@@ -16,7 +16,7 @@ tests = do
             compileSql [StatementCreateTable (table "users")] `shouldBe` "CREATE TABLE users (\n\n);\n"
 
         it "should compile a CREATE EXTENSION for the UUID extension" do
-            compileSql [CreateExtension { name = "uuid-ossp", ifNotExists = True }] `shouldBe` "CREATE EXTENSION IF NOT EXISTS \"uuid-ossp\";\n"
+            compileSql [CreateExtension { name = "uuid-ossp", ifNotExists = True, extensionOptions = [] }] `shouldBe` "CREATE EXTENSION IF NOT EXISTS \"uuid-ossp\";\n"
 
         it "should compile a line comment" do
             compileSql [Comment { content = " Comment value" }] `shouldBe` "-- Comment value\n"
@@ -62,7 +62,10 @@ tests = do
                         , columnName = "company_id"
                         , referenceTable = "companies"
                         , referenceColumn = "id"
-                        , onDelete = Just Cascade
+                            , onDelete = Just Cascade
+                            , onUpdate = Nothing
+                            , constraintDeferrable = Nothing
+                            , constraintDeferrableType = Nothing
                         }
                     , deferrable = Nothing
                     , deferrableType = Nothing
@@ -77,7 +80,10 @@ tests = do
                         , columnName = "company_id"
                         , referenceTable = "companies"
                         , referenceColumn = "id"
-                        , onDelete = Just SetDefault
+                            , onDelete = Just (SetDefault [])
+                            , onUpdate = Nothing
+                            , constraintDeferrable = Nothing
+                            , constraintDeferrableType = Nothing
                         }
                     , deferrable = Nothing
                     , deferrableType = Nothing
@@ -92,7 +98,10 @@ tests = do
                         , columnName = "company_id"
                         , referenceTable = "companies"
                         , referenceColumn = "id"
-                        , onDelete = Just SetNull
+                            , onDelete = Just (SetNull [])
+                            , onUpdate = Nothing
+                            , constraintDeferrable = Nothing
+                            , constraintDeferrableType = Nothing
                         }
                     , deferrable = Nothing
                     , deferrableType = Nothing
@@ -107,7 +116,10 @@ tests = do
                         , columnName = "company_id"
                         , referenceTable = "companies"
                         , referenceColumn = "id"
-                        , onDelete = Just Restrict
+                            , onDelete = Just Restrict
+                            , onUpdate = Nothing
+                            , constraintDeferrable = Nothing
+                            , constraintDeferrableType = Nothing
                         }
                     , deferrable = Nothing
                     , deferrableType = Nothing
@@ -122,7 +134,10 @@ tests = do
                         , columnName = "company_id"
                         , referenceTable = "companies"
                         , referenceColumn = "id"
-                        , onDelete = Just NoAction
+                            , onDelete = Just NoAction
+                            , onUpdate = Nothing
+                            , constraintDeferrable = Nothing
+                            , constraintDeferrableType = Nothing
                         }
                     , deferrable = Nothing
                     , deferrableType = Nothing
@@ -137,7 +152,10 @@ tests = do
                         , columnName = "company_id"
                         , referenceTable = "companies"
                         , referenceColumn = "id"
-                        , onDelete = Nothing
+                            , onDelete = Nothing
+                            , onUpdate = Nothing
+                            , constraintDeferrable = Nothing
+                            , constraintDeferrableType = Nothing
                         }
                     , deferrable = Nothing
                     , deferrableType = Nothing
@@ -716,7 +734,7 @@ tests = do
 
         it "should compile a decimal default value with a type-cast" do
             let sql = "CREATE TABLE a (\n    electricity_unit_price DOUBLE PRECISION DEFAULT 0.17::DOUBLE PRECISION NOT NULL\n);\n"
-            let statement = StatementCreateTable (table "a") { columns = [(col "electricity_unit_price" PDouble) { defaultValue = Just (TypeCastExpression (DoubleExpression 0.17) PDouble), notNull = True }] }
+            let statement = StatementCreateTable (table "a") { columns = [(col "electricity_unit_price" PDouble) { defaultValue = Just (TypeCastExpression (NumericExpression "0.17") PDouble), notNull = True }] }
             compileSql [statement] `shouldBe` sql
 
         it "should compile a integer default value" do
@@ -792,6 +810,7 @@ tests = do
                     { name = "Messages are public"
                     , action = Just PolicyForSelect
                     , tableName = "messages"
+                    , roles = []
                     , using = Just (VarExpression "true")
                     , check = Nothing
                     }
@@ -814,7 +833,7 @@ tests = do
 
         it "should compile 'CREATE SEQUENCE ..' statements" do
             let sql = "CREATE SEQUENCE a;\n"
-            let statements = [ CreateSequence { name = "a" } ]
+            let statements = [ CreateSequence { name = "a", sequenceOptions = [] } ]
             compileSql statements `shouldBe` sql
 
         it "should compile 'ALTER TABLE .. RENAME COLUMN .. TO ..' statements" do
@@ -874,7 +893,7 @@ tests = do
 
         it "should compile 'CREATE EXTENSION IF NOT EXISTS;' statements with an unqualified name" do
             let sql = "CREATE EXTENSION IF NOT EXISTS fuzzystrmatch;\n"
-            let statements = [ CreateExtension { name = "fuzzystrmatch", ifNotExists = True } ]
+            let statements = [ CreateExtension { name = "fuzzystrmatch", ifNotExists = True, extensionOptions = [] } ]
             compileSql statements `shouldBe` sql
 
         it "should compile 'CREATE POLICY ..;' statements with an EXISTS condition" do

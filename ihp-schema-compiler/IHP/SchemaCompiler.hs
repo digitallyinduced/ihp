@@ -214,9 +214,12 @@ atomicType = \case
     (PVaryingN _) -> "Text"
     (PCharacterN _) -> "Text"
     PArray type_ -> "[" <> atomicType type_ <> "]"
+    PSetOf _ -> error "atomicType: PSetOf not supported for table columns"
+    PTable _ -> error "atomicType: PTable not supported for table columns"
     PPoint -> "Point"
     PPolygon -> "Polygon"
     PGeometry -> "Geometry"
+    PGeometryWithModifier _ -> "Geometry"
     PInet -> "Inet"
     PTSVector -> "Tsvector"
     PSingleChar -> "Text"
@@ -782,6 +785,7 @@ generatedTypesImports table = Text.unlines (ownImports <> referencingImports)
 hasqlSupportsColumnType :: PostgresType -> Bool
 hasqlSupportsColumnType = \case
     PTrigger -> False
+    PSetOf _ -> False
     PEventTrigger -> False
     (PArray inner) -> hasqlSupportsColumnType inner
     _ -> True
@@ -992,9 +996,12 @@ hasqlValueDecoder = \case
     PPoint -> "Mapping.decoder"
     PPolygon -> "Mapping.decoder"
     PGeometry -> "Mapping.decoder"
+    PGeometryWithModifier _ -> "Mapping.decoder"
     PInet -> "Mapping.decoder"
     PTSVector -> "Mapping.decoder"
     PArray innerType -> "(Decoders.listArray (" <> hasqlArrayElementDecoder innerType <> "))"
+    PSetOf _ -> error "hasqlValueDecoder: PSetOf not supported for table columns"
+    PTable _ -> error "hasqlValueDecoder: PTable not supported for table columns"
     PCustomType _ -> "Mapping.decoder"
     PSingleChar -> "Decoders.char"
     PTrigger -> "Decoders.text"  -- Trigger types shouldn't appear in table columns
@@ -1045,6 +1052,7 @@ toDefaultValueExpr Column { columnType, notNull, defaultValue = Just theDefaultV
                                 otherwise           -> error ("toDefaultValueExpr: BOOL column needs to have a VarExpression as default value. Got: " <> show otherwise)
                             PDouble -> case theNormalizedDefaultValue of
                                 DoubleExpression value -> wrapNull notNull (tshow value)
+                                NumericExpression value -> wrapNull notNull value
                                 IntExpression value -> wrapNull notNull (tshow value)
                                 otherwise           -> error ("toDefaultValueExpr: DOUBLE column needs to have a DoubleExpression as default value. Got: " <> show otherwise)
                             _ -> "def"
@@ -1363,9 +1371,12 @@ hasqlValueEncoder = \case
     PPoint -> "Mapping.encoder"
     PPolygon -> "Mapping.encoder"
     PGeometry -> "Mapping.encoder"
+    PGeometryWithModifier _ -> "Mapping.encoder"
     PInet -> "Mapping.encoder"
     PTSVector -> "Mapping.encoder"
     PArray innerType -> "(Encoders.foldableArray (Encoders.nonNullable " <> hasqlValueEncoder innerType <> "))"
+    PSetOf _ -> error "hasqlValueEncoder: PSetOf not supported for table columns"
+    PTable _ -> error "hasqlValueEncoder: PTable not supported for table columns"
     PCustomType _ -> "Mapping.encoder"
     PSingleChar -> "Encoders.char"
     PTrigger -> error "hasqlValueEncoder: PTrigger not supported"
@@ -1687,6 +1698,7 @@ compileStaticCreateManyStatement moduleName qualifiedModelName tableName writabl
         , "decoder = Decoders.rowList RowDecoder.rowDecoder"
         ]
 
+
 compileDynamicCreateManyStatement :: (?schema :: Schema, ?compilerOptions :: CompilerOptions) => Text -> Text -> Text -> [Column] -> Text -> CreateTable -> [Column] -> Text -> Text
 compileDynamicCreateManyStatement moduleName qualifiedModelName tableName writableColumns allColumnNames table columns rowDecoderImport =
     let columnBitIndices = columnsWithBitIndices columns writableColumns
@@ -1733,4 +1745,3 @@ compileDynamicCreateManyStatement moduleName qualifiedModelName tableName writab
         , "decoder :: Decoders.Result [" <> qualifiedModelName <> "]"
         , "decoder = Decoders.rowList RowDecoder.rowDecoder"
         ]
-
