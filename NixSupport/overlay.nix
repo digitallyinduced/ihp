@@ -152,10 +152,9 @@ let
 in
 final: prev:
 let
-    # The RC3 nixpkgs snapshot updated ghc-exactprint to 1.14.1.0,
-    # while its GHC 9.14 configuration still references the removed
-    # 1.14.0.0 attribute. Keep the old name as a compatibility alias
-    # until nixpkgs updates configuration-ghc-9.14.x.nix.
+    # configuration-ghc-9.14.x.nix still references ghc-exactprint_1_14_0_0,
+    # but this nixpkgs pin only has ghc-exactprint_1_14_1_0. Alias the old
+    # name until nixpkgs updates that configuration.
     exactprintAlias = self: super: {
         ghc-exactprint_1_14_0_0 = final.haskell.lib.dontCheck super.ghc-exactprint_1_14_1_0;
     };
@@ -176,16 +175,12 @@ let
         # HLS pulls this in; its tests import a hidden containers-0.8 module.
         enummapset = final.haskell.lib.dontCheck super.enummapset;
 
-        # 0.19 supports GHC 9.14; nixpkgs still pins an older release.
-        ghc-tcplugin-api = self.callPackage "${flakeRoot}/NixSupport/hackage/ghc-tcplugin-api.nix" {};
-
-        # 0.9.6 supports GHC 9.14; nixpkgs still pins an older release.
-        ghc-typelits-natnormalise = final.haskell.lib.dontCheck
-            (self.callPackage "${flakeRoot}/NixSupport/hackage/ghc-typelits-natnormalise.nix" {});
-
-        # 0.8.4 supports GHC 9.14; nixpkgs still pins an older release.
-        ghc-typelits-knownnat = final.haskell.lib.dontCheck
-            (self.callPackage "${flakeRoot}/NixSupport/hackage/ghc-typelits-knownnat.nix" {});
+        # nixpkgs now ships the 9.14-capable releases (0.19.0.0, 0.9.6, 0.8.4).
+        # Keep their test suites disabled; those suites were not part of the
+        # 9.14 validation.
+        ghc-tcplugin-api = final.haskell.lib.dontCheck super.ghc-tcplugin-api;
+        ghc-typelits-natnormalise = final.haskell.lib.dontCheck super.ghc-typelits-natnormalise;
+        ghc-typelits-knownnat = final.haskell.lib.dontCheck super.ghc-typelits-knownnat;
     };
 
     # GHC 9.14 ships base-4.22, containers-0.8, template-haskell-2.24.

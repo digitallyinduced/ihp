@@ -51,11 +51,11 @@ switch is `ihp.ghcCompiler`.
 
 ## HLS
 
-App devenv ships with `languages.haskell.lsp.enable = false`. GHC 9.14.1's
-package-set HLS does not configure (`hie-compat` requires `base < 4.22`).
-`hlint` is also omitted from the 9.14 shell (`apply-refact` 0.15 does not
-compile). Stay on 9.12 (`ihp.ghcCompiler = pkgs.ghc912`) if you need HLS or
-hlint now.
+On GHC 9.14.1 the app devenv sets `languages.haskell.lsp.enable = false`.
+The package-set HLS does not configure (`hie-compat` 0.3.1.2 requires
+`base < 4.22`). `hlint` is also omitted (`apply-refact` 0.15 does not
+compile: it caps `containers < 0.8` and does not accept `ghc-exactprint`
+1.14). `ihp.ghcCompiler = pkgs.ghc912` keeps both HLS and hlint.
 
 # Upgrade to 1.6.0 from 1.5.0
 

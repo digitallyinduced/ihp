@@ -542,8 +542,9 @@ ihpFlake:
                 languages.haskell.stack.enable = false; # Stack is not used in IHP
                 # Use the package-set HLS. devenv's default override rejects GHC RC version strings.
                 languages.haskell.lsp.package = ghcCompiler.haskell-language-server;
-                # Off until hie-compat configures on base-4.22 (GHC 9.14.1).
-                languages.haskell.lsp.enable = false;
+                # hie-compat 0.3.1.2 requires base < 4.22, so HLS does not configure
+                # on GHC 9.14. Leave it on for the 9.12 rollback set.
+                languages.haskell.lsp.enable = lib.versionOlder ghcCompiler.ghc.version "9.14";
 
                 scripts.start.exec = ''
                     exec env IHP_STATIC=${ihpFlake.inputs.self.packages.${system}.ihp-static} ${ghcCompiler.ihp-ide}/bin/RunDevServer
