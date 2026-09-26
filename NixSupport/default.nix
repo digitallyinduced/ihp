@@ -437,7 +437,7 @@ CABAL_EOF
 
     # Override that starts a temporary PostgreSQL during build for compile-time DB access (e.g. typedSql)
     withBuildTimePostgres = pkg: pkgs.haskell.lib.overrideCabal pkg (old: {
-        libraryToolDepends = (old.libraryToolDepends or []) ++ [ pkgs.postgresql ];
+        libraryToolDepends = (old.libraryToolDepends or []) ++ [ pkgs.postgresql_18 ];
         preBuild = (old.preBuild or "") + ''
             ${buildTimePostgresSetup}
         '';
@@ -542,7 +542,7 @@ CABAL_EOF
             outputs = [ "out" ] ++ pkgs.lib.optional optimized "intermediates";
 
             buildInputs = [ allHaskellPackagesWithAppLib ];
-            nativeBuildInputs = commonNativeBuildInputs ++ pkgs.lib.optional needsBuildTimePostgres pkgs.postgresql;
+            nativeBuildInputs = commonNativeBuildInputs ++ pkgs.lib.optional needsBuildTimePostgres pkgs.postgresql_18;
 
             buildPhase = ''
                 mkdir -p build/bin build/obj

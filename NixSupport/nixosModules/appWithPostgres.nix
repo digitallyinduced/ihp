@@ -24,7 +24,7 @@ in
     swapDevices = [ { device = "/swapfile"; size = 8192; } ];
 
     # Vim and psql commands are helpful when accessing the server
-    environment.systemPackages = with pkgs; [ vim postgresql ];
+    environment.systemPackages = with pkgs; [ vim postgresql_18 ];
     programs.vim.defaultEditor = true;
 
     # Allow public access
@@ -68,6 +68,9 @@ in
     # Postgres
     services.postgresql = {
         enable = true;
+        # Beat the NixOS stateVersion default (mkDefault, priority 1000) without
+        # blocking a normal assignment in configuration.nix (priority 100).
+        package = lib.mkOverride 999 pkgs.postgresql_18;
         initialScript = pkgs.writeText "ihp-initScript" ''
             CREATE USER ${cfg.databaseUser};
             CREATE DATABASE ${cfg.databaseName} OWNER ${cfg.databaseUser};
