@@ -310,6 +310,11 @@ test-suite tests
     build-depends:
           ihp
         , hspec
+        , directory
+        , filepath
+        , process
+        , text
+        , unix
     other-modules:
         Test.ValidationSupport.ValidateFieldSpec
         Test.NameSupportSpec
@@ -344,6 +349,7 @@ test-suite tests
         Test.Router.MultiControllerSpec
         Test.Router.TrieSpec
         Test.Router.WebSocketSpec
+        Test.TypedSqlSpec
         Test.ModelFixtures
         Test.Util
 
