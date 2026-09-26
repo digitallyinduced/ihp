@@ -7,7 +7,7 @@ import qualified Control.Exception as Exception
 import qualified Data.Text as Text
 import qualified Data.Text.IO as TextIO
 import IHP.ModelSupport (createModelContext, releaseModelContext, noopLogger, unsafeSqlExecDiscardResult)
-import System.Directory (createDirectoryIfMissing, doesFileExist, getCurrentDirectory, getTemporaryDirectory, removeDirectoryRecursive)
+import System.Directory (createDirectoryIfMissing, doesDirectoryExist, doesFileExist, getCurrentDirectory, getTemporaryDirectory, removeDirectoryRecursive)
 import System.Environment (getEnvironment, lookupEnv)
 import System.Posix.Process (getProcessID)
 import System.Process (CreateProcess (..), proc, readCreateProcessWithExitCode)
@@ -159,6 +159,14 @@ ghciRunWithEnv source preLoadCommands postLoadCommands envOverrides =
         ihpDir <- findIhpSourceDir
         env <- ghciEnvironment envOverrides
 
+        -- In a plain-cabal monorepo checkout the IHP.TypedSql engine lives in
+        -- the sibling ihp-typed-sql package, so its sources must be visible to
+        -- ghci too. Under nix that package is installed (and the sibling dir
+        -- is absent), so ghci resolves it from the package db instead.
+        let typedSqlDir = ihpDir </> ".." </> "ihp-typed-sql"
+        typedSqlSourcesExist <- doesDirectoryExist (typedSqlDir </> "IHP")
+        let includeArgs = ["-i" <> ihpDir] <> ["-i" <> typedSqlDir | typedSqlSourcesExist]
+
         let modulePath = tempDir </> "TypedSqlRunnerCase.hs"
         TextIO.writeFile modulePath source
 
@@ -169,7 +177,7 @@ ghciRunWithEnv source preLoadCommands postLoadCommands envOverrides =
                     <> postLoadCommands
                     <> [":quit"]
 
-        let process = (proc "ghci" ["-v0", "-ignore-dot-ghci", "-i" <> ihpDir])
+        let process = (proc "ghci" (["-v0", "-ignore-dot-ghci"] <> includeArgs))
                 { cwd = Just ihpDir
                 , env = Just env
                 }
