@@ -200,10 +200,6 @@ recordToInputValue entity =
     |> Text.pack . show
 {-# INLINE recordToInputValue #-}
 
-instance Show (PrimaryKey model) => Show (Id' model) where
-    {-# INLINE show #-}
-    show = show . unpackId
-
 -- | Turns an @UUID@ into a @Id@ type
 --
 -- > let uuid :: UUID = "5240e79c-97ff-4a5f-8567-84112541aaba"

@@ -12,11 +12,14 @@ module IHP.TypedSql.Metadata
     , describeStatementWith
     ) where
 
-import           Control.Exception             (bracket)
+import           Control.Exception             (IOException, bracket, displayException)
 import qualified Control.Exception             as Exception
+import           Control.Monad                 (unless)
 import qualified Data.ByteString               as BS
+import           Data.Int                      (Int32)
 import qualified Data.List                     as List
 import qualified Data.Map.Strict               as Map
+import           Data.Maybe                    (fromMaybe)
 import qualified Data.Set                      as Set
 import qualified Data.String.Conversions       as CS
 import qualified Database.PostgreSQL.LibPQ     as PQ
@@ -26,9 +29,12 @@ import qualified Hasql.Decoders                as HasqlDecoders
 import qualified Hasql.Encoders                as HasqlEncoders
 import qualified Hasql.Pipeline                as HasqlPipeline
 import qualified Hasql.Session                 as HasqlSession
-import qualified Hasql.Statement               as HasqlStatement
-import           IHP.FrameworkConfig           (defaultDatabaseUrl)
-import           IHP.Prelude
+import qualified Hasql.Statement                   as HasqlStatement
+import           Data.Function                 ((&))
+import           Data.Text                     (Text)
+import           Prelude
+import           System.Directory              (getCurrentDirectory)
+import           System.Environment            (lookupEnv)
 import           IHP.TypedSql.CompileTimeDatabase
                                                 (adbUrl, autoDatabaseEnabled,
                                                  withAutoDatabase)
@@ -88,6 +94,16 @@ toOidInt32 (PQ.Oid oid) = fromIntegral oid
 -- | Convert Hasql-decoded Oid value back to libpq Oid.
 fromOidInt32 :: Int32 -> PQ.Oid
 fromOidInt32 oid = PQ.Oid (fromIntegral oid)
+
+-- | Database URL for compile-time describe queries.
+-- Local copy of IHP's 'IHP.FrameworkConfig.defaultDatabaseUrl', kept here so
+-- this package does not depend on @ihp@. Honors @DATABASE_URL@, falling back
+-- to the conventional local development database path.
+defaultDatabaseUrl :: IO BS.ByteString
+defaultDatabaseUrl = do
+    currentDirectory <- getCurrentDirectory
+    let fallback = "postgresql:///app?host=" <> currentDirectory <> "/build/db"
+    maybe (CS.cs fallback) CS.cs <$> lookupEnv "DATABASE_URL"
 
 -- | Describe a statement by asking a real Postgres server.
 describeStatement :: BS.ByteString -> IO DescribeResult
@@ -164,14 +180,14 @@ describeStatementWith dbUrl sql = do
             pure DescribeColumn { dcName = name, dcType = colType, dcTable = tableOid, dcAttnum = attnum }
             ) [0 .. columnCountInt - 1]
 
-        let tableOids = Set.fromList (map dcTable columns) |> Set.delete (PQ.Oid 0)
+        let tableOids = Set.fromList (map dcTable columns) & Set.delete (PQ.Oid 0)
             typeOids = Set.fromList paramTypes <> Set.fromList (map dcType columns)
 
         tables <- loadTableMeta dbUrl (Set.toList tableOids)
         let referencedOids =
                 tables
-                    |> Map.elems
-                    |> foldl'
+                    & Map.elems
+                    & List.foldl'
                         (\acc TableMeta { tmForeignKeys } ->
                             acc <> Set.fromList (Map.elems tmForeignKeys)
                         )
@@ -206,7 +222,7 @@ runHasqlMetadataSession dbUrl session = do
         (HasqlConnection.acquire settings >>= \case
             Left connectionError ->
                 fail (CS.cs ("typedSql: could not connect to database at "
-                    <> CS.cs dbUrl <> ": " <> tshow connectionError
+                    <> CS.cs dbUrl <> ": " <> (CS.cs (show connectionError) :: Text)
                     <> "\nHint: ensure your development database is running (e.g. devenv up), "
                     <> "or set IHP_TYPED_SQL_AUTO_DB=1 inside an IHP nix/devenv shell."))
             Right connection ->
@@ -216,7 +232,7 @@ runHasqlMetadataSession dbUrl session = do
         (\connection -> HasqlConnection.use connection session)
     case result of
         Left sessionError ->
-            fail (CS.cs ("typedSql: metadata query failed: " <> tshow sessionError))
+            fail (CS.cs ("typedSql: metadata query failed: " <> (CS.cs (show sessionError) :: Text)))
         Right value ->
             pure value
 
@@ -315,18 +331,18 @@ loadTableMeta dbUrl tableOids = do
                 <*> HasqlPipeline.statement tableOidParams foreignKeysStatement
 
     let pkMap = primaryKeys
-            |> foldl' (\acc (relid, attnum) ->
+            & List.foldl' (\acc (relid, attnum) ->
                     Map.insertWith Set.union (fromOidInt32 relid) (Set.singleton (fromIntegral attnum)) acc
                 ) mempty
 
         fkMap = foreignKeys
-            |> foldl' (\acc (relid, attnum, ref) ->
+            & List.foldl' (\acc (relid, attnum, ref) ->
                     Map.insertWith Map.union (fromOidInt32 relid) (Map.singleton (fromIntegral attnum) (fromOidInt32 ref)) acc
                 ) mempty
 
         tableGroups =
             rows
-                |> map (\(relid, name, attnum, attname, atttypid, attnotnull) ->
+                & map (\(relid, name, attnum, attname, atttypid, attnotnull) ->
                         ( fromOidInt32 relid
                         , ColumnMeta
                             { cmAttnum = fromIntegral attnum
@@ -337,18 +353,18 @@ loadTableMeta dbUrl tableOids = do
                         , name
                         )
                     )
-                |> List.groupBy (\(l, _, _) (r, _, _) -> l == r)
+                & List.groupBy (\(l, _, _) (r, _, _) -> l == r)
 
     pure $ tableGroups
-        |> foldl'
+        & List.foldl'
             (\acc group ->
                 case group of
                     [] -> acc
                     (tableOid, _, tableName):_ ->
                         let cols = group
-                                |> map (\(_, column, _) -> (cmAttnum column, column))
-                                |> Map.fromList
-                            order = group |> map (\(_, column, _) -> cmAttnum column)
+                                & map (\(_, column, _) -> (cmAttnum column, column))
+                                & Map.fromList
+                            order = group & map (\(_, column, _) -> cmAttnum column)
                             pks = Map.findWithDefault mempty tableOid pkMap
                             fks = Map.findWithDefault mempty tableOid fkMap
                             meta = TableMeta
@@ -372,7 +388,7 @@ loadTypeInfo dbUrl typeOids = do
     rows <- runHasqlMetadataSession dbUrl (HasqlSession.statement (map toOidInt32 typeOids) typeInfoStatement)
     let (typeMap, missing) =
             rows
-                |> foldl'
+                & List.foldl'
                     (\(acc, missingAcc) (oid, name, elemOid, typtype, nsp) ->
                         let thisOid = fromOidInt32 oid
                             elemOid' = if elemOid == 0 then Nothing else Just (fromOidInt32 elemOid)
@@ -391,7 +407,7 @@ loadTypeInfo dbUrl typeOids = do
                                 }
                                 acc
                            , nextMissing
-                           )
+                            )
                     )
                     (mempty, [])
     extras <- loadTypeInfo dbUrl (Set.toList (Set.fromList missing))

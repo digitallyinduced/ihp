@@ -131,6 +131,7 @@ common shared-properties
             , hasql-mapping
             , hasql-postgresql-types
             , hasql-transaction
+            , ihp-typed-sql
             , postgresql-types
             , postgresql-types-algebra
             , postgresql-simple-postgresql-types
@@ -272,6 +273,8 @@ library
         , IHP.Hasql.FromRow
         , IHP.Hasql.Encoders
         , IHP.Hasql.Pool
+        , IHP.TypedSql
+        , IHP.TypedSql.Pagination
         , IHP.PGSimpleCompat
         , IHP.PGVersion
     reexported-modules:
@@ -307,6 +310,11 @@ test-suite tests
     build-depends:
           ihp
         , hspec
+        , directory
+        , filepath
+        , process
+        , text
+        , unix
     other-modules:
         Test.ValidationSupport.ValidateFieldSpec
         Test.NameSupportSpec
@@ -341,6 +349,7 @@ test-suite tests
         Test.Router.MultiControllerSpec
         Test.Router.TrieSpec
         Test.Router.WebSocketSpec
+        Test.TypedSqlSpec
         Test.ModelFixtures
         Test.Util
 

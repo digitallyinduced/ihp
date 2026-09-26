@@ -9,17 +9,29 @@ module IHP.TypedSql.TypeMapping
     ) where
 
 import           Control.Monad            (guard, zipWithM)
+import           Data.Function            ((&))
 import qualified Data.Aeson               as Aeson
 import qualified Data.ByteString          as BS
+import           Data.Int                 (Int64)
 import qualified Data.List                as List
 import qualified Data.Map.Strict          as Map
+import           Data.Maybe                 (mapMaybe)
 import           Data.Scientific          (Scientific)
 import qualified Data.Set                 as Set
 import qualified Data.String.Conversions  as CS
 import qualified Database.PostgreSQL.LibPQ as PQ
 import qualified Language.Haskell.TH      as TH
-import           IHP.ModelSupport.Types   (Id')
-import           IHP.Prelude
+import           IHP.TypedSql.Id            (Id')
+import           Prelude
+import qualified Data.Text                  as Text
+import           Data.String.Conversions  (cs)
+import           Data.Text                (Text)
+import           Data.Time.Calendar       (Day)
+import           Data.Time.Clock          (UTCTime)
+import           Data.Time.LocalTime      (LocalTime, TimeOfDay)
+import           Data.UUID                (UUID)
+import           Text.Countable           (singularize)
+import qualified Text.Inflections         as Inflector
 import           PostgresqlTypes.Point    (Point)
 import           PostgresqlTypes.Polygon  (Polygon)
 import           PostgresqlTypes.Inet     (Inet)
@@ -61,8 +73,8 @@ detectFullTable tables cols = do
     guard (not (null cols))
     let grouped =
             cols
-                |> List.groupBy (\a b -> dcTable a == dcTable b)
-                |> mapMaybe (\group -> case List.uncons group of
+                & List.groupBy (\a b -> dcTable a == dcTable b)
+                & mapMaybe (\group -> case List.uncons group of
                         Just (first, _) -> Just (dcTable first, group)
                         Nothing         -> Nothing
                    )
@@ -74,6 +86,36 @@ detectFullTable tables cols = do
             TableMeta { tmName } <- Map.lookup tableOid tables
             pure tmName
         _ -> Nothing
+
+-- | Map a table name to its model name, e.g. @"users"@ to @"User"@.
+-- Local copy of IHP's 'IHP.NameSupport.tableNameToModelName', kept here so
+-- this package does not depend on @ihp@. Behavior is identical (same
+-- singularization and camel-casing rules, including the @"brain_waves"@
+-- special case).
+tableNameToModelName :: Text -> Text
+tableNameToModelName "brain_waves" = "BrainWave"
+tableNameToModelName tableName = do
+    let singularizedTableName = cs (singularize tableName)
+    if "_" `Text.isInfixOf` singularizedTableName
+        then unwrapEither tableName $ Inflector.toCamelCased True $ singularizedTableName
+        else ucfirst singularizedTableName
+{-# INLINABLE tableNameToModelName #-}
+
+unwrapEither :: Show err => Text -> Either err Text -> Text
+unwrapEither _ (Right value) = value
+unwrapEither input (Left value) = error (CS.cs ("IHP.TypedSql: " <> show value <> " (value to be transformed: " <> show input <> ")"))
+{-# INLINABLE unwrapEither #-}
+
+-- | Make a text's first character uppercase.
+ucfirst :: Text -> Text
+ucfirst = applyFirst Text.toUpper
+{-# INLINABLE ucfirst #-}
+
+applyFirst :: (Text -> Text) -> Text -> Text
+applyFirst f text =
+    let (first, rest) = Text.splitAt 1 text
+    in (f first) <> rest
+{-# INLINABLE applyFirst #-}
 
 -- | Map a single column into a Haskell type, with key-aware rules.
 -- The @forceNonNull@ flag overrides the nullable fallback for computed columns
@@ -97,7 +139,7 @@ hsTypeForColumn typeInfo tables joinNullableOids forceNonNull DescribeColumn { d
                   | otherwise ->
                     maybe (fail (CS.cs missingType)) (hsTypeForPg typeInfo nullable) baseType
           where
-            missingType = "typedSql: missing type info for column " <> show attnum <> " of table " <> tableName
+            missingType = "typedSql: missing type info for column " <> CS.cs (show attnum) <> " of table " <> tableName
         _ ->
             let nullable = not forceNonNull
             in maybe (fail (CS.cs ("typedSql: missing type info for column oid " <> show dcType))) (hsTypeForPg typeInfo nullable) (Map.lookup dcType typeInfo)
