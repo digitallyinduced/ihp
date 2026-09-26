@@ -187,7 +187,7 @@ describeStatementWith dbUrl sql = do
         let referencedOids =
                 tables
                     & Map.elems
-                    & foldl'
+                    & List.foldl'
                         (\acc TableMeta { tmForeignKeys } ->
                             acc <> Set.fromList (Map.elems tmForeignKeys)
                         )
@@ -331,12 +331,12 @@ loadTableMeta dbUrl tableOids = do
                 <*> HasqlPipeline.statement tableOidParams foreignKeysStatement
 
     let pkMap = primaryKeys
-            & foldl' (\acc (relid, attnum) ->
+            & List.foldl' (\acc (relid, attnum) ->
                     Map.insertWith Set.union (fromOidInt32 relid) (Set.singleton (fromIntegral attnum)) acc
                 ) mempty
 
         fkMap = foreignKeys
-            & foldl' (\acc (relid, attnum, ref) ->
+            & List.foldl' (\acc (relid, attnum, ref) ->
                     Map.insertWith Map.union (fromOidInt32 relid) (Map.singleton (fromIntegral attnum) (fromOidInt32 ref)) acc
                 ) mempty
 
@@ -356,7 +356,7 @@ loadTableMeta dbUrl tableOids = do
                 & List.groupBy (\(l, _, _) (r, _, _) -> l == r)
 
     pure $ tableGroups
-        & foldl'
+        & List.foldl'
             (\acc group ->
                 case group of
                     [] -> acc
@@ -388,7 +388,7 @@ loadTypeInfo dbUrl typeOids = do
     rows <- runHasqlMetadataSession dbUrl (HasqlSession.statement (map toOidInt32 typeOids) typeInfoStatement)
     let (typeMap, missing) =
             rows
-                & foldl'
+                & List.foldl'
                     (\(acc, missingAcc) (oid, name, elemOid, typtype, nsp) ->
                         let thisOid = fromOidInt32 oid
                             elemOid' = if elemOid == 0 then Nothing else Just (fromOidInt32 elemOid)
