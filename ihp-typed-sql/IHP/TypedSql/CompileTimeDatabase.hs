@@ -133,6 +133,12 @@ data IdleStopRequest = IdleStopRequest
 privatePostgreSqlPort :: String
 privatePostgreSqlPort = "5432"
 
+-- | Superuser of every private cluster and the user of every client
+-- connection to it. Pinned (instead of defaulting to the OS user) so the
+-- cluster works no matter which PGUSER the surrounding environment sets.
+privatePostgreSqlUser :: String
+privatePostgreSqlUser = "postgres"
+
 autoDatabaseState :: MVar AutoDatabaseState
 autoDatabaseState = Unsafe.unsafePerformIO (newMVar AutoDatabaseState
     { adsDatabase = Nothing
@@ -327,7 +333,7 @@ startManagedDatabase tools fingerprint schemaInputs = do
     pgHost <- socketDirectory root
     let pgData = root </> "pgdata"
         database = AutoDatabase
-            { adbUrl = CS.cs ("postgresql:///app?host=" <> pgHost <> "&port=" <> privatePostgreSqlPort)
+            { adbUrl = CS.cs ("postgresql:///app?host=" <> pgHost <> "&port=" <> privatePostgreSqlPort <> "&user=" <> privatePostgreSqlUser)
             , adbRoot = root
             , adbPgData = pgData
             , adbPgHost = pgHost
@@ -352,6 +358,7 @@ startManagedDatabase tools fingerprint schemaInputs = do
             , "--encoding=UTF8"
             , "--no-sync"
             , "--wal-segsize=1"
+            , "--username=" <> privatePostgreSqlUser
             ]
         appendFile (pgData </> "postgresql.conf") (postgresqlConfiguration pgHost)
         ensureServer tools database
@@ -830,7 +837,7 @@ ownerProcessIsAlive PostgreSqlTools { psPath } _ ownerPid =
 databaseIsReady :: PostgreSqlTools -> AutoDatabase -> IO Bool
 databaseIsReady PostgreSqlTools { pgIsReadyPath } AutoDatabase { adbPgHost } = do
     (exitCode, _, _) <- readProcessWithExitCode pgIsReadyPath
-        ["-h", adbPgHost, "-p", privatePostgreSqlPort, "-t", "2"] ""
+        ["-h", adbPgHost, "-p", privatePostgreSqlPort, "-U", privatePostgreSqlUser, "-t", "2"] ""
         `Exception.catch` \(_ :: IOException) -> pure (ExitFailure 1, "", "")
     pure (exitCode == ExitSuccess)
 
@@ -838,22 +845,22 @@ initializeDatabase :: PostgreSqlTools -> SchemaInputs -> AutoDatabase -> IO Auto
 initializeDatabase tools schemaInputs database@AutoDatabase { adbRoot, adbPgHost } = do
     runCheckedTracked tools database (psqlPath tools)
         [ "-v", "ON_ERROR_STOP=1", "-h", adbPgHost, "-p", privatePostgreSqlPort
-        , "postgres", "-c"
+        , "-U", privatePostgreSqlUser, "postgres", "-c"
         , "ALTER DATABASE template0 IS_TEMPLATE false; ALTER DATABASE template1 IS_TEMPLATE false;"
         ]
     runCheckedTracked tools database (dropdbPath tools)
-        ["-h", adbPgHost, "-p", privatePostgreSqlPort, "--maintenance-db=postgres", "template0"]
+        ["-h", adbPgHost, "-p", privatePostgreSqlPort, "-U", privatePostgreSqlUser, "--maintenance-db=postgres", "template0"]
     runCheckedTracked tools database (psqlPath tools)
         [ "-v", "ON_ERROR_STOP=1", "-h", adbPgHost, "-p", privatePostgreSqlPort
-        , "postgres", "-c"
+        , "-U", privatePostgreSqlUser, "postgres", "-c"
         , "ALTER DATABASE template1 RENAME TO app;"
         ]
     runCheckedTracked tools database (dropdbPath tools)
-        ["-h", adbPgHost, "-p", privatePostgreSqlPort, "--maintenance-db=app", "postgres"]
+        ["-h", adbPgHost, "-p", privatePostgreSqlPort, "-U", privatePostgreSqlUser, "--maintenance-db=app", "postgres"]
     forM_ (catMaybes [siIhpSchema schemaInputs, Just (siAppSchema schemaInputs)]) \schemaFile ->
         runCheckedTracked tools database (psqlPath tools)
             [ "-v", "ON_ERROR_STOP=1", "-h", adbPgHost, "-p", privatePostgreSqlPort
-            , "app", "-f", schemaFile
+            , "-U", privatePostgreSqlUser, "app", "-f", schemaFile
             ]
     Prelude.writeFile (adbRoot </> "schema.hash") (siHash schemaInputs)
     pure database { adbSchemaHash = siHash schemaInputs }

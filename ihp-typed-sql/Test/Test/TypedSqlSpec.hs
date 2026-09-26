@@ -1,6 +1,7 @@
 module Test.TypedSqlSpec where
 
 import           Control.Concurrent                 (threadDelay)
+import           Control.Concurrent.MVar            (MVar, modifyMVar, newMVar)
 import qualified Control.Exception                 as Exception
 import           Control.Exception                  (IOException)
 import           Control.Monad                      (forM, forM_, unless, when)
@@ -38,6 +39,7 @@ import           System.FilePath                   (searchPathSeparator,
                                                     takeDirectory, (</>))
 import           System.IO                         (Handle, hClose, hFlush)
 import           System.IO.Temp.OsPath              (withSystemTempDirectory)
+import           System.IO.Unsafe                   (unsafePerformIO)
 import           System.OsPath                     (encodeUtf, decodeUtf)
 import           System.Posix.Files                (setFileMode, setFileTimes)
 import           System.Posix.Signals              (nullSignal, signalProcess,
@@ -230,9 +232,12 @@ tests = do
             sqlExecTypedSelectCompileFailModule
             ["sqlExecTyped cannot run SQL statements that return rows"]
 
-        -- AUTO_DB tests are disabled (xit): they boot private unix-socket
-        -- clusters, while the suite always runs against TCP via DATABASE_URL.
-        xit "rebuilds one compact private cluster across schema changes" do
+    describe "automatic compile-time database (AUTO_DB)" do
+        -- AUTO_DB tests boot private unix-socket clusters. They are isolated
+        -- from DATABASE_URL; 'requireAutoDatabaseTools' pends instead of
+        -- failing where cluster boot is impossible (missing tools, denied
+        -- sockets).
+        it "rebuilds one compact private cluster across schema changes" do
             requireAutoDatabaseTools
             withAutoDatabaseFixture
                 "CREATE TABLE typed_sql_schema_before (id UUID PRIMARY KEY, name TEXT NOT NULL);\n"
@@ -317,7 +322,7 @@ tests = do
                                 <> Prelude.unlines watchdogLogs
                             )
 
-        xit "uses isolated clusters for concurrent GHC processes" do
+        it "uses isolated clusters for concurrent GHC processes" do
             requireAutoDatabaseTools
             withAutoDatabaseFixture
                 "CREATE TABLE typed_sql_concurrent (id UUID PRIMARY KEY, name TEXT NOT NULL);\n"
@@ -340,7 +345,7 @@ tests = do
                     getProcessExitCode firstProcess `shouldReturn` Nothing
                     getProcessExitCode secondProcess `shouldReturn` Nothing
 
-        xit "removes the private cluster when only the compiler dies during schema loading" do
+        it "removes the private cluster when only the compiler dies during schema loading" do
             requireAutoDatabaseTools
             withAutoDatabaseFixture
                 "CREATE TABLE typed_sql_interrupted_placeholder (id UUID PRIMARY KEY);\n"
@@ -391,7 +396,7 @@ tests = do
                                 <> "\nwatchdog.log:\n" <> fromMaybe "<missing>" watchdogLog
                             )
 
-        xit "removes the private cluster when only the compiler dies during initdb" do
+        it "removes the private cluster when only the compiler dies during initdb" do
             requireAutoDatabaseTools
             withAutoDatabaseFixture
                 "CREATE TABLE typed_sql_initdb_interrupted (id UUID PRIMARY KEY, name TEXT NOT NULL);\n"
@@ -468,7 +473,7 @@ tests = do
                     waitForCondition 400 (not <$> processIsAlive backendPid) `shouldReturn` True
                     waitForCondition 400 (not <$> doesDirectoryExist processRoot) `shouldReturn` True
 
-        xit "retries idle shutdown after a worker exception" do
+        it "retries idle shutdown after a worker exception" do
             requireAutoDatabaseTools
             withAutoDatabaseFixture
                 "CREATE TABLE typed_sql_idle_retry (id UUID PRIMARY KEY, name TEXT NOT NULL);\n"
@@ -497,7 +502,7 @@ tests = do
                         waitForCondition 400 (not <$> doesFileExist postmasterPath) `shouldReturn` True
                         getProcessExitCode processHandle `shouldReturn` Nothing
 
-        xit "does not query an unresponsive postmaster to verify its identity" do
+        it "does not query an unresponsive postmaster to verify its identity" do
             requireAutoDatabaseTools
             withAutoDatabaseFixture
                 "CREATE TABLE typed_sql_unresponsive (id UUID PRIMARY KEY, name TEXT NOT NULL);\n"
@@ -527,7 +532,7 @@ tests = do
                     waitForCondition 400 (not <$> doesFileExist postmasterPath) `shouldReturn` True
                     getProcessExitCode processHandle `shouldReturn` Nothing
 
-        xit "does not signal a postmaster PID that disagrees with the private socket lock" do
+        it "does not signal a postmaster PID that disagrees with the private socket lock" do
             requireAutoDatabaseTools
             withAutoDatabaseFixture
                 "CREATE TABLE typed_sql_pid_binding (id UUID PRIMARY KEY, name TEXT NOT NULL);\n"
@@ -601,7 +606,7 @@ tests = do
                         processIsAlive actualPostmasterPid `shouldReturn` True
                         doesDirectoryExist processRoot `shouldReturn` True
 
-        xit "preserves unverified stale clusters without signaling their PID" do
+        it "preserves unverified stale clusters without signaling their PID" do
             requireAutoDatabaseTools
             withAutoDatabaseFixture
                 "CREATE TABLE typed_sql_stale_pid (id UUID PRIMARY KEY, name TEXT NOT NULL);\n"
@@ -645,7 +650,7 @@ tests = do
                     doesDirectoryExist staleRoot `shouldReturn` True
                     doesDirectoryExist malformedRoot `shouldReturn` True
 
-        xit "reaps an old ownerless process directory" do
+        it "reaps an old ownerless process directory" do
             requireAutoDatabaseTools
             withAutoDatabaseFixture
                 "CREATE TABLE typed_sql_ownerless (id UUID PRIMARY KEY, name TEXT NOT NULL);\n"
@@ -1064,6 +1069,49 @@ requireAutoDatabaseTools = do
     available <- Prelude.traverse findExecutable ["initdb", "ps"]
     when (any isNothing available) do
         pendingWith "requires PostgreSQL tools on PATH"
+    probeOk <- checkAutoDatabaseProbe
+    unless probeOk do
+        pendingWith "private PostgreSQL clusters cannot boot here (e.g. sandboxed sockets are denied)"
+
+-- | Cached result of 'tryProbeAutoDatabaseCluster'. Booting a throwaway
+-- cluster costs a few seconds, so probe once per test-suite process.
+{-# NOINLINE autoDatabaseProbeCache #-}
+autoDatabaseProbeCache :: MVar (Maybe Bool)
+autoDatabaseProbeCache = unsafePerformIO (newMVar Nothing)
+
+checkAutoDatabaseProbe :: IO Bool
+checkAutoDatabaseProbe =
+    modifyMVar autoDatabaseProbeCache \cached ->
+        case cached of
+            Just result -> pure (cached, result)
+            Nothing -> do
+                result <- tryProbeAutoDatabaseCluster
+                pure (Just result, result)
+
+-- | Try booting a throwaway private cluster with the same socket-only
+-- settings the auto-database uses. Returns False (rather than throwing)
+-- when this environment cannot run postgres, e.g. sandboxes that deny
+-- socket creation.
+tryProbeAutoDatabaseCluster :: IO Bool
+tryProbeAutoDatabaseCluster =
+    (do
+        template <- encodeUtf "typed-sql-auto-db-probe"
+        withSystemTempDirectory template \tempOsDir -> do
+            tempDir <- decodeUtf tempOsDir
+            let dataDir = tempDir </> "pgdata"
+                socketDir = tempDir </> "sockets"
+            createDirectoryIfMissing True socketDir
+            initdb <- fromMaybe (error "initdb not found") <$> findExecutable "initdb"
+            pgCtl <- fromMaybe (error "pg_ctl not found") <$> findExecutable "pg_ctl"
+            (initdbExit, _, initdbErr) <- readProcessWithExitCode initdb ["-D", dataDir, "--no-locale", "-E", "UTF8", "-U", "postgres"] ""
+            unless (initdbExit == ExitSuccess) do
+                Exception.throwIO (userError ("probe initdb failed: " <> initdbErr))
+            (startExit, _, startErr) <- readProcessWithExitCode pgCtl ["-D", dataDir, "-l", tempDir </> "pg.log", "-w", "-t", "15", "-o", "-k " <> socketDir <> " -c listen_addresses=''", "start"] ""
+            unless (startExit == ExitSuccess) do
+                Exception.throwIO (userError ("probe pg_ctl start failed: " <> startErr))
+            _ <- readProcessWithExitCode pgCtl ["-D", dataDir, "-m", "fast", "stop"] ""
+            pure True
+    ) `Exception.catch` \(_ :: IOException) -> pure False
 
 withAutoDatabaseFixture
     :: Text
