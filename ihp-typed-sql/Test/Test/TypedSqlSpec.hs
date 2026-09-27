@@ -1064,22 +1064,31 @@ setupSchema pool = do
 
 -- GHCi infrastructure --------------------------------------------------------
 
+-- | Outcome of probing whether a throwaway private cluster can boot here.
+data AutoDatabaseProbe
+    = ProbeReady
+    | ProbeUnavailable String -- ^ Environment cannot run postgres (e.g. sandbox denies sockets) -> pendingWith
+    | ProbeFailed String -- ^ Cluster setup itself is broken -> fail the example instead of skipping
+    deriving (Eq, Show)
+
 requireAutoDatabaseTools :: IO ()
 requireAutoDatabaseTools = do
-    available <- Prelude.traverse findExecutable ["initdb", "ps"]
+    available <- Prelude.traverse findExecutable ["initdb", "pg_ctl", "ps"]
     when (any isNothing available) do
-        pendingWith "requires PostgreSQL tools on PATH"
-    probeOk <- checkAutoDatabaseProbe
-    unless probeOk do
-        pendingWith "private PostgreSQL clusters cannot boot here (e.g. sandboxed sockets are denied)"
+        pendingWith "requires PostgreSQL tools on PATH (initdb, pg_ctl, ps)"
+    probe <- checkAutoDatabaseProbe
+    case probe of
+        ProbeReady -> pure ()
+        ProbeUnavailable reason -> pendingWith reason
+        ProbeFailed reason -> expectationFailure reason
 
 -- | Cached result of 'tryProbeAutoDatabaseCluster'. Booting a throwaway
 -- cluster costs a few seconds, so probe once per test-suite process.
 {-# NOINLINE autoDatabaseProbeCache #-}
-autoDatabaseProbeCache :: MVar (Maybe Bool)
+autoDatabaseProbeCache :: MVar (Maybe AutoDatabaseProbe)
 autoDatabaseProbeCache = unsafePerformIO (newMVar Nothing)
 
-checkAutoDatabaseProbe :: IO Bool
+checkAutoDatabaseProbe :: IO AutoDatabaseProbe
 checkAutoDatabaseProbe =
     modifyMVar autoDatabaseProbeCache \cached ->
         case cached of
@@ -1089,10 +1098,10 @@ checkAutoDatabaseProbe =
                 pure (Just result, result)
 
 -- | Try booting a throwaway private cluster with the same socket-only
--- settings the auto-database uses. Returns False (rather than throwing)
--- when this environment cannot run postgres, e.g. sandboxes that deny
--- socket creation.
-tryProbeAutoDatabaseCluster :: IO Bool
+-- settings the auto-database uses. Returns 'ProbeUnavailable' only when
+-- the environment cannot run postgres (e.g. sandboxes that deny socket
+-- creation); any other boot failure returns 'ProbeFailed' so CI goes red.
+tryProbeAutoDatabaseCluster :: IO AutoDatabaseProbe
 tryProbeAutoDatabaseCluster =
     (do
         template <- encodeUtf "typed-sql-auto-db-probe"
@@ -1101,17 +1110,39 @@ tryProbeAutoDatabaseCluster =
             let dataDir = tempDir </> "pgdata"
                 socketDir = tempDir </> "sockets"
             createDirectoryIfMissing True socketDir
-            initdb <- fromMaybe (error "initdb not found") <$> findExecutable "initdb"
-            pgCtl <- fromMaybe (error "pg_ctl not found") <$> findExecutable "pg_ctl"
-            (initdbExit, _, initdbErr) <- readProcessWithExitCode initdb ["-D", dataDir, "--no-locale", "-E", "UTF8", "-U", "postgres"] ""
-            unless (initdbExit == ExitSuccess) do
-                Exception.throwIO (userError ("probe initdb failed: " <> initdbErr))
-            (startExit, _, startErr) <- readProcessWithExitCode pgCtl ["-D", dataDir, "-l", tempDir </> "pg.log", "-w", "-t", "15", "-o", "-k " <> socketDir <> " -c listen_addresses=''", "start"] ""
-            unless (startExit == ExitSuccess) do
-                Exception.throwIO (userError ("probe pg_ctl start failed: " <> startErr))
-            _ <- readProcessWithExitCode pgCtl ["-D", dataDir, "-m", "fast", "stop"] ""
-            pure True
-    ) `Exception.catch` \(_ :: IOException) -> pure False
+            maybeInitdb <- findExecutable "initdb"
+            maybePgCtl <- findExecutable "pg_ctl"
+            case (maybeInitdb, maybePgCtl) of
+                (Just initdb, Just pgCtl) -> do
+                    (initdbExit, _, initdbErr) <- readProcessWithExitCode initdb ["-D", dataDir, "--no-locale", "-E", "UTF8", "-U", "postgres"] ""
+                    if initdbExit /= ExitSuccess
+                        then pure (classifyBootFailure "probe initdb failed: " initdbErr)
+                        else do
+                            (startExit, _, startErr) <- readProcessWithExitCode pgCtl ["-D", dataDir, "-l", tempDir </> "pg.log", "-w", "-t", "15", "-o", "-k " <> socketDir <> " -c listen_addresses=''", "start"] ""
+                            if startExit /= ExitSuccess
+                                then pure (classifyBootFailure "probe pg_ctl start failed: " startErr)
+                                else do
+                                    _ <- readProcessWithExitCode pgCtl ["-D", dataDir, "-m", "fast", "stop"] ""
+                                        `Exception.catch` \(_ :: IOException) -> pure (ExitFailure 1, "", "")
+                                    pure ProbeReady
+                _ -> pure (ProbeUnavailable "requires PostgreSQL tools on PATH (initdb, pg_ctl)")
+    ) `Exception.catch` \(e :: IOException) -> pure (classifyProbeException e)
+  where
+    classifyBootFailure prefix output =
+        let message = prefix <> output
+         in if isSandboxDenial output then ProbeUnavailable message else ProbeFailed message
+    classifyProbeException (e :: IOException) =
+        let details = Exception.displayException e
+            message = "probe threw IOException: " <> details
+         in if isSandboxDenial details then ProbeUnavailable message else ProbeFailed message
+
+-- | Only sandbox socket denials may skip the AUTO_DB examples. Every other
+-- boot failure must fail so the next cluster-setup regression turns CI red
+-- instead of silently pending (the old @xit@ outcome).
+isSandboxDenial :: String -> Bool
+isSandboxDenial output =
+    List.isInfixOf "Operation not permitted" output
+        || List.isInfixOf "EPERM" output
 
 withAutoDatabaseFixture
     :: Text
