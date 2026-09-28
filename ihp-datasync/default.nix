@@ -1,13 +1,13 @@
 { mkDerivation, aeson, async, attoparsec, base, bytestring
 , case-insensitive, classy-prelude, containers, deepseq
-, haskell-src-exts, haskell-src-meta, hasql
+, fast-logger, haskell-src-exts, haskell-src-meta, hasql
 , hasql-dynamic-statements, hasql-mapping, hasql-pool
 , hasql-postgresql-types, hasql-transaction, hspec, http-media
-, http-types, ihp, ihp-hsx, interpolate, lib
-, mono-traversable, mtl, postgresql-types, safe-exceptions
-, scientific, stm, template-haskell, text, time, transformers
-, typerep-map, unliftio, unordered-containers, uuid, vault, vector
-, wai, wai-websockets, warp, websockets
+, http-types, ihp, ihp-hsx, interpolate, lib, mono-traversable, mtl
+, postgresql-types, safe-exceptions, scientific, stm
+, template-haskell, text, time, transformers, typerep-map, unliftio
+, unordered-containers, uuid, vault, vector, wai, wai-websockets
+, warp, websockets
 }:
 mkDerivation {
   pname = "ihp-datasync";
@@ -15,25 +15,25 @@ mkDerivation {
   src = ./.;
   libraryHaskellDepends = [
     aeson async attoparsec base bytestring case-insensitive
-    classy-prelude containers deepseq haskell-src-exts haskell-src-meta
-    hasql hasql-dynamic-statements hasql-mapping hasql-pool
-    hasql-postgresql-types hasql-transaction http-media http-types ihp
-    ihp-hsx interpolate mono-traversable mtl postgresql-types
-    safe-exceptions scientific stm template-haskell text time
-    transformers typerep-map unliftio unordered-containers uuid vault
-    vector wai wai-websockets warp websockets
+    classy-prelude containers deepseq fast-logger haskell-src-exts
+    haskell-src-meta hasql hasql-dynamic-statements hasql-mapping
+    hasql-pool hasql-postgresql-types hasql-transaction http-media
+    http-types ihp ihp-hsx interpolate mono-traversable mtl
+    postgresql-types safe-exceptions scientific stm template-haskell
+    text time transformers typerep-map unliftio unordered-containers
+    uuid vault vector wai wai-websockets warp websockets
   ];
   testHaskellDepends = [
     aeson async attoparsec base bytestring case-insensitive
-    classy-prelude containers deepseq haskell-src-exts haskell-src-meta
-    hasql hasql-dynamic-statements hasql-mapping hasql-pool
-    hasql-postgresql-types hasql-transaction hspec http-media
-    http-types ihp ihp-hsx interpolate mono-traversable mtl
+    classy-prelude containers deepseq fast-logger haskell-src-exts
+    haskell-src-meta hasql hasql-dynamic-statements hasql-mapping
+    hasql-pool hasql-postgresql-types hasql-transaction hspec
+    http-media http-types ihp ihp-hsx interpolate mono-traversable mtl
     postgresql-types safe-exceptions scientific stm template-haskell
     text time transformers typerep-map unliftio unordered-containers
     uuid vault vector wai wai-websockets warp websockets
   ];
   homepage = "https://ihp.digitallyinduced.com/";
   description = "IHP DataSync Framework";
-  license = lib.licenses.mit;
+  license = lib.meta.getLicenseFromSpdxId "MIT";
 }

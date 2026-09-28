@@ -310,8 +310,10 @@ test-suite tests
     build-depends:
           ihp
         , hspec
+        , bytestring
         , directory
         , filepath
+        , ihp-typed-sql
         , process
         , text
         , unix

@@ -24,9 +24,7 @@ module IHP.FrameworkConfig
 
 import IHP.Prelude
 import IHP.FrameworkConfig.Types
-import qualified System.Directory.OsPath as Directory
 import IHP.Environment
-import System.OsPath (decodeUtf)
 import qualified Data.Text as Text
 import qualified Network.Wai.Middleware.RequestLogger as RequestLogger
 import qualified Web.Cookie as Cookie
@@ -43,6 +41,7 @@ import Network.Wai (Request)
 import IHP.EnvVar
 import IHP.LoginSupport.Types (currentUserIdVaultKey, lookupAuthVault)
 import qualified Data.UUID as UUID
+import IHP.TypedSql.Metadata (defaultDatabaseUrl)
 
 import qualified Prelude
 import qualified GHC.Stack as Stack
@@ -218,12 +217,8 @@ data RootApplication = RootApplication deriving (Eq, Show)
 defaultPort :: Int
 defaultPort = 8000
 
-defaultDatabaseUrl :: HasCallStack => IO ByteString
-defaultDatabaseUrl = do
-    currentDirectoryOsPath <- Directory.getCurrentDirectory
-    currentDirectory <- decodeUtf currentDirectoryOsPath
-    let defaultDatabaseUrl = "postgresql:///app?host=" <> cs currentDirectory <> "/build/db"
-    envOrDefault "DATABASE_URL" defaultDatabaseUrl
+-- | The database URL used when @DATABASE_URL@ is not set. Canonical
+-- definition in "IHP.TypedSql.Metadata", re-exported here.
 
 -- Returns 'True' when the application is running in a given environment
 isEnvironment :: (?context :: context, ConfigProvider context) => Environment -> Bool

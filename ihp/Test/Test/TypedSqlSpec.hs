@@ -159,13 +159,19 @@ ghciRunWithEnv source preLoadCommands postLoadCommands envOverrides =
         ihpDir <- findIhpSourceDir
         env <- ghciEnvironment envOverrides
 
-        -- In a plain-cabal monorepo checkout the IHP.TypedSql engine lives in
-        -- the sibling ihp-typed-sql package, so its sources must be visible to
-        -- ghci too. Under nix that package is installed (and the sibling dir
-        -- is absent), so ghci resolves it from the package db instead.
-        let typedSqlDir = ihpDir </> ".." </> "ihp-typed-sql"
-        typedSqlSourcesExist <- doesDirectoryExist (typedSqlDir </> "IHP")
-        let includeArgs = ["-i" <> ihpDir] <> ["-i" <> typedSqlDir | typedSqlSourcesExist]
+        -- In a plain-cabal monorepo checkout the sibling packages
+        -- (ihp-typed-sql, wai-request-params, wai-flash-messages) are not
+        -- installed, so their sources must be visible to ghci too. Under nix
+        -- those packages are installed (and the sibling dirs are absent), so
+        -- ghci resolves them from the package db instead.
+        let siblingDir package = ihpDir </> ".." </> package
+        typedSqlSourcesExist <- doesDirectoryExist (siblingDir "ihp-typed-sql" </> "IHP")
+        waiParamsSourcesExist <- doesDirectoryExist (siblingDir "wai-request-params" </> "Wai")
+        flashMessagesSourcesExist <- doesDirectoryExist (siblingDir "wai-flash-messages" </> "Network")
+        let includeArgs = ["-i" <> ihpDir]
+                <> ["-i" <> siblingDir "ihp-typed-sql" | typedSqlSourcesExist]
+                <> ["-i" <> siblingDir "wai-request-params" | waiParamsSourcesExist]
+                <> ["-i" <> siblingDir "wai-flash-messages" | flashMessagesSourcesExist]
 
         let modulePath = tempDir </> "TypedSqlRunnerCase.hs"
         TextIO.writeFile modulePath source

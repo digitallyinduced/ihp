@@ -24,6 +24,13 @@
   many-row, at-most-one-row, or exactly-one-row.
   For example, `SELECT COUNT(*) ...` now returns `Int64` directly, while
   `LIMIT 1` queries return `Maybe result`.
+- `ihp-typed-sql` is now a standalone package (like `ihp-hsx` and `ihp-router`)
+  and no longer depends on `ihp`; `ihp` now depends on `ihp-typed-sql`. App
+  imports of `IHP.TypedSql` keep working — that module moved into the `ihp`
+  package, and `PrimaryKey` / `Id'` are still re-exported from
+  `IHP.ModelSupport.Types`. Depending on `ihp-typed-sql` alone no longer
+  provides `IHP.TypedSql`, though; use `IHP.TypedSql.Quoter` and
+  `IHP.TypedSql.Hasql` instead.
 
 ## v1.6.0 (2026-06-20)
 

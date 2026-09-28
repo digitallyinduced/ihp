@@ -6,6 +6,7 @@ module IHP.TypedSql.TypeMapping
     , hsTypeForColumn
     , hsTypesForColumns
     , detectFullTable
+    , tableNameToModelName
     ) where
 
 import           Control.Monad            (guard, zipWithM)
@@ -88,10 +89,10 @@ detectFullTable tables cols = do
         _ -> Nothing
 
 -- | Map a table name to its model name, e.g. @"users"@ to @"User"@.
--- Local copy of IHP's 'IHP.NameSupport.tableNameToModelName', kept here so
--- this package does not depend on @ihp@. Behavior is identical (same
--- singularization and camel-casing rules, including the @"brain_waves"@
--- special case).
+-- Canonical definition, also re-exported from 'IHP.NameSupport' for IHP
+-- apps (this package cannot depend on @ihp@, so the single implementation
+-- lives here). Same singularization and camel-casing rules, including the
+-- @"brain_waves"@ special case.
 tableNameToModelName :: Text -> Text
 tableNameToModelName "brain_waves" = "BrainWave"
 tableNameToModelName tableName = do

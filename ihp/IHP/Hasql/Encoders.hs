@@ -9,10 +9,12 @@ Copyright: (c) digitally induced GmbH, 2025
 This module provides orphan 'DefaultParamEncoder' instances for types that
 hasql-implicits doesn't support out of the box.
 
-The instances for 'Int', '[Int]', 'Maybe Int', '[Maybe Int]' and for 'Id'' are
-defined in "IHP.TypedSql.Id", and those for the @postgresql-types@ values that
-typedSql generates ('Point', 'Polygon', 'Inet', 'Tsvector', 'Interval') in
-"IHP.TypedSql.Encoders". Both are merely pulled in here by import, because
+The 'Int' family ('Int', '[Int]', 'Maybe Int', '[Maybe Int]', 'Integer',
+'Vector Int') and the 'Id'' encoders are defined in "IHP.TypedSql.Encoders"
+(the 'Id'' type and 'PrimaryKey' family themselves live in
+"IHP.TypedSql.Id"), together with those for the @postgresql-types@ values
+that typedSql generates ('Point', 'Polygon', 'Inet', 'Tsvector',
+'Interval'). Both are merely pulled in here by import, because
 @ihp-typed-sql@ needs them standalone too and exactly one package may define
 each one.
 -}

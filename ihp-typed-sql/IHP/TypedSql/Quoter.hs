@@ -28,8 +28,7 @@ import qualified PostgresqlSyntax                as Ast
 import           System.IO.Error                 (ioeGetErrorString)
 import           Text.Read                       (readMaybe)
 import           Prelude
-import           IHP.TypedSql.Id                 () -- DefaultParamEncoder instances for Int, Id', etc.
-import           IHP.TypedSql.Encoders           () -- ...and for Point, Polygon, Inet, Tsvector, Interval
+import           IHP.TypedSql.Encoders           ()
 
 import           IHP.TypedSql.Cardinality      (inferCardinality)
 import           IHP.TypedSql.CompileTimeDatabase (dependentSchemaFiles)

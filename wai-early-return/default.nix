@@ -6,5 +6,5 @@ mkDerivation {
   libraryHaskellDepends = [ base wai ];
   testHaskellDepends = [ base hspec http-types wai wai-extra ];
   description = "WAI middleware for early return from request handlers";
-  license = lib.licenses.mit;
+  license = lib.meta.getLicenseFromSpdxId "MIT";
 }

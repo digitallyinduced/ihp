@@ -9,15 +9,16 @@
   on `ihp-typed-sql`. Full-table `table.*` selections decode via the new
   `IHP.TypedSql.Row.TypedSqlRow` class (the `ihp` package provides a blanket
   instance reusing IHP's `FromRowHasql`, so IHP models keep working unchanged).
-  `Id'` and the `PrimaryKey` family now live in `IHP.TypedSql.Id`, which is
-  the single definition of both; `IHP.ModelSupport.Types` re-exports them, so
-  existing `type instance PrimaryKey "users" = UUID` declarations and `Id'`
-  annotations keep working unchanged, and typedSql's generated code denotes
-  the same type as IHP's model API. The `DefaultParamEncoder` instances for
-  `Int`, `[Int]`, `Maybe Int` and `[Maybe Int]` also live there rather than in
-  both packages, which previously produced overlapping-instance errors at
-  every typedSql parameter use site. `ihp-typed-sql` therefore gained
-  `deepseq` and `hashable` dependencies (for the `Id'` derivings it now owns).
+   `Id'` and the `PrimaryKey` family now live in `IHP.TypedSql.Id`, which is
+   the single definition of both; `IHP.ModelSupport.Types` re-exports them, so
+   existing `type instance PrimaryKey "users" = UUID` declarations and `Id'`
+   annotations keep working unchanged, and typedSql's generated code denotes
+   the same type as IHP's model API. Their `DefaultParamEncoder` instances live
+   in `IHP.TypedSql.Encoders` rather than in both packages, which previously
+   produced overlapping-instance errors at every typedSql parameter use site;
+   the same goes for the `Int`, `[Int]`, `Maybe Int`, `[Maybe Int]`, `Integer`
+   and `Vector Int` instances. `ihp-typed-sql` therefore gained `deepseq` and
+   `hashable` dependencies (for the `Id'` derivings it now owns).
 
 - New module `IHP.TypedSql.Encoders`: the `DefaultParamEncoder` instances for
   the `postgresql-types` values that `IHP.TypedSql.TypeMapping` maps OIDs onto
@@ -26,10 +27,9 @@
   query against e.g. a `point` column — the quoter would type the parameter as
   `Point` — but had no way to encode it. `ihp` now imports this module in
   `IHP.Hasql.Encoders`, so existing IHP code is unaffected. The
-  `Geometry`/PostGIS instance and the `postgresql-simple`-specific
-  (`Binary ByteString`, `Integer`, `Vector Int`, composite-`Id'`) instances
-  stay in `ihp`, which is the only place they are needed. This adds a
-  `hasql-postgresql-types` dependency.
+   `Geometry`/PostGIS instance and the `postgresql-simple`-specific
+   (`Binary ByteString`) instances stay in `ihp`, which is the only place
+   they are needed. This adds a `hasql-postgresql-types` dependency.
 
 - Updated `postgresql-syntax` to 0.5.0.3 so valid unspaced `ANY` expressions
   and the JSONB key-existence operator participate in `typedSql` refinement.

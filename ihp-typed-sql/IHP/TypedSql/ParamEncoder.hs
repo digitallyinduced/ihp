@@ -32,8 +32,7 @@ import Data.Coerce (Coercible, coerce)
 import Hasql.DynamicStatements.Snippet (Snippet)
 import qualified Hasql.DynamicStatements.Snippet as Snippet
 import Hasql.Implicits.Encoders (DefaultParamEncoder)
-import IHP.TypedSql.Id () -- DefaultParamEncoder instances for Int, Id', etc.
-import IHP.TypedSql.Encoders () -- ...and for Point, Polygon, Inet, Tsvector, Interval
+import IHP.TypedSql.Encoders ()
 
 -- | Encode a @typedSql@ placeholder value into a 'Snippet'. The column's scalar
 -- Haskell type @col@ is supplied by the quasiquoter via a visible type application

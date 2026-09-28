@@ -23,14 +23,8 @@ module IHP.TypedSql.Id
 
 import           Control.DeepSeq            (NFData)
 import           Data.Data                  (Data)
-import           Data.Functor.Contravariant (contramap)
-import           Data.Functor.Contravariant.Divisible (divide)
 import           Data.Hashable              (Hashable)
-import           Data.Text                  (Text)
 import           GHC.TypeLits               (KnownSymbol, Symbol)
-import qualified Hasql.Encoders             as Encoders
-import           Hasql.Implicits.Encoders   (DefaultParamEncoder (..))
-import qualified Hasql.Mapping.IsScalar     as Mapping
 import           Prelude
 
 -- | Provides the primary key type for a given table. The instances are usually
@@ -60,70 +54,7 @@ deriving instance NFData (PrimaryKey table) => NFData (Id' table)
 instance Show (PrimaryKey table) => Show (Id' table) where
     show (Id primaryKey) = show primaryKey
 
--- | Encode 'Id' table' for tables with any primary key type that has an 'IsScalar' instance.
-instance Mapping.IsScalar (PrimaryKey table) => DefaultParamEncoder (Id' table) where
-    defaultParam = Encoders.nonNullable (contramap (\(Id pk) -> pk) Mapping.encoder)
-
--- | Encode list of 'Id' table' for tables with any encodable primary key type.
-instance Mapping.IsScalar (PrimaryKey table) => DefaultParamEncoder [Id' table] where
-    defaultParam = Encoders.nonNullable $ Encoders.foldableArray $ Encoders.nonNullable (contramap (\(Id pk) -> pk) Mapping.encoder)
-
--- | Encode 'Maybe (Id' table)' for nullable foreign keys with any encodable primary key type.
-instance Mapping.IsScalar (PrimaryKey table) => DefaultParamEncoder (Maybe (Id' table)) where
-    defaultParam = Encoders.nullable (contramap (\(Id pk) -> pk) Mapping.encoder)
-
--- | Encode '[Maybe (Id' table)]' for @IN (...)@ queries with nullable foreign keys.
-instance Mapping.IsScalar (PrimaryKey table) => DefaultParamEncoder [Maybe (Id' table)] where
-    defaultParam = Encoders.nonNullable $ Encoders.foldableArray $ Encoders.nullable (contramap (\(Id pk) -> pk) Mapping.encoder)
-
--- | Encode '(Id' a, Id' b)' as PostgreSQL composite/record type
--- Used for composite primary keys with two Id columns of any scalar PK type
-instance (Mapping.IsScalar (PrimaryKey a), Mapping.IsScalar (PrimaryKey b)) => DefaultParamEncoder (Id' a, Id' b) where
-    defaultParam = Encoders.nonNullable $ Encoders.composite (Nothing :: Maybe Text) "" $
-        divide (\(Id a, Id b) -> (a, b))
-            (Encoders.field (Encoders.nonNullable Mapping.encoder))
-            (Encoders.field (Encoders.nonNullable Mapping.encoder))
-
--- | Encode '[(Id' a, Id' b)]' as PostgreSQL array of composite types
--- Used by filterWhereIdIn for tables with two-column composite primary keys
-instance (Mapping.IsScalar (PrimaryKey a), Mapping.IsScalar (PrimaryKey b)) => DefaultParamEncoder [(Id' a, Id' b)] where
-    defaultParam = Encoders.nonNullable $ Encoders.foldableArray $ Encoders.nonNullable $ Encoders.composite (Nothing :: Maybe Text) "" $
-        divide (\(Id a, Id b) -> (a, b))
-            (Encoders.field (Encoders.nonNullable Mapping.encoder))
-            (Encoders.field (Encoders.nonNullable Mapping.encoder))
-
--- | Encode '(Id' a, Id' b, Id' c)' as PostgreSQL composite/record type
--- Used for composite primary keys with three Id columns of any scalar PK type
-instance (Mapping.IsScalar (PrimaryKey a), Mapping.IsScalar (PrimaryKey b), Mapping.IsScalar (PrimaryKey c)) => DefaultParamEncoder (Id' a, Id' b, Id' c) where
-    defaultParam = Encoders.nonNullable $ Encoders.composite (Nothing :: Maybe Text) "" $
-        divide (\(Id a, Id b, Id c) -> (a, (b, c)))
-            (Encoders.field (Encoders.nonNullable Mapping.encoder))
-            (divide id (Encoders.field (Encoders.nonNullable Mapping.encoder)) (Encoders.field (Encoders.nonNullable Mapping.encoder)))
-
--- | Encode '[(Id' a, Id' b, Id' c)]' as PostgreSQL array of composite types
--- Used by filterWhereIdIn for tables with three-column composite primary keys
-instance (Mapping.IsScalar (PrimaryKey a), Mapping.IsScalar (PrimaryKey b), Mapping.IsScalar (PrimaryKey c)) => DefaultParamEncoder [(Id' a, Id' b, Id' c)] where
-    defaultParam = Encoders.nonNullable $ Encoders.foldableArray $ Encoders.nonNullable $ Encoders.composite (Nothing :: Maybe Text) "" $
-        divide (\(Id a, Id b, Id c) -> (a, (b, c)))
-            (Encoders.field (Encoders.nonNullable Mapping.encoder))
-            (divide id (Encoders.field (Encoders.nonNullable Mapping.encoder)) (Encoders.field (Encoders.nonNullable Mapping.encoder)))
-
--- | Encode '(Id' a, Id' b, Id' c, Id' d)' as PostgreSQL composite/record type
--- Used for composite primary keys with four Id columns of any scalar PK type
-instance (Mapping.IsScalar (PrimaryKey a), Mapping.IsScalar (PrimaryKey b), Mapping.IsScalar (PrimaryKey c), Mapping.IsScalar (PrimaryKey d)) => DefaultParamEncoder (Id' a, Id' b, Id' c, Id' d) where
-    defaultParam = Encoders.nonNullable $ Encoders.composite (Nothing :: Maybe Text) "" $
-        divide (\(Id a, Id b, Id c, Id d) -> (a, (b, c, d)))
-            (Encoders.field (Encoders.nonNullable Mapping.encoder))
-            (divide (\(b, c, d) -> (b, (c, d)))
-                (Encoders.field (Encoders.nonNullable Mapping.encoder))
-                (divide id (Encoders.field (Encoders.nonNullable Mapping.encoder)) (Encoders.field (Encoders.nonNullable Mapping.encoder))))
-
--- | Encode '[(Id' a, Id' b, Id' c, Id' d)]' as PostgreSQL array of composite types
--- Used by filterWhereIdIn for tables with four-column composite primary keys
-instance (Mapping.IsScalar (PrimaryKey a), Mapping.IsScalar (PrimaryKey b), Mapping.IsScalar (PrimaryKey c), Mapping.IsScalar (PrimaryKey d)) => DefaultParamEncoder [(Id' a, Id' b, Id' c, Id' d)] where
-    defaultParam = Encoders.nonNullable $ Encoders.foldableArray $ Encoders.nonNullable $ Encoders.composite (Nothing :: Maybe Text) "" $
-        divide (\(Id a, Id b, Id c, Id d) -> (a, (b, c, d)))
-            (Encoders.field (Encoders.nonNullable Mapping.encoder))
-            (divide (\(b, c, d) -> (b, (c, d)))
-                (Encoders.field (Encoders.nonNullable Mapping.encoder))
-                (divide id (Encoders.field (Encoders.nonNullable Mapping.encoder)) (Encoders.field (Encoders.nonNullable Mapping.encoder))))
+-- NOTE: The 'DefaultParamEncoder' instances for 'Id'' live in
+-- "IHP.TypedSql.Encoders", next to every other instance, so that importing
+-- this module (e.g. from @IHP.ModelSupport.Types@) does not pull in the
+-- encoder machinery.

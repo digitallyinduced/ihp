@@ -10,6 +10,7 @@ module IHP.TypedSql.Metadata
     , fromOidInt32
     , describeStatement
     , describeStatementWith
+    , defaultDatabaseUrl
     ) where
 
 import           Control.Exception             (IOException, bracket, displayException)
@@ -33,8 +34,9 @@ import qualified Hasql.Statement                   as HasqlStatement
 import           Data.Function                 ((&))
 import           Data.Text                     (Text)
 import           Prelude
-import           System.Directory              (getCurrentDirectory)
+import           System.Directory.OsPath         (getCurrentDirectory)
 import           System.Environment            (lookupEnv)
+import           System.OsPath                 (decodeUtf)
 import           IHP.TypedSql.CompileTimeDatabase
                                                 (adbUrl, autoDatabaseEnabled,
                                                  withAutoDatabase)
@@ -96,12 +98,14 @@ fromOidInt32 :: Int32 -> PQ.Oid
 fromOidInt32 oid = PQ.Oid (fromIntegral oid)
 
 -- | Database URL for compile-time describe queries.
--- Local copy of IHP's 'IHP.FrameworkConfig.defaultDatabaseUrl', kept here so
--- this package does not depend on @ihp@. Honors @DATABASE_URL@, falling back
--- to the conventional local development database path.
+-- Canonical definition, also re-exported from 'IHP.FrameworkConfig' (this
+-- package cannot depend on @ihp@, so the single implementation lives here).
+-- Honors @DATABASE_URL@, falling back to the conventional local development
+-- database path.
 defaultDatabaseUrl :: IO BS.ByteString
 defaultDatabaseUrl = do
-    currentDirectory <- getCurrentDirectory
+    currentDirectoryOsPath <- getCurrentDirectory
+    currentDirectory <- decodeUtf currentDirectoryOsPath
     let fallback = "postgresql:///app?host=" <> currentDirectory <> "/build/db"
     maybe (CS.cs fallback) CS.cs <$> lookupEnv "DATABASE_URL"
 
