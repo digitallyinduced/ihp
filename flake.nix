@@ -3,7 +3,7 @@
 
     inputs = {
         nixpkgs.url = "github:NixOS/nixpkgs/nixpkgs-unstable";             # for Haskell packages
-        nixpkgs-nixos.url = "github:NixOS/nixpkgs/nixos-25.11";     # for NixOS deployments (pin independently)
+        nixpkgs-nixos.url = "github:NixOS/nixpkgs/nixos-26.05";     # for NixOS deployments (pin independently)
 
         # pre-defined set of default target systems
         systems.url = "github:nix-systems/default";

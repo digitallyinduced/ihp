@@ -1,5 +1,9 @@
 # Changelog for `ihp-ide`
 
+## Unreleased
+
+- Default new tables and jobs to `uuidv7()` now that PostgreSQL 18 is the IHP default. Set `IHP_POSTGRES_VERSION=17` to keep generating `uuid_generate_v4()`.
+
 ## v1.6.0
 
 - Split dev mode into separate web and worker processes
