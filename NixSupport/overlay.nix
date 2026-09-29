@@ -79,6 +79,7 @@ let
             ihp-imagemagick = localPackage "ihp-imagemagick";
             ihp-hspec = localPackage "ihp-hspec";
             ihp-welcome = localPackage "ihp-welcome";
+            wai-csp = localPackage "wai-csp";
 
             postgresql-syntax = (final.haskell.lib.doJailbreak
                 (hackagePackage "postgresql-syntax")).overrideAttrs (old: {
