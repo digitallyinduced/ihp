@@ -66,7 +66,7 @@ IHP uses the `IHP_ENV` environment variable (or the `option` in `Config/Config.h
     services.openssh.settings.PasswordAuthentication = false;
     ```
 
-- **Deployments do not log in as root**: `deploy-to-nixos` works with a non-root SSH user that elevates through `sudo` on the server, which lets you set `services.openssh.settings.PermitRootLogin = "no"` and leaves a sudo log of each deploy. The deploy user has passwordless sudo and is a trusted Nix user, so protect its key exactly like a root key. See [Deploying without root](https://ihp.digitallyinduced.com/Guide/deployment.html#deploying-without-root).
+- **Deployments do not log in as root**: `deploy-to-nixos` works with a non-root SSH user that elevates through `sudo` on the server, which lets you set `services.openssh.settings.PermitRootLogin = lib.mkForce "no"` and leaves a sudo log of each deploy. The deploy user has passwordless sudo and is a trusted Nix user, so protect its key exactly like a root key. See [Deploying without root](https://ihp.digitallyinduced.com/Guide/deployment.html#deploying-without-root).
 
 - **Review the [Security guide](https://ihp.digitallyinduced.com/Guide/security.html)**: IHP provides automatic protection against XSS (via HSX escaping), SQL injection (via parameterized queries), and CSRF (via session-based tokens). Make sure you are not bypassing these protections (e.g. using `preEscapedToHtml` with user input).
 
