@@ -1658,7 +1658,9 @@ services.ihp.user = "myapp";
 services.ihp.group = "myapp";
 ```
 
-With `appWithPostgres` the local PostgreSQL keeps the database role that owns the database, and the service user is mapped onto it for peer authentication, so no database changes are needed. The session secret file is handed over to the service user on the next deployment.
+The `migrate` service runs as a separate user, `ihp-migrate` by default (`services.ihp.migrateUser`), because with `appWithPostgres` it is the only service allowed to connect as the `postgres` superuser to create extensions.
+
+With `appWithPostgres` the local PostgreSQL keeps the database role that owns the database, and the service users are mapped onto it for peer authentication, so no database changes are needed. The session secret file is handed over to the service user on the next deployment.
 
 Everything else the app writes to at runtime has to be writable for that user — a local file storage directory, for example. Give the unit a state directory and point the app at it:
 

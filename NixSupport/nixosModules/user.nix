@@ -7,13 +7,22 @@ let
     ownsSessionSecretDir = cfg.sessionSecretFile == options.services.ihp.sessionSecretFile.default;
 in
 {
-    users.users = lib.mkIf (cfg.user != "root") {
-        "${cfg.user}" = {
-            isSystemUser = true;
-            group = cfg.group;
-            description = "IHP app";
-        };
-    };
+    users.users = lib.mkMerge [
+        (lib.mkIf (cfg.user != "root") {
+            "${cfg.user}" = {
+                isSystemUser = true;
+                group = cfg.group;
+                description = "IHP app";
+            };
+        })
+        (lib.mkIf (cfg.migrations != null && cfg.migrateUser != "root") {
+            "${cfg.migrateUser}" = {
+                isSystemUser = true;
+                group = cfg.group;
+                description = "IHP migrations";
+            };
+        })
+    ];
 
     users.groups = lib.mkIf (cfg.group != "root") {
         "${cfg.group}" = {};

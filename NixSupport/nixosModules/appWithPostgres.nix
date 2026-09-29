@@ -89,15 +89,18 @@ in
             local ${cfg.databaseName} ${cfg.databaseUser} peer map=ihp-app
         '';
         # The services connect over the local socket, so the system user they run
-        # as has to be mapped to the database role. Root keeps its mapping for
-        # `psql` on the server.
+        # as has to be mapped to the database role. Peer auth can't tell services
+        # of the same system user apart, so only the migrate user gets the
+        # superuser mapping. Root keeps its mappings for `psql` on the server.
         identMap = lib.mkBefore (''
             ihp-migrate-admin root postgres
             ihp-migrate-admin postgres postgres
             ihp-app root ${cfg.databaseUser}
         '' + lib.optionalString (cfg.user != "root") ''
-            ihp-migrate-admin ${cfg.user} postgres
             ihp-app ${cfg.user} ${cfg.databaseUser}
+        '' + lib.optionalString (cfg.migrations != null && cfg.migrateUser != "root") ''
+            ihp-migrate-admin ${cfg.migrateUser} postgres
+            ihp-app ${cfg.migrateUser} ${cfg.databaseUser}
         '');
     };
 

@@ -4,7 +4,7 @@ in
 {
     systemd.services.migrate = lib.mkIf (cfg.migrations != null) {
         serviceConfig = {
-            User = cfg.user;
+            User = cfg.migrateUser;
             Group = cfg.group;
             Type = "oneshot";
             ExecStart = ihp.apps."${pkgs.system}".migrate.program;

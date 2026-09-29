@@ -17,7 +17,7 @@
 
 ### Breaking Changes
 
-- The NixOS `app`, `worker`, `migrate` and `app-keygen` services no longer run as root. They run as the new system user `ihp`, configurable through `services.ihp.user` and `services.ihp.group`. The session secret file is chowned to that user on the next deployment, and with `appWithPostgres` the service user is mapped onto the existing database role, so peer authentication keeps working without touching the database. Apps that write to root-owned paths at runtime need those paths made writable for the service user; `services.ihp.user = "root";` restores the previous behaviour.
+- The NixOS `app`, `worker`, `migrate` and `app-keygen` services no longer run as root. They run as the new system user `ihp`, configurable through `services.ihp.user` and `services.ihp.group`, and `migrate` runs as `ihp-migrate` (`services.ihp.migrateUser`), the only user mapped onto the `postgres` superuser. The session secret file is chowned to that user on the next deployment, and with `appWithPostgres` the service user is mapped onto the existing database role, so peer authentication keeps working without touching the database. Apps that write to root-owned paths at runtime need those paths made writable for the service user; `services.ihp.user = "root";` restores the previous behaviour.
 - PostgreSQL 18 is the default for the development server, test and compile-time databases, and `appWithPostgres`. New tables, jobs, and DataSync triggers use `uuidv7()` unless `IHP_POSTGRES_VERSION` is set below 18. A PostgreSQL 17 data directory must be upgraded or recreated.
 - `DefaultScope` has been removed. `query @Model` now always starts without
   implicit filters; define and use explicit query functions for reusable scopes.
