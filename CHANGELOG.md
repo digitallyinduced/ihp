@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Added `paramOrDefaultIgnoreInvalid`, a variant of `paramOrDefault` that also falls back to the default value when a parameter is present but cannot be parsed. Use it for parameters read from a URL, where the value is whatever a person typed, an old link carried, or a crawler guessed. `paramOrDefault` itself is unchanged and still throws `ParamCouldNotBeParsedException` on an invalid value, so form fields and anything else where a bad value is a bug you want to hear about keep that behavior.
+- `paginate` no longer answers a malformed `page` or `maxItems` with a 500. Both are read from the URL, so `?page=abc` or a stray space in `?maxItems=%2010` used to throw out of `paramOrDefault` and render the error page; they now read through `paramOrDefaultIgnoreInvalid` and fall back to the first page and the configured page size, the same as when the parameter is absent. The pagination view had the same problem when building its page links and now drops a malformed `maxItems` from them instead of throwing while rendering. An out-of-range but numeric value is unchanged: it is still clamped to at least 1 and at most 200.
 - `typedSql` `${...}` parameters now accept `Maybe` and `[Maybe]` values, not just bare values and lists. Alongside `${x}` and `${[x]}` you can now write `${Just x}`, `${Nothing}` (binds SQL `NULL`), and `${[Just x]}` — so enum-filtered joins like `WHERE status = ANY(${[Just Active, Just Pending]})` work without fetch-ids-then-`filterWhereIn` or text casts. Bare values still work for every column, and wrong-typed parameters are still rejected at compile time.
 - The schema compiler now also generates a `DefaultParamEncoder [Maybe <Enum>]` instance for each enum type, alongside the existing `<Enum>`, `Maybe <Enum>`, and `[<Enum>]` instances, so `[Maybe <Enum>]` arrays bind as parameters.
 - `IHP.TypedSql` now exposes `sqlQueryTypedPipelined`, explicit cardinality helpers (`sqlQueryTypedRows`, `sqlQueryTypedOneOrNothing`, `sqlQueryTypedSingle`), and `sqlQueryTypedMaybeColumn`. `typedSql` also infers `json[b]_build_object` and `json[b]_build_array` as non-null computed JSON expressions.
@@ -10,11 +12,13 @@
 
 ### Performance, Build, and Tooling
 
+- The `nixpkgs-nixos` flake input now tracks NixOS 26.05. NixOS 25.11 reached end of support on 30 June 2026. Apps that follow `ihp/nixpkgs-nixos` pick this up when they update IHP. The Haskell `nixpkgs` input is unchanged.
 - Reduced type-family work for model and query code by removing unnecessary table-name `KnownSymbol` constraints and generating direct model ID metadata, keeping common paths such as `currentUserId` shallow on large schemas. ([#2766](https://github.com/digitallyinduced/ihp/issues/2766))
 
 ### Breaking Changes
 
 - The NixOS `app`, `worker`, `migrate` and `app-keygen` services no longer run as root. They run as the new system user `ihp`, configurable through `services.ihp.user` and `services.ihp.group`. The session secret file is chowned to that user on the next deployment, and with `appWithPostgres` the service user is mapped onto the existing database role, so peer authentication keeps working without touching the database. Apps that write to root-owned paths at runtime need those paths made writable for the service user; `services.ihp.user = "root";` restores the previous behaviour.
+- PostgreSQL 18 is the default for the development server, test and compile-time databases, and `appWithPostgres`. New tables, jobs, and DataSync triggers use `uuidv7()` unless `IHP_POSTGRES_VERSION` is set below 18. A PostgreSQL 17 data directory must be upgraded or recreated.
 - `DefaultScope` has been removed. `query @Model` now always starts without
   implicit filters; define and use explicit query functions for reusable scopes.
 - `typedSql` now tracks conservative query cardinality and statement result
