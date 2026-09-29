@@ -21,7 +21,7 @@
 , wai, wai-app-static, wai-asset-path, wai-cors, wai-early-return
 , wai-extra, wai-flash-messages, wai-request-params
 , wai-session-clientsession-deferred, wai-session-maybe, wai-util
-, wai-websockets, warp, warp-systemd, websockets, with-utf8
+, wai-websockets, warp, warp-systemd, websockets
 }:
 mkDerivation {
   pname = "ihp";
@@ -50,7 +50,7 @@ mkDerivation {
     vector wai wai-app-static wai-asset-path wai-cors wai-early-return
     wai-extra wai-flash-messages wai-request-params
     wai-session-clientsession-deferred wai-session-maybe wai-util
-    wai-websockets warp warp-systemd websockets with-utf8
+    wai-websockets warp warp-systemd websockets
   ];
   testHaskellDepends = [
     aeson async attoparsec base basic-prelude binary blaze-html
@@ -74,7 +74,7 @@ mkDerivation {
     vector wai wai-app-static wai-asset-path wai-cors wai-early-return
     wai-extra wai-flash-messages wai-request-params
     wai-session-clientsession-deferred wai-session-maybe wai-util
-    wai-websockets warp warp-systemd websockets with-utf8
+    wai-websockets warp warp-systemd websockets
   ];
   benchmarkHaskellDepends = [
     aeson async attoparsec base basic-prelude binary blaze-html
@@ -99,7 +99,7 @@ mkDerivation {
     wai-cors wai-early-return wai-extra wai-flash-messages
     wai-request-params wai-session-clientsession-deferred
     wai-session-maybe wai-util wai-websockets warp warp-systemd
-    websockets with-utf8
+    websockets
   ];
   homepage = "https://ihp.digitallyinduced.com/";
   description = "Haskell Web Framework";
