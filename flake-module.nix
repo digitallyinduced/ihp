@@ -645,12 +645,10 @@ ihpFlake:
 
                     # Activating the configuration and starting migrate still need root on the
                     # target, so anything but a root login goes through passwordless sudo there.
-                    # nixos-rebuild-ng spells this --sudo, the older shell implementation
-                    # --use-remote-sudo.
                     elevate=()
                     remoteSystemctl=(systemctl)
                     if [[ "$targetUser" != "root" ]]; then
-                        elevate=("${if lib.versionAtLeast (lib.getVersion pkgs.nixos-rebuild) "26.05" then "--sudo" else "--use-remote-sudo"}")
+                        elevate=(--sudo)
                         remoteSystemctl=(sudo systemctl)
                     fi
 
