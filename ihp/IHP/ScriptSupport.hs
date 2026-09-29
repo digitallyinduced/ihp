@@ -8,14 +8,19 @@ module IHP.ScriptSupport (runScript, runDevScript, Script, module IHP.FrameworkC
 import IHP.Prelude
 import IHP.FrameworkConfig
 import IHP.ModelSupport (withModelContext)
-import Main.Utf8 (withUtf8)
+import qualified GHC.IO.Encoding as IO
 
 -- | A script is just an IO action which requires a database connection and framework config
 type Script = (?modelContext :: ModelContext, ?context :: FrameworkConfig) => IO ()
 
 -- | Initializes IHP and then runs the script inside the framework context
 runScript :: ConfigBuilder -> Script -> IO ()
-runScript configBuilder taskMain = withUtf8 do
+runScript configBuilder taskMain = do
+    -- 'Main.Utf8.withUtf8' reads the encoding of stdin, which needs the stdin handle lock.
+    -- GHCi holds that lock while it waits for its next command, so a script started
+    -- from a GHCi thread (e.g. the dev job worker) would wait forever.
+    IO.setLocaleEncoding IO.utf8
+
     withFrameworkConfig configBuilder \frameworkConfig -> do
         withModelContext frameworkConfig.databaseUrl frameworkConfig.logger \modelContext -> do
             let ?modelContext = modelContext
