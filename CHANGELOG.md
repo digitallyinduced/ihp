@@ -9,6 +9,7 @@
 - `IHP.TypedSql` now exposes `sqlQueryTypedPipelined`, explicit cardinality helpers (`sqlQueryTypedRows`, `sqlQueryTypedOneOrNothing`, `sqlQueryTypedSingle`), and `sqlQueryTypedMaybeColumn`. `typedSql` also infers `json[b]_build_object` and `json[b]_build_array` as non-null computed JSON expressions.
 - `sqlExecTyped` now also supports known typed no-result utility statements such as `SET CONSTRAINTS ...`, returning `()` after successful execution. ([#2747](https://github.com/digitallyinduced/ihp/issues/2747))
 - Fixed the IDE codegen "Preview" buttons failing with `405 Method Not Allowed`: the `New*` ToolServer routes were declared GET-only in the routes-DSL migration, but the codegen views submit their preview and option forms via POST. They now accept `GET|POST` again, as AutoRoute did in v1.5. ([#2743](https://github.com/digitallyinduced/ihp/issues/2743), [#2744](https://github.com/digitallyinduced/ihp/pull/2744))
+- Fixed `ihp.nixosModules.appWithPostgres` failing to build because it read `IHPSchema.sql` from the root of the IHP source, where the file no longer is. It now reads `ihp-schema-compiler/data/IHPSchema.sql`.
 
 ### Performance, Build, and Tooling
 
