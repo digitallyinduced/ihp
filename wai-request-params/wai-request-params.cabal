@@ -36,6 +36,7 @@ library
           , string-conversions
           , vector
           , http-types
+          , resourcet
     default-extensions:
           OverloadedStrings
         , RecordWildCards
@@ -65,6 +66,7 @@ test-suite spec
           , time
           , string-conversions
           , http-types
+          , directory
 
 source-repository head
     type:     git

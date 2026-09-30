@@ -130,6 +130,7 @@ ihpDefaultConfig logger = do
     option $ SessionCookie (defaultIHPSessionCookie currentBaseUrl)
 
     option WaiParse.defaultParseRequestBodyOptions
+    option InMemoryFileUploads
 
     option bootstrap
 
@@ -187,6 +188,7 @@ buildFrameworkConfig rawLogger appConfig = do
             exceptionTracker <- findOption @ExceptionTracker
             corsResourcePolicy <- findOptionOrNothing @Cors.CorsResourcePolicy
             parseRequestBodyOptions <- findOption @WaiParse.ParseRequestBodyOptions
+            fileUploadBackend <- findOption @FileUploadBackend
             (IdeBaseUrl ideBaseUrl) <- findOption @IdeBaseUrl
             (RLSAuthenticatedRole rlsAuthenticatedRole) <- findOption @RLSAuthenticatedRole
             customMiddleware <- findOption @CustomMiddleware
