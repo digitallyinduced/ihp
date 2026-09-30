@@ -167,7 +167,9 @@ data FrameworkConfig = FrameworkConfig
     --
     -- Defaults to 'InMemoryFileUploads'. Set @option TempFileUploads@ in @Config.hs@
     -- to write uploaded files to temporary files instead, see 'IHP.Controller.FileUpload.tempFileOrNothing'.
-    , fileUploadBackend :: !FileUploadBackend
+    --
+    -- A controller can override this per action with 'IHP.ControllerSupport.fileUploadBackend'.
+    , defaultFileUploadBackend :: !FileUploadBackend
 
     -- | Used by the dev server. This field cannot be strict.
     , ideBaseUrl :: Text

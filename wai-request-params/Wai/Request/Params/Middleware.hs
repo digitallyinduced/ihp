@@ -16,10 +16,16 @@ Only bodies that need to be parsed are read eagerly:
 - Any other body (e.g. @application/octet-stream@ or @video/mp4@) is left
   untouched, so the application can stream it with 'getRequestBodyChunk'.
   'readRawRequestBody' reads it on first use.
+
+'requestBodyMiddlewareDeferringMultipart' leaves @multipart/form-data@ bodies
+unparsed too, so the application can choose the 'FileUploadBackend' per request
+(e.g. after routing) and parse the body with 'withMultipartBody'.
 -}
 module Wai.Request.Params.Middleware
 ( requestBodyMiddleware
 , requestBodyMiddlewareWith
+, requestBodyMiddlewareDeferringMultipart
+, withMultipartBody
   -- * RequestBody type
 , RequestBody (..)
 , requestBodyVaultKey
@@ -89,6 +95,12 @@ rawRequestBodyVaultKey :: Vault.Key (IO LBS.ByteString)
 rawRequestBodyVaultKey = unsafePerformIO Vault.newKey
 {-# NOINLINE rawRequestBodyVaultKey #-}
 
+-- | Set by 'requestBodyMiddlewareDeferringMultipart' when a multipart body is
+-- waiting to be parsed by 'withMultipartBody'.
+pendingMultipartVaultKey :: Vault.Key WaiParse.ParseRequestBodyOptions
+pendingMultipartVaultKey = unsafePerformIO Vault.newKey
+{-# NOINLINE pendingMultipartVaultKey #-}
+
 -- | Vault key for the uploaded files of a multipart request, stored as
 -- temporary files. Only set when using 'TempFileUploads'.
 tempFilesVaultKey :: Vault.Key [File FilePath]
@@ -115,7 +127,49 @@ requestBodyMiddleware = requestBodyMiddlewareWith InMemoryFileUploads
 -- The 'WaiParse.ParseRequestBodyOptions' limits (e.g. 'WaiParse.setMaxRequestFileSize')
 -- are applied while the multipart body is streamed.
 requestBodyMiddlewareWith :: FileUploadBackend -> WaiParse.ParseRequestBodyOptions -> Middleware
-requestBodyMiddlewareWith fileUploadBackend parseRequestBodyOptions app req respond = do
+requestBodyMiddlewareWith fileUploadBackend = requestBodyMiddlewareWithMode (ParseMultipartWith fileUploadBackend)
+
+-- | Like 'requestBodyMiddleware', but does not parse @multipart/form-data@ bodies.
+--
+-- Until 'withMultipartBody' is called, a multipart request has an empty
+-- 'FormBody' and its body is left unread. This allows choosing the
+-- 'FileUploadBackend' per request, e.g. after routing, when it is known which
+-- handler will process the upload. IHP uses this to let each controller action
+-- choose its backend.
+--
+-- All other bodies are handled like in 'requestBodyMiddleware'.
+requestBodyMiddlewareDeferringMultipart :: WaiParse.ParseRequestBodyOptions -> Middleware
+requestBodyMiddlewareDeferringMultipart = requestBodyMiddlewareWithMode DeferMultipart
+
+-- | Parses a multipart body left unparsed by 'requestBodyMiddlewareDeferringMultipart'
+-- with the given backend, and calls the continuation with a request that has the
+-- parsed body in its vault.
+--
+-- With 'TempFileUploads' the temporary files are removed when the continuation returns,
+-- so the whole handling of the request should happen inside it.
+--
+-- When there's no pending multipart body (e.g. for JSON bodies, or when it was
+-- already parsed), the continuation is called with the request unchanged.
+withMultipartBody :: FileUploadBackend -> Request -> (Request -> IO a) -> IO a
+withMultipartBody fileUploadBackend req continue =
+    case Vault.lookup pendingMultipartVaultKey (vault req) of
+        Nothing -> continue req
+        Just parseRequestBodyOptions ->
+            parseMultipartBody fileUploadBackend parseRequestBodyOptions req $ \requestBody extraVault ->
+                continue req
+                    { vault = extraVault
+                        . Vault.insert requestBodyVaultKey requestBody
+                        . Vault.delete pendingMultipartVaultKey
+                        $ vault req
+                    }
+
+-- | How 'requestBodyMiddlewareWithMode' handles @multipart/form-data@ bodies
+data MultipartMode
+    = ParseMultipartWith FileUploadBackend
+    | DeferMultipart
+
+requestBodyMiddlewareWithMode :: MultipartMode -> WaiParse.ParseRequestBodyOptions -> Middleware
+requestBodyMiddlewareWithMode multipartMode parseRequestBodyOptions app req respond = do
     let method = requestMethod req
     let runApp requestBody readRaw extraVault = do
             let vault' = extraVault
@@ -154,26 +208,35 @@ requestBodyMiddlewareWith fileUploadBackend parseRequestBodyOptions app req resp
                         let req' = setRequestBodyChunks bodyReader req
                         (params, files) <- WaiParse.parseRequestBodyEx parseRequestBodyOptions WaiParse.lbsBackEnd req'
                         runApp FormBody { params, files, rawPayload } (pure rawPayload) id
-                    Just (WaiParse.Multipart _) ->
-                        -- Parsed straight from the request stream, so the
-                        -- body is never held in memory as a whole
-                        case fileUploadBackend of
-                            InMemoryFileUploads -> do
-                                (params, files) <- WaiParse.parseRequestBodyEx parseRequestBodyOptions WaiParse.lbsBackEnd req
-                                runApp FormBody { params, files, rawPayload = LBS.empty } (pure LBS.empty) id
-                            TempFileUploads ->
-                                -- The temporary files are removed when the internal state is closed,
-                                -- i.e. after the app has handled the request
-                                bracket createInternalState closeInternalState $ \internalState -> do
-                                    (params, tempFiles) <- WaiParse.parseRequestBodyEx parseRequestBodyOptions (WaiParse.tempFileBackEnd internalState) req
-                                    files <- mapM readTempFileLazily tempFiles
-                                    runApp FormBody { params, files, rawPayload = LBS.empty } (pure LBS.empty) (Vault.insert tempFilesVaultKey tempFiles)
+                    Just (WaiParse.Multipart _) -> case multipartMode of
+                        ParseMultipartWith fileUploadBackend ->
+                            parseMultipartBody fileUploadBackend parseRequestBodyOptions req $ \requestBody extraVault ->
+                                runApp requestBody (pure LBS.empty) extraVault
+                        DeferMultipart ->
+                            runApp (FormBody [] [] LBS.empty) (pure LBS.empty) (Vault.insert pendingMultipartVaultKey parseRequestBodyOptions)
                     Nothing -> do
                         -- Unknown content type (e.g. application/octet-stream): leave the body
                         -- unread, so the app can stream it with getRequestBodyChunk. The raw
                         -- body is only read when 'readRawRequestBody' is called.
                         readRaw <- memoize (strictRequestBody req)
                         runApp (FormBody [] [] LBS.empty) readRaw id
+
+-- | Parses a multipart body straight from the request stream, so the body is
+-- never held in memory as a whole. The continuation gets the parsed body and
+-- a function to add backend-specific entries to the vault.
+parseMultipartBody :: FileUploadBackend -> WaiParse.ParseRequestBodyOptions -> Request -> (RequestBody -> (Vault.Vault -> Vault.Vault) -> IO a) -> IO a
+parseMultipartBody fileUploadBackend parseRequestBodyOptions req continue =
+    case fileUploadBackend of
+        InMemoryFileUploads -> do
+            (params, files) <- WaiParse.parseRequestBodyEx parseRequestBodyOptions WaiParse.lbsBackEnd req
+            continue FormBody { params, files, rawPayload = LBS.empty } id
+        TempFileUploads ->
+            -- The temporary files are removed when the internal state is closed,
+            -- i.e. after the continuation has returned
+            bracket createInternalState closeInternalState $ \internalState -> do
+                (params, tempFiles) <- WaiParse.parseRequestBodyEx parseRequestBodyOptions (WaiParse.tempFileBackEnd internalState) req
+                files <- mapM readTempFileLazily tempFiles
+                continue FormBody { params, files, rawPayload = LBS.empty } (Vault.insert tempFilesVaultKey tempFiles)
 
 -- | Returns the raw request body.
 --

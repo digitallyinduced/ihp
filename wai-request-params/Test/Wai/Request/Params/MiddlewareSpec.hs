@@ -18,7 +18,7 @@ import Data.IORef
 import Control.Exception (evaluate, try, SomeException)
 import System.Directory (doesFileExist)
 
-import Wai.Request.Params.Middleware (requestBodyMiddleware, requestBodyMiddlewareWith, RequestBody(..), requestBodyVaultKey, readRawRequestBody, FileUploadBackend (..), tempFilesVaultKey)
+import Wai.Request.Params.Middleware (requestBodyMiddleware, requestBodyMiddlewareWith, requestBodyMiddlewareDeferringMultipart, withMultipartBody, RequestBody(..), requestBodyVaultKey, readRawRequestBody, FileUploadBackend (..), tempFilesVaultKey)
 import Wai.Request.Params (allParams)
 
 -- | An app that extracts the parsed RequestBody from the vault and returns info about it
@@ -241,6 +241,28 @@ spec = do
                 case result of
                     Left (_ :: SomeException) -> pure ()
                     Right body -> expectationFailure ("expected the upload to be rejected, got: " <> Char8.unpack (LBS.toStrict body))
+
+            describe "deferred parsing (per-request backend)" $ do
+                let describeBody req = case (Vault.lookup requestBodyVaultKey (vault req), Vault.lookup tempFilesVaultKey (vault req)) of
+                        (Just FormBody { params, files }, tempFiles) ->
+                            show (params, map (\(name, info) -> (name, WaiParse.fileContent info)) files, fmap length tempFiles)
+                        _ -> "unexpected body"
+                let deferringApp backend = requestBodyMiddlewareDeferringMultipart WaiParse.defaultParseRequestBodyOptions $ \req respond -> do
+                        let before = describeBody req
+                        withMultipartBody backend req $ \req' ->
+                            respond $ responseLBS status200 [] (cs (before <> " -> " <> describeBody req'))
+
+                it "leaves the multipart body unparsed until withMultipartBody is called" $ do
+                    response <- runSession (makeRequestWithBody "POST" multipartHeaders multipartBody) (deferringApp InMemoryFileUploads)
+                    cs (simpleBody response) `shouldBe` ("([],[],Nothing) -> ([(\"title\",\"Hello\")],[(\"video\",\"file-content\")],Nothing)" :: String)
+
+                it "parses with the backend given to withMultipartBody" $ do
+                    response <- runSession (makeRequestWithBody "POST" multipartHeaders multipartBody) (deferringApp TempFileUploads)
+                    cs (simpleBody response) `shouldBe` ("([],[],Nothing) -> ([(\"title\",\"Hello\")],[(\"video\",\"file-content\")],Just 1)" :: String)
+
+                it "parses urlencoded bodies in the middleware, withMultipartBody is a no-op" $ do
+                    response <- runSession (makeRequestWithBody "POST" [(hContentType, "application/x-www-form-urlencoded")] "name=test") (deferringApp TempFileUploads)
+                    cs (simpleBody response) `shouldBe` ("([(\"name\",\"test\")],[],Nothing) -> ([(\"name\",\"test\")],[],Nothing)" :: String)
 
         describe "query string params" $ do
             it "preserves query params on GET requests even though body parsing is skipped" $ do
