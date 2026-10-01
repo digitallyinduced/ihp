@@ -21,7 +21,11 @@ module IHP.TypedSql.RowType
     , sqlRowType
     ) where
 
-import           IHP.Prelude
+import           Prelude
+import           Data.ByteString                (ByteString)
+import           Data.Kind                      (Type)
+import           Data.Text                      (Text)
+import           GHC.Records                    (HasField (..))
 import qualified Data.Char                    as Char
 import qualified Data.List                    as List
 import qualified Data.Map.Strict              as Map
@@ -29,8 +33,7 @@ import qualified Data.Set                     as Set
 import qualified Data.String.Conversions      as CS
 import qualified Database.PostgreSQL.LibPQ    as PQ
 import qualified Language.Haskell.TH          as TH
-import           GHC.TypeLits                 (Nat, TypeError, ErrorMessage (..), type (+))
-import qualified Prelude
+import           GHC.TypeLits                 (Nat, Symbol, TypeError, ErrorMessage (..), type (+))
 
 import           IHP.TypedSql.Metadata        (DescribeColumn (..), TableMeta (..))
 

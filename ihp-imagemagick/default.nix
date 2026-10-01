@@ -1,5 +1,5 @@
-{ mkDerivation, base, bytestring, filepath, lib, process, temporary-ospath, text
-, wai-extra
+{ mkDerivation, base, bytestring, filepath, lib, process
+, temporary-ospath, text, wai-extra
 }:
 mkDerivation {
   pname = "ihp-imagemagick";
@@ -9,5 +9,5 @@ mkDerivation {
     base bytestring filepath process temporary-ospath text wai-extra
   ];
   description = "ImageMagick preprocessing for IHP file uploads";
-  license = lib.licenses.mit;
+  license = lib.meta.getLicenseFromSpdxId "MIT";
 }

@@ -36,6 +36,7 @@ import qualified Test.FetchPipelinedSpec
 import qualified Test.JobQueueSpec
 import qualified Test.LoginSupport.AuthVaultSpec
 import qualified Test.PGVersionSpec
+import qualified Test.TypedSqlSpec
 
 main :: IO ()
 main = hspec do
@@ -72,3 +73,4 @@ main = hspec do
     Test.JobQueueSpec.tests
     Test.LoginSupport.AuthVaultSpec.tests
     Test.PGVersionSpec.tests
+    Test.TypedSqlSpec.tests

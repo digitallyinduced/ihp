@@ -1,7 +1,7 @@
 module Main where
 
 import Test.Hspec
-import IHP.Prelude
+import Prelude
 
 import qualified Test.TypedSqlSpec
 

@@ -32,24 +32,19 @@ import qualified Data.List as List
 import Control.Monad (join)
 import qualified Text.Inflections
 import qualified Data.Text as Text
-import Text.Countable (singularize, pluralize)
+import Text.Countable (pluralize)
 import qualified Data.Text.Slugger
+import IHP.TypedSql.TypeMapping (tableNameToModelName)
 
 -- | Transforms a underscore table name to a camel case model name.
+--
+-- Canonical definition in "IHP.TypedSql.TypeMapping", re-exported here.
 --
 -- >>> tableNameToModelName "users"
 -- "User"
 --
 -- >>> tableNameToModelName "projects"
 -- "Project"
-tableNameToModelName :: Text -> Text
-tableNameToModelName "brain_waves" = "BrainWave"
-tableNameToModelName tableName = do
-    let singularizedTableName = cs (singularize tableName)
-    if "_" `Text.isInfixOf` singularizedTableName
-        then unwrapEither tableName $ Inflector.toCamelCased True $ singularizedTableName
-        else ucfirst singularizedTableName
-{-# INLINABLE tableNameToModelName #-}
 
 -- | Transforms a underscore table name to a name for a controller
 --
