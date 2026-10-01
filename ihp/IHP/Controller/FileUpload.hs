@@ -14,11 +14,12 @@ module IHP.Controller.FileUpload where
 
 import IHP.Prelude
 
-import Network.Wai.Parse (FileInfo, fileContent)
-import Network.Wai (Request)
+import Network.Wai.Parse (FileInfo, fileContent, fileName)
+import Network.Wai (Request, vault)
 import qualified IHP.ModelSupport as ModelSupport
 import qualified Data.ByteString.Lazy as LBS
-import Wai.Request.Params.Middleware (RequestBody (..))
+import Wai.Request.Params.Middleware (RequestBody (..), tempFilesVaultKey)
+import qualified Data.Vault.Lazy as Vault
 import IHP.RequestVault () -- HasField "parsedBody" Request RequestBody
 import qualified System.Process as Process
 
@@ -104,6 +105,58 @@ filesByName !name =
                     |> filter (\(filename, _) -> filename == name)
                     |> map snd
             _ -> []
+
+-- | Returns a file upload from the request as a temporary file on disk.
+--
+-- Only works when uploads are stored in temporary files. Enable this for an action
+-- in its controller instance:
+--
+-- > instance Controller VideosController where
+-- >     fileUploadBackend UploadVideoAction = Just TempFileUploads
+-- >     fileUploadBackend _ = Nothing
+--
+-- Or for all actions, in @Config/Config.hs@:
+--
+-- > config :: ConfigBuilder
+-- > config = do
+-- >     option TempFileUploads
+--
+-- With 'TempFileUploads' a large upload (e.g. a video) is written to disk while the
+-- request is streamed, instead of being held in memory. The temporary file is
+-- removed when the request ends, so move or copy it if you want to keep it.
+--
+-- Returns `Nothing` when the file is not found in the request body, when no file was
+-- selected, or when uploads are kept in memory ('InMemoryFileUploads', the default).
+--
+-- __Example:__
+--
+-- > import System.Directory (copyFile)
+-- >
+-- > action UploadVideoAction = do
+-- >     case tempFileOrNothing "video" of
+-- >         Just fileInfo -> do
+-- >             let path :: FilePath = fileInfo.fileContent
+-- >             copyFile path "videos/latest.mp4"
+-- >         Nothing -> pure ()
+-- >     redirectTo VideosAction
+--
+-- 'fileOrNothing' keeps working with 'TempFileUploads': the file content is then
+-- read from the temporary file on first use.
+tempFileOrNothing :: (?request :: Request) => ByteString -> Maybe (FileInfo FilePath)
+tempFileOrNothing !name =
+        case lookup name (tempFiles ?request) of
+            Just fileInfo | fileInfo.fileName /= "" -> Just fileInfo
+            _ -> Nothing
+
+-- | Like 'tempFileOrNothing' but allows uploading multiple files in the same request
+tempFilesByName :: (?request :: Request) => ByteString -> [FileInfo FilePath]
+tempFilesByName !name =
+        tempFiles ?request
+            |> filter (\(filename, _) -> filename == name)
+            |> map snd
+
+tempFiles :: Request -> [(ByteString, FileInfo FilePath)]
+tempFiles request = fromMaybe [] (Vault.lookup tempFilesVaultKey request.vault)
 
 -- | Options to be used together with 'uploadImageWithOptions'
 --

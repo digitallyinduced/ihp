@@ -104,7 +104,7 @@ runAction'
        )
      => controller -> Application
 runAction' controller waiRequest waiRespond =
-    earlyReturnMiddleware (\request respond -> do
+    earlyReturnMiddleware (\request respond -> withActionMultipartBody controller request \request -> do
         context <- initRequestContext @application (Typeable.typeOf controller) request respond
         let ?context = context
         let ?respond = respond
