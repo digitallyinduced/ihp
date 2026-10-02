@@ -5,6 +5,7 @@ in
 {
     imports = [
         ihp.nixosModules.options
+        ihp.nixosModules.user
         ihp.nixosModules.binaryCache
         ihp.nixosModules.services_app
         ihp.nixosModules.services_worker

@@ -8,6 +8,8 @@ in
         after = [ "network.target" "app-keygen.service" ];
         wantedBy = [ "multi-user.target" ];
         serviceConfig = {
+            User = cfg.user;
+            Group = cfg.group;
             Type = "simple";
             Restart = "always";
             ExecStart = "${cfg.package}/bin/RunJobs";

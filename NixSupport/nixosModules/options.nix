@@ -35,6 +35,37 @@ with lib;
             default = true;
         };
 
+        user = mkOption {
+            type = types.str;
+            default = "ihp";
+            description = ''
+                System user the app, worker, migrate and app-keygen services run as.
+
+                The user is created automatically. Set this to "root" to run
+                the services as root.
+            '';
+        };
+
+        group = mkOption {
+            type = types.str;
+            default = config.services.ihp.user;
+            description = ''
+                System group the services run as. Created automatically.
+            '';
+        };
+
+        migrateUser = mkOption {
+            type = types.str;
+            default = if config.services.ihp.user == "root" then "root" else "${config.services.ihp.user}-migrate";
+            description = ''
+                System user the migrate service runs as. Created automatically.
+
+                It is separate from services.ihp.user because with appWithPostgres
+                it may connect as the postgres superuser to create extensions,
+                which the app and worker must not be able to do.
+            '';
+        };
+
         databaseName = mkOption {
             type = types.str;
             default = "app";
