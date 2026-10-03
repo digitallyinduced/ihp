@@ -170,25 +170,13 @@ final: prev: {
                 # cryptonite tests have a flaky failure (1 of 1548)
                 cryptonite = final.haskell.lib.dontCheck super.cryptonite;
 
-                # The GHC 9.12 RC package set builds HLS 2.14 against Cabal 3.16,
-                # while its ormolu/fourmolu/stylish-haskell plugins still use
-                # Cabal 3.14. These are isolated plugin dependencies, but Cabal's
+                # HLS 2.15 is built against Cabal 3.16, while its
+                # ormolu/fourmolu/stylish-haskell plugins still use Cabal 3.14.
+                # These are isolated plugin dependencies, but Cabal's
                 # multiple-version warning is fatal in the nixpkgs Haskell
                 # builder unless explicitly allowed.
                 haskell-language-server = final.haskell.lib.allowInconsistentDependencies
                     super.haskell-language-server;
-
-                # darcs 2.18.5 caps http-client-tls <0.4 and tls <2.2, while
-                # the RC3 package set provides newer compatible releases. A full
-                # doJailbreak conflicts with nixpkgs' patched darcs.cabal, so only
-                # relax these two bounds after the nixpkgs patches are applied.
-                darcs = super.darcs.overrideAttrs (old: {
-                    postPatch = (old.postPatch or "") + ''
-                        substituteInPlace darcs.cabal \
-                            --replace-fail "http-client-tls   >= 0.3.5 && < 0.4" "http-client-tls   >= 0.3.5" \
-                            --replace-fail "tls               >= 2.0.6 && < 2.2" "tls               >= 2.0.6"
-                    '';
-                });
             })
         ];
     };
@@ -205,13 +193,6 @@ final: prev: {
         if prev.haskell.packages ? ghc914
         then final.haskell.packages.ghc914.override {
             overrides = final.lib.composeManyExtensions [
-                # The RC3 nixpkgs snapshot updated ghc-exactprint to 1.14.1.0,
-                # while its GHC 9.14 configuration still references the removed
-                # 1.14.0.0 attribute. Keep the old name as a compatibility alias
-                # until nixpkgs updates configuration-ghc-9.14.x.nix.
-                (self: super: {
-                    ghc-exactprint_1_14_0_0 = final.haskell.lib.dontCheck super.ghc-exactprint_1_14_1_0;
-                })
                 (ihpOverrides final)
                 (self: super: {
                     say = final.haskell.lib.dontCheck super.say;
@@ -254,8 +235,8 @@ final: prev: {
                     # time <1.15 and fails on GHC 9.14's containers-0.8 / time-1.15.
                     # Jailbreaking lets that pinned version build on the new boot libs.
                     "Cabal-syntax_3_14_2_0"
-                    # darcs 2.18.5 caps http-client-tls <0.4 and tls <2.2, while
-                    # the RC3 package set provides newer compatible releases.
+                    # nixpkgs' darcs-tls-2.2.patch already allows tls >= 2.2.
+                    # Jailbreak the remaining GHC 9.14 boot-library bounds.
                     "darcs"
                     "lucid" "lucid2" "clay" "tasty-hspec" "config-ini" "fsnotify"
                     "string-interpolate" "rebase" "rerebase" "with-utf8" "minio-hs"
