@@ -364,16 +364,37 @@ setRLSConfigStatement = Hasql.preparable
 -- pool execution, cached plan error retry, and debug logging.
 -- Works with both prepared ('Hasql.preparable') and unprepared statements.
 --
+-- When RLS is enabled, the statement runs in a read-only transaction. Use
+-- 'sqlWriteStatementHasql' for statements that modify data (e.g. @INSERT ... RETURNING@).
+--
 -- __Example:__
 --
 -- > result <- sqlStatementHasql pool someId myPreparedStatement
 --
 sqlStatementHasql :: (?modelContext :: ModelContext) => HasqlPool.Pool -> a -> Hasql.Statement a b -> IO b
-sqlStatementHasql pool input statement = do
+sqlStatementHasql = runStatementHasql Tx.Read "🔍 "
+{-# INLINABLE sqlStatementHasql #-}
+
+-- | Like 'sqlStatementHasql' but for statements that modify data and return a result,
+-- such as @INSERT ... RETURNING@ or @UPDATE ... RETURNING@.
+--
+-- Uses 'Tx.Write' for RLS transactions (vs 'Tx.Read' in 'sqlStatementHasql'). Without
+-- this, writes fail under RLS with @cannot execute INSERT in a read-only transaction@.
+--
+-- __Example:__
+--
+-- > user <- sqlWriteStatementHasql pool user createUserStatement
+--
+sqlWriteStatementHasql :: (?modelContext :: ModelContext) => HasqlPool.Pool -> a -> Hasql.Statement a b -> IO b
+sqlWriteStatementHasql = runStatementHasql Tx.Write "💾 "
+{-# INLINABLE sqlWriteStatementHasql #-}
+
+runStatementHasql :: (?modelContext :: ModelContext) => Tx.Mode -> Text -> HasqlPool.Pool -> a -> Hasql.Statement a b -> IO b
+runStatementHasql mode logPrefix pool input statement = do
     let ?context = ?modelContext
     let session = case (?modelContext.transactionRunner, ?modelContext.rowLevelSecurity) of
             (Nothing, Just RowLevelSecurityContext { rlsAuthenticatedRole, rlsUserId }) ->
-                Tx.transaction Tx.ReadCommitted Tx.Read $ do
+                Tx.transaction Tx.ReadCommitted mode $ do
                     Tx.statement (rlsAuthenticatedRole, rlsUserId) setRLSConfigStatement
                     Tx.statement input statement
             _ ->
@@ -381,8 +402,8 @@ sqlStatementHasql pool input statement = do
     let runQuery = case ?modelContext.transactionRunner of
             Just (TransactionRunner runner) -> runner session
             Nothing -> usePoolWithRetry pool session
-    logQueryTiming ("🔍 " <> truncateQuery (cs (Hasql.toSql statement))) runQuery
-{-# INLINABLE sqlStatementHasql #-}
+    logQueryTiming (logPrefix <> truncateQuery (cs (Hasql.toSql statement))) runQuery
+{-# INLINABLE runStatementHasql #-}
 
 -- | Runs a query built from a dynamic 'Snippet'.
 --
