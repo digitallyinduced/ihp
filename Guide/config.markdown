@@ -565,21 +565,23 @@ config = do
     initS3Storage "eu-central-1" "my-bucket-name"
 ```
 
-#### Minio Storage
+#### S3 Compatible Storage
 
-Stores files in a Minio-compatible object storage server.
+Stores files in a self-hosted S3 compatible object storage server such as [Garage](https://garagehq.deuxfleurs.fr/) or SeaweedFS. See [File Storage & Uploads](https://ihp.digitallyinduced.com/Guide/file-storage.html) for a local development setup.
 
 | Env var | Description |
 |---------|-------------|
-| `MINIO_ACCESS_KEY` | Minio access key |
-| `MINIO_SECRET_KEY` | Minio secret key |
+| `AWS_ACCESS_KEY_ID` | S3 access key |
+| `AWS_SECRET_ACCESS_KEY` | S3 secret key |
+
+The legacy `MINIO_ACCESS_KEY` and `MINIO_SECRET_KEY` env vars still work and take precedence when set.
 
 ```haskell
 -- Config.hs
 import IHP.FileStorage.Config
 
 config = do
-    initMinioStorage "https://minio.example.com" "my-bucket-name"
+    initS3CompatibleStorage "https://storage.example.com" "my-bucket-name"
 ```
 
 #### Filebase Storage
@@ -789,8 +791,8 @@ These environment variables are read by IHP's server infrastructure and cannot b
 | `IHP_STORAGE_DIR` | `static/` | File Storage |
 | `AWS_ACCESS_KEY_ID` | N/A | File Storage (S3) |
 | `AWS_SECRET_ACCESS_KEY` | N/A | File Storage (S3) |
-| `MINIO_ACCESS_KEY` | N/A | File Storage (Minio) |
-| `MINIO_SECRET_KEY` | N/A | File Storage (Minio) |
+| `MINIO_ACCESS_KEY` | N/A | File Storage (S3 compatible, legacy) |
+| `MINIO_SECRET_KEY` | N/A | File Storage (S3 compatible, legacy) |
 | `FILEBASE_KEY` | N/A | File Storage (Filebase) |
 | `FILEBASE_SECRET` | N/A | File Storage (Filebase) |
 | `IHP_IDE_BASEURL` | `http://localhost:<port+1>` | IDE |
