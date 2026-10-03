@@ -50,6 +50,7 @@ class DataSyncController {
     pendingRequests: PendingRequest[];
     connection: WebSocket | null;
     requestIdCounter: number;
+    subscriptionIdCounter: number;
     receivedFirstResponse: boolean;
     eventListeners: EventListeners;
     outbox: string[];
@@ -65,6 +66,8 @@ class DataSyncController {
         this.pendingRequests = [];
         this.connection = null;
         this.requestIdCounter = 0;
+        // Start at 1 because older DataSync clients treat 0 as an unassigned id.
+        this.subscriptionIdCounter = 1;
         this.receivedFirstResponse = false;
         this.eventListeners = {
             message: [],
@@ -204,6 +207,10 @@ class DataSyncController {
         });
     }
 
+    nextSubscriptionId(): number {
+        return this.subscriptionIdCounter++;
+    }
+
     addEventListener<E extends DataSyncEventType>(event: E, callback: DataSyncEventMap[E]): void {
         (this.eventListeners[event] as DataSyncEventMap[E][]).push(callback);
     }
@@ -265,7 +272,7 @@ class DataSubscription {
     isClosed: boolean;
     isConnected: boolean;
     connectError: Error | null;
-    subscriptionId: UUID | null;
+    subscriptionId: number | null;
     subscribers: Array<(records: DataRecord[] | null) => void>;
     records: DataRecord[] | null;
     cache: Map<string, DataRecord[]> | null;
@@ -340,13 +347,18 @@ class DataSubscription {
     async createOnServer(): Promise<void> {
         const dataSyncController = DataSyncController.getInstance();
         const createOnServerGeneration = this.createOnServerGeneration;
+        const clientSubscriptionId = dataSyncController.nextSubscriptionId();
+        this.subscriptionId = clientSubscriptionId;
         try {
-            const response = await dataSyncController.sendMessage({ tag: 'CreateDataSubscription', query: this.query });
-            const subscriptionId = response.subscriptionId as UUID;
+            const response = await dataSyncController.sendMessage({ tag: 'CreateDataSubscription', query: this.query, clientSubscriptionId });
+            const subscriptionId = response.subscriptionId as number;
             const result = response.result as DataRecord[];
 
             if (createOnServerGeneration !== this.createOnServerGeneration) {
                 await this.deleteStaleDataSubscription(dataSyncController, subscriptionId);
+                if (this.subscriptionId === clientSubscriptionId) {
+                    this.subscriptionId = null;
+                }
                 return;
             }
 
@@ -371,6 +383,9 @@ class DataSubscription {
 
             dataSyncController.learnOptimisticShapeFromResult(this.query.table, result);
         } catch (e) {
+            if (this.subscriptionId === clientSubscriptionId) {
+                this.subscriptionId = null;
+            }
             const error = e as Error;
             this.connectError = new Error(error.message + ' while trying to subscribe to:\n' + JSON.stringify(this.query, null, 4));
             this.rejectCreateOnServer(this.connectError);
@@ -413,10 +428,14 @@ class DataSubscription {
             return;
         }
 
-        // We cannot close the DataSubscription when the subscriptionId is not assigned
+        // Close locally right away. The pending CreateDataSubscription response will
+        // delete the server-side subscription once the server has registered it.
         if (!this.isClosed && !this.isConnected) {
-            await this.createOnServerPromise;
-            return this.close();
+            this.createOnServerGeneration++;
+            this.isClosed = true;
+            this.notifyClose();
+            this.detachFromDataSyncController(dataSyncController);
+            return;
         }
 
         // Set isClosed early as we need to prevent a second close() from triggering another DeleteDataSubscription message
@@ -453,7 +472,7 @@ class DataSubscription {
         this.onClose();
     }
 
-    private async deleteStaleDataSubscription(dataSyncController: DataSyncController, subscriptionId: UUID): Promise<void> {
+    private async deleteStaleDataSubscription(dataSyncController: DataSyncController, subscriptionId: number): Promise<void> {
         try {
             await dataSyncController.sendMessage({ tag: 'DeleteDataSubscription', subscriptionId });
         } catch (error) {

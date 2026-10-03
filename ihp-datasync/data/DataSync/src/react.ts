@@ -100,17 +100,19 @@ export function useCount(queryBuilder: QueryBuilder): number | null {
     const subscribe = useMemo(() => (onStoreChange: () => void) => {
         const controller = DataSyncController.getInstance();
         let isActive = true;
-        let subscriptionId: string | null = null;
+        let isCreated = false;
+        let subscriptionId: number | null = controller.nextSubscriptionId();
         const onMessage: DataSyncEventMap['message'] = (message) => {
             if (message.tag === 'DidChangeCount' && message.subscriptionId === subscriptionId) {
                 count.current = message.count as number;
                 onStoreChange();
             }
         };
-        controller.sendMessage({ tag: 'CreateCountSubscription', query: queryBuilder.query })
+        controller.sendMessage({ tag: 'CreateCountSubscription', query: queryBuilder.query, clientSubscriptionId: subscriptionId })
             .then((response) => {
+                isCreated = true;
                 if (isActive) {
-                    subscriptionId = response.subscriptionId as string;
+                    subscriptionId = response.subscriptionId as number;
                     count.current = response.count as number;
                     onStoreChange();
 
@@ -126,7 +128,7 @@ export function useCount(queryBuilder: QueryBuilder): number | null {
         return () => {
             isActive = false;
 
-            if (subscriptionId) {
+            if (isCreated && subscriptionId !== null) {
                 controller.sendMessage({ tag: 'DeleteDataSubscription', subscriptionId });
             }
             controller.removeEventListener('message', onMessage);
