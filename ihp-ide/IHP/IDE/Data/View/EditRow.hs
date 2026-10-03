@@ -71,7 +71,7 @@ instance View EditRowView where
                         </div>
                     </div>|]
 
-            onClick tableName fieldName id = "window.location.assign(" <> tshow (pathTo (ToggleBooleanFieldAction tableName (cs fieldName) id)) <> ")"
+            onClick tableName fieldName id = "fetch(" <> tshow (pathTo (ToggleBooleanFieldAction tableName (cs fieldName) id)) <> ", { method: 'POST' }).then(() => window.location.reload())"
             renderInputMethod :: (ColumnDefinition, DynamicField) -> Html
             renderInputMethod (def, val) | (def.columnType) == "boolean" && isNothing (val.fieldValue) = [hsx|
                             {isBooleanParam True def}

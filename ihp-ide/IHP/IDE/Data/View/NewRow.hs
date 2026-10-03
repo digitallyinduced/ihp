@@ -63,7 +63,7 @@ instance View NewRowView where
                         </div>
                     </div>|]
 
-            onClick tableName fieldName id = "window.location.assign(" <> tshow (pathTo (ToggleBooleanFieldAction tableName (cs fieldName) id)) <> ")"
+            onClick tableName fieldName id = "fetch(" <> tshow (pathTo (ToggleBooleanFieldAction tableName (cs fieldName) id)) <> ", { method: 'POST' }).then(() => window.location.reload())"
             renderInputMethod :: ColumnDefinition -> Html 
             renderInputMethod col | (col.columnType) == "boolean" = [hsx|
                             {isBooleanParam True col}
