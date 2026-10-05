@@ -63,7 +63,9 @@ httpApp ghciIsLoadingVar standardOutput errorOutput req respond = do
     currentErrorOutput <- readIORef errorOutput
     lastSchemaCompilerError <- readIORef ?context.lastSchemaCompilerError
     let responseBody = getBuilder (renderErrorView currentStandardOutput currentErrorOutput isCompiling lastSchemaCompilerError)
-    let responseHeaders = [(HTTP.hContentType, "text/html")]
+    -- Stopping the status server only kills Warp's accept loop. Closing the connection
+    -- keeps a keep-alive browser from reaching it after the app has started.
+    let responseHeaders = [(HTTP.hContentType, "text/html"), (HTTP.hConnection, "close")]
     respond $ Wai.responseBuilder HTTP.status200 responseHeaders responseBody
 
 clearStatusServer :: _ => IORef [ByteString] -> IORef [ByteString] -> Clients -> IO ()
