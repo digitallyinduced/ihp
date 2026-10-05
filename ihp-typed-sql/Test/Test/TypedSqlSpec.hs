@@ -525,11 +525,12 @@ tests = do
                     signalProcess sigSTOP postmasterPid
                     flip Exception.finally
                         (ignoreProcessException (signalProcess sigCONT postmasterPid)) do
-                        waitForCondition 300 (do
+                        -- 3s idle delay + a 5s pg_ctl stop timeout, slow on loaded CI runners
+                        waitForCondition 1200 (do
                             logContents <- readTestFileIfExists watchdogLogPath
                             pure (maybe False (List.isInfixOf "idle stop: PostgreSQL stop failed") logContents)
                             ) `shouldReturn` True
-                    waitForCondition 400 (not <$> doesFileExist postmasterPath) `shouldReturn` True
+                    waitForCondition 1200 (not <$> doesFileExist postmasterPath) `shouldReturn` True
                     getProcessExitCode processHandle `shouldReturn` Nothing
 
         it "does not signal a postmaster PID that disagrees with the private socket lock" do
