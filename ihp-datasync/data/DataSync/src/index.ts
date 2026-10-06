@@ -21,7 +21,7 @@ import {
     whereGreaterThanOrEqual,
     whereIn
 } from './ihp-querybuilder.js';
-import { DataSyncController, DataSubscription, initIHPBackend, createRecord, createRecords, updateRecord, updateRecords, deleteRecord, deleteRecords, NewRecordBehaviour } from './ihp-datasync.js';
+import { configureDataSyncTransport, DataSyncController, DataSubscription, initIHPBackend, createRecord, createRecords, updateRecord, updateRecords, deleteRecord, deleteRecords, NewRecordBehaviour } from './ihp-datasync.js';
 import { Transaction, withTransaction } from './transaction.js';
 
 export {
@@ -49,13 +49,14 @@ export {
     whereIn,
 
     /* ihp-datasync.js */
-    DataSyncController, DataSubscription, initIHPBackend, createRecord, createRecords, updateRecord, updateRecords, deleteRecord, deleteRecords, NewRecordBehaviour,
+    configureDataSyncTransport, DataSyncController, DataSubscription, initIHPBackend, createRecord, createRecords, updateRecord, updateRecords, deleteRecord, deleteRecords, NewRecordBehaviour,
 
     /* transaction.js */
     Transaction, withTransaction
 };
 
 /* Re-export types */
+export type { DataSyncTransport } from './ihp-datasync.js';
 export type {
     UUID,
     DataRecord,

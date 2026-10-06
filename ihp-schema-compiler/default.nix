@@ -22,6 +22,6 @@ mkDerivation {
   ];
   homepage = "https://ihp.digitallyinduced.com/";
   description = "Lightweight schema compiler for IHP";
-  license = lib.licenses.mit;
+  license = lib.meta.getLicenseFromSpdxId "MIT";
   mainProgram = "build-generated-code";
 }

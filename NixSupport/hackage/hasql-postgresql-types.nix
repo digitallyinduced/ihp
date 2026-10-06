@@ -11,6 +11,6 @@ mkDerivation {
     ptr-peeker ptr-poker tagged text-builder
   ];
   homepage = "https://github.com/nikita-volkov/hasql-postgresql-types";
-  description = "Integration of hasql with postgresql-types";
+  description = "Integration of \"hasql\" with \"postgresql-types\"";
   license = lib.meta.getLicenseFromSpdxId "MIT";
 }

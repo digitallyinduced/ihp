@@ -21,6 +21,34 @@ type EventListeners = {
     [K in DataSyncEventType]: DataSyncEventMap[K][];
 };
 
+export interface DataSyncTransport {
+    url: () => string;
+    authenticate: (socket: WebSocket) => Promise<void>;
+}
+
+let configuredTransport: DataSyncTransport | null = null;
+
+/**
+ * Configure before creating subscriptions. Pass null to restore the default
+ * cookie/JWT transport while disconnected.
+ *
+ * Authentication runs for each newly opened socket and must resolve only after
+ * the server acknowledges authentication. Supply fresh credentials inside the
+ * callback, not in the URL. The callback must remove its event listeners on
+ * completion or socket closure. A failed or timed-out handshake closes the
+ * socket without sending queued DataSync requests.
+ *
+ * This changes WebSocket transport only; it does not configure HTTP requests
+ * or implement a server-side authentication protocol.
+ */
+export function configureDataSyncTransport(transport: DataSyncTransport | null): void {
+    const controller = DataSyncController.instance;
+    if (controller?.connection || controller?.pendingConnection) {
+        throw new Error('DataSync transport cannot change during a connection');
+    }
+    configuredTransport = transport;
+}
+
 class DataSyncController {
     static instance: DataSyncController | null = null;
     static ihpBackendHost: string | null = null;
@@ -93,9 +121,38 @@ class DataSyncController {
         }
 
         const connect = (): Promise<WebSocket> => new Promise((resolve, reject) => {
-            const socket = new WebSocket(DataSyncController.getWSUrl());
+            const transport = configuredTransport;
+            const socket = new WebSocket(transport ? transport.url() : DataSyncController.getWSUrl());
+            let settled = false;
+            let authenticationTimeout: ReturnType<typeof setTimeout> | null = null;
+            const fail = () => {
+                if (settled) return;
+                settled = true;
+                if (authenticationTimeout !== null) clearTimeout(authenticationTimeout);
+                reject(new Error('DataSync connection or authentication failed'));
+                socket.close();
+            };
+            socket.onclose = fail;
+            socket.onerror = fail;
 
-            socket.onopen = (event) => {
+            socket.onopen = async (event) => {
+                if (transport) {
+                    authenticationTimeout = setTimeout(fail, 10000);
+                    try {
+                        await transport.authenticate(socket);
+                    } catch {
+                        // Authentication errors may contain sensitive protocol data.
+                        fail();
+                        return;
+                    }
+                    if (settled) return;
+                    if (socket.readyState !== WebSocket.OPEN) {
+                        fail();
+                        return;
+                    }
+                    clearTimeout(authenticationTimeout);
+                }
+                settled = true;
                 socket.onclose = this.onClose.bind(this);
                 socket.onmessage = this.onMessage.bind(this);
 
@@ -106,7 +163,6 @@ class DataSyncController {
                 }
             };
 
-            socket.onerror = (event) => reject(event);
         });
         const wait = (timeout: number): Promise<void> => new Promise((resolve) => setTimeout(resolve, timeout));
 
@@ -136,6 +192,7 @@ class DataSyncController {
             }
         }
 
+        this.pendingConnection = null;
         throw new Error('Unable to connect to the DataSync Websocket');
     }
 

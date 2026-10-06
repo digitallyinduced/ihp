@@ -16,5 +16,5 @@ mkDerivation {
   ];
   homepage = "https://ihp.digitallyinduced.com/";
   description = "Generic parameter parsing for WAI requests";
-  license = lib.licenses.mit;
+  license = lib.meta.getLicenseFromSpdxId "MIT";
 }

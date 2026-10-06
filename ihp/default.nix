@@ -8,9 +8,9 @@
 , hasql-pool, hasql-postgresql-types, hasql-transaction, hspec
 , http-client, http-client-tls, http-media, http-types, ihp-hsx
 , ihp-imagemagick, ihp-modal, ihp-pagehead, ihp-pglistener
-, ihp-router, inflections, interpolate, lib, mime-types, minio-hs
-, mono-traversable, mtl, neat-interpolation, network, network-uri
-, parser-combinators, postgresql-simple
+, ihp-router, ihp-typed-sql, inflections, interpolate, lib
+, mime-types, minio-hs, mono-traversable, mtl, neat-interpolation
+, network, network-uri, parser-combinators, postgresql-simple
 , postgresql-simple-postgresql-types, postgresql-types
 , postgresql-types-algebra, process, ptr-peeker, ptr-poker
 , pwstore-fast, random, random-strings, regex-tdfa, resource-pool
@@ -37,8 +37,8 @@ mkDerivation {
     haskell-src-meta hasql hasql-dynamic-statements hasql-implicits
     hasql-mapping hasql-pool hasql-postgresql-types hasql-transaction
     http-client http-client-tls http-media http-types ihp-hsx
-    ihp-imagemagick ihp-modal ihp-pagehead ihp-pglistener
-    ihp-router inflections interpolate mime-types minio-hs
+    ihp-imagemagick ihp-modal ihp-pagehead ihp-pglistener ihp-router
+    ihp-typed-sql inflections interpolate mime-types minio-hs
     mono-traversable mtl neat-interpolation network network-uri
     parser-combinators postgresql-simple
     postgresql-simple-postgresql-types postgresql-types
@@ -61,8 +61,8 @@ mkDerivation {
     haskell-src-meta hasql hasql-dynamic-statements hasql-implicits
     hasql-mapping hasql-pool hasql-postgresql-types hasql-transaction
     hspec http-client http-client-tls http-media http-types ihp-hsx
-    ihp-imagemagick ihp-modal ihp-pagehead ihp-pglistener
-    ihp-router inflections interpolate mime-types minio-hs
+    ihp-imagemagick ihp-modal ihp-pagehead ihp-pglistener ihp-router
+    ihp-typed-sql inflections interpolate mime-types minio-hs
     mono-traversable mtl neat-interpolation network network-uri
     parser-combinators postgresql-simple
     postgresql-simple-postgresql-types postgresql-types
@@ -85,8 +85,8 @@ mkDerivation {
     haskell-src-meta hasql hasql-dynamic-statements hasql-implicits
     hasql-mapping hasql-pool hasql-postgresql-types hasql-transaction
     http-client http-client-tls http-media http-types ihp-hsx
-    ihp-imagemagick ihp-modal ihp-pagehead ihp-pglistener
-    ihp-router inflections interpolate mime-types minio-hs
+    ihp-imagemagick ihp-modal ihp-pagehead ihp-pglistener ihp-router
+    ihp-typed-sql inflections interpolate mime-types minio-hs
     mono-traversable mtl neat-interpolation network network-uri
     parser-combinators postgresql-simple
     postgresql-simple-postgresql-types postgresql-types
@@ -103,5 +103,5 @@ mkDerivation {
   ];
   homepage = "https://ihp.digitallyinduced.com/";
   description = "Haskell Web Framework";
-  license = lib.licenses.mit;
+  license = lib.meta.getLicenseFromSpdxId "MIT";
 }

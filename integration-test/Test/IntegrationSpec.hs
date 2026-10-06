@@ -134,3 +134,49 @@ tests = around (withIHPApp WebApplication testConfig) do
             -- Verify job status was updated to Succeeded
             completedJob <- fetch job.id
             completedJob.status `shouldBe` JobStatusSucceeded
+
+        it "can create and update records with row level security enabled" $ withContext do
+            unsafeSqlExecDiscardResult "DO $$ BEGIN IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'ihp_authenticated') THEN CREATE ROLE ihp_authenticated NOLOGIN; END IF; END $$" ()
+            unsafeSqlExecDiscardResult "GRANT SELECT, INSERT, UPDATE, DELETE ON notes TO ihp_authenticated" ()
+
+            user <- newRecord @User
+                |> set #email "rls@example.com"
+                |> set #passwordHash "hash"
+                |> createRecord
+
+            let ?modelContext = ?modelContext
+                    { rowLevelSecurity = Just RowLevelSecurityContext
+                        { rlsAuthenticatedRole = "ihp_authenticated"
+                        , rlsUserId = tshow user.id
+                        }
+                    }
+
+            note <- newRecord @Note
+                |> set #body "Created"
+                |> set #userId user.id
+                |> createRecord
+            note.body `shouldBe` "Created"
+
+            updatedNote <- note
+                |> set #body "Updated"
+                |> updateRecord
+            updatedNote.body `shouldBe` "Updated"
+
+            createdNotes <- createMany
+                [ newRecord @Note |> set #body "Many 1" |> set #userId user.id
+                , newRecord @Note |> set #body "Many 2" |> set #userId user.id
+                ]
+            length createdNotes `shouldBe` 2
+
+            newRecord @Note
+                |> set #body "Discarded"
+                |> set #userId user.id
+                |> createRecordDiscardResult
+
+            updatedNote
+                |> set #body "Updated again"
+                |> updateRecordDiscardResult
+
+            notes <- query @Note |> fetch
+            length notes `shouldBe` 4
+            map (.body) notes `shouldContain` ["Updated again"]

@@ -10,5 +10,5 @@ mkDerivation {
   ];
   homepage = "https://ihp.digitallyinduced.com/";
   description = "IHP Welcome Controller";
-  license = lib.licenses.mit;
+  license = lib.meta.getLicenseFromSpdxId "MIT";
 }

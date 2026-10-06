@@ -1,15 +1,12 @@
 { mkDerivation, base, bytestring, case-insensitive, clock
-, containers, criterion, fetchzip, hashable, headed-megaparsec
-, hspec, hspec-discover, lib, megaparsec, parser-combinators
-, QuickCheck, rerebase, text, text-builder, unordered-containers
+, containers, criterion, hashable, headed-megaparsec, hspec
+, hspec-discover, lib, megaparsec, parser-combinators, QuickCheck
+, rerebase, text, text-builder, unordered-containers
 }:
 mkDerivation {
   pname = "postgresql-syntax";
   version = "0.5.0.3";
-  src = fetchzip {
-    url = "https://hackage.haskell.org/package/postgresql-syntax-0.5.0.3/postgresql-syntax-0.5.0.3.tar.gz";
-    sha256 = "1ivnig1rc2gyihhx2g4ny9y8xnmvjrcs58bxkly1rr3pszcfqkr8";
-  };
+  sha256 = "6d0d87d72c5ea1cb7ecc21b57cf30d4cc44e31ad65c09ecb6c838cad989cda35";
   libraryHaskellDepends = [
     base bytestring case-insensitive hashable headed-megaparsec
     megaparsec parser-combinators QuickCheck text text-builder
@@ -24,5 +21,5 @@ mkDerivation {
   doHaddock = false;
   homepage = "https://github.com/nikita-volkov/postgresql-syntax";
   description = "PostgreSQL AST parsing and rendering";
-  license = lib.licenses.mit;
+  license = lib.meta.getLicenseFromSpdxId "MIT";
 }

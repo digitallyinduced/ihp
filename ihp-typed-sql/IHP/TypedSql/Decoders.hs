@@ -13,9 +13,10 @@ import qualified Database.PostgreSQL.LibPQ        as PQ
 import qualified Hasql.Decoders                   as HasqlDecoders
 import qualified Hasql.Mapping.IsScalar           as Mapping
 import qualified Language.Haskell.TH              as TH
-import           IHP.Hasql.FromRow                as HasqlFromRow
-import           IHP.ModelSupport.Types           (Id' (..))
-import           IHP.Prelude
+import           IHP.TypedSql.Id                  (Id' (..))
+import           IHP.TypedSql.Row                 (TypedSqlRow (typedSqlRowDecoder))
+import           Prelude
+import           Data.Text                        (Text)
 
 import           IHP.TypedSql.Metadata            (ColumnMeta (..), DescribeColumn (..), PgTypeInfo (..), TableMeta (..))
 import           IHP.TypedSql.TypeMapping        (detectFullTable)
@@ -26,7 +27,7 @@ resultDecoderForColumns :: Map.Map PQ.Oid PgTypeInfo -> Map.Map PQ.Oid TableMeta
 resultDecoderForColumns typeInfo tables joinNullableOids nonNullableColumns columns = do
     case detectFullTable tables columns of
         Just _ ->
-            pure (TH.VarE 'HasqlFromRow.hasqlRowDecoder)
+            pure (TH.VarE 'typedSqlRowDecoder)
         Nothing -> do
             rowDecoder <- case columns of
                 [] -> pure (TH.AppE (TH.VarE 'pure) (TH.ConE '()))
@@ -63,7 +64,7 @@ rowDecoderForColumn typeInfo tables joinNullableOids forceNonNull DescribeColumn
             in decodeColumnByOid typeInfo nullable dcType
   where
     missingColumnType attnum tableOid =
-        "typedSql: missing column metadata for attnum " <> show attnum <> " on table oid " <> show tableOid
+        "typedSql: missing column metadata for attnum " <> CS.cs (show attnum) <> " on table oid " <> CS.cs (show tableOid)
 
 decodeIdColumn :: Map.Map PQ.Oid PgTypeInfo -> Bool -> PQ.Oid -> TH.ExpQ
 decodeIdColumn typeInfo nullable oid = do
@@ -75,7 +76,7 @@ decodeIdColumn typeInfo nullable oid = do
 decodeColumnByOid :: Map.Map PQ.Oid PgTypeInfo -> Bool -> PQ.Oid -> TH.ExpQ
 decodeColumnByOid typeInfo nullable oid =
     case Map.lookup oid typeInfo of
-        Nothing -> failText ("typedSql: missing type information for column oid " <> show oid)
+        Nothing -> failText ("typedSql: missing type information for column oid " <> CS.cs (show oid))
         Just pgTypeInfo -> decodeColumnByTypeInfo typeInfo nullable pgTypeInfo
 
 decodeColumnByTypeInfo :: Map.Map PQ.Oid PgTypeInfo -> Bool -> PgTypeInfo -> TH.ExpQ
@@ -87,7 +88,7 @@ decodeColumnByTypeInfo typeInfo nullable PgTypeInfo { ptiName, ptiElem } =
 decodeArrayColumn :: Map.Map PQ.Oid PgTypeInfo -> Bool -> PQ.Oid -> TH.ExpQ
 decodeArrayColumn typeInfo nullable elementOid =
     case Map.lookup elementOid typeInfo of
-        Nothing -> failText ("typedSql: missing array element type for oid " <> show elementOid)
+        Nothing -> failText ("typedSql: missing array element type for oid " <> CS.cs (show elementOid))
         Just elementType ->
             case ptiName elementType of
                 "int2" -> decodeIntLikeArray nullable (TH.VarE 'HasqlDecoders.int2)
