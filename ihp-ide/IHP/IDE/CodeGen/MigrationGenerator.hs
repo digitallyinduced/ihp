@@ -275,11 +275,11 @@ removeNoise = filter \case
         StatementCreateTable { unsafeGetCreateTable = CreateTable { name = "schema_migrations" } }      -> False
         AddConstraint { tableName = "schema_migrations" }                                               -> False
         -- Installed and maintained by IHP.Job, not Application/Schema.sql.
-        StatementCreateTable { unsafeGetCreateTable = CreateTable { name = "ihp_job_workers" } } -> False
-        AddConstraint { tableName = "ihp_job_workers" } -> False
-        CreateIndex { tableName = "ihp_job_workers" } -> False
+        StatementCreateTable { unsafeGetCreateTable = CreateTable { name = "job_workers" } } -> False
+        AddConstraint { tableName = "job_workers" } -> False
+        CreateIndex { tableName = "job_workers" } -> False
         AddConstraint { constraint = ForeignKeyConstraint
-            { name = Just "ihp_job_worker_fk", columnName = "locked_by", referenceTable = "ihp_job_workers" } } -> False
+            { name = Just "ihp_job_worker_fk", columnName = "locked_by", referenceTable = "job_workers" } } -> False
         CreateFunction { functionName = "ihp_release_worker_job" } -> False
         CreateTrigger { name = "ihp_release_worker_job", functionName = "ihp_release_worker_job" } -> False
         CreateIndex { indexName }

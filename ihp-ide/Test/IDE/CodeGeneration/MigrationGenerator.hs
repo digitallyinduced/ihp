@@ -155,15 +155,15 @@ tests = do
             it "preserves runtime-owned job worker infrastructure" do
                 let targetSchema = sql "CREATE TABLE mail_jobs (id UUID PRIMARY KEY, locked_by UUID);"
                 let actualSchema = targetSchema <> sql [i|
-                    CREATE TABLE public.ihp_job_workers (
+                    CREATE TABLE public.job_workers (
                         id UUID NOT NULL,
                         started_at TIMESTAMP WITH TIME ZONE NOT NULL,
                         heartbeat_at TIMESTAMP WITH TIME ZONE NOT NULL
                     );
-                    ALTER TABLE public.ihp_job_workers ADD CONSTRAINT ihp_job_workers_pkey PRIMARY KEY (id);
-                    CREATE INDEX ihp_job_workers_heartbeat ON public.ihp_job_workers (heartbeat_at);
+                    ALTER TABLE public.job_workers ADD CONSTRAINT job_workers_pkey PRIMARY KEY (id);
+                    CREATE INDEX job_workers_heartbeat ON public.job_workers (heartbeat_at);
                     ALTER TABLE mail_jobs ADD CONSTRAINT ihp_job_worker_fk FOREIGN KEY (locked_by)
-                        REFERENCES public.ihp_job_workers (id) ON DELETE SET NULL;
+                        REFERENCES public.job_workers (id) ON DELETE SET NULL;
                     CREATE INDEX ihp_job_worker_12345 ON mail_jobs (locked_by) WHERE locked_by IS NOT NULL;
                     CREATE FUNCTION public.ihp_release_worker_job() RETURNS trigger AS $$
                         BEGIN RETURN NEW; END;
@@ -176,7 +176,7 @@ tests = do
 
             it "does not ignore similarly named application worker objects" do
                 let statements = sql [i|
-                    CREATE TABLE ihp_job_workers_archive (id UUID PRIMARY KEY);
+                    CREATE TABLE job_workers_archive (id UUID PRIMARY KEY);
                     CREATE INDEX ihp_job_worker_custom ON mail_jobs (locked_by);
                     ALTER TABLE mail_jobs ADD CONSTRAINT ihp_job_worker_fk FOREIGN KEY (locked_by)
                         REFERENCES users (id);

@@ -248,7 +248,7 @@ insertRunningWorkerJob pool workerId = runScript pool $
 
 expireTestWorker :: HasqlPool.Pool -> UUID -> IO ()
 expireTestWorker pool workerId = runScript pool $
-    "UPDATE public.ihp_job_workers SET heartbeat_at = now() - interval '121 seconds' WHERE id = '"
+    "UPDATE public.job_workers SET heartbeat_at = now() - interval '121 seconds' WHERE id = '"
     <> tshow workerId <> "'"
 
 queryBool :: HasqlPool.Pool -> Text -> IO Bool

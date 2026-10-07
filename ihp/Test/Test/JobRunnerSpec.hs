@@ -67,7 +67,7 @@ tests = describe "IHP.Job.Runner ownership" do
                 Just job <- Queue.fetchNextJob @RunnerJob pool scopedId
                 job.lockedBy `shouldBe` Just scopedId
                 queryBool pool
-                    "SELECT EXISTS (SELECT 1 FROM job_runner_spec_jobs j JOIN public.ihp_job_workers w ON w.id = j.locked_by)"
+                    "SELECT EXISTS (SELECT 1 FROM job_runner_spec_jobs j JOIN public.job_workers w ON w.id = j.locked_by)"
                     `shouldReturn` True
                 perform job
                 Queue.jobDidSucceed pool job
@@ -75,7 +75,7 @@ tests = describe "IHP.Job.Runner ownership" do
             queryBool pool
                 "SELECT status = 'job_status_succeeded' AND locked_by IS NULL AND attempts_count = 1 FROM job_runner_spec_jobs"
                 `shouldReturn` True
-            queryBool pool ("SELECT NOT EXISTS (SELECT 1 FROM public.ihp_job_workers WHERE id = '" <> show scopedId <> "')")
+            queryBool pool ("SELECT NOT EXISTS (SELECT 1 FROM public.job_workers WHERE id = '" <> show scopedId <> "')")
                 `shouldReturn` True
 
     it "releases and refunds a direct claim when the public worker scope throws" $
@@ -183,7 +183,7 @@ tests = describe "IHP.Job.Runner ownership" do
     it "does not let an expired worker claim another job" $
         withFixture \modelContext _ _ -> do
             let pool = modelContext.hasqlPool
-            script pool "UPDATE public.ihp_job_workers SET heartbeat_at = NOW() - INTERVAL '3 minutes' WHERE id = '10000000-0000-0000-0000-000000000010'"
+            script pool "UPDATE public.job_workers SET heartbeat_at = NOW() - INTERVAL '3 minutes' WHERE id = '10000000-0000-0000-0000-000000000010'"
             Queue.fetchNextJob @RunnerJob pool testWorkerId `shouldReturn` Nothing
 
 testWorkerId :: UUID

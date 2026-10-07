@@ -51,7 +51,7 @@ fetchNextJob pool workerId = do
             <> " WHERE id IN (SELECT id FROM " <> tableNameText
             <> " WHERE " <> pendingJobConditionSQL
             <> " ORDER BY created_at LIMIT 1 FOR UPDATE SKIP LOCKED)"
-            <> " AND EXISTS (SELECT 1 FROM public.ihp_job_workers"
+            <> " AND EXISTS (SELECT 1 FROM public.job_workers"
             <> " WHERE id = $1 AND heartbeat_at > clock_timestamp() - interval '120 seconds'"
             <> " FOR KEY SHARE)"
             <> " RETURNING " <> returningColumns

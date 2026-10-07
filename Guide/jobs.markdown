@@ -10,7 +10,7 @@ IHP has built-in functionality for creating and running background jobs. Jobs ar
 
 ### Worker ownership and restart recovery
 
-Workers register a unique process ID in the framework-owned `public.ihp_job_workers`
+Workers register a unique process ID in the framework-owned `public.job_workers`
 table and refresh their heartbeat every 30 seconds. Job tables reference this ID
 through `locked_by`, with an `ON DELETE SET NULL` foreign key. A trigger makes
 interrupted running jobs immediately eligible for retry when their owner is
