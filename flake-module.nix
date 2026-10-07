@@ -420,6 +420,7 @@ ihpFlake:
                 then {
                     tests = pkgs.stdenv.mkDerivation {
                             name = "${config.ihp.appName}-tests";
+                            IHP_RELATION_SUPPORT = if cfg.relationSupport then "1" else "0";
                             src = builtins.path { path = config.ihp.projectPath; name = "source"; };
                             nativeBuildInputs = with pkgs; [ (ghcCompiler.ghcWithPackages (p: cfg.haskellPackages p ++ cfg.devHaskellPackages p ++ [p.ihp-ide p.ihp-schema-compiler])) ]
                                 # typedSql's quasi-quoter boots an ephemeral PostgreSQL at
@@ -454,6 +455,7 @@ ihpFlake:
                 then {
                     "integration-tests" = pkgs.stdenv.mkDerivation {
                             name = "${config.ihp.appName}-integration-tests";
+                            IHP_RELATION_SUPPORT = if cfg.relationSupport then "1" else "0";
                             src = builtins.path { path = config.ihp.projectPath; name = "source"; };
                             nativeBuildInputs = with pkgs; [
                                 (ghcCompiler.ghcWithPackages (p: cfg.haskellPackages p ++ cfg.devHaskellPackages p ++ [p.ihp-ide p.ihp-schema-compiler]))
