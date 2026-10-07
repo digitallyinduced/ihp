@@ -113,6 +113,37 @@ tests = do
                 pagination.totalItems `shouldBe` 10
                 pagination.currentPage `shouldBe` 100
 
+            it "should fall back to the first page when page is not a number" $ withDB \modelContext -> do
+                let ?modelContext = modelContext
+                let ?context = contextWithParams [("page", "abc")]
+                let ?request = ?context
+
+                (results :: [PG.Only Int32], pagination) <-
+                    paginatedSqlQueryWithOptions
+                        defaultPaginationOptions
+                        "SELECT generate_series(1, 100) AS n"
+                        ()
+
+                length results `shouldBe` 50
+                pagination.currentPage `shouldBe` 1
+                case results of
+                    (PG.Only first : _) -> first `shouldBe` 1
+                    _ -> expectationFailure "Expected non-empty results"
+
+            it "should fall back to the default size when maxItems is not a number" $ withDB \modelContext -> do
+                let ?modelContext = modelContext
+                let ?context = contextWithParams [("maxItems", " 10")]
+                let ?request = ?context
+
+                (results :: [PG.Only Int32], pagination) <-
+                    paginatedSqlQueryWithOptions
+                        defaultPaginationOptions
+                        "SELECT generate_series(1, 100) AS n"
+                        ()
+
+                length results `shouldBe` 50
+                pagination.pageSize `shouldBe` 50
+
             it "should handle page + maxItems together" $ withDB \modelContext -> do
                 let ?modelContext = modelContext
                 let ?context = contextWithParams [("page", "3"), ("maxItems", "10")]

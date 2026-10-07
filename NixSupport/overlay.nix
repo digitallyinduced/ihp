@@ -80,6 +80,13 @@ let
             ihp-hspec = localPackage "ihp-hspec";
             ihp-welcome = localPackage "ihp-welcome";
 
+            postgresql-syntax = (final.haskell.lib.doJailbreak
+                (hackagePackage "postgresql-syntax")).overrideAttrs (old: {
+                    patches = (old.patches or []) ++ [
+                        ./patches/postgresql-syntax-quickcheck-2.16.patch
+                    ];
+                });
+
             # wai-session-maybe / wai-session-clientsession-deferred (deferred
             # session decryption + optional Set-Cookie) are shipped by the pinned
             # nixpkgs at 1.0.0, so we consume them from the default set verbatim

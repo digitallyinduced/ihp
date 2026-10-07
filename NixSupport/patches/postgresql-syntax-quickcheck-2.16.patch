@@ -1,0 +1,22 @@
+diff --git a/library-internal/PostgresqlSyntax/Prelude.hs b/library-internal/PostgresqlSyntax/Prelude.hs
+--- a/library-internal/PostgresqlSyntax/Prelude.hs
++++ b/library-internal/PostgresqlSyntax/Prelude.hs
+@@ -1,3 +1,5 @@
++{-# LANGUAGE CPP #-}
++
+ module PostgresqlSyntax.Prelude
+   ( module Exports,
+     suffixRec,
+@@ -75,6 +77,11 @@ import Text.Read as Exports (Read (..), readEither, readMaybe)
+ import TextBuilder as Exports (TextBuilder)
+ import Unsafe.Coerce as Exports
+-
++#if !MIN_VERSION_QuickCheck(2,17,0)
++instance (Arbitrary a) => Arbitrary (NonEmpty a) where
++  arbitrary = (:|) <$> arbitrary <*> listOf arbitrary
++  shrink value = [x :| xs | x : xs <- shrink (toList value)]
++#endif
++
+ -- |
+ -- Compose a monad, which attempts to extend a value, based on the following input.
+ -- It does so recursively until the suffix alternative fails.

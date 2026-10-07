@@ -5,5 +5,5 @@ mkDerivation {
   src = ./.;
   libraryHaskellDepends = [ base text vault wai ];
   description = "assetPath function for WAI";
-  license = lib.licenses.mit;
+  license = lib.meta.getLicenseFromSpdxId "MIT";
 }

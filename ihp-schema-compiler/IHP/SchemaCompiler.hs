@@ -214,6 +214,8 @@ atomicType = \case
     (PVaryingN _) -> "Text"
     (PCharacterN _) -> "Text"
     PArray type_ -> "[" <> atomicType type_ <> "]"
+    PSetOf _ -> error "atomicType: PSetOf not supported for table columns"
+    PTable _ -> error "atomicType: PTable not supported for table columns"
     PPoint -> "Point"
     PPolygon -> "Polygon"
     PGeometry -> "Geometry"
@@ -783,6 +785,7 @@ generatedTypesImports table = Text.unlines (ownImports <> referencingImports)
 hasqlSupportsColumnType :: PostgresType -> Bool
 hasqlSupportsColumnType = \case
     PTrigger -> False
+    PSetOf _ -> False
     PEventTrigger -> False
     (PArray inner) -> hasqlSupportsColumnType inner
     _ -> True
@@ -800,21 +803,21 @@ compileCreate table@(CreateTable { name }) =
         hasqlCreateBody = if isDynamic
             then "let pool = ?modelContext.hasqlPool\n"
                 <> "let touched = model.meta.touchedFields\n"
-                <> "sqlStatementHasql pool model (Generated.Statements.Create" <> funcName <> ".statement touched)"
+                <> "sqlWriteStatementHasql pool model (Generated.Statements.Create" <> funcName <> ".statement touched)"
             else "let pool = ?modelContext.hasqlPool\n"
-                <> "sqlStatementHasql pool model Generated.Statements.Create" <> funcName <> ".statement"
+                <> "sqlWriteStatementHasql pool model Generated.Statements.Create" <> funcName <> ".statement"
         hasqlCreateManyBody = if isDynamic
             then "let pool = ?modelContext.hasqlPool\n"
                 <> "let touchedList = List.map (\\model -> model.meta.touchedFields) models\n"
-                <> "sqlStatementHasql pool models (Generated.Statements.CreateMany" <> funcName <> ".statement touchedList)"
+                <> "sqlWriteStatementHasql pool models (Generated.Statements.CreateMany" <> funcName <> ".statement touchedList)"
             else "let pool = ?modelContext.hasqlPool\n"
-                <> "sqlStatementHasql pool models (Generated.Statements.CreateMany" <> funcName <> ".statement (List.length models))"
+                <> "sqlWriteStatementHasql pool models (Generated.Statements.CreateMany" <> funcName <> ".statement (List.length models))"
         hasqlCreateDiscardBody = if isDynamic
             then "let pool = ?modelContext.hasqlPool\n"
                 <> "let touched = model.meta.touchedFields\n"
-                <> "sqlStatementHasql pool model (Generated.Statements.Create" <> funcName <> ".discardResultStatement touched)"
+                <> "sqlWriteStatementHasql pool model (Generated.Statements.Create" <> funcName <> ".discardResultStatement touched)"
             else "let pool = ?modelContext.hasqlPool\n"
-                <> "sqlStatementHasql pool model Generated.Statements.Create" <> funcName <> ".discardResultStatement"
+                <> "sqlWriteStatementHasql pool model Generated.Statements.Create" <> funcName <> ".discardResultStatement"
     in
         -- Instance block: delegate to top-level functions
         "instance CanCreate " <> modelName <> " where\n"
@@ -871,7 +874,7 @@ compileUpdate table@(CreateTable { name }) =
         <> "    let touched = model.meta.touchedFields\n"
         <> "    if touched == 0 then pure model else do\n"
         <> "        let pool = ?modelContext.hasqlPool\n"
-        <> "        sqlStatementHasql pool model (" <> stmtModule <> ".statement touched)\n"
+        <> "        sqlWriteStatementHasql pool model (" <> stmtModule <> ".statement touched)\n"
         -- updateRecordDiscardResult<Model>
         <> "\n"
         <> "updateRecordDiscardResult" <> funcName <> " :: (?modelContext :: ModelContext) => " <> modelName <> " -> IO ()\n"
@@ -879,7 +882,7 @@ compileUpdate table@(CreateTable { name }) =
         <> "    let touched = model.meta.touchedFields\n"
         <> "    unless (touched == 0) $ do\n"
         <> "        let pool = ?modelContext.hasqlPool\n"
-        <> "        sqlStatementHasql pool model (" <> stmtModule <> ".discardResultStatement touched)\n"
+        <> "        sqlWriteStatementHasql pool model (" <> stmtModule <> ".discardResultStatement touched)\n"
 
 compileFromRowInstance :: (?schema :: Schema, ?compilerOptions :: CompilerOptions) => CreateTable -> Text
 compileFromRowInstance table@(CreateTable { name }) = cs [i|instance FromRow #{modelName} where
@@ -997,6 +1000,8 @@ hasqlValueDecoder = \case
     PInet -> "Mapping.decoder"
     PTSVector -> "Mapping.decoder"
     PArray innerType -> "(Decoders.listArray (" <> hasqlArrayElementDecoder innerType <> "))"
+    PSetOf _ -> error "hasqlValueDecoder: PSetOf not supported for table columns"
+    PTable _ -> error "hasqlValueDecoder: PTable not supported for table columns"
     PCustomType _ -> "Mapping.decoder"
     PSingleChar -> "Decoders.char"
     PTrigger -> "Decoders.text"  -- Trigger types shouldn't appear in table columns
@@ -1370,6 +1375,8 @@ hasqlValueEncoder = \case
     PInet -> "Mapping.encoder"
     PTSVector -> "Mapping.encoder"
     PArray innerType -> "(Encoders.foldableArray (Encoders.nonNullable " <> hasqlValueEncoder innerType <> "))"
+    PSetOf _ -> error "hasqlValueEncoder: PSetOf not supported for table columns"
+    PTable _ -> error "hasqlValueEncoder: PTable not supported for table columns"
     PCustomType _ -> "Mapping.encoder"
     PSingleChar -> "Encoders.char"
     PTrigger -> error "hasqlValueEncoder: PTrigger not supported"
@@ -1690,6 +1697,7 @@ compileStaticCreateManyStatement moduleName qualifiedModelName tableName writabl
         , "decoder :: Decoders.Result [" <> qualifiedModelName <> "]"
         , "decoder = Decoders.rowList RowDecoder.rowDecoder"
         ]
+
 
 compileDynamicCreateManyStatement :: (?schema :: Schema, ?compilerOptions :: CompilerOptions) => Text -> Text -> Text -> [Column] -> Text -> CreateTable -> [Column] -> Text -> Text
 compileDynamicCreateManyStatement moduleName qualifiedModelName tableName writableColumns allColumnNames table columns rowDecoderImport =

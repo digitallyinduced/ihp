@@ -18,7 +18,7 @@ module IHP.Pagination.Internal
 ) where
 
 import IHP.Prelude
-import IHP.Controller.Param (paramOrDefault)
+import IHP.Controller.Param (paramOrDefaultIgnoreInvalid)
 import IHP.Pagination.Types (Options(..))
 import Network.Wai (Request)
 
@@ -26,11 +26,11 @@ import Network.Wai (Request)
 -- passing in query params with a value that could overload the
 -- database (e.g. maxItems=100000)
 pageSize' :: (?request :: Request) => Options -> Int
-pageSize' options = min (max 1 $ paramOrDefault @Int (maxItems options) "maxItems") 200
+pageSize' options = min (max 1 $ paramOrDefaultIgnoreInvalid @Int (maxItems options) "maxItems") 200
 
 -- Page and page size shouldn't be lower than 1.
 page :: (?request :: Request) => Int
-page = max 1 $ paramOrDefault @Int 1 "page"
+page = max 1 $ paramOrDefaultIgnoreInvalid @Int 1 "page"
 
 offset' :: Int -> Int -> Int
 offset' pageSize page = (page - 1) * pageSize

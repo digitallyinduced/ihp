@@ -200,7 +200,7 @@ tests = do
                             ]
                             , primaryKeyConstraint = PrimaryKeyConstraint ["id"]
                             , constraints = [
-                                ForeignKeyConstraint { name = Nothing, columnName = "user_id", referenceTable = "users", referenceColumn = Nothing, onDelete = Nothing }
+                                ForeignKeyConstraint { name = Nothing, columnName = "user_id", referenceTable = "users", referenceColumn = Nothing, onDelete = Nothing, onUpdate = Nothing, constraintDeferrable = Nothing, constraintDeferrableType = Nothing }
                               ]
                         }
                         , AddConstraint { tableName = "projects", constraint = UniqueConstraint { name = Nothing, columnNames = ["contact_email"] }, deferrable = Nothing, deferrableType = Nothing }

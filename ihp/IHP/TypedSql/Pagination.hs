@@ -5,10 +5,12 @@ Copyright: (c) digitally induced GmbH, 2025
 
 This is the @typedSql@ analogue of the raw-SQL paginators in
 "IHP.Pagination.ControllerFunctions" ('paginatedSqlQuery' /
-'paginatedSqlQueryWithOptions'). It lives in @ihp-typed-sql@ because that is the
-only package that can see both 'TypedQuery' (defined here) and the 'Pagination'
-\/ 'Options' types (defined in the @ihp@ package), without introducing a
-dependency cycle — @ihp-typed-sql@ already depends on @ihp@.
+'paginatedSqlQueryWithOptions'). It lives in @ihp@ (not @ihp-typed-sql@):
+it needs both 'TypedQuery' (defined in @ihp-typed-sql@) and the
+'Pagination' \/ 'Options' types plus the request context (defined in @ihp@),
+and @ihp@ already depends on @ihp-typed-sql@, so placing the consumer here
+avoids a dependency cycle. Do not move this module into @ihp-typed-sql@
+without also moving its @ihp@ dependencies.
 -}
 module IHP.TypedSql.Pagination
 ( paginatedTypedSql

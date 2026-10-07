@@ -44,3 +44,12 @@ CREATE TABLE update_post_views_jobs (
     run_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL
 );
 ALTER TABLE update_post_views_jobs ADD CONSTRAINT update_post_views_jobs_ref_post_id FOREIGN KEY (post_id) REFERENCES posts (id) ON DELETE CASCADE;
+
+CREATE TABLE notes (
+    id UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL,
+    body TEXT NOT NULL,
+    user_id UUID DEFAULT ihp_user_id() NOT NULL
+);
+ALTER TABLE notes ADD CONSTRAINT notes_ref_user_id FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE;
+ALTER TABLE notes ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Users can manage their notes" ON notes USING (user_id = ihp_user_id()) WITH CHECK (user_id = ihp_user_id());

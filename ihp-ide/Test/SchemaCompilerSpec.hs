@@ -251,20 +251,20 @@ tests = do
                     createUser model = do
                         let pool = ?modelContext.hasqlPool
                         let touched = model.meta.touchedFields
-                        sqlStatementHasql pool model (Generated.Statements.CreateUser.statement touched)
+                        sqlWriteStatementHasql pool model (Generated.Statements.CreateUser.statement touched)
 
                     createManyUser :: (?modelContext :: ModelContext) => [Generated.ActualTypes.User] -> IO [Generated.ActualTypes.User]
                     createManyUser [] = pure []
                     createManyUser models = do
                         let pool = ?modelContext.hasqlPool
                         let touchedList = List.map (\model -> model.meta.touchedFields) models
-                        sqlStatementHasql pool models (Generated.Statements.CreateManyUser.statement touchedList)
+                        sqlWriteStatementHasql pool models (Generated.Statements.CreateManyUser.statement touchedList)
 
                     createRecordDiscardResultUser :: (?modelContext :: ModelContext) => Generated.ActualTypes.User -> IO ()
                     createRecordDiscardResultUser model = do
                         let pool = ?modelContext.hasqlPool
                         let touched = model.meta.touchedFields
-                        sqlStatementHasql pool model (Generated.Statements.CreateUser.discardResultStatement touched)
+                        sqlWriteStatementHasql pool model (Generated.Statements.CreateUser.discardResultStatement touched)
 
                     instance CanUpdate Generated.ActualTypes.User where
                         updateRecord = updateRecordUser
@@ -275,14 +275,14 @@ tests = do
                         let touched = model.meta.touchedFields
                         if touched == 0 then pure model else do
                             let pool = ?modelContext.hasqlPool
-                            sqlStatementHasql pool model (Generated.Statements.UpdateUser.statement touched)
+                            sqlWriteStatementHasql pool model (Generated.Statements.UpdateUser.statement touched)
 
                     updateRecordDiscardResultUser :: (?modelContext :: ModelContext) => Generated.ActualTypes.User -> IO ()
                     updateRecordDiscardResultUser model = do
                         let touched = model.meta.touchedFields
                         unless (touched == 0) $ do
                             let pool = ?modelContext.hasqlPool
-                            sqlStatementHasql pool model (Generated.Statements.UpdateUser.discardResultStatement touched)
+                            sqlWriteStatementHasql pool model (Generated.Statements.UpdateUser.discardResultStatement touched)
 
                     instance Record Generated.ActualTypes.User where
                         {-# INLINE newRecord #-}
@@ -353,20 +353,20 @@ tests = do
                     createUser model = do
                         let pool = ?modelContext.hasqlPool
                         let touched = model.meta.touchedFields
-                        sqlStatementHasql pool model (Generated.Statements.CreateUser.statement touched)
+                        sqlWriteStatementHasql pool model (Generated.Statements.CreateUser.statement touched)
 
                     createManyUser :: (?modelContext :: ModelContext) => [Generated.ActualTypes.User] -> IO [Generated.ActualTypes.User]
                     createManyUser [] = pure []
                     createManyUser models = do
                         let pool = ?modelContext.hasqlPool
                         let touchedList = List.map (\model -> model.meta.touchedFields) models
-                        sqlStatementHasql pool models (Generated.Statements.CreateManyUser.statement touchedList)
+                        sqlWriteStatementHasql pool models (Generated.Statements.CreateManyUser.statement touchedList)
 
                     createRecordDiscardResultUser :: (?modelContext :: ModelContext) => Generated.ActualTypes.User -> IO ()
                     createRecordDiscardResultUser model = do
                         let pool = ?modelContext.hasqlPool
                         let touched = model.meta.touchedFields
-                        sqlStatementHasql pool model (Generated.Statements.CreateUser.discardResultStatement touched)
+                        sqlWriteStatementHasql pool model (Generated.Statements.CreateUser.discardResultStatement touched)
 
                     instance CanUpdate Generated.ActualTypes.User where
                         updateRecord = updateRecordUser
@@ -377,14 +377,14 @@ tests = do
                         let touched = model.meta.touchedFields
                         if touched == 0 then pure model else do
                             let pool = ?modelContext.hasqlPool
-                            sqlStatementHasql pool model (Generated.Statements.UpdateUser.statement touched)
+                            sqlWriteStatementHasql pool model (Generated.Statements.UpdateUser.statement touched)
 
                     updateRecordDiscardResultUser :: (?modelContext :: ModelContext) => Generated.ActualTypes.User -> IO ()
                     updateRecordDiscardResultUser model = do
                         let touched = model.meta.touchedFields
                         unless (touched == 0) $ do
                             let pool = ?modelContext.hasqlPool
-                            sqlStatementHasql pool model (Generated.Statements.UpdateUser.discardResultStatement touched)
+                            sqlWriteStatementHasql pool model (Generated.Statements.UpdateUser.discardResultStatement touched)
 
                     instance Record Generated.ActualTypes.User where
                         {-# INLINE newRecord #-}
@@ -452,18 +452,18 @@ tests = do
                     createUser :: (?modelContext :: ModelContext) => Generated.ActualTypes.User -> IO Generated.ActualTypes.User
                     createUser model = do
                         let pool = ?modelContext.hasqlPool
-                        sqlStatementHasql pool model Generated.Statements.CreateUser.statement
+                        sqlWriteStatementHasql pool model Generated.Statements.CreateUser.statement
 
                     createManyUser :: (?modelContext :: ModelContext) => [Generated.ActualTypes.User] -> IO [Generated.ActualTypes.User]
                     createManyUser [] = pure []
                     createManyUser models = do
                         let pool = ?modelContext.hasqlPool
-                        sqlStatementHasql pool models (Generated.Statements.CreateManyUser.statement (List.length models))
+                        sqlWriteStatementHasql pool models (Generated.Statements.CreateManyUser.statement (List.length models))
 
                     createRecordDiscardResultUser :: (?modelContext :: ModelContext) => Generated.ActualTypes.User -> IO ()
                     createRecordDiscardResultUser model = do
                         let pool = ?modelContext.hasqlPool
-                        sqlStatementHasql pool model Generated.Statements.CreateUser.discardResultStatement
+                        sqlWriteStatementHasql pool model Generated.Statements.CreateUser.discardResultStatement
 
                     instance CanUpdate Generated.ActualTypes.User where
                         updateRecord = updateRecordUser
@@ -474,14 +474,14 @@ tests = do
                         let touched = model.meta.touchedFields
                         if touched == 0 then pure model else do
                             let pool = ?modelContext.hasqlPool
-                            sqlStatementHasql pool model (Generated.Statements.UpdateUser.statement touched)
+                            sqlWriteStatementHasql pool model (Generated.Statements.UpdateUser.statement touched)
 
                     updateRecordDiscardResultUser :: (?modelContext :: ModelContext) => Generated.ActualTypes.User -> IO ()
                     updateRecordDiscardResultUser model = do
                         let touched = model.meta.touchedFields
                         unless (touched == 0) $ do
                             let pool = ?modelContext.hasqlPool
-                            sqlStatementHasql pool model (Generated.Statements.UpdateUser.discardResultStatement touched)
+                            sqlWriteStatementHasql pool model (Generated.Statements.UpdateUser.discardResultStatement touched)
 
                     instance Record Generated.ActualTypes.User where
                         {-# INLINE newRecord #-}
@@ -587,20 +587,20 @@ tests = do
                     createLandingPage model = do
                         let pool = ?modelContext.hasqlPool
                         let touched = model.meta.touchedFields
-                        sqlStatementHasql pool model (Generated.Statements.CreateLandingPage.statement touched)
+                        sqlWriteStatementHasql pool model (Generated.Statements.CreateLandingPage.statement touched)
 
                     createManyLandingPage :: (?modelContext :: ModelContext) => [Generated.ActualTypes.LandingPage] -> IO [Generated.ActualTypes.LandingPage]
                     createManyLandingPage [] = pure []
                     createManyLandingPage models = do
                         let pool = ?modelContext.hasqlPool
                         let touchedList = List.map (\model -> model.meta.touchedFields) models
-                        sqlStatementHasql pool models (Generated.Statements.CreateManyLandingPage.statement touchedList)
+                        sqlWriteStatementHasql pool models (Generated.Statements.CreateManyLandingPage.statement touchedList)
 
                     createRecordDiscardResultLandingPage :: (?modelContext :: ModelContext) => Generated.ActualTypes.LandingPage -> IO ()
                     createRecordDiscardResultLandingPage model = do
                         let pool = ?modelContext.hasqlPool
                         let touched = model.meta.touchedFields
-                        sqlStatementHasql pool model (Generated.Statements.CreateLandingPage.discardResultStatement touched)
+                        sqlWriteStatementHasql pool model (Generated.Statements.CreateLandingPage.discardResultStatement touched)
 
                     instance CanUpdate Generated.ActualTypes.LandingPage where
                         updateRecord = updateRecordLandingPage
@@ -611,14 +611,14 @@ tests = do
                         let touched = model.meta.touchedFields
                         if touched == 0 then pure model else do
                             let pool = ?modelContext.hasqlPool
-                            sqlStatementHasql pool model (Generated.Statements.UpdateLandingPage.statement touched)
+                            sqlWriteStatementHasql pool model (Generated.Statements.UpdateLandingPage.statement touched)
 
                     updateRecordDiscardResultLandingPage :: (?modelContext :: ModelContext) => Generated.ActualTypes.LandingPage -> IO ()
                     updateRecordDiscardResultLandingPage model = do
                         let touched = model.meta.touchedFields
                         unless (touched == 0) $ do
                             let pool = ?modelContext.hasqlPool
-                            sqlStatementHasql pool model (Generated.Statements.UpdateLandingPage.discardResultStatement touched)
+                            sqlWriteStatementHasql pool model (Generated.Statements.UpdateLandingPage.discardResultStatement touched)
 
                     instance Record Generated.ActualTypes.LandingPage where
                         {-# INLINE newRecord #-}
@@ -957,20 +957,20 @@ tests = do
                     createPost model = do
                         let pool = ?modelContext.hasqlPool
                         let touched = model.meta.touchedFields
-                        sqlStatementHasql pool model (Generated.Statements.CreatePost.statement touched)
+                        sqlWriteStatementHasql pool model (Generated.Statements.CreatePost.statement touched)
 
                     createManyPost :: (?modelContext :: ModelContext) => [Generated.ActualTypes.Post] -> IO [Generated.ActualTypes.Post]
                     createManyPost [] = pure []
                     createManyPost models = do
                         let pool = ?modelContext.hasqlPool
                         let touchedList = List.map (\model -> model.meta.touchedFields) models
-                        sqlStatementHasql pool models (Generated.Statements.CreateManyPost.statement touchedList)
+                        sqlWriteStatementHasql pool models (Generated.Statements.CreateManyPost.statement touchedList)
 
                     createRecordDiscardResultPost :: (?modelContext :: ModelContext) => Generated.ActualTypes.Post -> IO ()
                     createRecordDiscardResultPost model = do
                         let pool = ?modelContext.hasqlPool
                         let touched = model.meta.touchedFields
-                        sqlStatementHasql pool model (Generated.Statements.CreatePost.discardResultStatement touched)
+                        sqlWriteStatementHasql pool model (Generated.Statements.CreatePost.discardResultStatement touched)
 
                     instance CanUpdate Generated.ActualTypes.Post where
                         updateRecord = updateRecordPost
@@ -981,14 +981,14 @@ tests = do
                         let touched = model.meta.touchedFields
                         if touched == 0 then pure model else do
                             let pool = ?modelContext.hasqlPool
-                            sqlStatementHasql pool model (Generated.Statements.UpdatePost.statement touched)
+                            sqlWriteStatementHasql pool model (Generated.Statements.UpdatePost.statement touched)
 
                     updateRecordDiscardResultPost :: (?modelContext :: ModelContext) => Generated.ActualTypes.Post -> IO ()
                     updateRecordDiscardResultPost model = do
                         let touched = model.meta.touchedFields
                         unless (touched == 0) $ do
                             let pool = ?modelContext.hasqlPool
-                            sqlStatementHasql pool model (Generated.Statements.UpdatePost.discardResultStatement touched)
+                            sqlWriteStatementHasql pool model (Generated.Statements.UpdatePost.discardResultStatement touched)
 
                     instance Record Generated.ActualTypes.Post where
                         {-# INLINE newRecord #-}
