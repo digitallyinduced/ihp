@@ -508,12 +508,22 @@ tests = do
                 "CREATE TABLE typed_sql_unresponsive (id UUID PRIMARY KEY, name TEXT NOT NULL);\n"
                 \tempDir _schemaPath stateDir envOverrides -> do
                 let modulePath = tempDir </> "UnresponsiveTypedSqlCase.hs"
+                    compilationFinishedMarker = tempDir </> "unresponsive-load-finished"
                     testModule = mkTestModule "TypedQuery 'AtMostOneRow 'ReturnsRows Text"
                         "[typedSql| SELECT name FROM typed_sql_unresponsive LIMIT 1 |]"
-                (inputHandle, processHandle) <- startGhciLoadProcess modulePath testModule envOverrides
+                    longIdleEnvironment =
+                        setEnvironmentOverride "IHP_TYPED_SQL_IDLE_SECONDS" "30" envOverrides
+                (inputHandle, processHandle) <- startGhciLoadProcess modulePath testModule longIdleEnvironment
                 let cleanup = stopGhciProcess inputHandle processHandle
                 flip Exception.finally cleanup do
+                    Text.hPutStr inputHandle
+                        (":! touch " <> Text.pack compilationFinishedMarker <> "\n")
+                    hFlush inputHandle
                     waitForCondition 1200 ((== 1) . length <$> readyAutoDatabaseProcessRoots stateDir)
+                        `shouldReturn` True
+                    -- schema.hash precedes the metadata queries. Suspending PostgreSQL
+                    -- before those finish can prevent the idle stop from being scheduled.
+                    waitForCondition 1200 (doesFileExist compilationFinishedMarker)
                         `shouldReturn` True
                     [processRoot] <- readyAutoDatabaseProcessRoots stateDir
                     let postmasterPath = processRoot </> "pgdata" </> "postmaster.pid"
@@ -525,7 +535,7 @@ tests = do
                     signalProcess sigSTOP postmasterPid
                     flip Exception.finally
                         (ignoreProcessException (signalProcess sigCONT postmasterPid)) do
-                        -- 3s idle delay + a 5s pg_ctl stop timeout, slow on loaded CI runners
+                        -- 30s idle delay + a 5s pg_ctl stop timeout, slow on loaded CI runners
                         waitForCondition 1200 (do
                             logContents <- readTestFileIfExists watchdogLogPath
                             pure (maybe False (List.isInfixOf "idle stop: PostgreSQL stop failed") logContents)
