@@ -78,6 +78,36 @@ worker heartbeats. Keep these runtime-managed framework objects when maintaining
 database schemas; after recreating a job table, restart its workers to reinstall
 the ownership constraint and trigger before processing jobs.
 
+#### Manual queue consumers
+
+Code calling `fetchNextJob` directly must now wrap its entire fetch, execution,
+and completion loop in `withJobWorker` from `IHP.Job.Queue`. Replace manually
+chosen worker IDs (including `Data.UUID.nil`) with the ID supplied by the wrapper:
+
+```haskell
+import qualified IHP.Job.Queue as Queue
+
+let pool = ?modelContext.hasqlPool
+Queue.withJobWorker pool [tableName @SendMailJob] $ \workerId -> do
+    maybeJob <- Queue.fetchNextJob @SendMailJob pool workerId
+    forEach maybeJob $ \job -> do
+        perform job
+        Queue.jobDidSucceed pool job
+```
+
+The wrapper initializes the registry, ownership foreign keys and release triggers,
+generates a fresh worker ID, renews its lease, and recovers expired workers. Supply
+every job table this consumer will fetch from. A long-lived consumer should keep
+its processing loop inside one wrapper invocation. A dedicated `RunJobs` process
+is not required.
+
+On return or exception, the wrapper unregisters the worker and releases unfinished
+jobs for immediate retry. Call `jobDidFail` inside the scope for ordinary job
+failures that should consume a retry attempt. Database or heartbeat failures abort
+the scope; do not swallow asynchronous exceptions or let job execution threads
+outlive it. Existing direct callers must migrate to this wrapper before upgrading;
+`fetchNextJob` does not register or revive arbitrary worker IDs.
+
 ### Creating a job
 
 In the codegen tool in the IHP IDE, use the "Background Job" option to generate the code for a new job. To illustrate the features of jobs, let's

@@ -1,6 +1,7 @@
 -- | Process-level leases for job ownership. A worker id is never reused.
 module IHP.Job.Queue.Worker
 ( ensureWorkerRegistry
+, withJobWorker
 , registerWorker
 , heartbeatWorker
 , unregisterWorker
@@ -16,6 +17,38 @@ import qualified Hasql.Statement as Statement
 import qualified Hasql.Encoders as Encoders
 import qualified Hasql.Decoders as Decoders
 import qualified Data.Text as Text
+import qualified Data.UUID.V4 as UUID
+import qualified Control.Concurrent as Concurrent
+import qualified Control.Concurrent.Async as Async
+import qualified Control.Exception.Safe as Exception
+import qualified System.Timeout as Timeout
+
+-- | Run a manual queue consumer with a fresh, renewable worker lease.
+-- Installs ownership infrastructure for every supplied job table before invoking
+-- the callback. Keep all job execution inside the callback, including any scoped
+-- child threads: returning or throwing releases unfinished jobs for retry.
+-- Heartbeat or recovery failures abort the callback; do not catch asynchronous
+-- exceptions inside it. The dedicated runner provides its own lease management.
+withJobWorker :: Pool.Pool -> [Text] -> (UUID -> IO a) -> IO a
+withJobWorker pool jobTables action = do
+    ensureWorkerRegistry pool
+    mapM_ (ensureJobWorkerForeignKey pool) jobTables
+    workerId <- UUID.nextRandom
+    Exception.bracket_ (registerWorker pool workerId) (unregisterWorker pool workerId) $
+        Async.withAsync (renewLease workerId) \heartbeat -> do
+            Async.link heartbeat
+            Async.withAsync recoverWorkers \recovery -> do
+                Async.link recovery
+                action workerId
+    where
+        renewLease workerId = forever do
+            Concurrent.threadDelay 30000000
+            alive <- Timeout.timeout 10000000 (heartbeatWorker pool workerId)
+            unless (alive == Just True) $
+                Exception.throwString "Job worker heartbeat lost; stopping this worker"
+        recoverWorkers = forever do
+            reapExpiredWorkers pool
+            Concurrent.threadDelay 30000000
 
 -- | Install framework-owned infrastructure. This does not modify application
 -- schemas until 'ensureJobWorkerForeignKey' is called for a job table.

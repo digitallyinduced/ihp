@@ -57,6 +57,43 @@ instance Job RunnerJob where
 
 tests :: Spec
 tests = describe "IHP.Job.Runner ownership" do
+    it "supports direct fetch, perform and success through the public worker scope" $
+        withFixtureSetup False \modelContext config _ -> do
+            let pool = modelContext.hasqlPool
+            let ?modelContext = modelContext
+            let ?context = config
+            script pool "UPDATE job_runner_spec_jobs SET should_finish = TRUE"
+            scopedId <- Queue.withJobWorker pool ["job_runner_spec_jobs"] \scopedId -> do
+                Just job <- Queue.fetchNextJob @RunnerJob pool scopedId
+                job.lockedBy `shouldBe` Just scopedId
+                queryBool pool
+                    "SELECT EXISTS (SELECT 1 FROM job_runner_spec_jobs j JOIN public.ihp_job_workers w ON w.id = j.locked_by)"
+                    `shouldReturn` True
+                perform job
+                Queue.jobDidSucceed pool job
+                pure scopedId
+            queryBool pool
+                "SELECT status = 'job_status_succeeded' AND locked_by IS NULL AND attempts_count = 1 FROM job_runner_spec_jobs"
+                `shouldReturn` True
+            queryBool pool ("SELECT NOT EXISTS (SELECT 1 FROM public.ihp_job_workers WHERE id = '" <> show scopedId <> "')")
+                `shouldReturn` True
+
+    it "releases and refunds a direct claim when the public worker scope throws" $
+        withFixtureSetup False \modelContext config _ -> do
+            let pool = modelContext.hasqlPool
+            let ?context = config
+            (Queue.withJobWorker pool ["job_runner_spec_jobs"] \scopedId -> do
+                Just _ <- Queue.fetchNextJob @RunnerJob pool scopedId
+                Exception.throwIO (userError "scope interrupted"))
+                `shouldThrow` anyIOException
+            queryBool pool
+                "SELECT status = 'job_status_retry' AND locked_by IS NULL AND locked_at IS NULL AND attempts_count = 0 AND run_at <= NOW() FROM job_runner_spec_jobs"
+                `shouldReturn` True
+            Queue.withJobWorker pool ["job_runner_spec_jobs"] \scopedId -> do
+                Just job <- Queue.fetchNextJob @RunnerJob pool scopedId
+                job.attemptsCount `shouldBe` 1
+                Queue.jobDidSucceed pool job
+
     it "cancels running work and immediately refunds its attempt" $
         withFixture \modelContext config databaseUrl -> do
             let pool = modelContext.hasqlPool
@@ -161,22 +198,26 @@ withRunner modelContext config databaseUrl action =
             liftIO $ action process `Exception.finally` PGListener.unsubscribe process.subscription pgListener
 
 withFixture :: (ModelContext -> Config.FrameworkConfig -> ByteString -> IO ()) -> IO ()
-withFixture action = do
+withFixture = withFixtureSetup True
+
+withFixtureSetup :: Bool -> (ModelContext -> Config.FrameworkConfig -> ByteString -> IO ()) -> IO ()
+withFixtureSetup initializeWorker action = do
     databaseUrl <- maybe "postgresql:///postgres" cs <$> lookupEnv "DATABASE_URL"
     Exception.bracket (createModelContext databaseUrl noopLogger) releaseModelContext \modelContext -> do
         let pool = modelContext.hasqlPool
         let cleanup = do
                 script pool "DROP TABLE IF EXISTS job_runner_spec_jobs CASCADE; DROP FUNCTION IF EXISTS notify_job_queued_job_runner_spec_jobs() CASCADE"
-                Worker.unregisterWorker pool testWorkerId
+                when initializeWorker (Worker.unregisterWorker pool testWorkerId)
         let setup = do
-                Worker.ensureWorkerRegistry pool
+                when initializeWorker (Worker.ensureWorkerRegistry pool)
                 cleanup
                 script pool
                     "DO $$ BEGIN CREATE TYPE public.job_status AS ENUM ('job_status_not_started', 'job_status_running', 'job_status_failed', 'job_status_timed_out', 'job_status_succeeded', 'job_status_retry'); EXCEPTION WHEN duplicate_object THEN NULL; END $$;\
                     \CREATE TABLE job_runner_spec_jobs (id UUID PRIMARY KEY, status public.job_status NOT NULL DEFAULT 'job_status_not_started', created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(), updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(), run_at TIMESTAMPTZ NOT NULL DEFAULT NOW(), locked_at TIMESTAMPTZ, locked_by UUID, attempts_count INT NOT NULL DEFAULT 0, last_error TEXT, should_finish BOOL NOT NULL DEFAULT FALSE);\
                     \INSERT INTO job_runner_spec_jobs (id) VALUES ('10000000-0000-0000-0000-000000000001')"
-                Worker.registerWorker pool testWorkerId
-                Worker.ensureJobWorkerForeignKey pool "job_runner_spec_jobs"
+                when initializeWorker do
+                    Worker.registerWorker pool testWorkerId
+                    Worker.ensureJobWorkerForeignKey pool "job_runner_spec_jobs"
         result <- Exception.try $ Exception.bracket_ setup cleanup do
             config <- Config.buildFrameworkConfig noopLogger (Config.option Development)
             action modelContext config databaseUrl
