@@ -254,6 +254,7 @@ library
         , IHP.Job.Queue.Fetch
         , IHP.Job.Queue.Watch
         , IHP.Job.Queue.Result
+        , IHP.Job.Queue.Worker
         , IHP.Job.Queue.StatusInstances
         , IHP.Job.Queue.STM
         , IHP.Job.Runner.MainLoop
@@ -330,6 +331,7 @@ test-suite tests
         Test.Pagination.ControllerFunctionsSpec
         Test.FetchPipelinedSpec
         Test.JobQueueSpec
+        Test.JobRunnerSpec
         Test.LoginSupport.AuthVaultSpec
         Test.Router.AppBindingSpec
         Test.Router.CaptureSpec

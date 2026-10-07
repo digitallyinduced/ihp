@@ -3,6 +3,7 @@ module IHP.Job.Queue.Result
 ( jobDidFail
 , jobDidTimeout
 , jobDidSucceed
+, jobDidInterrupt
 , backoffDelay
 , recoverStaleJobs
 ) where
@@ -11,6 +12,7 @@ import IHP.Prelude
 import IHP.Job.Types
 import IHP.Job.Queue.Pool (runPool)
 import IHP.Job.Queue.StatusInstances ()
+import IHP.Job.Queue.Worker (reapExpiredWorkers)
 import IHP.ModelSupport (Table (..), InputValue (..))
 import IHP.ModelSupport.Types (Id' (..), PrimaryKey)
 import System.Log.FastLogger (FastLogger, toLogStr)
@@ -26,6 +28,8 @@ jobDidFail :: forall job context.
     ( Table job
     , HasField "id" job (Id' (GetTableName job))
     , PrimaryKey (GetTableName job) ~ UUID
+    , HasField "lockedBy" job (Maybe UUID)
+    , HasField "lockedAt" job (Maybe UTCTime)
     , HasField "attemptsCount" job Int
     , HasField "runAt" job UTCTime
     , Job job
@@ -46,20 +50,25 @@ jobDidFail pool job exception = do
     let Id jobId = job.id
     let tableNameText = tableName @job
     let sql = "UPDATE " <> tableNameText
-            <> " SET status = $1::public.job_status, locked_by = NULL, updated_at = $2, last_error = $3, run_at = $4 WHERE id = $5"
+            <> " SET status = $1::public.job_status, locked_by = NULL, locked_at = NULL, updated_at = $2, last_error = $3, run_at = $4 WHERE id = $5"
+            <> " AND status = 'job_status_running' AND locked_by = $6 AND locked_at = $7"
     let encoder =
-            contramap (\(s,_,_,_,_) -> s) (Encoders.param (Encoders.nonNullable Encoders.text))
-            <> contramap (\(_,u,_,_,_) -> u) (Encoders.param (Encoders.nonNullable Encoders.timestamptz))
-            <> contramap (\(_,_,e,_,_) -> e) (Encoders.param (Encoders.nonNullable Encoders.text))
-            <> contramap (\(_,_,_,r,_) -> r) (Encoders.param (Encoders.nonNullable Encoders.timestamptz))
-            <> contramap (\(_,_,_,_,i) -> i) (Encoders.param (Encoders.nonNullable Encoders.uuid))
+            contramap (\(s,_,_,_,_,_,_) -> s) (Encoders.param (Encoders.nonNullable Encoders.text))
+            <> contramap (\(_,u,_,_,_,_,_) -> u) (Encoders.param (Encoders.nonNullable Encoders.timestamptz))
+            <> contramap (\(_,_,e,_,_,_,_) -> e) (Encoders.param (Encoders.nonNullable Encoders.text))
+            <> contramap (\(_,_,_,r,_,_,_) -> r) (Encoders.param (Encoders.nonNullable Encoders.timestamptz))
+            <> contramap (\(_,_,_,_,i,_,_) -> i) (Encoders.param (Encoders.nonNullable Encoders.uuid))
+            <> contramap (\(_,_,_,_,_,w,_) -> w) (Encoders.param (Encoders.nullable Encoders.uuid))
+            <> contramap (\(_,_,_,_,_,_,l) -> l) (Encoders.param (Encoders.nullable Encoders.timestamptz))
     let statement = Hasql.unpreparable sql encoder Decoders.noResult
-    runPool pool (HasqlSession.statement (inputValue status, now, tshow exception, nextRunAt, jobId) statement)
+    runPool pool (HasqlSession.statement (inputValue status, now, tshow exception, nextRunAt, jobId, job.lockedBy, job.lockedAt) statement)
 
 jobDidTimeout :: forall job context.
     ( Table job
     , HasField "id" job (Id' (GetTableName job))
     , PrimaryKey (GetTableName job) ~ UUID
+    , HasField "lockedBy" job (Maybe UUID)
+    , HasField "lockedAt" job (Maybe UTCTime)
     , HasField "attemptsCount" job Int
     , HasField "runAt" job UTCTime
     , Job job
@@ -80,22 +89,28 @@ jobDidTimeout pool job = do
     let Id jobId = job.id
     let tableNameText = tableName @job
     let sql = "UPDATE " <> tableNameText
-            <> " SET status = $1::public.job_status, locked_by = NULL, updated_at = $2, last_error = $3, run_at = $4 WHERE id = $5"
+            <> " SET status = $1::public.job_status, locked_by = NULL, locked_at = NULL, updated_at = $2, last_error = $3, run_at = $4 WHERE id = $5"
+            <> " AND status = 'job_status_running' AND locked_by = $6 AND locked_at = $7"
     let encoder =
-            contramap (\(s,_,_,_,_) -> s) (Encoders.param (Encoders.nonNullable Encoders.text))
-            <> contramap (\(_,u,_,_,_) -> u) (Encoders.param (Encoders.nonNullable Encoders.timestamptz))
-            <> contramap (\(_,_,e,_,_) -> e) (Encoders.param (Encoders.nonNullable Encoders.text))
-            <> contramap (\(_,_,_,r,_) -> r) (Encoders.param (Encoders.nonNullable Encoders.timestamptz))
-            <> contramap (\(_,_,_,_,i) -> i) (Encoders.param (Encoders.nonNullable Encoders.uuid))
+            contramap (\(s,_,_,_,_,_,_) -> s) (Encoders.param (Encoders.nonNullable Encoders.text))
+            <> contramap (\(_,u,_,_,_,_,_) -> u) (Encoders.param (Encoders.nonNullable Encoders.timestamptz))
+            <> contramap (\(_,_,e,_,_,_,_) -> e) (Encoders.param (Encoders.nonNullable Encoders.text))
+            <> contramap (\(_,_,_,r,_,_,_) -> r) (Encoders.param (Encoders.nonNullable Encoders.timestamptz))
+            <> contramap (\(_,_,_,_,i,_,_) -> i) (Encoders.param (Encoders.nonNullable Encoders.uuid))
+            <> contramap (\(_,_,_,_,_,w,_) -> w) (Encoders.param (Encoders.nullable Encoders.uuid))
+            <> contramap (\(_,_,_,_,_,_,l) -> l) (Encoders.param (Encoders.nullable Encoders.timestamptz))
     let statement = Hasql.unpreparable sql encoder Decoders.noResult
-    runPool pool (HasqlSession.statement (inputValue status, now, "Timeout reached" :: Text, nextRunAt, jobId) statement)
+    runPool pool (HasqlSession.statement (inputValue status, now, "Timeout reached" :: Text, nextRunAt, jobId, job.lockedBy, job.lockedAt) statement)
 
 
--- | Called when a job succeeded. Sets the job status to 'JobStatusSucceded' and resets 'lockedBy'
+-- | Complete only the execution represented by the fetched job.
+-- A late result must not overwrite a job released or claimed by another execution.
 jobDidSucceed :: forall job context.
     ( Table job
     , HasField "id" job (Id' (GetTableName job))
     , PrimaryKey (GetTableName job) ~ UUID
+    , HasField "lockedBy" job (Maybe UUID)
+    , HasField "lockedAt" job (Maybe UTCTime)
     , ?context :: context
     , HasField "logger" context FastLogger
     ) => HasqlPool.Pool -> job -> IO ()
@@ -105,12 +120,37 @@ jobDidSucceed pool job = do
     let Id jobId = job.id
     let tableNameText = tableName @job
     let sql = "UPDATE " <> tableNameText
-            <> " SET status = 'job_status_succeeded', locked_by = NULL, updated_at = $1 WHERE id = $2"
+            <> " SET status = 'job_status_succeeded', locked_by = NULL, locked_at = NULL, updated_at = $1 WHERE id = $2"
+            <> " AND status = 'job_status_running' AND locked_by = $3 AND locked_at = $4"
     let encoder =
-            contramap fst (Encoders.param (Encoders.nonNullable Encoders.timestamptz))
-            <> contramap snd (Encoders.param (Encoders.nonNullable Encoders.uuid))
+            contramap (\(u,_,_,_) -> u) (Encoders.param (Encoders.nonNullable Encoders.timestamptz))
+            <> contramap (\(_,i,_,_) -> i) (Encoders.param (Encoders.nonNullable Encoders.uuid))
+            <> contramap (\(_,_,w,_) -> w) (Encoders.param (Encoders.nullable Encoders.uuid))
+            <> contramap (\(_,_,_,l) -> l) (Encoders.param (Encoders.nullable Encoders.timestamptz))
     let statement = Hasql.unpreparable sql encoder Decoders.noResult
-    runPool pool (HasqlSession.statement (updatedAt, jobId) statement)
+    runPool pool (HasqlSession.statement (updatedAt, jobId, job.lockedBy, job.lockedAt) statement)
+
+-- | Release a cancelled execution after its action has stopped. Deployment
+-- interruptions neither consume an attempt nor apply failure backoff.
+jobDidInterrupt :: forall job.
+    ( Table job
+    , HasField "id" job (Id' (GetTableName job))
+    , PrimaryKey (GetTableName job) ~ UUID
+    , HasField "lockedBy" job (Maybe UUID)
+    , HasField "lockedAt" job (Maybe UTCTime)
+    ) => HasqlPool.Pool -> job -> IO ()
+jobDidInterrupt pool job = do
+    let Id jobId = job.id
+    let sql = "UPDATE " <> tableName @job
+            <> " SET status = 'job_status_retry', locked_by = NULL, locked_at = NULL"
+            <> ", updated_at = NOW(), run_at = NOW(), attempts_count = GREATEST(0, attempts_count - 1)"
+            <> " WHERE id = $1 AND status = 'job_status_running' AND locked_by = $2 AND locked_at = $3"
+    let encoder =
+            contramap (\(i,_,_) -> i) (Encoders.param (Encoders.nonNullable Encoders.uuid))
+            <> contramap (\(_,w,_) -> w) (Encoders.param (Encoders.nullable Encoders.uuid))
+            <> contramap (\(_,_,l) -> l) (Encoders.param (Encoders.nullable Encoders.timestamptz))
+    let statement = Hasql.unpreparable sql encoder Decoders.noResult
+    runPool pool (HasqlSession.statement (jobId, job.lockedBy, job.lockedAt) statement)
 
 -- | Compute the delay before the next retry attempt.
 --
@@ -121,36 +161,10 @@ backoffDelay (LinearBackoff { delayInSeconds }) _ = fromIntegral delayInSeconds
 backoffDelay (ExponentialBackoff { delayInSeconds }) attempts =
     min 86400 (fromIntegral delayInSeconds * (2 ^ min attempts 20))
 
--- | Recover stale jobs that have been in 'JobStatusRunning' for too long,
--- likely due to a worker crash.
---
--- Two-tier recovery:
--- - Recently stale jobs (within 24h) are set back to retry
--- - Ancient stale jobs (older than 24h) are marked as failed
+-- | Compatibility wrapper for worker lease recovery. Recovery now depends on
+-- worker heartbeats, never the age of a running job. The threshold is ignored.
+-- Expired workers release jobs in all registered queues through foreign keys.
 recoverStaleJobs :: forall job.
     ( Table job
     ) => HasqlPool.Pool -> NominalDiffTime -> IO ()
-recoverStaleJobs pool staleThreshold = do
-    let tableNameText = tableName @job
-    -- Tier 1: Recently stale jobs (threshold..24h) -> retry
-    let retrySql =
-            "UPDATE " <> tableNameText
-            <> " SET status = 'job_status_retry', locked_by = NULL, locked_at = NULL, run_at = NOW()"
-            <> " WHERE status = 'job_status_running'"
-            <> " AND locked_at < NOW() - interval '1 second' * $1"
-            <> " AND locked_at > NOW() - interval '1 day'"
-    let retryEncoder = Encoders.param (Encoders.nonNullable (contramap (fromIntegral :: Int -> Int64) Encoders.int8))
-    let retryStatement = Hasql.unpreparable retrySql retryEncoder Decoders.noResult
-
-    -- Tier 2: Ancient stale jobs (>24h) -> mark failed
-    let failSql =
-            "UPDATE " <> tableNameText
-            <> " SET status = 'job_status_failed', locked_by = NULL, locked_at = NULL"
-            <> ", last_error = 'Stale job: worker likely crashed'"
-            <> " WHERE status = 'job_status_running'"
-            <> " AND locked_at < NOW() - interval '1 day'"
-    let failStatement = Hasql.unpreparable failSql Encoders.noParams Decoders.noResult
-
-    let thresholdSeconds = round staleThreshold :: Int
-    runPool pool (HasqlSession.statement thresholdSeconds retryStatement)
-    runPool pool (HasqlSession.statement () failStatement)
+recoverStaleJobs pool _ = reapExpiredWorkers pool

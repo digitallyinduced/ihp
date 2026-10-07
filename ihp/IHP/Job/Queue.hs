@@ -12,6 +12,7 @@ module IHP.Job.Queue
 , jobDidFail
 , jobDidTimeout
 , jobDidSucceed
+, jobDidInterrupt
 , backoffDelay
 , recoverStaleJobs
 , textToEnumJobStatusMap
@@ -34,6 +35,7 @@ import IHP.Job.Queue.Result
     ( jobDidFail
     , jobDidTimeout
     , jobDidSucceed
+    , jobDidInterrupt
     , backoffDelay
     , recoverStaleJobs
     )

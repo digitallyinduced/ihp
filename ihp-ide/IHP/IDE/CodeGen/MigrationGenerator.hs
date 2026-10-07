@@ -274,6 +274,17 @@ removeNoise = filter \case
         SelectStatement {} -> False
         StatementCreateTable { unsafeGetCreateTable = CreateTable { name = "schema_migrations" } }      -> False
         AddConstraint { tableName = "schema_migrations" }                                               -> False
+        -- Installed and maintained by IHP.Job, not Application/Schema.sql.
+        StatementCreateTable { unsafeGetCreateTable = CreateTable { name = "ihp_job_workers" } } -> False
+        AddConstraint { tableName = "ihp_job_workers" } -> False
+        CreateIndex { tableName = "ihp_job_workers" } -> False
+        AddConstraint { constraint = ForeignKeyConstraint
+            { name = Just "ihp_job_worker_fk", columnName = "locked_by", referenceTable = "ihp_job_workers" } } -> False
+        CreateFunction { functionName = "ihp_release_worker_job" } -> False
+        CreateTrigger { name = "ihp_release_worker_job", functionName = "ihp_release_worker_job" } -> False
+        CreateIndex { indexName }
+            | Just oid <- Text.stripPrefix "ihp_job_worker_" indexName
+            , not (Text.null oid) && Text.all Char.isDigit oid -> False
         CreateFunction { functionName } | "notify_" `Text.isPrefixOf` functionName                      -> False
         CreateTrigger { name } | any (`Text.isPrefixOf` name) ["did_update_", "did_delete_", "did_insert_", "ar_did_update_", "ar_did_delete_", "ar_did_insert_"] -> False
         StatementCreateTable { unsafeGetCreateTable = CreateTable { name = "large_pg_notifications" } } -> False

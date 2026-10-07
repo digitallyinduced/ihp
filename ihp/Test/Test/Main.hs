@@ -34,6 +34,7 @@ import qualified Test.AutoRefreshSpec
 import qualified Test.Pagination.ControllerFunctionsSpec
 import qualified Test.FetchPipelinedSpec
 import qualified Test.JobQueueSpec
+import qualified Test.JobRunnerSpec
 import qualified Test.LoginSupport.AuthVaultSpec
 
 main :: IO ()
@@ -69,4 +70,5 @@ main = hspec do
     Test.Pagination.ControllerFunctionsSpec.tests
     Test.FetchPipelinedSpec.tests
     Test.JobQueueSpec.tests
+    Test.JobRunnerSpec.tests
     Test.LoginSupport.AuthVaultSpec.tests
