@@ -129,6 +129,10 @@ library
         , IHP.DataSync.REST.Types
         , IHP.DataSync.REST.Routes
         , IHP.DataSync.REST.Controller
+        , IHP.DataSync.LongPoll
+        , IHP.DataSync.LongPoll.Types
+        , IHP.DataSync.LongPoll.Routes
+        , IHP.DataSync.LongPoll.Controller
         , IHP.DataSync.Pool
         , IHP.DataSync.Role
         , IHP.DataSync.Hasql
@@ -149,6 +153,7 @@ test-suite ihp-datasync-hspec
                  , DataSync.ChangeNotifications
                  , DataSync.RLSIntegrationSpec
                  , DataSync.DataSyncIntegrationSpec
+                 , DataSync.LongPollSpec
     build-depends:
           ihp-datasync
         , hspec

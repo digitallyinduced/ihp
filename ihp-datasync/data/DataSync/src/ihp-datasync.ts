@@ -1,4 +1,4 @@
-import { recordMatchesQuery } from './ihp-querybuilder.js';
+import { recordMatchesQuery, fetchAuthenticated } from './ihp-querybuilder.js';
 import type {
     DynamicSQLQuery,
     DataRecord,
@@ -27,6 +27,204 @@ export interface DataSyncTransport {
 }
 
 let configuredTransport: DataSyncTransport | null = null;
+
+/** A WebSocket that has not opened after this time counts as failed. */
+const WEBSOCKET_OPEN_TIMEOUT = 10000;
+
+const LONG_POLL_PATH = '/DataSyncLongPoll';
+/** The server answers a receive request after at most 20 seconds. */
+const LONG_POLL_RECEIVE_TIMEOUT = 40000;
+const LONG_POLL_REQUEST_TIMEOUT = 15000;
+const LONG_POLL_MAX_RECEIVE_FAILURES = 3;
+
+interface LongPollBatch {
+    lastSequence: number;
+    closed: boolean;
+    messages: unknown[];
+}
+
+function longPollRequest(path: string, body: string, signal: AbortSignal): Promise<Response> {
+    const init = {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body,
+        cache: 'no-store' as RequestCache,
+        signal,
+    };
+    return DataSyncController.ihpBackendHost ? fetchAuthenticated(path, init) : fetch(path, init);
+}
+
+/**
+ * DataSync over plain HTTP requests, for networks that block WebSockets
+ * (e.g. office proxies). It implements the part of the WebSocket API that
+ * DataSyncController uses, backed by the server's IHP.DataSync.LongPoll
+ * endpoints: one request posts the client messages, another waits for
+ * server messages. Each receive request acknowledges the messages of the
+ * previous one, so the server sends a message again when a response got lost.
+ */
+export class LongPollSocket {
+    static readonly CONNECTING = 0;
+    static readonly OPEN = 1;
+    static readonly CLOSED = 3;
+
+    readyState: number = LongPollSocket.CONNECTING;
+    onopen: ((event: Event) => void) | null = null;
+    onmessage: ((event: MessageEvent) => void) | null = null;
+    onclose: ((event: CloseEvent) => void) | null = null;
+    onerror: ((event: Event) => void) | null = null;
+    /** Set when the server has no long polling endpoint */
+    endpointMissing = false;
+
+    private connectionPath: string | null = null;
+    private outbox: string[] = [];
+    private sending = false;
+    private lastSequence = 0;
+    private readonly closeController = new AbortController();
+
+    constructor() {
+        void this.open();
+    }
+
+    send(data: string): void {
+        if (this.readyState !== LongPollSocket.OPEN) {
+            throw new Error('The DataSync long polling connection is not open');
+        }
+        this.outbox.push(data);
+        void this.flush();
+    }
+
+    close(): void {
+        if (this.readyState === LongPollSocket.CLOSED) {
+            return;
+        }
+        this.readyState = LongPollSocket.CLOSED;
+        this.closeController.abort();
+        if (this.connectionPath !== null) {
+            // The server also closes connections that stop polling, this only frees it sooner.
+            longPollRequest(this.connectionPath + '/close', '{}', new AbortController().signal).catch(() => {});
+        }
+        // Like a WebSocket, report the close after the current task.
+        setTimeout(() => this.onclose?.({ type: 'close' } as CloseEvent), 0);
+    }
+
+    private fail(): void {
+        if (this.readyState === LongPollSocket.CLOSED) {
+            return;
+        }
+        this.onerror?.({ type: 'error' } as Event);
+        this.close();
+    }
+
+    private async request(path: string, body: string, timeout: number): Promise<Response> {
+        const controller = new AbortController();
+        const abort = () => controller.abort();
+        this.closeController.signal.addEventListener('abort', abort);
+        const timer = setTimeout(abort, timeout);
+        try {
+            return await longPollRequest(path, body, controller.signal);
+        } finally {
+            clearTimeout(timer);
+            this.closeController.signal.removeEventListener('abort', abort);
+        }
+    }
+
+    private async open(): Promise<void> {
+        try {
+            const response = await this.request(LONG_POLL_PATH, '{}', LONG_POLL_REQUEST_TIMEOUT);
+            if (response.status === 404) {
+                this.endpointMissing = true;
+            }
+            if (!response.ok) {
+                throw new Error('Opening the DataSync long polling connection failed with HTTP ' + response.status);
+            }
+            const { connectionId } = await response.json() as { connectionId: string };
+            if (this.readyState === LongPollSocket.CLOSED) {
+                longPollRequest(LONG_POLL_PATH + '/' + connectionId + '/close', '{}', new AbortController().signal).catch(() => {});
+                return;
+            }
+            this.connectionPath = LONG_POLL_PATH + '/' + connectionId;
+            this.readyState = LongPollSocket.OPEN;
+            this.onopen?.({ type: 'open' } as Event);
+            void this.receive();
+        } catch {
+            this.fail();
+        }
+    }
+
+    private async flush(): Promise<void> {
+        if (this.sending) {
+            return;
+        }
+        this.sending = true;
+        try {
+            while (this.outbox.length > 0 && this.readyState === LongPollSocket.OPEN) {
+                // Messages are JSON already, so the batch is a JSON array of them
+                const batch = '[' + this.outbox.splice(0).join(',') + ']';
+                const response = await this.request(this.connectionPath + '/send', batch, LONG_POLL_REQUEST_TIMEOUT);
+                if (!response.ok) {
+                    throw new Error('Sending DataSync messages failed with HTTP ' + response.status);
+                }
+            }
+        } catch {
+            // Resending could run a message twice, so drop the connection like a broken WebSocket.
+            this.fail();
+        } finally {
+            this.sending = false;
+        }
+    }
+
+    private async receive(): Promise<void> {
+        let failures = 0;
+        while (this.readyState === LongPollSocket.OPEN) {
+            let batch: LongPollBatch;
+            try {
+                const response = await this.request(this.connectionPath + '/receive', JSON.stringify({ after: this.lastSequence }), LONG_POLL_RECEIVE_TIMEOUT);
+                if (response.status === 404) {
+                    // The server closed the connection, e.g. after a restart
+                    this.close();
+                    return;
+                }
+                if (!response.ok) {
+                    throw new Error('Receiving DataSync messages failed with HTTP ' + response.status);
+                }
+                batch = await response.json() as LongPollBatch;
+            } catch {
+                if (this.readyState !== LongPollSocket.OPEN) {
+                    return;
+                }
+                // A proxy may cut single requests. The next request
+                // acknowledges the same sequence number, so nothing gets lost.
+                failures++;
+                if (failures >= LONG_POLL_MAX_RECEIVE_FAILURES) {
+                    this.fail();
+                    return;
+                }
+                await new Promise(resolve => setTimeout(resolve, 1000 * failures));
+                continue;
+            }
+
+            failures = 0;
+            this.lastSequence = batch.lastSequence;
+            for (const message of batch.messages) {
+                if (this.readyState !== LongPollSocket.OPEN) {
+                    return;
+                }
+                try {
+                    this.onmessage?.({ data: JSON.stringify(message) } as MessageEvent);
+                } catch (error) {
+                    // A failing handler must not drop the connection, like with a WebSocket
+                    console.error(error);
+                }
+            }
+            if (batch.closed) {
+                this.close();
+                return;
+            }
+        }
+    }
+}
+
+export type DataSyncSocket = WebSocket | LongPollSocket;
 
 /**
  * Configure before creating subscriptions. Pass null to restore the default
@@ -76,7 +274,7 @@ class DataSyncController {
     }
 
     pendingRequests: PendingRequest[];
-    connection: WebSocket | null;
+    connection: DataSyncSocket | null;
     requestIdCounter: number;
     receivedFirstResponse: boolean;
     eventListeners: EventListeners;
@@ -87,7 +285,11 @@ class DataSyncController {
     optimisticCreatedPendingRecordIds: UUID[];
     optimisticCreatedNeedsCreatedAtField: Set<string>;
     messageTimeout: number;
-    pendingConnection: Promise<WebSocket> | null;
+    pendingConnection: Promise<DataSyncSocket> | null;
+    /** Switches to 'long-poll' when the first WebSocket of the page cannot open */
+    transportMode: 'websocket' | 'long-poll';
+    webSocketHasOpened: boolean;
+    longPollUnavailable: boolean;
 
     constructor() {
         this.pendingRequests = [];
@@ -109,9 +311,12 @@ class DataSyncController {
         this.optimisticCreatedNeedsCreatedAtField = new Set();
         this.messageTimeout = 5000;
         this.pendingConnection = null;
+        this.transportMode = 'websocket';
+        this.webSocketHasOpened = false;
+        this.longPollUnavailable = false;
     }
 
-    async startConnection(): Promise<WebSocket> {
+    async startConnection(): Promise<DataSyncSocket> {
         if (this.connection) {
             return this.connection;
         }
@@ -120,33 +325,46 @@ class DataSyncController {
             return await this.pendingConnection;
         }
 
-        const connect = (): Promise<WebSocket> => new Promise((resolve, reject) => {
+        let attemptSocket: DataSyncSocket | null = null;
+        const connect = (): Promise<DataSyncSocket> => new Promise((resolve, reject) => {
             const transport = configuredTransport;
-            const socket = new WebSocket(transport ? transport.url() : DataSyncController.getWSUrl());
+            const webSocket = transport === null && this.transportMode === 'long-poll'
+                ? null
+                : new WebSocket(transport ? transport.url() : DataSyncController.getWSUrl());
+            const socket: DataSyncSocket = webSocket ?? new LongPollSocket();
+            attemptSocket = socket;
             let settled = false;
             let authenticationTimeout: ReturnType<typeof setTimeout> | null = null;
+            let openTimeout: ReturnType<typeof setTimeout> | null = null;
             const fail = () => {
                 if (settled) return;
                 settled = true;
                 if (authenticationTimeout !== null) clearTimeout(authenticationTimeout);
+                if (openTimeout !== null) clearTimeout(openTimeout);
                 reject(new Error('DataSync connection or authentication failed'));
                 socket.close();
             };
             socket.onclose = fail;
             socket.onerror = fail;
+            if (webSocket !== null && transport === null) {
+                // A proxy may hold the upgrade request open instead of refusing it
+                openTimeout = setTimeout(fail, WEBSOCKET_OPEN_TIMEOUT);
+            }
 
             socket.onopen = async (event) => {
-                if (transport) {
+                if (openTimeout !== null) clearTimeout(openTimeout);
+                if (webSocket !== null) this.webSocketHasOpened = true;
+                if (transport && webSocket !== null) {
                     authenticationTimeout = setTimeout(fail, 10000);
                     try {
-                        await transport.authenticate(socket);
+                        await transport.authenticate(webSocket);
                     } catch {
                         // Authentication errors may contain sensitive protocol data.
                         fail();
                         return;
                     }
                     if (settled) return;
-                    if (socket.readyState !== WebSocket.OPEN) {
+                    if (webSocket.readyState !== WebSocket.OPEN) {
                         fail();
                         return;
                     }
@@ -186,6 +404,9 @@ class DataSyncController {
 
                 return this.connection;
             } catch (error) {
+                if (this.switchTransportAfterFailure(attemptSocket)) {
+                    continue;
+                }
                 const time = Math.pow(2, Math.min(i, MAX_DELAY_EXPONENT)); // 2, 4, 8, 16, 32, ...
                 console.log('Retrying in ', time, 'secs');
                 await wait(time * 1000);
@@ -194,6 +415,29 @@ class DataSyncController {
 
         this.pendingConnection = null;
         throw new Error('Unable to connect to the DataSync Websocket');
+    }
+
+    /**
+     * Picks the transport for the next attempt and returns true when it
+     * should start right away. A WebSocket that never opened on this page is
+     * probably blocked, e.g. by an office proxy, so DataSync continues with
+     * long polling. It returns to WebSockets when the server has no long
+     * polling endpoint. A configured transport never switches.
+     */
+    switchTransportAfterFailure(failedSocket: DataSyncSocket | null): boolean {
+        if (configuredTransport !== null) {
+            return false;
+        }
+        if (this.transportMode === 'websocket' && !this.webSocketHasOpened && !this.longPollUnavailable) {
+            console.log('DataSync could not open a WebSocket, switching to long polling');
+            this.transportMode = 'long-poll';
+            return true;
+        }
+        if (this.transportMode === 'long-poll' && failedSocket instanceof LongPollSocket && failedSocket.endpointMissing) {
+            this.longPollUnavailable = true;
+            this.transportMode = 'websocket';
+        }
+        return false;
     }
 
     onMessage(event: MessageEvent): void {

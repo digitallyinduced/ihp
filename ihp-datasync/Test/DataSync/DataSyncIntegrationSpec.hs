@@ -130,13 +130,14 @@ insertTestData pool = do
     execSQL pool (cs ("INSERT INTO messages (id, user_id, body) VALUES ('" <> UUID.toText messageId <> "', '" <> UUID.toText userId <> "', 'Hello')"))
     pure (userId, messageId)
 
--- | Run the DataSync controller with TQueue-based I/O, yielding send/receive handles to the test.
-withDataSyncController
+-- | Set up everything the DataSync controller needs for the test user. The
+-- action gets a function that runs a controller with the given input and output.
+withDataSyncEnvironment
     :: Text -- ^ database connection string
     -> UUID -- ^ test user ID
-    -> ((ByteString -> IO (), IO DataSyncResponse, Async ()) -> IO a)
+    -> ((IO ByteString -> (DataSyncResponse -> IO ()) -> IO ()) -> IO a)
     -> IO a
-withDataSyncController connStr testUserId action = do
+withDataSyncEnvironment connStr testUserId action = do
     withHasqlPool connStr \hasqlPool -> do
         -- If connStr already has dbname= prefix, use it directly; otherwise format it
         let actualConnStr = if "dbname=" `Text.isPrefixOf` connStr
@@ -159,30 +160,39 @@ withDataSyncController connStr testUserId action = do
                 let ?request = request
                 let ?context = ?request
 
-                -- Create the DataSync state IORef
-                stateRef <- newIORef DataSyncController
-                let ?state = stateRef
-
-                -- Create TQueues for communication
-                inQueue <- newTQueueIO :: IO (TQueue ByteString)
-                outQueue <- newTQueueIO :: IO (TQueue DataSyncResponse)
-
-                let receiveData = atomically $ readTQueue inQueue
-                let sendJSON response = atomically $ writeTQueue outQueue response
-
                 -- Build the helper functions
                 ensureRLSEnabled <- makeCachedEnsureRLSEnabled hasqlPool
                 let installTableChangeTriggers = ChangeNotifications.installTableChangeTriggers hasqlPool
 
-                -- Start the controller in an async thread
                 let ?modelContext = modelContext
-                controllerAsync <- async $
+                action \receiveData sendJSON -> do
+                    -- Every controller run gets its own DataSync state
+                    stateRef <- newIORef DataSyncController
+                    let ?state = stateRef
                     runDataSyncController hasqlPool ensureRLSEnabled installTableChangeTriggers receiveData sendJSON (\_ _ -> pure ()) (\_ -> camelCaseRenamer)
 
-                -- Run the test action, then clean up
-                Exception.finally
-                    (action (\msg -> atomically $ writeTQueue inQueue msg, readResponseWithTimeout outQueue, controllerAsync))
-                    (cancel controllerAsync)
+-- | Run the DataSync controller with TQueue-based I/O, yielding send/receive handles to the test.
+withDataSyncController
+    :: Text -- ^ database connection string
+    -> UUID -- ^ test user ID
+    -> ((ByteString -> IO (), IO DataSyncResponse, Async ()) -> IO a)
+    -> IO a
+withDataSyncController connStr testUserId action =
+    withDataSyncEnvironment connStr testUserId \runController -> do
+        -- Create TQueues for communication
+        inQueue <- newTQueueIO :: IO (TQueue ByteString)
+        outQueue <- newTQueueIO :: IO (TQueue DataSyncResponse)
+
+        let receiveData = atomically $ readTQueue inQueue
+        let sendJSON response = atomically $ writeTQueue outQueue response
+
+        -- Start the controller in an async thread
+        controllerAsync <- async (runController receiveData sendJSON)
+
+        -- Run the test action, then clean up
+        Exception.finally
+            (action (\msg -> atomically $ writeTQueue inQueue msg, readResponseWithTimeout outQueue, controllerAsync))
+            (cancel controllerAsync)
 
 -- | Read the next DataSyncResponse with a timeout
 readResponseWithTimeout :: TQueue DataSyncResponse -> IO DataSyncResponse
