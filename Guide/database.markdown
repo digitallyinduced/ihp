@@ -144,6 +144,26 @@ When a SQL field can be `NULL`, the Haskell field type will be contained in `May
 
 In the Schema Designer, you can take a look at the generated Haskell code by right-clicking the table and clicking `Show Generated Haskell Code`.
 
+### Skipping Code Generation for a Table
+
+Every generated table costs compile time, and adding a table recompiles all generated modules. A table that your application only reads and writes through SQL, e.g. with [typed queries](typed-sql.html), does not need the generated record type, instances and statements. Mark it with `ihp:no-codegen` in its comment:
+
+```sql
+CREATE TABLE audit_events (
+    id UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL,
+    payload JSONB NOT NULL
+);
+COMMENT ON TABLE audit_events IS 'Written by the audit trigger. ihp:no-codegen';
+```
+
+IHP then only generates the table's `PrimaryKey` and `Default (Id' "audit_events")` instances, which typed queries need for the table's `id` and foreign key columns. They live in their own module, `Generated.ActualTypes.PrimaryKeys.AuditEvent`. Generated code for tables referencing the table imports this module. Other modules that use the table's ids, e.g. through `typedSql`, import it themselves:
+
+```haskell
+import Generated.ActualTypes.PrimaryKeys.AuditEvent ()
+```
+
+Because no other generated module depends on it, adding a table marked with `ihp:no-codegen` recompiles none of the existing generated code.
+
 ## Retrieving Records
 
 ### Querying Records
