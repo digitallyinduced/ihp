@@ -105,6 +105,28 @@ tests = describe "IHP.Job.Runner ownership" do
                     "SELECT status = 'job_status_retry' AND locked_by IS NULL AND locked_at IS NULL AND attempts_count = 0 AND run_at <= NOW() FROM job_runner_spec_jobs"
                     `shouldReturn` True
 
+    it "fails a cancelled job instead of duplicating a pending job for the same work" $
+        withFixture \modelContext config databaseUrl -> do
+            let pool = modelContext.hasqlPool
+            withRunner modelContext config databaseUrl \process -> do
+                waitFor pool "status = 'job_status_running'"
+                addPendingDuplicate pool
+                timeout 1000000 (release (fst process.dispatcher)) `shouldReturn` Just ()
+                queryBool pool
+                    "SELECT bool_and(CASE WHEN id = '10000000-0000-0000-0000-000000000001' THEN status = 'job_status_failed' AND locked_by IS NULL AND last_error LIKE 'Not retried:%' ELSE status = 'job_status_not_started' END) FROM job_runner_spec_jobs"
+                    `shouldReturn` True
+
+    it "keeps running when a timed-out job cannot be retried next to a pending duplicate" $
+        withFixture \modelContext config databaseUrl -> do
+            let pool = modelContext.hasqlPool
+            withRunner modelContext config databaseUrl \process -> do
+                waitFor pool "status = 'job_status_running'"
+                addPendingDuplicate pool
+                waitFor pool "id <> '10000000-0000-0000-0000-000000000001' OR (status = 'job_status_failed' AND last_error LIKE 'Timeout reached Not retried:%')"
+                waitFor pool "id = '10000000-0000-0000-0000-000000000001' OR status = 'job_status_running'"
+                stopped <- Async.poll (snd process.dispatcher)
+                isNothing stopped `shouldBe` True
+
     it "drains the current job without claiming the next job" $
         withFixture \modelContext config databaseUrl -> do
             let pool = modelContext.hasqlPool
@@ -225,6 +247,15 @@ withFixtureSetup initializeWorker action = do
             Right () -> pure ()
             Left (HasqlError (Pool.ConnectionUsageError _)) -> pendingWith "PostgreSQL unavailable"
             Left exception -> Exception.throwIO exception
+
+-- | Applications deduplicate queued work with a partial unique index; here the
+-- whole table shares one key. The running job is outside the index until it is
+-- requeued.
+addPendingDuplicate :: Pool.Pool -> IO ()
+addPendingDuplicate pool = script pool
+    "CREATE UNIQUE INDEX job_runner_spec_jobs_one_pending ON job_runner_spec_jobs ((true))\
+    \ WHERE status IN ('job_status_not_started', 'job_status_retry');\
+    \INSERT INTO job_runner_spec_jobs (id) VALUES ('10000000-0000-0000-0000-000000000002')"
 
 script :: Pool.Pool -> Text -> IO ()
 script pool sql = Queue.runPool pool (Session.script sql)
