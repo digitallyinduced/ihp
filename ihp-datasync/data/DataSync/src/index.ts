@@ -56,7 +56,7 @@ export {
 };
 
 /* Re-export types */
-export type { DataSyncTransport } from './ihp-datasync.js';
+export type { DataSyncTransport, DataSyncSocket } from './ihp-datasync.js';
 export type {
     UUID,
     DataRecord,

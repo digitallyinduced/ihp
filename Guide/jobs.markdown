@@ -8,6 +8,106 @@
 
 IHP has built-in functionality for creating and running background jobs. Jobs are perfect for any tasks that can be split up into small units and run in parallel, such as periodically cleaning the database, sending emails, and scraping data.
 
+### Worker ownership and restart recovery
+
+Workers register a unique process ID in the framework-owned `public.job_workers`
+table and refresh their heartbeat every 30 seconds. Job tables reference this ID
+through `locked_by`, with an `ON DELETE SET NULL` foreign key. A trigger makes
+interrupted running jobs immediately eligible for retry when their owner is
+removed, without consuming a retry attempt.
+
+A clean shutdown removes the worker only after its running executions have
+stopped. After a crash or `SIGKILL`, another worker removes the expired registration
+after 120 seconds without a heartbeat, on its next recovery pass. If no workers
+are running, recovery happens when a worker starts again. Long-running jobs are
+not considered abandoned merely because they have been running for a long time.
+
+Job code must not swallow asynchronous cancellation or remain indefinitely in
+uninterruptible operations. Configure the process supervisor to send `SIGKILL`
+after its shutdown grace period as a fallback; heartbeat expiry then recovers
+the interrupted jobs.
+
+`staleJobTimeout` remains available only for source compatibility and is ignored,
+including when set to `Nothing`: worker-heartbeat recovery is always enabled.
+Use `timeoutInMicroseconds` to limit an individual job execution instead.
+
+A lease is not an exactly-once guarantee: a paused or disconnected worker may
+have already sent a request to an external service. Job implementations must
+still be idempotent. Separate application-level locks are not released by IHP.
+
+#### Upgrading existing applications
+
+The first upgrade from workers without heartbeats requires a coordinated worker
+restart; **do not run the old and new worker versions simultaneously**. The new
+foreign key deliberately rejects old, unregistered ownership IDs rather than
+assuming those workers have died.
+
+1. Stop all old workers and wait for them to exit. Prevent automatic restart of
+   the old version. The web application may continue enqueueing jobs.
+2. If workers could not drain, review their interrupted jobs and release their
+   orphaned locks. For each job table, replace `send_mail_jobs` in this example:
+
+   ```sql
+   UPDATE send_mail_jobs
+   SET status = 'job_status_retry', locked_by = NULL, locked_at = NULL,
+       run_at = NOW(), updated_at = NOW(),
+       attempts_count = GREATEST(0, attempts_count - 1)
+   WHERE status = 'job_status_running';
+   ```
+
+   Non-running rows should not retain `locked_by`; clear any such obsolete locks
+   after confirming the previous workers have stopped.
+3. For large job tables, create an index on `locked_by` ahead of the restart,
+   outside a transaction, to avoid building it while processing is paused:
+
+   ```sql
+   CREATE INDEX CONCURRENTLY send_mail_jobs_locked_by_idx
+   ON send_mail_jobs (locked_by) WHERE locked_by IS NOT NULL;
+   ```
+
+4. Start the new workers. On startup, IHP installs the registry and a validated
+   foreign key plus release trigger on each configured job table. It also creates
+   an ownership index unless a suitable index already exists. The database
+   role needs permission to create these framework objects and alter job tables.
+   Installation fails rather than waiting indefinitely for table locks; retry
+   startup after resolving the reported lock or migration error. Initial foreign
+   key validation scans the job table, so allow for that in the maintenance window.
+
+Subsequent deployments can overlap old and new processes that both support
+worker heartbeats. Keep these runtime-managed framework objects when maintaining
+database schemas; after recreating a job table, restart its workers to reinstall
+the ownership constraint and trigger before processing jobs.
+
+#### Manual queue consumers
+
+Code calling `fetchNextJob` directly must now wrap its entire fetch, execution,
+and completion loop in `withJobWorker` from `IHP.Job.Queue`. Replace manually
+chosen worker IDs (including `Data.UUID.nil`) with the ID supplied by the wrapper:
+
+```haskell
+import qualified IHP.Job.Queue as Queue
+
+let pool = ?modelContext.hasqlPool
+Queue.withJobWorker pool [tableName @SendMailJob] $ \workerId -> do
+    maybeJob <- Queue.fetchNextJob @SendMailJob pool workerId
+    forEach maybeJob $ \job -> do
+        perform job
+        Queue.jobDidSucceed pool job
+```
+
+The wrapper initializes the registry, ownership foreign keys and release triggers,
+generates a fresh worker ID, renews its lease, and recovers expired workers. Supply
+every job table this consumer will fetch from. A long-lived consumer should keep
+its processing loop inside one wrapper invocation. A dedicated `RunJobs` process
+is not required.
+
+On return or exception, the wrapper unregisters the worker and releases unfinished
+jobs for immediate retry. Call `jobDidFail` inside the scope for ordinary job
+failures that should consume a retry attempt. Database or heartbeat failures abort
+the scope; do not swallow asynchronous exceptions or let job execution threads
+outlive it. Existing direct callers must migrate to this wrapper before upgrading;
+`fetchNextJob` does not register or revive arbitrary worker IDs.
+
 ### Creating a job
 
 In the codegen tool in the IHP IDE, use the "Background Job" option to generate the code for a new job. To illustrate the features of jobs, let's

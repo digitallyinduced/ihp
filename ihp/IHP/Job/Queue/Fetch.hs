@@ -19,15 +19,22 @@ import qualified Data.Text as Text
 -- | Lock and fetch the next available job. In case no job is available returns Nothing.
 --
 -- The lock is set on the job row in an atomic way.
+-- Manual consumers must use @withJobWorker@ from @IHP.Job.Queue@ to initialize
+-- the registry and job table ownership and keep the worker lease alive.
+-- The worker must be registered with a live lease. Its registry row is locked
+-- until the claim commits, so concurrent worker removal cannot orphan the claim.
 --
 -- The job status is set to JobStatusRunning, lockedBy will be set to the worker id and the attemptsCount is incremented.
 --
 -- __Example:__ Locking a SendMailJob
 --
--- > let workerId :: UUID = "faa5ba30-1d76-4adf-bf01-2d1f95cddc04"
--- > job <- fetchNextJob @SendMailJob pool workerId
+-- > withJobWorker pool [tableName @SendMailJob] $ \workerId -> do
+-- >     maybeJob <- fetchNextJob @SendMailJob pool workerId
+-- >     forEach maybeJob $ \job -> do
+-- >         perform job
+-- >         jobDidSucceed pool job
 --
--- After you're done with the job, call 'jobDidFail' or 'jobDidSucceed' to make it available to the queue again.
+-- Record completion with @jobDidFail@ or @jobDidSucceed@ inside the worker scope.
 fetchNextJob :: forall job.
     ( job ~ GetModelByTableName (GetTableName job)
     , FromRowHasql job
@@ -44,6 +51,9 @@ fetchNextJob pool workerId = do
             <> " WHERE id IN (SELECT id FROM " <> tableNameText
             <> " WHERE " <> pendingJobConditionSQL
             <> " ORDER BY created_at LIMIT 1 FOR UPDATE SKIP LOCKED)"
+            <> " AND EXISTS (SELECT 1 FROM public.job_workers"
+            <> " WHERE id = $1 AND heartbeat_at > clock_timestamp() - interval '120 seconds'"
+            <> " FOR KEY SHARE)"
             <> " RETURNING " <> returningColumns
     let encoder = Encoders.param (Encoders.nonNullable Encoders.uuid)
     let decoder = Decoders.rowMaybe (hasqlRowDecoder @job)

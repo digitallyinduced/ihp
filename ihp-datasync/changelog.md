@@ -1,5 +1,12 @@
 # Changelog for `ihp-datasync`
 
+## Unreleased
+
+- Add a long polling transport for networks that block WebSockets
+  (`IHP.DataSync.LongPoll`, mounted with `parseRoute @DataSyncLongPollController`).
+  The JavaScript client switches to it when the first WebSocket of a page
+  cannot open within ten seconds.
+
 ## v1.6.0
 
 - Fix concurrent DataSync trigger installation by locking on the PostgreSQL

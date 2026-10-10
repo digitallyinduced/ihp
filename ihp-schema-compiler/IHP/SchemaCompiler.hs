@@ -1,5 +1,7 @@
 module IHP.SchemaCompiler
 ( compile
+, compileModules
+, noCodegenMarker
 , compileStatementPreview
 , compileStatementPreviewWith
 , CompilerOptions(..)
@@ -48,6 +50,8 @@ compile = do
             -- unless (null validationErrors) (error $ "Schema.hs contains errors: " <> cs (unsafeHead validationErrors))
             Directory.createDirectoryIfMissing True "build/Generated"
             Directory.createDirectoryIfMissing True "build/Generated/ActualTypes"
+            Directory.createDirectoryIfMissing True "build/Generated/ActualTypes/PrimaryKeys"
+            Directory.createDirectoryIfMissing True "build/Generated/Enums"
             Directory.createDirectoryIfMissing True "build/Generated/Statements"
 
             forEach (compileModules options (Schema statements)) \(path, body) -> do
@@ -56,9 +60,11 @@ compile = do
 compileModules :: CompilerOptions -> Schema -> [(OsPath, Text)]
 compileModules options schema =
     let ?compilerOptions = options
-    in [ ("build/Generated/Enums.hs", compileEnums options schema)
+    in [ ("build/Generated/Enums.hs", compileEnumsIndex schema)
        , ("build/Generated/ActualTypes/PrimaryKeys.hs", compilePrimaryKeysModule schema)
        ]
+       <> enumModules schema
+       <> noCodegenPrimaryKeyModules schema
        <> actualTypesTableModules schema
        <> [ ("build/Generated/ActualTypes.hs", compileTypes options schema) ]
        <> tableModules options schema
@@ -73,7 +79,7 @@ applyTables applyFunction schema =
     in
         schema.statements
         |> mapMaybe (\case
-                StatementCreateTable table | tableHasPrimaryKey table -> Just (applyFunction table)
+                StatementCreateTable table | tableHasGeneratedCode table -> Just (applyFunction table)
                 otherwise -> Nothing
             )
 
@@ -91,14 +97,17 @@ actualTypesTableModule table =
             , compileActualTypesForTable table
             ]
         moduleName = "Generated.ActualTypes." <> tableNameToModelName table.name
+        enumImports = tableEnumImports table
+        noCodegenImports = noCodegenReferenceImports table
         prelude = [trimming|
             -- This file is auto generated and will be overriden regulary. Please edit `Application/Schema.sql` to change the Types\n"
             {-# LANGUAGE TypeSynonymInstances, FlexibleInstances, InstanceSigs, MultiParamTypeClasses, TypeFamilies, DataKinds, TypeOperators, UndecidableInstances, ConstraintKinds, StandaloneDeriving  #-}
             {-# OPTIONS_GHC -Wno-unused-imports -Wno-dodgy-imports -Wno-unused-matches -Wno-ambiguous-fields #-}
             module $moduleName where
             $defaultImports
-            import Generated.Enums
+            $enumImports
             import Generated.ActualTypes.PrimaryKeys
+            $noCodegenImports
         |]
 
 tableModules :: (?compilerOptions :: CompilerOptions) => CompilerOptions -> Schema -> [(OsPath, Text)]
@@ -268,11 +277,12 @@ compileTypes options schema@(Schema statements) = [trimming|
     |]
     where
         tableModelNames =
-            statements
-            |> mapMaybe (\case
-                StatementCreateTable table | tableHasPrimaryKey table -> Just (tableNameToModelName table.name)
-                otherwise -> Nothing
-            )
+            let ?schema = schema
+            in statements
+                |> mapMaybe (\case
+                    StatementCreateTable table | tableHasGeneratedCode table -> Just (tableNameToModelName table.name)
+                    otherwise -> Nothing
+                )
 
         perTableModuleNames = map (\n -> "Generated.ActualTypes." <> n) tableModelNames
 
@@ -311,10 +321,11 @@ compileIndex schema = [trimming|
         $tableModuleImports
     |]
         where
+            noCodegenTables = noCodegenTableNames schema
             tableModuleNames =
                 schema.statements
                 |> map (\case
-                        StatementCreateTable table ->
+                        StatementCreateTable table | not (table.name `member` noCodegenTables) ->
                             let modelName = tableNameToModelName table.name
                             in
                                 [ "Generated." <> modelName ]
@@ -379,56 +390,137 @@ defaultImports = [trimming|
 
 
 
-compileEnums :: CompilerOptions -> Schema -> Text
-compileEnums options schema@(Schema statements) = Text.unlines
-        [ prelude
-        , let ?schema = schema
-          in intercalate "\n\n" (mapMaybe compileStatement statements)
-        ]
+-- | One module per enum, @Generated.Enums.<Enum>@.
+--
+-- Generated table modules import only the enums their columns use. With a
+-- single enums module every generated module was recompiled whenever any enum
+-- or enum value changed.
+enumModules :: Schema -> [(OsPath, Text)]
+enumModules schema =
+    let ?schema = schema
+    in generatedEnums schema
+        |> map (\(name, enum) ->
+            let
+                modelName = tableNameToModelName name
+                moduleName = enumModuleName name
+                path = (OsPath.</>) "build/Generated/Enums" (either (error . show) id (encodeUtf (cs modelName <> ".hs")))
+                prelude = [trimming|
+                    -- This file is auto generated and will be overriden regulary. Please edit `Application/Schema.sql` to change the Types\n"
+                    module $moduleName where
+                    import CorePrelude
+                    import IHP.ModelSupport
+                    import Database.PostgreSQL.Simple
+                    import Database.PostgreSQL.Simple.FromField hiding (Field, name)
+                    import Database.PostgreSQL.Simple.ToField hiding (Field)
+                    import qualified IHP.Controller.Param
+                    import Data.Default
+                    import qualified IHP.QueryBuilder as QueryBuilder
+                    import qualified Data.String.Conversions
+                    import qualified Data.Text.Encoding
+                    import qualified Control.DeepSeq as DeepSeq
+                    import qualified Hasql.Encoders
+                    import qualified Hasql.Decoders
+                    import qualified Hasql.Implicits.Encoders
+                    import qualified Hasql.Mapping.IsScalar as Mapping
+                    import qualified Data.HashMap.Strict as HashMap
+                |]
+            in (path, Text.unlines [ prelude, compileEnumDataDefinitions enum ])
+        )
+
+-- | @Generated.Enums@ re-exports every enum module, so application code can
+-- keep importing all enums at once.
+compileEnumsIndex :: Schema -> Text
+compileEnumsIndex schema = [trimming|
+        -- This file is auto generated and will be overriden regulary. Please edit `Application/Schema.sql` to change the Types\n"
+        module Generated.Enums ($rexports) where
+        $imports
+    |]
     where
-        compileStatement enum@(CreateEnumType {}) = Just (compileEnumDataDefinitions enum)
-        compileStatement _ = Nothing
-        prelude = [trimming|
-            -- This file is auto generated and will be overriden regulary. Please edit `Application/Schema.sql` to change the Types\n"
-            module Generated.Enums where
-            import CorePrelude
-            import IHP.ModelSupport
-            import Database.PostgreSQL.Simple
-            import Database.PostgreSQL.Simple.FromField hiding (Field, name)
-            import Database.PostgreSQL.Simple.ToField hiding (Field)
-            import qualified IHP.Controller.Param
-            import Data.Default
-            import qualified IHP.QueryBuilder as QueryBuilder
-            import qualified Data.String.Conversions
-            import qualified Data.Text.Encoding
-            import qualified Control.DeepSeq as DeepSeq
-            import qualified Hasql.Encoders
-            import qualified Hasql.Decoders
-            import qualified Hasql.Implicits.Encoders
-            import qualified Hasql.Mapping.IsScalar as Mapping
-            import qualified Data.HashMap.Strict as HashMap
-        |]
+        moduleNames = generatedEnums schema |> map (enumModuleName . fst)
+        imports = moduleNames |> map ("import " <>) |> Text.unlines
+        rexports = moduleNames |> map ("module " <>) |> Text.intercalate ", "
 
 compilePrimaryKeysModule :: (?compilerOptions :: CompilerOptions) => Schema -> Text
 compilePrimaryKeysModule schema@(Schema statements) =
     let ?schema = schema
     in Text.unlines
         [ prelude
-        , statements
-            |> mapMaybe (\case
-                StatementCreateTable table | tableHasPrimaryKey table ->
-                    Just (compilePrimaryKeyInstance table <> compileDefaultIdInstance table)
-                _ -> Nothing)
+        , tables
+            |> map (\table -> compilePrimaryKeyInstance table <> compileDefaultIdInstance table)
             |> Text.intercalate "\n"
         ]
     where
+        tables = let ?schema = schema in
+            statements
+            |> mapMaybe (\case
+                StatementCreateTable table | tableHasGeneratedCode table -> Just table
+                _ -> Nothing)
+        primaryKeyImports = let ?schema = schema in
+            Text.unlines
+                [ enumImports [ (table, column) | table <- tables, column <- primaryKeyColumns table ]
+                , tables
+                    |> concatMap (\table -> noCodegenTablesReferencedBy table (primaryKeyColumns table))
+                    |> ordNub
+                    |> map (\tableName -> "import " <> noCodegenPrimaryKeyModuleName tableName)
+                    |> Text.unlines
+                ]
         prelude = [trimming|
             -- This file is auto generated and will be overriden regulary. Please edit `Application/Schema.sql` to change the Types\n"
             {-# LANGUAGE TypeSynonymInstances, FlexibleInstances, InstanceSigs, MultiParamTypeClasses, TypeFamilies, DataKinds, TypeOperators, UndecidableInstances, ConstraintKinds, StandaloneDeriving  #-}
             {-# OPTIONS_GHC -Wno-unused-imports -Wno-dodgy-imports -Wno-unused-matches #-}
             module Generated.ActualTypes.PrimaryKeys where
             $defaultImports
-            import Generated.Enums
+            $primaryKeyImports
+        |]
+
+-- | The primary key module of each table marked with 'noCodegenMarker',
+-- @Generated.ActualTypes.PrimaryKeys.<Model>@. It holds the table's 'PrimaryKey'
+-- and @Default (Id' "table")@ instances and nothing else.
+noCodegenPrimaryKeyModules :: (?compilerOptions :: CompilerOptions) => Schema -> [(OsPath, Text)]
+noCodegenPrimaryKeyModules schema =
+    let ?schema = schema
+    in schema.statements
+        |> mapMaybe (\case
+            StatementCreateTable table | tableHasPrimaryKey table && isNoCodegenTable table ->
+                Just (noCodegenPrimaryKeyModule table)
+            _ -> Nothing)
+
+noCodegenPrimaryKeyModule :: (?schema :: Schema, ?compilerOptions :: CompilerOptions) => CreateTable -> (OsPath, Text)
+noCodegenPrimaryKeyModule table =
+        ((OsPath.</>) "build/Generated/ActualTypes/PrimaryKeys" (either (error . show) id (encodeUtf (cs (tableNameToModelName table.name) <> ".hs"))), body)
+    where
+        body = Text.unlines
+            [ prelude
+            , compilePrimaryKeyInstance table <> compileDefaultIdInstance table
+            ]
+        moduleName = noCodegenPrimaryKeyModuleName table.name
+        keyColumns = primaryKeyColumns table
+        -- A composite key made of foreign keys needs the 'Default' instances
+        -- of the referenced tables' ids.
+        referencedTables = keyColumns
+            |> mapMaybe (\column -> case findForeignKeyConstraint table column of
+                Just fk@ForeignKeyConstraint { referenceTable } | isForeignKeyReferencingPK fk -> Just referenceTable
+                _ -> Nothing)
+            |> ordNub
+            |> filter (/= table.name)
+        noCodegenKeyImports = noCodegenTablesReferencedBy table keyColumns
+            |> filter (/= table.name)
+            |> map (\name -> "import " <> noCodegenPrimaryKeyModuleName name)
+            |> Text.unlines
+        generatedKeyImport =
+            if any (\name -> maybe False tableHasGeneratedCode (findTableByName name)) referencedTables
+                then "import Generated.ActualTypes.PrimaryKeys"
+                else ""
+        keyEnumImports = enumImports (map (\column -> (table, column)) keyColumns)
+        prelude = [trimming|
+            -- This file is auto generated and will be overriden regulary. Please edit `Application/Schema.sql` to change the Types\n"
+            {-# LANGUAGE TypeSynonymInstances, FlexibleInstances, InstanceSigs, MultiParamTypeClasses, TypeFamilies, DataKinds, TypeOperators, UndecidableInstances, ConstraintKinds, StandaloneDeriving  #-}
+            {-# OPTIONS_GHC -Wno-unused-imports -Wno-dodgy-imports -Wno-unused-matches #-}
+            module $moduleName where
+            $defaultImports
+            $keyEnumImports
+            $generatedKeyImport
+            $noCodegenKeyImports
         |]
 
 compileStatementPreview :: [Statement] -> Statement -> Text
@@ -441,15 +533,144 @@ compileStatementPreviewWith options statements statement =
     in
         case statement of
             CreateEnumType {} -> compileEnumDataDefinitions statement
-            StatementCreateTable table -> Text.unlines
-                [ compileActualTypesForTablePreview table
-                , tableModuleBody options table
-                ]
+            StatementCreateTable table
+                | isNoCodegenTable table -> compilePrimaryKeyInstance table <> compileDefaultIdInstance table
+                | otherwise -> Text.unlines
+                    [ compileActualTypesForTablePreview table
+                    , tableModuleBody options table
+                    ]
             _ -> ""
 
 -- | Skip generation of tables with no primary keys
 tableHasPrimaryKey :: CreateTable -> Bool
 tableHasPrimaryKey table = table.primaryKeyConstraint /= (PrimaryKeyConstraint [])
+
+-- | Tables that get a record type, instances and statement modules.
+tableHasGeneratedCode :: (?schema :: Schema) => CreateTable -> Bool
+tableHasGeneratedCode table = tableHasPrimaryKey table && not (isNoCodegenTable table)
+
+-- | Excludes a table from code generation when it appears in the table's
+-- comment:
+--
+-- > COMMENT ON TABLE audit_events IS 'ihp:no-codegen';
+--
+-- Such a table gets no record type, no instances and no statement modules, so
+-- it costs nothing to compile. Use it for tables that the application only
+-- reads and writes through SQL, e.g. with typed SQL.
+--
+-- The table keeps its 'PrimaryKey' and @Default (Id' "table")@ instances,
+-- which typed SQL and foreign keys from other tables need. They live in their
+-- own module, @Generated.ActualTypes.PrimaryKeys.<Model>@, which no aggregate
+-- module imports: adding such a table changes no existing generated module.
+-- Code that needs the instances imports that module directly.
+noCodegenMarker :: Text
+noCodegenMarker = "ihp:no-codegen"
+
+isNoCodegenTable :: (?schema :: Schema) => CreateTable -> Bool
+isNoCodegenTable table = table.name `member` noCodegenTableNames ?schema
+
+-- | Names of the tables whose comment contains 'noCodegenMarker'.
+noCodegenTableNames :: Schema -> Set Text
+noCodegenTableNames (Schema statements) =
+    statements
+    |> mapMaybe (\case
+        UnknownStatement { raw } -> noCodegenCommentTableName raw
+        _ -> Nothing)
+    |> setFromList
+
+-- | The parser keeps @COMMENT@ statements as raw SQL. Returns the table of a
+-- @COMMENT ON TABLE name IS '...'@ statement whose comment contains
+-- 'noCodegenMarker'.
+noCodegenCommentTableName :: Text -> Maybe Text
+noCodegenCommentTableName raw =
+    case Text.words raw of
+        (commentKeyword : onKeyword : tableKeyword : target : isKeyword : commentValue)
+            | map Text.toUpper [commentKeyword, onKeyword, tableKeyword, isKeyword] == ["COMMENT", "ON", "TABLE", "IS"]
+            , any (noCodegenMarker `Text.isInfixOf`) commentValue
+            -> tableNameFromIdentifier target
+        _ -> Nothing
+    where
+        -- Postgres folds unquoted identifiers to lower case. Tables in other
+        -- schemas than @public@ are never compiled, so they are ignored.
+        tableNameFromIdentifier identifier = case Text.splitOn "." identifier of
+            [schemaName, tableName] | identifierName schemaName == "public" -> Just (identifierName tableName)
+            [tableName] -> Just (identifierName tableName)
+            _ -> Nothing
+        identifierName identifier = case Text.stripPrefix "\"" identifier >>= Text.stripSuffix "\"" of
+            Just quoted -> quoted
+            Nothing -> Text.toLower identifier
+
+noCodegenPrimaryKeyModuleName :: Text -> Text
+noCodegenPrimaryKeyModuleName tableName = "Generated.ActualTypes.PrimaryKeys." <> tableNameToModelName tableName
+
+-- | The tables marked with 'noCodegenMarker' whose primary keys the given
+-- columns reference: the Haskell types of these columns are their 'Id''.
+noCodegenTablesReferencedBy :: (?schema :: Schema) => CreateTable -> [Column] -> [Text]
+noCodegenTablesReferencedBy table columns =
+    columns
+    |> mapMaybe (\column -> case findForeignKeyConstraint table column of
+        Just fk@ForeignKeyConstraint { referenceTable }
+            | isForeignKeyReferencingPK fk && referenceTable `member` noCodegenTables -> Just referenceTable
+        _ -> Nothing)
+    |> ordNub
+    where
+        noCodegenTables = noCodegenTableNames ?schema
+
+-- | Imports of the primary key modules of the tables marked with
+-- 'noCodegenMarker' that the table references.
+noCodegenReferenceImports :: (?schema :: Schema) => CreateTable -> Text
+noCodegenReferenceImports table =
+    noCodegenTablesReferencedBy table (allColumnsIncludingInherited table)
+    |> filter (/= table.name)
+    |> map (\tableName -> "import " <> noCodegenPrimaryKeyModuleName tableName)
+    |> Text.unlines
+
+-- | Enums that get a Haskell type, by name. Enums without values are skipped.
+generatedEnums :: Schema -> [(Text, Statement)]
+generatedEnums (Schema statements) =
+    statements
+    |> mapMaybe (\case
+        enum@CreateEnumType { name, values } | not (null values) -> Just (name, enum)
+        _ -> Nothing)
+
+enumModuleName :: Text -> Text
+enumModuleName enumName = "Generated.Enums." <> tableNameToModelName enumName
+
+-- | Imports of the enum modules that the Haskell types of the given columns use.
+enumImports :: (?schema :: Schema) => [(CreateTable, Column)] -> Text
+enumImports columns =
+    columns
+    |> concatMap (uncurry columnEnumTypes)
+    |> map tableNameToModelName
+    |> filter (`member` enumModelNames)
+    |> ordNub
+    |> map (\modelName -> "import Generated.Enums." <> modelName)
+    |> Text.unlines
+    where
+        enumModelNames :: Set Text
+        enumModelNames = generatedEnums ?schema |> map (tableNameToModelName . fst) |> setFromList
+
+-- | Custom type names the Haskell type of a column refers to. Like
+-- 'haskellType', a foreign key to a column that is not a primary key takes
+-- the referenced column's type.
+columnEnumTypes :: (?schema :: Schema) => CreateTable -> Column -> [Text]
+columnEnumTypes table column = customTypes column.columnType <> referencedColumnTypes
+    where
+        customTypes = \case
+            PCustomType name -> [name]
+            PArray inner -> customTypes inner
+            _ -> []
+        referencedColumnTypes = case findForeignKeyConstraint table column of
+            Just fk@ForeignKeyConstraint { referenceTable, referenceColumn = Just referencedColumnName }
+                | not (isForeignKeyReferencingPK fk) ->
+                    let referencedColumn = do
+                            referencedTable <- findTableByName referenceTable
+                            find (\c -> c.name == referencedColumnName) referencedTable.columns
+                    in maybe [] (\c -> customTypes c.columnType) referencedColumn
+            _ -> []
+
+tableEnumImports :: (?schema :: Schema) => CreateTable -> Text
+tableEnumImports table = enumImports (map (\column -> (table, column)) (allColumnsIncludingInherited table))
 
 compileTypeAlias :: (?schema :: Schema, ?compilerOptions :: CompilerOptions) => CreateTable -> Text
 compileTypeAlias table@(CreateTable { name, columns }) =
@@ -593,10 +814,14 @@ columnsReferencingTable :: (?schema :: Schema) => Text -> [(Text, Text, Maybe Te
 columnsReferencingTable theTableName =
     let
         (Schema statements) = ?schema
+        -- Tables without generated code have no model to relate to.
+        noCodegenTables = noCodegenTableNames ?schema
     in
         statements
         |> mapMaybe \case
-            AddConstraint { tableName, constraint = fk@ForeignKeyConstraint { columnName, referenceTable, referenceColumn } } | referenceTable == theTableName && isForeignKeyReferencingPK fk -> Just (tableName, columnName, referenceColumn)
+            AddConstraint { tableName, constraint = fk@ForeignKeyConstraint { columnName, referenceTable, referenceColumn } }
+                | referenceTable == theTableName && isForeignKeyReferencingPK fk && not (tableName `member` noCodegenTables)
+                -> Just (tableName, columnName, referenceColumn)
             _ -> Nothing
 
 variableAttributes :: (?schema :: Schema, ?compilerOptions :: CompilerOptions) => CreateTable -> [Column]
@@ -768,8 +993,9 @@ generatedTypesImports table = Text.unlines (ownImports <> referencingImports)
         modelName = tableNameToModelName table.name
         ownImports =
             [ "import Generated.ActualTypes." <> modelName <> " as Generated.ActualTypes"
-            , "import Generated.Enums"
+            , tableEnumImports table
             , "import Generated.ActualTypes.PrimaryKeys"
+            , noCodegenReferenceImports table
             ]
         referencingImports =
             if ?compilerOptions.compileRelationSupport
@@ -1271,7 +1497,7 @@ statementModules schema =
     let ?schema = schema
     in schema.statements
         |> concatMap \case
-            StatementCreateTable table | tableHasPrimaryKey table ->
+            StatementCreateTable table | tableHasGeneratedCode table ->
                 statementModulesForTable table
             _ -> []
 
@@ -1288,9 +1514,10 @@ statementModulesForTable table =
 
 compileStatementsIndex :: (?compilerOptions :: CompilerOptions) => Schema -> Text
 compileStatementsIndex schema@(Schema statements) =
+    let ?schema = schema in
     let tableNames = statements
             |> mapMaybe \case
-                StatementCreateTable table | tableHasPrimaryKey table -> Just (tableNameToModelName table.name)
+                StatementCreateTable table | tableHasGeneratedCode table -> Just (tableNameToModelName table.name)
                 _ -> Nothing
         imports = tableNames >>= \modelName ->
             [ "import qualified Generated.Statements.RowDecoder" <> modelName
