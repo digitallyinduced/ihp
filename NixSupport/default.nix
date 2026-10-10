@@ -620,7 +620,7 @@ CABAL_EOF
             import qualified Config
             import WorkerMain ()
             main :: IO ()
-            main = runScript Config.config (runJobWorkers (workers RootApplication))
+            main = runScriptUtf8 Config.config (runJobWorkers (workers RootApplication))
             EOF
         '';
     };
@@ -646,7 +646,7 @@ CABAL_EOF
             import IHP.ScriptSupport
             import qualified Config
             import Application.Script.${scriptName} (run)
-            main = runScript Config.config run
+            main = runScriptUtf8 Config.config run
             EOF
         '';
     };

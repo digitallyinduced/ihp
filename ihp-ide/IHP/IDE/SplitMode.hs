@@ -83,8 +83,9 @@ generateRunJobsModule = do
         Just existing | existing == want -> pure ()
         _ -> ByteString.writeFile path want
 
--- | The exact bytes written to @build\/RunJobs.hs@. Mirrors the template in
--- @NixSupport\/default.nix@ used by the production build.
+-- | The exact bytes written to @build\/RunJobs.hs@. Uses @runScript@ because
+-- DevWorker runs @main@ asynchronously while GHCi reads stdin. Production
+-- entry points use @runScriptUtf8@ to initialize encodings at process startup.
 runJobsModuleContents :: ByteString
 runJobsModuleContents =
     "module RunJobs (main) where\n\

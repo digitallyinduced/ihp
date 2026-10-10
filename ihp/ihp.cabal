@@ -343,6 +343,7 @@ test-suite tests
         Test.FetchPipelinedSpec
         Test.JobQueueSpec
         Test.JobRunnerSpec
+        Test.ScriptSupportSpec
         Test.LoginSupport.AuthVaultSpec
         Test.Router.AppBindingSpec
         Test.Router.CaptureSpec
