@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Close status-page WebSockets when the dev server hands over to the app, so the browser automatically reloads after compilation succeeds.
+
 - Fix the dev-server status page ("Problems found while compiling") staying in the browser after the app has started. Its responses now send `Connection: close`, so a keep-alive connection cannot keep reaching the stopped status server.
 - Default new tables and jobs to `uuidv7()` now that PostgreSQL 18 is the IHP default. Set `IHP_POSTGRES_VERSION=17` to keep generating `uuid_generate_v4()`.
 

@@ -381,4 +381,5 @@ test-suite tests
         IDE.ToolServer.MiddlewareSpec
         IDE.Logs.ControllerSpec
         IDE.DevServerSpec
+        IDE.StatusServerSpec
         ServerSpec
