@@ -1,6 +1,6 @@
 {-|
 Module: Test.Controller.FileUploadBackendSpec
-Tests for choosing the file upload backend per controller action.
+Tests for the app-wide file upload backend (@option TempFileUploads@).
 -}
 {-# LANGUAGE AllowAmbiguousTypes #-}
 
@@ -23,16 +23,11 @@ import System.Directory (doesFileExist)
 data WebApplication = WebApplication deriving (Eq, Show, Data)
 
 data UploadsController
-    = UploadInMemoryAction
-    | UploadToDiskAction
+    = UploadAction
   deriving (Eq, Show, Data)
 
 instance Controller UploadsController where
-    fileUploadBackend UploadToDiskAction = Just TempFileUploads
-    fileUploadBackend _ = Nothing
-
-    action UploadInMemoryAction = renderUploadInfo
-    action UploadToDiskAction = renderUploadInfo
+    action UploadAction = renderUploadInfo
 
 -- | Renders the temp file path (if any), the file content and the title param
 renderUploadInfo :: (?request :: Request, ?respond :: Respond) => IO ResponseReceived
@@ -57,6 +52,10 @@ config = do
     option Development
     option (AppPort 8000)
 
+tempFileConfig = do
+    config
+    option TempFileUploads
+
 postMultipart :: ByteString -> Session SResponse
 postMultipart url = srequest $ SRequest req body
   where
@@ -76,14 +75,15 @@ postMultipart url = srequest $ SRequest req body
         ]
 
 tests :: Spec
-tests = aroundAll (withMockContextAndApp WebApplication config) do
-    describe "fileUploadBackend" $ do
+tests = describe "fileUploadBackend" do
+    aroundAll (withMockContextAndApp WebApplication config) do
         it "keeps uploads in memory by default" $ withContextAndApp \application -> do
-            response <- runSession (postMultipart "test/UploadInMemory") application
+            response <- runSession (postMultipart "test/Upload") application
             simpleBody response `shouldBe` "none|file-content|Hello"
 
-        it "writes uploads to a temp file for an action that chooses TempFileUploads, and removes it after the request" $ withContextAndApp \application -> do
-            response <- runSession (postMultipart "test/UploadToDisk") application
+    aroundAll (withMockContextAndApp WebApplication tempFileConfig) do
+        it "writes uploads to a temp file with option TempFileUploads, and removes it after the request" $ withContextAndApp \application -> do
+            response <- runSession (postMultipart "test/Upload") application
             case Text.splitOn "|" (cs (simpleBody response)) of
                 [tempPath, content, title] -> do
                     tempPath `shouldNotBe` "none"

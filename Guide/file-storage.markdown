@@ -817,20 +817,7 @@ By default an uploaded file is kept in memory while the request is handled. That
 
 ### Storing Form Uploads in Temporary Files
 
-An action can choose to write the uploaded files of a `multipart/form-data` form to temporary files instead. Override `fileUploadBackend` in the controller's instance:
-
-```haskell
-instance Controller VideosController where
-    fileUploadBackend UploadVideoAction = Just TempFileUploads
-    fileUploadBackend _ = Nothing -- Use the app-wide default
-
-    action UploadVideoAction = do
-        -- ...
-```
-
-The body is parsed straight from the request stream, so memory use stays flat whatever the file size. The upload is parsed after routing, before `initContext` and `beforeAction` run.
-
-To use temporary files for all actions, set the `TempFileUploads` option in `Config/Config.hs`. An action can then still return `Just InMemoryFileUploads` to opt out:
+You can write the uploaded files of `multipart/form-data` forms to temporary files instead. Set the `TempFileUploads` option in `Config/Config.hs`:
 
 ```haskell
 config :: ConfigBuilder
@@ -840,6 +827,8 @@ config = do
 
     option TempFileUploads
 ```
+
+The body is parsed straight from the request stream, so memory use stays flat whatever the file size. The setting applies to all requests.
 
 Use `tempFileOrNothing` (or `tempFilesByName`) to get the path of the temporary file:
 

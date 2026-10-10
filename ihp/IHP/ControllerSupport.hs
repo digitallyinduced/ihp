@@ -29,7 +29,6 @@ module IHP.ControllerSupport
 , Request
 , rlsContextVaultKey
 , initRequestContext
-, withActionMultipartBody
 , ResponseReceived
 ) where
 
@@ -48,7 +47,7 @@ import qualified Network.HTTP.Types as HTTP
 import IHP.ModelSupport
 import Network.Wai.Parse as WaiParse
 import qualified Data.ByteString.Lazy
-import Wai.Request.Params.Middleware (Respond, readRawRequestBody, FileUploadBackend, withMultipartBody)
+import Wai.Request.Params.Middleware (Respond, readRawRequestBody)
 import qualified Data.CaseInsensitive
 import qualified Data.Typeable as Typeable
 import IHP.FrameworkConfig.Types (FrameworkConfig (..), ConfigProvider)
@@ -84,26 +83,6 @@ class (Show controller, Eq controller) => Controller controller where
     beforeAction = pure ()
     {-# INLINABLE beforeAction #-}
     action :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?theAction :: controller, ?respond :: Respond, ?request :: Request) => controller -> IO ResponseReceived
-
-    -- | Where the uploaded files of a @multipart/form-data@ request to this action are stored.
-    --
-    -- Returns 'Nothing' by default, which uses the app-wide setting (@option TempFileUploads@
-    -- in @Config.hs@, or 'InMemoryFileUploads' when not set).
-    --
-    -- __Example:__ Write video uploads to temporary files, keep all other uploads in memory
-    --
-    -- > instance Controller VideosController where
-    -- >     fileUploadBackend UploadVideoAction = Just TempFileUploads
-    -- >     fileUploadBackend _ = Nothing
-    -- >
-    -- >     action UploadVideoAction = do
-    -- >         case tempFileOrNothing "video" of
-    -- >             ...
-    --
-    -- The body is parsed after routing, before 'initContext' and 'beforeAction' run.
-    fileUploadBackend :: controller -> Maybe FileUploadBackend
-    fileUploadBackend _ = Nothing
-    {-# INLINABLE fileUploadBackend #-}
 
 class InitControllerContext application where
     initContext :: (?modelContext :: ModelContext, ?request :: Request, ?respond :: Respond, ?context :: ControllerContext) => IO ()
@@ -170,16 +149,6 @@ initRequestContext controllerTypeRep waiRequest waiRespond = do
     wrapInitContextException (initContext @application)
     pure ?context
 
--- | Parses a pending @multipart/form-data@ body with the backend chosen by the action
--- ('fileUploadBackend', or the app-wide 'defaultFileUploadBackend'), then calls the
--- continuation with the request holding the parsed body.
---
--- Temporary files are removed when the continuation returns.
-{-# INLINE withActionMultipartBody #-}
-withActionMultipartBody :: Controller controller => controller -> Request -> (Request -> IO a) -> IO a
-withActionMultipartBody controller request =
-    withMultipartBody (fromMaybe request.frameworkConfig.defaultFileUploadBackend (fileUploadBackend controller)) request
-
 -- | Wraps non-EarlyReturn exceptions from initContext in InitContextException
 -- so the error handler middleware can show "while calling initContext".
 wrapInitContextException :: IO () -> IO ()
@@ -192,7 +161,7 @@ wrapInitContextException action =
 {-# INLINE runActionWithNewContext #-}
 runActionWithNewContext :: forall application controller. (Controller controller, ?request :: Request, ?respond :: Respond, InitControllerContext application, ?application :: application, Typeable application, Typeable controller) => controller -> IO ResponseReceived
 runActionWithNewContext controller =
-    earlyReturnMiddleware (\request respond -> withActionMultipartBody controller request \request -> do
+    earlyReturnMiddleware (\request respond -> do
         let ?request = setActionType controller request
         let ?respond = respond
         context <- initActionContext controller

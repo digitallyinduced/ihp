@@ -108,14 +108,7 @@ filesByName !name =
 
 -- | Returns a file upload from the request as a temporary file on disk.
 --
--- Only works when uploads are stored in temporary files. Enable this for an action
--- in its controller instance:
---
--- > instance Controller VideosController where
--- >     fileUploadBackend UploadVideoAction = Just TempFileUploads
--- >     fileUploadBackend _ = Nothing
---
--- Or for all actions, in @Config/Config.hs@:
+-- Only works when uploads are stored in temporary files. Enable this in @Config/Config.hs@:
 --
 -- > config :: ConfigBuilder
 -- > config = do
