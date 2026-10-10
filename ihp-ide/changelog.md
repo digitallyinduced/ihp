@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Fix the dev-server status page ("Problems found while compiling") staying in the browser after the app has started. Its responses now send `Connection: close`, so a keep-alive connection cannot keep reaching the stopped status server.
 - Default new tables and jobs to `uuidv7()` now that PostgreSQL 18 is the IHP default. Set `IHP_POSTGRES_VERSION=17` to keep generating `uuid_generate_v4()`.
 
 ## v1.6.0

@@ -359,6 +359,12 @@ tests = do
                     $$ LANGUAGE plpgsql;
                     CREATE TRIGGER ihp_release_worker_job BEFORE UPDATE ON mail_jobs
                         FOR EACH ROW EXECUTE FUNCTION public.ihp_release_worker_job();
+                    CREATE FUNCTION public.ihp_requeue_job(job_table regclass, job_id uuid, owner uuid, claimed_at timestamp with time zone, next_run_at timestamp with time zone, failure text, refund_attempt boolean) RETURNS boolean
+                        LANGUAGE plpgsql
+                        AS $_$ BEGIN EXECUTE format('UPDATE %s SET locked_by = NULL WHERE id = $1', job_table) USING job_id; RETURN true; END $_$;
+                    CREATE FUNCTION public.ihp_remove_job_workers(worker_ids uuid[]) RETURNS integer
+                        LANGUAGE plpgsql
+                        AS $_$ BEGIN DELETE FROM public.job_workers WHERE id = ANY (worker_ids); RETURN 0; END $_$;
                 |]
                 diffSchemas targetSchema actualSchema `shouldBe` []
                 diffSchemas actualSchema targetSchema `shouldBe` []
