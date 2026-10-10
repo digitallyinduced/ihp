@@ -27,6 +27,7 @@ module IHP.FrameworkConfig.Types
 , DataSyncMaxSubscriptionsPerConnection (..)
 , DataSyncMaxTransactionsPerConnection (..)
 , Initializer (..)
+, FileUploadBackend (..)
 , FrameworkConfig (..)
 , ConfigProvider
 ) where
@@ -46,6 +47,7 @@ import IHP.Environment (Environment)
 import IHP.View.Types (CSSFramework)
 import System.Log.FastLogger (FastLogger)
 import IHP.ModelSupport.Types (ModelContext)
+import Wai.Request.Params.Middleware (FileUploadBackend (..))
 
 newtype AppHostname = AppHostname Text
 newtype AppPort = AppPort Int
@@ -160,6 +162,12 @@ data FrameworkConfig = FrameworkConfig
 
     -- | Configures the limits for request parameters, uploaded files, maximum number of headers etc.
     , parseRequestBodyOptions :: !WaiParse.ParseRequestBodyOptions
+
+    -- | Where files of a @multipart/form-data@ request are stored while the request is handled.
+    --
+    -- Defaults to 'InMemoryFileUploads'. Set @option TempFileUploads@ in @Config.hs@
+    -- to write uploaded files to temporary files instead, see 'IHP.Controller.FileUpload.tempFileOrNothing'.
+    , fileUploadBackend :: !FileUploadBackend
 
     -- | Used by the dev server. This field cannot be strict.
     , ideBaseUrl :: Text

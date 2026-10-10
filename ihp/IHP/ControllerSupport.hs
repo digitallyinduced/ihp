@@ -47,7 +47,7 @@ import qualified Network.HTTP.Types as HTTP
 import IHP.ModelSupport
 import Network.Wai.Parse as WaiParse
 import qualified Data.ByteString.Lazy
-import Wai.Request.Params.Middleware (Respond)
+import Wai.Request.Params.Middleware (Respond, readRawRequestBody)
 import qualified Data.CaseInsensitive
 import qualified Data.Typeable as Typeable
 import IHP.FrameworkConfig.Types (FrameworkConfig (..), ConfigProvider)
@@ -259,9 +259,20 @@ jumpToAction theAction = do
     beforeAction @action
     action theAction
 
+-- | Returns the raw request body.
+--
+-- For JSON and URL-encoded requests this is the body IHP already read to parse the params.
+--
+-- For any other content type (e.g. @application/octet-stream@ or a webhook payload),
+-- IHP does not read the body before the action runs. It is read into memory on the
+-- first call of 'getRequestBody' and cached. To handle large bodies without loading
+-- them into memory, stream them with 'Network.Wai.getRequestBodyChunk' instead.
+--
+-- For @multipart/form-data@ requests this returns an empty ByteString, as the body
+-- is parsed straight from the request stream. Use 'IHP.Controller.FileUpload.fileOrNothing'
+-- and 'IHP.Controller.Param.param' to access the files and fields.
 getRequestBody :: (?request :: Request) => IO LBS.ByteString
-getRequestBody =
-    pure ?request.parsedBody.rawPayload
+getRequestBody = readRawRequestBody ?request
 
 -- | Returns the request path, e.g. @/Users@ or @/CreateUser@
 getRequestPath :: (?request :: Request) => ByteString
