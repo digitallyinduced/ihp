@@ -37,10 +37,12 @@ import qualified Test.JobQueueSpec
 import qualified Test.JobRunnerSpec
 import qualified Test.LoginSupport.AuthVaultSpec
 import qualified Test.PGVersionSpec
+import qualified Test.ScriptSupportSpec
 import qualified Test.TypedSqlSpec
 
 main :: IO ()
 main = hspec do
+    Test.ScriptSupportSpec.tests
     Test.ValidationSupport.ValidateFieldSpec.tests
     Test.NameSupportSpec.tests
     Test.HaskellSupportSpec.tests

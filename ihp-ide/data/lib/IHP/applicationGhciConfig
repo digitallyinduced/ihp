@@ -52,4 +52,7 @@
 :set -Werror=incomplete-patterns
 :set -package ghc
 :set -fno-warn-ambiguous-fields 
+-- Configure input synchronously, before a dev worker can run alongside GHCi's reader.
+import qualified System.IO
+System.IO.hSetEncoding System.IO.stdin System.IO.utf8
 :l Main.hs

@@ -334,6 +334,7 @@ test-suite tests
         Test.Controller.CookieSpec
         Test.PGListenerSpec
         Test.PGVersionSpec
+        Test.ScriptSupportSpec
         Test.MockingSpec
         Test.ControllerSupportSpec
         Test.HasqlEncoderSpec
