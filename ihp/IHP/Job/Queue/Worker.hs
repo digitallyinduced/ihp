@@ -77,6 +77,46 @@ ensureWorkerRegistry pool = runPool pool $ Session.script $
     <> "NEW.updated_at := clock_timestamp();"
     <> "NEW.attempts_count := greatest(0, OLD.attempts_count - 1);"
     <> "END IF; RETURN NEW; END $release$ LANGUAGE plpgsql;"
+    -- Applications often allow one pending job per key through a partial unique
+    -- index over the not-started and retry states. Requeueing a running job then
+    -- conflicts when another job for the same key is already pending. That job
+    -- covers the work, so the released one fails instead of aborting the
+    -- transaction that releases it.
+    <> "CREATE OR REPLACE FUNCTION public.ihp_requeue_job(job_table regclass, job_id uuid, owner uuid,"
+    <> " claimed_at timestamptz, next_run_at timestamptz, failure text, refund_attempt boolean)"
+    <> " RETURNS boolean AS $requeue$ BEGIN "
+    <> "EXECUTE format('UPDATE %s SET status = ''job_status_retry'', locked_by = NULL, locked_at = NULL,"
+    <> " updated_at = clock_timestamp(), run_at = coalesce($4, clock_timestamp()),"
+    <> " last_error = coalesce($5, last_error),"
+    <> " attempts_count = CASE WHEN $6 THEN greatest(0, attempts_count - 1) ELSE attempts_count END"
+    <> " WHERE id = $1 AND status = ''job_status_running'' AND locked_by = $2 AND locked_at = $3', job_table)"
+    <> " USING job_id, owner, claimed_at, next_run_at, failure, refund_attempt;"
+    <> "RETURN true;"
+    <> "EXCEPTION WHEN unique_violation THEN "
+    <> "EXECUTE format('UPDATE %s SET status = ''job_status_failed'', locked_by = NULL, locked_at = NULL,"
+    <> " updated_at = clock_timestamp(), last_error = $4"
+    <> " WHERE id = $1 AND status = ''job_status_running'' AND locked_by = $2 AND locked_at = $3', job_table)"
+    <> " USING job_id, owner, claimed_at,"
+    <> " concat_ws(' ', failure, 'Not retried: a pending job for the same work already exists.');"
+    <> "RETURN false;"
+    <> "END $requeue$ LANGUAGE plpgsql;"
+    -- Release running jobs row by row before deleting the workers. Releasing
+    -- them through the foreign key action instead lets one conflicting job abort
+    -- the removal of every worker in the statement.
+    <> "CREATE OR REPLACE FUNCTION public.ihp_remove_job_workers(worker_ids uuid[])"
+    <> " RETURNS integer AS $remove$ DECLARE job_table regclass; job record; released integer := 0; BEGIN "
+    <> "IF coalesce(cardinality(worker_ids), 0) = 0 THEN RETURN 0; END IF;"
+    <> "PERFORM 1 FROM public.job_workers WHERE id = ANY (worker_ids) FOR UPDATE;"
+    <> "FOR job_table IN SELECT conrelid::regclass FROM pg_constraint WHERE conname = 'ihp_job_worker_fk'"
+    <> " AND contype = 'f' AND confrelid = 'public.job_workers'::regclass LOOP "
+    <> "FOR job IN EXECUTE format('SELECT id, locked_by, locked_at FROM %s"
+    <> " WHERE locked_by = ANY ($1) AND status = ''job_status_running''', job_table) USING worker_ids LOOP "
+    <> "PERFORM public.ihp_requeue_job(job_table, job.id, job.locked_by, job.locked_at, NULL, NULL, true);"
+    <> "released := released + 1;"
+    <> "END LOOP; END LOOP;"
+    <> "DELETE FROM public.job_workers WHERE id = ANY (worker_ids);"
+    <> "RETURN released;"
+    <> "END $remove$ LANGUAGE plpgsql;"
 
 registerWorker :: Pool.Pool -> UUID -> IO ()
 registerWorker pool workerId = runPool pool $ Session.statement workerId $
@@ -96,20 +136,22 @@ heartbeatWorker pool workerId = do
             uuidEncoder (Decoders.rowMaybe (Decoders.column (Decoders.nonNullable Decoders.bool)))
     pure (fromMaybe False result)
 
--- | Call only after the worker's executions have stopped. The foreign keys
--- release remaining jobs in the same transaction as deleting the worker.
+-- | Call only after the worker's executions have stopped. Remaining jobs are
+-- released in the same transaction as deleting the worker.
 unregisterWorker :: Pool.Pool -> UUID -> IO ()
 unregisterWorker pool workerId = runPool pool $ Session.statement workerId $
-    Statement.unpreparable "DELETE FROM public.job_workers WHERE id = $1" uuidEncoder Decoders.noResult
+    Statement.unpreparable "SELECT public.ihp_remove_job_workers(ARRAY[$1])" uuidEncoder
+        (fmap (const ()) (Decoders.singleRow (Decoders.column (Decoders.nonNullable Decoders.int4))))
 
 reapExpiredWorkers :: Pool.Pool -> IO ()
 reapExpiredWorkers pool = runPool pool $ Session.script
     -- The script is one implicit transaction: settings are local and an error
-    -- rolls the deletion back. FK actions may otherwise wait indefinitely for a
-    -- locked job table, preventing this process from renewing its own lease.
+    -- rolls the deletion back. Releasing jobs may otherwise wait indefinitely for
+    -- a locked job table, preventing this process from renewing its own lease.
     ("SET LOCAL lock_timeout = '1s';"
         <> "SET LOCAL statement_timeout = '10s';"
-        <> "DELETE FROM public.job_workers WHERE heartbeat_at <= clock_timestamp() - interval '120 seconds';")
+        <> "SELECT public.ihp_remove_job_workers(ARRAY(SELECT id FROM public.job_workers"
+        <> " WHERE heartbeat_at <= clock_timestamp() - interval '120 seconds'));")
 
 -- | Install a validated ownership FK and release trigger once per job table.
 -- Existing unregistered owners are an upgrade error, not proof of a crash.

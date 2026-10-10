@@ -35,6 +35,13 @@ A lease is not an exactly-once guarantee: a paused or disconnected worker may
 have already sent a request to an external service. Job implementations must
 still be idempotent. Separate application-level locks are not released by IHP.
 
+Applications often allow only one pending job per key, with a partial unique
+index over `job_status_not_started` and `job_status_retry`. When IHP returns an
+interrupted, failed or timed-out job to the queue while another job for the same
+key is already pending, the returned job would violate that index. IHP then marks
+it `job_status_failed` with `last_error` starting with `Not retried:`, because the
+pending job covers the same work. The worker keeps running.
+
 #### Upgrading existing applications
 
 The first upgrade from workers without heartbeats requires a coordinated worker

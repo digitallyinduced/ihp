@@ -289,6 +289,8 @@ removeNoise = filter \case
         AddConstraint { constraint = ForeignKeyConstraint
             { name = Just "ihp_job_worker_fk", columnName = "locked_by", referenceTable = "job_workers" } } -> False
         CreateFunction { functionName = "ihp_release_worker_job" } -> False
+        CreateFunction { functionName = "ihp_requeue_job" } -> False
+        CreateFunction { functionName = "ihp_remove_job_workers" } -> False
         CreateTrigger { name = "ihp_release_worker_job", functionName = "ihp_release_worker_job" } -> False
         CreateIndex { indexName }
             | Just oid <- Text.stripPrefix "ihp_job_worker_" indexName

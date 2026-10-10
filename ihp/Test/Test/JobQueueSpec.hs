@@ -123,8 +123,45 @@ tests = do
                 insertRunningWorkerJob pool workerId
                 runScript pool "DROP TRIGGER ihp_release_worker_job ON worker_registry_spec_jobs"
                 Worker.ensureJobWorkerForeignKey pool "worker_registry_spec_jobs"
-                Worker.unregisterWorker pool workerId
+                runScript pool ("DELETE FROM public.job_workers WHERE id = '" <> tshow workerId <> "'")
                 queryBool pool "SELECT status = 'job_status_retry' FROM worker_registry_spec_jobs" `shouldReturn` True
+
+        it "fails a released job instead of duplicating a pending job for the same work" do
+            withRegisteredWorker \pool workerId -> do
+                insertRunningWorkerJob pool workerId
+                insertPendingDuplicateJob pool
+                Worker.unregisterWorker pool workerId
+                queryBool pool ("SELECT status = 'job_status_failed' AND locked_by IS NULL AND attempts_count = 3"
+                    <> " AND last_error LIKE 'Not retried:%'"
+                    <> " FROM worker_registry_spec_jobs WHERE id = '00000000-0000-0000-0000-000000000001'")
+                    `shouldReturn` True
+                queryBool pool ("SELECT status = 'job_status_not_started'"
+                    <> " FROM worker_registry_spec_jobs WHERE id = '00000000-0000-0000-0000-000000000002'")
+                    `shouldReturn` True
+                queryBool pool ("SELECT NOT EXISTS (SELECT 1 FROM public.job_workers WHERE id = '" <> tshow workerId <> "')")
+                    `shouldReturn` True
+
+        it "reaps every expired worker even when one of their jobs conflicts with a pending job" do
+            withRegisteredWorker \pool workerId -> do
+                otherWorkerId <- UUID.nextRandom
+                Worker.registerWorker pool otherWorkerId
+                insertRunningWorkerJob pool workerId
+                insertPendingDuplicateJob pool
+                runScript pool $
+                    "INSERT INTO worker_registry_spec_jobs (id, status, locked_by, locked_at, attempts_count, job_key)"
+                    <> " VALUES ('00000000-0000-0000-0000-000000000003', 'job_status_running', '"
+                    <> tshow otherWorkerId <> "', now(), 1, 2)"
+                expireTestWorker pool workerId
+                expireTestWorker pool otherWorkerId
+                Worker.reapExpiredWorkers pool
+                queryBool pool ("SELECT bool_and(CASE id"
+                    <> " WHEN '00000000-0000-0000-0000-000000000001' THEN status = 'job_status_failed'"
+                    <> " WHEN '00000000-0000-0000-0000-000000000002' THEN status = 'job_status_not_started'"
+                    <> " ELSE status = 'job_status_retry' AND attempts_count = 0 END)"
+                    <> " FROM worker_registry_spec_jobs")
+                    `shouldReturn` True
+                queryBool pool "SELECT NOT EXISTS (SELECT 1 FROM public.job_workers WHERE heartbeat_at < now() - interval '120 seconds')"
+                    `shouldReturn` True
 
     describe "IHP.Job.Queue" do
         it "recreates missing triggers when poller repair is enabled" do
@@ -232,7 +269,10 @@ withRegisteredWorker action = withDB \modelContext _ _ -> do
                 <> "CREATE TABLE worker_registry_spec_jobs (id UUID PRIMARY KEY,"
                 <> "status TEXT NOT NULL, locked_by UUID, locked_at TIMESTAMPTZ,"
                 <> "run_at TIMESTAMPTZ NOT NULL DEFAULT now(), updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),"
-                <> "attempts_count INT NOT NULL DEFAULT 0)")
+                <> "attempts_count INT NOT NULL DEFAULT 0, last_error TEXT, job_key INT NOT NULL DEFAULT 1);"
+                -- One pending job per key, as applications use to deduplicate queued work.
+                <> "CREATE UNIQUE INDEX worker_registry_spec_jobs_pending_key ON worker_registry_spec_jobs (job_key)"
+                <> " WHERE status IN ('job_status_not_started', 'job_status_retry')")
             Worker.ensureJobWorkerForeignKey pool "worker_registry_spec_jobs"
             Worker.registerWorker pool workerId
             action pool workerId)
@@ -245,6 +285,10 @@ insertRunningWorkerJob pool workerId = runScript pool $
     "INSERT INTO worker_registry_spec_jobs (id, status, locked_by, locked_at, attempts_count)"
     <> " VALUES ('00000000-0000-0000-0000-000000000001', 'job_status_running', '"
     <> tshow workerId <> "', now() - interval '1 day', 3)"
+
+insertPendingDuplicateJob :: HasqlPool.Pool -> IO ()
+insertPendingDuplicateJob pool = runScript pool $
+    "INSERT INTO worker_registry_spec_jobs (id, status) VALUES ('00000000-0000-0000-0000-000000000002', 'job_status_not_started')"
 
 expireTestWorker :: HasqlPool.Pool -> UUID -> IO ()
 expireTestWorker pool workerId = runScript pool $
