@@ -189,7 +189,7 @@ CABAL_EOF
     # Every generated table expands into several modules. With large schemas,
     # split sections create enough archive members for the final library
     # assembly to exceed the platform's argument-size limit.
-    modelsPackage = configureHaskellBuild (pkgs.haskell.lib.overrideCabal (
+    modelsPackage = withStableUnitId (configureHaskellBuild (pkgs.haskell.lib.overrideCabal (
         pkgs.haskell.lib.disableLibraryProfiling (pkgs.haskell.lib.dontHaddock (
             ghc.callPackage ({ mkDerivation, base, ihp, basic-prelude, text, bytestring, time, uuid, aeson, postgresql-simple, deepseq, data-default, scientific, string-conversions, hasql, hasql-dynamic-statements, hasql-implicits, hasql-mapping, hasql-postgresql-types, hasql-pool, unordered-containers, postgresql-types }: mkDerivation {
                 pname = "${appName}-models";
@@ -226,7 +226,7 @@ CABAL_EOF
         ))
     ) (old: {
         configureFlags = (old.configureFlags or []) ++ [ "--disable-split-sections" ];
-    }));
+    })));
 
     allHaskellPackages =
         (if withHoogle
@@ -462,6 +462,27 @@ CABAL_EOF
                     ++ map (opt: "--ghc-option=${opt}") extraGhcOptions;
             });
 
+    # Cabal derives a library's unit id from the unit ids of its dependencies.
+    # Interface files record the unit id they were compiled for, so a restored
+    # previousIntermediates cache became worthless whenever the dependency set
+    # changed (an added package, a package-set bump): GHC recompiled every
+    # module. A fixed unit id keeps the cache valid across such changes, and
+    # GHC's recompilation checker still rebuilds exactly the modules whose
+    # imported interfaces changed. Each build lives in its own store path and
+    # package database, so the id does not have to be unique.
+    withStableUnitId = pkg: pkgs.haskell.lib.overrideCabal pkg (old: {
+        configureFlags = (old.configureFlags or []) ++ [
+            "--ipid=${old.pname}-${old.version}-inplace"
+        ];
+        # The restored cache also carries the shared libraries linked under
+        # earlier unit ids. Drop them so they do not accumulate in every
+        # intermediates output.
+        postBuild = ''
+            find dist/build -maxdepth 1 -name 'libHS${old.pname}-${old.version}-*' \
+                ! -name 'libHS${old.pname}-${old.version}-inplace*' -delete
+        '' + (old.postBuild or "");
+    });
+
     configureAppLibBuild = pkg:
         let configured = configureHaskellBuild pkg;
         in if appLibCompileCores == null && appLibGhcAllocationArea == null
@@ -482,7 +503,7 @@ CABAL_EOF
                 enableParallelBuilding = false;
             }));
 
-    mkAppLibPackage = withIntermediates: configureAppLibBuild (pkgs.haskell.lib.disableLibraryProfiling (pkgs.haskell.lib.dontHaddock (
+    mkAppLibPackage = withIntermediates: withStableUnitId (configureAppLibBuild (pkgs.haskell.lib.disableLibraryProfiling (pkgs.haskell.lib.dontHaddock (
         ghc.callPackage ({ mkDerivation, base }: mkDerivation {
             pname = "${appName}-lib";
             version = "0.1.0";
@@ -509,7 +530,7 @@ CABAL_EOF
             '';
             license = pkgs.lib.licenses.free;
         }) {}
-    )));
+    ))));
 
     withAppLibPostgres = pkg:
         if buildWithPostgres
