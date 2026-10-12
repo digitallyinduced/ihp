@@ -26,7 +26,7 @@ import Hasql.DynamicStatements.Snippet (Snippet)
 import qualified IHP.DataSync.ChangeNotifications as ChangeNotifications
 import qualified IHP.PGListener as PGListener
 import qualified Data.Set as Set
-import IHP.DataSync.Drain (DrainSignal, newDrainSignal, runDrainingWorkers)
+import IHP.DataSync.Drain (DrainSignal, newDrainSignal, runDrainingWorkers, waitForSubscriptionClose, withJoinedCallback)
 import qualified Data.TMap as TypeMap
 import qualified Data.List as List
 
@@ -55,9 +55,8 @@ runDataSyncController hasqlPool ensureRLSEnabled installTableChangeTriggers rece
 -- | Opt-in cooperative shutdown. Request the shared signal and await this
 -- action before closing the socket. The receive callback must be safe to
 -- cancel; accepted handlers are joined without cancellation on drain.
--- Long-lived subscription and transaction handlers are also joined. This can
--- wait indefinitely: this primitive does not automatically close subscriptions
--- or choose commit/rollback semantics for open transactions.
+-- Subscription idle waits end on drain and dispatched callbacks are joined.
+-- Open transactions still block: no commit/rollback policy is chosen here.
 runDataSyncControllerWithDrain ::
     ( HasField "id" CurrentUserRecord (Id' (GetTableName CurrentUserRecord))
     , ?request :: Request
@@ -72,7 +71,7 @@ runDataSyncControllerWithDrain drain hasqlPool ensureRLSEnabled installTableChan
     setState DataSyncReady { subscriptions = HashMap.empty, transactions = HashMap.empty }
 
     columnTypeLookup <- makeCachedColumnTypeLookup hasqlPool
-    handleMessage :: DataSyncMessage -> IO () <- buildMessageHandler hasqlPool ensureRLSEnabled installTableChangeTriggers sendJSON handleCustomMessage renamer columnTypeLookup
+    handleMessage :: DataSyncMessage -> IO () <- buildMessageHandler drain hasqlPool ensureRLSEnabled installTableChangeTriggers sendJSON handleCustomMessage renamer columnTypeLookup
 
 
     runDrainingWorkers drain (maxSubscriptionsPerConnection * 2) receiveData \bytes ->
@@ -100,8 +99,8 @@ buildMessageHandler ::
     , HasNewSessionUrl CurrentUserRecord
     , Show (PrimaryKey (GetTableName CurrentUserRecord))
     )
-    => Hasql.Pool.Pool -> EnsureRLSEnabledFn -> InstallTableChangeTriggerFn -> SendJSONFn -> HandleCustomMessageFn -> (Text -> Renamer) -> (Text -> IO ColumnTypeInfo) -> IO (DataSyncMessage -> IO ())
-buildMessageHandler hasqlPool ensureRLSEnabled installTableChangeTriggers sendJSON handleCustomMessage renamer columnTypeLookup = do
+    => DrainSignal -> Hasql.Pool.Pool -> EnsureRLSEnabledFn -> InstallTableChangeTriggerFn -> SendJSONFn -> HandleCustomMessageFn -> (Text -> Renamer) -> (Text -> IO ColumnTypeInfo) -> IO (DataSyncMessage -> IO ())
+buildMessageHandler drain hasqlPool ensureRLSEnabled installTableChangeTriggers sendJSON handleCustomMessage renamer columnTypeLookup = do
     getRLSColumns <- makeCachedRLSPolicyColumns hasqlPool
     pure (handleMessage getRLSColumns)
     where
@@ -213,13 +212,13 @@ buildMessageHandler hasqlPool ensureRLSEnabled installTableChangeTriggers sendJS
                                 when isWatchingRecord do
                                     sendJSON DidDelete { subscriptionId, id }
 
-                let subscribe = PGListener.subscribeJSON (ChangeNotifications.channelName tableNameRLS) callback pgListener
+                let subscribe joinedCallback = PGListener.subscribeJSON (ChangeNotifications.channelName tableNameRLS) joinedCallback pgListener
                 let unsubscribe subscription = PGListener.unsubscribe subscription pgListener
 
-                Exception.bracket subscribe unsubscribe \channelSubscription -> do
+                withJoinedCallback callback \joinedCallback -> Exception.bracket (subscribe joinedCallback) unsubscribe \channelSubscription -> do
                     sendJSON DidCreateDataSubscription { subscriptionId, requestId, result }
 
-                    MVar.takeMVar close
+                    waitForSubscriptionClose drain close
 
             handleMessage getRLSColumns CreateCountSubscription { query, requestId } = do
                 ensureBelowSubscriptionsLimit
@@ -256,13 +255,13 @@ buildMessageHandler hasqlPool ensureRLSEnabled installTableChangeTriggers sendJS
                             writeIORef countRef newCount
                             sendJSON DidChangeCount { subscriptionId, count = newCount }
 
-                let subscribe = PGListener.subscribeJSON (ChangeNotifications.channelName tableNameRLS) callback pgListener
+                let subscribe joinedCallback = PGListener.subscribeJSON (ChangeNotifications.channelName tableNameRLS) joinedCallback pgListener
                 let unsubscribe subscription = PGListener.unsubscribe subscription pgListener
 
-                Exception.bracket subscribe unsubscribe \channelSubscription -> do
+                withJoinedCallback callback \joinedCallback -> Exception.bracket (subscribe joinedCallback) unsubscribe \channelSubscription -> do
                     sendJSON DidCreateCountSubscription { subscriptionId, requestId, count }
 
-                    MVar.takeMVar close
+                    waitForSubscriptionClose drain close
 
             handleMessage getRLSColumns DeleteDataSubscription { requestId, subscriptionId } = do
                 DataSyncReady { subscriptions } <- getState

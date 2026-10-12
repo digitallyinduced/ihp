@@ -3,13 +3,15 @@
 -- several connections. It is one-way: reopening requires a new signal.
 module IHP.DataSync.Drain
     ( DrainSignal, newDrainSignal, requestDrain, runDrainingWorkers
+    , waitForSubscriptionClose, withJoinedCallback
     ) where
 
 import Prelude
 import Control.Concurrent.Async
 import Control.Concurrent.STM
 import Control.Concurrent.QSem
-import Control.Exception (bracket_, mask, onException, throwIO)
+import Control.Concurrent.MVar (MVar, takeMVar)
+import Control.Exception (bracket_, mask, onException, throwIO, finally)
 import Control.Monad (filterM, void, when)
 import Data.IORef
 
@@ -23,6 +25,32 @@ newDrainSignal = DrainSignal <$> newTVarIO False
 -- | Close admission. This does not cancel workers or wait for connections.
 requestDrain :: DrainSignal -> IO ()
 requestDrain (DrainSignal closed) = atomically (writeTVar closed True)
+
+-- | Only the idle subscription wait is cancellable; setup and callbacks are
+-- not raced against drain. A subscription starting after the latch closes
+-- therefore still unwinds its normal resource bracket.
+waitForSubscriptionClose :: DrainSignal -> MVar () -> IO ()
+waitForSubscriptionClose (DrainSignal closed) close =
+    void (race (atomically (readTVar closed >>= check)) (takeMVar close))
+
+-- | PGListener may already have dispatched a callback when unsubscribed.
+-- Close callback admission and join accepted callbacks before leaving scope.
+-- Late invocations of the supplied wrapper become no-ops.
+withJoinedCallback :: (a -> IO ()) -> ((a -> IO ()) -> IO b) -> IO b
+withJoinedCallback callback use = do
+    state <- newTVarIO (False, 0 :: Int)
+    let wrapped value = mask \restore -> do
+            accepted <- atomically do
+                (closed, count) <- readTVar state
+                if closed then pure False else
+                    writeTVar state (False, count + 1) >> pure True
+            when accepted $
+                restore (callback value) `finally`
+                    atomically (modifyTVar' state (\(closed, count) -> (closed, count - 1)))
+        close = do
+            atomically (modifyTVar' state (\(_, count) -> (True, count)))
+            atomically (readTVar state >>= \(_, count) -> check (count == 0))
+    use wrapped `finally` close
 
 -- | Run a receiving loop with bounded active handlers. On requested drain,
 -- join every accepted handler, including those queued for a concurrency slot.

@@ -14,6 +14,41 @@ import System.Timeout (timeout)
 
 tests :: Spec
 tests = describe "DataSync graceful drain" do
+    it "releases idle subscription waits even when setup finishes after drain" do
+        signal <- newDrainSignal
+        close <- newEmptyMVar
+        requestDrain signal
+        bounded (waitForSubscriptionClose signal close)
+
+    it "retains ordinary subscription close semantics" do
+        signal <- newDrainSignal
+        close <- newEmptyMVar
+        putMVar close ()
+        bounded (waitForSubscriptionClose signal close)
+
+    it "joins dispatched callbacks and rejects callbacks after scope ends" do
+        saved <- newEmptyMVar
+        started <- newEmptyMVar
+        release <- newEmptyMVar
+        endScope <- newEmptyMVar
+        calls <- newIORef (0 :: Int)
+        let callback () = do
+                modifyIORef' calls (+ 1)
+                putMVar started ()
+                takeMVar release
+        withAsync (withJoinedCallback callback \wrapped ->
+            putMVar saved wrapped >> takeMVar endScope) \scope -> do
+            wrapped <- bounded (takeMVar saved)
+            withAsync (wrapped ()) \running -> do
+                bounded (takeMVar started)
+                putMVar endScope ()
+                poll scope >>= (`shouldSatisfy` isNothing)
+                putMVar release ()
+                bounded (wait running)
+                bounded (wait scope)
+            wrapped ()
+        readIORef calls `shouldReturn` 1
+
     it "does not receive or handle after admission is closed" do
         signal <- newDrainSignal
         requestDrain signal

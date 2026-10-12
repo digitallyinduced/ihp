@@ -26,18 +26,23 @@ They are not graceful completion. Uncaught handler failures propagate. Handlers
 that catch errors themselves retain their existing protocol behavior: a normal
 return proves joining, not successful or unambiguous external effects.
 
+Read-only subscription handlers finish setup without cancellation, then their
+idle wait ends on either the client close signal or the shared drain signal.
+Their normal unsubscribe finalizer runs. A scoped callback gate also joins
+already dispatched notification callbacks and makes late invocations no-ops.
+This covers subscriptions accepted but still waiting for a semaphore slot.
+
 ## Explicit limitations
 
 This is a lifecycle primitive, not a complete deployment drain:
 
 - Configure the shared latch before admitting connections. Controllers calling
   the explicit `WithDrain` entrypoint must pass that same latch.
-- Long-lived subscription and open-transaction handlers are joined too, and can
-  block forever once message admission closes. Automatic subscription closure
-  and safe transaction rollback require a separate protocol integration; do not
+- Open-transaction handlers are joined too, and can block forever once message
+  admission closes. Safe transaction rollback requires a separate protocol
+  integration after accepted mutations and commits have joined; do not
   replace waiting with cancellation and claim success.
-- Detached work is not covered. Subscription notification callbacks and server
-  lifecycle cleanup need separate review.
+- Other detached work and server lifecycle cleanup are not covered.
 - HTTP admission, Warp shutdown policy, durable process-generation completion
   evidence, and recovery of uncertain effects remain application responsibilities.
 
