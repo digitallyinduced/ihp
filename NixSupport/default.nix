@@ -76,10 +76,35 @@ let
 
     modelsPackageVersion = "0.1.0";
     modelsIntermediatesDir = "share/haskell/${ghc.ghc.version}/${appName}-models-${modelsPackageVersion}/dist";
+    # The combined cache gets a new store path with every application build.
+    # Passing it to the models package directly made the models derivation,
+    # and with it a rebuild of every generated module's package, change on
+    # every build even when the schema did not. Import only the models' part
+    # by content instead. A models build without schema changes reproduces
+    # the same files, so the next build evaluates to the same models
+    # derivation and reuses its output. Cabal's autogen directory is left out:
+    # its Paths module embeds the output path and is regenerated anyway. The
+    # path is imported without its string context: otherwise the import
+    # inherits the cache's references, which differ on every build, and
+    # those references are part of the imported store path.
     reusableModelsIntermediates =
         if previousIntermediates != null
             && builtins.pathExists "${previousIntermediates}/${modelsIntermediatesDir}/build"
-        then previousIntermediates
+        then
+            let
+                root = builtins.unsafeDiscardStringContext (toString previousIntermediates);
+                modelsBuild = "${modelsIntermediatesDir}/build";
+                autogen = "${modelsBuild}/autogen";
+            in builtins.path {
+                name = "${appName}-models-previous-intermediates";
+                path = root;
+                filter = path: _type:
+                    let relative = pkgs.lib.removePrefix "${root}/" path;
+                    in pkgs.lib.hasPrefix "${relative}/" "${modelsBuild}/"
+                        || (pkgs.lib.hasPrefix "${modelsBuild}/" relative
+                            && relative != autogen
+                            && !(pkgs.lib.hasPrefix "${autogen}/" relative));
+            }
         else null;
 
     # Manual GHC builds do not use nixpkgs' Cabal intermediate-cache hooks, so
@@ -523,6 +548,10 @@ CABAL_EOF
                     cp -r ${reusableExecutableIntermediates}/. "$intermediates/${executableIntermediatesRoot}/"
                 ''}
                 cp -r ${modelsPackage.intermediates}/share/. "$intermediates/share/"
+                # Reference the models build from the cache so it stays alive as
+                # long as the cache does; the next build with an unchanged
+                # schema reuses it instead of rebuilding it after a GC.
+                echo ${modelsPackage.intermediates} > "$intermediates/share/.ihp-models-intermediates"
                 # Store paths are read-only. Cabal's following
                 # installIntermediatesPhase must still be able to add the app
                 # library alongside the copied model and executable trees.
