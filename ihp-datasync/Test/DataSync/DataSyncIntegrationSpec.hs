@@ -9,6 +9,7 @@ import qualified Hasql.Connection.Settings as HasqlSettings
 import qualified Hasql.Session as Session
 import IHP.DataSync.Hasql (runSession)
 import IHP.DataSync.ControllerImpl (runDataSyncController)
+import IHP.DataSync.Drain (DrainSignal, newDrainSignal, requestDrain)
 import IHP.DataSync.Types
 import IHP.DataSync.DynamicQuery (Field(..))
 import IHP.DataSync.DynamicQueryCompiler (camelCaseRenamer)
@@ -20,7 +21,7 @@ import qualified IHP.ModelSupport as ModelSupport
 import IHP.ModelSupport (noopLogger)
 import IHP.ModelSupport.Types (Id'(..), PrimaryKey)
 import qualified IHP.PGListener as PGListener
-import IHP.FrameworkConfig (buildFrameworkConfig)
+import IHP.FrameworkConfig (buildFrameworkConfig, option)
 import IHP.FrameworkConfig.Types
 
 import qualified Data.Vault.Lazy as Vault
@@ -138,6 +139,13 @@ withDataSyncEnvironment
     -> ((IO ByteString -> (DataSyncResponse -> IO ()) -> IO ()) -> IO a)
     -> IO a
 withDataSyncEnvironment connStr testUserId action = do
+    withDataSyncEnvironmentDrain Nothing connStr testUserId action
+
+withDataSyncEnvironmentDrain
+    :: Maybe DrainSignal -> Text -> UUID
+    -> ((IO ByteString -> (DataSyncResponse -> IO ()) -> IO ()) -> IO a)
+    -> IO a
+withDataSyncEnvironmentDrain drain connStr testUserId action = do
     withHasqlPool connStr \hasqlPool -> do
         -- If connStr already has dbname= prefix, use it directly; otherwise format it
         let actualConnStr = if "dbname=" `Text.isPrefixOf` connStr
@@ -146,7 +154,7 @@ withDataSyncEnvironment connStr testUserId action = do
         let logger = noopLogger
         ModelSupport.withModelContext actualConnStr logger \modelContext -> do
             PGListener.withPGListener actualConnStr logger \pgListener -> do
-                frameworkConfig <- buildFrameworkConfig logger (pure ())
+                frameworkConfig <- buildFrameworkConfig logger (mapM_ option drain)
                 let frameworkConfig' = frameworkConfig { databaseUrl = actualConnStr }
 
                 let testUser = Just (TestUser { id = Id testUserId }) :: Maybe TestUser
@@ -459,6 +467,44 @@ tests = do
                                 _ -> expectationFailure "Expected DidCreateDataSubscription"
 
         describe "Transactions" do
+            it "drains subscriptions and rolls back an open transaction before returning" do
+                withDB \connStr -> withHasqlPool connStr \pool -> do
+                    setupTestSchema pool
+                    (userId, _) <- insertTestData pool
+                    drain <- newDrainSignal
+                    withDataSyncEnvironmentDrain (Just drain) connStr userId \runController -> do
+                        input <- newTQueueIO
+                        output <- newTQueueIO
+                        let send msg = atomically (writeTQueue input msg)
+                            recv = readResponseWithTimeout output
+                        withAsync (runController (atomically (readTQueue input))
+                            (\response -> atomically (writeTQueue output response))) \controller -> do
+                            -- Install notification triggers before holding the
+                            -- transaction's row-write lock on this table.
+                            send (encodeCreateDataSubscription "messages" 72)
+                            recv >>= \case
+                                DidCreateDataSubscription {} -> pure ()
+                                _ -> expectationFailure "Expected DidCreateDataSubscription"
+                            send (encodeStartTransaction 70)
+                            recv >>= \case
+                                DidStartTransaction { transactionId } -> do
+                                    send (encodeCreateRecord "messages"
+                                        [("userId", String (UUID.toText userId)), ("body", String "drain rollback")]
+                                        71 (Just transactionId))
+                                    recv >>= \case
+                                        DidCreateRecord {} -> pure ()
+                                        _ -> expectationFailure "Expected DidCreateRecord"
+                                _ -> expectationFailure "Expected DidStartTransaction"
+                            requestDrain drain
+                            race (threadDelay 5_000_000) (wait controller) >>= \case
+                                Right () -> pure ()
+                                Left () -> expectationFailure "Drain did not finish"
+                    withDataSyncController connStr userId \(send, recv, _) -> do
+                        send (encodeDataSyncQuery "messages" 73 Nothing)
+                        recv >>= \case
+                            DataSyncResult { result } -> length result `shouldBe` 1
+                            _ -> expectationFailure "Expected DataSyncResult"
+
             it "starts, uses, and commits a transaction" do
                 withDB \connStr -> do
                     withHasqlPool connStr \pool -> do
