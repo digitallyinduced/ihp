@@ -27,6 +27,7 @@ import qualified IHP.DataSync.ChangeNotifications as ChangeNotifications
 import qualified IHP.PGListener as PGListener
 import qualified Data.Set as Set
 import IHP.DataSync.Drain (DrainSignal, newDrainSignal, runDrainingWorkers)
+import qualified Data.TMap as TypeMap
 import qualified Data.List as List
 
 $(deriveFromJSON defaultOptions ''DataSyncMessage)
@@ -47,7 +48,8 @@ runDataSyncController ::
     , Show (PrimaryKey (GetTableName CurrentUserRecord))
     ) => Hasql.Pool.Pool -> EnsureRLSEnabledFn -> InstallTableChangeTriggerFn -> IO ByteString -> SendJSONFn -> HandleCustomMessageFn -> (Text -> Renamer) -> IO ()
 runDataSyncController hasqlPool ensureRLSEnabled installTableChangeTriggers receiveData sendJSON handleCustomMessage renamer = do
-    drain <- newDrainSignal
+    drain <- maybe newDrainSignal pure
+        (TypeMap.lookup @DrainSignal ?request.frameworkConfig.appConfig)
     runDataSyncControllerWithDrain drain hasqlPool ensureRLSEnabled installTableChangeTriggers receiveData sendJSON handleCustomMessage renamer
 
 -- | Opt-in cooperative shutdown. Request the shared signal and await this
