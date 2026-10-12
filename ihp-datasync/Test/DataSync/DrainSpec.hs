@@ -14,6 +14,60 @@ import System.Timeout (timeout)
 
 tests :: Spec
 tests = describe "DataSync graceful drain" do
+    it "finishes accepted mutations before rolling back an initialized holder" do
+        signal <- newDrainSignal
+        cleanup <- newDrainSignal
+        close <- newEmptyMVar
+        received <- newIORef (0 :: Int)
+        allAccepted <- newEmptyMVar
+        setupStarted <- newEmptyMVar
+        releaseSetup <- newEmptyMVar
+        mutationStarted <- newEmptyMVar
+        releaseMutation <- newEmptyMVar
+        events <- newIORef ([] :: [String])
+        never <- newEmptyMVar
+        let record event = atomicModifyIORef' events (\xs -> (xs ++ [event], ()))
+            receive = do
+                n <- atomicModifyIORef' received (\x -> (x + 1, x))
+                if n < 2 then pure n else putMVar allAccepted () >> takeMVar never
+            handle :: IO () -> Int -> IO ()
+            handle ready n = if n == 0 then do
+                putMVar setupStarted ()
+                takeMVar releaseSetup
+                record "setup"
+                ready
+                finishTransactionOnDrain cleanup close (record "rollback")
+                record "released"
+              else do
+                putMVar mutationStarted ()
+                takeMVar releaseMutation
+                record "mutation"
+        withAsync (runPhasedDrainingWorkers signal 1 receive handle (requestDrain cleanup)) \running -> do
+            bounded (takeMVar allAccepted)
+            bounded (takeMVar setupStarted)
+            requestDrain signal
+            readIORef events `shouldReturn` []
+            putMVar releaseSetup ()
+            bounded (takeMVar mutationStarted)
+            readIORef events `shouldReturn` ["setup"]
+            putMVar releaseMutation ()
+            bounded (wait running)
+        readIORef events `shouldReturn` ["setup", "mutation", "rollback", "released"]
+
+    it "never rolls back an already committed holder" do
+        cleanup <- newDrainSignal
+        close <- newEmptyMVar
+        putMVar close ()
+        requestDrain cleanup
+        bounded (finishTransactionOnDrain cleanup close (expectationFailure "rolled back committed transaction"))
+
+    it "propagates rollback failure" do
+        cleanup <- newDrainSignal
+        close <- newEmptyMVar
+        requestDrain cleanup
+        finishTransactionOnDrain cleanup close (fail "rollback failed")
+            `shouldThrow` anyIOException
+
     it "releases idle subscription waits even when setup finishes after drain" do
         signal <- newDrainSignal
         close <- newEmptyMVar

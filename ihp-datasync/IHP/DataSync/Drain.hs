@@ -4,14 +4,15 @@
 module IHP.DataSync.Drain
     ( DrainSignal, newDrainSignal, requestDrain, runDrainingWorkers
     , waitForSubscriptionClose, withJoinedCallback
+    , runPhasedDrainingWorkers, finishTransactionOnDrain
     ) where
 
 import Prelude
 import Control.Concurrent.Async
 import Control.Concurrent.STM
 import Control.Concurrent.QSem
-import Control.Concurrent.MVar (MVar, takeMVar)
-import Control.Exception (bracket_, mask, onException, throwIO, finally)
+import Control.Concurrent.MVar (MVar, takeMVar, readMVar, isEmptyMVar)
+import Control.Exception (mask, onException, throwIO, finally)
 import Control.Monad (filterM, void, when)
 import Data.IORef
 
@@ -32,6 +33,15 @@ requestDrain (DrainSignal closed) = atomically (writeTVar closed True)
 waitForSubscriptionClose :: DrainSignal -> MVar () -> IO ()
 waitForSubscriptionClose (DrainSignal closed) close =
     void (race (atomically (readTVar closed >>= check)) (takeMVar close))
+
+-- | The cleanup signal must only be requested after finite workers have
+-- finished. Prefer a client close already acknowledged by COMMIT/ROLLBACK.
+finishTransactionOnDrain :: DrainSignal -> MVar () -> IO () -> IO ()
+finishTransactionOnDrain (DrainSignal cleanup) close rollback = do
+    outcome <- race (readMVar close) (atomically (readTVar cleanup >>= check))
+    case outcome of
+        Left () -> pure ()
+        Right () -> isEmptyMVar close >>= \open -> when open rollback
 
 -- | PGListener may already have dispatched a callback when unsubscribed.
 -- Close callback admission and join accepted callbacks before leaving scope.
@@ -61,18 +71,29 @@ withJoinedCallback callback use = do
 -- work. Returning proves joined handlers, not success of effects whose errors
 -- the handler caught. Uncaught handler failures are propagated.
 runDrainingWorkers :: DrainSignal -> Int -> IO a -> (a -> IO ()) -> IO ()
-runDrainingWorkers (DrainSignal closed) concurrency receive handle = do
+runDrainingWorkers signal concurrency receive handle =
+    runPhasedDrainingWorkers signal concurrency receive (\_ -> handle) (pure ())
+
+-- | A holder marks its setup ready before waiting for cleanup. That also
+-- releases its concurrency slot, so idle holders cannot starve finite work.
+-- Every other worker becomes ready only after returning. Once all accepted
+-- workers are ready, run the cleanup trigger and then join their full lifetimes.
+runPhasedDrainingWorkers :: DrainSignal -> Int -> IO a -> (IO () -> a -> IO ()) -> IO () -> IO ()
+runPhasedDrainingWorkers (DrainSignal closed) concurrency receive handle afterReady = do
     when (concurrency < 1) (fail "DataSync: concurrency must be positive")
     sem <- newQSem concurrency
     workers <- newIORef []
-    let reap worker = poll worker >>= \result -> case result of
+    let reap (worker, _) = poll worker >>= \result -> case result of
             Nothing -> pure True
             Just (Right ()) -> pure False
             Just (Left failure) -> throwIO failure
         join = do
-            outcomes <- readIORef workers >>= mapM waitCatch
+            accepted <- readIORef workers
+            atomically (mapM_ (readTMVar . snd) accepted)
+            afterReady
+            outcomes <- mapM (waitCatch . fst) accepted
             mapM_ (either throwIO pure) outcomes
-        cleanup = readIORef workers >>= mapConcurrently_ cancel
+        cleanup = readIORef workers >>= mapConcurrently_ (cancel . fst)
         loop = mask \restore -> do
             open <- atomically (not <$> readTVar closed)
             if not open then restore join else do
@@ -88,12 +109,16 @@ runDrainingWorkers (DrainSignal closed) concurrency receive handle = do
                         if not accepted then restore join else do
                             remaining <- readIORef workers >>= filterM reap
                             writeIORef workers remaining
-                            worker <- asyncWithUnmask \unmask ->
-                                bracket_ (waitQSem sem) (signalQSem sem)
-                                    (unmask (handle message))
+                            ready <- newEmptyTMVarIO
+                            worker <- asyncWithUnmask \unmask -> do
+                                waitQSem sem
+                                let markReady = mask \_ -> do
+                                        first <- atomically (tryPutTMVar ready ())
+                                        when first (signalQSem sem)
+                                unmask (handle markReady message) `finally` markReady
                             -- Only the parent removes handles, after poll has
                             -- observed completion. Fast children cannot race
                             -- registration or disappear before they are joined.
-                            modifyIORef' workers (worker :)
+                            modifyIORef' workers ((worker, ready) :)
                             restore loop
     void (loop `onException` cleanup)

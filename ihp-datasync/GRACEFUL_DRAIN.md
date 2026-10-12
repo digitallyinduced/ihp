@@ -32,16 +32,24 @@ Their normal unsubscribe finalizer runs. A scoped callback gate also joins
 already dispatched notification callbacks and makes late invocations no-ops.
 This covers subscriptions accepted but still waiting for a semaphore slot.
 
+Explicit transaction holders mark a setup barrier after BEGIN, state
+registration and their start reply. This releases the concurrency slot while
+retaining the joined holder lifetime. After admission closes, drain waits until
+all accepted handlers have finished or reached that barrier. Only then does a
+connection-local cleanup signal let still-open holders explicitly ROLLBACK on
+their dedicated connections before releasing them. Accepted COMMIT/ROLLBACK and
+mutations therefore finish first. A client-close signal already present wins
+over cleanup. Cleanup errors propagate instead of becoming successful drains.
+Ordinary disconnection still follows cancellation and connection release.
+
 ## Explicit limitations
 
 This is a lifecycle primitive, not a complete deployment drain:
 
 - Configure the shared latch before admitting connections. Controllers calling
   the explicit `WithDrain` entrypoint must pass that same latch.
-- Open-transaction handlers are joined too, and can block forever once message
-  admission closes. Safe transaction rollback requires a separate protocol
-  integration after accepted mutations and commits have joined; do not
-  replace waiting with cancellation and claim success.
+- A stuck database operation or custom handler can still block draining; no
+  timeout escalates into cancellation or successful completion.
 - Other detached work and server lifecycle cleanup are not covered.
 - HTTP admission, Warp shutdown policy, durable process-generation completion
   evidence, and recovery of uncertain effects remain application responsibilities.
