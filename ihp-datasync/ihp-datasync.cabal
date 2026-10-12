@@ -126,6 +126,7 @@ library
         , IHP.DataSync.ChangeNotifications
         , IHP.DataSync.Controller
         , IHP.DataSync.ControllerImpl
+        , IHP.DataSync.Drain
         , IHP.DataSync.REST.Types
         , IHP.DataSync.REST.Routes
         , IHP.DataSync.REST.Controller
@@ -154,6 +155,7 @@ test-suite ihp-datasync-hspec
                  , DataSync.RLSIntegrationSpec
                  , DataSync.DataSyncIntegrationSpec
                  , DataSync.LongPollSpec
+                 , DataSync.DrainSpec
     build-depends:
           ihp-datasync
         , hspec

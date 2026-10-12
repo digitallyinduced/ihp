@@ -26,9 +26,7 @@ import Hasql.DynamicStatements.Snippet (Snippet)
 import qualified IHP.DataSync.ChangeNotifications as ChangeNotifications
 import qualified IHP.PGListener as PGListener
 import qualified Data.Set as Set
-import GHC.Conc (ThreadId, myThreadId, atomically)
-import Control.Concurrent.QSemN
-import Control.Concurrent.STM.TVar
+import IHP.DataSync.Drain (DrainSignal, newDrainSignal, runDrainingWorkers)
 import qualified Data.List as List
 
 $(deriveFromJSON defaultOptions ''DataSyncMessage)
@@ -49,6 +47,25 @@ runDataSyncController ::
     , Show (PrimaryKey (GetTableName CurrentUserRecord))
     ) => Hasql.Pool.Pool -> EnsureRLSEnabledFn -> InstallTableChangeTriggerFn -> IO ByteString -> SendJSONFn -> HandleCustomMessageFn -> (Text -> Renamer) -> IO ()
 runDataSyncController hasqlPool ensureRLSEnabled installTableChangeTriggers receiveData sendJSON handleCustomMessage renamer = do
+    drain <- newDrainSignal
+    runDataSyncControllerWithDrain drain hasqlPool ensureRLSEnabled installTableChangeTriggers receiveData sendJSON handleCustomMessage renamer
+
+-- | Opt-in cooperative shutdown. Request the shared signal and await this
+-- action before closing the socket. The receive callback must be safe to
+-- cancel; accepted handlers are joined without cancellation on drain.
+-- Long-lived subscription and transaction handlers are also joined. This can
+-- wait indefinitely: this primitive does not automatically close subscriptions
+-- or choose commit/rollback semantics for open transactions.
+runDataSyncControllerWithDrain ::
+    ( HasField "id" CurrentUserRecord (Id' (GetTableName CurrentUserRecord))
+    , ?request :: Request
+    , ?modelContext :: ModelContext
+    , ?state :: IORef DataSyncController
+    , Typeable CurrentUserRecord
+    , HasNewSessionUrl CurrentUserRecord
+    , Show (PrimaryKey (GetTableName CurrentUserRecord))
+    ) => DrainSignal -> Hasql.Pool.Pool -> EnsureRLSEnabledFn -> InstallTableChangeTriggerFn -> IO ByteString -> SendJSONFn -> HandleCustomMessageFn -> (Text -> Renamer) -> IO ()
+runDataSyncControllerWithDrain drain hasqlPool ensureRLSEnabled installTableChangeTriggers receiveData sendJSON handleCustomMessage renamer = do
     let ?context = ?request
     setState DataSyncReady { subscriptions = HashMap.empty, transactions = HashMap.empty }
 
@@ -56,51 +73,18 @@ runDataSyncController hasqlPool ensureRLSEnabled installTableChangeTriggers rece
     handleMessage :: DataSyncMessage -> IO () <- buildMessageHandler hasqlPool ensureRLSEnabled installTableChangeTriggers sendJSON handleCustomMessage renamer columnTypeLookup
 
 
-    sem  <- newQSemN (maxSubscriptionsPerConnection * 2) -- needs to be larger than the subscriptions limit to trigger an error on overload. otherwise an overflow of connections might queue up silently
-
-    -- Track Asyncs so we can cancel/wait on socket close
-    childrenVar <- newTVarIO (HashMap.empty :: HashMap ThreadId (Async ()))
-
-    let spawnWorker decodedMessage = do
-            tidReady <- MVar.newEmptyMVar
-            a <- asyncWithUnmask \unmask -> do
-                -- Register myself
-                tid <- myThreadId
-                MVar.putMVar tidReady tid
-                -- Take/release concurrency slot entirely inside the worker
-                Exception.bracket_ (waitQSemN sem 1) (signalQSemN sem 1) do
-                    Exception.finally
-                        (unmask do
-                            result <- Exception.try (handleMessage decodedMessage)
-                            case result of
-                                Left (e :: Exception.SomeException) -> do
-                                    let requestId    = decodedMessage.requestId
-                                    let errorMessage = cs (displayException e)
-                                    ?modelContext.logger (toLogStr (tshow e))
-                                    sendJSON DataSyncError { requestId, errorMessage }
-                                Right _ -> pure ()
-                        )
-                        -- Self-deregister
-                        (do
-                            tid' <- myThreadId
-                            atomically $ modifyTVar' childrenVar (HashMap.delete tid')
-                        )
-            -- Parent stores the Async by ThreadId (no race thanks to tidReady)
-            tid <- MVar.takeMVar tidReady
-            atomically $ modifyTVar' childrenVar (HashMap.insert tid a)
-
-    let loop = forever do
-            msg <- Aeson.eitherDecodeStrict' <$> receiveData
-            case msg of
-                Right decoded -> spawnWorker decoded
-                Left err      -> sendJSON FailedToDecodeMessageError { errorMessage = cs err }
-
-    -- On websocket close: cancel and drain all children
-    loop `Exception.finally` do
-        m <- readTVarIO childrenVar
-        let handles = HashMap.elems m
-        mapM_ cancel handles
-        mapM_ (const (pure ())) =<< mapM waitCatch handles
+    runDrainingWorkers drain (maxSubscriptionsPerConnection * 2) receiveData \bytes ->
+        case Aeson.eitherDecodeStrict' bytes of
+            Left err -> sendJSON FailedToDecodeMessageError { errorMessage = cs err }
+            Right decodedMessage -> do
+                result <- Exception.try (handleMessage decodedMessage)
+                case result of
+                    Left (e :: Exception.SomeException) -> do
+                        let requestId = decodedMessage.requestId
+                        let errorMessage = cs (displayException e)
+                        ?modelContext.logger (toLogStr (tshow e))
+                        sendJSON DataSyncError { requestId, errorMessage }
+                    Right _ -> pure ()
 {-# INLINE runDataSyncController #-}
 
 
