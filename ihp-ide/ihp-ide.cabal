@@ -382,4 +382,5 @@ test-suite tests
         IDE.Logs.ControllerSpec
         IDE.DevServerSpec
         IDE.StatusServerSpec
+        IDE.TelemetrySpec
         ServerSpec
