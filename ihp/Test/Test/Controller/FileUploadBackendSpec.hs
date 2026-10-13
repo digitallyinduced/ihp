@@ -12,6 +12,8 @@ import IHP.Prelude
 import IHP.Environment
 import IHP.RouterSupport hiding (get)
 import IHP.FrameworkConfig
+import IHP.EnvVar (EnvVarReader (..))
+import Data.Either (isLeft)
 import IHP.ViewPrelude hiding (param)
 import IHP.ControllerPrelude hiding (get, request)
 import Network.Wai.Test
@@ -78,6 +80,15 @@ postMultipart url = srequest $ SRequest req body
 
 tests :: Spec
 tests = describe "fileUploadBackend" do
+    describe "IHP_TEMP_FILE_UPLOADS_ABOVE" do
+        it "reads a size in bytes as TempFileUploadsAbove" do
+            envStringToValue "1048576" `shouldBe` Right (TempFileUploadsAbove 1048576)
+            envStringToValue "0" `shouldBe` Right (TempFileUploadsAbove 0)
+
+        it "rejects a negative or non-numeric value" do
+            (envStringToValue "-1" :: Either Text FileUploadBackend) `shouldSatisfy` isLeft
+            (envStringToValue "1MB" :: Either Text FileUploadBackend) `shouldSatisfy` isLeft
+
     aroundAll (withMockContextAndApp WebApplication config) do
         it "keeps uploads in memory by default, writing a temp file on tempFileOrNothing" $ withContextAndApp \application -> do
             response <- runSession (postMultipart "test/Upload") application

@@ -817,18 +817,18 @@ By default an uploaded file is kept in memory while the request is handled. That
 
 ### Storing Form Uploads in Temporary Files
 
-You can write the uploaded files of `multipart/form-data` forms to temporary files instead. Set the `TempFileUploads` option in `Config/Config.hs`:
+You can write the uploaded files of `multipart/form-data` forms to temporary files instead. Set the `IHP_TEMP_FILE_UPLOADS_ABOVE` env var to a size in bytes, e.g. in your `.envrc`:
 
-```haskell
-config :: ConfigBuilder
-config = do
-    option Development
-    option (AppHostname "localhost")
-
-    option TempFileUploads
+```bash
+# Keep requests up to 1 MB in memory, write the uploads of larger ones to temporary files
+export IHP_TEMP_FILE_UPLOADS_ABOVE=1048576
 ```
 
-The body is parsed straight from the request stream, so memory use stays flat whatever the file size. The setting applies to all requests.
+IHP picks the backend for each request from its `Content-Length`, so small uploads like an avatar don't cost disk I/O. Requests without a known length (sent with chunked transfer encoding) always use temporary files. Set it to `0` to write all uploads to temporary files. When the env var isn't set, uploads are kept in memory.
+
+As it's an env var, you can tune it without recompiling your app. You can also set it in `Config/Config.hs` with `option (TempFileUploadsAbove 1048576)` or `option TempFileUploads`, which takes precedence over the env var.
+
+The body is parsed straight from the request stream and the uploads are written to disk, so memory use stays flat whatever the file size.
 
 Use `tempFileOrNothing` (or `tempFilesByName`) to get the path of the temporary file:
 
@@ -849,24 +849,7 @@ action UploadVideoAction = do
 
 `fileOrNothing`, `filesByName` and `storeFile` keep working: the content of the file is read from the temporary file when it is first used, so `storeFile` copies it to the storage in chunks. It's only available during the request.
 
-`tempFileOrNothing` works with every backend: with the default `InMemoryFileUploads` it writes the upload to a temporary file on first use. So an action that needs a file path (e.g. to copy it with `copyFile`, as above) doesn't depend on the configured backend.
-
-### Choosing Memory or Temporary Files per Request
-
-Writing every upload to disk costs disk I/O even for a small avatar. With `TempFileUploadsAbove` IHP picks the backend for each request from its `Content-Length`:
-
-```haskell
-config :: ConfigBuilder
-config = do
-    -- Keep requests up to 1 MB in memory, write larger ones to temporary files
-    option (TempFileUploadsAbove def)
-```
-
-To use a different threshold, pass the size in bytes, e.g. `option (TempFileUploadsAbove (10 * 1024 * 1024))` for 10 MB.
-
-Requests without a known length (sent with chunked transfer encoding) always use temporary files.
-
-Your actions don't need to know which one was picked: `fileOrNothing`, `storeFile` and `tempFileOrNothing` work for both.
+`tempFileOrNothing` works whether an upload was kept in memory or not: an upload kept in memory is written to a temporary file on first use. So an action that needs a file path (e.g. to copy it with `copyFile`, as above) doesn't depend on `IHP_TEMP_FILE_UPLOADS_ABOVE`.
 
 ### Streaming a Raw Request Body
 

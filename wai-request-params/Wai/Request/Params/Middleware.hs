@@ -28,7 +28,6 @@ module Wai.Request.Params.Middleware
 , rawRequestBodyVaultKey
   -- * File upload backend
 , FileUploadBackend (..)
-, FileUploadThreshold (..)
 , readTempFiles
 , tempFilesVaultKey
   -- * Type alias
@@ -51,7 +50,6 @@ import Control.Concurrent.MVar (newMVar, modifyMVar)
 import Control.Monad.Trans.Resource (InternalState, createInternalState, closeInternalState)
 import Control.Exception (bracket)
 import Data.Word (Word64)
-import Data.Default (Default (..))
 
 -- | Type alias for WAI respond function
 type Respond = Response -> IO ResponseReceived
@@ -88,19 +86,8 @@ data FileUploadBackend
     -- Small uploads avoid the disk, while large ones don't end up on the heap.
     -- As with 'TempFileUploads', 'fileContent' of a large upload is only valid
     -- while the request is handled. 'readTempFiles' works for both.
-    --
-    -- Use @TempFileUploadsAbove def@ for a threshold of 1 MB.
-    | TempFileUploadsAbove FileUploadThreshold
+    | TempFileUploadsAbove Word64
     deriving (Eq, Show)
-
--- | The body size in bytes up to which 'TempFileUploadsAbove' keeps uploaded
--- files in memory. 'def' is 1 MB. It's a 'Num', so you can also write a number,
--- e.g. @TempFileUploadsAbove (10 * 1024 * 1024)@.
-newtype FileUploadThreshold = FileUploadThreshold Word64
-    deriving (Eq, Ord, Show, Num)
-
-instance Default FileUploadThreshold where
-    def = 1024 * 1024
 
 -- | Vault key for storing the parsed request body
 requestBodyVaultKey :: Vault.Key RequestBody
@@ -226,7 +213,7 @@ parseMultipartBody fileUploadBackend parseRequestBodyOptions req continue =
 useTempFiles :: FileUploadBackend -> Request -> Bool
 useTempFiles InMemoryFileUploads _ = False
 useTempFiles TempFileUploads _ = True
-useTempFiles (TempFileUploadsAbove (FileUploadThreshold threshold)) req =
+useTempFiles (TempFileUploadsAbove threshold) req =
     case requestBodyLength req of
         KnownLength len -> len > threshold
         ChunkedBody -> True

@@ -111,10 +111,9 @@ filesByName !name =
 -- The temporary file is removed when the request ends, so move or copy it if you
 -- want to keep it.
 --
--- Works with every file upload backend. With @option TempFileUploads@ (or
--- @option (TempFileUploadsAbove ...)@ for a large request) the upload was already
--- streamed to disk, and this returns its path. Otherwise the upload is kept in memory,
--- and is written to a temporary file on the first call.
+-- Works for every upload. When the upload was already streamed to disk (see the
+-- @IHP_TEMP_FILE_UPLOADS_ABOVE@ env var), this returns its path. Otherwise the upload
+-- is kept in memory, and is written to a temporary file on the first call.
 --
 -- Returns `Nothing` when the file is not found in the request body, or when no file
 -- was selected.

@@ -129,7 +129,11 @@ ihpDefaultConfig logger = do
     option $ SessionCookie (defaultIHPSessionCookie currentBaseUrl)
 
     option WaiParse.defaultParseRequestBodyOptions
-    option InMemoryFileUploads
+
+    -- Uploads of requests larger than IHP_TEMP_FILE_UPLOADS_ABOVE bytes are written to
+    -- temporary files. When it's not set, uploads are kept in memory
+    fileUploadBackend <- envOrDefault "IHP_TEMP_FILE_UPLOADS_ABOVE" InMemoryFileUploads
+    option fileUploadBackend
 
     option bootstrap
 
@@ -152,6 +156,12 @@ ihpDefaultConfig logger = do
 
 instance EnvVarReader AppPort where
     envStringToValue string = AppPort <$> envStringToValue string
+
+-- | Reads @IHP_TEMP_FILE_UPLOADS_ABOVE@, a size in bytes, as 'TempFileUploadsAbove'
+instance EnvVarReader FileUploadBackend where
+    envStringToValue string = case textToInt (cs string) of
+        Just bytes | bytes >= 0 -> Right (TempFileUploadsAbove (fromIntegral bytes))
+        _ -> Left ("Expected a size in bytes, got " <> cs string)
 
 instance EnvVarReader RequestLogger.IPAddrSource where
     envStringToValue "FromHeader" = Right RequestLogger.FromHeader
