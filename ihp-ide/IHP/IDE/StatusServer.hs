@@ -18,6 +18,7 @@ import qualified Network.URI as URI
 import qualified Control.Exception.Safe as Exception
 import qualified Control.Concurrent.Chan.Unagi as Queue
 import Control.Concurrent.MVar
+import qualified Data.IORef as IORef
 
 type Clients = IORef [(Websocket.Connection, Concurrent.MVar ())]
 
@@ -40,20 +41,26 @@ runStatusServer ghciIsLoadingVar standardOutput errorOutput clients startMVar st
     forever do
         _ <- takeMVar startMVar
 
-        race_
-            (Warp.runSettingsSocket warpSettings appSocket (waiApp ghciIsLoadingVar clients standardOutput errorOutput))
-            (readMVar stopMVar)
+        -- Warp's connection handlers can outlive its accept loop. Keep a
+        -- separate, persistent shutdown signal for each run, including handlers
+        -- whose WebSocket handshake completes after the accept loop stops.
+        shutdown <- newEmptyMVar
+        Exception.finally
+            (race_
+                (Warp.runSettingsSocket warpSettings appSocket (waiApp shutdown ghciIsLoadingVar clients standardOutput errorOutput))
+                (readMVar stopMVar))
+            (putMVar shutdown ())
 
         isStoppedVar <- takeMVar stopMVar
         putMVar isStoppedVar ()
 
 
 
-waiApp :: (?context :: Context) => IORef Bool -> IORef [(Websocket.Connection, Concurrent.MVar ())] -> IORef [ByteString] -> IORef [ByteString] -> Wai.Application
-waiApp ghciIsLoadingVar clients standardOutput errorOutput = do
+waiApp :: (?context :: Context) => MVar () -> IORef Bool -> Clients -> IORef [ByteString] -> IORef [ByteString] -> Wai.Application
+waiApp shutdown ghciIsLoadingVar clients standardOutput errorOutput = do
     Websocket.websocketsOr
         Websocket.defaultConnectionOptions
-        (wsApp ghciIsLoadingVar clients standardOutput errorOutput)
+        (wsApp shutdown ghciIsLoadingVar clients standardOutput errorOutput)
         (httpApp ghciIsLoadingVar standardOutput errorOutput)
 
 httpApp :: (?context :: Context) => IORef Bool -> IORef [ByteString] -> IORef [ByteString] -> Wai.Application
@@ -263,12 +270,10 @@ renderErrorView standardOutput errorOutput' isCompiling lastSchemaCompilerError 
 
             toolServerPort = ?context.portConfig.toolServerPort
 
-wsApp :: (?context :: Context) => IORef Bool -> Clients -> _ -> _ -> Websocket.ServerApp
-wsApp ghciIsLoadingVar stateRef standardOutput errorOutput pendingConnection = do
+wsApp :: (?context :: Context) => MVar () -> IORef Bool -> Clients -> IORef [ByteString] -> IORef [ByteString] -> Websocket.ServerApp
+wsApp shutdown ghciIsLoadingVar stateRef standardOutput errorOutput pendingConnection = do
     connection <- Websocket.acceptRequest pendingConnection
     didChangeMVar <- Concurrent.newEmptyMVar
-
-    modifyIORef stateRef $ \state -> ((connection, didChangeMVar) : state)
 
     let notifyClient = do
             -- Blocks until a change happens
@@ -290,9 +295,12 @@ wsApp ghciIsLoadingVar stateRef standardOutput errorOutput pendingConnection = d
                 Left (Exception.SomeException e) -> pure () -- Client was probably disconnected
                 Right _ -> notifyClient
 
-    notifyClient
-
-    pure ()
+    Exception.bracket_
+        (IORef.atomicModifyIORef' stateRef \clients -> ((connection, didChangeMVar) : clients, ()))
+        (IORef.atomicModifyIORef' stateRef \clients -> (filter ((/= didChangeMVar) . snd) clients, ()))
+        -- Returning from the handler closes the socket and triggers the status
+        -- page's onclose reload, without waiting for another compiler message.
+        (race_ notifyClient (readMVar shutdown))
 
 
 

@@ -3,7 +3,7 @@
 let
     cfg = config.services.ihp;
     schemaExtensions = pkgs.runCommand "ihp-schema-extensions.sql" {} ''
-        ${ihp.apps."${pkgs.system}".migrate.program} --extract-extensions ${ihp}/IHPSchema.sql > $out
+        ${ihp.apps."${pkgs.system}".migrate.program} --extract-extensions ${ihp}/ihp-schema-compiler/data/IHPSchema.sql > $out
         ${ihp.apps."${pkgs.system}".migrate.program} --extract-extensions ${cfg.schema} >> $out
     '';
 in
@@ -79,7 +79,7 @@ in
             \i ${schemaExtensions}
             SET ROLE '${cfg.databaseUser}';
             CREATE TABLE IF NOT EXISTS schema_migrations (revision BIGINT NOT NULL UNIQUE);
-            \i ${ihp}/IHPSchema.sql
+            \i ${ihp}/ihp-schema-compiler/data/IHPSchema.sql
             \i ${cfg.schema}
             \i ${cfg.fixtures}
         '';

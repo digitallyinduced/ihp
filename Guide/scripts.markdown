@@ -66,6 +66,12 @@ This is made possible because of the [she-bang line](https://en.wikipedia.org/wi
 
 In case you get a permission error, try to add the executable flag via `chmod +x Application/Script/HelloWorldToAllUsers.hs`.
 
+### UTF-8 encoding
+
+The `run-script` command and generated executable entry points use `runScriptUtf8` to set the locale encoding to UTF-8 and enable transliteration for standard handles, preserving the existing `withUtf8` behavior. If you maintain a custom executable entry point, use `main = runScriptUtf8 Config.config run` to retain this behavior.
+
+`runScript` and `runDevScript` use the existing process encodings. They are suitable for running inside GHCi, including background workers, where changing stdin's encoding can block while GHCi reads commands.
+
 ## Running a script from ghci
 
 You can run scripts interactively from an already-running GHCi session using `runDevScript`. This uses the default IHP config (reading `DATABASE_URL` from the environment set by devenv):

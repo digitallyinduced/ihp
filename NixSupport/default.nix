@@ -76,10 +76,35 @@ let
 
     modelsPackageVersion = "0.1.0";
     modelsIntermediatesDir = "share/haskell/${ghc.ghc.version}/${appName}-models-${modelsPackageVersion}/dist";
+    # The combined cache gets a new store path with every application build.
+    # Passing it to the models package directly made the models derivation,
+    # and with it a rebuild of every generated module's package, change on
+    # every build even when the schema did not. Import only the models' part
+    # by content instead. A models build without schema changes reproduces
+    # the same files, so the next build evaluates to the same models
+    # derivation and reuses its output. Cabal's autogen directory is left out:
+    # its Paths module embeds the output path and is regenerated anyway. The
+    # path is imported without its string context: otherwise the import
+    # inherits the cache's references, which differ on every build, and
+    # those references are part of the imported store path.
     reusableModelsIntermediates =
         if previousIntermediates != null
             && builtins.pathExists "${previousIntermediates}/${modelsIntermediatesDir}/build"
-        then previousIntermediates
+        then
+            let
+                root = builtins.unsafeDiscardStringContext (toString previousIntermediates);
+                modelsBuild = "${modelsIntermediatesDir}/build";
+                autogen = "${modelsBuild}/autogen";
+            in builtins.path {
+                name = "${appName}-models-previous-intermediates";
+                path = root;
+                filter = path: _type:
+                    let relative = pkgs.lib.removePrefix "${root}/" path;
+                    in pkgs.lib.hasPrefix "${relative}/" "${modelsBuild}/"
+                        || (pkgs.lib.hasPrefix "${modelsBuild}/" relative
+                            && relative != autogen
+                            && !(pkgs.lib.hasPrefix "${autogen}/" relative));
+            }
         else null;
 
     # Manual GHC builds do not use nixpkgs' Cabal intermediate-cache hooks, so
@@ -189,7 +214,7 @@ CABAL_EOF
     # Every generated table expands into several modules. With large schemas,
     # split sections create enough archive members for the final library
     # assembly to exceed the platform's argument-size limit.
-    modelsPackage = configureHaskellBuild (pkgs.haskell.lib.overrideCabal (
+    modelsPackage = withStableUnitId (configureHaskellBuild (pkgs.haskell.lib.overrideCabal (
         pkgs.haskell.lib.disableLibraryProfiling (pkgs.haskell.lib.dontHaddock (
             ghc.callPackage ({ mkDerivation, base, ihp, basic-prelude, text, bytestring, time, uuid, aeson, postgresql-simple, deepseq, data-default, scientific, string-conversions, hasql, hasql-dynamic-statements, hasql-implicits, hasql-mapping, hasql-postgresql-types, hasql-pool, unordered-containers, postgresql-types }: mkDerivation {
                 pname = "${appName}-models";
@@ -226,7 +251,7 @@ CABAL_EOF
         ))
     ) (old: {
         configureFlags = (old.configureFlags or []) ++ [ "--disable-split-sections" ];
-    }));
+    })));
 
     allHaskellPackages =
         (if withHoogle
@@ -462,6 +487,27 @@ CABAL_EOF
                     ++ map (opt: "--ghc-option=${opt}") extraGhcOptions;
             });
 
+    # Cabal derives a library's unit id from the unit ids of its dependencies.
+    # Interface files record the unit id they were compiled for, so a restored
+    # previousIntermediates cache became worthless whenever the dependency set
+    # changed (an added package, a package-set bump): GHC recompiled every
+    # module. A fixed unit id keeps the cache valid across such changes, and
+    # GHC's recompilation checker still rebuilds exactly the modules whose
+    # imported interfaces changed. Each build lives in its own store path and
+    # package database, so the id does not have to be unique.
+    withStableUnitId = pkg: pkgs.haskell.lib.overrideCabal pkg (old: {
+        configureFlags = (old.configureFlags or []) ++ [
+            "--ipid=${old.pname}-${old.version}-inplace"
+        ];
+        # The restored cache also carries the shared libraries linked under
+        # earlier unit ids. Drop them so they do not accumulate in every
+        # intermediates output.
+        postBuild = ''
+            find dist/build -maxdepth 1 -name 'libHS${old.pname}-${old.version}-*' \
+                ! -name 'libHS${old.pname}-${old.version}-inplace*' -delete
+        '' + (old.postBuild or "");
+    });
+
     configureAppLibBuild = pkg:
         let configured = configureHaskellBuild pkg;
         in if appLibCompileCores == null && appLibGhcAllocationArea == null
@@ -482,7 +528,7 @@ CABAL_EOF
                 enableParallelBuilding = false;
             }));
 
-    mkAppLibPackage = withIntermediates: configureAppLibBuild (pkgs.haskell.lib.disableLibraryProfiling (pkgs.haskell.lib.dontHaddock (
+    mkAppLibPackage = withIntermediates: withStableUnitId (configureAppLibBuild (pkgs.haskell.lib.disableLibraryProfiling (pkgs.haskell.lib.dontHaddock (
         ghc.callPackage ({ mkDerivation, base }: mkDerivation {
             pname = "${appName}-lib";
             version = "0.1.0";
@@ -502,6 +548,10 @@ CABAL_EOF
                     cp -r ${reusableExecutableIntermediates}/. "$intermediates/${executableIntermediatesRoot}/"
                 ''}
                 cp -r ${modelsPackage.intermediates}/share/. "$intermediates/share/"
+                # Reference the models build from the cache so it stays alive as
+                # long as the cache does; the next build with an unchanged
+                # schema reuses it instead of rebuilding it after a GC.
+                echo ${modelsPackage.intermediates} > "$intermediates/share/.ihp-models-intermediates"
                 # Store paths are read-only. Cabal's following
                 # installIntermediatesPhase must still be able to add the app
                 # library alongside the copied model and executable trees.
@@ -509,7 +559,7 @@ CABAL_EOF
             '';
             license = pkgs.lib.licenses.free;
         }) {}
-    )));
+    ))));
 
     withAppLibPostgres = pkg:
         if buildWithPostgres
@@ -620,7 +670,7 @@ CABAL_EOF
             import qualified Config
             import WorkerMain ()
             main :: IO ()
-            main = runScript Config.config (runJobWorkers (workers RootApplication))
+            main = runScriptUtf8 Config.config (runJobWorkers (workers RootApplication))
             EOF
         '';
     };
@@ -646,7 +696,7 @@ CABAL_EOF
             import IHP.ScriptSupport
             import qualified Config
             import Application.Script.${scriptName} (run)
-            main = runScript Config.config run
+            main = runScriptUtf8 Config.config run
             EOF
         '';
     };
