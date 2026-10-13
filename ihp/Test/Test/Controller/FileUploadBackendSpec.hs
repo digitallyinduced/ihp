@@ -80,7 +80,7 @@ postMultipart url = srequest $ SRequest req body
 
 tests :: Spec
 tests = describe "fileUploadBackend" do
-    describe "IHP_TEMP_FILE_UPLOADS_ABOVE" do
+    describe "IHP_FILE_UPLOAD_MEMORY_THRESHOLD" do
         it "reads a size in bytes as TempFileUploadsAbove" do
             envStringToValue "1048576" `shouldBe` Right (TempFileUploadsAbove 1048576)
             envStringToValue "0" `shouldBe` Right (TempFileUploadsAbove 0)

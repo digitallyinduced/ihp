@@ -1611,9 +1611,9 @@ The maximum number of subscriptions per websocket connection in IHP DataSync. De
 
 The maximum number of database transactions per websocket connection in IHP DataSync. Defaults to `10`.
 
-#### `IHP_TEMP_FILE_UPLOADS_ABOVE`
+#### `IHP_FILE_UPLOAD_MEMORY_THRESHOLD`
 
-A size in bytes. Uploads of requests larger than this are written to temporary files instead of being kept in memory, e.g. `IHP_TEMP_FILE_UPLOADS_ABOVE=1048576` for 1 MB. Set to `0` to write all uploads to temporary files. When not set, uploads are kept in memory. See [Large Uploads](https://ihp.digitallyinduced.com/Guide/file-storage.html#large-uploads).
+A size in bytes. Uploads of requests larger than this are written to temporary files instead of being kept in memory, e.g. `IHP_FILE_UPLOAD_MEMORY_THRESHOLD=1048576` for 1 MB. Set to `0` to write all uploads to temporary files. When not set, uploads are kept in memory. See [Large Uploads](https://ihp.digitallyinduced.com/Guide/file-storage.html#large-uploads).
 
 ## `systemd` Integration
 

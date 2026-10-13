@@ -165,7 +165,7 @@ data FrameworkConfig = FrameworkConfig
 
     -- | Where files of a @multipart/form-data@ request are stored while the request is handled.
     --
-    -- Defaults to 'InMemoryFileUploads'. Set the @IHP_TEMP_FILE_UPLOADS_ABOVE@ env var
+    -- Defaults to 'InMemoryFileUploads'. Set the @IHP_FILE_UPLOAD_MEMORY_THRESHOLD@ env var
     -- (a size in bytes) to write uploads of larger requests to temporary files instead.
     , fileUploadBackend :: !FileUploadBackend
 

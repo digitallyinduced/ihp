@@ -817,14 +817,14 @@ By default an uploaded file is kept in memory while the request is handled. That
 
 ### Storing Form Uploads in Temporary Files
 
-You can write the uploaded files of `multipart/form-data` forms to temporary files instead. Set the `IHP_TEMP_FILE_UPLOADS_ABOVE` env var to a size in bytes, e.g. in your `.envrc`:
+You can write the uploaded files of `multipart/form-data` forms to temporary files instead. Set the `IHP_FILE_UPLOAD_MEMORY_THRESHOLD` env var to a size in bytes, e.g. in your `.envrc`:
 
 ```bash
 # Keep requests up to 1 MB in memory, write the uploads of larger ones to temporary files
-export IHP_TEMP_FILE_UPLOADS_ABOVE=1048576
+export IHP_FILE_UPLOAD_MEMORY_THRESHOLD=1048576
 ```
 
-IHP picks the backend for each request from its `Content-Length`, so small uploads like an avatar don't cost disk I/O. Requests without a known length (sent with chunked transfer encoding) always use temporary files. Set it to `0` to write all uploads to temporary files. When the env var isn't set, uploads are kept in memory.
+IHP picks the backend for each request from its `Content-Length`, so small uploads like an avatar don't cost disk I/O. The threshold is measured in bytes for the entire multipart request, including all files and form fields. Requests without a known length (sent with chunked transfer encoding) always use temporary files. Set it to `0` to write all uploads to temporary files. When the env var isn't set, uploads are kept in memory.
 
 As it's an env var, you can tune it without recompiling your app. You can also set it in `Config/Config.hs` with `option (TempFileUploadsAbove 1048576)` or `option TempFileUploads`, which takes precedence over the env var.
 
@@ -849,7 +849,7 @@ action UploadVideoAction = do
 
 `fileOrNothing`, `filesByName` and `storeFile` keep working: the content of the file is read from the temporary file when it is first used, so `storeFile` copies it to the storage in chunks. It's only available during the request.
 
-`tempFileOrNothing` works whether an upload was kept in memory or not: an upload kept in memory is written to a temporary file on first use. So an action that needs a file path (e.g. to copy it with `copyFile`, as above) doesn't depend on `IHP_TEMP_FILE_UPLOADS_ABOVE`.
+`tempFileOrNothing` works whether an upload was kept in memory or not: an upload kept in memory is written to a temporary file on first use. So an action that needs a file path (e.g. to copy it with `copyFile`, as above) doesn't depend on `IHP_FILE_UPLOAD_MEMORY_THRESHOLD`.
 
 ### Streaming a Raw Request Body
 

@@ -130,9 +130,9 @@ ihpDefaultConfig logger = do
 
     option WaiParse.defaultParseRequestBodyOptions
 
-    -- Uploads of requests larger than IHP_TEMP_FILE_UPLOADS_ABOVE bytes are written to
+    -- Uploads of requests larger than IHP_FILE_UPLOAD_MEMORY_THRESHOLD bytes are written to
     -- temporary files. When it's not set, uploads are kept in memory
-    fileUploadBackend <- envOrDefault "IHP_TEMP_FILE_UPLOADS_ABOVE" InMemoryFileUploads
+    fileUploadBackend <- envOrDefault "IHP_FILE_UPLOAD_MEMORY_THRESHOLD" InMemoryFileUploads
     option fileUploadBackend
 
     option bootstrap
@@ -157,7 +157,7 @@ ihpDefaultConfig logger = do
 instance EnvVarReader AppPort where
     envStringToValue string = AppPort <$> envStringToValue string
 
--- | Reads @IHP_TEMP_FILE_UPLOADS_ABOVE@, a size in bytes, as 'TempFileUploadsAbove'
+-- | Reads @IHP_FILE_UPLOAD_MEMORY_THRESHOLD@, a size in bytes, as 'TempFileUploadsAbove'
 instance EnvVarReader FileUploadBackend where
     envStringToValue string = case textToInt (cs string) of
         Just bytes | bytes >= 0 -> Right (TempFileUploadsAbove (fromIntegral bytes))

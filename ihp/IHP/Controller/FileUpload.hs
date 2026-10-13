@@ -112,7 +112,7 @@ filesByName !name =
 -- want to keep it.
 --
 -- Works for every upload. When the upload was already streamed to disk (see the
--- @IHP_TEMP_FILE_UPLOADS_ABOVE@ env var), this returns its path. Otherwise the upload
+-- @IHP_FILE_UPLOAD_MEMORY_THRESHOLD@ env var), this returns its path. Otherwise the upload
 -- is kept in memory, and is written to a temporary file on the first call.
 --
 -- Returns `Nothing` when the file is not found in the request body, or when no file
