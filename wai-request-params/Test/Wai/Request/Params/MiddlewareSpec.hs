@@ -15,6 +15,7 @@ import qualified Network.Wai.Parse as WaiParse
 import qualified Data.ByteString as BS
 import qualified Data.ByteString.Char8 as Char8
 import Data.IORef
+import Data.Maybe (isJust)
 import Control.Exception (evaluate, try, SomeException)
 import System.Directory (doesFileExist)
 
@@ -234,6 +235,33 @@ spec = do
                 cs (simpleBody response) `shouldBe` ("([(\"title\",\"Hello\")],True,\"file-content\",[(\"video\",\"file-content\")],\"\")" :: String)
                 Just path <- readIORef tempPathRef
                 doesFileExist path >>= (`shouldBe` False)
+
+            describe "TempFileUploadsAbove" $ do
+                -- Responds with the file content and whether it was written to a temporary file
+                let backendApp req respond = case Vault.lookup requestBodyVaultKey (vault req) of
+                        Just FormBody { files = [(_, info)] } -> do
+                            let usedTempFile = isJust (Vault.lookup tempFilesVaultKey (vault req))
+                            respond $ responseLBS status200 [] (cs (show (usedTempFile, WaiParse.fileContent info)))
+                        _ -> respond $ responseLBS status200 [] "unexpected body"
+                let multipartWithLength bodyLength = srequest $ SRequest defaultRequest
+                        { requestMethod = "POST"
+                        , requestHeaders = multipartHeaders
+                        , requestBodyLength = bodyLength
+                        } multipartBody
+                let bodyLength = fromIntegral (LBS.length multipartBody)
+                let runWith threshold bodyLength' = runSession (multipartWithLength bodyLength') (requestBodyMiddlewareWith (TempFileUploadsAbove threshold) WaiParse.defaultParseRequestBodyOptions backendApp)
+
+                it "keeps files in memory when the body length is up to the threshold" $ do
+                    response <- runWith bodyLength (KnownLength bodyLength)
+                    cs (simpleBody response) `shouldBe` ("(False,\"file-content\")" :: String)
+
+                it "writes files to temporary files when the body is larger than the threshold" $ do
+                    response <- runWith (bodyLength - 1) (KnownLength bodyLength)
+                    cs (simpleBody response) `shouldBe` ("(True,\"file-content\")" :: String)
+
+                it "writes files to temporary files when the body length is unknown" $ do
+                    response <- runWith 1000000 ChunkedBody
+                    cs (simpleBody response) `shouldBe` ("(True,\"file-content\")" :: String)
 
             it "applies setMaxRequestFileSize while streaming" $ do
                 let options = WaiParse.setMaxRequestFileSize 4 WaiParse.defaultParseRequestBodyOptions

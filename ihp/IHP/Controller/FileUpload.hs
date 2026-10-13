@@ -119,7 +119,8 @@ filesByName !name =
 -- removed when the request ends, so move or copy it if you want to keep it.
 --
 -- Returns `Nothing` when the file is not found in the request body, when no file was
--- selected, or when uploads are kept in memory ('InMemoryFileUploads', the default).
+-- selected, or when uploads are kept in memory ('InMemoryFileUploads', the default, or
+-- a request below the threshold of 'TempFileUploadsAbove').
 --
 -- __Example:__
 --

@@ -848,6 +848,21 @@ action UploadVideoAction = do
 
 `fileOrNothing`, `filesByName` and `storeFile` keep working: the content of the file is read from the temporary file when it is first used, so `storeFile` copies it to the storage in chunks. It's only available during the request.
 
+### Choosing Memory or Temporary Files per Request
+
+Writing every upload to disk costs disk I/O even for a small avatar. With `TempFileUploadsAbove` IHP picks the backend for each request from its `Content-Length`:
+
+```haskell
+config :: ConfigBuilder
+config = do
+    -- Keep requests up to 1 MB in memory, write larger ones to temporary files
+    option (TempFileUploadsAbove (1024 * 1024))
+```
+
+Requests without a known length (sent with chunked transfer encoding) always use temporary files.
+
+As the backend depends on the request, `tempFileOrNothing` returns `Nothing` for a small upload kept in memory. Use `fileOrNothing` or `storeFile` when your action should work for both, and only rely on the file content during the request.
+
 ### Streaming a Raw Request Body
 
 IHP only reads a request body before your action runs when it needs to parse it: for JSON (`application/json`), form (`application/x-www-form-urlencoded`) and upload (`multipart/form-data`) requests. Any other body, like an `application/octet-stream` or `video/mp4` upload sent with `fetch`, is left untouched.

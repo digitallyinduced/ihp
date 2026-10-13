@@ -48,6 +48,7 @@ import Data.IORef (newIORef, atomicModifyIORef')
 import Control.Concurrent.MVar (newMVar, modifyMVar)
 import Control.Monad.Trans.Resource (createInternalState, closeInternalState)
 import Control.Exception (bracket)
+import Data.Word (Word64)
 
 -- | Type alias for WAI respond function
 type Respond = Response -> IO ResponseReceived
@@ -76,6 +77,15 @@ data FileUploadBackend
     -- 'FormBody' still work: their 'fileContent' reads the temporary file
     -- lazily, on first use, so it is only valid while the request is handled.
     | TempFileUploads
+    -- | Chooses per request: a request with a known body length up to this
+    -- many bytes keeps its files in memory, like 'InMemoryFileUploads'. A larger
+    -- request, or one with an unknown length (chunked transfer encoding), writes
+    -- them to temporary files, like 'TempFileUploads'.
+    --
+    -- Small uploads avoid the disk, while large ones don't end up on the heap.
+    -- As with 'TempFileUploads', 'fileContent' of a large upload is only valid
+    -- while the request is handled.
+    | TempFileUploadsAbove Word64
     deriving (Eq, Show)
 
 -- | Vault key for storing the parsed request body
@@ -90,7 +100,8 @@ rawRequestBodyVaultKey = unsafePerformIO Vault.newKey
 {-# NOINLINE rawRequestBodyVaultKey #-}
 
 -- | Vault key for the uploaded files of a multipart request, stored as
--- temporary files. Only set when using 'TempFileUploads'.
+-- temporary files. Only set when using 'TempFileUploads', or when
+-- 'TempFileUploadsAbove' chose temporary files for the request.
 tempFilesVaultKey :: Vault.Key [File FilePath]
 tempFilesVaultKey = unsafePerformIO Vault.newKey
 {-# NOINLINE tempFilesVaultKey #-}
@@ -115,8 +126,8 @@ requestBodyMiddleware = requestBodyMiddlewareWith InMemoryFileUploads
 -- The 'WaiParse.ParseRequestBodyOptions' limits (e.g. 'WaiParse.setMaxRequestFileSize')
 -- are applied while the multipart body is streamed.
 --
--- With 'TempFileUploads' the temporary files are removed when the wrapped
--- application returns.
+-- With 'TempFileUploads' and 'TempFileUploadsAbove' the temporary files are
+-- removed when the wrapped application returns.
 requestBodyMiddlewareWith :: FileUploadBackend -> WaiParse.ParseRequestBodyOptions -> Middleware
 requestBodyMiddlewareWith fileUploadBackend parseRequestBodyOptions app req respond = do
     let method = requestMethod req
@@ -183,6 +194,16 @@ parseMultipartBody fileUploadBackend parseRequestBodyOptions req continue =
                 (params, tempFiles) <- WaiParse.parseRequestBodyEx parseRequestBodyOptions (WaiParse.tempFileBackEnd internalState) req
                 files <- mapM readTempFileLazily tempFiles
                 continue FormBody { params, files, rawPayload = LBS.empty } (Vault.insert tempFilesVaultKey tempFiles)
+        TempFileUploadsAbove threshold ->
+            parseMultipartBody (selectFileUploadBackend threshold req) parseRequestBodyOptions req continue
+
+-- | Picks the backend for 'TempFileUploadsAbove': memory for a body with a known
+-- length up to the threshold, temporary files otherwise.
+selectFileUploadBackend :: Word64 -> Request -> FileUploadBackend
+selectFileUploadBackend threshold req =
+    case requestBodyLength req of
+        KnownLength len | len <= threshold -> InMemoryFileUploads
+        _ -> TempFileUploads
 
 -- | Returns the raw request body.
 --
