@@ -19,7 +19,7 @@ import Data.Maybe (isJust)
 import Control.Exception (evaluate, try, SomeException)
 import System.Directory (doesFileExist)
 
-import Wai.Request.Params.Middleware (requestBodyMiddleware, requestBodyMiddlewareWith, RequestBody(..), requestBodyVaultKey, readRawRequestBody, FileUploadBackend (..), tempFilesVaultKey)
+import Wai.Request.Params.Middleware (requestBodyMiddleware, requestBodyMiddlewareWith, RequestBody(..), requestBodyVaultKey, readRawRequestBody, readTempFiles, FileUploadBackend (..), tempFilesVaultKey)
 import Wai.Request.Params (allParams)
 
 -- | An app that extracts the parsed RequestBody from the vault and returns info about it
@@ -235,6 +235,38 @@ spec = do
                 cs (simpleBody response) `shouldBe` ("([(\"title\",\"Hello\")],True,\"file-content\",[(\"video\",\"file-content\")],\"\")" :: String)
                 Just path <- readIORef tempPathRef
                 doesFileExist path >>= (`shouldBe` False)
+
+            describe "readTempFiles" $ do
+                let readTempFilesApp tempPathRef req respond = do
+                        tempFiles <- readTempFiles req
+                        -- A second call returns the same files
+                        tempFiles' <- readTempFiles req
+                        case tempFiles of
+                            [(name, info)] -> do
+                                let path = WaiParse.fileContent info
+                                writeIORef tempPathRef (Just path)
+                                onDisk <- LBS.readFile path
+                                let samePaths = map (WaiParse.fileContent . snd) tempFiles' == [path]
+                                respond $ responseLBS status200 [] (cs (show (name, WaiParse.fileName info, onDisk, samePaths)))
+                            _ -> respond $ responseLBS status200 [] "unexpected temp files"
+
+                let expectTempFile backend = do
+                        tempPathRef <- newIORef Nothing
+                        response <- runSession (makeRequestWithBody "POST" multipartHeaders multipartBody) (requestBodyMiddlewareWith backend WaiParse.defaultParseRequestBodyOptions (readTempFilesApp tempPathRef))
+                        cs (simpleBody response) `shouldBe` ("(\"video\",\"video.mp4\",\"file-content\",True)" :: String)
+                        Just path <- readIORef tempPathRef
+                        doesFileExist path >>= (`shouldBe` False)
+
+                it "writes files kept in memory to temporary files, removed after the request" $
+                    expectTempFile InMemoryFileUploads
+
+                it "returns the streamed temporary files with TempFileUploads" $
+                    expectTempFile TempFileUploads
+
+                it "returns an empty list for a request that is not multipart" $ do
+                    let app req respond = readTempFiles req >>= respond . responseLBS status200 [] . cs . show . length
+                    response <- runSession (makeRequestWithBody "POST" [(hContentType, "application/json")] "{}") (requestBodyMiddleware WaiParse.defaultParseRequestBodyOptions app)
+                    simpleBody response `shouldBe` "0"
 
             describe "TempFileUploadsAbove" $ do
                 -- Responds with the file content and whether it was written to a temporary file

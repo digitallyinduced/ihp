@@ -29,13 +29,15 @@ data UploadsController
 instance Controller UploadsController where
     action UploadAction = renderUploadInfo
 
--- | Renders the temp file path (if any), the file content and the title param
+-- | Renders the temp file path, its content on disk, the file content and the title param
 renderUploadInfo :: (?request :: Request, ?respond :: Respond) => IO ResponseReceived
 renderUploadInfo = do
-    let tempPath = maybe "none" (.fileContent) (tempFileOrNothing "file")
+    tempFile <- tempFileOrNothing "file"
+    let tempPath = maybe "none" (.fileContent) tempFile
+    onDisk <- maybe (pure "") (LBS.readFile . (.fileContent)) tempFile
     let content = maybe "" (.fileContent) (fileOrNothing "file")
     let title :: Text = param "title"
-    renderPlain (cs tempPath <> "|" <> content <> "|" <> cs title)
+    renderPlain (cs tempPath <> "|" <> onDisk <> "|" <> content <> "|" <> cs title)
 
 instance AutoRoute UploadsController
 
@@ -77,16 +79,21 @@ postMultipart url = srequest $ SRequest req body
 tests :: Spec
 tests = describe "fileUploadBackend" do
     aroundAll (withMockContextAndApp WebApplication config) do
-        it "keeps uploads in memory by default" $ withContextAndApp \application -> do
+        it "keeps uploads in memory by default, writing a temp file on tempFileOrNothing" $ withContextAndApp \application -> do
             response <- runSession (postMultipart "test/Upload") application
-            simpleBody response `shouldBe` "none|file-content|Hello"
+            expectTempFileRemoved response
 
     aroundAll (withMockContextAndApp WebApplication tempFileConfig) do
         it "writes uploads to a temp file with option TempFileUploads, and removes it after the request" $ withContextAndApp \application -> do
             response <- runSession (postMultipart "test/Upload") application
-            case Text.splitOn "|" (cs (simpleBody response)) of
-                [tempPath, content, title] -> do
-                    tempPath `shouldNotBe` "none"
-                    (content, title) `shouldBe` ("file-content", "Hello")
-                    doesFileExist (cs tempPath) >>= (`shouldBe` False)
-                _ -> expectationFailure ("unexpected response: " <> cs (simpleBody response))
+            expectTempFileRemoved response
+
+-- | The action got a temp file with the uploaded content, removed after the request
+expectTempFileRemoved :: SResponse -> IO ()
+expectTempFileRemoved response =
+    case Text.splitOn "|" (cs (simpleBody response)) of
+        [tempPath, onDisk, content, title] -> do
+            tempPath `shouldNotBe` "none"
+            (onDisk, content, title) `shouldBe` ("file-content", "file-content", "Hello")
+            doesFileExist (cs tempPath) >>= (`shouldBe` False)
+        _ -> expectationFailure ("unexpected response: " <> cs (simpleBody response))

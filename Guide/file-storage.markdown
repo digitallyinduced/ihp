@@ -836,7 +836,8 @@ Use `tempFileOrNothing` (or `tempFilesByName`) to get the path of the temporary 
 import System.Directory (copyFile)
 
 action UploadVideoAction = do
-    case tempFileOrNothing "video" of
+    video <- tempFileOrNothing "video"
+    case video of
         Just fileInfo -> do
             let path :: FilePath = fileInfo.fileContent
             -- The temporary file is removed when the request ends,
@@ -847,6 +848,8 @@ action UploadVideoAction = do
 ```
 
 `fileOrNothing`, `filesByName` and `storeFile` keep working: the content of the file is read from the temporary file when it is first used, so `storeFile` copies it to the storage in chunks. It's only available during the request.
+
+`tempFileOrNothing` works with every backend: with the default `InMemoryFileUploads` it writes the upload to a temporary file on first use. So an action that needs a file path (e.g. to copy it with `copyFile`, as above) doesn't depend on the configured backend.
 
 ### Choosing Memory or Temporary Files per Request
 
@@ -861,7 +864,7 @@ config = do
 
 Requests without a known length (sent with chunked transfer encoding) always use temporary files.
 
-As the backend depends on the request, `tempFileOrNothing` returns `Nothing` for a small upload kept in memory. Use `fileOrNothing` or `storeFile` when your action should work for both, and only rely on the file content during the request.
+Your actions don't need to know which one was picked: `fileOrNothing`, `storeFile` and `tempFileOrNothing` work for both.
 
 ### Streaming a Raw Request Body
 

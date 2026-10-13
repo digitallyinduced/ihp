@@ -28,6 +28,7 @@ module Wai.Request.Params.Middleware
 , rawRequestBodyVaultKey
   -- * File upload backend
 , FileUploadBackend (..)
+, readTempFiles
 , tempFilesVaultKey
   -- * Type alias
 , Respond
@@ -46,7 +47,7 @@ import qualified Data.ByteString.Lazy as LBS
 import Network.Wai.Parse (File, FileInfo (..), Param)
 import Data.IORef (newIORef, atomicModifyIORef')
 import Control.Concurrent.MVar (newMVar, modifyMVar)
-import Control.Monad.Trans.Resource (createInternalState, closeInternalState)
+import Control.Monad.Trans.Resource (InternalState, createInternalState, closeInternalState)
 import Control.Exception (bracket)
 import Data.Word (Word64)
 
@@ -73,7 +74,7 @@ data FileUploadBackend
     -- | Uploaded files are written to temporary files ('WaiParse.tempFileBackEnd').
     -- The files are removed when the request ends.
     --
-    -- Their paths are stored under 'tempFilesVaultKey'. The @files@ of the
+    -- Use 'readTempFiles' to get their paths. The @files@ of the
     -- 'FormBody' still work: their 'fileContent' reads the temporary file
     -- lazily, on first use, so it is only valid while the request is handled.
     | TempFileUploads
@@ -84,7 +85,7 @@ data FileUploadBackend
     --
     -- Small uploads avoid the disk, while large ones don't end up on the heap.
     -- As with 'TempFileUploads', 'fileContent' of a large upload is only valid
-    -- while the request is handled.
+    -- while the request is handled. 'readTempFiles' works for both.
     | TempFileUploadsAbove Word64
     deriving (Eq, Show)
 
@@ -99,12 +100,20 @@ rawRequestBodyVaultKey :: Vault.Key (IO LBS.ByteString)
 rawRequestBodyVaultKey = unsafePerformIO Vault.newKey
 {-# NOINLINE rawRequestBodyVaultKey #-}
 
--- | Vault key for the uploaded files of a multipart request, stored as
--- temporary files. Only set when using 'TempFileUploads', or when
+-- | Vault key for the uploaded files of a multipart request that were streamed
+-- to temporary files. Only set when using 'TempFileUploads', or when
 -- 'TempFileUploadsAbove' chose temporary files for the request.
+--
+-- Use 'readTempFiles' to get the files as temporary files with any backend.
 tempFilesVaultKey :: Vault.Key [File FilePath]
 tempFilesVaultKey = unsafePerformIO Vault.newKey
 {-# NOINLINE tempFilesVaultKey #-}
+
+-- | Vault key for an action that returns the uploaded files as temporary files.
+-- Use 'readTempFiles' instead of reading this directly.
+readTempFilesVaultKey :: Vault.Key (IO [File FilePath])
+readTempFilesVaultKey = unsafePerformIO Vault.newKey
+{-# NOINLINE readTempFilesVaultKey #-}
 
 -- | Middleware that parses the request body and stores it in the request vault.
 --
@@ -183,27 +192,45 @@ requestBodyMiddlewareWith fileUploadBackend parseRequestBodyOptions app req resp
 -- a function to add backend-specific entries to the vault.
 parseMultipartBody :: FileUploadBackend -> WaiParse.ParseRequestBodyOptions -> Request -> (RequestBody -> (Vault.Vault -> Vault.Vault) -> IO a) -> IO a
 parseMultipartBody fileUploadBackend parseRequestBodyOptions req continue =
-    case fileUploadBackend of
-        InMemoryFileUploads -> do
-            (params, files) <- WaiParse.parseRequestBodyEx parseRequestBodyOptions WaiParse.lbsBackEnd req
-            continue FormBody { params, files, rawPayload = LBS.empty } id
-        TempFileUploads ->
-            -- The temporary files are removed when the internal state is closed,
-            -- i.e. after the continuation has returned
-            bracket createInternalState closeInternalState $ \internalState -> do
+    -- Temporary files (streamed by the temp file backend, or written on demand
+    -- by 'readTempFiles') are removed when the internal state is closed, i.e.
+    -- after the continuation has returned
+    bracket createInternalState closeInternalState $ \internalState ->
+        if useTempFiles fileUploadBackend req
+            then do
                 (params, tempFiles) <- WaiParse.parseRequestBodyEx parseRequestBodyOptions (WaiParse.tempFileBackEnd internalState) req
                 files <- mapM readTempFileLazily tempFiles
-                continue FormBody { params, files, rawPayload = LBS.empty } (Vault.insert tempFilesVaultKey tempFiles)
-        TempFileUploadsAbove threshold ->
-            parseMultipartBody (selectFileUploadBackend threshold req) parseRequestBodyOptions req continue
+                continue FormBody { params, files, rawPayload = LBS.empty }
+                    (Vault.insert tempFilesVaultKey tempFiles . Vault.insert readTempFilesVaultKey (pure tempFiles))
+            else do
+                (params, files) <- WaiParse.parseRequestBodyEx parseRequestBodyOptions WaiParse.lbsBackEnd req
+                readTemp <- memoize (mapM (writeTempFile internalState) files)
+                continue FormBody { params, files, rawPayload = LBS.empty } (Vault.insert readTempFilesVaultKey readTemp)
 
--- | Picks the backend for 'TempFileUploadsAbove': memory for a body with a known
--- length up to the threshold, temporary files otherwise.
-selectFileUploadBackend :: Word64 -> Request -> FileUploadBackend
-selectFileUploadBackend threshold req =
+-- | Whether the files of this request are streamed to temporary files. For
+-- 'TempFileUploadsAbove' that's the case for a body larger than the threshold,
+-- or with an unknown length.
+useTempFiles :: FileUploadBackend -> Request -> Bool
+useTempFiles InMemoryFileUploads _ = False
+useTempFiles TempFileUploads _ = True
+useTempFiles (TempFileUploadsAbove threshold) req =
     case requestBodyLength req of
-        KnownLength len | len <= threshold -> InMemoryFileUploads
-        _ -> TempFileUploads
+        KnownLength len -> len > threshold
+        ChunkedBody -> True
+
+-- | Returns the uploaded files of a multipart request as temporary files, with
+-- 'fileContent' being the path of the file.
+--
+-- Works with every 'FileUploadBackend': files kept in memory are written to
+-- temporary files on the first call. The temporary files are removed when the
+-- request ends, so move or copy them to keep them.
+--
+-- Returns an empty list for a request that is not multipart.
+readTempFiles :: Request -> IO [File FilePath]
+readTempFiles req =
+    case Vault.lookup readTempFilesVaultKey (vault req) of
+        Just readTemp -> readTemp
+        Nothing -> pure []
 
 -- | Returns the raw request body.
 --
@@ -232,6 +259,16 @@ memoize action = do
         Nothing -> do
             value <- action
             pure (Just value, value)
+
+-- | Writes a file kept in memory to a temporary file, removed when the internal state is closed.
+writeTempFile :: InternalState -> File LBS.ByteString -> IO (File FilePath)
+writeTempFile internalState (name, fileInfo) = do
+    chunks <- newIORef (LBS.toChunks (fileContent fileInfo))
+    let popChunk = atomicModifyIORef' chunks $ \case
+            [] -> ([], BS.empty)
+            (c:cs) -> (cs, c)
+    path <- WaiParse.tempFileBackEnd internalState () () popChunk
+    pure (name, fileInfo { fileContent = path })
 
 -- | Turns an uploaded temporary file into one whose content is read from disk on first use.
 readTempFileLazily :: File FilePath -> IO (File LBS.ByteString)

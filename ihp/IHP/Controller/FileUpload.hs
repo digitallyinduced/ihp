@@ -15,11 +15,10 @@ module IHP.Controller.FileUpload where
 import IHP.Prelude
 
 import Network.Wai.Parse (FileInfo, fileContent, fileName)
-import Network.Wai (Request, vault)
+import Network.Wai (Request)
 import qualified IHP.ModelSupport as ModelSupport
 import qualified Data.ByteString.Lazy as LBS
-import Wai.Request.Params.Middleware (RequestBody (..), tempFilesVaultKey)
-import qualified Data.Vault.Lazy as Vault
+import Wai.Request.Params.Middleware (RequestBody (..), readTempFiles)
 import IHP.RequestVault () -- HasField "parsedBody" Request RequestBody
 import qualified System.Process as Process
 
@@ -108,49 +107,45 @@ filesByName !name =
 
 -- | Returns a file upload from the request as a temporary file on disk.
 --
--- Only works when uploads are stored in temporary files. Enable this in @Config/Config.hs@:
+-- Useful when you need a file path, e.g. to copy the upload with @copyFile@.
+-- The temporary file is removed when the request ends, so move or copy it if you
+-- want to keep it.
 --
--- > config :: ConfigBuilder
--- > config = do
--- >     option TempFileUploads
+-- Works with every file upload backend. With @option TempFileUploads@ (or
+-- @option (TempFileUploadsAbove ...)@ for a large request) the upload was already
+-- streamed to disk, and this returns its path. Otherwise the upload is kept in memory,
+-- and is written to a temporary file on the first call.
 --
--- With 'TempFileUploads' a large upload (e.g. a video) is written to disk while the
--- request is streamed, instead of being held in memory. The temporary file is
--- removed when the request ends, so move or copy it if you want to keep it.
---
--- Returns `Nothing` when the file is not found in the request body, when no file was
--- selected, or when uploads are kept in memory ('InMemoryFileUploads', the default, or
--- a request below the threshold of 'TempFileUploadsAbove').
+-- Returns `Nothing` when the file is not found in the request body, or when no file
+-- was selected.
 --
 -- __Example:__
 --
 -- > import System.Directory (copyFile)
 -- >
 -- > action UploadVideoAction = do
--- >     case tempFileOrNothing "video" of
+-- >     video <- tempFileOrNothing "video"
+-- >     case video of
 -- >         Just fileInfo -> do
 -- >             let path :: FilePath = fileInfo.fileContent
 -- >             copyFile path "videos/latest.mp4"
 -- >         Nothing -> pure ()
 -- >     redirectTo VideosAction
---
--- 'fileOrNothing' keeps working with 'TempFileUploads': the file content is then
--- read from the temporary file on first use.
-tempFileOrNothing :: (?request :: Request) => ByteString -> Maybe (FileInfo FilePath)
-tempFileOrNothing !name =
-        case lookup name (tempFiles ?request) of
-            Just fileInfo | fileInfo.fileName /= "" -> Just fileInfo
-            _ -> Nothing
+tempFileOrNothing :: (?request :: Request) => ByteString -> IO (Maybe (FileInfo FilePath))
+tempFileOrNothing !name = do
+        tempFiles <- readTempFiles ?request
+        case lookup name tempFiles of
+            Just fileInfo | fileInfo.fileName /= "" -> pure (Just fileInfo)
+            _ -> pure Nothing
 
 -- | Like 'tempFileOrNothing' but allows uploading multiple files in the same request
-tempFilesByName :: (?request :: Request) => ByteString -> [FileInfo FilePath]
-tempFilesByName !name =
-        tempFiles ?request
+tempFilesByName :: (?request :: Request) => ByteString -> IO [FileInfo FilePath]
+tempFilesByName !name = do
+        tempFiles <- readTempFiles ?request
+        tempFiles
             |> filter (\(filename, _) -> filename == name)
             |> map snd
-
-tempFiles :: Request -> [(ByteString, FileInfo FilePath)]
-tempFiles request = fromMaybe [] (Vault.lookup tempFilesVaultKey request.vault)
+            |> pure
 
 -- | Options to be used together with 'uploadImageWithOptions'
 --

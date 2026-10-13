@@ -166,7 +166,7 @@ data FrameworkConfig = FrameworkConfig
     -- | Where files of a @multipart/form-data@ request are stored while the request is handled.
     --
     -- Defaults to 'InMemoryFileUploads'. Set @option TempFileUploads@ in @Config.hs@
-    -- to write uploaded files to temporary files instead, see 'IHP.Controller.FileUpload.tempFileOrNothing'.
+    -- to write uploaded files to temporary files instead.
     -- @option (TempFileUploadsAbove 1048576)@ does that only for requests larger than 1 MB.
     , fileUploadBackend :: !FileUploadBackend
 
