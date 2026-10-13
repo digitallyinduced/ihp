@@ -16,10 +16,11 @@ import qualified Data.ByteString as BS
 import qualified Data.ByteString.Char8 as Char8
 import Data.IORef
 import Data.Maybe (isJust)
+import Data.Default (def)
 import Control.Exception (evaluate, try, SomeException)
 import System.Directory (doesFileExist)
 
-import Wai.Request.Params.Middleware (requestBodyMiddleware, requestBodyMiddlewareWith, RequestBody(..), requestBodyVaultKey, readRawRequestBody, readTempFiles, FileUploadBackend (..), tempFilesVaultKey)
+import Wai.Request.Params.Middleware (requestBodyMiddleware, requestBodyMiddlewareWith, RequestBody(..), requestBodyVaultKey, readRawRequestBody, readTempFiles, FileUploadBackend (..), FileUploadThreshold (..), tempFilesVaultKey)
 import Wai.Request.Params (allParams)
 
 -- | An app that extracts the parsed RequestBody from the vault and returns info about it
@@ -282,14 +283,20 @@ spec = do
                         } multipartBody
                 let bodyLength = fromIntegral (LBS.length multipartBody)
                 let runWith threshold bodyLength' = runSession (multipartWithLength bodyLength') (requestBodyMiddlewareWith (TempFileUploadsAbove threshold) WaiParse.defaultParseRequestBodyOptions backendApp)
+                let threshold = FileUploadThreshold bodyLength
 
                 it "keeps files in memory when the body length is up to the threshold" $ do
-                    response <- runWith bodyLength (KnownLength bodyLength)
+                    response <- runWith threshold (KnownLength bodyLength)
                     cs (simpleBody response) `shouldBe` ("(False,\"file-content\")" :: String)
 
                 it "writes files to temporary files when the body is larger than the threshold" $ do
-                    response <- runWith (bodyLength - 1) (KnownLength bodyLength)
+                    response <- runWith (threshold - 1) (KnownLength bodyLength)
                     cs (simpleBody response) `shouldBe` ("(True,\"file-content\")" :: String)
+
+                it "defaults to a threshold of 1 MB" $ do
+                    small <- runWith def (KnownLength (1024 * 1024))
+                    large <- runWith def (KnownLength (1024 * 1024 + 1))
+                    map (cs . simpleBody) [small, large] `shouldBe` (["(False,\"file-content\")", "(True,\"file-content\")"] :: [String])
 
                 it "writes files to temporary files when the body length is unknown" $ do
                     response <- runWith 1000000 ChunkedBody

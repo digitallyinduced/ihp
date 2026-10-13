@@ -859,8 +859,10 @@ Writing every upload to disk costs disk I/O even for a small avatar. With `TempF
 config :: ConfigBuilder
 config = do
     -- Keep requests up to 1 MB in memory, write larger ones to temporary files
-    option (TempFileUploadsAbove (1024 * 1024))
+    option (TempFileUploadsAbove def)
 ```
+
+To use a different threshold, pass the size in bytes, e.g. `option (TempFileUploadsAbove (10 * 1024 * 1024))` for 10 MB.
 
 Requests without a known length (sent with chunked transfer encoding) always use temporary files.
 
