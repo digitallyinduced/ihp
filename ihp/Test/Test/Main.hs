@@ -36,6 +36,7 @@ import qualified Test.Pagination.ControllerFunctionsSpec
 import qualified Test.FetchPipelinedSpec
 import qualified Test.JobQueueSpec
 import qualified Test.JobRunnerSpec
+import qualified Test.ScriptSupportSpec
 import qualified Test.LoginSupport.AuthVaultSpec
 import qualified Test.PGVersionSpec
 import qualified Test.TypedSqlSpec
@@ -75,6 +76,7 @@ main = hspec do
     Test.FetchPipelinedSpec.tests
     Test.JobQueueSpec.tests
     Test.JobRunnerSpec.tests
+    Test.ScriptSupportSpec.tests
     Test.LoginSupport.AuthVaultSpec.tests
     Test.PGVersionSpec.tests
     Test.TypedSqlSpec.tests
