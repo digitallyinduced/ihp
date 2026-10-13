@@ -811,9 +811,79 @@ The signed url is valid for 7 days.
 
 You can use the [`refreshTemporaryDownloadUrl`](https://ihp.digitallyinduced.com/api-docs/IHP-FileStorage-ControllerFunctions.html#v:refreshTemporaryDownloadUrl) function to refresh the signed url. See the [example above](#required-uploads-with-a-file-record) for an example.
 
+## Large Uploads
+
+By default an uploaded file is kept in memory while the request is handled. That's fine for images and documents, but a 500 MB video would then cost 500 MB of RAM per request.
+
+### Storing Form Uploads in Temporary Files
+
+You can write the uploaded files of `multipart/form-data` forms to temporary files instead. Set the `IHP_FILE_UPLOAD_MEMORY_THRESHOLD` env var to a size in bytes, e.g. in your `.envrc`:
+
+```bash
+# Keep requests up to 1 MB in memory, write the uploads of larger ones to temporary files
+export IHP_FILE_UPLOAD_MEMORY_THRESHOLD=1048576
+```
+
+IHP picks the backend for each request from its `Content-Length`, so small uploads like an avatar don't cost disk I/O. The threshold is measured in bytes for the entire multipart request, including all files and form fields. Requests without a known length (sent with chunked transfer encoding) always use temporary files. Set it to `0` to write all uploads to temporary files. When the env var isn't set, uploads are kept in memory.
+
+As it's an env var, you can tune it without recompiling your app. You can also set it in `Config/Config.hs` with `option (TempFileUploadsAbove 1048576)` or `option TempFileUploads`, which takes precedence over the env var.
+
+The body is parsed straight from the request stream and the uploads are written to disk, so memory use stays flat whatever the file size.
+
+Use `tempFileOrNothing` (or `tempFilesByName`) to get the path of the temporary file:
+
+```haskell
+import System.Directory (copyFile)
+
+action UploadVideoAction = do
+    video <- tempFileOrNothing "video"
+    case video of
+        Just fileInfo -> do
+            let path :: FilePath = fileInfo.fileContent
+            -- The temporary file is removed when the request ends,
+            -- so copy or move it to keep it
+            copyFile path "videos/latest.mp4"
+        Nothing -> pure ()
+    redirectTo VideosAction
+```
+
+`fileOrNothing`, `filesByName` and `storeFile` keep working: the content of the file is read from the temporary file when it is first used, so `storeFile` copies it to the storage in chunks. It's only available during the request.
+
+`tempFileOrNothing` works whether an upload was kept in memory or not: an upload kept in memory is written to a temporary file on first use. So an action that needs a file path (e.g. to copy it with `copyFile`, as above) doesn't depend on `IHP_FILE_UPLOAD_MEMORY_THRESHOLD`.
+
+### Streaming a Raw Request Body
+
+IHP only reads a request body before your action runs when it needs to parse it: for JSON (`application/json`), form (`application/x-www-form-urlencoded`) and upload (`multipart/form-data`) requests. Any other body, like an `application/octet-stream` or `video/mp4` upload sent with `fetch`, is left untouched.
+
+So your action can stream the body itself, e.g. to a file, chunk by chunk:
+
+```haskell
+import qualified Network.Wai as Wai
+import qualified Data.ByteString as ByteString
+import System.IO (withBinaryFile, IOMode (..))
+
+action UploadRawVideoAction = do
+    let maxSize = 1024 * 1024 * 1024 -- 1 GB
+    let writeChunks handle total = do
+            chunk <- Wai.getRequestBodyChunk request
+            let total' = total + ByteString.length chunk
+            when (total' > maxSize) (error "Upload too large")
+            unless (ByteString.null chunk) do
+                ByteString.hPut handle chunk
+                writeChunks handle total'
+
+    withBinaryFile "upload.mp4" WriteMode \handle -> writeChunks handle 0
+
+    renderPlain "OK"
+```
+
+The limits of `WaiParse.ParseRequestBodyOptions` (see below) don't apply to a raw body, as IHP doesn't parse it, so check the size yourself as in the example.
+
+`getRequestBody` still works for these requests, e.g. in a webhook handler that verifies a signature. It reads the whole body into memory on its first call, and returns the same bytes on later calls. For `multipart/form-data` requests it returns an empty body, as the body is parsed straight from the request stream.
+
 ## File Upload Limits
 
-To avoid a single request overloading the server, [IHP has certain request limits in place](https://hackage.haskell.org/package/wai-extra-3.1.6/docs/Network-Wai-Parse.html#v:defaultParseRequestBodyOptions):
+To avoid a single request overloading the server, [IHP has certain request limits in place for form and upload requests](https://hackage.haskell.org/package/wai-extra-3.1.6/docs/Network-Wai-Parse.html#v:defaultParseRequestBodyOptions):
 
 - Maximum key/filename length: 32 bytes
 - Maximum files: 10
