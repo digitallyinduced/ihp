@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- The dev server no longer exits when the telemetry request fails (e.g. behind a proxy that refuses it).
+
 ## v1.6.0 (2026-06-20)
 
 ### Breaking Changes
