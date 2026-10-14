@@ -130,6 +130,11 @@ ihpDefaultConfig logger = do
 
     option WaiParse.defaultParseRequestBodyOptions
 
+    -- Uploads of requests larger than IHP_FILE_UPLOAD_MEMORY_THRESHOLD bytes are written to
+    -- temporary files. When it's not set, uploads are kept in memory
+    fileUploadBackend <- envOrDefault "IHP_FILE_UPLOAD_MEMORY_THRESHOLD" InMemoryFileUploads
+    option fileUploadBackend
+
     option bootstrap
 
     when (environment == Development) do
@@ -151,6 +156,12 @@ ihpDefaultConfig logger = do
 
 instance EnvVarReader AppPort where
     envStringToValue string = AppPort <$> envStringToValue string
+
+-- | Reads @IHP_FILE_UPLOAD_MEMORY_THRESHOLD@, a size in bytes, as 'TempFileUploadsAbove'
+instance EnvVarReader FileUploadBackend where
+    envStringToValue string = case textToInt (cs string) of
+        Just bytes | bytes >= 0 -> Right (TempFileUploadsAbove (fromIntegral bytes))
+        _ -> Left ("Expected a size in bytes, got " <> cs string)
 
 instance EnvVarReader RequestLogger.IPAddrSource where
     envStringToValue "FromHeader" = Right RequestLogger.FromHeader
@@ -186,6 +197,7 @@ buildFrameworkConfig rawLogger appConfig = do
             exceptionTracker <- findOption @ExceptionTracker
             corsResourcePolicy <- findOptionOrNothing @Cors.CorsResourcePolicy
             parseRequestBodyOptions <- findOption @WaiParse.ParseRequestBodyOptions
+            fileUploadBackend <- findOption @FileUploadBackend
             (IdeBaseUrl ideBaseUrl) <- findOption @IdeBaseUrl
             (RLSAuthenticatedRole rlsAuthenticatedRole) <- findOption @RLSAuthenticatedRole
             customMiddleware <- findOption @CustomMiddleware

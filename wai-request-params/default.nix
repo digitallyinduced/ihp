@@ -1,5 +1,5 @@
-{ mkDerivation, aeson, attoparsec, base, bytestring, deepseq, hspec
-, http-types, lib, scientific, string-conversions, text, time, uuid
+{ mkDerivation, aeson, attoparsec, base, bytestring, deepseq, directory, hspec
+, http-types, lib, resourcet, scientific, string-conversions, text, time, uuid
 , vault, vector, wai, wai-extra
 }:
 mkDerivation {
@@ -7,11 +7,11 @@ mkDerivation {
   version = "1.0.0";
   src = ./.;
   libraryHaskellDepends = [
-    aeson attoparsec base bytestring deepseq http-types scientific
+    aeson attoparsec base bytestring deepseq http-types resourcet scientific
     string-conversions text time uuid vault vector wai wai-extra
   ];
   testHaskellDepends = [
-    aeson base bytestring hspec http-types scientific
+    aeson base bytestring directory hspec http-types scientific
     string-conversions text time uuid vault wai wai-extra
   ];
   homepage = "https://ihp.digitallyinduced.com/";
