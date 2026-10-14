@@ -9,9 +9,9 @@ import Control.Concurrent.MVar as MVar
 
 data DataSyncMessage
     = DataSyncQuery { query :: !DynamicSQLQuery, requestId :: !Int, transactionId :: !(Maybe UUID) }
-    | CreateDataSubscription { query :: !DynamicSQLQuery, requestId :: !Int }
-    | CreateCountSubscription { query :: !DynamicSQLQuery, requestId :: !Int }
-    | DeleteDataSubscription { subscriptionId :: !UUID, requestId :: !Int }
+    | CreateDataSubscription { query :: !DynamicSQLQuery, requestId :: !Int, clientSubscriptionId :: !(Maybe Int) }
+    | CreateCountSubscription { query :: !DynamicSQLQuery, requestId :: !Int, clientSubscriptionId :: !(Maybe Int) }
+    | DeleteDataSubscription { subscriptionId :: !Int, requestId :: !Int }
     | CreateRecordMessage { table :: !Text, record :: !(HashMap Text Value), requestId :: !Int, transactionId :: !(Maybe UUID) }
     | CreateRecordsMessage { table :: !Text, records :: ![HashMap Text Value], requestId :: !Int, transactionId :: !(Maybe UUID) }
     | UpdateRecordMessage { table :: !Text, id :: !UUID, patch :: !(HashMap Text Value), requestId :: !Int, transactionId :: !(Maybe UUID) }
@@ -31,13 +31,13 @@ data DataSyncResponse
     = DataSyncResult { result :: ![[Field]], requestId :: !Int }
     | DataSyncError { requestId :: !Int, errorMessage :: !Text }
     | FailedToDecodeMessageError { errorMessage :: !Text }
-    | DidCreateDataSubscription { requestId :: !Int, subscriptionId :: !UUID, result :: ![[Field]] }
-    | DidCreateCountSubscription { requestId :: !Int, subscriptionId :: !UUID, count :: !Int }
-    | DidDeleteDataSubscription { requestId :: !Int, subscriptionId :: !UUID }
-    | DidInsert { subscriptionId :: !UUID, record :: ![Field] }
-    | DidUpdate { subscriptionId :: !UUID, id :: UUID, changeSet :: !(Maybe Value), appendSet :: !(Maybe Value) }
-    | DidDelete { subscriptionId :: !UUID, id :: !UUID }
-    | DidChangeCount { subscriptionId :: !UUID, count :: !Int }
+    | DidCreateDataSubscription { requestId :: !Int, subscriptionId :: !Int, result :: ![[Field]] }
+    | DidCreateCountSubscription { requestId :: !Int, subscriptionId :: !Int, count :: !Int }
+    | DidDeleteDataSubscription { requestId :: !Int, subscriptionId :: !Int }
+    | DidInsert { subscriptionId :: !Int, record :: ![Field] }
+    | DidUpdate { subscriptionId :: !Int, id :: UUID, changeSet :: !(Maybe Value), appendSet :: !(Maybe Value) }
+    | DidDelete { subscriptionId :: !Int, id :: !UUID }
+    | DidChangeCount { subscriptionId :: !Int, count :: !Int }
     | DidCreateRecord { requestId :: !Int, record :: ![Field] } -- ^ Response to 'CreateRecordMessage'
     | DidCreateRecords { requestId :: !Int, records :: ![[Field]] } -- ^ Response to 'CreateRecordsMessage'
     | DidUpdateRecord { requestId :: !Int, record :: ![Field] } -- ^ Response to 'UpdateRecordMessage'
@@ -71,6 +71,6 @@ data DataSyncTransaction
 data DataSyncController
     = DataSyncController
     | DataSyncReady
-        { subscriptions :: !(HashMap UUID (MVar.MVar ()))
+        { subscriptions :: !(HashMap Int (MVar.MVar ()))
         , transactions :: !(HashMap UUID DataSyncTransaction)
         }
