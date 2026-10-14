@@ -25,10 +25,16 @@
 
                 pkgs = mkPkgs ihp;
 
+                # On Darwin, NixSupport/overlay.nix builds ihp-ide without a
+                # separate `data` output; its data files are then in `out`, under
+                # share/<abi>/<package> instead of share/<compiler>/<abi>/<package>.
                 hsDataDir = package:
                     let
                         ghcName   = package.passthru.compiler.haskellCompilerName;
-                        shareRoot = "${package.data}/share/${ghcName}";
+                        shareRoot =
+                            if package ? data
+                            then "${package.data}/share/${ghcName}"
+                            else "${package.out}/share";
                         dirs = builtins.filter (d: d != "doc") (builtins.attrNames (builtins.readDir shareRoot));
                         sys = lib.head dirs;
                     in
@@ -50,7 +56,7 @@
                         pkgs.gawk
                     ];
                     buildPhase = ''
-                        export IHP_LIB=${hsDataDir ghcPkgs.ihp-ide.data}
+                        export IHP_LIB=${hsDataDir ghcPkgs.ihp-ide}
 
                         # Generate types from Schema.sql
                         make -f $IHP_LIB/lib/IHP/Makefile.dist build/Generated/Types.hs
@@ -102,7 +108,7 @@
                         mkdir -p $out/Application
                         cp Application/Schema.sql $out/Application/
                         cp Application/Fixtures.sql $out/Application/
-                        cp ${hsDataDir ghcPkgs.ihp-ide.data}/IHPSchema.sql $out/
+                        cp ${hsDataDir ghcPkgs.ihp-ide}/IHPSchema.sql $out/
                     '';
                 };
 
