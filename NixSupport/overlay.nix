@@ -57,7 +57,12 @@ let
             ihp-pagehead = localPackage "ihp-pagehead";
             ihp-pglistener = localPackage "ihp-pglistener";
             ihp-modal = localPackage "ihp-modal";
-            ihp-ide = localPackage "ihp-ide";
+            ihp-ide = (localPackage "ihp-ide").overrideAttrs (_: {
+                # StatusServerSpec binds an ephemeral loopback server and
+                # connects WebSocket clients. Declare that test capability on
+                # this derivation only; keep Darwin sandboxing and all tests.
+                __darwinAllowLocalNetworking = true;
+            });
             ihp-schema-compiler = localPackage "ihp-schema-compiler";
             ihp-postgres-parser = localPackage "ihp-postgres-parser";
             ihp-mail = localPackage "ihp-mail";

@@ -26,9 +26,8 @@ import Hasql.DynamicStatements.Snippet (Snippet)
 import qualified IHP.DataSync.ChangeNotifications as ChangeNotifications
 import qualified IHP.PGListener as PGListener
 import qualified Data.Set as Set
-import GHC.Conc (ThreadId, myThreadId, atomically)
-import Control.Concurrent.QSemN
-import Control.Concurrent.STM.TVar
+import IHP.DataSync.Drain (DrainSignal, newDrainSignal, requestDrain, runPhasedDrainingWorkers, waitForSubscriptionClose, withJoinedCallback, finishTransactionOnDrain)
+import qualified Data.TMap as TypeMap
 import qualified Data.List as List
 
 $(deriveFromJSON defaultOptions ''DataSyncMessage)
@@ -49,58 +48,51 @@ runDataSyncController ::
     , Show (PrimaryKey (GetTableName CurrentUserRecord))
     ) => Hasql.Pool.Pool -> EnsureRLSEnabledFn -> InstallTableChangeTriggerFn -> IO ByteString -> SendJSONFn -> HandleCustomMessageFn -> (Text -> Renamer) -> IO ()
 runDataSyncController hasqlPool ensureRLSEnabled installTableChangeTriggers receiveData sendJSON handleCustomMessage renamer = do
+    drain <- maybe newDrainSignal pure
+        (TypeMap.lookup @DrainSignal ?request.frameworkConfig.appConfig)
+    runDataSyncControllerWithDrain drain hasqlPool ensureRLSEnabled installTableChangeTriggers receiveData sendJSON handleCustomMessage renamer
+
+-- | Opt-in cooperative shutdown. Request the shared signal and await this
+-- action before closing the socket. The receive callback must be safe to
+-- cancel; accepted handlers are joined without cancellation on drain.
+-- Subscription idle waits end on drain and dispatched callbacks are joined.
+-- Open transactions are rolled back only after accepted finite work finishes.
+runDataSyncControllerWithDrain ::
+    ( HasField "id" CurrentUserRecord (Id' (GetTableName CurrentUserRecord))
+    , ?request :: Request
+    , ?modelContext :: ModelContext
+    , ?state :: IORef DataSyncController
+    , Typeable CurrentUserRecord
+    , HasNewSessionUrl CurrentUserRecord
+    , Show (PrimaryKey (GetTableName CurrentUserRecord))
+    ) => DrainSignal -> Hasql.Pool.Pool -> EnsureRLSEnabledFn -> InstallTableChangeTriggerFn -> IO ByteString -> SendJSONFn -> HandleCustomMessageFn -> (Text -> Renamer) -> IO ()
+runDataSyncControllerWithDrain drain hasqlPool ensureRLSEnabled installTableChangeTriggers receiveData sendJSON handleCustomMessage renamer = do
     let ?context = ?request
     setState DataSyncReady { subscriptions = HashMap.empty, transactions = HashMap.empty }
 
     columnTypeLookup <- makeCachedColumnTypeLookup hasqlPool
-    handleMessage :: DataSyncMessage -> IO () <- buildMessageHandler hasqlPool ensureRLSEnabled installTableChangeTriggers sendJSON handleCustomMessage renamer columnTypeLookup
+    transactionCleanup <- newDrainSignal
+    handleMessage <- buildMessageHandler drain transactionCleanup hasqlPool ensureRLSEnabled installTableChangeTriggers sendJSON handleCustomMessage renamer columnTypeLookup
 
 
-    sem  <- newQSemN (maxSubscriptionsPerConnection * 2) -- needs to be larger than the subscriptions limit to trigger an error on overload. otherwise an overflow of connections might queue up silently
-
-    -- Track Asyncs so we can cancel/wait on socket close
-    childrenVar <- newTVarIO (HashMap.empty :: HashMap ThreadId (Async ()))
-
-    let spawnWorker decodedMessage = do
-            tidReady <- MVar.newEmptyMVar
-            a <- asyncWithUnmask \unmask -> do
-                -- Register myself
-                tid <- myThreadId
-                MVar.putMVar tidReady tid
-                -- Take/release concurrency slot entirely inside the worker
-                Exception.bracket_ (waitQSemN sem 1) (signalQSemN sem 1) do
-                    Exception.finally
-                        (unmask do
-                            result <- Exception.try (handleMessage decodedMessage)
-                            case result of
-                                Left (e :: Exception.SomeException) -> do
-                                    let requestId    = decodedMessage.requestId
-                                    let errorMessage = cs (displayException e)
-                                    ?modelContext.logger (toLogStr (tshow e))
-                                    sendJSON DataSyncError { requestId, errorMessage }
-                                Right _ -> pure ()
-                        )
-                        -- Self-deregister
-                        (do
-                            tid' <- myThreadId
-                            atomically $ modifyTVar' childrenVar (HashMap.delete tid')
-                        )
-            -- Parent stores the Async by ThreadId (no race thanks to tidReady)
-            tid <- MVar.takeMVar tidReady
-            atomically $ modifyTVar' childrenVar (HashMap.insert tid a)
-
-    let loop = forever do
-            msg <- Aeson.eitherDecodeStrict' <$> receiveData
-            case msg of
-                Right decoded -> spawnWorker decoded
-                Left err      -> sendJSON FailedToDecodeMessageError { errorMessage = cs err }
-
-    -- On websocket close: cancel and drain all children
-    loop `Exception.finally` do
-        m <- readTVarIO childrenVar
-        let handles = HashMap.elems m
-        mapM_ cancel handles
-        mapM_ (const (pure ())) =<< mapM waitCatch handles
+    let handle ready bytes = case Aeson.eitherDecodeStrict' bytes of
+            Left err -> sendJSON FailedToDecodeMessageError { errorMessage = cs err }
+            Right decodedMessage -> do
+                holderReady <- newIORef False
+                let markReady = writeIORef holderReady True >> ready
+                result <- Exception.try (handleMessage markReady decodedMessage)
+                case result of
+                    Left (e :: Exception.SomeException) -> do
+                        -- Cleanup failure must not become a successful drain
+                        -- merely because the ordinary protocol reports errors.
+                        readIORef holderReady >>= \started ->
+                            when started (Exception.throwIO e)
+                        let requestId = decodedMessage.requestId
+                        let errorMessage = cs (displayException e)
+                        ?modelContext.logger (toLogStr (tshow e))
+                        sendJSON DataSyncError { requestId, errorMessage }
+                    Right _ -> pure ()
+    runPhasedDrainingWorkers drain (maxSubscriptionsPerConnection * 2) receiveData handle (requestDrain transactionCleanup)
 {-# INLINE runDataSyncController #-}
 
 
@@ -114,13 +106,13 @@ buildMessageHandler ::
     , HasNewSessionUrl CurrentUserRecord
     , Show (PrimaryKey (GetTableName CurrentUserRecord))
     )
-    => Hasql.Pool.Pool -> EnsureRLSEnabledFn -> InstallTableChangeTriggerFn -> SendJSONFn -> HandleCustomMessageFn -> (Text -> Renamer) -> (Text -> IO ColumnTypeInfo) -> IO (DataSyncMessage -> IO ())
-buildMessageHandler hasqlPool ensureRLSEnabled installTableChangeTriggers sendJSON handleCustomMessage renamer columnTypeLookup = do
+    => DrainSignal -> DrainSignal -> Hasql.Pool.Pool -> EnsureRLSEnabledFn -> InstallTableChangeTriggerFn -> SendJSONFn -> HandleCustomMessageFn -> (Text -> Renamer) -> (Text -> IO ColumnTypeInfo) -> IO (IO () -> DataSyncMessage -> IO ())
+buildMessageHandler drain transactionCleanup hasqlPool ensureRLSEnabled installTableChangeTriggers sendJSON handleCustomMessage renamer columnTypeLookup = do
     getRLSColumns <- makeCachedRLSPolicyColumns hasqlPool
-    pure (handleMessage getRLSColumns)
+    pure (\ready -> let ?transactionReady = ready in handleMessage getRLSColumns)
     where
             pgListener = ?request.pgListener
-            handleMessage :: (Text -> IO (Set.Set Text)) -> DataSyncMessage -> IO ()
+            handleMessage :: (?transactionReady :: IO ()) => (Text -> IO (Set.Set Text)) -> DataSyncMessage -> IO ()
             handleMessage getRLSColumns DataSyncQuery { query, requestId, transactionId } = do
                 ensureRLSEnabled (query.table)
 
@@ -227,13 +219,13 @@ buildMessageHandler hasqlPool ensureRLSEnabled installTableChangeTriggers sendJS
                                 when isWatchingRecord do
                                     sendJSON DidDelete { subscriptionId, id }
 
-                let subscribe = PGListener.subscribeJSON (ChangeNotifications.channelName tableNameRLS) callback pgListener
+                let subscribe joinedCallback = PGListener.subscribeJSON (ChangeNotifications.channelName tableNameRLS) joinedCallback pgListener
                 let unsubscribe subscription = PGListener.unsubscribe subscription pgListener
 
-                Exception.bracket subscribe unsubscribe \channelSubscription -> do
+                withJoinedCallback callback \joinedCallback -> Exception.bracket (subscribe joinedCallback) unsubscribe \channelSubscription -> do
                     sendJSON DidCreateDataSubscription { subscriptionId, requestId, result }
 
-                    MVar.takeMVar close
+                    waitForSubscriptionClose drain close
 
             handleMessage getRLSColumns CreateCountSubscription { query, requestId } = do
                 ensureBelowSubscriptionsLimit
@@ -270,13 +262,13 @@ buildMessageHandler hasqlPool ensureRLSEnabled installTableChangeTriggers sendJS
                             writeIORef countRef newCount
                             sendJSON DidChangeCount { subscriptionId, count = newCount }
 
-                let subscribe = PGListener.subscribeJSON (ChangeNotifications.channelName tableNameRLS) callback pgListener
+                let subscribe joinedCallback = PGListener.subscribeJSON (ChangeNotifications.channelName tableNameRLS) joinedCallback pgListener
                 let unsubscribe subscription = PGListener.unsubscribe subscription pgListener
 
-                Exception.bracket subscribe unsubscribe \channelSubscription -> do
+                withJoinedCallback callback \joinedCallback -> Exception.bracket (subscribe joinedCallback) unsubscribe \channelSubscription -> do
                     sendJSON DidCreateCountSubscription { subscriptionId, requestId, count }
 
-                    MVar.takeMVar close
+                    waitForSubscriptionClose drain close
 
             handleMessage getRLSColumns DeleteDataSubscription { requestId, subscriptionId } = do
                 DataSyncReady { subscriptions } <- getState
@@ -415,7 +407,9 @@ buildMessageHandler hasqlPool ensureRLSEnabled installTableChangeTriggers sendJS
 
                     sendJSON DidStartTransaction { requestId, transactionId }
 
-                    MVar.takeMVar transactionSignal
+                    ?transactionReady
+                    finishTransactionOnDrain transactionCleanup transactionSignal
+                        (runSessionOnConnection connection (Session.script "ROLLBACK"))
 
                     atomicModifyIORef'' ?state (\state -> state |> modify #transactions (HashMap.delete transactionId))
 
