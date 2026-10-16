@@ -11,6 +11,7 @@ import qualified IHP.Version as Version
 import qualified System.Info as System
 import qualified Network.Wreq as Wreq
 import qualified Control.Exception.Safe as Exception
+import qualified System.Timeout as Timeout
 import qualified Crypto.Hash.SHA512 as SHA512
 import qualified System.Directory.OsPath as Directory
 import qualified Data.ByteString.Base16 as Base16
@@ -31,17 +32,37 @@ data TelemetryInfo = TelemetryInfo
 -- | Reports telemetry info to the IHP Telemetry server
 --
 -- This can be disabled by setting the env var IHP_TELEMETRY_DISABLED=1
+--
+-- A failing report is logged and otherwise ignored, so telemetry never stops the dev server.
 reportTelemetry :: (?context :: context, HasField "logger" context FastLogger) => IO ()
 reportTelemetry = do
     isDisabled <- EnvVar.envOrDefault "IHP_TELEMETRY_DISABLED" False
-    unless isDisabled do
-        let logger = ?context.logger
+    unless isDisabled (reportTelemetryTo telemetryUrl)
+
+telemetryUrl :: String
+telemetryUrl = "https://ihp-telemetry.digitallyinduced.com/CreateEvent"
+
+-- | Sends the telemetry report to the given URL. Never throws a synchronous exception:
+-- network errors (e.g. a proxy refusing the request), timeouts and errors while collecting
+-- the telemetry info are logged as a single @Telemetry failed: ...@ line.
+reportTelemetryTo :: (?context :: context, HasField "logger" context FastLogger) => String -> IO ()
+reportTelemetryTo url = do
+    let logger = ?context.logger
+    result <- Exception.tryAny do
         payload <- toPayload <$> getTelemetryInfo
         logger (toLogStr (tshow payload))
-        result <- Exception.try (Wreq.post "https://ihp-telemetry.digitallyinduced.com/CreateEvent" payload)
-        case result of
-            Left (e :: IOException) -> logger (toLogStr ("Telemetry failed: " <> show e))
-            Right _ -> logger (toLogStr ("IHP Telemetry is activated. This can be disabled by setting env variable IHP_TELEMETRY_DISABLED=1" :: Text))
+        Timeout.timeout telemetryTimeout (Wreq.post url payload)
+    case result of
+        Left exception -> logger (toLogStr ("Telemetry failed: " <> singleLine (tshow exception)))
+        Right Nothing -> logger (toLogStr ("Telemetry failed: request timed out" :: Text))
+        Right (Just _) -> logger (toLogStr ("IHP Telemetry is activated. This can be disabled by setting env variable IHP_TELEMETRY_DISABLED=1" :: Text))
+    where
+        -- The 'Show' instance of http-client's exceptions spans many lines
+        singleLine text = T.unwords (T.words text)
+
+-- | 5 seconds, in microseconds
+telemetryTimeout :: Int
+telemetryTimeout = 5000000
 
 getTelemetryInfo :: IO TelemetryInfo
 getTelemetryInfo = do

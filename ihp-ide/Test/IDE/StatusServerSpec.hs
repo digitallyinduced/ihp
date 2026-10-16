@@ -49,7 +49,7 @@ expectClosed connection = do
 
 withStatusServerFixture :: (Int -> MVar () -> MVar (MVar ()) -> IO () -> IO ()) -> IO ()
 withStatusServerFixture test =
-    Exception.bracket Warp.openFreePort (Socket.close . snd) \(port, appSocket) -> do
+    Exception.bracket openFreePortOrSkip (Socket.close . snd) \(port, appSocket) -> do
         (ghciInChan, ghciOutChan) <- Queue.newChan
         liveReloadClients <- newIORef mempty
         lastSchemaCompilerError <- newIORef Nothing
@@ -73,3 +73,13 @@ withStatusServerFixture test =
                 Async.link server
                 (startServer, stopServer) <- MVar.takeMVar controls
                 test port startServer stopServer (Async.cancel server)
+
+-- | 'Warp.openFreePort', but marks the example pending where binding a local
+-- socket is forbidden (notably the Nix build sandbox on macOS, where it fails
+-- with "Network.Socket.bind: permission denied"). Any other exception still
+-- propagates.
+openFreePortOrSkip :: IO (Int, Socket.Socket)
+openFreePortOrSkip = Warp.openFreePort `Exception.catch` \exception -> do
+    when (isPermissionError exception) do
+        pendingWith "Binding a local socket is not permitted in this sandbox"
+    Exception.throwIO exception
