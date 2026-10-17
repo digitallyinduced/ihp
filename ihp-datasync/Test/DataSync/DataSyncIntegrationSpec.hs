@@ -218,7 +218,7 @@ encodeDataSyncQuery table requestId transactionId = cs $ Aeson.encode $ object
     [ "tag" .= ("DataSyncQuery" :: Text)
     , "query" .= object
         [ "table" .= table
-        , "selectedColumns" .= selectedColumns
+        , "selectedColumns" .= object ["tag" .= ("SelectAll" :: Text)]
         , "whereCondition" .= Null
         , "orderByClause" .= ([] :: [Value])
         , "distinctOnColumn" .= Null
@@ -272,7 +272,7 @@ encodeSubscription tag table selectedColumns requestId = cs $ Aeson.encode $ obj
     [ "tag" .= tag
     , "query" .= object
         [ "table" .= table
-        , "selectedColumns" .= object ["tag" .= ("SelectAll" :: Text)]
+        , "selectedColumns" .= selectedColumns
         , "whereCondition" .= Null
         , "orderByClause" .= ([] :: [Value])
         , "distinctOnColumn" .= Null
