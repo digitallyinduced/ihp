@@ -1,3 +1,4 @@
+{-# LANGUAGE PatternSynonyms #-}
 module IHP.SchemaCompiler
 ( compile
 , compileModules
@@ -12,7 +13,7 @@ module IHP.SchemaCompiler
 , compileFetchByIdStatement
 , compileCreateManyStatement
 , compileRowDecoderModule
-, Schema(..)
+, Schema(Schema, statements)
 ) where
 
 import ClassyPrelude
@@ -22,6 +23,7 @@ import Data.String.Conversions (cs)
 import "interpolate" Data.String.Interpolate (i)
 import IHP.NameSupport (tableNameToModelName, columnNameToFieldName, enumValueToControllerName)
 import qualified Data.Text as Text
+import qualified Data.Map.Strict as Map
 import qualified System.Directory.OsPath as Directory
 import IHP.HaskellSupport
 import qualified IHP.SchemaCompiler.Parser as SchemaDesigner
@@ -179,7 +181,69 @@ tableModuleBody options table = Text.unlines $ filter (not . Text.null)
     , compileFieldBitInstances table
     ]
 
-newtype Schema = Schema { statements :: [Statement] }
+-- | The statements of a schema, with lookup tables that are built from them on
+-- first use. Code generation looks up tables, foreign keys and table comments
+-- for every column of every table. Scanning the statement list for each lookup
+-- made the compile time grow with the square of the schema size: two minutes
+-- on a production build server for a schema with five hundred tables.
+data Schema = MkSchema
+    { statements :: [Statement]
+    , schemaTablesByName :: Map Text CreateTable
+    , schemaForeignKeysByColumn :: Map (Text, Text) Constraint
+    -- | Foreign keys by the table they reference, in statement order, with
+    -- the table that holds them.
+    , schemaForeignKeysByReferencedTable :: Map Text [(Text, Constraint)]
+    , schemaNoCodegenTables :: Set Text
+    , schemaGeneratedEnums :: [(Text, Statement)]
+    -- | For each enum value, the number of enum types that have it.
+    , schemaEnumValueCounts :: Map Text Int
+    }
+
+pattern Schema :: [Statement] -> Schema
+pattern Schema statements <- MkSchema { statements }
+    where Schema statements = mkSchema statements
+{-# COMPLETE Schema #-}
+
+mkSchema :: [Statement] -> Schema
+mkSchema statements = MkSchema
+    { statements
+    , schemaTablesByName = statements
+        |> mapMaybe (\case
+            StatementCreateTable table -> Just (table.name, table)
+            _ -> Nothing)
+        |> firstWins
+    , schemaForeignKeysByColumn = statements
+        |> mapMaybe (\case
+            AddConstraint { tableName, constraint = constraint@ForeignKeyConstraint { columnName } } -> Just ((tableName, columnName), constraint)
+            _ -> Nothing)
+        |> firstWins
+    , schemaForeignKeysByReferencedTable = statements
+        |> mapMaybe (\case
+            AddConstraint { tableName, constraint = constraint@ForeignKeyConstraint { referenceTable } } -> Just (referenceTable, [(tableName, constraint)])
+            _ -> Nothing)
+        -- Combining from the back keeps each list in statement order.
+        |> reverse
+        |> Map.fromListWith (<>)
+    , schemaNoCodegenTables = statements
+        |> mapMaybe (\case
+            UnknownStatement { raw } -> noCodegenCommentTableName raw
+            _ -> Nothing)
+        |> setFromList
+    , schemaGeneratedEnums = statements
+        |> mapMaybe (\case
+            enum@CreateEnumType { name, values } | not (null values) -> Just (name, enum)
+            _ -> Nothing)
+    , schemaEnumValueCounts = statements
+        |> concatMap (\case
+            CreateEnumType { values } -> map (\value -> (value, 1 :: Int)) (ordNub values)
+            _ -> [])
+        |> Map.fromListWith (+)
+    }
+    where
+        -- Like the searches through the statement list that the lookups
+        -- replace, a lookup finds the first match.
+        firstWins :: Ord key => [(key, value)] -> Map key value
+        firstWins = Map.fromListWith (\_later earlier -> earlier)
 
 data CompilerOptions = CompilerOptions {
         -- | We can toggle the generation of @SetField@ and @GetField@ instances.
@@ -571,12 +635,7 @@ isNoCodegenTable table = table.name `member` noCodegenTableNames ?schema
 
 -- | Names of the tables whose comment contains 'noCodegenMarker'.
 noCodegenTableNames :: Schema -> Set Text
-noCodegenTableNames (Schema statements) =
-    statements
-    |> mapMaybe (\case
-        UnknownStatement { raw } -> noCodegenCommentTableName raw
-        _ -> Nothing)
-    |> setFromList
+noCodegenTableNames schema = schema.schemaNoCodegenTables
 
 -- | The parser keeps @COMMENT@ statements as raw SQL. Returns the table of a
 -- @COMMENT ON TABLE name IS '...'@ statement whose comment contains
@@ -627,11 +686,7 @@ noCodegenReferenceImports table =
 
 -- | Enums that get a Haskell type, by name. Enums without values are skipped.
 generatedEnums :: Schema -> [(Text, Statement)]
-generatedEnums (Schema statements) =
-    statements
-    |> mapMaybe (\case
-        enum@CreateEnumType { name, values } | not (null values) -> Just (name, enum)
-        _ -> Nothing)
+generatedEnums schema = schema.schemaGeneratedEnums
 
 enumModuleName :: Text -> Text
 enumModuleName enumName = "Generated.Enums." <> tableNameToModelName enumName
@@ -813,14 +868,13 @@ compileQueryBuilderFields columns = map compileQueryBuilderField columns
 columnsReferencingTable :: (?schema :: Schema) => Text -> [(Text, Text, Maybe Text)]
 columnsReferencingTable theTableName =
     let
-        (Schema statements) = ?schema
         -- Tables without generated code have no model to relate to.
         noCodegenTables = noCodegenTableNames ?schema
     in
-        statements
+        Map.findWithDefault [] theTableName ?schema.schemaForeignKeysByReferencedTable
         |> mapMaybe \case
-            AddConstraint { tableName, constraint = fk@ForeignKeyConstraint { columnName, referenceTable, referenceColumn } }
-                | referenceTable == theTableName && isForeignKeyReferencingPK fk && not (tableName `member` noCodegenTables)
+            (tableName, fk@ForeignKeyConstraint { columnName, referenceColumn })
+                | isForeignKeyReferencingPK fk && not (tableName `member` noCodegenTables)
                 -> Just (tableName, columnName, referenceColumn)
             _ -> Nothing
 
@@ -845,26 +899,15 @@ isRefCol table column = case findForeignKeyConstraint table column of
 -- For inherited columns, recursively checks ancestor table constraints.
 findForeignKeyConstraint :: (?schema :: Schema) => CreateTable -> Column -> Maybe Constraint
 findForeignKeyConstraint table@CreateTable { name, inherits } column =
-        case find (isFkConstraint name) statements of
-            Just (AddConstraint { constraint }) -> Just constraint
-            _ -> case inherits >>= findTableByName of
+        case Map.lookup (name, column.name) ?schema.schemaForeignKeysByColumn of
+            Just constraint -> Just constraint
+            Nothing -> case inherits >>= findTableByName of
                 Just parentTable -> findForeignKeyConstraint parentTable column
                 Nothing -> Nothing
-    where
-        isFkConstraint tableName (AddConstraint { tableName = tName, constraint = ForeignKeyConstraint { columnName }}) = tName == tableName && columnName == column.name
-        isFkConstraint _ _ = False
-
-        (Schema statements) = ?schema
 
 -- | Finds a table by name in the schema
 findTableByName :: (?schema :: Schema) => Text -> Maybe CreateTable
-findTableByName tableName =
-    let (Schema statements) = ?schema
-    in statements
-        |> mapMaybe (\case
-            StatementCreateTable table@CreateTable { name } | name == tableName -> Just table
-            _ -> Nothing)
-        |> headMay
+findTableByName tableName = Map.lookup tableName ?schema.schemaTablesByName
 
 -- | Returns @True@ when a FK constraint references the primary key of the target table.
 -- FK constraints pointing at non-PK columns (e.g., REFERENCES users(email)) return @False@.
@@ -958,14 +1001,7 @@ compileEnumDataDefinitions enum@(CreateEnumType { name, values }) =
         -- This function returns True if the given enumValue (like 'APARTMENT') is unique across the schema.
         isEnumValueUniqueInSchema :: Text -> Bool
         isEnumValueUniqueInSchema enumValue =
-                ?schema
-                |> \case Schema statements -> statements
-                |> filter (\case
-                        CreateEnumType { name, values } | enumValue `elem` values -> True
-                        _                                                         -> False
-                    )
-                |> length
-                |> \count -> count == 1
+                Map.lookup enumValue ?schema.schemaEnumValueCounts == Just 1
 compileEnumDataDefinitions _ = ""
 
 qualifiedConstructorNameFromTableName :: Text -> Text
