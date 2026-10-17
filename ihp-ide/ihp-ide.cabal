@@ -377,6 +377,7 @@ test-suite tests
         IDE.SplitModeSpec
         IDE.WorkerSignalSpec
         IDE.PortConfigSpec
+        IDE.PostgresSpec
         SchemaCompilerSpec
         IDE.ToolServer.MiddlewareSpec
         IDE.Logs.ControllerSpec
