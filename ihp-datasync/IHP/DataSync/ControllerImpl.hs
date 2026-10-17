@@ -124,18 +124,8 @@ buildMessageHandler drain transactionCleanup hasqlPool ensureRLSEnabled installT
 
                 sendJSON DataSyncResult { result, requestId }
 
-            handleMessage getRLSColumns CreateDataSubscription { query, requestId } = do
-                ensureBelowSubscriptionsLimit
-
+            handleMessage getRLSColumns CreateDataSubscription { query, requestId } = withSubscription \subscriptionId close -> do
                 tableNameRLS <- ensureRLSEnabled (query.table)
-
-                subscriptionId <- UUID.nextRandom
-
-                -- Allocate the close handle as early as possible
-                -- to make DeleteDataSubscription calls succeed even when the DataSubscription is
-                -- not fully set up yet
-                close <- MVar.newEmptyMVar
-                atomicModifyIORef'' ?state (\state -> state |> modify #subscriptions (HashMap.insert subscriptionId close))
 
                 columnTypes <- columnTypeLookup query.table
                 let querySnippet = compileQueryTyped (renamer query.table) columnTypes query
@@ -227,18 +217,8 @@ buildMessageHandler drain transactionCleanup hasqlPool ensureRLSEnabled installT
 
                     waitForSubscriptionClose drain close
 
-            handleMessage getRLSColumns CreateCountSubscription { query, requestId } = do
-                ensureBelowSubscriptionsLimit
-
+            handleMessage getRLSColumns CreateCountSubscription { query, requestId } = withSubscription \subscriptionId close -> do
                 tableNameRLS <- ensureRLSEnabled query.table
-
-                subscriptionId <- UUID.nextRandom
-
-                -- Allocate the close handle as early as possible
-                -- to make DeleteDataSubscription calls succeed even when the CountSubscription is
-                -- not fully set up yet
-                close <- MVar.newEmptyMVar
-                atomicModifyIORef'' ?state (\state -> state |> modify #subscriptions (HashMap.insert subscriptionId close))
 
                 columnTypes <- columnTypeLookup query.table
                 let querySnippet = compileQueryTyped (renamer query.table) columnTypes query
@@ -430,6 +410,21 @@ buildMessageHandler drain transactionCleanup hasqlPool ensureRLSEnabled installT
                 sendJSON DidCommitTransaction { requestId, transactionId = id }
 
             handleMessage _getRLSColumns otherwise = handleCustomMessage sendJSON otherwise
+
+            -- A setup failure occurs before the client receives the id and
+            -- therefore cannot be followed by DeleteDataSubscription. Scope
+            -- the reservation to the handler so failure and drain release it.
+            withSubscription :: (UUID -> MVar.MVar () -> IO ()) -> IO ()
+            withSubscription action = Exception.bracket acquire release (uncurry action)
+              where
+                acquire = do
+                    ensureBelowSubscriptionsLimit
+                    subscriptionId <- UUID.nextRandom
+                    close <- MVar.newEmptyMVar
+                    atomicModifyIORef'' ?state (\state -> state |> modify #subscriptions (HashMap.insert subscriptionId close))
+                    pure (subscriptionId, close)
+                release (subscriptionId, _) =
+                    atomicModifyIORef'' ?state (\state -> state |> modify #subscriptions (HashMap.delete subscriptionId))
 
 changesToValue :: Renamer -> [ChangeNotifications.Change] -> (Maybe Value, Maybe Value)
 changesToValue renamer changes = (maybeObject replacePairs, maybeObject appendPairs)
