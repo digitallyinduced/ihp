@@ -27,6 +27,7 @@ common shared-properties
     build-depends:
             base >= 4.17.0 && < 4.23
           , classy-prelude
+          , containers
           , text
           , bytestring
           , directory >= 1.3.8.0

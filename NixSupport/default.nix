@@ -253,17 +253,23 @@ CABAL_EOF
         configureFlags = (old.configureFlags or []) ++ [ "--disable-split-sections" ];
     })));
 
-    allHaskellPackages =
-        (if withHoogle
-        then ghc.ghcWithHoogle
-        else ghc.ghcWithPackages) (p: haskellDeps p ++ [ modelsPackage ]);
+    # The application's dependencies without the generated models. This
+    # environment does not change with the schema, so it is built once per
+    # dependency set. The app library source and the executables use it,
+    # together with the package databases of the models and the app library,
+    # instead of a new package environment per build.
+    dependencyHaskellPackages = ghc.ghcWithPackages (p: haskellDeps p);
+
+    packageDbOf = package:
+        "${package}/lib/${ghc.ghc.targetPrefix}${ghc.ghc.haskellCompilerName}"
+        + pkgs.lib.optionalString (ghc.ghc ? hadrian) "/lib"
+        + "/package.conf.d";
 
     allNativePackages = builtins.concatLists [
         (otherDeps pkgs)
     ];
 
     # Common derivation attributes
-    commonBuildInputs = [ allHaskellPackages ];
     commonNativeBuildInputs = [ pkgs.gnumake ];
 
     prodGhcOptions = "-funbox-strict-fields -fconstraint-solver-iterations=100 -fdicts-strict -with-rtsopts=\"${rtsFlags}\"";
@@ -311,10 +317,12 @@ CABAL_EOF
     # Generate .cabal file for the app library package.
     # build-depends is populated at derivation build time by querying ghc-pkg
     # for all registered package names, ensuring all transitive deps of ihp are available.
+    # The models package is added by name: querying an environment that
+    # contains it made this step wait for the models build.
     appLibSrc = pkgs.stdenv.mkDerivation {
         name = "${appName}-lib-src";
         src = appSrc;
-        nativeBuildInputs = [ pkgs.findutils allHaskellPackages ];
+        nativeBuildInputs = [ pkgs.findutils dependencyHaskellPackages ];
         buildPhase = ''
             # Find all .hs modules excluding entry points and tests
             # Modules under Config/ are found via the "Config" source dir,
@@ -344,7 +352,7 @@ CABAL_EOF
             # Get all registered package names from the GHC environment
             # This includes ihp and ALL its transitive deps (aeson, bytestring, lens, etc.)
             # Filter out internal sub-libraries (z-* prefixed names) as they are private
-            ALL_PKG_NAMES=$(ghc-pkg list --simple-output | tr ' ' '\n' | sed 's/-[0-9].*//' | sort -u | grep -v '^$' | grep -v '^z-')
+            ALL_PKG_NAMES=$( (ghc-pkg list --simple-output | tr ' ' '\n' | sed 's/-[0-9].*//'; echo ${appName}-models) | sort -u | grep -v '^$' | grep -v '^z-')
 
             cat > ${appName}-lib.cabal <<'CABAL_HEADER'
 cabal-version: 2.2
@@ -429,30 +437,52 @@ CABAL_EOF
         installPhase = ''
             mkdir -p $out
 
-            # Copy all source files preserving directory structure (excluding entry points and tests)
-            find . -name '*.hs' -not -name 'Main.hs' -not -name 'Setup.hs' -not -path './build/*' -not -path './lib/*' -not -path './Test/*' | while read f; do
-                mkdir -p "$out/$(dirname "$f")"
-                cp "$f" "$out/$f"
-            done
+            # Copy all source files preserving directory structure (excluding entry points and tests).
+            # One cp per batch of files: a mkdir and cp per file took about 40 seconds for
+            # 2500 modules on an ARM build server.
+            find . -name '*.hs' -not -name 'Main.hs' -not -name 'Setup.hs' -not -path './build/*' -not -path './lib/*' -not -path './Test/*' -print0 \
+                | xargs -0 -r cp --parents -t "$out"
 
             cp ${appName}-lib.cabal $out/
         '';
         disallowedReferences = [ ihp ];
     };
 
+    # The data directory of the build-time database with the schema loaded.
+    # Every build that compiles typed SQL needs this database: the app
+    # library and each script binary. Loading a large schema took each of
+    # them 20 to 30 s on an ARM build server. The database now loads once
+    # per schema, in parallel with the models build, and the builds copy it.
+    buildTimeDatabase = pkgs.runCommand "${appName}-build-time-database" {
+        nativeBuildInputs = [ pkgs.postgresql_18 ];
+    } ''
+        export PGHOST="$TMPDIR/pghost"
+        mkdir -p "$PGHOST"
+        initdb -D "$out" --no-locale --encoding=UTF8 --no-sync
+        echo "listen_addresses = '''" >> "$out/postgresql.conf"
+        # Builds use the database only for as long as they run. Without a
+        # flush per committed statement, a large schema loads in half the time.
+        echo "fsync = off" >> "$out/postgresql.conf"
+        echo "synchronous_commit = off" >> "$out/postgresql.conf"
+        echo "full_page_writes = off" >> "$out/postgresql.conf"
+        pg_ctl -D "$out" -o "-k $PGHOST" -l "$TMPDIR/pg.log" start
+
+        createdb -h "$PGHOST" app
+        psql -h "$PGHOST" app < ${ihpSchemaSql}
+        psql -h "$PGHOST" app < ${appSchemaSql}
+        pg_ctl -D "$out" stop
+    '';
+
     # Shared setup for compile-time DB access (e.g. typedSql).
     buildTimePostgresSetup = ''
         export PGDATA="$TMPDIR/pgdata"
         export PGHOST="$TMPDIR/pghost"
         mkdir -p "$PGHOST"
-        initdb -D "$PGDATA" --no-locale --encoding=UTF8
+        cp -r ${buildTimeDatabase} "$PGDATA"
+        chmod -R u+w "$PGDATA"
+        chmod 0700 "$PGDATA"
         echo "unix_socket_directories = '$PGHOST'" >> "$PGDATA/postgresql.conf"
-        echo "listen_addresses = '''" >> "$PGDATA/postgresql.conf"
         pg_ctl -D "$PGDATA" -l "$TMPDIR/pg.log" start
-
-        createdb -h "$PGHOST" app
-        psql -h "$PGHOST" app < ${ihpSchemaSql}
-        psql -h "$PGHOST" app < ${appSchemaSql}
         export DATABASE_URL="postgresql:///app?host=$PGHOST"
     '';
 
@@ -541,7 +571,10 @@ CABAL_EOF
             # executable objects from the previous combined cache so the
             # server, worker, and scripts can reuse them when they are built
             # in the second stage. Generated models are folded in here too.
-            postInstall = pkgs.lib.optionalString withIntermediates ''
+            # This runs after the fixup phase: copied before it, the strip,
+            # patchelf and audit hooks walked the thousands of cached model
+            # files as part of this output, which took about a minute.
+            postFixup = pkgs.lib.optionalString withIntermediates ''
                 mkdir -p "$intermediates/share"
                 ${pkgs.lib.optionalString (reusableExecutableIntermediates != null) ''
                     mkdir -p "$intermediates/${executableIntermediatesRoot}"
@@ -576,7 +609,15 @@ CABAL_EOF
         then appLibPackageWithIntermediates
         else withAppLibPostgres (mkAppLibPackage false);
 
-    allHaskellPackagesWithAppLib = ghc.ghcWithPackages (p: [ appLibPackage ]);
+    # Executables see the app library and the models through a package
+    # database of their own next to the dependencies' environment. A package
+    # environment containing the app library was a new derivation after every
+    # library build, and every executable waited for it.
+    setupAppPackageDb = ''
+        mkdir -p build/package.conf.d
+        cp ${packageDbOf modelsPackage}/*.conf ${packageDbOf appLibPackage}/*.conf build/package.conf.d/
+        ghc-pkg --package-db="$PWD/build/package.conf.d" recache
+    '';
 
     compileExecutable = { executableName, cacheKey, mainPath, mainIs ? null, prepareMain, src ? appSrc, needsBuildTimePostgres ? false }:
         let
@@ -591,7 +632,7 @@ CABAL_EOF
             inherit src;
             outputs = [ "out" ] ++ pkgs.lib.optional optimized "intermediates";
 
-            buildInputs = [ allHaskellPackagesWithAppLib ];
+            buildInputs = [ dependencyHaskellPackages ];
             nativeBuildInputs = commonNativeBuildInputs ++ pkgs.lib.optional needsBuildTimePostgres pkgs.postgresql_18;
 
             buildPhase = ''
@@ -606,6 +647,8 @@ CABAL_EOF
                 ${prepareMain}
                 touch -d '1970-01-01T00:00:00Z' ${mainPath}
 
+                ${setupAppPackageDb}
+
                 ${pkgs.lib.optionalString needsBuildTimePostgres ''
                     ${buildTimePostgresSetup}
                     cleanupBuildPostgres() {
@@ -619,6 +662,7 @@ CABAL_EOF
                     -O${if optimized then optimizationLevel else "0"} ${splitSections} \
                     ${pkgs.lib.optionalString (mainIs != null) "-main-is '${mainIs}'"} \
                     $(make print-ghc-options) \
+                    -package-db "$PWD/build/package.conf.d" \
                     ${if optimized then prodGhcOptions else ""} \
                     ${pkgs.lib.escapeShellArgs extraGhcOptions} \
                     ${mainPath} -o build/bin/${executableName} \
@@ -633,10 +677,13 @@ CABAL_EOF
             installPhase = ''
                 mkdir -p $out/bin
                 cp build/bin/${executableName} $out/bin/
-                ${pkgs.lib.optionalString optimized ''
-                    mkdir -p "$intermediates/${executableIntermediatesDir}"
-                    cp -r build/obj "$intermediates/${executableIntermediatesDir}/"
-                ''}
+            '';
+
+            # The objects are a cache for the next build, not runtime files:
+            # keep them out of the fixup phase's strip and patchelf passes.
+            postFixup = pkgs.lib.optionalString optimized ''
+                mkdir -p "$intermediates/${executableIntermediatesDir}"
+                cp -r build/obj "$intermediates/${executableIntermediatesDir}/"
             '';
 
             disallowedReferences = [ ihp ];
