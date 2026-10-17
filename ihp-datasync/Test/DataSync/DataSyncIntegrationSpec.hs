@@ -154,7 +154,9 @@ withDataSyncEnvironmentDrain drain connStr testUserId action = do
         let logger = noopLogger
         ModelSupport.withModelContext actualConnStr logger \modelContext -> do
             PGListener.withPGListener actualConnStr logger \pgListener -> do
-                frameworkConfig <- buildFrameworkConfig logger (mapM_ option drain)
+                frameworkConfig <- buildFrameworkConfig logger do
+                    mapM_ option drain
+                    option (DataSyncMaxSubscriptionsPerConnection 2)
                 let frameworkConfig' = frameworkConfig { databaseUrl = actualConnStr }
 
                 let testUser = Just (TestUser { id = Id testUserId }) :: Maybe TestUser
@@ -260,11 +262,17 @@ encodeDeleteRecord table recordId requestId transactionId = cs $ Aeson.encode $ 
 
 -- | Encode a CreateDataSubscription as JSON
 encodeCreateDataSubscription :: Text -> Int -> ByteString
-encodeCreateDataSubscription table requestId = cs $ Aeson.encode $ object
-    [ "tag" .= ("CreateDataSubscription" :: Text)
+encodeCreateDataSubscription table requestId =
+    encodeSubscription "CreateDataSubscription" table (object ["tag" .= ("SelectAll" :: Text)]) requestId
+
+-- Generic protocol fixture: vary the request kind and projection to exercise
+-- failures after reservation without changing the database schema.
+encodeSubscription :: Text -> Text -> Value -> Int -> ByteString
+encodeSubscription tag table selectedColumns requestId = cs $ Aeson.encode $ object
+    [ "tag" .= tag
     , "query" .= object
         [ "table" .= table
-        , "selectedColumns" .= object ["tag" .= ("SelectAll" :: Text)]
+        , "selectedColumns" .= selectedColumns
         , "whereCondition" .= Null
         , "orderByClause" .= ([] :: [Value])
         , "distinctOnColumn" .= Null
@@ -440,6 +448,33 @@ tests = do
                                 _ -> expectationFailure "Expected DataSyncError for table without RLS"
 
         describe "Subscriptions" do
+            forM_ ["CreateDataSubscription", "CreateCountSubscription"] \tag ->
+                it (cs ("releases capacity after failed setup of " <> tag)) do
+                    withDB \connStr -> withHasqlPool connStr \pool -> do
+                        setupTestSchema pool
+                        (userId, _) <- insertTestData pool
+                        withDataSyncController connStr userId \(send, recv, _) -> do
+                            let invalidColumns = object
+                                    [ "tag" .= ("SelectSpecific" :: Text)
+                                    , "contents" .= (["missing_subscription_column"] :: [Text])
+                                    ]
+                            -- More failed creations than the connection's
+                            -- limit must not consume its subscription slots.
+                            forM_ [1..4] \requestId -> do
+                                send (encodeSubscription tag "messages" invalidColumns requestId)
+                                recv >>= \case
+                                    DataSyncError { errorMessage } ->
+                                        errorMessage `shouldSatisfy` Text.isInfixOf "missing_subscription_column"
+                                    _ -> expectationFailure "Expected invalid-column error"
+                            send (encodeCreateDataSubscription "messages" 5)
+                            recv >>= \case
+                                DidCreateDataSubscription { subscriptionId } -> do
+                                    send (encodeDeleteDataSubscription subscriptionId 6)
+                                    recv >>= \case
+                                        DidDeleteDataSubscription {} -> pure ()
+                                        _ -> expectationFailure "Expected subscription deletion"
+                                _ -> expectationFailure "Failed setup exhausted subscription capacity"
+
             it "creates and deletes a data subscription" do
                 withDB \connStr -> do
                     withHasqlPool connStr \pool -> do
