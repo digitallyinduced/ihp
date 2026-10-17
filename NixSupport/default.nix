@@ -448,24 +448,41 @@ CABAL_EOF
         disallowedReferences = [ ihp ];
     };
 
+    # The data directory of the build-time database with the schema loaded.
+    # Every build that compiles typed SQL needs this database: the app
+    # library and each script binary. Loading a large schema took each of
+    # them 20 to 30 s on an ARM build server. The database now loads once
+    # per schema, in parallel with the models build, and the builds copy it.
+    buildTimeDatabase = pkgs.runCommand "${appName}-build-time-database" {
+        nativeBuildInputs = [ pkgs.postgresql_18 ];
+    } ''
+        export PGHOST="$TMPDIR/pghost"
+        mkdir -p "$PGHOST"
+        initdb -D "$out" --no-locale --encoding=UTF8 --no-sync
+        echo "listen_addresses = '''" >> "$out/postgresql.conf"
+        # Builds use the database only for as long as they run. Without a
+        # flush per committed statement, a large schema loads in half the time.
+        echo "fsync = off" >> "$out/postgresql.conf"
+        echo "synchronous_commit = off" >> "$out/postgresql.conf"
+        echo "full_page_writes = off" >> "$out/postgresql.conf"
+        pg_ctl -D "$out" -o "-k $PGHOST" -l "$TMPDIR/pg.log" start
+
+        createdb -h "$PGHOST" app
+        psql -h "$PGHOST" app < ${ihpSchemaSql}
+        psql -h "$PGHOST" app < ${appSchemaSql}
+        pg_ctl -D "$out" stop
+    '';
+
     # Shared setup for compile-time DB access (e.g. typedSql).
     buildTimePostgresSetup = ''
         export PGDATA="$TMPDIR/pgdata"
         export PGHOST="$TMPDIR/pghost"
         mkdir -p "$PGHOST"
-        initdb -D "$PGDATA" --no-locale --encoding=UTF8 --no-sync
+        cp -r ${buildTimeDatabase} "$PGDATA"
+        chmod -R u+w "$PGDATA"
+        chmod 0700 "$PGDATA"
         echo "unix_socket_directories = '$PGHOST'" >> "$PGDATA/postgresql.conf"
-        echo "listen_addresses = '''" >> "$PGDATA/postgresql.conf"
-        # The database lives only as long as the build. Without a flush per
-        # committed statement, loading a large schema takes half the time.
-        echo "fsync = off" >> "$PGDATA/postgresql.conf"
-        echo "synchronous_commit = off" >> "$PGDATA/postgresql.conf"
-        echo "full_page_writes = off" >> "$PGDATA/postgresql.conf"
         pg_ctl -D "$PGDATA" -l "$TMPDIR/pg.log" start
-
-        createdb -h "$PGHOST" app
-        psql -h "$PGHOST" app < ${ihpSchemaSql}
-        psql -h "$PGHOST" app < ${appSchemaSql}
         export DATABASE_URL="postgresql:///app?host=$PGHOST"
     '';
 

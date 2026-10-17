@@ -373,7 +373,14 @@ ihpFlake:
 
                 schema = pkgs.stdenv.mkDerivation {
                     name = "schema";
-                    src = cfg.projectPath;
+                    # Only the schema: with the whole project as its source,
+                    # this changed with every commit, and with it the build-time
+                    # database that the app builds load from it.
+                    src = ihpFlake.inputs.nix-filter.lib {
+                        root = cfg.projectPath;
+                        include = [ "Application/Schema.sql" ];
+                        name = "${config.ihp.appName}-schema-source";
+                    };
                     phases = [ "unpackPhase" "installPhase" ];
                     installPhase = ''
                         mkdir $out
