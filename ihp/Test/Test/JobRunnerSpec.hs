@@ -208,6 +208,23 @@ tests = describe "IHP.Job.Runner ownership" do
             script pool "UPDATE public.job_workers SET heartbeat_at = NOW() - INTERVAL '3 minutes' WHERE id = '10000000-0000-0000-0000-000000000010'"
             Queue.fetchNextJob @RunnerJob pool testWorkerId `shouldReturn` Nothing
 
+    -- Statistics of a rarely used queue describe a single row. PostgreSQL may then
+    -- plan the claim as a nested loop that reruns the claim subquery for every
+    -- row of the table, and each rerun skips the rows the statement already
+    -- updated.
+    it "claims one job when two are due in a table whose statistics show one row" $
+        withFixture \modelContext _ _ -> do
+            let pool = modelContext.hasqlPool
+            script pool
+                "UPDATE job_runner_spec_jobs SET created_at = NOW() - INTERVAL '1 minute';\
+                \ANALYZE job_runner_spec_jobs;\
+                \INSERT INTO job_runner_spec_jobs (id) VALUES ('10000000-0000-0000-0000-000000000002')"
+            Just job <- Queue.fetchNextJob @RunnerJob pool testWorkerId
+            job.id `shouldBe` "10000000-0000-0000-0000-000000000001"
+            queryBool pool
+                "SELECT count(*) FILTER (WHERE status = 'job_status_running') = 1 AND count(*) FILTER (WHERE status = 'job_status_not_started' AND locked_by IS NULL AND attempts_count = 0) = 1 FROM job_runner_spec_jobs"
+                `shouldReturn` True
+
 testWorkerId :: UUID
 testWorkerId = "10000000-0000-0000-0000-000000000010"
 
