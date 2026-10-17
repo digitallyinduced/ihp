@@ -44,11 +44,16 @@ fetchNextJob :: forall job.
 fetchNextJob pool workerId = do
     let tableNameText = tableName @job
     let returningColumns = Text.intercalate ", " (columnNames @job)
+    -- A scalar subquery runs once, as an InitPlan. With @id IN (…)@ PostgreSQL
+    -- may plan a nested-loop semi join on a table whose statistics show few
+    -- rows. It then reruns the subquery for every row of the table, each rerun
+    -- skips the rows this statement already claimed, and one fetch claims
+    -- several jobs.
     let sql = "UPDATE " <> tableNameText
             <> " SET status = 'job_status_running'"
             <> ", locked_at = NOW(), locked_by = $1"
             <> ", attempts_count = attempts_count + 1"
-            <> " WHERE id IN (SELECT id FROM " <> tableNameText
+            <> " WHERE id = (SELECT id FROM " <> tableNameText
             <> " WHERE " <> pendingJobConditionSQL
             <> " ORDER BY created_at LIMIT 1 FOR UPDATE SKIP LOCKED)"
             <> " AND EXISTS (SELECT 1 FROM public.job_workers"
