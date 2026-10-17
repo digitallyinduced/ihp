@@ -9,6 +9,8 @@ in
         after = [ "network.target" "app.socket" "app-keygen.service" ];
         wantedBy = [ "multi-user.target" ];
         serviceConfig = {
+            User = cfg.user;
+            Group = cfg.group;
             Type = "notify";
             Restart = "always";
             ExecStart = "${cfg.package}/bin/RunProdServer";

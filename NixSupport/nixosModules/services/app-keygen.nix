@@ -22,6 +22,10 @@ in
             
             chmod 600 "${cfg.sessionSecretFile}"
         '';
-        serviceConfig.Type = "oneshot";
+        serviceConfig = {
+            User = cfg.user;
+            Group = cfg.group;
+            Type = "oneshot";
+        };
     };
 }
