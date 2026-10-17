@@ -73,7 +73,7 @@ instance View ShowTableRowsView where
 
             columnNames = map (.fieldName) (fromMaybe [] (head rows))
 
-            onClick tableName fieldName primaryKey = "window.location.assign(" <> tshow (pathTo (ToggleBooleanFieldAction tableName (cs fieldName) primaryKey)) <> ")"
+            onClick tableName fieldName primaryKey = "fetch(" <> tshow (pathTo (ToggleBooleanFieldAction tableName (cs fieldName) primaryKey)) <> ", { method: 'POST' }).then(() => window.location.reload())"
 
             totalPages = [1..ceiling (fromIntegral(totalRows) / fromIntegral(pageSize))]
 

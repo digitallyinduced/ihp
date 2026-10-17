@@ -1,4 +1,4 @@
-module IHP.IDE.ToolServer (runToolServer, withToolServerApplication, ToolServerApplicationWithConfig(..)) where
+module IHP.IDE.ToolServer (runToolServer, withToolServerApplication, ToolServerApplicationWithConfig(..), toolServerSecurityMiddleware) where
 
 import IHP.Prelude
 import System.Log.FastLogger (LogType'(..), withFastLogger, defaultBufSize, toLogStr)
@@ -39,6 +39,7 @@ import IHP.Controller.Layout
 import qualified IHP.IDE.LiveReloadNotificationServer as LiveReloadNotificationServer
 import qualified IHP.Version as Version
 import qualified Control.Exception.Safe as Exception
+import qualified Network.HTTP.Types as HTTP
 
 import qualified Network.Wai.Application.Static as Static
 import qualified Network.Wai.Middleware.Approot as Approot
@@ -66,6 +67,7 @@ startToolServer' toolServerApplication port isDebugMode liveReloadClients = do
         let openAppUrl = openUrl ("http://localhost:" <> tshow port <> "/")
         let warpSettings = Warp.defaultSettings
                 |> Warp.setPort port
+                |> Warp.setHost "127.0.0.1"
                 |> Warp.setBeforeMainLoop openAppUrl
 
         let logMiddleware = if isDebugMode then weightedApp.frameworkConfig.requestLoggerMiddleware else IHP.Prelude.id
@@ -152,7 +154,31 @@ withToolServerApplication toolServerApplication port liveReloadClients action = 
                             (LiveReloadNotificationServer.app liveReloadClients)
                             innerApplication
 
-            action ToolServerApplicationWithConfig { application, frameworkConfig }
+            let securedApplication = toolServerSecurityMiddleware port application
+            action ToolServerApplicationWithConfig { application = securedApplication, frameworkConfig }
+
+-- | Protects the complete ToolServer application before any route or static
+-- asset is dispatched. Only local Host values are accepted, and browser
+-- mutations must come from the ToolServer's own origin.
+toolServerSecurityMiddleware :: Int -> Wai.Middleware
+toolServerSecurityMiddleware port app request respond
+    | not (trustedHost request) = reject HTTP.status403 "Untrusted Host"
+    | isMutation request && not (trustedOrigin request) = reject HTTP.status403 "Untrusted request origin"
+    | otherwise = app request respond
+    where
+        reject status message = respond (Wai.responseLBS status [(HTTP.hContentType, "text/plain; charset=utf-8")] message)
+
+        trustedHost req = maybe False (`elem` allowedHosts) (lookup HTTP.hHost req.requestHeaders)
+        allowedHosts =
+            [ "localhost:" <> cs (show port)
+            , "127.0.0.1:" <> cs (show port)
+            , "[::1]:" <> cs (show port)
+            ]
+
+        isMutation req = req.requestMethod `elem` [HTTP.methodPost, HTTP.methodPut, HTTP.methodPatch, HTTP.methodDelete]
+        trustedOrigin req = case lookup "Origin" req.requestHeaders of
+            Nothing -> True
+            Just origin -> origin == "http://" <> fromMaybe "" (lookup HTTP.hHost req.requestHeaders)
 
 initStaticApp :: IO Wai.Application
 initStaticApp = do
