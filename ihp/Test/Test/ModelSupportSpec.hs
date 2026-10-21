@@ -12,9 +12,24 @@ import qualified Data.Aeson as Aeson
 import qualified Data.Dynamic as Dynamic
 import Text.Read (read)
 import Data.Scientific (Scientific)
+import Control.Monad (replicateM_)
+import qualified Control.Concurrent as Concurrent
+import qualified Control.Concurrent.Async as Async
+import qualified Control.Exception as Exception
+import qualified Data.Set as Set
 
 tests = do
     describe "ModelSupport" do
+        describe "withTableReadTracker" do
+            it "keeps every dependency from concurrent queries" do
+                Exception.bracket Concurrent.getNumCapabilities Concurrent.setNumCapabilities \_ -> do
+                    Concurrent.setNumCapabilities 2
+                    let ?modelContext = notConnectedModelContext noopLogger
+                    let tables = map tshow [1 .. 1000 :: Int]
+                    replicateM_ 20 $ withTableReadTracker do
+                        Async.mapConcurrently_ trackTableRead tables
+                        readIORef ?touchedTables `shouldReturn` Set.fromList tables
+
         describe "InputValue" do
             describe "Text" do
                 it "should return the text" do
