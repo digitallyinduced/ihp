@@ -21,7 +21,7 @@ import IHP.Prelude
 import IHP.Pagination.Types (Options(..), Pagination(..))
 import IHP.Pagination.ControllerFunctions (defaultPaginationOptions)
 import IHP.Pagination.Internal (pageSize', page, offset')
-import IHP.ModelSupport (sqlQueryHasql)
+import IHP.ModelSupport (sqlQueryHasql, trackTableRead)
 import IHP.Hasql.Encoders () -- For the 'DefaultParamEncoder Int' instance used by 'Snippet.param'
 import IHP.TypedSql.Types (QueryCardinality (ManyRows), QueryExecResult (ReturnsRows), TypedQuery(..))
 import Network.Wai (Request)
@@ -56,7 +56,7 @@ import qualified Hasql.DynamicStatements.Snippet as Snippet
 -- before @LIMIT@ \/ @OFFSET@ are applied, so any @ORDER BY@ must live __inside__ the query you
 -- pass in (as in the example above), exactly like with 'paginatedSqlQuery'.
 --
--- *AutoRefresh:* When using 'paginatedTypedSql' with AutoRefresh, you need to use 'trackTableRead' to let AutoRefresh know that you have accessed a certain table. Otherwise AutoRefresh will not watch the table of your custom sql query.
+-- *AutoRefresh:* Automatically tracks the public tables recorded by the typedSql quasiquoter.
 paginatedTypedSql
     :: ( ?request :: Request
        , ?modelContext :: ModelContext
@@ -79,7 +79,7 @@ paginatedTypedSql = paginatedTypedSqlWithOptions defaultPaginationOptions
 -- before @LIMIT@ \/ @OFFSET@ are applied, so any @ORDER BY@ must live __inside__ the query you
 -- pass in (as in the example above), exactly like with 'paginatedSqlQueryWithOptions'.
 --
--- *AutoRefresh:* When using 'paginatedTypedSqlWithOptions' with AutoRefresh, you need to use 'trackTableRead' to let AutoRefresh know that you have accessed a certain table. Otherwise AutoRefresh will not watch the table of your custom sql query.
+-- *AutoRefresh:* Automatically tracks the public tables recorded by the typedSql quasiquoter.
 paginatedTypedSqlWithOptions
     :: ( ?request :: Request
        , ?modelContext :: ModelContext
@@ -87,7 +87,7 @@ paginatedTypedSqlWithOptions
     => Options
     -> TypedQuery 'ManyRows 'ReturnsRows model
     -> IO ([model], Pagination)
-paginatedTypedSqlWithOptions options TypedQuery { tqSnippet, tqResultDecoder } = do
+paginatedTypedSqlWithOptions options TypedQuery { tqSnippet, tqResultDecoder, tqReadTables } = do
     let pool = ?modelContext.hasqlPool
 
     let countSnippet = Snippet.sql "SELECT count(subquery.*) FROM (" <> tqSnippet <> Snippet.sql ") as subquery"
@@ -110,4 +110,5 @@ paginatedTypedSqlWithOptions options TypedQuery { tqSnippet, tqResultDecoder } =
             <> Snippet.param (offset' pageSize page)
     results <- sqlQueryHasql pool resultsSnippet (Decoders.rowList tqResultDecoder)
 
+    mapM_ trackTableRead tqReadTables
     pure (results, pagination)

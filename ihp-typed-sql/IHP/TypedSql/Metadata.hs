@@ -16,6 +16,11 @@ module IHP.TypedSql.Metadata
 import           Control.Exception             (IOException, bracket, displayException)
 import qualified Control.Exception             as Exception
 import           Control.Monad                 (unless)
+import qualified Data.Aeson                    as Aeson
+import qualified Data.ByteString.Lazy          as LBS
+import qualified Data.Text                    as Text
+import qualified PostgresqlSyntax             as Ast
+import           IHP.TypedSql.TableReads       (readRelations)
 import qualified Data.ByteString               as BS
 import           Data.Int                      (Int32)
 import qualified Data.List                     as List
@@ -48,6 +53,7 @@ data DescribeResult = DescribeResult
     , drColumns :: ![DescribeColumn]
     , drTables  :: !(Map.Map PQ.Oid TableMeta)
     , drTypes   :: !(Map.Map PQ.Oid PgTypeInfo)
+    , drReadTables :: ![Text]
     }
 
 -- | Metadata for a column in the result set.
@@ -201,7 +207,35 @@ describeStatementWith dbUrl sql = do
         let tables' = tables <> extraTables
         types <- loadTypeInfo dbUrl (Set.toList typeOids)
 
-        pure DescribeResult { drParams = paramTypes, drColumns = columns, drTables = tables', drTypes = types }
+        readTables <- case Ast.parse mempty (Text.strip (CS.cs sql)) of
+            Left _ -> pure []
+            Right ast -> loadReadTables conn (Set.toList (readRelations ast))
+        pure DescribeResult { drParams = paramTypes, drColumns = columns, drTables = tables', drTypes = types, drReadTables = readTables }
+
+-- Resolve views at compile time; they cannot own the statement triggers used by
+-- AutoRefresh. Only public base tables are supported by trackTableRead today.
+loadReadTables :: PQ.Connection -> [Text] -> IO [Text]
+loadReadTables _ [] = pure []
+loadReadTables conn names = do
+    result <- ensureOk "AutoRefresh dependencies" =<< PQ.execParams conn
+        (BS.intercalate " "
+            [ "WITH RECURSIVE relations(oid) AS ("
+            , "SELECT to_regclass(value)::oid FROM jsonb_array_elements_text($1::jsonb)"
+            , "UNION SELECT dependency.refobjid FROM relations"
+            , "JOIN pg_class relation ON relation.oid = relations.oid AND relation.relkind = 'v'"
+            , "JOIN pg_rewrite rewrite ON rewrite.ev_class = relation.oid"
+            , "JOIN pg_depend dependency ON dependency.classid = 'pg_rewrite'::regclass"
+            , "AND dependency.objid = rewrite.oid AND dependency.refclassid = 'pg_class'::regclass"
+            , "WHERE dependency.refobjid <> relations.oid)"
+            , "SELECT DISTINCT relation.relname FROM relations"
+            , "JOIN pg_class relation ON relation.oid = relations.oid"
+            , "JOIN pg_namespace namespace ON namespace.oid = relation.relnamespace"
+            , "WHERE namespace.nspname = 'public' AND relation.relkind IN ('r', 'p')"
+            , "ORDER BY relation.relname"
+            ])
+        [Just (PQ.Oid 0, LBS.toStrict (Aeson.encode names), PQ.Text)] PQ.Text
+    PQ.Row count <- PQ.ntuples result
+    mapM (\index -> CS.cs . fromMaybe "" <$> PQ.getvalue result (PQ.Row index) (PQ.Col 0)) [0 .. count - 1]
 
 -- | Ensure libpq returned a successful result.
 -- Errors here surface as typedSql compile-time failures.

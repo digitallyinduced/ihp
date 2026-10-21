@@ -57,6 +57,7 @@ library
         IHP.TypedSql.Decoders
         IHP.TypedSql.RowType
     other-modules:
+        IHP.TypedSql.TableReads
         IHP.TypedSql.Cardinality
         IHP.TypedSql.CompileTimeDatabase
     build-depends:

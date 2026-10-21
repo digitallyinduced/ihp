@@ -85,6 +85,30 @@ score <- sqlQueryTypedMaybeColumn [typedSql|
 -- score :: Maybe Double
 ```
 
+## AutoRefresh
+
+`sqlQueryTyped` (including its cardinality helpers) and `paginatedTypedSql`
+automatically register the public tables read by a `typedSql` query with IHP's
+existing table-read tracker. This also works for empty results, aggregates,
+joins, subqueries and CTEs. Ordinary SQL views are resolved to their public
+base tables using the compilation database.
+
+Dependencies are collected at compile time. Execution only records the table
+names in the active tracker; it adds no database round trips. This is table
+tracking, not row or predicate matching. AutoRefresh keeps its existing
+notification and re-render behavior.
+
+The parser emits a compilation warning if automatic dependency detection is
+unavailable. Use `trackTableRead` explicitly in that case, and for tables read
+indirectly by SQL functions or RLS policies. Non-public tables, foreign tables
+and materialized views are outside the current AutoRefresh trigger contract.
+Recompile when a view's dependencies change, just as when its result type changes.
+
+The context-independent `IHP.TypedSql.Hasql` statement/session/pool/pipeline
+runners do not register reads: they have no IHP `ModelContext`. Call
+`mapM_ trackTableRead query.tqReadTables` explicitly when using those runners
+inside AutoRefresh.
+
 ## Selecting Multiple Columns
 
 When selecting multiple columns, the result is a labeled `SqlRow` (field access via `OverloadedRecordDot`):

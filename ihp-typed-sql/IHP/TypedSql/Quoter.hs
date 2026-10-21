@@ -86,7 +86,7 @@ typedSqlExp allowStar rawSql = do
         Left (e :: Exception.IOException) ->
             fail (rephraseDescribeError ppExprs (ioeGetErrorString e))
 
-    let DescribeResult { drParams, drColumns, drTables, drTypes } = describeResult
+    let DescribeResult { drParams, drColumns, drTables, drTypes, drReadTables } = describeResult
     when (length drParams /= length parsedExprs) $
         fail (CS.cs ("typedSql: placeholder count mismatch. SQL expects " <> show (length drParams) <> " parameters but found " <> show (length parsedExprs) <> " ${..} expressions."))
 
@@ -94,7 +94,7 @@ typedSqlExp allowStar rawSql = do
 
     let parsedAst = parseSql ppDescribeSql
     when (isNothing parsedAst) do
-        TH.reportWarning "typedSql: could not parse SQL for type refinement; parameter hints and LEFT/RIGHT JOIN nullability detection are disabled for this query."
+        TH.reportWarning "typedSql: could not parse SQL for type refinement; parameter hints, LEFT/RIGHT JOIN nullability detection and automatic AutoRefresh dependencies are disabled for this query. Use trackTableRead for its dependencies."
 
     unless allowStar do
         case parsedAst of
@@ -185,13 +185,10 @@ typedSqlExp allowStar rawSql = do
                 pure (rt, decoder)
 
     snippetExpr <- buildSnippetExpression ppRuntimeSql paramSnippets
+    readTablesExpr <- TH.lift drReadTables
     let typedQueryExpr =
-            TH.AppE
-                (TH.AppE
-                    (TH.ConE 'TypedQuery)
-                    snippetExpr
-                )
-                resultDecoder
+            foldl TH.AppE (TH.ConE 'TypedQuery)
+                [snippetExpr, resultDecoder, readTablesExpr]
 
     pure
         ( TH.SigE

@@ -24,7 +24,7 @@ import Data.ByteString (ByteString)
 import Data.Text (Text)
 import qualified Data.Text as Text
 import Data.Int (Int64)
-import Data.IORef (IORef, newIORef, modifyIORef')
+import Data.IORef (IORef, newIORef, atomicModifyIORef')
 import Control.Exception (bracket, finally, throwIO, SomeException, try, mask)
 import Data.Maybe (fromMaybe, isNothing, isJust)
 import Data.String (IsString(..))
@@ -982,7 +982,7 @@ trackTableRead tableName = case ?modelContext.trackTableReadCallback of
 withTableReadTracker :: (?modelContext :: ModelContext) => ((?modelContext :: ModelContext, ?touchedTables :: IORef (Set.Set Text)) => IO a) -> IO a
 withTableReadTracker trackedSection = do
     touchedTablesVar <- newIORef Set.empty
-    let trackTableReadCallback = Just \tableName -> modifyIORef' touchedTablesVar (Set.insert tableName)
+    let trackTableReadCallback = Just \tableName -> atomicModifyIORef' touchedTablesVar (\tables -> (Set.insert tableName tables, ()))
     let oldModelContext = ?modelContext
     let ?modelContext = oldModelContext { trackTableReadCallback }
     let ?touchedTables = touchedTablesVar

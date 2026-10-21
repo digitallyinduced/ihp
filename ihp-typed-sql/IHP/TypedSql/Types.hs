@@ -6,6 +6,7 @@ module IHP.TypedSql.Types
     , SqlExecTypedResult
     ) where
 
+import           Data.Text                       (Text)
 import           Data.Int                        (Int64)
 import           Data.Kind                       (Type)
 import           GHC.TypeLits                    (ErrorMessage (Text), TypeError)
@@ -49,4 +50,6 @@ type family SqlExecTypedResult (execResult :: QueryExecResult) :: Type where
 data TypedQuery (cardinality :: QueryCardinality) (execResult :: QueryExecResult) result = TypedQuery
     { tqSnippet       :: !Snippet.Snippet
     , tqResultDecoder :: !(HasqlDecoders.Row result)
+    -- | Public base tables read by this query, resolved at compile time.
+    , tqReadTables    :: ![Text]
     }
