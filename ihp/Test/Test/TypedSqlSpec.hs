@@ -26,6 +26,7 @@ tests = do
     describe "TypedSql IHP runners" do
         runtimeTest "executes typedSql queries end-to-end via ghci" runtimeModule
         runtimeTest "tracks TypedSQL reads including empty results" runtimeAutoRefreshModule
+        runtimeTest "installs working AutoRefresh triggers for quoted TypedSQL tables" runtimeQuotedAutoRefreshModule
         runtimeTest "UPDATE and DELETE with parameters" runtimeUpdateDeleteModule
         runtimeTest "empty results and edge cases" runtimeEdgeCasesModule
         runtimeTest "additional column types (smallint, bigint, numeric, bytea, bool, timestamptz, date, jsonb)" runtimeExtraTypesModule
@@ -47,6 +48,7 @@ withTestModelContext action = do
 
 setupSchema :: (?modelContext :: ModelContext) => IO ()
 setupSchema = do
+    unsafeSqlExecDiscardResult "CREATE TABLE IF NOT EXISTS \"Order\" (name TEXT NOT NULL)" ()
     -- Use unsafeSqlExecDiscardResult for DDL (DROP/CREATE) since they have no rows-affected count
     unsafeSqlExecDiscardResult "DROP TABLE IF EXISTS typed_sql_test_enum_items" ()
     unsafeSqlExecDiscardResult "DROP TABLE IF EXISTS typed_sql_test_extras" ()
@@ -971,5 +973,48 @@ runtimeAutoRefreshModule = Text.unlines
     , "            _ <- sqlQueryTyped [typedSql| SELECT 1 |]"
     , "            tables <- readIORef ?touchedTables"
     , "            unless (Set.null tables) (error \"literal query registered a dependency\")"
+    , "        putStrLn \"RUNTIME_OK\""
+    ]
+
+runtimeQuotedAutoRefreshModule :: Text
+runtimeQuotedAutoRefreshModule = Text.unlines
+    [ "{-# LANGUAGE DataKinds, ImplicitParams, NoImplicitPrelude, OverloadedStrings, QuasiQuotes #-}"
+    , "module Main where"
+    , "import IHP.Prelude"
+    , "import Control.Monad (void)"
+    , "import IHP.ModelSupport (createModelContext, releaseModelContext, noopLogger, withTableReadTracker)"
+    , "import IHP.TypedSql"
+    , "import IHP.AutoRefresh (notificationTriggerSQL, channelName)"
+    , "import qualified Control.Exception as Exception"
+    , "import qualified Data.Set as Set"
+    , "import qualified Data.Text as Text"
+    , "import qualified Database.PostgreSQL.Simple as PG"
+    , "import qualified Database.PostgreSQL.Simple.Notification as PG"
+    , "import System.Environment (lookupEnv)"
+    , "import System.Timeout (timeout)"
+    , ""
+    , "main :: IO ()"
+    , "main = do"
+    , "    databaseUrl <- cs . fromMaybe \"\" <$> lookupEnv \"DATABASE_URL\""
+    , "    modelContext <- createModelContext databaseUrl noopLogger"
+    , "    let ?modelContext = modelContext"
+    , "    flip Exception.finally (releaseModelContext modelContext) do"
+    , "        withTableReadTracker do"
+    , "            _ <- sqlQueryTyped [typedSql| SELECT name || '' FROM \"Order\" WHERE FALSE |]"
+    , "            tables <- readIORef ?touchedTables"
+    , "            unless (tables == Set.singleton \"Order\") (error \"quoted dependency was changed\")"
+    , "        Exception.bracket (PG.connectPostgreSQL databaseUrl) PG.close \\connection -> do"
+    , "            let quote name = \"\\\"\" <> Text.replace \"\\\"\" \"\\\"\\\"\" name <> \"\\\"\""
+    , "                execute sql = void (PG.execute_ connection (fromString (Text.unpack (sql :: Text))))"
+    , "            forM_ [\"Order\", \"select\", \"odd\\\"name\", \"odd'name\", \"odd$$name\"] \\name -> do"
+    , "                execute (\"CREATE TABLE IF NOT EXISTS \" <> quote name <> \" (name TEXT NOT NULL)\")"
+    , "                execute (notificationTriggerSQL name)"
+    , "                execute (notificationTriggerSQL name)"
+    , "                execute (\"LISTEN \" <> quote (cs (channelName name)))"
+    , "                forM_ [\"INSERT INTO \" <> quote name <> \" VALUES ('test')\", \"UPDATE \" <> quote name <> \" SET name='changed'\", \"DELETE FROM \" <> quote name] \\sql -> do"
+    , "                    execute sql"
+    , "                    notification <- timeout 2000000 (PG.getNotification connection)"
+    , "                    unless (fmap PG.notificationChannel notification == Just (channelName name)) (error \"missing AutoRefresh notification\")"
+    , "                execute \"UNLISTEN *\""
     , "        putStrLn \"RUNTIME_OK\""
     ]

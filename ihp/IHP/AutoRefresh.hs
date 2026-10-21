@@ -294,28 +294,29 @@ channelName tableName = "ar_did_change_" <> cs tableName
 -- other connection's CREATE OR REPLACE will have succeeded.
 notificationTriggerSQL :: Text -> Text
 notificationTriggerSQL tableName =
-        "DO $$\n"
-        <> "BEGIN\n"
-        <> "    CREATE OR REPLACE FUNCTION " <> functionName <> "() RETURNS TRIGGER AS $BODY$"
-            <> "BEGIN\n"
-            <> "    PERFORM pg_notify('" <> cs (channelName tableName) <> "', '');\n"
-            <> "    RETURN new;\n"
-            <> "END;\n"
-            <> "$BODY$ language plpgsql;\n"
-        <> "    DROP TRIGGER IF EXISTS " <> insertTriggerName <> " ON " <> tableName <> ";\n"
-        <> "    CREATE TRIGGER " <> insertTriggerName <> " AFTER INSERT ON \"" <> tableName <> "\" FOR EACH STATEMENT EXECUTE PROCEDURE " <> functionName <> "();\n"
-        <> "    DROP TRIGGER IF EXISTS " <> updateTriggerName <> " ON " <> tableName <> ";\n"
-        <> "    CREATE TRIGGER " <> updateTriggerName <> " AFTER UPDATE ON \"" <> tableName <> "\" FOR EACH STATEMENT EXECUTE PROCEDURE " <> functionName <> "();\n"
-        <> "    DROP TRIGGER IF EXISTS " <> deleteTriggerName <> " ON " <> tableName <> ";\n"
-        <> "    CREATE TRIGGER " <> deleteTriggerName <> " AFTER DELETE ON \"" <> tableName <> "\" FOR EACH STATEMENT EXECUTE PROCEDURE " <> functionName <> "();\n"
+    "DO " <> sqlLiteral block
+  where
+    -- Quote both identifiers and function bodies: names can contain quotes or $$.
+    identifier name = "\"" <> Text.replace "\"" "\"\"" name <> "\""
+    sqlLiteral value = "'" <> Text.replace "'" "''" value <> "'"
+    functionName = identifier ("ar_notify_did_change_" <> tableName)
+    insertTriggerName = identifier ("ar_did_insert_" <> tableName)
+    updateTriggerName = identifier ("ar_did_update_" <> tableName)
+    deleteTriggerName = identifier ("ar_did_delete_" <> tableName)
+    tableIdentifier = identifier tableName
+    functionBody = "BEGIN PERFORM pg_notify(" <> sqlLiteral (cs (channelName tableName)) <> ", ''); RETURN new; END;"
+    block =
+        "BEGIN\n"
+        <> "    CREATE OR REPLACE FUNCTION " <> functionName <> "() RETURNS TRIGGER AS " <> sqlLiteral functionBody <> " language plpgsql;\n"
+        <> "    DROP TRIGGER IF EXISTS " <> insertTriggerName <> " ON " <> tableIdentifier <> ";\n"
+        <> "    CREATE TRIGGER " <> insertTriggerName <> " AFTER INSERT ON " <> tableIdentifier <> " FOR EACH STATEMENT EXECUTE PROCEDURE " <> functionName <> "();\n"
+        <> "    DROP TRIGGER IF EXISTS " <> updateTriggerName <> " ON " <> tableIdentifier <> ";\n"
+        <> "    CREATE TRIGGER " <> updateTriggerName <> " AFTER UPDATE ON " <> tableIdentifier <> " FOR EACH STATEMENT EXECUTE PROCEDURE " <> functionName <> "();\n"
+        <> "    DROP TRIGGER IF EXISTS " <> deleteTriggerName <> " ON " <> tableIdentifier <> ";\n"
+        <> "    CREATE TRIGGER " <> deleteTriggerName <> " AFTER DELETE ON " <> tableIdentifier <> " FOR EACH STATEMENT EXECUTE PROCEDURE " <> functionName <> "();\n"
         <> "EXCEPTION\n"
         <> "    WHEN SQLSTATE 'XX000' THEN null; -- 'tuple concurrently updated': another connection installed it first\n"
-        <> "END; $$"
-    where
-        functionName = "ar_notify_did_change_" <> tableName
-        insertTriggerName = "ar_did_insert_" <> tableName
-        updateTriggerName = "ar_did_update_" <> tableName
-        deleteTriggerName = "ar_did_delete_" <> tableName
+        <> "END;"
 
 autoRefreshStateVaultKey :: Vault.Key AutoRefreshState
 autoRefreshStateVaultKey = unsafePerformIO Vault.newKey
