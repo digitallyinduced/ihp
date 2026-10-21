@@ -25,6 +25,7 @@ tests :: Spec
 tests = do
     describe "TypedSql IHP runners" do
         runtimeTest "executes typedSql queries end-to-end via ghci" runtimeModule
+        runtimeTest "tracks TypedSQL reads including empty results" runtimeAutoRefreshModule
         runtimeTest "UPDATE and DELETE with parameters" runtimeUpdateDeleteModule
         runtimeTest "empty results and edge cases" runtimeEdgeCasesModule
         runtimeTest "additional column types (smallint, bigint, numeric, bytea, bool, timestamptz, date, jsonb)" runtimeExtraTypesModule
@@ -848,12 +849,13 @@ runtimePaginationModule = Text.unlines
     , ""
     , "import qualified Control.Exception as Exception"
     , "import IHP.Prelude"
-    , "import IHP.ModelSupport (ModelContext, createModelContext, releaseModelContext, noopLogger, unsafeSqlExecDiscardResult)"
+    , "import IHP.ModelSupport (ModelContext, createModelContext, releaseModelContext, noopLogger, unsafeSqlExecDiscardResult, withTableReadTracker)"
     , "import IHP.TypedSql (QueryCardinality (..), QueryExecResult (..), TypedQuery, typedSql)"
     , "import IHP.TypedSql.Pagination (paginatedTypedSql, paginatedTypedSqlWithOptions)"
     , "import IHP.Pagination.ControllerFunctions (defaultPaginationOptions)"
     , "import IHP.Pagination.Types (Options (..), Pagination (..))"
     , "import System.Environment (lookupEnv)"
+    , "import qualified Data.Set as Set"
     , "import qualified Network.Wai as Wai"
     , "import qualified Data.Vault.Lazy as Vault"
     , "import Wai.Request.Params.Middleware (RequestBody (..), requestBodyVaultKey)"
@@ -886,6 +888,12 @@ runtimePaginationModule = Text.unlines
     , "            ()"
     , ""
     , "        let pageQuery = [typedSql| SELECT name FROM typed_sql_test_items ORDER BY name |] :: TypedQuery 'ManyRows 'ReturnsRows Text"
+    , ""
+    , "        withTableReadTracker do"
+    , "            let ?request = contextWithParams []"
+    , "            _ <- paginatedTypedSql pageQuery"
+    , "            tables <- readIORef ?touchedTables"
+    , "            assertTest \"pagination dependency\" (tables == Set.singleton \"typed_sql_test_items\")"
     , ""
     , "        -- First page, default options (maxItems 50)."
     , "        do"
@@ -931,5 +939,37 @@ runtimePaginationModule = Text.unlines
     , "            assertTest \"custom maxItems=25 pageSize\" (pagination.pageSize == 25)"
     , "            assertTest \"custom maxItems=25 window\" (pagination.window == 3)"
     , ""
+    , "        putStrLn \"RUNTIME_OK\""
+    ]
+
+runtimeAutoRefreshModule :: Text
+runtimeAutoRefreshModule = Text.unlines
+    [ "{-# LANGUAGE DataKinds, ImplicitParams, NoImplicitPrelude, OverloadedStrings, QuasiQuotes #-}"
+    , "module Main where"
+    , "import IHP.Prelude"
+    , "import IHP.ModelSupport (createModelContext, releaseModelContext, noopLogger, withTableReadTracker)"
+    , "import IHP.TypedSql"
+    , "import qualified Control.Exception as Exception"
+    , "import qualified Data.Set as Set"
+    , "import System.Environment (lookupEnv)"
+    , ""
+    , "main :: IO ()"
+    , "main = do"
+    , "    databaseUrl <- cs . fromMaybe \"\" <$> lookupEnv \"DATABASE_URL\""
+    , "    modelContext <- createModelContext databaseUrl noopLogger"
+    , "    let ?modelContext = modelContext"
+    , "    flip Exception.finally (releaseModelContext modelContext) do"
+    , "        withTableReadTracker do"
+    , "            names <- sqlQueryTyped [typedSql| SELECT name FROM typed_sql_test_items WHERE FALSE |]"
+    , "            tables <- readIORef ?touchedTables"
+    , "            unless (null names && tables == Set.singleton \"typed_sql_test_items\") (error \"empty result lost dependency\")"
+    , "        withTableReadTracker do"
+    , "            _ <- sqlQueryTyped [typedSql| SELECT count(*) FROM typed_sql_test_items i WHERE EXISTS (SELECT 1 FROM typed_sql_test_authors a WHERE a.id=i.author_id) |]"
+    , "            tables <- readIORef ?touchedTables"
+    , "            unless (tables == Set.fromList [\"typed_sql_test_items\", \"typed_sql_test_authors\"]) (error \"aggregate lost dependency\")"
+    , "        withTableReadTracker do"
+    , "            _ <- sqlQueryTyped [typedSql| SELECT 1 |]"
+    , "            tables <- readIORef ?touchedTables"
+    , "            unless (Set.null tables) (error \"literal query registered a dependency\")"
     , "        putStrLn \"RUNTIME_OK\""
     ]

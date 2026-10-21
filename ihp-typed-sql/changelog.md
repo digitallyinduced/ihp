@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+- `typedSql` records public table dependencies at compile time for IHP
+  AutoRefresh, including joins, subqueries, CTEs and ordinary views. The IHP
+  `sqlQueryTyped` and pagination runners register these reads without extra
+  runtime SQL. Notification filtering and trigger behavior are unchanged.
+- **Breaking:** manually constructed `TypedQuery` values must provide the new
+  `tqReadTables :: [Text]` field. Quasiquoted queries need no changes.
+
 - `ihp-typed-sql` no longer depends on the `ihp` package and can be installed
   standalone (e.g. alongside `ihp-hsx` and `ihp-router`). The IHP-specific
   `ModelContext` runners (`IHP.TypedSql`) and pagination

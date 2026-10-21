@@ -19,6 +19,7 @@ import qualified Hasql.Pool.Config                 as HasqlPoolConfig
 import qualified Hasql.Connection.Settings         as HasqlSettings
 import qualified Hasql.Session                     as HasqlSession
 import qualified Hasql.Statement                   as HasqlStatement
+import           IHP.TypedSql.Metadata             (DescribeResult (..), describeStatementWith)
 import           IHP.TypedSql.ParamHints           (parseSql, extractJoinNullableTables,
                                                     extractNonNullableComputedColumnsFromAst,
                                                     detectStarSelects,
@@ -65,6 +66,18 @@ tshow = cs . show
 
 tests :: Spec
 tests = do
+    describe "TypedSql AutoRefresh dependencies" do
+        forM_ dependencyCases \(name, sql, expected) ->
+            it name do
+                requirePostgresTestHook
+                withTestPool \pool -> do
+                    setupSchema pool
+                    execDiscard pool "CREATE VIEW typed_sql_test_view AS SELECT i.name FROM typed_sql_test_items i JOIN typed_sql_test_authors a ON a.id = i.author_id"
+                    execDiscard pool "CREATE VIEW typed_sql_test_nested_view AS SELECT name FROM typed_sql_test_view"
+                    databaseUrl <- cs . fromMaybe "" <$> lookupEnv "DATABASE_URL"
+                    metadata <- describeStatementWith databaseUrl (cs sql)
+                    drReadTables metadata `shouldBe` expected
+
     describe "TypedSql macro compile-time checks" do
         it "compiles valid typedSql queries with inferred types" do
             requirePostgresTestHook
@@ -1025,6 +1038,8 @@ execDiscard pool sql = do
 
 setupSchema :: HasqlPool.Pool -> IO ()
 setupSchema pool = do
+    execDiscard pool "DROP VIEW IF EXISTS typed_sql_test_nested_view"
+    execDiscard pool "DROP VIEW IF EXISTS typed_sql_test_view"
     -- DDL statements have no rows-affected count, so they run as no-result statements
     execDiscard pool "DROP TABLE IF EXISTS typed_sql_test_enum_items"
     execDiscard pool "DROP TABLE IF EXISTS typed_sql_test_extras"
@@ -2154,4 +2169,27 @@ runtimeEnumModule = Text.unlines
     , "        assertTest \"dollar-list-Just-enumVal\" ((anyNames :: [Text]) == [\"HappyItem\", \"SadItem\"])"
     , ""
     , "        putStrLn \"RUNTIME_OK\""
+    ]
+
+-- Exercise dependency extraction through the same PostgreSQL metadata path as the quoter.
+dependencyCases :: [(String, Text, [Text])]
+dependencyCases =
+    [ ("literal query", "SELECT 1", [])
+    , ("empty results still depend on the table", "SELECT name FROM typed_sql_test_items WHERE FALSE", ["typed_sql_test_items"])
+    , ("aggregate without a table-valued result column", "SELECT count(*) FROM typed_sql_test_items", ["typed_sql_test_items"])
+    , ("join-only dependency survives an empty result", "SELECT i.name FROM typed_sql_test_items i LEFT JOIN typed_sql_test_authors a ON a.id=i.author_id WHERE FALSE", ["typed_sql_test_authors", "typed_sql_test_items"])
+    , ("EXISTS subquery", "SELECT name FROM typed_sql_test_items WHERE EXISTS (SELECT 1 FROM typed_sql_test_authors)", ["typed_sql_test_authors", "typed_sql_test_items"])
+    , ("CTE alias is not a real table", "WITH typed_sql_test_authors AS (SELECT name FROM typed_sql_test_items) SELECT name FROM typed_sql_test_authors", ["typed_sql_test_items"])
+    , ("non-recursive CTE can read a table with the same name", "WITH typed_sql_test_items AS (SELECT name FROM typed_sql_test_items) SELECT name FROM typed_sql_test_items", ["typed_sql_test_items"])
+    , ("earlier CTE bindings are visible to later CTEs", "WITH typed_sql_test_authors AS (SELECT name FROM typed_sql_test_items), second AS (SELECT name FROM typed_sql_test_authors) SELECT name FROM second", ["typed_sql_test_items"])
+    , ("recursive CTE excludes its own name", "WITH RECURSIVE typed_sql_test_authors(n) AS (SELECT views FROM typed_sql_test_items UNION ALL SELECT n+1 FROM typed_sql_test_authors WHERE n<10) SELECT n FROM typed_sql_test_authors", ["typed_sql_test_items"])
+    , ("nested CTE does not shadow an outer table", "SELECT a.name FROM typed_sql_test_authors a WHERE EXISTS (WITH typed_sql_test_authors AS (SELECT name FROM typed_sql_test_items) SELECT name FROM typed_sql_test_authors)", ["typed_sql_test_authors", "typed_sql_test_items"])
+    , ("qualified table is not shadowed by a CTE", "WITH typed_sql_test_items AS (SELECT 1) SELECT name FROM public.typed_sql_test_items", ["typed_sql_test_items"])
+    , ("nested views expand to base tables", "SELECT name FROM typed_sql_test_nested_view", ["typed_sql_test_authors", "typed_sql_test_items"])
+    , ("lateral subquery", "SELECT a.name FROM typed_sql_test_authors a CROSS JOIN LATERAL (SELECT name FROM typed_sql_test_items WHERE author_id=a.id) i", ["typed_sql_test_authors", "typed_sql_test_items"])
+    , ("UPDATE target is not shadowed by a CTE", "WITH typed_sql_test_items AS (SELECT name FROM typed_sql_test_authors) UPDATE typed_sql_test_items SET views=1 RETURNING name", ["typed_sql_test_authors", "typed_sql_test_items"])
+    , ("DELETE target is not shadowed by a CTE", "WITH typed_sql_test_items AS (SELECT name FROM typed_sql_test_authors) DELETE FROM typed_sql_test_items RETURNING name", ["typed_sql_test_authors", "typed_sql_test_items"])
+    , ("INSERT SELECT reads its source", "INSERT INTO typed_sql_test_items (id, name, views) SELECT id, name, 1 FROM typed_sql_test_authors RETURNING name", ["typed_sql_test_authors", "typed_sql_test_items"])
+    , ("quoted qualified table", "SELECT name FROM \"public\".\"typed_sql_test_items\"", ["typed_sql_test_items"])
+    , ("data-modifying CTE and returning query", "WITH changed AS (UPDATE typed_sql_test_items SET views=views+1 RETURNING name) SELECT name FROM changed", ["typed_sql_test_items"])
     ]

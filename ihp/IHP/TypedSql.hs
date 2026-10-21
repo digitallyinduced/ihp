@@ -31,7 +31,7 @@ module IHP.TypedSql
 
 import qualified Hasql.Decoders                  as HasqlDecoders
 import qualified Hasql.DynamicStatements.Snippet as Snippet
-import           IHP.ModelSupport                (sqlExecHasql, sqlExecHasqlCount, sqlQueryHasql)
+import           IHP.ModelSupport                (sqlExecHasql, sqlExecHasqlCount, sqlQueryHasql, trackTableRead)
 import           IHP.Prelude
 import           GHC.TypeLits                    (ErrorMessage (Text), TypeError)
 
@@ -55,7 +55,8 @@ import           IHP.TypedSql.Types              (QueryCardinality (..), QueryEx
 instance {-# OVERLAPPABLE #-} FromRowHasql row => TypedSqlRow row where
     typedSqlRowDecoder = hasqlRowDecoder
 
--- | Run a typed SELECT query.
+-- | Run a typed SELECT query and register its public table dependencies with
+-- AutoRefresh when a table-read tracker is active.
 --
 -- Also works with INSERT\/UPDATE\/DELETE ... RETURNING statements
 -- that return rows.
@@ -69,8 +70,10 @@ instance {-# OVERLAPPABLE #-} FromRowHasql row => TypedSqlRow row where
 -- > users <- sqlQueryTyped [typedSql| SELECT name FROM users |] -- IO [Text]
 -- > total <- sqlQueryTyped [typedSql| SELECT count(*) FROM users |] -- IO Int64
 sqlQueryTyped :: forall cardinality result. (?modelContext :: ModelContext, DecodeTypedQuery cardinality) => TypedQuery cardinality 'ReturnsRows result -> IO (TypedQueryResult cardinality result)
-sqlQueryTyped TypedQuery { tqSnippet, tqResultDecoder } =
-    runTypedSqlSession tqSnippet (typedQueryResultDecoder (Proxy :: Proxy cardinality) tqResultDecoder)
+sqlQueryTyped TypedQuery { tqSnippet, tqResultDecoder, tqReadTables } = do
+    result <- runTypedSqlSession tqSnippet (typedQueryResultDecoder (Proxy :: Proxy cardinality) tqResultDecoder)
+    mapM_ trackTableRead tqReadTables
+    pure result
 
 -- | Run a typed query that can return many rows.
 --
