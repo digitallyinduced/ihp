@@ -678,23 +678,18 @@ We highly recommend only using nixpkgs versions which are provided by IHP becaus
 
 ### Switching GHC Versions
 
-IHP ships with GHC 9.10 by default. This is the recommended version and all IHP packages are binary-cached for it.
-
-GHC 9.12 is available as an experimental opt-in. To switch, add an overlay in your project's `flake.nix` that remaps `ghc` to `ghc912`:
+IHP's default compiler is GHC 9.14.1 (`pkgs.ghc`). To stay on GHC 9.12:
 
 ```nix
-devenv.shells.default = {
-    overlays = lib.mkAfter [
-        (final: prev: { ghc = prev.ghc912; })
-    ];
+perSystem = { pkgs, ... }: {
+    ihp = {
+        ghcCompiler = pkgs.ghc912;
+    };
 };
 ```
 
-This works because IHP's overlay provides both `pkgs.ghc` (GHC 9.10) and `pkgs.ghc912` (GHC 9.12) with all IHP packages. The extra overlay swaps the default. After adding the overlay, run `direnv reload` to rebuild the development environment.
-
-**Note:** GHC 9.12 is not yet binary-cached. Everything will build from source, which takes significantly longer on the first build. We recommend setting up your own [cachix binary cache](https://cachix.org/) if you use GHC 9.12 regularly.
-
-To switch back to GHC 9.10, remove the overlay and run `direnv reload`.
+Then `direnv reload`. Do not remap `pkgs.ghc` with a `final: prev: { ghc = prev.ghc912; }`
+overlay — older Guide revisions suggested that, and it now silently overrides the default.
 
 ### Binary Cache
 
