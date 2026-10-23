@@ -1,5 +1,5 @@
 { mkDerivation, base, directory, filepath, hasql, hasql-transaction
-, hspec, ihp-postgres-parser, lib, string-conversions
+, hspec, ihp-postgres-parser, lib, pqi-native, string-conversions
 , temporary-ospath, text, with-utf8
 }:
 mkDerivation {
@@ -13,15 +13,15 @@ mkDerivation {
     string-conversions text with-utf8
   ];
   executableHaskellDepends = [
-    base directory filepath hasql hasql-transaction string-conversions
-    text with-utf8
+    base directory filepath hasql hasql-transaction pqi-native
+    string-conversions text with-utf8
   ];
   testHaskellDepends = [
-    base directory filepath hasql hspec string-conversions
+    base directory filepath hasql hspec pqi-native string-conversions
     temporary-ospath text with-utf8
   ];
   homepage = "https://ihp.digitallyinduced.com/";
   description = "Provides the IHP migrate binary";
-  license = lib.meta.getLicenseFromSpdxId "MIT";
+  license = lib.licenses.mit;
   mainProgram = "migrate";
 }

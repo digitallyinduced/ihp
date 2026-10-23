@@ -1,9 +1,10 @@
-{ mkDerivation, aeson, base, bytestring, containers, contravariant
-, countable-inflections, deepseq, directory, filepath, hashable
-, haskell-src-meta, hasql, hasql-dynamic-statements
-, hasql-implicits, hasql-mapping, hasql-pool
-, hasql-postgresql-types, hspec, inflections, lib, postgresql-libpq
-, postgresql-syntax, postgresql-types, process, scientific
+{ mkDerivation, aeson, async, base, bytestring, containers
+, contravariant, countable-inflections, deepseq, directory
+, filepath, hashable, haskell-src-meta, hasql
+, hasql-dynamic-statements, hasql-implicits, hasql-mapping
+, hasql-pool, hasql-postgresql-types, hasql-transaction, hspec
+, inflections, lib, postgresql-libpq, postgresql-syntax
+, postgresql-types, pqi-native, process, scientific
 , string-conversions, template-haskell, temporary, temporary-ospath
 , text, time, unix, uuid, vector
 }:
@@ -16,17 +17,17 @@ mkDerivation {
     countable-inflections deepseq directory filepath hashable
     haskell-src-meta hasql hasql-dynamic-statements hasql-implicits
     hasql-mapping hasql-pool hasql-postgresql-types inflections
-    postgresql-libpq postgresql-syntax postgresql-types process
-    scientific string-conversions template-haskell temporary text time
-    unix uuid vector
+    postgresql-libpq postgresql-syntax postgresql-types pqi-native
+    process scientific string-conversions template-haskell temporary
+    text time unix uuid vector
   ];
   testHaskellDepends = [
-    base containers directory filepath hasql hasql-dynamic-statements
-    hasql-implicits hasql-mapping hasql-pool hasql-postgresql-types
-    hspec process string-conversions temporary temporary-ospath text
-    unix
+    async base bytestring containers directory filepath hasql
+    hasql-dynamic-statements hasql-implicits hasql-mapping hasql-pool
+    hasql-postgresql-types hasql-transaction hspec pqi-native process
+    string-conversions temporary temporary-ospath text unix
   ];
   homepage = "https://ihp.digitallyinduced.com/";
   description = "Compile-time typed SQL quasiquoter for IHP";
-  license = lib.meta.getLicenseFromSpdxId "MIT";
+  license = lib.licenses.mit;
 }

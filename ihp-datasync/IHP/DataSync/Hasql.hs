@@ -8,6 +8,7 @@ import IHP.Prelude
 import qualified Control.Exception.Safe as Exception
 import qualified Hasql.Pool
 import qualified Hasql.Connection as Hasql
+import qualified Pqi.Native
 import qualified Hasql.Connection.Settings as HasqlSettings
 import qualified Hasql.Session as Session
 import qualified Hasql.Errors as Hasql
@@ -37,7 +38,7 @@ runSessionOnConnection conn session = do
 -- action completes (normally or via exception).
 withDedicatedConnection :: ByteString -> (Hasql.Connection -> IO a) -> IO a
 withDedicatedConnection databaseUrl action = do
-    connResult <- Hasql.acquire (HasqlSettings.connectionString (cs databaseUrl))
+    connResult <- Hasql.acquire Pqi.Native.adapter (HasqlSettings.connectionString (cs databaseUrl))
     case connResult of
         Right conn -> action conn `Exception.finally` Hasql.release conn
         Left err -> error (Hasql.toDetailedText err)
