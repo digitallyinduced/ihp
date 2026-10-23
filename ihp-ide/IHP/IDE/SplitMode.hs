@@ -19,15 +19,47 @@ module IHP.IDE.SplitMode
 ) where
 
 import ClassyPrelude
+import qualified Crypto.Hash.SHA256 as SHA256
 import qualified Data.ByteString as ByteString
 import qualified System.Directory as Directory
+import qualified System.Environment as Env
 import qualified System.FilePath as FilePath
 import qualified Data.Char as Char
+import Text.Printf (printf)
 
--- | Path to the Unix domain socket used by the web process to signal the worker
--- process that it should reload.
-workerSocketPath :: FilePath
-workerSocketPath = "build/.dev-worker.sock"
+-- | Path of the Unix socket the web process uses to tell the worker to reload.
+--
+-- The socket lives outside the project, in @$XDG_RUNTIME_DIR@ or the temp dir.
+-- The file name includes a hash of the project path, so two projects can run
+-- at the same time.
+--
+-- It must not live inside the project. Nix cannot copy a socket, so a socket
+-- in @build/@ broke @nix build@ and @path:@ flake inputs. Projects then deleted
+-- it from @.envrc@, and the worker stopped getting reload signals.
+workerSocketPath :: IO FilePath
+workerSocketPath = do
+    projectDir <- Directory.getCurrentDirectory >>= Directory.canonicalizePath
+    runtimeDir <- lookupRuntimeDir
+    let name = "ihp-worker-" <> projectKey projectDir <> ".sock"
+    let path = runtimeDir FilePath.</> name
+    -- Unix socket paths are limited to about 104 bytes. Use /tmp when the
+    -- runtime dir is too long.
+    pure (if length path > 100 then "/tmp" FilePath.</> name else path)
+
+-- | @$XDG_RUNTIME_DIR@ when set, otherwise the temp dir.
+lookupRuntimeDir :: IO FilePath
+lookupRuntimeDir = do
+    xdgRuntimeDir <- Env.lookupEnv "XDG_RUNTIME_DIR"
+    case xdgRuntimeDir of
+        Just dir | not (null dir) -> pure dir
+        _ -> Directory.getTemporaryDirectory
+
+-- | First 16 hex characters of the SHA-256 of the project path.
+projectKey :: FilePath -> String
+projectKey projectDir =
+    take 16 (concatMap hexByte (SHA256.hash (encodeUtf8 (pack projectDir :: Text))))
+  where
+    hexByte byte = printf "%02x" byte :: String
 
 -- | Path to the generated worker entry module.
 runJobsModulePath :: FilePath

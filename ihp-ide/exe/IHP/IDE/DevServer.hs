@@ -171,19 +171,21 @@ fileWatcherParams liveReloadClients databaseNeedsMigration reloadGhciVar startSt
         }
   where
     -- Fire and forget — sendReload handles its own retry/backoff. We don't want
-    -- the file watcher to block on a slow worker.
+    -- the file watcher to block on a slow worker. If the worker can't be
+    -- reached, log it. Otherwise the worker silently keeps running old code.
     --
     -- We re-check 'hasJobs' on every signal (rather than caching at boot) so
     -- that scaffolding the first job after `devenv up` correctly activates
     -- the worker process. The check is a small recursive scan and runs off
     -- the watcher thread.
     signalWorker = void $ Concurrent.forkIO $ Exception.handleAny
-        (\_ -> pure ())
+        (\exception -> ?context.logger (toLogStr ("Could not tell the job worker to reload. Restart the worker to pick up your changes. Error: " <> tshow exception)))
         do
             currentHasJobs <- SplitMode.hasJobs
             when currentHasJobs do
                 SplitMode.generateRunJobsModule
-                WorkerSignal.sendReload SplitMode.workerSocketPath
+                socketPath <- SplitMode.workerSocketPath
+                WorkerSignal.sendReload socketPath
 
 -- 'ghciArguments' is shared with the dev worker — see 'IHP.IDE.GhciSupport'.
 
