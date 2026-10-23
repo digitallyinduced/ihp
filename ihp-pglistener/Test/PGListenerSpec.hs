@@ -22,6 +22,7 @@ import System.Log.FastLogger (FastLogger)
 import qualified IHP.PGListener as PGListener
 
 import qualified Hasql.Connection as Hasql
+import qualified Pqi.Native
 import qualified Hasql.Connection.Settings as HasqlSettings
 import qualified Hasql.Session as Session
 
@@ -35,7 +36,7 @@ getDatabaseUrl = do
 
 acquireConnection :: ByteString -> IO Hasql.Connection
 acquireConnection databaseUrl = do
-    result <- Hasql.acquire (HasqlSettings.connectionString (cs databaseUrl))
+    result <- Hasql.acquire Pqi.Native.adapter (HasqlSettings.connectionString (cs databaseUrl))
     case result of
         Right connection -> pure connection
         Left err -> error ("Test: Failed to connect to database: " <> show err)

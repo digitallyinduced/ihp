@@ -19,6 +19,7 @@ import qualified Control.Exception.Safe as Exception
 import qualified System.Directory.OsPath as Directory
 import System.OsPath (encodeUtf)
 import qualified Hasql.Connection as Connection
+import qualified Pqi.Native
 import qualified Hasql.Connection.Settings as ConnectionSettings
 
 instance Controller MigrationsController where
@@ -148,5 +149,5 @@ withMigrateConnection inner = Exception.bracket acquire Connection.release inner
     where
         acquire = do
             frameworkConfig <- buildFrameworkConfig noopLogger (pure ())
-            Connection.acquire (ConnectionSettings.connectionString (cs frameworkConfig.databaseUrl))
+            Connection.acquire Pqi.Native.adapter (ConnectionSettings.connectionString (cs frameworkConfig.databaseUrl))
                 >>= either (\e -> error ("DB connect failed: " <> show e)) pure

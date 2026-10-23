@@ -612,6 +612,108 @@
         "type": "github"
       }
     },
+    "hasql-dynamic-statements-source": {
+      "flake": false,
+      "locked": {
+        "lastModified": 1791907512,
+        "narHash": "sha256-3XR+Zay0Vz0G76gMGjulPOnL10ZLGrP5IHAlKmkJU2c=",
+        "owner": "nikita-volkov",
+        "repo": "hasql-dynamic-statements",
+        "rev": "bfcf8159ab2f21080a672336d1c14cf83db51856",
+        "type": "github"
+      },
+      "original": {
+        "owner": "nikita-volkov",
+        "repo": "hasql-dynamic-statements",
+        "rev": "bfcf8159ab2f21080a672336d1c14cf83db51856",
+        "type": "github"
+      }
+    },
+    "hasql-implicits-source": {
+      "flake": false,
+      "locked": {
+        "lastModified": 1786016585,
+        "narHash": "sha256-9LuQLlnrj/NHCh1iad4buPJhqIOumlfPw+07azL3D54=",
+        "owner": "nikita-volkov",
+        "repo": "hasql-implicits",
+        "rev": "cb6e0c7f99dbd85b64409e1ea267b68d49eeb5b2",
+        "type": "github"
+      },
+      "original": {
+        "owner": "nikita-volkov",
+        "repo": "hasql-implicits",
+        "rev": "cb6e0c7f99dbd85b64409e1ea267b68d49eeb5b2",
+        "type": "github"
+      }
+    },
+    "hasql-notifications-source": {
+      "flake": false,
+      "locked": {
+        "lastModified": 1786017840,
+        "narHash": "sha256-B5vdT6EswSY3Xqdy0z56SPfOWeNCu1L5c2gmXn/YrAI=",
+        "owner": "nikita-volkov",
+        "repo": "hasql-notifications",
+        "rev": "e57de3cc9f9efe7d3ad66e6c5d386c953ab9a3bc",
+        "type": "github"
+      },
+      "original": {
+        "owner": "nikita-volkov",
+        "repo": "hasql-notifications",
+        "rev": "e57de3cc9f9efe7d3ad66e6c5d386c953ab9a3bc",
+        "type": "github"
+      }
+    },
+    "hasql-pool-source": {
+      "flake": false,
+      "locked": {
+        "lastModified": 1786034574,
+        "narHash": "sha256-StpCiVk9AAELl8XVru3xbF6qlg7iBn9Jv3t1Gxg3ab8=",
+        "owner": "nikita-volkov",
+        "repo": "hasql-pool",
+        "rev": "50b49864afc796fd7df6e08706d3a628c656dcf0",
+        "type": "github"
+      },
+      "original": {
+        "owner": "nikita-volkov",
+        "repo": "hasql-pool",
+        "rev": "50b49864afc796fd7df6e08706d3a628c656dcf0",
+        "type": "github"
+      }
+    },
+    "hasql-source": {
+      "flake": false,
+      "locked": {
+        "lastModified": 1786557708,
+        "narHash": "sha256-WTKjbe7xJERI4RgjrFPGImlS00C6sTDpbxkkVHxnOcY=",
+        "owner": "nikita-volkov",
+        "repo": "hasql",
+        "rev": "ef3e361ced8ad62652f1a8e7a77b3d0d0e2b9065",
+        "type": "github"
+      },
+      "original": {
+        "owner": "nikita-volkov",
+        "repo": "hasql",
+        "rev": "ef3e361ced8ad62652f1a8e7a77b3d0d0e2b9065",
+        "type": "github"
+      }
+    },
+    "hasql-transaction-source": {
+      "flake": false,
+      "locked": {
+        "lastModified": 1787126367,
+        "narHash": "sha256-BheAEP5OHhqWFOb1dg+Kk6kzYQDQ5GLQnpQIH3mcaN4=",
+        "owner": "nikita-volkov",
+        "repo": "hasql-transaction",
+        "rev": "81adf1ad3d8cc60d64a1354eda58d4c46b705532",
+        "type": "github"
+      },
+      "original": {
+        "owner": "nikita-volkov",
+        "repo": "hasql-transaction",
+        "rev": "81adf1ad3d8cc60d64a1354eda58d4c46b705532",
+        "type": "github"
+      }
+    },
     "ihp": {
       "inputs": {
         "devenv": "devenv_2",
@@ -1394,6 +1496,57 @@
         "type": "github"
       }
     },
+    "pqi-ffi-source": {
+      "flake": false,
+      "locked": {
+        "lastModified": 1786017983,
+        "narHash": "sha256-Rrfte+oHwtwpVh1lvbzXSNxFRK+0rb26f+VpdvhWyZs=",
+        "owner": "nikita-volkov",
+        "repo": "pqi-ffi",
+        "rev": "1ca01c1487f94c68e4cb2793b2193bb59f13727e",
+        "type": "github"
+      },
+      "original": {
+        "owner": "nikita-volkov",
+        "repo": "pqi-ffi",
+        "rev": "1ca01c1487f94c68e4cb2793b2193bb59f13727e",
+        "type": "github"
+      }
+    },
+    "pqi-native-source": {
+      "flake": false,
+      "locked": {
+        "lastModified": 1792733756,
+        "narHash": "sha256-9TAVPjFOku26+gnl85MSCgmTbtLV0cZXeF6oaLwP1VU=",
+        "owner": "nikita-volkov",
+        "repo": "pqi-native",
+        "rev": "f887ca3776ec5910a4ceb8825e71e7a57c379708",
+        "type": "github"
+      },
+      "original": {
+        "owner": "nikita-volkov",
+        "repo": "pqi-native",
+        "rev": "f887ca3776ec5910a4ceb8825e71e7a57c379708",
+        "type": "github"
+      }
+    },
+    "pqi-source": {
+      "flake": false,
+      "locked": {
+        "lastModified": 1787044267,
+        "narHash": "sha256-0arYs7Qpoe1tm+6unBuKHvocttQyY8WuIDyBbe93QPE=",
+        "owner": "nikita-volkov",
+        "repo": "pqi",
+        "rev": "e8484ed4a442fec9b5274d116f6816f89db7c0eb",
+        "type": "github"
+      },
+      "original": {
+        "owner": "nikita-volkov",
+        "repo": "pqi",
+        "rev": "e8484ed4a442fec9b5274d116f6816f89db7c0eb",
+        "type": "github"
+      }
+    },
     "pre-commit-hooks": {
       "inputs": {
         "flake-compat": [
@@ -1507,10 +1660,19 @@
         "devenv": "devenv",
         "devenv-root": "devenv-root",
         "flake-parts": "flake-parts_2",
+        "hasql-dynamic-statements-source": "hasql-dynamic-statements-source",
+        "hasql-implicits-source": "hasql-implicits-source",
+        "hasql-notifications-source": "hasql-notifications-source",
+        "hasql-pool-source": "hasql-pool-source",
+        "hasql-source": "hasql-source",
+        "hasql-transaction-source": "hasql-transaction-source",
         "ihp-boilerplate": "ihp-boilerplate",
         "nix-filter": "nix-filter_3",
         "nixpkgs": "nixpkgs_5",
         "nixpkgs-nixos": "nixpkgs-nixos",
+        "pqi-ffi-source": "pqi-ffi-source",
+        "pqi-native-source": "pqi-native-source",
+        "pqi-source": "pqi-source",
         "systems": "systems_7"
       }
     },

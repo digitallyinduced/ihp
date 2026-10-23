@@ -26,6 +26,15 @@
 
 ### Breaking Changes
 
+- IHP now uses Hasql 2.0 and hasql-pool 1.5. Query pools, typed-SQL metadata
+  connections and migration tools select `Pqi.Native.adapter`; the pinned
+  pqi-native 1.0.1.15 includes the large-field receive allocation fix. Dedicated
+  `IHP.PGListener` connections select `Pqi.Ffi.adapter` because native idle
+  notification reads are not yet implemented. Applications creating their own
+  Hasql connections or pools must add an adapter dependency and pass it as the
+  first argument to `acquire`, for example
+  `Hasql.Connection.acquire Pqi.Native.adapter settings`. The Nix overlay pins
+  the compatible Hasql 2.0 package family for both supported GHC package sets.
 - PostgreSQL 18 is the default for the development server, test and compile-time databases, and `appWithPostgres`. New tables, jobs, and DataSync triggers use `uuidv7()` unless `IHP_POSTGRES_VERSION` is set below 18. A PostgreSQL 17 data directory must be upgraded or recreated.
 - `DefaultScope` has been removed. `query @Model` now always starts without
   implicit filters; define and use explicit query functions for reusable scopes.

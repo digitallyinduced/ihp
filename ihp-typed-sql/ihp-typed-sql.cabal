@@ -70,11 +70,12 @@ library
             , directory
             , filepath
             , hashable
-            , hasql >= 1.4 && < 2
+            , hasql >= 2.0.1 && < 2.1
+            , pqi-native >= 1.0.1.15 && < 1.1
             , hasql-dynamic-statements
             , hasql-implicits
             , hasql-mapping
-            , hasql-pool
+            , hasql-pool >= 1.5 && < 1.6
             , hasql-postgresql-types
             , haskell-src-meta
             , inflections
@@ -109,14 +110,18 @@ test-suite spec
     build-depends:
             base >= 4.17.0 && < 4.23
             , ihp-typed-sql
+            , async
+            , bytestring
             , containers
             , directory
             , filepath
-            , hasql >= 1.4 && < 2
+            , hasql >= 2.0.1 && < 2.1
+            , pqi-native >= 1.0.1.15 && < 1.1
             , hasql-dynamic-statements
             , hasql-implicits
             , hasql-mapping
-            , hasql-pool
+            , hasql-pool >= 1.5 && < 1.6
+            , hasql-transaction
             , hasql-postgresql-types
             , hspec
             , process
@@ -126,4 +131,5 @@ test-suite spec
             , text
             , unix
     other-modules:
+        Test.HasqlAdapterSpec
         Test.TypedSqlSpec
