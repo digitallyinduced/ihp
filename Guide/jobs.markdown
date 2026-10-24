@@ -211,7 +211,7 @@ instance Worker RootApplication where
 
 #### Development vs. Production
 
-In development mode, `devenv up` spawns two processes — `web` and `worker` — that own one GHCi session each. The web process owns the file watcher and signals the worker over a Unix socket whenever a Haskell change occurs, so the worker reloads independently. Projects with no `**/Job/*.hs` files have the `worker` process idling.
+In development mode, `devenv up` spawns two processes — `web` and `worker` — that own one GHCi session each. The web process owns the file watcher and signals the worker over a Unix socket whenever a Haskell change occurs, so the worker reloads independently. The socket lives in `$XDG_RUNTIME_DIR` (or the temp dir), not inside the project, so Nix never sees it. Projects with no `**/Job/*.hs` files have the `worker` process idling.
 
 In production, the `RunJobs` binary is automatically built when you run `nix build .#optimized-prod-server` or `nix build .#unoptimized-prod-server`. Deploy it at `result/bin/RunJobs` alongside your IHP app to watch for added jobs and run them.
 

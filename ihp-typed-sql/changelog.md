@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- Require Hasql 2.0 and hasql-pool 1.5. Compile-time metadata connections use
+  `Pqi.Native.adapter`, including the large-field receive fix in pqi-native
+  1.0.1.15. Callers creating their own pools must pass an adapter as the first
+  argument to `Hasql.Pool.acquire`.
+
 - `ihp-typed-sql` no longer depends on the `ihp` package and can be installed
   standalone (e.g. alongside `ihp-hsx` and `ihp-router`). The IHP-specific
   `ModelContext` runners (`IHP.TypedSql`) and pagination

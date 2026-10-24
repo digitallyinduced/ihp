@@ -51,6 +51,7 @@ import qualified Control.Concurrent.Chan.Unagi as Queue
 import qualified Control.Concurrent
 
 import qualified Hasql.Connection as Hasql
+import qualified Pqi.Ffi
 import qualified Hasql.Connection.Settings as HasqlSettings
 import qualified Hasql.Notifications as HasqlNotifications
 
@@ -237,7 +238,8 @@ listenToChannelIfNeeded channel pgListener = do
 -- | Acquires a dedicated hasql connection from the given database URL.
 acquireConnection :: ByteString -> IO Hasql.Connection
 acquireConnection databaseUrl = do
-    result <- Hasql.acquire (HasqlSettings.connectionString (cs databaseUrl))
+    -- The native adapter does not yet consume idle LISTEN notifications.
+    result <- Hasql.acquire Pqi.Ffi.adapter (HasqlSettings.connectionString (cs databaseUrl))
     case result of
         Right connection -> pure connection
         Left err -> Prelude.error ("PGListener: Failed to connect to database: " <> Prelude.show err)

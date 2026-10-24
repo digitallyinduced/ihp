@@ -20,6 +20,7 @@ import qualified Control.Exception as Exception
 import Data.String.Conversions (cs)
 import Data.Text (Text)
 import qualified Hasql.Connection as Connection
+import qualified Pqi.Native
 import qualified Hasql.Connection.Settings as ConnectionSettings
 import qualified Hasql.Session as Session
 import qualified Hasql.Statement as Statement
@@ -176,7 +177,7 @@ withApplicationDatabase adminConnection action =
 
 withConnection :: String -> (Connection.Connection -> IO a) -> IO a
 withConnection databaseUrl action = do
-    connectionResult <- Connection.acquire (ConnectionSettings.connectionString (cs databaseUrl))
+    connectionResult <- Connection.acquire Pqi.Native.adapter (ConnectionSettings.connectionString (cs databaseUrl))
     case connectionResult of
         Left error -> expectationFailure (show error) >> fail "Could not connect to the integration test database"
         Right connection -> Exception.finally (action connection) (Connection.release connection)

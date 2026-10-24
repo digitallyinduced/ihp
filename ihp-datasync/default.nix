@@ -4,7 +4,7 @@
 , hasql-dynamic-statements, hasql-mapping, hasql-pool
 , hasql-postgresql-types, hasql-transaction, hspec, http-media
 , http-types, ihp, ihp-hsx, interpolate, lib, mono-traversable, mtl
-, postgresql-types, safe-exceptions, scientific, stm
+, postgresql-types, pqi-native, safe-exceptions, scientific, stm
 , template-haskell, text, time, transformers, typerep-map, unliftio
 , unordered-containers, uuid, vault, vector, wai, wai-websockets
 , warp, websockets
@@ -19,9 +19,10 @@ mkDerivation {
     haskell-src-meta hasql hasql-dynamic-statements hasql-mapping
     hasql-pool hasql-postgresql-types hasql-transaction http-media
     http-types ihp ihp-hsx interpolate mono-traversable mtl
-    postgresql-types safe-exceptions scientific stm template-haskell
-    text time transformers typerep-map unliftio unordered-containers
-    uuid vault vector wai wai-websockets warp websockets
+    postgresql-types pqi-native safe-exceptions scientific stm
+    template-haskell text time transformers typerep-map unliftio
+    unordered-containers uuid vault vector wai wai-websockets warp
+    websockets
   ];
   testHaskellDepends = [
     aeson async attoparsec base bytestring case-insensitive
@@ -29,11 +30,12 @@ mkDerivation {
     haskell-src-meta hasql hasql-dynamic-statements hasql-mapping
     hasql-pool hasql-postgresql-types hasql-transaction hspec
     http-media http-types ihp ihp-hsx interpolate mono-traversable mtl
-    postgresql-types safe-exceptions scientific stm template-haskell
-    text time transformers typerep-map unliftio unordered-containers
-    uuid vault vector wai wai-websockets warp websockets
+    postgresql-types pqi-native safe-exceptions scientific stm
+    template-haskell text time transformers typerep-map unliftio
+    unordered-containers uuid vault vector wai wai-websockets warp
+    websockets
   ];
   homepage = "https://ihp.digitallyinduced.com/";
   description = "IHP DataSync Framework";
-  license = lib.meta.getLicenseFromSpdxId "MIT";
+  license = lib.licenses.mit;
 }

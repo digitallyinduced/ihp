@@ -29,9 +29,10 @@ common shared-properties
             , transformers
             , mtl
             , text
-            , hasql
+            , hasql >= 2.0.1 && < 2.1
+            , pqi-native >= 1.0.1.15 && < 1.1
             , hasql-dynamic-statements
-            , hasql-pool
+            , hasql-pool >= 1.5 && < 1.6
             , hasql-transaction
             , bytestring
             , aeson
@@ -126,6 +127,7 @@ library
         , IHP.DataSync.ChangeNotifications
         , IHP.DataSync.Controller
         , IHP.DataSync.ControllerImpl
+        , IHP.DataSync.Drain
         , IHP.DataSync.REST.Types
         , IHP.DataSync.REST.Routes
         , IHP.DataSync.REST.Controller
@@ -154,6 +156,7 @@ test-suite ihp-datasync-hspec
                  , DataSync.RLSIntegrationSpec
                  , DataSync.DataSyncIntegrationSpec
                  , DataSync.LongPollSpec
+                 , DataSync.DrainSpec
     build-depends:
           ihp-datasync
         , hspec

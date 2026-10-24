@@ -71,7 +71,12 @@ let
             ihp-pagehead = localPackage "ihp-pagehead";
             ihp-pglistener = localPackage "ihp-pglistener";
             ihp-modal = localPackage "ihp-modal";
-            ihp-ide = withoutSeparateDataOutputOnDarwin (localPackage "ihp-ide");
+            ihp-ide = (withoutSeparateDataOutputOnDarwin (localPackage "ihp-ide")).overrideAttrs (_: {
+                # StatusServerSpec binds an ephemeral loopback server and
+                # connects WebSocket clients. Declare that test capability on
+                # this derivation only; keep Darwin sandboxing and all tests.
+                __darwinAllowLocalNetworking = true;
+            });
             ihp-schema-compiler = localPackage "ihp-schema-compiler";
             ihp-postgres-parser = localPackage "ihp-postgres-parser";
             ihp-mail = localPackage "ihp-mail";
@@ -122,17 +127,15 @@ let
             # verbatim for a cache hit. Restore the override only if a reverted
             # nixpkgs pin no longer carries 0.3.2.
 
-            # Hasql 1.10 is the pinned nixpkgs default, including hasql 1.10.3.7
-            # and hasql-pool 1.4.2.3 with the poisoned-connection fixes from
-            # #2765. The surrounding ecosystem (including hasql-interpolate,
-            # postgresql-binary, text-builder and postgresql-connection-string)
-            # also needs no overrides.
+            # Hasql 2 and its adapters are pinned together in hasql.nix.
+            # postgresql-binary, text-builder and postgresql-connection-string
+            # continue to resolve from the pinned nixpkgs package set.
 
             # temporary-ospath is shipped by the pinned nixpkgs at 1.3, so it
             # also resolves from the default set with no override needed.
 
-            # postgresql-simple-postgresql-types and hasql-mapping are unbroken in
-            # the pinned nixpkgs, so no markUnbroken overrides are needed.
+            # postgresql-simple-postgresql-types is unbroken in the pinned
+            # nixpkgs, so no markUnbroken override is needed.
 
             # The PostGIS-enabled postgresql-types source below still requires
             # postgresql-types-algebra <0.2. nixpkgs has moved to 0.2, so retain
@@ -173,6 +176,7 @@ final: prev: {
     # The dontCheck overrides below apply to that default build.
     ghc = final.haskellPackages.override {
         overrides = final.lib.composeManyExtensions [
+            (import ./hasql.nix { inherit inputs; pkgs = final; })
             (ihpOverrides final)
             (self: super: {
                 # say tests fail due to CRLF newline handling changes
@@ -226,6 +230,7 @@ final: prev: {
                 (self: super: {
                     ghc-exactprint_1_14_0_0 = final.haskell.lib.dontCheck super.ghc-exactprint_1_14_1_0;
                 })
+                (import ./hasql.nix { inherit inputs; pkgs = final; })
                 (ihpOverrides final)
                 (self: super: {
                     say = final.haskell.lib.dontCheck super.say;

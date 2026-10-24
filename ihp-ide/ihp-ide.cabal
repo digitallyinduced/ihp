@@ -91,8 +91,9 @@ common shared-properties
             , safe-exceptions
             , countable-inflections
             , ihp-migrate
-            , hasql
-            , hasql-pool
+            , hasql >= 2.0.1 && < 2.1
+            , pqi-native >= 1.0.1.15 && < 1.1
+            , hasql-pool >= 1.5 && < 1.6
             , hasql-dynamic-statements
             , hasql-implicits
     default-extensions:
@@ -382,4 +383,5 @@ test-suite tests
         IDE.Logs.ControllerSpec
         IDE.DevServerSpec
         IDE.StatusServerSpec
+        IDE.TelemetrySpec
         ServerSpec
