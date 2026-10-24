@@ -43,6 +43,20 @@ let
             # (slower eval due to IFD, but no generated files needed):
             #   localPackageIFD = name: fastBuild (super.callCabal2nix name (filteredSrc name) {});
 
+            # On Darwin, keep the data files in `out` instead of a separate `data`
+            # output. When Nix rebuilds a multi-output derivation while a sibling
+            # output is still valid (e.g. GC removed `out` but kept `data`), it
+            # builds against a scratch path for the valid output and rewrites that
+            # path in the new outputs after the builder exits. The cabal Paths_<pkg>
+            # module embeds the data path, so the rewrite edits Mach-O files that ld
+            # already ad-hoc signed, and macOS kills them on launch or dlopen
+            # ("Killed: 9"). Re-signing in postFixup cannot help, because the rewrite
+            # runs after the builder. Linux derivations stay unchanged.
+            withoutSeparateDataOutputOnDarwin = pkg:
+                if final.stdenv.hostPlatform.isDarwin
+                then final.haskell.lib.overrideCabal pkg (_: { enableSeparateDataOutput = false; })
+                else pkg;
+
             # ihp-with-docs has haddock for reference docs
             localPackageWithHaddock = name:
                 final.haskell.lib.disableLibraryProfiling (
@@ -51,13 +65,13 @@ let
                         { src = filteredSrc name; }
                 );
         in {
-            ihp = localPackage "ihp";
+            ihp = withoutSeparateDataOutputOnDarwin (localPackage "ihp");
             ihp-with-docs = localPackageWithHaddock "ihp";
             ihp-router = localPackage "ihp-router";
             ihp-pagehead = localPackage "ihp-pagehead";
             ihp-pglistener = localPackage "ihp-pglistener";
             ihp-modal = localPackage "ihp-modal";
-            ihp-ide = (localPackage "ihp-ide").overrideAttrs (_: {
+            ihp-ide = (withoutSeparateDataOutputOnDarwin (localPackage "ihp-ide")).overrideAttrs (_: {
                 # StatusServerSpec binds an ephemeral loopback server and
                 # connects WebSocket clients. Declare that test capability on
                 # this derivation only; keep Darwin sandboxing and all tests.
