@@ -7,7 +7,7 @@
 - Cache unchanged schema compilation using a SHA-256 manifest of every output.
   The schema, relation options and immutable Nix compiler identity determine the
   cache key. Missing, modified or corrupt outputs cause regeneration.
-- Add cache regression checks and a comparison benchmark:
+- Add native Hspec cache regression tests and a Haskell comparison benchmark:
   `nix run .#schema-compiler-benchmark -- /path/to/old/build-generated-code /path/to/Application/Schema.sql`.
 
 ## v1.6.0

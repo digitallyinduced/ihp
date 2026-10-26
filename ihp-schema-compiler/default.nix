@@ -1,7 +1,8 @@
 { mkDerivation, base, bytestring, classy-prelude, containers
 , countable-inflections, cryptohash-sha256, directory, filepath
-, ihp, ihp-postgres-parser, interpolate, lib, neat-interpolation
-, split, string-conversions, text, with-utf8
+, hspec, ihp, ihp-postgres-parser, interpolate, lib
+, neat-interpolation, process, split, string-conversions, temporary
+, text, time, with-utf8
 }:
 mkDerivation {
   pname = "ihp-schema-compiler";
@@ -18,8 +19,15 @@ mkDerivation {
   ];
   executableHaskellDepends = [
     base bytestring classy-prelude containers countable-inflections
-    directory filepath ihp ihp-postgres-parser interpolate
-    neat-interpolation split string-conversions text with-utf8
+    cryptohash-sha256 directory filepath ihp ihp-postgres-parser
+    interpolate neat-interpolation process split string-conversions
+    temporary text time with-utf8
+  ];
+  testHaskellDepends = [
+    base bytestring classy-prelude containers countable-inflections
+    cryptohash-sha256 directory filepath hspec ihp ihp-postgres-parser
+    interpolate neat-interpolation process split string-conversions
+    temporary text time with-utf8
   ];
   homepage = "https://ihp.digitallyinduced.com/";
   description = "Lightweight schema compiler for IHP";
