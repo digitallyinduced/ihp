@@ -1,7 +1,7 @@
 { mkDerivation, base, bytestring, classy-prelude, containers
-, countable-inflections, directory, filepath, ihp
-, ihp-postgres-parser, interpolate, lib, neat-interpolation, split
-, string-conversions, text, with-utf8
+, countable-inflections, cryptohash-sha256, directory, filepath
+, ihp, ihp-postgres-parser, interpolate, lib, neat-interpolation
+, split, string-conversions, text, with-utf8
 }:
 mkDerivation {
   pname = "ihp-schema-compiler";
@@ -12,8 +12,9 @@ mkDerivation {
   enableSeparateDataOutput = true;
   libraryHaskellDepends = [
     base bytestring classy-prelude containers countable-inflections
-    directory filepath ihp ihp-postgres-parser interpolate
-    neat-interpolation split string-conversions text with-utf8
+    cryptohash-sha256 directory filepath ihp ihp-postgres-parser
+    interpolate neat-interpolation split string-conversions text
+    with-utf8
   ];
   executableHaskellDepends = [
     base bytestring classy-prelude containers countable-inflections
@@ -22,6 +23,6 @@ mkDerivation {
   ];
   homepage = "https://ihp.digitallyinduced.com/";
   description = "Lightweight schema compiler for IHP";
-  license = lib.meta.getLicenseFromSpdxId "MIT";
+  license = lib.licenses.mit;
   mainProgram = "build-generated-code";
 }

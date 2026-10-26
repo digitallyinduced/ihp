@@ -77,7 +77,7 @@ let
                 # this derivation only; keep Darwin sandboxing and all tests.
                 __darwinAllowLocalNetworking = true;
             });
-            ihp-schema-compiler = localPackage "ihp-schema-compiler";
+            ihp-schema-compiler = withoutSeparateDataOutputOnDarwin (localPackage "ihp-schema-compiler");
             ihp-postgres-parser = localPackage "ihp-postgres-parser";
             ihp-mail = localPackage "ihp-mail";
             ihp-migrate = (localPackage "ihp-migrate").overrideAttrs (old: { mainProgram = "migrate"; });

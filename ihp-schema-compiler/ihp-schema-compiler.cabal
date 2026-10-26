@@ -81,6 +81,9 @@ common shared-properties
 
 library
     import: shared-properties
+    build-depends: cryptohash-sha256
+    autogen-modules: Paths_ihp_schema_compiler
+    other-modules: IHP.SchemaCompiler.Cache, Paths_ihp_schema_compiler
     hs-source-dirs: .
     exposed-modules:
           IHP.SchemaCompiler

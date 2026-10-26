@@ -21,9 +21,14 @@ import Data.Bits (bit)
 import Data.Maybe (fromJust)
 import Data.String.Conversions (cs)
 import "interpolate" Data.String.Interpolate (i)
-import IHP.NameSupport (tableNameToModelName, columnNameToFieldName, enumValueToControllerName)
+import qualified IHP.NameSupport as NameSupport
 import qualified Data.Text as Text
+import qualified Data.Text.IO as TextIO
+import qualified Data.Text.Encoding as TextEncoding
+import qualified IHP.SchemaCompiler.Cache as Cache
+import qualified Paths_ihp_schema_compiler as Paths
 import qualified Data.Map.Strict as Map
+import qualified Data.Map.Lazy as NameMap
 import qualified System.Directory.OsPath as Directory
 import IHP.HaskellSupport
 import qualified IHP.SchemaCompiler.Parser as SchemaDesigner
@@ -45,19 +50,25 @@ compile :: IO ()
 compile = do
     relationSupport <- System.Environment.lookupEnv "IHP_RELATION_SUPPORT"
     let options = fullCompileOptions { compileRelationSupport = relationSupport /= Just "0" }
-    SchemaDesigner.parseSchemaSql >>= \case
-        Left parserError -> Exception.throwIO (CompileException parserError)
-        Right statements -> do
-            -- let validationErrors = validate database
-            -- unless (null validationErrors) (error $ "Schema.hs contains errors: " <> cs (unsafeHead validationErrors))
-            Directory.createDirectoryIfMissing True "build/Generated"
-            Directory.createDirectoryIfMissing True "build/Generated/ActualTypes"
-            Directory.createDirectoryIfMissing True "build/Generated/ActualTypes/PrimaryKeys"
-            Directory.createDirectoryIfMissing True "build/Generated/Enums"
-            Directory.createDirectoryIfMissing True "build/Generated/Statements"
-
-            forEach (compileModules options (Schema statements)) \(path, body) -> do
+    fp <- decodeUtf SchemaDesigner.schemaFilePath
+    sql <- TextIO.readFile fp
+    compilerIdentity <- Paths.getDataDir
+    let key = Cache.cacheKey compilerIdentity options.compileRelationSupport sql
+    fresh <- Cache.isFresh key
+    unless fresh do
+        case PostgresParser.parseSqlWithSource fp sql of
+            Left parserError -> Exception.throwIO (CompileException parserError)
+            Right statements -> do
+                Directory.createDirectoryIfMissing True "build/Generated"
+                Directory.createDirectoryIfMissing True "build/Generated/ActualTypes"
+                Directory.createDirectoryIfMissing True "build/Generated/ActualTypes/PrimaryKeys"
+                Directory.createDirectoryIfMissing True "build/Generated/Enums"
+                Directory.createDirectoryIfMissing True "build/Generated/Statements"
+                entries <- forM (compileModules options (Schema statements)) \(path, body) -> do
                     writeIfDifferent path body
+                    name <- decodeUtf path
+                    Exception.evaluate (Cache.entry name (TextEncoding.encodeUtf8 body))
+                Cache.store key entries
 
 compileModules :: CompilerOptions -> Schema -> [(OsPath, Text)]
 compileModules options schema =
@@ -197,6 +208,10 @@ data Schema = MkSchema
     , schemaGeneratedEnums :: [(Text, Statement)]
     -- | For each enum value, the number of enum types that have it.
     , schemaEnumValueCounts :: Map Text Int
+    , schemaModelNames :: Map Text Text
+    , schemaFieldNames :: Map Text Text
+    , schemaEnumNames :: Map Text Text
+    , schemaEnumModelNames :: Set Text
     }
 
 pattern Schema :: [Statement] -> Schema
@@ -207,6 +222,10 @@ pattern Schema statements <- MkSchema { statements }
 mkSchema :: [Statement] -> Schema
 mkSchema statements = MkSchema
     { statements
+    , schemaModelNames = NameMap.fromList [(name, NameSupport.tableNameToModelName name) | name <- typeNames]
+    , schemaFieldNames = NameMap.fromList [(name, NameSupport.columnNameToFieldName name) | name <- columnNames <> typeNames]
+    , schemaEnumNames = NameMap.fromList [(value, NameSupport.enumValueToControllerName value) | CreateEnumType { values } <- statements, value <- ordNub values]
+    , schemaEnumModelNames = setFromList [NameSupport.tableNameToModelName name | CreateEnumType { name, values } <- statements, not (null values)]
     , schemaTablesByName = statements
         |> mapMaybe (\case
             StatementCreateTable table -> Just (table.name, table)
@@ -240,10 +259,23 @@ mkSchema statements = MkSchema
         |> Map.fromListWith (+)
     }
     where
+        typeNames = ordNub ([table.name | StatementCreateTable table <- statements] <> [name | CreateEnumType { name } <- statements])
+        columnNames = ordNub [column.name | StatementCreateTable table <- statements, column <- table.columns]
         -- Like the searches through the statement list that the lookups
         -- replace, a lookup finds the first match.
         firstWins :: Ord key => [(key, value)] -> Map key value
         firstWins = Map.fromListWith (\_later earlier -> earlier)
+
+-- Schema-local names avoid repeating inflection parsing for every generated module.
+-- Values stay lazy: unused columns on no-codegen tables need not have Haskell names.
+tableNameToModelName :: (?schema :: Schema) => Text -> Text
+tableNameToModelName name = fromMaybe (NameSupport.tableNameToModelName name) (Map.lookup name ?schema.schemaModelNames)
+
+columnNameToFieldName :: (?schema :: Schema) => Text -> Text
+columnNameToFieldName name = fromMaybe (NameSupport.columnNameToFieldName name) (Map.lookup name ?schema.schemaFieldNames)
+
+enumValueToControllerName :: (?schema :: Schema) => Text -> Text
+enumValueToControllerName name = fromMaybe (NameSupport.enumValueToControllerName name) (Map.lookup name ?schema.schemaEnumNames)
 
 data CompilerOptions = CompilerOptions {
         -- | We can toggle the generation of @SetField@ and @GetField@ instances.
@@ -263,7 +295,7 @@ fullCompileOptions = CompilerOptions { compileGetAndSetFieldInstances = True, co
 previewCompilerOptions :: CompilerOptions
 previewCompilerOptions = CompilerOptions { compileGetAndSetFieldInstances = False, compileRelationSupport = True }
 
-atomicType :: PostgresType -> Text
+atomicType :: (?schema :: Schema) => PostgresType -> Text
 atomicType = \case
     PSmallInt -> "Int"
     PInt -> "Int"
@@ -390,7 +422,7 @@ compileIndex schema = [trimming|
                 schema.statements
                 |> map (\case
                         StatementCreateTable table | not (table.name `member` noCodegenTables) ->
-                            let modelName = tableNameToModelName table.name
+                            let modelName = NameSupport.tableNameToModelName table.name
                             in
                                 [ "Generated." <> modelName ]
                                 <> if ?compilerOptions.compileRelationSupport
@@ -500,7 +532,7 @@ compileEnumsIndex schema = [trimming|
         $imports
     |]
     where
-        moduleNames = generatedEnums schema |> map (enumModuleName . fst)
+        moduleNames = let ?schema = schema in generatedEnums schema |> map (enumModuleName . fst)
         imports = moduleNames |> map ("import " <>) |> Text.unlines
         rexports = moduleNames |> map ("module " <>) |> Text.intercalate ", "
 
@@ -659,7 +691,7 @@ noCodegenCommentTableName raw =
             Just quoted -> quoted
             Nothing -> Text.toLower identifier
 
-noCodegenPrimaryKeyModuleName :: Text -> Text
+noCodegenPrimaryKeyModuleName :: (?schema :: Schema) => Text -> Text
 noCodegenPrimaryKeyModuleName tableName = "Generated.ActualTypes.PrimaryKeys." <> tableNameToModelName tableName
 
 -- | The tables marked with 'noCodegenMarker' whose primary keys the given
@@ -688,7 +720,7 @@ noCodegenReferenceImports table =
 generatedEnums :: Schema -> [(Text, Statement)]
 generatedEnums schema = schema.schemaGeneratedEnums
 
-enumModuleName :: Text -> Text
+enumModuleName :: (?schema :: Schema) => Text -> Text
 enumModuleName enumName = "Generated.Enums." <> tableNameToModelName enumName
 
 -- | Imports of the enum modules that the Haskell types of the given columns use.
@@ -703,7 +735,7 @@ enumImports columns =
     |> Text.unlines
     where
         enumModelNames :: Set Text
-        enumModelNames = generatedEnums ?schema |> map (tableNameToModelName . fst) |> setFromList
+        enumModelNames = ?schema.schemaEnumModelNames
 
 -- | Custom type names the Haskell type of a column refers to. Like
 -- 'haskellType', a foreign key to a column that is not a primary key takes
@@ -763,7 +795,7 @@ compileData table@(CreateTable { name, columns }) =
         typeArguments :: Text
         typeArguments = dataTypeArguments table |> unwords
 
-compileInputValueInstance :: CreateTable -> Text
+compileInputValueInstance :: (?schema :: Schema) => CreateTable -> Text
 compileInputValueInstance table =
         "instance InputValue " <> modelName <> " where inputValue = IHP.ModelSupport.recordToInputValue\n"
     where
@@ -811,9 +843,11 @@ columnsWithBitIndices allColumns subset =
     let subsetNames = setFromList (map (.name) subset) :: Set Text
     in [(col, idx) | (col, idx) <- zip allColumns [0..], col.name `member` subsetNames]
 
-compileQueryBuilderFields :: [(Text, Text, Maybe Text)] -> [(Text, Text)]
+compileQueryBuilderFields :: (?schema :: Schema) => [(Text, Text, Maybe Text)] -> [(Text, Text)]
 compileQueryBuilderFields columns = map compileQueryBuilderField columns
     where
+        columnCounts :: Map Text Int
+        columnCounts = Map.fromListWith (+) [(columnNameToFieldName tableName, 1) | (tableName, _, _) <- columns]
         compileQueryBuilderField (refTableName, refColumnName, _refColumn) =
             let
                 -- Given a relationship like the following:
@@ -831,13 +865,7 @@ compileQueryBuilderFields columns = map compileQueryBuilderField columns
                 --
                 -- In the example this will lead to two fileds called @referralsUsers@ and @referralsReferredUsers@
                 -- being added to the data structure.
-                hasDuplicateQueryBuilder =
-                    columns
-                    |> map (\(t, _, _) -> t)
-                    |> map columnNameToFieldName
-                    |> filter (columnNameToFieldName refTableName ==)
-                    |> length
-                    |> (\count -> count > 1)
+                hasDuplicateQueryBuilder = Map.findWithDefault 0 (columnNameToFieldName refTableName) columnCounts > 1
 
                 stripIdSuffix :: Text -> Text
                 stripIdSuffix name = fromMaybe name (Text.stripSuffix "_id" name)
@@ -865,7 +893,8 @@ compileQueryBuilderFields columns = map compileQueryBuilderField columns
 --
 -- >>> columnsReferencingTable "companies"
 -- [ ("users", "company_id") ]
-columnsReferencingTable :: (?schema :: Schema) => Text -> [(Text, Text, Maybe Text)]
+columnsReferencingTable :: (?schema :: Schema, ?compilerOptions :: CompilerOptions) => Text -> [(Text, Text, Maybe Text)]
+columnsReferencingTable _ | not ?compilerOptions.compileRelationSupport = []
 columnsReferencingTable theTableName =
     let
         -- Tables without generated code have no model to relate to.
@@ -1004,7 +1033,7 @@ compileEnumDataDefinitions enum@(CreateEnumType { name, values }) =
                 Map.lookup enumValue ?schema.schemaEnumValueCounts == Just 1
 compileEnumDataDefinitions _ = ""
 
-qualifiedConstructorNameFromTableName :: Text -> Text
+qualifiedConstructorNameFromTableName :: (?schema :: Schema) => Text -> Text
 qualifiedConstructorNameFromTableName unqualifiedName = "Generated.ActualTypes." <> (tableNameToModelName unqualifiedName)
 
 -- | Imports for the per-table generated modules ('tableModule', the statement
@@ -1111,7 +1140,7 @@ spacePrefix :: Text -> Text
 spacePrefix "" = ""
 spacePrefix t = " " <> t
 
-toBinding :: Text -> Column -> Text
+toBinding :: (?schema :: Schema) => Text -> Column -> Text
 toBinding modelName Column { name } = "let " <> modelName <> "{" <> columnNameToFieldName name <> "} = model in " <> columnNameToFieldName name
 
 onlyWritableColumns columns = columns |> filter (\Column { generator } -> isNothing generator)
@@ -1233,7 +1262,7 @@ hasqlColumnDecoder table column@Column { name, columnType, notNull, generator } 
         baseDecoder = hasqlValueDecoder columnType
         decoder = if needsIdWrapper then "Mapping.decoder" else baseDecoder
 
-hasqlValueDecoder :: PostgresType -> Text
+hasqlValueDecoder :: (?schema :: Schema) => PostgresType -> Text
 hasqlValueDecoder = \case
     PUUID -> "Decoders.uuid"
     PText -> "Decoders.text"
@@ -1269,7 +1298,7 @@ hasqlValueDecoder = \case
     PTrigger -> "Decoders.text"  -- Trigger types shouldn't appear in table columns
     PEventTrigger -> "Decoders.text"  -- Event trigger types shouldn't appear in table columns
 
-hasqlArrayElementDecoder :: PostgresType -> Text
+hasqlArrayElementDecoder :: (?schema :: Schema) => PostgresType -> Text
 hasqlArrayElementDecoder innerType = "Decoders.nonNullable " <> hasqlValueDecoder innerType
 
 compileBuild :: (?schema :: Schema, ?compilerOptions :: CompilerOptions) => CreateTable -> Text
@@ -1290,7 +1319,7 @@ compileDefaultIdInstance :: CreateTable -> Text
 compileDefaultIdInstance table = "instance Default (Id' \"" <> table.name <> "\") where def = Id def"
 
 
-toDefaultValueExpr :: Column -> Text
+toDefaultValueExpr :: (?schema :: Schema) => Column -> Text
 toDefaultValueExpr Column { columnType, notNull, defaultValue = Just theDefaultValue } =
             let
                 wrapNull False value = "(Just " <> value <> ")"
@@ -1484,7 +1513,7 @@ instance HasField "id" #{tableNameToModelName name} (Id' "#{name}") where
     {-# INLINE getField #-}
 |]
 
-compilePrimaryKeyValue :: CreateTable -> Text
+compilePrimaryKeyValue :: (?schema :: Schema) => CreateTable -> Text
 compilePrimaryKeyValue CreateTable { primaryKeyConstraint } =
     case primaryKeyColumnNames primaryKeyConstraint of
         [id] -> columnNameToFieldName id
@@ -1609,7 +1638,7 @@ statementModuleDynamicImports =
         , "import qualified Data.Text as Text"
         ]
 
-hasqlValueEncoder :: PostgresType -> Text
+hasqlValueEncoder :: (?schema :: Schema) => PostgresType -> Text
 hasqlValueEncoder = \case
     PUUID -> "Encoders.uuid"
     PText -> "Encoders.text"

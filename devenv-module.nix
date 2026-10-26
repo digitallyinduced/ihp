@@ -43,8 +43,17 @@ that is defined in flake-module.nix
             };
         };
 
+        apps.schema-compiler-benchmark = {
+            type = "app";
+            program = "${config.checks.schema-compiler-regressions.benchmark}/bin/schema-compiler-benchmark";
+        };
+
         # Use `nix flake check --impure` to run tests and check that all ihp packages are building succesfully
         checks = {
+            schema-compiler-regressions = import ./NixSupport/schema-compiler-tests.nix {
+                inherit pkgs;
+                ihp = self;
+            };
             # Checks devShells
             ihp-devShell = self.devShells.${system}.default;
             boilerplate-devShell = inputs.ihp-boilerplate.devShells.${system}.default;

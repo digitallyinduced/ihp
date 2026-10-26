@@ -1,5 +1,15 @@
 # Changelog for `ihp-schema-compiler`
 
+## Unreleased
+
+- Share schema-local name and enum lookups, and skip reverse-relationship work
+  when relation support is disabled.
+- Cache unchanged schema compilation using a SHA-256 manifest of every output.
+  The schema, relation options and immutable Nix compiler identity determine the
+  cache key. Missing, modified or corrupt outputs cause regeneration.
+- Add cache regression checks and a comparison benchmark:
+  `nix run .#schema-compiler-benchmark -- /path/to/old/build-generated-code /path/to/Application/Schema.sql`.
+
 ## v1.6.0
 
 - Fix generated `createMany` statements for tables where writable columns have
