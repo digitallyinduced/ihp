@@ -3,7 +3,7 @@ module DataSync.RLSIntegrationSpec where
 import Test.Hspec
 import IHP.Prelude hiding (head)
 import qualified Hasql.Pool
-import qualified Pqi.Native
+import qualified Pqi.Ffi
 import qualified Hasql.Pool.Config as Hasql.Pool.Config
 import qualified Hasql.Connection.Settings as HasqlSettings
 import qualified Hasql.Session as Session
@@ -26,7 +26,7 @@ getMasterDatabaseUrl = do
 
 -- | Create a hasql pool for the given connection string
 makePool :: Text -> IO Hasql.Pool.Pool
-makePool connStr = Hasql.Pool.acquire Pqi.Native.adapter $ Hasql.Pool.Config.settings
+makePool connStr = Hasql.Pool.acquire Pqi.Ffi.adapter $ Hasql.Pool.Config.settings
     [ Hasql.Pool.Config.size 2
     , Hasql.Pool.Config.staticConnectionSettings
         (HasqlSettings.connectionString connStr)

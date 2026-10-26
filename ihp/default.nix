@@ -12,7 +12,7 @@
 , mime-types, minio-hs, mono-traversable, mtl, neat-interpolation
 , network, network-uri, parser-combinators, postgresql-simple
 , postgresql-simple-postgresql-types, postgresql-types
-, postgresql-types-algebra, pqi-native, process, ptr-peeker
+, postgresql-types-algebra, pqi-ffi, process, ptr-peeker
 , ptr-poker, pwstore-fast, random, random-strings, regex-tdfa
 , resource-pool, resourcet, safe-exceptions, scientific, slugger
 , split, stm, string-conversions, tasty-bench, template-haskell
@@ -43,7 +43,7 @@ mkDerivation {
     mono-traversable mtl neat-interpolation network network-uri
     parser-combinators postgresql-simple
     postgresql-simple-postgresql-types postgresql-types
-    postgresql-types-algebra pqi-native process ptr-peeker ptr-poker
+    postgresql-types-algebra pqi-ffi process ptr-peeker ptr-poker
     pwstore-fast random random-strings regex-tdfa resource-pool
     resourcet safe-exceptions scientific slugger split stm
     string-conversions template-haskell text text-builder time
@@ -68,7 +68,7 @@ mkDerivation {
     mono-traversable mtl neat-interpolation network network-uri
     parser-combinators postgresql-simple
     postgresql-simple-postgresql-types postgresql-types
-    postgresql-types-algebra pqi-native process ptr-peeker ptr-poker
+    postgresql-types-algebra pqi-ffi process ptr-peeker ptr-poker
     pwstore-fast random random-strings regex-tdfa resource-pool
     resourcet safe-exceptions scientific slugger split stm
     string-conversions template-haskell text text-builder time
@@ -93,7 +93,7 @@ mkDerivation {
     mono-traversable mtl neat-interpolation network network-uri
     parser-combinators postgresql-simple
     postgresql-simple-postgresql-types postgresql-types
-    postgresql-types-algebra pqi-native process ptr-peeker ptr-poker
+    postgresql-types-algebra pqi-ffi process ptr-peeker ptr-poker
     pwstore-fast random random-strings regex-tdfa resource-pool
     resourcet safe-exceptions scientific slugger split stm
     string-conversions tasty-bench template-haskell text text-builder

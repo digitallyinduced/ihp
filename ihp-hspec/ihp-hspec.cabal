@@ -36,6 +36,6 @@ library
         ImplicitParams
         RecordWildCards
     ghc-options: -Werror=incomplete-patterns -Werror=unused-imports -Werror=missing-fields -Werror=missing-home-modules
-    build-depends: base >= 4.17.0 && < 4.23, ihp, fast-logger, wai, process, text, ihp-ide, vault, uuid, hasql >= 2.0.1 && < 2.1, wai-request-params, hspec, http-types, pqi-native >= 1.0.1.15 && < 1.1
+    build-depends: base >= 4.17.0 && < 4.23, ihp, fast-logger, wai, process, text, ihp-ide, vault, uuid, hasql >= 2.0.1 && < 2.1, wai-request-params, hspec, http-types, pqi-ffi >= 1.0 && < 1.1
     hs-source-dirs: .
     exposed-modules: IHP.Hspec

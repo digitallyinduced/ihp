@@ -7,7 +7,7 @@ module IHP.Hspec
 
 import IHP.Prelude
 import qualified Hasql.Connection as Hasql
-import qualified Pqi.Native
+import qualified Pqi.Ffi
 import qualified Hasql.Connection.Settings as HasqlSettings
 import qualified Hasql.Session as Session
 import qualified Hasql.Statement as Statement
@@ -36,7 +36,7 @@ import Test.Hspec (shouldBe, shouldSatisfy, shouldNotSatisfy)
 
 withConnection :: ByteString -> (Hasql.Connection -> IO a) -> IO a
 withConnection databaseUrl action = do
-    connResult <- Hasql.acquire Pqi.Native.adapter (HasqlSettings.connectionString (cs databaseUrl))
+    connResult <- Hasql.acquire Pqi.Ffi.adapter (HasqlSettings.connectionString (cs databaseUrl))
     case connResult of
         Right conn -> action conn `Exception.finally` Hasql.release conn
         Left err -> error (show err)

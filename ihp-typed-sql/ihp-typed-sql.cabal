@@ -71,7 +71,7 @@ library
             , filepath
             , hashable
             , hasql >= 2.0.1 && < 2.1
-            , pqi-native >= 1.0.1.15 && < 1.1
+            , pqi-ffi >= 1.0 && < 1.1
             , hasql-dynamic-statements
             , hasql-implicits
             , hasql-mapping
@@ -116,7 +116,7 @@ test-suite spec
             , directory
             , filepath
             , hasql >= 2.0.1 && < 2.1
-            , pqi-native >= 1.0.1.15 && < 1.1
+            , pqi-ffi >= 1.0 && < 1.1
             , hasql-dynamic-statements
             , hasql-implicits
             , hasql-mapping
@@ -130,6 +130,7 @@ test-suite spec
             , temporary
             , text
             , unix
+            , vector
     other-modules:
         Test.HasqlAdapterSpec
         Test.TypedSqlSpec

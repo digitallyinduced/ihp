@@ -92,7 +92,7 @@ common shared-properties
             , countable-inflections
             , ihp-migrate
             , hasql >= 2.0.1 && < 2.1
-            , pqi-native >= 1.0.1.15 && < 1.1
+            , pqi-ffi >= 1.0 && < 1.1
             , hasql-pool >= 1.5 && < 1.6
             , hasql-dynamic-statements
             , hasql-implicits

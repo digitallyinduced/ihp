@@ -57,6 +57,6 @@ test-suite tests
     build-depends:
           ihp-pglistener
         , hspec
-        , pqi-native >= 1.0.1.15 && < 1.1
+         >= 1.0.1.15 && < 1.1
     other-modules:
         PGListenerSpec

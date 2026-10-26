@@ -25,7 +25,7 @@ import qualified Data.Set                      as Set
 import qualified Data.String.Conversions       as CS
 import qualified Database.PostgreSQL.LibPQ     as PQ
 import qualified Hasql.Connection              as HasqlConnection
-import qualified Pqi.Native
+import qualified Pqi.Ffi
 import qualified Hasql.Connection.Settings     as HasqlSettings
 import qualified Hasql.Decoders                as HasqlDecoders
 import qualified Hasql.Encoders                as HasqlEncoders
@@ -224,7 +224,7 @@ runHasqlMetadataSession :: BS.ByteString -> HasqlSession.Session a -> IO a
 runHasqlMetadataSession dbUrl session = do
     let settings = HasqlSettings.connectionString (CS.cs dbUrl)
     result <- bracket
-        (HasqlConnection.acquire Pqi.Native.adapter settings >>= \case
+        (HasqlConnection.acquire Pqi.Ffi.adapter settings >>= \case
             Left connectionError ->
                 fail (CS.cs ("typedSql: could not connect to database at "
                     <> CS.cs dbUrl <> ": " <> (CS.cs (show connectionError) :: Text)

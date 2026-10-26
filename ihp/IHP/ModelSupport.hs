@@ -47,7 +47,7 @@ import qualified Data.Aeson as Aeson
 import qualified Data.Set as Set
 import qualified Text.Read as Read
 import qualified Hasql.Pool as HasqlPool
-import qualified Pqi.Native
+import qualified Pqi.Ffi
 import qualified Hasql.Pool.Config as HasqlPoolConfig
 import qualified Hasql.Connection.Settings as HasqlSettings
 import qualified Hasql.Session as Hasql
@@ -104,7 +104,7 @@ createModelContext databaseUrl logger = do
             <> maybe [HasqlPoolConfig.size 20] (\size -> [HasqlPoolConfig.size size]) hasqlPoolSize
             <> maybe [] (\idle -> [HasqlPoolConfig.idlenessTimeout (fromIntegral idle)]) hasqlIdleTime
     let hasqlPoolConfig = HasqlPoolConfig.settings hasqlPoolSettings
-    hasqlPool <- HasqlPool.acquire Pqi.Native.adapter hasqlPoolConfig
+    hasqlPool <- HasqlPool.acquire Pqi.Ffi.adapter hasqlPoolConfig
 
     let trackTableReadCallback = Nothing
     let transactionRunner = Nothing

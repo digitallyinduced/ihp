@@ -12,7 +12,7 @@ import System.IO (stderr)
 import Control.Exception (bracket)
 import Data.IORef (IORef, newIORef, readIORef, writeIORef)
 import qualified Hasql.Connection as Connection
-import qualified Pqi.Native
+import qualified Pqi.Ffi
 import qualified Hasql.Connection.Settings as ConnectionSettings
 
 main :: IO ()
@@ -67,7 +67,7 @@ extractExtensions schemaPath = do
 
 acquireConnection :: String -> String -> IO Connection.Connection
 acquireConnection variableName databaseUrl = do
-    result <- Connection.acquire Pqi.Native.adapter (ConnectionSettings.connectionString (cs databaseUrl))
+    result <- Connection.acquire Pqi.Ffi.adapter (ConnectionSettings.connectionString (cs databaseUrl))
     case result of
         Right connection -> pure connection
         Left err -> die ("Failed to connect using " <> variableName <> ": " <> show err)
