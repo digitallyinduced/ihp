@@ -30,7 +30,7 @@ common shared-properties
             , mtl
             , text
             , hasql >= 2.0.1 && < 2.1
-            , pqi-native >= 1.0.1.15 && < 1.1
+            , pqi-ffi >= 1.0 && < 1.1
             , hasql-dynamic-statements
             , hasql-pool >= 1.5 && < 1.6
             , hasql-transaction

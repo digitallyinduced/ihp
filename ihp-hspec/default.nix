@@ -1,5 +1,5 @@
 { mkDerivation, base, fast-logger, hasql, hspec, http-types, ihp
-, ihp-ide, lib, pqi-native, process, text, uuid, vault, wai
+, ihp-ide, lib, pqi-ffi, process, text, uuid, vault, wai
 , wai-request-params
 }:
 mkDerivation {
@@ -7,7 +7,7 @@ mkDerivation {
   version = "1.6.0";
   src = ./.;
   libraryHaskellDepends = [
-    base fast-logger hasql hspec http-types ihp ihp-ide pqi-native
+    base fast-logger hasql hspec http-types ihp ihp-ide pqi-ffi
     process text uuid vault wai wai-request-params
   ];
   homepage = "https://ihp.digitallyinduced.com/";

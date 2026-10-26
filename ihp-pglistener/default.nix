@@ -1,6 +1,6 @@
 { mkDerivation, aeson, async, base, bytestring, containers
 , fast-logger, hashable, hasql, hasql-notifications, hspec, lib
-, pqi-ffi, pqi-native, safe-exceptions, string-conversions, text
+, pqi-ffi, safe-exceptions, string-conversions, text
 , unagi-chan, unordered-containers, uuid
 }:
 mkDerivation {
@@ -14,7 +14,7 @@ mkDerivation {
   ];
   testHaskellDepends = [
     aeson async base bytestring containers fast-logger hashable hasql
-    hasql-notifications hspec pqi-ffi pqi-native safe-exceptions
+    hasql-notifications hspec pqi-ffi safe-exceptions
     string-conversions text unagi-chan unordered-containers uuid
   ];
   homepage = "https://ihp.digitallyinduced.com/";

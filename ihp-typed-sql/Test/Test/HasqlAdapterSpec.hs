@@ -9,6 +9,7 @@ import qualified Data.ByteString as ByteString
 import Data.Either (isLeft)
 import Data.Int (Int32, Int64)
 import qualified Data.Text as Text
+import qualified Data.Vector as Vector
 import qualified Hasql.Connection as Connection
 import qualified Hasql.Connection.Settings as Settings
 import qualified Hasql.Decoders as Decoders
@@ -20,14 +21,27 @@ import qualified Hasql.Session as Session
 import qualified Hasql.Statement as Statement
 import qualified Hasql.Transaction as Transaction
 import qualified Hasql.Transaction.Sessions as Transactions
-import qualified Pqi.Native
+import qualified Pqi.Ffi
 import System.Environment (getEnv, lookupEnv)
 import System.Timeout (timeout)
 import Test.Hspec
 import Prelude
 
 tests :: Spec
-tests = describe "Native Hasql adapter" do
+tests = describe "libpq Hasql adapter" do
+    it "decodes a large result set without monopolizing the runtime" $
+        withPool \pool -> do
+            let count = 80000 :: Int32
+                statement = Statement.unpreparable
+                    "select i::int4, null::text from generate_series(1, $1::int4) as i"
+                    (Encoders.param (Encoders.nonNullable Encoders.int4))
+                    (Decoders.rowVector ((,)
+                        <$> Decoders.column (Decoders.nonNullable Decoders.int4)
+                        <*> Decoders.column (Decoders.nullable Decoders.text)))
+            actual <- timeout 5000000 (Pool.use pool (Session.statement count statement))
+            actual `shouldBe` Just (Right
+                (Vector.generate (fromIntegral count) (\index -> (fromIntegral index + 1, Nothing))))
+
     it "preserves a binary field spanning many socket reads" $
         withPool \pool -> do
             let byteLength = 1024 * 1024
@@ -72,7 +86,7 @@ withPool :: (Pool.Pool -> IO ()) -> IO ()
 withPool action = lookupEnv "DATABASE_URL" >>= \case
     Nothing -> pendingWith "Set DATABASE_URL to run the PostgreSQL adapter tests"
     Just databaseUrl -> bracket
-        (Pool.acquire Pqi.Native.adapter (PoolConfig.settings
+        (Pool.acquire Pqi.Ffi.adapter (PoolConfig.settings
             [ PoolConfig.size 1, PoolConfig.acquisitionTimeout 2
             , PoolConfig.staticConnectionSettings (Settings.connectionString (Text.pack databaseUrl)) ]))
         Pool.release action
@@ -80,7 +94,7 @@ withPool action = lookupEnv "DATABASE_URL" >>= \case
 withConnection :: (Connection.Connection -> IO a) -> IO a
 withConnection action = do
     settings <- Settings.connectionString . Text.pack <$> getEnv "DATABASE_URL"
-    bracket (expectRight =<< Connection.acquire Pqi.Native.adapter settings) Connection.release action
+    bracket (expectRight =<< Connection.acquire Pqi.Ffi.adapter settings) Connection.release action
 
 selectOne :: Statement.Statement () Int32
 selectOne = Statement.unpreparable "select 1::int4" Encoders.noParams

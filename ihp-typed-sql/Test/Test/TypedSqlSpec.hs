@@ -15,7 +15,7 @@ import qualified Data.Text.IO                      as Text
 import qualified Hasql.Decoders                    as HasqlDecoders
 import qualified Hasql.Encoders                    as HasqlEncoders
 import qualified Hasql.Pool                        as HasqlPool
-import qualified Pqi.Native
+import qualified Pqi.Ffi
 import qualified Hasql.Pool.Config                 as HasqlPoolConfig
 import qualified Hasql.Connection.Settings         as HasqlSettings
 import qualified Hasql.Session                     as HasqlSession
@@ -1012,7 +1012,7 @@ withTestPool action = do
             [ HasqlPoolConfig.size 2
             , HasqlPoolConfig.staticConnectionSettings (HasqlSettings.connectionString databaseUrl)
             ]
-    Exception.bracket (HasqlPool.acquire Pqi.Native.adapter poolConfig) HasqlPool.release action
+    Exception.bracket (HasqlPool.acquire Pqi.Ffi.adapter poolConfig) HasqlPool.release action
 
 -- | Run a SQL statement without a result (for DDL in 'setupSchema').
 execDiscard :: HasqlPool.Pool -> Text -> IO ()
@@ -2013,7 +2013,7 @@ runtimeExplicitHasqlModule = Text.unlines
     , "import qualified Hasql.Pool as HasqlPool"
     , "import qualified Hasql.Pool.Config as HasqlPoolConfig"
     , "import qualified Hasql.Session as HasqlSession"
-    , "import qualified Pqi.Native"
+    , "import qualified Pqi.Ffi"
     , "import IHP.TypedSql.Id (Id' (..), PrimaryKey)"
     , "import IHP.TypedSql.Quoter (typedSql)"
     , "import IHP.TypedSql.Types (QueryCardinality (..), QueryExecResult (..), TypedQuery (..))"
@@ -2035,7 +2035,7 @@ runtimeExplicitHasqlModule = Text.unlines
     , "            [ HasqlPoolConfig.size 2"
     , "            , HasqlPoolConfig.staticConnectionSettings (HasqlSettings.connectionString databaseUrl)"
     , "            ]"
-    , "    Exception.bracket (HasqlPool.acquire Pqi.Native.adapter poolConfig) HasqlPool.release \\pool -> do"
+    , "    Exception.bracket (HasqlPool.acquire Pqi.Ffi.adapter poolConfig) HasqlPool.release \\pool -> do"
     , "        _ <- expectRight =<< sqlExecTypedWithPool pool [typedSql| DELETE FROM typed_sql_test_items |]"
     , ""
     , "        let itemId = (\"10000000-0000-0000-0000-000000000001\" :: UUID)"
@@ -2094,7 +2094,7 @@ runtimeEnumModule = Text.unlines
     , "import qualified Hasql.Pool.Config as HasqlPoolConfig"
     , "import IHP.TypedSql.Hasql (sqlQueryTypedWithPool)"
     , "import IHP.TypedSql.Quoter (typedSql)"
-    , "import qualified Pqi.Native"
+    , "import qualified Pqi.Ffi"
     , "import qualified Hasql.Encoders"
     , "import qualified Hasql.Implicits.Encoders"
     , "import System.Environment (lookupEnv)"
@@ -2135,7 +2135,7 @@ runtimeEnumModule = Text.unlines
     , "            [ HasqlPoolConfig.size 2"
     , "            , HasqlPoolConfig.staticConnectionSettings (HasqlSettings.connectionString databaseUrl)"
     , "            ]"
-    , "    Exception.bracket (HasqlPool.acquire Pqi.Native.adapter poolConfig) HasqlPool.release \\pool -> do"
+    , "    Exception.bracket (HasqlPool.acquire Pqi.Ffi.adapter poolConfig) HasqlPool.release \\pool -> do"
     , "        -- ${enumVal}: a plain enum value binds against the non-null enum column"
     , "        scalarNames <- expectRight =<< sqlQueryTypedWithPool pool [typedSql| SELECT name FROM typed_sql_test_enum_items WHERE mood = ${Happy} ORDER BY name |]"
     , "        assertTest \"dollar-enumVal\" ((scalarNames :: [Text]) == [\"HappyItem\"])"

@@ -4,7 +4,7 @@
 , hasql-dynamic-statements, hasql-mapping, hasql-pool
 , hasql-postgresql-types, hasql-transaction, hspec, http-media
 , http-types, ihp, ihp-hsx, interpolate, lib, mono-traversable, mtl
-, postgresql-types, pqi-native, safe-exceptions, scientific, stm
+, postgresql-types, pqi-ffi, safe-exceptions, scientific, stm
 , template-haskell, text, time, transformers, typerep-map, unliftio
 , unordered-containers, uuid, vault, vector, wai, wai-websockets
 , warp, websockets
@@ -19,7 +19,7 @@ mkDerivation {
     haskell-src-meta hasql hasql-dynamic-statements hasql-mapping
     hasql-pool hasql-postgresql-types hasql-transaction http-media
     http-types ihp ihp-hsx interpolate mono-traversable mtl
-    postgresql-types pqi-native safe-exceptions scientific stm
+    postgresql-types pqi-ffi safe-exceptions scientific stm
     template-haskell text time transformers typerep-map unliftio
     unordered-containers uuid vault vector wai wai-websockets warp
     websockets
@@ -30,7 +30,7 @@ mkDerivation {
     haskell-src-meta hasql hasql-dynamic-statements hasql-mapping
     hasql-pool hasql-postgresql-types hasql-transaction hspec
     http-media http-types ihp ihp-hsx interpolate mono-traversable mtl
-    postgresql-types pqi-native safe-exceptions scientific stm
+    postgresql-types pqi-ffi safe-exceptions scientific stm
     template-haskell text time transformers typerep-map unliftio
     unordered-containers uuid vault vector wai wai-websockets warp
     websockets

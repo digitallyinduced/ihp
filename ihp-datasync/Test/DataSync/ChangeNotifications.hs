@@ -11,7 +11,7 @@ import IHP.DataSync.RowLevelSecurity (TableWithRLS(..))
 import qualified Data.Set as Set
 import qualified Prelude
 import qualified Hasql.Pool
-import qualified Pqi.Native
+import qualified Pqi.Ffi
 import qualified Hasql.Pool.Config as Hasql.Pool.Config
 import qualified Hasql.Connection.Settings as HasqlSettings
 import qualified Hasql.Session as Session
@@ -266,14 +266,14 @@ makePool :: Text -> IO Hasql.Pool.Pool
 makePool = makePoolN 4
 
 makePoolN :: Int -> Text -> IO Hasql.Pool.Pool
-makePoolN poolSize connStr = Hasql.Pool.acquire Pqi.Native.adapter $ Hasql.Pool.Config.settings
+makePoolN poolSize connStr = Hasql.Pool.acquire Pqi.Ffi.adapter $ Hasql.Pool.Config.settings
     [ Hasql.Pool.Config.size poolSize
     , Hasql.Pool.Config.staticConnectionSettings
         (HasqlSettings.connectionString connStr)
     ]
 
 makePoolWithTimeout :: Int -> Int -> Text -> IO Hasql.Pool.Pool
-makePoolWithTimeout poolSize timeoutSeconds connStr = Hasql.Pool.acquire Pqi.Native.adapter $ Hasql.Pool.Config.settings
+makePoolWithTimeout poolSize timeoutSeconds connStr = Hasql.Pool.acquire Pqi.Ffi.adapter $ Hasql.Pool.Config.settings
     [ Hasql.Pool.Config.size poolSize
     , Hasql.Pool.Config.acquisitionTimeout (fromIntegral timeoutSeconds)
     , Hasql.Pool.Config.staticConnectionSettings

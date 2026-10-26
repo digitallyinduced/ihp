@@ -7,7 +7,7 @@
 , http-types, ihp, ihp-hsx, ihp-migrate, ihp-modal
 , ihp-postgres-parser, ihp-schema-compiler, inflections
 , interpolate, lib, megaparsec, mono-traversable
-, neat-interpolation, network, network-uri, pqi-native, process
+, neat-interpolation, network, network-uri, pqi-ffi, process
 , safe-exceptions, split, string-conversions, temporary, text, time
 , transformers, unagi-chan, unix, unliftio, uri-encode, uuid, vault
 , wai, wai-app-static, wai-asset-path, wai-extra
@@ -30,7 +30,7 @@ mkDerivation {
     hasql-dynamic-statements hasql-implicits hasql-pool http-types ihp
     ihp-hsx ihp-migrate ihp-modal ihp-postgres-parser
     ihp-schema-compiler inflections interpolate megaparsec
-    mono-traversable neat-interpolation network network-uri pqi-native
+    mono-traversable neat-interpolation network network-uri pqi-ffi
     process safe-exceptions split string-conversions text time
     transformers unagi-chan unix unliftio uri-encode uuid vault wai
     wai-app-static wai-extra wai-request-params
@@ -45,7 +45,7 @@ mkDerivation {
     hasql hasql-dynamic-statements hasql-implicits hasql-pool
     http-types ihp ihp-hsx ihp-migrate ihp-postgres-parser
     ihp-schema-compiler inflections interpolate megaparsec
-    mono-traversable neat-interpolation network network-uri pqi-native
+    mono-traversable neat-interpolation network network-uri pqi-ffi
     process safe-exceptions split string-conversions text time
     transformers unagi-chan unix unliftio uri-encode uuid vault wai
     wai-app-static wai-extra wai-session-clientsession-deferred
@@ -60,7 +60,7 @@ mkDerivation {
     hasql-dynamic-statements hasql-implicits hasql-pool hspec
     http-types ihp ihp-hsx ihp-migrate ihp-modal ihp-postgres-parser
     ihp-schema-compiler inflections interpolate megaparsec
-    mono-traversable neat-interpolation network network-uri pqi-native
+    mono-traversable neat-interpolation network network-uri pqi-ffi
     process safe-exceptions split string-conversions temporary text
     time transformers unagi-chan unix unliftio uri-encode uuid vault
     wai wai-app-static wai-asset-path wai-extra wai-request-params
