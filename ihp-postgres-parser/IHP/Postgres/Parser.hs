@@ -6,6 +6,7 @@ Copyright: (c) digitally induced GmbH, 2020
 module IHP.Postgres.Parser
 ( parseSqlFile
 , parseSqlText
+, parseSqlWithSource
 , parseCreateExtensionMigration
 , containsCreateExtensionStatement
 , parseDDL
@@ -55,6 +56,7 @@ parseSqlFile schemaFilePath = do
 parseSqlText :: Text -> Either ByteString [Statement]
 parseSqlText = parseSqlWithSource "input"
 
+-- | Parse SQL text while retaining its source path in parse diagnostics.
 parseSqlWithSource :: FilePath -> Text -> Either ByteString [Statement]
 parseSqlWithSource source sql =
     let result = runParser parseDDL source sql
@@ -766,41 +768,30 @@ parseColumn = do
             ]
 
 sqlType :: Parser PostgresType
-sqlType = choice $ map optionalArray
-        [ uuid
-        , text
-        , interval --Needs higher precedence otherwise parsed as int
-        , bigint
-        , smallint
-        , int   -- order int after smallint/bigint because symbol INT is prefix of INT2, INT8
-        , bool
-        , timestamp
-        , timestampZ
-        , timestampZ'
-        , timestamp'
-        , real
-        , double
-        , point
-        , polygon
-        , geometry -- PostGIS extension type; must come before customType fallback
-        , date
-        , binary
-        , time
-        , numericPS
-        , numeric
-        , character
-        , varchar
-        , serial
-        , bigserial
-        , jsonb
-        , inet
-        , tsvector
-        , trigger
-        , eventTrigger
-        , singleChar
-        , customType
-        ]
+sqlType = optionalArray typeByInitial
             where
+                -- Typed literals also use this parser. Narrow the alternatives
+                -- before trying individual spellings, preserving their order.
+                typeByInitial = do
+                    initial <- lookAhead anySingle
+                    choice case toUpper initial of
+                        'U' -> [uuid, customType]
+                        'T' -> [text, timestamp, timestampZ, timestampZ', timestamp', time, tsvector, trigger, customType]
+                        'I' -> [interval, bigint, smallint, int, inet, customType]
+                        'B' -> [bigint, bool, binary, bigserial, customType]
+                        'S' -> [smallint, serial, customType]
+                        'R' -> [real, customType]
+                        'F' -> [real, double, customType]
+                        'D' -> [double, date, customType]
+                        'P' -> [point, polygon, customType]
+                        'G' -> [geometry, customType]
+                        'N' -> [numericPS, numeric, customType]
+                        'C' -> [character, varchar, customType]
+                        'V' -> [varchar, customType]
+                        'J' -> [jsonb, customType]
+                        'E' -> [eventTrigger, customType]
+                        '"' -> [singleChar, customType]
+                        _ -> [customType]
                 timestamp = do
                     try (symbol' "TIMESTAMP" >> symbol' "WITHOUT" >> symbol' "TIME" >> symbol' "ZONE")
                     pure PTimestamp

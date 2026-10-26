@@ -20,6 +20,8 @@
 
 ### Performance, Build, and Tooling
 
+- Schema compilation now shares name and enum lookups, skips disabled relationship work, and narrows SQL type parsing before trying individual spellings. Repeated generation uses a cache that verifies every output with SHA-256 before reuse. On a large application schema, fresh compilation improved about 2.3× and unchanged reruns about 10×; generated Haskell remains unchanged.
+
 - Tables whose comment contains `ihp:no-codegen` (e.g. `COMMENT ON TABLE audit_events IS 'ihp:no-codegen';`) no longer get a generated record type, instances or statement modules. Use it for tables the application only accesses through SQL. Their `PrimaryKey` and `Default (Id' ...)` instances, which `typedSql` and foreign keys need, are generated into `Generated.ActualTypes.PrimaryKeys.<Model>`; code that uses the table's ids imports that module. Adding such a table no longer recompiles every generated module.
 - Each enum is now generated into its own module, `Generated.Enums.<Enum>`, and generated table modules import only the enums their columns use, so changing an enum no longer recompiles every generated module. `Generated.Enums` re-exports all enums as before.
 - The `nixpkgs-nixos` flake input now tracks NixOS 26.05. NixOS 25.11 reached end of support on 30 June 2026. Apps that follow `ihp/nixpkgs-nixos` pick this up when they update IHP. The Haskell `nixpkgs` input is unchanged.

@@ -79,8 +79,16 @@ common shared-properties
             -Werror=incomplete-patterns
             -Werror=missing-home-modules
 
+common compiler-test-support
+    hs-source-dirs: Test
+    build-depends: cryptohash-sha256, process, temporary, time
+    other-modules: SchemaCompiler.TestSupport
+
 library
     import: shared-properties
+    build-depends: cryptohash-sha256
+    autogen-modules: Paths_ihp_schema_compiler
+    other-modules: IHP.SchemaCompiler.Cache, Paths_ihp_schema_compiler
     hs-source-dirs: .
     exposed-modules:
           IHP.SchemaCompiler
@@ -91,6 +99,17 @@ executable build-generated-code
     build-depends: ihp-schema-compiler
     hs-source-dirs: exe
     main-is: IHP/CLI/BuildGeneratedCode.hs
+
+executable compare-schema-compilers
+    import: shared-properties, compiler-test-support
+    main-is: CompareCompilers.hs
+
+test-suite tests
+    import: shared-properties, compiler-test-support
+    type: exitcode-stdio-1.0
+    main-is: Main.hs
+    build-depends: ihp-schema-compiler, hspec
+    other-modules: SchemaCompiler.CacheSpec
 
 source-repository head
     type:     git
