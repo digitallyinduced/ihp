@@ -22,6 +22,15 @@ data Fixture = Fixture FilePath Snapshot
 tests :: Spec
 tests = describe "Schema compiler cache" do
     forM_ [False, True] \relations ->
+        describe ("relation support " <> show relations) do
+            it "generates identical models for inline and ALTER TABLE constraints" do
+                let accounts = "CREATE TABLE accounts (id UUID PRIMARY KEY NOT NULL);"
+                let inline = accounts <> "CREATE TABLE entries (id UUID PRIMARY KEY NOT NULL, account_id UUID NOT NULL REFERENCES accounts(id) ON DELETE CASCADE, status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'sent')));"
+                let separate = accounts <> "CREATE TABLE entries (id UUID PRIMARY KEY NOT NULL, account_id UUID NOT NULL, status TEXT NOT NULL DEFAULT 'pending'); ALTER TABLE entries ADD CONSTRAINT entries_account_id_fkey FOREIGN KEY (account_id) REFERENCES accounts(id) ON DELETE CASCADE; ALTER TABLE entries ADD CONSTRAINT entries_status_check CHECK (status IN ('pending', 'sent'));"
+                expected <- freshOutputs separate relations
+                freshOutputs inline relations `shouldReturn` expected
+
+    forM_ [False, True] \relations ->
         describe ("relation support " <> show relations) $ around (withFixture relations) do
             it "reuses the cache without rewriting any generated file" \(Fixture root expected) -> do
                 times <- outputTimes root expected
