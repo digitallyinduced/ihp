@@ -66,6 +66,37 @@ tests = describe "withTransaction" do
                 insertItem "after"
             itemNames >>= (`shouldBe` ["after", "outer"])
 
+        it "rolls back the inner block and throws when it swallowed a failed SQL statement" $ withDB \modelContext -> do
+            let ?modelContext = modelContext
+            withTransaction do
+                insertItem "outer"
+                result <- Exception.try @HasqlSessionError $ withTransaction do
+                    insertItem "inner"
+                    (_ :: Either HasqlSessionError ()) <- Exception.try (insertItem "outer") -- violates the primary key
+                    pure ()
+                case result of
+                    Left _ -> pure ()
+                    Right () -> expectationFailure "expected the inner withTransaction to report the failed statement"
+                -- The transaction is usable again, and the inner work is gone
+                insertItem "after"
+            itemNames >>= (`shouldBe` ["after", "outer"])
+
+        it "rolls back its own work even when a savepoint was left behind inside the block" $ withDB \modelContext -> do
+            let ?modelContext = modelContext
+            withTransaction do
+                insertItem "outer"
+                (result :: Either Exception.ErrorCall ()) <- Exception.try $ withTransaction do
+                    insertItem "middle"
+                    -- What an inner withTransaction leaves behind when it is interrupted while
+                    -- creating its savepoint. The middle rollback must not be redirected to it,
+                    -- which is what happens when every level shares one savepoint name. This
+                    -- is the name the first implementation used for every level.
+                    unsafeSqlExecDiscardResult "SAVEPOINT ihp_with_transaction" ()
+                    Exception.throwIO (Exception.ErrorCall "boom")
+                result `shouldBe` Left (Exception.ErrorCall "boom")
+                insertItem "after"
+            itemNames >>= (`shouldBe` ["after", "outer"])
+
         it "rolls back the outer transaction when the inner exception is not caught" $ withDB \modelContext -> do
             let ?modelContext = modelContext
             (result :: Either Exception.ErrorCall ()) <- Exception.try $ withTransaction do

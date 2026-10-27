@@ -27,6 +27,7 @@ import Data.Int (Int64)
 import Data.IORef (IORef, newIORef, modifyIORef')
 import Control.Exception (bracket, finally, throwIO, SomeException, try, mask, catch)
 import Data.Maybe (fromMaybe, isNothing)
+import Data.Unique (newUnique, hashUnique)
 import Data.String (IsString(..))
 import Database.PostgreSQL.Simple.Types (Query(..))
 import Data.Default
@@ -599,23 +600,37 @@ withTransaction block = case ?modelContext.transactionRunner of
 
 -- | Runs the block inside a savepoint of the transaction that is already running.
 --
--- The savepoint name is reused at every nesting level. Postgres keeps the older savepoints
--- with the same name, and @ROLLBACK TO@ / @RELEASE@ always refer to the most recent one.
+-- Every call uses its own savepoint name. A savepoint left behind by a call that was interrupted
+-- while creating it can then never be the target of an enclosing call's @ROLLBACK TO@.
 withSavepoint :: (?modelContext :: ModelContext) => (forall b. Hasql.Session b -> IO b) -> ((?modelContext :: ModelContext) => IO a) -> IO a
 withSavepoint runner block = do
     let ?context = ?modelContext
-    runner (Hasql.script "SAVEPOINT ihp_with_transaction")
+    savepoint <- ("ihp_savepoint_" <>) . show . hashUnique <$> newUnique
+    let rollbackToSavepoint =
+            runner (Hasql.script (cs ("ROLLBACK TO SAVEPOINT " <> savepoint <> "; RELEASE SAVEPOINT " <> savepoint)))
+                `catch` \(rollbackErr :: SomeException) ->
+                    ?context.logger (toLogStr ("withTransaction: ROLLBACK TO SAVEPOINT failed: " <> Text.pack (show rollbackErr)))
     mask \restore -> do
+        -- Created under mask, so no asynchronous exception can arrive between the savepoint
+        -- existing and the handler below being in place. Waiting for the runner's answer is
+        -- still interruptible; a savepoint left behind by that is harmless, since its name is
+        -- unique and the enclosing transaction ends it.
+        runner (Hasql.script (cs ("SAVEPOINT " <> savepoint)))
         result <- try @SomeException (restore block)
         case result of
             Left exc -> do
-                runner (Hasql.script "ROLLBACK TO SAVEPOINT ihp_with_transaction; RELEASE SAVEPOINT ihp_with_transaction")
-                    `catch` \(rollbackErr :: SomeException) ->
-                        ?context.logger (toLogStr ("withTransaction: ROLLBACK TO SAVEPOINT failed: " <> Text.pack (show rollbackErr)))
+                rollbackToSavepoint
                 throwIO exc
             Right a -> do
-                runner (Hasql.script "RELEASE SAVEPOINT ihp_with_transaction")
-                pure a
+                released <- try @SomeException (runner (Hasql.script (cs ("RELEASE SAVEPOINT " <> savepoint))))
+                case released of
+                    Right () -> pure a
+                    Left releaseErr -> do
+                        -- The block caught a failed statement itself and returned normally, so
+                        -- the transaction is aborted. Roll back to the savepoint, which gets
+                        -- the enclosing transaction working again, and report the failure.
+                        rollbackToSavepoint
+                        throwIO releaseErr
 
 -- | Starts a new transaction on a pool connection and runs the block inside it.
 withNewTransaction :: (?modelContext :: ModelContext) => ((?modelContext :: ModelContext) => IO a) -> IO a
