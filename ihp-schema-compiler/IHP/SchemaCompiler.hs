@@ -231,12 +231,12 @@ mkSchema statements = MkSchema
             StatementCreateTable table -> Just (table.name, table)
             _ -> Nothing)
         |> firstWins
-    , schemaForeignKeysByColumn = statements
+    , schemaForeignKeysByColumn = constraintStatements
         |> mapMaybe (\case
             AddConstraint { tableName, constraint = constraint@ForeignKeyConstraint { columnName } } -> Just ((tableName, columnName), constraint)
             _ -> Nothing)
         |> firstWins
-    , schemaForeignKeysByReferencedTable = statements
+    , schemaForeignKeysByReferencedTable = constraintStatements
         |> mapMaybe (\case
             AddConstraint { tableName, constraint = constraint@ForeignKeyConstraint { referenceTable } } -> Just (referenceTable, [(tableName, constraint)])
             _ -> Nothing)
@@ -259,6 +259,9 @@ mkSchema statements = MkSchema
         |> Map.fromListWith (+)
     }
     where
+        constraintStatements = statements |> concatMap (\case
+            StatementCreateTable table -> map (\constraint -> AddConstraint { tableName = table.name, constraint, deferrable = Nothing, deferrableType = Nothing }) table.constraints
+            statement -> [statement])
         typeNames = ordNub ([table.name | StatementCreateTable table <- statements] <> [name | CreateEnumType { name } <- statements])
         columnNames = ordNub [column.name | StatementCreateTable table <- statements, column <- table.columns]
         -- Like the searches through the statement list that the lookups
