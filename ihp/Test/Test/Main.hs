@@ -40,6 +40,7 @@ import qualified Test.ScriptSupportSpec
 import qualified Test.LoginSupport.AuthVaultSpec
 import qualified Test.PGVersionSpec
 import qualified Test.TypedSqlSpec
+import qualified Test.WithTransactionSpec
 
 main :: IO ()
 main = hspec do
@@ -80,3 +81,4 @@ main = hspec do
     Test.LoginSupport.AuthVaultSpec.tests
     Test.PGVersionSpec.tests
     Test.TypedSqlSpec.tests
+    Test.WithTransactionSpec.tests
