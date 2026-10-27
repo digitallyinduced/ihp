@@ -95,7 +95,7 @@ compileConstraintDeferrability CompositeForeignKeyConstraint { constraintDeferra
 compileConstraintDeferrability _ = ""
 
 compileConstraint :: Constraint -> Text
-compileConstraint ForeignKeyConstraint { columnName, referenceTable, referenceColumn, onDelete, onUpdate } = "FOREIGN KEY (" <> compileIdentifier columnName <> ") REFERENCES " <> compileQualifiedIdentifier referenceTable <> (if isJust referenceColumn then " (" <> fromJust referenceColumn <> ")" else "") <> compileOnUpdate onUpdate <> " " <> compileOnDelete onDelete
+compileConstraint ForeignKeyConstraint { columnName, referenceTable, referenceColumn, onDelete, onUpdate } = "FOREIGN KEY (" <> compileIdentifier columnName <> ") REFERENCES " <> compileQualifiedIdentifier referenceTable <> (if isJust referenceColumn then " (" <> compileIdentifier (fromJust referenceColumn) <> ")" else "") <> compileOnUpdate onUpdate <> " " <> compileOnDelete onDelete
 compileConstraint CompositeForeignKeyConstraint { columnNames, referenceTable, referenceColumns, matchType, onDelete, onUpdate } = "FOREIGN KEY (" <> intercalate ", " (map compileIdentifier columnNames) <> ") REFERENCES " <> compileQualifiedIdentifier referenceTable <> (if null referenceColumns then "" else " (" <> intercalate ", " (map compileIdentifier referenceColumns) <> ")") <> compileMatchType matchType <> compileOnUpdate onUpdate <> " " <> compileOnDelete onDelete
 compileConstraint UniqueConstraint { columnNames } = "UNIQUE(" <> intercalate ", " columnNames <> ")"
 compileConstraint CheckConstraint { checkExpression } = "CHECK (" <> compileExpression checkExpression <> ")"

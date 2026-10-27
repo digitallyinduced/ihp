@@ -533,8 +533,8 @@ createTable = do
     -- Process columns (tagged if they're primary key) and table constraints
     -- together, as they can be in any order
     (taggedColumns, allConstraints) <- between (char '(' >> space) (char ')' >> space) do
-        columnsAndConstraints <- ((Right <$> parseTableConstraint) <|> (Left <$> parseColumn)) `sepBy` (char ',' >> space)
-        pure (lefts columnsAndConstraints, rights columnsAndConstraints)
+        columnsAndConstraints <- ((Right . pure <$> parseTableConstraint) <|> (Left <$> parseColumnWithConstraints True)) `sepBy` (char ',' >> space)
+        pure (map fst (lefts columnsAndConstraints), concatMap (either (map Right . snd) id) columnsAndConstraints)
 
     inherits <- optional do
         lexeme "INHERITS"
@@ -615,6 +615,9 @@ parseForeignKeyConstraint name = do
     lexeme "FOREIGN"
     lexeme "KEY"
     columnNames <- between (char '(' >> space) (char ')' >> space) (postgresIdentifier `sepBy1` (char ',' >> space))
+    parseReferencesConstraint name columnNames
+
+parseReferencesConstraint name columnNames = do
     lexeme "REFERENCES"
     referenceTable <- foldingQualifiedIdentifier
     referenceColumns <- optional $ between (char '(' >> space) (char ')' >> space) (postgresIdentifier `sepBy1` (char ',' >> space))
@@ -716,7 +719,12 @@ referentialActionColumns =
     fromMaybe [] <$> optional (between (char '(' >> space) (char ')' >> space) (postgresIdentifier `sepBy1` (char ',' >> space)))
 
 parseColumn :: Parser (Bool, Column)
-parseColumn = do
+parseColumn = fst <$> parseColumnWithConstraints False
+
+-- Column constraints in CREATE TABLE are represented as table constraints.
+-- ADD COLUMN has no constraint collection in the AST, so keep its existing grammar.
+parseColumnWithConstraints :: Bool -> Parser ((Bool, Column), [Constraint])
+parseColumnWithConstraints allowConstraints = do
     name <- postgresIdentifier
     columnType <- sqlType
     space
@@ -730,42 +738,46 @@ parseColumn = do
             , isUnique = False
             , generator = Nothing
             }
-    parseColumnAttributes column False
+    parseColumnAttributes column False []
     where
-        parseColumnAttributes column primaryKey = choice
+        parseColumnAttributes column primaryKey constraints = choice
             [ do
                 lexeme "DEFAULT"
                 value <- expression
-                parseColumnAttributes column { defaultValue = Just value } primaryKey
+                parseColumnAttributes column { defaultValue = Just value } primaryKey constraints
             , do
                 lexeme "GENERATED"
                 lexeme "ALWAYS"
                 lexeme "AS"
                 generate <- expression
                 stored <- isJust <$> optional (lexeme "STORED")
-                parseColumnAttributes column { generator = Just ColumnGenerator { generate, stored } } primaryKey
+                parseColumnAttributes column { generator = Just ColumnGenerator { generate, stored } } primaryKey constraints
             , do
                 lexeme "PRIMARY"
                 lexeme "KEY"
-                parseColumnAttributes column True
+                parseColumnAttributes column True constraints
             , do
                 lexeme "NOT"
                 lexeme "NULL"
-                parseColumnAttributes column { notNull = True } primaryKey
-            -- PostgreSQL 18 stores NOT NULL constraints in pg_constraint, so
-            -- pg_dump can emit their name before NOT NULL. IHP does not model
-            -- constraint names for columns, but it must accept this spelling.
+                parseColumnAttributes column { notNull = True } primaryKey constraints
             , do
                 lexeme "CONSTRAINT"
                 constraintName <- identifier
-                lexeme "NOT"
-                lexeme "NULL"
-                parseColumnAttributes column { notNull = True, notNullConstraintName = Just constraintName } primaryKey
+                (do
+                    lexeme "NOT"
+                    lexeme "NULL"
+                    parseColumnAttributes column { notNull = True, notNullConstraintName = Just constraintName } primaryKey constraints)
+                    <|> parseInlineConstraint (Just constraintName) column primaryKey constraints
             , do
                 lexeme "UNIQUE"
-                parseColumnAttributes column { isUnique = True } primaryKey
-            , pure (primaryKey, column)
+                parseColumnAttributes column { isUnique = True } primaryKey constraints
+            , parseInlineConstraint Nothing column primaryKey constraints
+            , pure ((primaryKey, column), reverse constraints)
             ]
+        parseInlineConstraint constraintName column primaryKey constraints = do
+            if allowConstraints then pure () else empty
+            constraint <- parseReferencesConstraint constraintName [column.name] <|> parseCheckConstraint constraintName
+            parseColumnAttributes column primaryKey (constraint : constraints)
 
 sqlType :: Parser PostgresType
 sqlType = optionalArray typeByInitial
