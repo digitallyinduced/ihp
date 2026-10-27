@@ -25,8 +25,8 @@ import Data.Text (Text)
 import qualified Data.Text as Text
 import Data.Int (Int64)
 import Data.IORef (IORef, newIORef, modifyIORef')
-import Control.Exception (bracket, finally, throwIO, SomeException, try, mask)
-import Data.Maybe (fromMaybe, isNothing, isJust)
+import Control.Exception (bracket, finally, throwIO, SomeException, try, mask, catch)
+import Data.Maybe (fromMaybe, isNothing)
 import Data.String (IsString(..))
 import Database.PostgreSQL.Simple.Types (Query(..))
 import Data.Default
@@ -585,11 +585,41 @@ sqlQueryScalarOrNothing = unsafeSqlQueryScalarOrNothing
 -- >    company <- company
 -- >        |> set #ownerId user.id
 -- >        |> updateRecord
+--
+-- A 'withTransaction' call inside another one joins the outer transaction instead of
+-- starting a new one. The inner block runs inside a savepoint: when it throws, only its
+-- own changes are rolled back, and the outer block can catch the exception and carry on.
+-- When the exception is not caught, the outer transaction is rolled back as usual. The
+-- outer block commits everything at the end.
 withTransaction :: (?modelContext :: ModelContext) => ((?modelContext :: ModelContext) => IO a) -> IO a
-withTransaction block
-    | isJust ?modelContext.transactionRunner =
-        error "withTransaction: Nested transactions are not supported. withTransaction was called inside an existing transaction."
-    | otherwise = do
+withTransaction block = case ?modelContext.transactionRunner of
+    Just (TransactionRunner runner) -> withSavepoint runner block
+    Nothing -> withNewTransaction block
+{-# INLINABLE withTransaction #-}
+
+-- | Runs the block inside a savepoint of the transaction that is already running.
+--
+-- The savepoint name is reused at every nesting level. Postgres keeps the older savepoints
+-- with the same name, and @ROLLBACK TO@ / @RELEASE@ always refer to the most recent one.
+withSavepoint :: (?modelContext :: ModelContext) => (forall b. Hasql.Session b -> IO b) -> ((?modelContext :: ModelContext) => IO a) -> IO a
+withSavepoint runner block = do
+    let ?context = ?modelContext
+    runner (Hasql.script "SAVEPOINT ihp_with_transaction")
+    mask \restore -> do
+        result <- try @SomeException (restore block)
+        case result of
+            Left exc -> do
+                runner (Hasql.script "ROLLBACK TO SAVEPOINT ihp_with_transaction; RELEASE SAVEPOINT ihp_with_transaction")
+                    `catch` \(rollbackErr :: SomeException) ->
+                        ?context.logger (toLogStr ("withTransaction: ROLLBACK TO SAVEPOINT failed: " <> Text.pack (show rollbackErr)))
+                throwIO exc
+            Right a -> do
+                runner (Hasql.script "RELEASE SAVEPOINT ihp_with_transaction")
+                pure a
+
+-- | Starts a new transaction on a pool connection and runs the block inside it.
+withNewTransaction :: (?modelContext :: ModelContext) => ((?modelContext :: ModelContext) => IO a) -> IO a
+withNewTransaction block = do
     let pool = ?modelContext.hasqlPool
     requestMVar <- newEmptyMVar
 
@@ -634,7 +664,7 @@ withTransaction block
                     pure a
 
     usePoolWithRetry pool transactionSession
-{-# INLINABLE withTransaction #-}
+{-# INLINABLE withNewTransaction #-}
 
 -- | Executes the given block with the main database role and temporarly sidesteps the row level security policies.
 --
