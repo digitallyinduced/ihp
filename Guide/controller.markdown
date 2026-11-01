@@ -389,6 +389,19 @@ action ExampleAction = do
     redirectToPathSeeOther "/blog/wp-login.php"
 ```
 
+The path is appended to the app's base url, so the redirect always stays on this site. A text that a browser could read as another host, like `@evil.example`, `.evil.example` or `//evil.example`, is refused with an error instead of being redirected to. This matters when the path comes from the request, e.g. a `?next=` parameter that sends people back to the page they were on before logging in: a link such as `/login?next=@evil.example` can't turn a real login into a redirect to a fake page (an "open redirect").
+
+When the path comes from user input and you want a fallback instead of an error, check it with [`isLocalPath`](https://ihp.digitallyinduced.com/api-docs/IHP-Controller-Redirect.html#v:isLocalPath) first. It returns `True` only for a path on this site, like `/posts/1?details=on`:
+
+```haskell
+action CreateSessionAction = do
+    let next = paramOrDefault @Text "/" "next"
+    -- ... check the credentials ...
+    redirectToPath (if isLocalPath next then next else "/")
+```
+
+Also use it when the path is rendered into a view, e.g. as a hidden `next` form field or a link, as `//evil.example` in an `href` does send the browser to another host.
+
 ### Redirect to a URL
 
 Use [`redirectToUrl`](https://ihp.digitallyinduced.com/api-docs/IHP-Controller-Redirect.html#v:redirectToUrl) to redirect to some external URL:
