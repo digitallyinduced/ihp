@@ -10,6 +10,11 @@ let
                 pqi-conformance = null;
             }));
 in {
+    # nixpkgs' default postgresql-binary regressed to 0.14.2 in newer snapshots,
+    # but hasql 2.0.1.0 requires >=0.15 && <0.16. Use the 0.15.0.1 release that
+    # nixpkgs still ships as a versioned attribute.
+    postgresql-binary = super.postgresql-binary_0_15_0_1;
+
     hasql = package "hasql";
     hasql-pool = package "hasql-pool";
     hasql-transaction = package "hasql-transaction";
