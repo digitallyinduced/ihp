@@ -226,12 +226,11 @@ final: prev: {
         if prev.haskell.packages ? ghc914
         then final.haskell.packages.ghc914.override {
             overrides = final.lib.composeManyExtensions [
-                # The RC3 nixpkgs snapshot updated ghc-exactprint to 1.14.1.0,
-                # while its GHC 9.14 configuration still references the removed
-                # 1.14.0.0 attribute. Keep the old name as a compatibility alias
-                # until nixpkgs updates configuration-ghc-9.14.x.nix.
+                # GHC 9.14's configuration references ghc-exactprint_1_14_0_0,
+                # which this nixpkgs snapshot provides natively. Skip its test
+                # suite, consistent with the other dontCheck fixups below.
                 (self: super: {
-                    ghc-exactprint_1_14_0_0 = final.haskell.lib.dontCheck super.ghc-exactprint_1_14_1_0;
+                    ghc-exactprint_1_14_0_0 = final.haskell.lib.dontCheck super.ghc-exactprint_1_14_0_0;
                 })
                 (import ./hasql.nix { inherit inputs; pkgs = final; })
                 (ihpOverrides final)

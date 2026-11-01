@@ -28,5 +28,7 @@ in {
     });
     # This release uses the unchanged 1.10/2.0 codec API, but its old bound
     # excludes Hasql 2. Keep the codecs used by IHP's PostGIS integration.
-    hasql-mapping = haskellLib.doJailbreak super.hasql-mapping;
+    # Newer nixpkgs snapshots also mark this version broken (stale Hasql 2 upper
+    # bound), so clear the flag before relaxing the bound.
+    hasql-mapping = haskellLib.doJailbreak (haskellLib.markUnbroken super.hasql-mapping);
 }
