@@ -172,9 +172,13 @@ final: prev: {
     # on the same bounds-relaxed build as the default GHC package set.
     darcs = final.ghc.darcs;
 
-    # Default: GHC 9.12 — the pinned nixpkgs `haskellPackages` compiler.
-    # The dontCheck overrides below apply to that default build.
-    ghc = final.haskellPackages.override {
+    # Default: GHC 9.12.4 — pinned explicitly to `haskell.packages.ghc9124`
+    # rather than the nixpkgs default `haskellPackages`. The nixpkgs snapshot
+    # that carries the CVE-2026-98432 kernel fix (linuxPackages >= 6.18.56)
+    # moved its *default* compiler to GHC 9.10.3, while still shipping the 9.12
+    # set IHP targets. Pinning keeps IHP on 9.12.4 regardless of the default.
+    # The dontCheck overrides below apply to that build.
+    ghc = final.haskell.packages.ghc9124.override {
         overrides = final.lib.composeManyExtensions [
             (import ./hasql.nix { inherit inputs; pkgs = final; })
             (ihpOverrides final)
@@ -211,10 +215,9 @@ final: prev: {
         ];
     };
 
-    # `ghc912` is an alias of the default `ghc` set: the pinned nixpkgs default
-    # compiler is already GHC 9.12, so a separate set would be an exact duplicate.
-    # The alias keeps `pkgs.ghc912.*` references working; drop it once they migrate
-    # to `pkgs.ghc`.
+    # `ghc912` is an alias of the `ghc` set above, which is pinned to GHC 9.12.4,
+    # so a separate set would be an exact duplicate. The alias keeps `pkgs.ghc912.*`
+    # references working; drop it once they migrate to `pkgs.ghc`.
     ghc912 = final.ghc;
 
     # GHC 9.14 — opt-in for apps using the digitallyinduced binary cache.
