@@ -168,9 +168,11 @@ let
         };
 in
 final: prev: {
-    # nix-prefetch-darcs consumes the top-level darcs attribute directly. Keep it
-    # on the same bounds-relaxed build as the default GHC package set.
-    darcs = final.ghc.darcs;
+    # nix-prefetch-darcs consumes the top-level darcs attribute directly. Use
+    # nixpkgs' own darcs (its default package set) rather than final.ghc.darcs:
+    # the GHC 9.12 set's Cabal 3.14 fails to compile darcs' custom Setup.hs, and
+    # nix-prefetch-darcs only needs the darcs executable, not a library build.
+    darcs = prev.darcs;
 
     # Default: GHC 9.12.4 — pinned explicitly to `haskell.packages.ghc9124`
     # rather than the nixpkgs default `haskellPackages`. The nixpkgs snapshot
