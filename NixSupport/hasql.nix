@@ -15,6 +15,10 @@ in {
     # nixpkgs still ships as a versioned attribute.
     postgresql-binary = super.postgresql-binary_0_15_0_1;
 
+    # Same regression for text-builder (default rolled back to 1.0.0.4);
+    # postgresql-simple-postgresql-types needs >=1.0.0.5 && <1.1.
+    text-builder = super.text-builder_1_0_0_5;
+
     hasql = package "hasql";
     hasql-pool = package "hasql-pool";
     hasql-transaction = package "hasql-transaction";
