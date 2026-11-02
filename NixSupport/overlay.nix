@@ -242,6 +242,11 @@ final: prev: {
                     # relude doctests fail due to changed GHC error messages in 9.14
                     relude = final.haskell.lib.dontCheck super.relude;
 
+                    # The GHC 9.14 config doesn't dontCheck HTTP (the default
+                    # package set does). Its test suite opens TCP sockets, which
+                    # fail in the sandbox ("connect: permission denied").
+                    HTTP = final.haskell.lib.dontCheck super.HTTP;
+
                     # HLS pulls this in; its tests import a hidden containers-0.8 module.
                     enummapset = final.haskell.lib.dontCheck super.enummapset;
 
