@@ -385,7 +385,7 @@ renderColumn Column { name, columnType, defaultValue, notNull, isUnique } id tab
     <a href={EditColumnAction tableName id}>Edit Column</a>
     <a href={DeleteColumnAction tableName id name} class="js-delete">Delete Column</a>
     <div></div>
-    <form action={ToggleColumnUniqueAction tableName id}>
+    <form method="POST" action={ToggleColumnUniqueAction tableName id}>
         <button type="submit" class="link-button">
             {toggleButtonText}
         </button>
