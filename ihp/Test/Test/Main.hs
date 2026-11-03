@@ -12,6 +12,7 @@ import qualified Test.Controller.ParamSpec
 import qualified Test.Controller.CookieSpec
 import qualified Test.Controller.AccessDeniedSpec
 import qualified Test.Controller.NotFoundSpec
+import qualified Test.Controller.FileUploadBackendSpec
 import qualified Test.ModelSupportSpec
 import qualified Test.QueryBuilderSpec
 import qualified Test.RouterSupportSpec
@@ -34,7 +35,11 @@ import qualified Test.AutoRefreshSpec
 import qualified Test.Pagination.ControllerFunctionsSpec
 import qualified Test.FetchPipelinedSpec
 import qualified Test.JobQueueSpec
+import qualified Test.JobRunnerSpec
+import qualified Test.ScriptSupportSpec
 import qualified Test.LoginSupport.AuthVaultSpec
+import qualified Test.PGVersionSpec
+import qualified Test.TypedSqlSpec
 
 main :: IO ()
 main = hspec do
@@ -46,6 +51,7 @@ main = hspec do
     Test.Controller.ParamSpec.tests
     Test.Controller.AccessDeniedSpec.tests
     Test.Controller.NotFoundSpec.tests
+    Test.Controller.FileUploadBackendSpec.tests
     Test.ModelSupportSpec.tests
     Test.QueryBuilderSpec.tests
     Test.RouterSupportSpec.tests
@@ -69,4 +75,8 @@ main = hspec do
     Test.Pagination.ControllerFunctionsSpec.tests
     Test.FetchPipelinedSpec.tests
     Test.JobQueueSpec.tests
+    Test.JobRunnerSpec.tests
+    Test.ScriptSupportSpec.tests
     Test.LoginSupport.AuthVaultSpec.tests
+    Test.PGVersionSpec.tests
+    Test.TypedSqlSpec.tests

@@ -6,7 +6,10 @@ module IDE.SplitModeSpec where
 import Test.Hspec
 import IHP.Prelude
 import qualified Data.ByteString as ByteString
+import qualified Data.List as List
 import qualified System.Directory as Directory
+import qualified System.Environment as Env
+import qualified System.FilePath as FilePath
 import qualified System.IO.Temp as Temp
 import qualified IHP.IDE.SplitMode as SplitMode
 import Control.Exception (bracket_)
@@ -77,6 +80,44 @@ tests = do
                 contents <- ByteString.readFile "build/RunJobs.hs"
                 ("WorkerMain" `ByteString.isInfixOf` contents) `shouldBe` True
                 ("import Main" `ByteString.isInfixOf` contents) `shouldBe` False
+
+    describe "IHP.IDE.SplitMode.workerSocketPath" do
+        it "lives outside the project directory" do
+            withTempCwd \dir -> do
+                path <- SplitMode.workerSocketPath
+                FilePath.isAbsolute path `shouldBe` True
+                projectDir <- Directory.canonicalizePath dir
+                path `shouldSatisfy` (not . (projectDir `List.isPrefixOf`))
+
+        it "is the same for one project and different for another" do
+            withTempCwd \_ -> do
+                first <- SplitMode.workerSocketPath
+                again <- SplitMode.workerSocketPath
+                again `shouldBe` first
+                other <- withTempCwd \_ -> SplitMode.workerSocketPath
+                other `shouldNotBe` first
+
+        it "uses XDG_RUNTIME_DIR when set" do
+            withTempCwd \_ ->
+                -- Under /tmp because the macOS temp dir is too long for a socket.
+                Temp.withTempDirectory "/tmp" "ihp-rt" \runtimeDir ->
+                    withEnv "XDG_RUNTIME_DIR" runtimeDir do
+                        path <- SplitMode.workerSocketPath
+                        FilePath.takeDirectory path `shouldBe` runtimeDir
+
+        it "is short enough for a Unix socket" do
+            withTempCwd \_ -> do
+                path <- SplitMode.workerSocketPath
+                length path `shouldSatisfy` (<= 100)
+
+-- | Run an action with an env var set, then restore the old value.
+withEnv :: String -> String -> IO a -> IO a
+withEnv name value action = do
+    previous <- Env.lookupEnv name
+    bracket_
+        (Env.setEnv name value)
+        (maybe (Env.unsetEnv name) (Env.setEnv name) previous)
+        action
 
 -- | Run an action with a fresh temporary directory as the current working
 -- directory. Restores the previous cwd on exit.

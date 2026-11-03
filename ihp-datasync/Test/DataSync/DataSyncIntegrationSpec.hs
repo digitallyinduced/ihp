@@ -4,11 +4,13 @@ module DataSync.DataSyncIntegrationSpec where
 import Test.Hspec
 import IHP.Prelude
 import qualified Hasql.Pool
+import qualified Pqi.Ffi
 import qualified Hasql.Pool.Config as Hasql.Pool.Config
 import qualified Hasql.Connection.Settings as HasqlSettings
 import qualified Hasql.Session as Session
 import IHP.DataSync.Hasql (runSession)
 import IHP.DataSync.ControllerImpl (runDataSyncController)
+import IHP.DataSync.Drain (DrainSignal, newDrainSignal, requestDrain)
 import IHP.DataSync.Types
 import IHP.DataSync.DynamicQuery (Field(..))
 import IHP.DataSync.DynamicQueryCompiler (camelCaseRenamer)
@@ -20,7 +22,7 @@ import qualified IHP.ModelSupport as ModelSupport
 import IHP.ModelSupport (noopLogger)
 import IHP.ModelSupport.Types (Id'(..), PrimaryKey)
 import qualified IHP.PGListener as PGListener
-import IHP.FrameworkConfig (buildFrameworkConfig)
+import IHP.FrameworkConfig (buildFrameworkConfig, option)
 import IHP.FrameworkConfig.Types
 
 import qualified Data.Vault.Lazy as Vault
@@ -56,7 +58,7 @@ getMasterDatabaseUrl = do
 
 -- | Create a hasql pool for the given connection string
 makePool :: Text -> IO Hasql.Pool.Pool
-makePool connStr = Hasql.Pool.acquire $ Hasql.Pool.Config.settings
+makePool connStr = Hasql.Pool.acquire Pqi.Ffi.adapter $ Hasql.Pool.Config.settings
     [ Hasql.Pool.Config.size 4
     , Hasql.Pool.Config.staticConnectionSettings
         (HasqlSettings.connectionString connStr)
@@ -130,13 +132,21 @@ insertTestData pool = do
     execSQL pool (cs ("INSERT INTO messages (id, user_id, body) VALUES ('" <> UUID.toText messageId <> "', '" <> UUID.toText userId <> "', 'Hello')"))
     pure (userId, messageId)
 
--- | Run the DataSync controller with TQueue-based I/O, yielding send/receive handles to the test.
-withDataSyncController
+-- | Set up everything the DataSync controller needs for the test user. The
+-- action gets a function that runs a controller with the given input and output.
+withDataSyncEnvironment
     :: Text -- ^ database connection string
     -> UUID -- ^ test user ID
-    -> ((ByteString -> IO (), IO DataSyncResponse, Async ()) -> IO a)
+    -> ((IO ByteString -> (DataSyncResponse -> IO ()) -> IO ()) -> IO a)
     -> IO a
-withDataSyncController connStr testUserId action = do
+withDataSyncEnvironment connStr testUserId action = do
+    withDataSyncEnvironmentDrain Nothing connStr testUserId action
+
+withDataSyncEnvironmentDrain
+    :: Maybe DrainSignal -> Text -> UUID
+    -> ((IO ByteString -> (DataSyncResponse -> IO ()) -> IO ()) -> IO a)
+    -> IO a
+withDataSyncEnvironmentDrain drain connStr testUserId action = do
     withHasqlPool connStr \hasqlPool -> do
         -- If connStr already has dbname= prefix, use it directly; otherwise format it
         let actualConnStr = if "dbname=" `Text.isPrefixOf` connStr
@@ -145,7 +155,9 @@ withDataSyncController connStr testUserId action = do
         let logger = noopLogger
         ModelSupport.withModelContext actualConnStr logger \modelContext -> do
             PGListener.withPGListener actualConnStr logger \pgListener -> do
-                frameworkConfig <- buildFrameworkConfig logger (pure ())
+                frameworkConfig <- buildFrameworkConfig logger do
+                    mapM_ option drain
+                    option (DataSyncMaxSubscriptionsPerConnection 2)
                 let frameworkConfig' = frameworkConfig { databaseUrl = actualConnStr }
 
                 let testUser = Just (TestUser { id = Id testUserId }) :: Maybe TestUser
@@ -159,30 +171,39 @@ withDataSyncController connStr testUserId action = do
                 let ?request = request
                 let ?context = ?request
 
-                -- Create the DataSync state IORef
-                stateRef <- newIORef DataSyncController
-                let ?state = stateRef
-
-                -- Create TQueues for communication
-                inQueue <- newTQueueIO :: IO (TQueue ByteString)
-                outQueue <- newTQueueIO :: IO (TQueue DataSyncResponse)
-
-                let receiveData = atomically $ readTQueue inQueue
-                let sendJSON response = atomically $ writeTQueue outQueue response
-
                 -- Build the helper functions
                 ensureRLSEnabled <- makeCachedEnsureRLSEnabled hasqlPool
                 let installTableChangeTriggers = ChangeNotifications.installTableChangeTriggers hasqlPool
 
-                -- Start the controller in an async thread
                 let ?modelContext = modelContext
-                controllerAsync <- async $
+                action \receiveData sendJSON -> do
+                    -- Every controller run gets its own DataSync state
+                    stateRef <- newIORef DataSyncController
+                    let ?state = stateRef
                     runDataSyncController hasqlPool ensureRLSEnabled installTableChangeTriggers receiveData sendJSON (\_ _ -> pure ()) (\_ -> camelCaseRenamer)
 
-                -- Run the test action, then clean up
-                Exception.finally
-                    (action (\msg -> atomically $ writeTQueue inQueue msg, readResponseWithTimeout outQueue, controllerAsync))
-                    (cancel controllerAsync)
+-- | Run the DataSync controller with TQueue-based I/O, yielding send/receive handles to the test.
+withDataSyncController
+    :: Text -- ^ database connection string
+    -> UUID -- ^ test user ID
+    -> ((ByteString -> IO (), IO DataSyncResponse, Async ()) -> IO a)
+    -> IO a
+withDataSyncController connStr testUserId action =
+    withDataSyncEnvironment connStr testUserId \runController -> do
+        -- Create TQueues for communication
+        inQueue <- newTQueueIO :: IO (TQueue ByteString)
+        outQueue <- newTQueueIO :: IO (TQueue DataSyncResponse)
+
+        let receiveData = atomically $ readTQueue inQueue
+        let sendJSON response = atomically $ writeTQueue outQueue response
+
+        -- Start the controller in an async thread
+        controllerAsync <- async (runController receiveData sendJSON)
+
+        -- Run the test action, then clean up
+        Exception.finally
+            (action (\msg -> atomically $ writeTQueue inQueue msg, readResponseWithTimeout outQueue, controllerAsync))
+            (cancel controllerAsync)
 
 -- | Read the next DataSyncResponse with a timeout
 readResponseWithTimeout :: TQueue DataSyncResponse -> IO DataSyncResponse
@@ -242,11 +263,17 @@ encodeDeleteRecord table recordId requestId transactionId = cs $ Aeson.encode $ 
 
 -- | Encode a CreateDataSubscription as JSON
 encodeCreateDataSubscription :: Text -> Int -> ByteString
-encodeCreateDataSubscription table requestId = cs $ Aeson.encode $ object
-    [ "tag" .= ("CreateDataSubscription" :: Text)
+encodeCreateDataSubscription table requestId =
+    encodeSubscription "CreateDataSubscription" table (object ["tag" .= ("SelectAll" :: Text)]) requestId
+
+-- Generic protocol fixture: vary the request kind and projection to exercise
+-- failures after reservation without changing the database schema.
+encodeSubscription :: Text -> Text -> Value -> Int -> ByteString
+encodeSubscription tag table selectedColumns requestId = cs $ Aeson.encode $ object
+    [ "tag" .= tag
     , "query" .= object
         [ "table" .= table
-        , "selectedColumns" .= object ["tag" .= ("SelectAll" :: Text)]
+        , "selectedColumns" .= selectedColumns
         , "whereCondition" .= Null
         , "orderByClause" .= ([] :: [Value])
         , "distinctOnColumn" .= Null
@@ -422,6 +449,33 @@ tests = do
                                 _ -> expectationFailure "Expected DataSyncError for table without RLS"
 
         describe "Subscriptions" do
+            forM_ ["CreateDataSubscription", "CreateCountSubscription"] \tag ->
+                it (cs ("releases capacity after failed setup of " <> tag)) do
+                    withDB \connStr -> withHasqlPool connStr \pool -> do
+                        setupTestSchema pool
+                        (userId, _) <- insertTestData pool
+                        withDataSyncController connStr userId \(send, recv, _) -> do
+                            let invalidColumns = object
+                                    [ "tag" .= ("SelectSpecific" :: Text)
+                                    , "contents" .= (["missing_subscription_column"] :: [Text])
+                                    ]
+                            -- More failed creations than the connection's
+                            -- limit must not consume its subscription slots.
+                            forM_ [1..4] \requestId -> do
+                                send (encodeSubscription tag "messages" invalidColumns requestId)
+                                recv >>= \case
+                                    DataSyncError { errorMessage } ->
+                                        errorMessage `shouldSatisfy` Text.isInfixOf "missing_subscription_column"
+                                    _ -> expectationFailure "Expected invalid-column error"
+                            send (encodeCreateDataSubscription "messages" 5)
+                            recv >>= \case
+                                DidCreateDataSubscription { subscriptionId } -> do
+                                    send (encodeDeleteDataSubscription subscriptionId 6)
+                                    recv >>= \case
+                                        DidDeleteDataSubscription {} -> pure ()
+                                        _ -> expectationFailure "Expected subscription deletion"
+                                _ -> expectationFailure "Failed setup exhausted subscription capacity"
+
             it "creates and deletes a data subscription" do
                 withDB \connStr -> do
                     withHasqlPool connStr \pool -> do
@@ -449,6 +503,44 @@ tests = do
                                 _ -> expectationFailure "Expected DidCreateDataSubscription"
 
         describe "Transactions" do
+            it "drains subscriptions and rolls back an open transaction before returning" do
+                withDB \connStr -> withHasqlPool connStr \pool -> do
+                    setupTestSchema pool
+                    (userId, _) <- insertTestData pool
+                    drain <- newDrainSignal
+                    withDataSyncEnvironmentDrain (Just drain) connStr userId \runController -> do
+                        input <- newTQueueIO
+                        output <- newTQueueIO
+                        let send msg = atomically (writeTQueue input msg)
+                            recv = readResponseWithTimeout output
+                        withAsync (runController (atomically (readTQueue input))
+                            (\response -> atomically (writeTQueue output response))) \controller -> do
+                            -- Install notification triggers before holding the
+                            -- transaction's row-write lock on this table.
+                            send (encodeCreateDataSubscription "messages" 72)
+                            recv >>= \case
+                                DidCreateDataSubscription {} -> pure ()
+                                _ -> expectationFailure "Expected DidCreateDataSubscription"
+                            send (encodeStartTransaction 70)
+                            recv >>= \case
+                                DidStartTransaction { transactionId } -> do
+                                    send (encodeCreateRecord "messages"
+                                        [("userId", String (UUID.toText userId)), ("body", String "drain rollback")]
+                                        71 (Just transactionId))
+                                    recv >>= \case
+                                        DidCreateRecord {} -> pure ()
+                                        _ -> expectationFailure "Expected DidCreateRecord"
+                                _ -> expectationFailure "Expected DidStartTransaction"
+                            requestDrain drain
+                            race (threadDelay 5_000_000) (wait controller) >>= \case
+                                Right () -> pure ()
+                                Left () -> expectationFailure "Drain did not finish"
+                    withDataSyncController connStr userId \(send, recv, _) -> do
+                        send (encodeDataSyncQuery "messages" 73 Nothing)
+                        recv >>= \case
+                            DataSyncResult { result } -> length result `shouldBe` 1
+                            _ -> expectationFailure "Expected DataSyncResult"
+
             it "starts, uses, and commits a transaction" do
                 withDB \connStr -> do
                     withHasqlPool connStr \pool -> do

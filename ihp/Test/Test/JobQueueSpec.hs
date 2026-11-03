@@ -4,6 +4,8 @@ import Test.Hspec
 import IHP.Prelude
 import qualified IHP.Job.Queue as JobQueue
 import IHP.Job.Queue.Pool (runPool)
+import qualified IHP.Job.Queue.Worker as Worker
+import qualified Data.UUID.V4 as UUID
 import IHP.ModelSupport (createModelContext, releaseModelContext, HasqlError (..), noopLogger)
 import System.Log.FastLogger (FastLogger)
 import qualified IHP.PGListener as PGListener
@@ -26,6 +28,141 @@ data TestContext = TestContext
 
 tests :: Spec
 tests = do
+    describe "IHP.Job.Queue.Worker" do
+        it "releases interrupted jobs immediately without consuming a retry attempt" do
+            withRegisteredWorker \pool workerId -> do
+                insertRunningWorkerJob pool workerId
+                Worker.unregisterWorker pool workerId
+                queryBool pool ("SELECT status = 'job_status_retry' AND locked_by IS NULL"
+                    <> " AND locked_at IS NULL AND run_at <= clock_timestamp() AND attempts_count = 2"
+                    <> " FROM worker_registry_spec_jobs") `shouldReturn` True
+
+        it "does not recover a long-running job belonging to a live worker" do
+            withRegisteredWorker \pool workerId -> do
+                insertRunningWorkerJob pool workerId
+                Worker.reapExpiredWorkers pool
+                Worker.heartbeatWorker pool workerId `shouldReturn` True
+                queryBool pool "SELECT status = 'job_status_running' AND locked_by IS NOT NULL FROM worker_registry_spec_jobs"
+                    `shouldReturn` True
+
+        it "reaps expired workers and releases their jobs" do
+            withRegisteredWorker \pool workerId -> do
+                insertRunningWorkerJob pool workerId
+                expireTestWorker pool workerId
+                Worker.reapExpiredWorkers pool
+                queryBool pool "SELECT status = 'job_status_retry' AND locked_by IS NULL FROM worker_registry_spec_jobs"
+                    `shouldReturn` True
+                Worker.heartbeatWorker pool workerId `shouldReturn` False
+
+        it "bounds recovery lock waits and retries safely after a blocked foreign-key action" do
+            withRegisteredWorker \pool workerId -> do
+                insertRunningWorkerJob pool workerId
+                expireTestWorker pool workerId
+                let holdJobTable = runScript pool
+                        ("BEGIN; LOCK TABLE worker_registry_spec_jobs IN SHARE MODE;"
+                            <> "SELECT pg_sleep(3); ROLLBACK;")
+                Async.withAsync holdJobTable \_ -> do
+                    waitUntil 2_000_000 (queryBool pool
+                        ("SELECT EXISTS (SELECT 1 FROM pg_locks WHERE relation = 'worker_registry_spec_jobs'::regclass"
+                            <> " AND mode = 'ShareLock' AND granted)")) `shouldReturn` True
+                    result <- timeout 2_000_000 (Exception.try (Worker.reapExpiredWorkers pool) :: IO (Either HasqlError ()))
+                    case result of
+                        Just (Left _) -> pure ()
+                        _ -> expectationFailure "reaper did not abort its blocked FK action within the lock timeout"
+                    queryBool pool "SELECT status = 'job_status_running' AND locked_by IS NOT NULL FROM worker_registry_spec_jobs"
+                        `shouldReturn` True
+                Worker.reapExpiredWorkers pool
+                queryBool pool "SELECT status = 'job_status_retry' AND locked_by IS NULL FROM worker_registry_spec_jobs"
+                    `shouldReturn` True
+
+        it "does not resurrect an expired lease before it is reaped" do
+            withRegisteredWorker \pool workerId -> do
+                expireTestWorker pool workerId
+                Worker.heartbeatWorker pool workerId `shouldReturn` False
+
+        it "does not turn normal completion into a retry" do
+            withRegisteredWorker \pool workerId -> do
+                insertRunningWorkerJob pool workerId
+                runScript pool "UPDATE worker_registry_spec_jobs SET status = 'job_status_succeeded', locked_by = NULL"
+                Worker.unregisterWorker pool workerId
+                queryBool pool "SELECT status = 'job_status_succeeded' AND attempts_count = 3 FROM worker_registry_spec_jobs"
+                    `shouldReturn` True
+
+        it "rejects claims by deleted workers" do
+            withRegisteredWorker \pool workerId -> do
+                Worker.unregisterWorker pool workerId
+                insertRunningWorkerJob pool workerId `shouldThrow` (\(_ :: HasqlError) -> True)
+
+        it "refuses to silently release legacy worker locks during upgrade" do
+            withRegisteredWorker \pool _ -> do
+                runScript pool "ALTER TABLE worker_registry_spec_jobs DROP CONSTRAINT ihp_job_worker_fk"
+                legacyWorkerId <- UUID.nextRandom
+                insertRunningWorkerJob pool legacyWorkerId
+                Worker.ensureJobWorkerForeignKey pool "worker_registry_spec_jobs"
+                    `shouldThrow` (\(_ :: HasqlError) -> True)
+                queryBool pool "SELECT status = 'job_status_running' AND locked_by IS NOT NULL FROM worker_registry_spec_jobs"
+                    `shouldReturn` True
+
+        it "does not take DDL locks when ownership infrastructure already exists" do
+            withRegisteredWorker \pool _ -> do
+                Async.withAsync (holdRowExclusiveLock pool "worker_registry_spec_jobs") \_ -> do
+                    waitUntil 2_000_000 (rowExclusiveLockHeld pool "worker_registry_spec_jobs") `shouldReturn` True
+                    timeout 1_000_000 (Worker.ensureJobWorkerForeignKey pool "worker_registry_spec_jobs")
+                        `shouldReturn` Just ()
+
+        it "installs an ownership index without duplicating it on restart" do
+            withRegisteredWorker \pool _ -> do
+                Worker.ensureJobWorkerForeignKey pool "worker_registry_spec_jobs"
+                queryBool pool ("SELECT count(*) = 1 FROM pg_index i JOIN pg_attribute a"
+                    <> " ON a.attrelid = i.indrelid AND a.attnum = i.indkey[0]"
+                    <> " WHERE i.indrelid = 'worker_registry_spec_jobs'::regclass AND a.attname = 'locked_by'")
+                    `shouldReturn` True
+
+        it "repairs a missing release trigger" do
+            withRegisteredWorker \pool workerId -> do
+                insertRunningWorkerJob pool workerId
+                runScript pool "DROP TRIGGER ihp_release_worker_job ON worker_registry_spec_jobs"
+                Worker.ensureJobWorkerForeignKey pool "worker_registry_spec_jobs"
+                runScript pool ("DELETE FROM public.job_workers WHERE id = '" <> tshow workerId <> "'")
+                queryBool pool "SELECT status = 'job_status_retry' FROM worker_registry_spec_jobs" `shouldReturn` True
+
+        it "fails a released job instead of duplicating a pending job for the same work" do
+            withRegisteredWorker \pool workerId -> do
+                insertRunningWorkerJob pool workerId
+                insertPendingDuplicateJob pool
+                Worker.unregisterWorker pool workerId
+                queryBool pool ("SELECT status = 'job_status_failed' AND locked_by IS NULL AND attempts_count = 3"
+                    <> " AND last_error LIKE 'Not retried:%'"
+                    <> " FROM worker_registry_spec_jobs WHERE id = '00000000-0000-0000-0000-000000000001'")
+                    `shouldReturn` True
+                queryBool pool ("SELECT status = 'job_status_not_started'"
+                    <> " FROM worker_registry_spec_jobs WHERE id = '00000000-0000-0000-0000-000000000002'")
+                    `shouldReturn` True
+                queryBool pool ("SELECT NOT EXISTS (SELECT 1 FROM public.job_workers WHERE id = '" <> tshow workerId <> "')")
+                    `shouldReturn` True
+
+        it "reaps every expired worker even when one of their jobs conflicts with a pending job" do
+            withRegisteredWorker \pool workerId -> do
+                otherWorkerId <- UUID.nextRandom
+                Worker.registerWorker pool otherWorkerId
+                insertRunningWorkerJob pool workerId
+                insertPendingDuplicateJob pool
+                runScript pool $
+                    "INSERT INTO worker_registry_spec_jobs (id, status, locked_by, locked_at, attempts_count, job_key)"
+                    <> " VALUES ('00000000-0000-0000-0000-000000000003', 'job_status_running', '"
+                    <> tshow otherWorkerId <> "', now(), 1, 2)"
+                expireTestWorker pool workerId
+                expireTestWorker pool otherWorkerId
+                Worker.reapExpiredWorkers pool
+                queryBool pool ("SELECT bool_and(CASE id"
+                    <> " WHEN '00000000-0000-0000-0000-000000000001' THEN status = 'job_status_failed'"
+                    <> " WHEN '00000000-0000-0000-0000-000000000002' THEN status = 'job_status_not_started'"
+                    <> " ELSE status = 'job_status_retry' AND attempts_count = 0 END)"
+                    <> " FROM worker_registry_spec_jobs")
+                    `shouldReturn` True
+                queryBool pool "SELECT NOT EXISTS (SELECT 1 FROM public.job_workers WHERE heartbeat_at < now() - interval '120 seconds')"
+                    `shouldReturn` True
+
     describe "IHP.Job.Queue" do
         it "recreates missing triggers when poller repair is enabled" do
             withJobWatcher True \pool -> do
@@ -120,6 +257,47 @@ tests = do
 withJobWatcher :: Bool -> (HasqlPool.Pool -> IO ()) -> IO ()
 withJobWatcher enablePollerTriggerRepair =
     withJobWatcherForTable enablePollerTriggerRepair testTableName
+
+withRegisteredWorker :: (HasqlPool.Pool -> UUID -> IO ()) -> IO ()
+withRegisteredWorker action = withDB \modelContext _ _ -> do
+    let pool = modelContext.hasqlPool
+    workerId <- UUID.nextRandom
+    Worker.ensureWorkerRegistry pool
+    Exception.finally
+        (do
+            runScript pool ("DROP TABLE IF EXISTS worker_registry_spec_jobs;"
+                <> "CREATE TABLE worker_registry_spec_jobs (id UUID PRIMARY KEY,"
+                <> "status TEXT NOT NULL, locked_by UUID, locked_at TIMESTAMPTZ,"
+                <> "run_at TIMESTAMPTZ NOT NULL DEFAULT now(), updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),"
+                <> "attempts_count INT NOT NULL DEFAULT 0, last_error TEXT, job_key INT NOT NULL DEFAULT 1);"
+                -- One pending job per key, as applications use to deduplicate queued work.
+                <> "CREATE UNIQUE INDEX worker_registry_spec_jobs_pending_key ON worker_registry_spec_jobs (job_key)"
+                <> " WHERE status IN ('job_status_not_started', 'job_status_retry')")
+            Worker.ensureJobWorkerForeignKey pool "worker_registry_spec_jobs"
+            Worker.registerWorker pool workerId
+            action pool workerId)
+        (do
+            runScript pool "DROP TABLE IF EXISTS worker_registry_spec_jobs"
+            Worker.unregisterWorker pool workerId)
+
+insertRunningWorkerJob :: HasqlPool.Pool -> UUID -> IO ()
+insertRunningWorkerJob pool workerId = runScript pool $
+    "INSERT INTO worker_registry_spec_jobs (id, status, locked_by, locked_at, attempts_count)"
+    <> " VALUES ('00000000-0000-0000-0000-000000000001', 'job_status_running', '"
+    <> tshow workerId <> "', now() - interval '1 day', 3)"
+
+insertPendingDuplicateJob :: HasqlPool.Pool -> IO ()
+insertPendingDuplicateJob pool = runScript pool $
+    "INSERT INTO worker_registry_spec_jobs (id, status) VALUES ('00000000-0000-0000-0000-000000000002', 'job_status_not_started')"
+
+expireTestWorker :: HasqlPool.Pool -> UUID -> IO ()
+expireTestWorker pool workerId = runScript pool $
+    "UPDATE public.job_workers SET heartbeat_at = now() - interval '121 seconds' WHERE id = '"
+    <> tshow workerId <> "'"
+
+queryBool :: HasqlPool.Pool -> Text -> IO Bool
+queryBool pool sql = runPool pool $ HasqlSession.statement () $
+    Hasql.unpreparable sql Encoders.noParams (Decoders.singleRow (Decoders.column (Decoders.nonNullable Decoders.bool)))
 
 withJobWatcherForTable :: Bool -> Text -> (HasqlPool.Pool -> IO ()) -> IO ()
 withJobWatcherForTable enablePollerTriggerRepair tableName action = do

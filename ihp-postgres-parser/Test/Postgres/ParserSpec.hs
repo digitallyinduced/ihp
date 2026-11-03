@@ -22,6 +22,41 @@ spec = do
         it "should parse an empty CREATE TABLE statement" do
             parseSql "CREATE TABLE users ();"  `shouldBe` StatementCreateTable (table "users")
 
+        describe "column REFERENCES and CHECK constraints" do
+            let equivalent inline tableConstraint = do
+                    let statement = parseSql inline
+                    statement `shouldBe` parseSql tableConstraint
+                    parseSql (compileSql [statement]) `shouldBe` statement
+
+            it "preserves an inline foreign key and its ON DELETE action" do
+                equivalent
+                    "CREATE TABLE entries (id UUID PRIMARY KEY NOT NULL, account_id UUID NOT NULL REFERENCES accounts(id) ON DELETE CASCADE);"
+                    "CREATE TABLE entries (id UUID PRIMARY KEY NOT NULL, account_id UUID NOT NULL, FOREIGN KEY (account_id) REFERENCES accounts(id) ON DELETE CASCADE);"
+
+            it "preserves an inline check following a default" do
+                equivalent
+                    "CREATE TABLE entries (id UUID PRIMARY KEY NOT NULL, status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'sent')));"
+                    "CREATE TABLE entries (id UUID PRIMARY KEY NOT NULL, status TEXT NOT NULL DEFAULT 'pending', CHECK (status IN ('pending', 'sent')));"
+
+            it "preserves named constraints, action options, and following column attributes" do
+                equivalent
+                    "CREATE TABLE entries (account_id UUID CONSTRAINT account_reference REFERENCES accounts ON UPDATE CASCADE ON DELETE SET NULL DEFERRABLE INITIALLY DEFERRED NOT NULL CONSTRAINT account_check CHECK (account_id IS NOT NULL) UNIQUE);"
+                    "CREATE TABLE entries (account_id UUID NOT NULL UNIQUE, CONSTRAINT account_reference FOREIGN KEY (account_id) REFERENCES accounts ON UPDATE CASCADE ON DELETE SET NULL DEFERRABLE INITIALLY DEFERRED, CONSTRAINT account_check CHECK (account_id IS NOT NULL));"
+
+            it "preserves multiple inline and table constraints in declaration order" do
+                equivalent
+                    "CREATE TABLE entries (amount INT CHECK (amount > 0) CHECK (amount < 100), CHECK (amount <> 50), account_id UUID REFERENCES accounts(id));"
+                    "CREATE TABLE entries (amount INT, CHECK (amount > 0), CHECK (amount < 100), CHECK (amount <> 50), account_id UUID, FOREIGN KEY (account_id) REFERENCES accounts(id));"
+
+            it "preserves quoted column and constraint names" do
+                equivalent
+                    "CREATE TABLE entries (\"AccountId\" UUID CONSTRAINT \"AccountReference\" REFERENCES accounting.\"Accounts\"(\"Id\"));"
+                    "CREATE TABLE entries (\"AccountId\" UUID, CONSTRAINT \"AccountReference\" FOREIGN KEY (\"AccountId\") REFERENCES accounting.\"Accounts\"(\"Id\"));"
+
+            it "rejects incomplete column constraints" do
+                parseSqlText "CREATE TABLE entries (account_id UUID REFERENCES);" `shouldSatisfy` isLeft
+                parseSqlText "CREATE TABLE entries (status TEXT CHECK ());" `shouldSatisfy` isLeft
+
         it "should parse an CREATE EXTENSION for the UUID extension" do
             parseSql "CREATE EXTENSION IF NOT EXISTS \"uuid-ossp\";" `shouldBe` CreateExtension { name = "uuid-ossp", ifNotExists = True, extensionOptions = [] }
 

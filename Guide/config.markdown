@@ -224,6 +224,25 @@ IHP uses two database connection pools:
 
 ### Hasql Pool Configuration
 
+IHP uses Hasql 2.0 with `Pqi.Native.adapter` for query pools and dedicated
+query connections. `IHP.PGListener` uses `Pqi.Ffi.adapter` for LISTEN/NOTIFY,
+because the pinned native adapter does not yet consume idle notifications.
+
+When creating a Hasql connection or pool yourself, add `p.pqi-native` (or
+`p.pqi-ffi` for a dedicated listener) to your application's Haskell packages
+and pass the adapter explicitly:
+
+```haskell
+import qualified Hasql.Connection
+import qualified Pqi.Native
+
+-- settings :: Hasql.Connection.Settings.Settings
+Hasql.Connection.acquire Pqi.Native.adapter settings
+```
+
+The same adapter argument is required by `Hasql.Pool.acquire`. Receiving a
+single large field still buffers the entire field before returning it.
+
 The hasql pool can be configured using environment variables:
 
 | Variable | Default | Description |

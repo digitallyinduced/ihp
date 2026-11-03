@@ -37,7 +37,9 @@ main = withUtf8 do
     -- it sends here is what wakes us up to discover the new file. Gating on
     -- 'hasJobs' at boot would leave the worker permanently idle for projects
     -- whose first job is scaffolded *after* `devenv up` has started.
-    WorkerSignal.withWorkerSignalServer SplitMode.workerSocketPath \waitForReload -> do
+    socketPath <- SplitMode.workerSocketPath
+    putStrLn ("[worker] listening for reload signals on " <> pack socketPath)
+    WorkerSignal.withWorkerSignalServer socketPath \waitForReload -> do
         waitUntilJobsReady waitForReload
         runWithJobs mainThreadId waitForReload
 

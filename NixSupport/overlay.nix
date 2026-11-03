@@ -43,6 +43,20 @@ let
             # (slower eval due to IFD, but no generated files needed):
             #   localPackageIFD = name: fastBuild (super.callCabal2nix name (filteredSrc name) {});
 
+            # On Darwin, keep the data files in `out` instead of a separate `data`
+            # output. When Nix rebuilds a multi-output derivation while a sibling
+            # output is still valid (e.g. GC removed `out` but kept `data`), it
+            # builds against a scratch path for the valid output and rewrites that
+            # path in the new outputs after the builder exits. The cabal Paths_<pkg>
+            # module embeds the data path, so the rewrite edits Mach-O files that ld
+            # already ad-hoc signed, and macOS kills them on launch or dlopen
+            # ("Killed: 9"). Re-signing in postFixup cannot help, because the rewrite
+            # runs after the builder. Linux derivations stay unchanged.
+            withoutSeparateDataOutputOnDarwin = pkg:
+                if final.stdenv.hostPlatform.isDarwin
+                then final.haskell.lib.overrideCabal pkg (_: { enableSeparateDataOutput = false; })
+                else pkg;
+
             # ihp-with-docs has haddock for reference docs
             localPackageWithHaddock = name:
                 final.haskell.lib.disableLibraryProfiling (
@@ -51,14 +65,19 @@ let
                         { src = filteredSrc name; }
                 );
         in {
-            ihp = localPackage "ihp";
+            ihp = withoutSeparateDataOutputOnDarwin (localPackage "ihp");
             ihp-with-docs = localPackageWithHaddock "ihp";
             ihp-router = localPackage "ihp-router";
             ihp-pagehead = localPackage "ihp-pagehead";
             ihp-pglistener = localPackage "ihp-pglistener";
             ihp-modal = localPackage "ihp-modal";
-            ihp-ide = localPackage "ihp-ide";
-            ihp-schema-compiler = localPackage "ihp-schema-compiler";
+            ihp-ide = (withoutSeparateDataOutputOnDarwin (localPackage "ihp-ide")).overrideAttrs (_: {
+                # StatusServerSpec binds an ephemeral loopback server and
+                # connects WebSocket clients. Declare that test capability on
+                # this derivation only; keep Darwin sandboxing and all tests.
+                __darwinAllowLocalNetworking = true;
+            });
+            ihp-schema-compiler = withoutSeparateDataOutputOnDarwin (localPackage "ihp-schema-compiler");
             ihp-postgres-parser = localPackage "ihp-postgres-parser";
             ihp-mail = localPackage "ihp-mail";
             ihp-migrate = (localPackage "ihp-migrate").overrideAttrs (old: { mainProgram = "migrate"; });
@@ -108,17 +127,15 @@ let
             # verbatim for a cache hit. Restore the override only if a reverted
             # nixpkgs pin no longer carries 0.3.2.
 
-            # Hasql 1.10 is the pinned nixpkgs default, including hasql 1.10.3.7
-            # and hasql-pool 1.4.2.3 with the poisoned-connection fixes from
-            # #2765. The surrounding ecosystem (including hasql-interpolate,
-            # postgresql-binary, text-builder and postgresql-connection-string)
-            # also needs no overrides.
+            # Hasql 2 and its adapters are pinned together in hasql.nix.
+            # postgresql-binary, text-builder and postgresql-connection-string
+            # continue to resolve from the pinned nixpkgs package set.
 
             # temporary-ospath is shipped by the pinned nixpkgs at 1.3, so it
             # also resolves from the default set with no override needed.
 
-            # postgresql-simple-postgresql-types and hasql-mapping are unbroken in
-            # the pinned nixpkgs, so no markUnbroken overrides are needed.
+            # postgresql-simple-postgresql-types is unbroken in the pinned
+            # nixpkgs, so no markUnbroken override is needed.
 
             # The PostGIS-enabled postgresql-types source below still requires
             # postgresql-types-algebra <0.2. nixpkgs has moved to 0.2, so retain
@@ -159,6 +176,7 @@ final: prev: {
     # The dontCheck overrides below apply to that default build.
     ghc = final.haskellPackages.override {
         overrides = final.lib.composeManyExtensions [
+            (import ./hasql.nix { inherit inputs; pkgs = final; })
             (ihpOverrides final)
             (self: super: {
                 # say tests fail due to CRLF newline handling changes
@@ -212,6 +230,7 @@ final: prev: {
                 (self: super: {
                     ghc-exactprint_1_14_0_0 = final.haskell.lib.dontCheck super.ghc-exactprint_1_14_1_0;
                 })
+                (import ./hasql.nix { inherit inputs; pkgs = final; })
                 (ihpOverrides final)
                 (self: super: {
                     say = final.haskell.lib.dontCheck super.say;

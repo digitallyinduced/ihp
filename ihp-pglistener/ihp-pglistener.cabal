@@ -23,8 +23,9 @@ common shared-properties
         , aeson
         , uuid
         , async
-        , hasql
-        , hasql-notifications
+        , hasql >= 2.0.1 && < 2.1
+        , hasql-notifications >= 0.2.5 && < 0.3
+        , pqi-ffi >= 1.0 && < 1.1
         , unagi-chan
         , safe-exceptions
         , containers

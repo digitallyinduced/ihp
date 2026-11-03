@@ -2,19 +2,44 @@
 
 ## Unreleased
 
+- The dev server no longer exits when the telemetry request fails (e.g. behind a proxy that refuses it).
+- The dev job worker now reloads when you change a Haskell file. Before, the reload could get lost and the worker had to be restarted by hand. The reload socket moved from `build/.dev-worker.sock` to the runtime directory (`$XDG_RUNTIME_DIR` or the temp dir).
+- Large request bodies are no longer read into memory before the action runs. Previously every `POST`, `PUT` and `PATCH` body was read fully, and a `multipart/form-data` upload was held twice (once as the raw body, once as the file content), so a 500 MB video upload cost about 1 GB of RAM. Now JSON and `application/x-www-form-urlencoded` bodies are read and parsed as before, `multipart/form-data` bodies are parsed straight from the request stream (the `ParseRequestBodyOptions` limits still apply), and bodies with any other content type (e.g. `application/octet-stream`) are not read at all, so an action can stream them with `getRequestBodyChunk`. `getRequestBody` still returns the full raw body for these: it reads it on first use and caches it. For `multipart/form-data` requests `getRequestBody` now returns an empty body. See [Large Uploads](https://ihp.digitallyinduced.com/Guide/file-storage.html#large-uploads).
+- Uploaded files can now be stored in temporary files instead of memory: set the `IHP_FILE_UPLOAD_MEMORY_THRESHOLD` env var to a size in bytes (e.g. `1048576`), and the uploads of larger requests (or requests with an unknown length) are written to temporary files. `0` writes all uploads to temporary files. When not set, uploads are kept in memory as before. `option TempFileUploads` / `option (TempFileUploadsAbove n)` in `Config.hs` do the same. Use `tempFileOrNothing` / `tempFilesByName` to get the file path (these work for every upload, writing one kept in memory to a temporary file on first use). `fileOrNothing` and `filesByName` keep working, reading the file content from disk on first use. The temporary files are removed when the request ends. `wai-request-params` exposes this as `requestBodyMiddlewareWith`.
+- Job workers no longer crash when a job they return to the queue conflicts with a partial unique index that allows one pending job per key. Previously, a failed, timed-out or interrupted job whose retry collided with an already pending job for the same key stopped the whole worker process, and the worker could not unregister. Its jobs stayed running, and the recovery of every other expired worker failed on the same conflict. Such a job is now marked failed with a `Not retried:` message, since the pending job covers the work, and expired workers release their jobs one by one.
+- Job workers no longer claim several jobs in one fetch. On a job table whose statistics show only a row or two, PostgreSQL could plan the claim's `id IN (… LIMIT 1 FOR UPDATE SKIP LOCKED)` as a nested-loop semi join that reran the subquery for every row of the table, so one fetch claimed every job that was due at that moment. The fetch then failed with `UnexpectedRowCountStatementError`, which stopped the whole worker process and interrupted all of its running jobs. Unregistering the worker released the claimed jobs for an immediate retry, so the restarted worker could claim them together again and crash the same way. The claim now picks its job with a scalar subquery, which runs once.
+- DataSync now works on networks that block WebSockets, such as office proxies. When the first WebSocket of a page cannot open, the JavaScript client continues over HTTP long polling with the same protocol, subscriptions and RLS. Mount the new endpoints next to the WebSocket with `parseRoute @DataSyncLongPollController` (see the realtime SPA guide). Without them the client keeps retrying the WebSocket as before.
+- Added `paramOrDefaultIgnoreInvalid`, a variant of `paramOrDefault` that also falls back to the default value when a parameter is present but cannot be parsed. Use it for parameters read from a URL, where the value is whatever a person typed, an old link carried, or a crawler guessed. `paramOrDefault` itself is unchanged and still throws `ParamCouldNotBeParsedException` on an invalid value, so form fields and anything else where a bad value is a bug you want to hear about keep that behavior.
+- `paginate` no longer answers a malformed `page` or `maxItems` with a 500. Both are read from the URL, so `?page=abc` or a stray space in `?maxItems=%2010` used to throw out of `paramOrDefault` and render the error page; they now read through `paramOrDefaultIgnoreInvalid` and fall back to the first page and the configured page size, the same as when the parameter is absent. The pagination view had the same problem when building its page links and now drops a malformed `maxItems` from them instead of throwing while rendering. An out-of-range but numeric value is unchanged: it is still clamped to at least 1 and at most 200.
 - `typedSql` `${...}` parameters now accept `Maybe` and `[Maybe]` values, not just bare values and lists. Alongside `${x}` and `${[x]}` you can now write `${Just x}`, `${Nothing}` (binds SQL `NULL`), and `${[Just x]}` — so enum-filtered joins like `WHERE status = ANY(${[Just Active, Just Pending]})` work without fetch-ids-then-`filterWhereIn` or text casts. Bare values still work for every column, and wrong-typed parameters are still rejected at compile time.
 - The schema compiler now also generates a `DefaultParamEncoder [Maybe <Enum>]` instance for each enum type, alongside the existing `<Enum>`, `Maybe <Enum>`, and `[<Enum>]` instances, so `[Maybe <Enum>]` arrays bind as parameters.
 - `IHP.TypedSql` now exposes `sqlQueryTypedPipelined`, explicit cardinality helpers (`sqlQueryTypedRows`, `sqlQueryTypedOneOrNothing`, `sqlQueryTypedSingle`), and `sqlQueryTypedMaybeColumn`. `typedSql` also infers `json[b]_build_object` and `json[b]_build_array` as non-null computed JSON expressions.
 - `sqlExecTyped` now also supports known typed no-result utility statements such as `SET CONSTRAINTS ...`, returning `()` after successful execution. ([#2747](https://github.com/digitallyinduced/ihp/issues/2747))
 - Fixed the IDE codegen "Preview" buttons failing with `405 Method Not Allowed`: the `New*` ToolServer routes were declared GET-only in the routes-DSL migration, but the codegen views submit their preview and option forms via POST. They now accept `GET|POST` again, as AutoRoute did in v1.5. ([#2743](https://github.com/digitallyinduced/ihp/issues/2743), [#2744](https://github.com/digitallyinduced/ihp/pull/2744))
+- Fixed `ihp.nixosModules.appWithPostgres` failing to build because it read `IHPSchema.sql` from the root of the IHP source, where the file no longer is. It now reads `ihp-schema-compiler/data/IHPSchema.sql`.
 
 ### Performance, Build, and Tooling
 
+- Schema compilation now shares name and enum lookups, skips disabled relationship work, and narrows SQL type parsing before trying individual spellings. Repeated generation uses a cache that verifies every output with SHA-256 before reuse. On a large application schema, fresh compilation improved about 2.3× and unchanged reruns about 10×; generated Haskell remains unchanged.
+
+- Tables whose comment contains `ihp:no-codegen` (e.g. `COMMENT ON TABLE audit_events IS 'ihp:no-codegen';`) no longer get a generated record type, instances or statement modules. Use it for tables the application only accesses through SQL. Their `PrimaryKey` and `Default (Id' ...)` instances, which `typedSql` and foreign keys need, are generated into `Generated.ActualTypes.PrimaryKeys.<Model>`; code that uses the table's ids imports that module. Adding such a table no longer recompiles every generated module.
+- Each enum is now generated into its own module, `Generated.Enums.<Enum>`, and generated table modules import only the enums their columns use, so changing an enum no longer recompiles every generated module. `Generated.Enums` re-exports all enums as before.
+- The `nixpkgs-nixos` flake input now tracks NixOS 26.05. NixOS 25.11 reached end of support on 30 June 2026. Apps that follow `ihp/nixpkgs-nixos` pick this up when they update IHP. The Haskell `nixpkgs` input is unchanged.
 - Reduced type-family work for model and query code by removing unnecessary table-name `KnownSymbol` constraints and generating direct model ID metadata, keeping common paths such as `currentUserId` shallow on large schemas. ([#2766](https://github.com/digitallyinduced/ihp/issues/2766))
 - `deploy-to-nixos` no longer requires a root SSH login. The target may carry a login user (`deploy-to-nixos deploy@production`) while the flake attribute stays the host name, and for a non-root user the activation on the server and `migrate.service` are elevated with `sudo`. Extra arguments are passed through to `nixos-rebuild`, and a failing `nixos-rebuild` now fails the whole command instead of being masked by the migrate step.
 
 ### Breaking Changes
 
+- IHP now uses Hasql 2.0 and hasql-pool 1.5. Query pools, typed-SQL metadata
+  connections and migration tools select `Pqi.Native.adapter`; the pinned
+  pqi-native 1.0.1.15 includes the large-field receive allocation fix. Dedicated
+  `IHP.PGListener` connections select `Pqi.Ffi.adapter` because native idle
+  notification reads are not yet implemented. Applications creating their own
+  Hasql connections or pools must add an adapter dependency and pass it as the
+  first argument to `acquire`, for example
+  `Hasql.Connection.acquire Pqi.Native.adapter settings`. The Nix overlay pins
+  the compatible Hasql 2.0 package family for both supported GHC package sets.
+- PostgreSQL 18 is the default for the development server, test and compile-time databases, and `appWithPostgres`. New tables, jobs, and DataSync triggers use `uuidv7()` unless `IHP_POSTGRES_VERSION` is set below 18. A PostgreSQL 17 data directory must be upgraded or recreated.
 - `DefaultScope` has been removed. `query @Model` now always starts without
   implicit filters; define and use explicit query functions for reusable scopes.
 - `typedSql` now tracks conservative query cardinality and statement result
@@ -23,6 +48,13 @@
   many-row, at-most-one-row, or exactly-one-row.
   For example, `SELECT COUNT(*) ...` now returns `Int64` directly, while
   `LIMIT 1` queries return `Maybe result`.
+- `ihp-typed-sql` is now a standalone package (like `ihp-hsx` and `ihp-router`)
+  and no longer depends on `ihp`; `ihp` now depends on `ihp-typed-sql`. App
+  imports of `IHP.TypedSql` keep working — that module moved into the `ihp`
+  package, and `PrimaryKey` / `Id'` are still re-exported from
+  `IHP.ModelSupport.Types`. Depending on `ihp-typed-sql` alone no longer
+  provides `IHP.TypedSql`, though; use `IHP.TypedSql.Quoter` and
+  `IHP.TypedSql.Hasql` instead.
 
 ## v1.6.0 (2026-06-20)
 

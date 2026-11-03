@@ -16,6 +16,7 @@ module Wai.Request.Params
   param
 , paramOrNothing
 , paramOrDefault
+, paramOrDefaultIgnoreInvalid
 , paramOrError
 , paramList
 , paramListOrNothing
@@ -155,6 +156,30 @@ hasParam requestBody request = isJust . queryOrBodyParam requestBody request
 paramOrDefault :: ParamReader a => RequestBody -> Wai.Request -> a -> ByteString -> a
 paramOrDefault requestBody request !defaultValue = fromMaybe defaultValue . paramOrNothing requestBody request
 {-# INLINABLE paramOrDefault #-}
+
+-- | Like 'paramOrDefault', but also falls back to the default value when the parameter is
+-- present and cannot be parsed, instead of throwing an exception.
+--
+-- Use this for parameters that come from a URL, where the value is whatever a person typed,
+-- an old link carried, or a crawler guessed. Answering @?page=abc@ with a 500 is rarely what
+-- you want there.
+--
+-- Prefer plain 'paramOrDefault' for form fields and anything else where an unparseable value
+-- is a bug you want to hear about: it still throws, so the mistake is not silently ignored.
+--
+-- __Example:__
+--
+-- > action UsersAction = do
+-- >     let page :: Int = paramOrDefaultIgnoreInvalid 1 "page"
+--
+-- @GET /Users@, @GET /Users?page=@ and @GET /Users?page=abc@ all set @page@ to @1@, while
+-- @GET /Users?page=2@ sets it to @2@.
+paramOrDefaultIgnoreInvalid :: ParamReader a => RequestBody -> Wai.Request -> a -> ByteString -> a
+paramOrDefaultIgnoreInvalid requestBody request !defaultValue name =
+    case paramOrError requestBody request name of
+        Left _ -> defaultValue
+        Right value -> value
+{-# INLINABLE paramOrDefaultIgnoreInvalid #-}
 
 -- | Like 'param', but returns @Nothing@ when the parameter is missing instead of throwing
 -- an exception.

@@ -12,5 +12,5 @@ mkDerivation {
   ];
   testHaskellDepends = [ aeson base hspec neat-interpolation text ];
   description = "Call GPT4 from your Haskell apps";
-  license = lib.licenses.mit;
+  license = lib.meta.getLicenseFromSpdxId "MIT";
 }

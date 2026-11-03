@@ -8,20 +8,21 @@
 , hasql-pool, hasql-postgresql-types, hasql-transaction, hspec
 , http-client, http-client-tls, http-media, http-types, ihp-hsx
 , ihp-imagemagick, ihp-modal, ihp-pagehead, ihp-pglistener
-, ihp-router, inflections, interpolate, lib, mime-types, minio-hs
-, mono-traversable, mtl, neat-interpolation, network, network-uri
-, parser-combinators, postgresql-simple
+, ihp-router, ihp-typed-sql, inflections, interpolate, lib
+, mime-types, minio-hs, mono-traversable, mtl, neat-interpolation
+, network, network-uri, parser-combinators, postgresql-simple
 , postgresql-simple-postgresql-types, postgresql-types
-, postgresql-types-algebra, process, ptr-peeker, ptr-poker
-, pwstore-fast, random, random-strings, regex-tdfa, resource-pool
-, resourcet, safe-exceptions, scientific, slugger, split, stm
-, string-conversions, tasty-bench, template-haskell, text
-, text-builder, time, transformers, typerep-map, unagi-chan, unix
-, unliftio, unordered-containers, uri-encode, uuid, vault, vector
-, wai, wai-app-static, wai-asset-path, wai-cors, wai-early-return
-, wai-extra, wai-flash-messages, wai-request-params
-, wai-session-clientsession-deferred, wai-session-maybe, wai-util
-, wai-websockets, warp, warp-systemd, websockets, with-utf8
+, postgresql-types-algebra, pqi-ffi, process, ptr-peeker
+, ptr-poker, pwstore-fast, random, random-strings, regex-tdfa
+, resource-pool, resourcet, safe-exceptions, scientific, slugger
+, split, stm, string-conversions, tasty-bench, template-haskell
+, text, text-builder, time, transformers, typerep-map, unagi-chan
+, unix, unliftio, unordered-containers, uri-encode, uuid, vault
+, vector, wai, wai-app-static, wai-asset-path, wai-cors
+, wai-early-return, wai-extra, wai-flash-messages
+, wai-request-params, wai-session-clientsession-deferred
+, wai-session-maybe, wai-util, wai-websockets, warp, warp-systemd
+, websockets, with-utf8
 }:
 mkDerivation {
   pname = "ihp";
@@ -37,18 +38,19 @@ mkDerivation {
     haskell-src-meta hasql hasql-dynamic-statements hasql-implicits
     hasql-mapping hasql-pool hasql-postgresql-types hasql-transaction
     http-client http-client-tls http-media http-types ihp-hsx
-    ihp-imagemagick ihp-modal ihp-pagehead ihp-pglistener
-    ihp-router inflections interpolate mime-types minio-hs
+    ihp-imagemagick ihp-modal ihp-pagehead ihp-pglistener ihp-router
+    ihp-typed-sql inflections interpolate mime-types minio-hs
     mono-traversable mtl neat-interpolation network network-uri
     parser-combinators postgresql-simple
     postgresql-simple-postgresql-types postgresql-types
-    postgresql-types-algebra process ptr-peeker ptr-poker pwstore-fast
-    random random-strings regex-tdfa resource-pool resourcet
-    safe-exceptions scientific slugger split stm string-conversions
-    template-haskell text text-builder time transformers typerep-map
-    unagi-chan unix unliftio unordered-containers uri-encode uuid vault
-    vector wai wai-app-static wai-asset-path wai-cors wai-early-return
-    wai-extra wai-flash-messages wai-request-params
+    postgresql-types-algebra pqi-ffi process ptr-peeker ptr-poker
+    pwstore-fast random random-strings regex-tdfa resource-pool
+    resourcet safe-exceptions scientific slugger split stm
+    string-conversions template-haskell text text-builder time
+    transformers typerep-map unagi-chan unix unliftio
+    unordered-containers uri-encode uuid vault vector wai
+    wai-app-static wai-asset-path wai-cors wai-early-return wai-extra
+    wai-flash-messages wai-request-params
     wai-session-clientsession-deferred wai-session-maybe wai-util
     wai-websockets warp warp-systemd websockets with-utf8
   ];
@@ -61,18 +63,19 @@ mkDerivation {
     haskell-src-meta hasql hasql-dynamic-statements hasql-implicits
     hasql-mapping hasql-pool hasql-postgresql-types hasql-transaction
     hspec http-client http-client-tls http-media http-types ihp-hsx
-    ihp-imagemagick ihp-modal ihp-pagehead ihp-pglistener
-    ihp-router inflections interpolate mime-types minio-hs
+    ihp-imagemagick ihp-modal ihp-pagehead ihp-pglistener ihp-router
+    ihp-typed-sql inflections interpolate mime-types minio-hs
     mono-traversable mtl neat-interpolation network network-uri
     parser-combinators postgresql-simple
     postgresql-simple-postgresql-types postgresql-types
-    postgresql-types-algebra process ptr-peeker ptr-poker pwstore-fast
-    random random-strings regex-tdfa resource-pool resourcet
-    safe-exceptions scientific slugger split stm string-conversions
-    template-haskell text text-builder time transformers typerep-map
-    unagi-chan unix unliftio unordered-containers uri-encode uuid vault
-    vector wai wai-app-static wai-asset-path wai-cors wai-early-return
-    wai-extra wai-flash-messages wai-request-params
+    postgresql-types-algebra pqi-ffi process ptr-peeker ptr-poker
+    pwstore-fast random random-strings regex-tdfa resource-pool
+    resourcet safe-exceptions scientific slugger split stm
+    string-conversions template-haskell text text-builder time
+    transformers typerep-map unagi-chan unix unliftio
+    unordered-containers uri-encode uuid vault vector wai
+    wai-app-static wai-asset-path wai-cors wai-early-return wai-extra
+    wai-flash-messages wai-request-params
     wai-session-clientsession-deferred wai-session-maybe wai-util
     wai-websockets warp warp-systemd websockets with-utf8
   ];
@@ -85,21 +88,21 @@ mkDerivation {
     haskell-src-meta hasql hasql-dynamic-statements hasql-implicits
     hasql-mapping hasql-pool hasql-postgresql-types hasql-transaction
     http-client http-client-tls http-media http-types ihp-hsx
-    ihp-imagemagick ihp-modal ihp-pagehead ihp-pglistener
-    ihp-router inflections interpolate mime-types minio-hs
+    ihp-imagemagick ihp-modal ihp-pagehead ihp-pglistener ihp-router
+    ihp-typed-sql inflections interpolate mime-types minio-hs
     mono-traversable mtl neat-interpolation network network-uri
     parser-combinators postgresql-simple
     postgresql-simple-postgresql-types postgresql-types
-    postgresql-types-algebra process ptr-peeker ptr-poker pwstore-fast
-    random random-strings regex-tdfa resource-pool resourcet
-    safe-exceptions scientific slugger split stm string-conversions
-    tasty-bench template-haskell text text-builder time transformers
-    typerep-map unagi-chan unix unliftio unordered-containers
-    uri-encode uuid vault vector wai wai-app-static wai-asset-path
-    wai-cors wai-early-return wai-extra wai-flash-messages
-    wai-request-params wai-session-clientsession-deferred
-    wai-session-maybe wai-util wai-websockets warp warp-systemd
-    websockets with-utf8
+    postgresql-types-algebra pqi-ffi process ptr-peeker ptr-poker
+    pwstore-fast random random-strings regex-tdfa resource-pool
+    resourcet safe-exceptions scientific slugger split stm
+    string-conversions tasty-bench template-haskell text text-builder
+    time transformers typerep-map unagi-chan unix unliftio
+    unordered-containers uri-encode uuid vault vector wai
+    wai-app-static wai-asset-path wai-cors wai-early-return wai-extra
+    wai-flash-messages wai-request-params
+    wai-session-clientsession-deferred wai-session-maybe wai-util
+    wai-websockets warp warp-systemd websockets with-utf8
   ];
   homepage = "https://ihp.digitallyinduced.com/";
   description = "Haskell Web Framework";

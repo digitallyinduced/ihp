@@ -13,7 +13,7 @@ import IHP.ControllerSupport
 import IHP.HSX.Markup (Html)
 import IHP.HSX.MarkupQQ (hsx)
 
-import IHP.Controller.Param (paramOrNothing)
+import IHP.Controller.Param (paramOrNothing, paramOrError)
 
 import Network.Wai
 import qualified Network.HTTP.Types.URI as Query
@@ -83,10 +83,13 @@ renderPagination pagination@Pagination {currentPage, window, pageSize} =
                     Just "" -> queryString
                     Just filterValue -> queryString |> setQueryValue "filter" (cs filterValue)
 
+            -- Read through paramOrError so that a malformed ?maxItems=abc drops the
+            -- parameter from the generated links instead of throwing while rendering.
+            -- The paginator itself falls back the same way, see IHP.Pagination.Internal.
             maybeMaxItems queryString =
-                case paramOrNothing @Int "maxItems" of
-                    Nothing -> queryString
-                    Just m -> queryString |> setQueryValue "maxItems" (cs $ tshow m)
+                case paramOrError @Int "maxItems" of
+                    Left _ -> queryString
+                    Right m -> queryString |> setQueryValue "maxItems" (cs $ tshow m)
 
             processedPages (pg0:pg1:rest) =
                 if pg1 == pg0 + 1 then

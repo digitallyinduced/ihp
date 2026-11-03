@@ -2,14 +2,15 @@
 , base16-bytestring, base64-bytestring, basic-prelude, blaze-html
 , blaze-markup, bytestring, classy-prelude, clientsession
 , containers, countable-inflections, cryptohash, data-default
-, directory, filepath, fsnotify, hasql, hasql-dynamic-statements
-, hasql-implicits, hasql-pool, hspec, http-types, ihp, ihp-hsx
-, fast-logger, ihp-migrate, ihp-modal, ihp-postgres-parser
-, ihp-schema-compiler, inflections, interpolate, lib, megaparsec
-, mono-traversable, neat-interpolation, network, network-uri
-, process, safe-exceptions, split, string-conversions, text, time
-, temporary, transformers, unagi-chan, unix, unliftio, uri-encode
-, uuid, vault, wai, wai-app-static, wai-asset-path, wai-extra
+, directory, fast-logger, filepath, fsnotify, hasql
+, hasql-dynamic-statements, hasql-implicits, hasql-pool, hspec
+, http-types, ihp, ihp-hsx, ihp-migrate, ihp-modal
+, ihp-postgres-parser, ihp-schema-compiler, inflections
+, interpolate, lib, megaparsec, mono-traversable
+, neat-interpolation, network, network-uri, pqi-ffi, process
+, safe-exceptions, split, string-conversions, temporary, text, time
+, transformers, unagi-chan, unix, unliftio, uri-encode, uuid, vault
+, wai, wai-app-static, wai-asset-path, wai-extra
 , wai-request-params, wai-session-clientsession-deferred
 , wai-session-maybe, wai-util, wai-websockets, warp, websockets
 , with-utf8, wreq
@@ -25,43 +26,44 @@ mkDerivation {
     aeson async attoparsec auto-update base base16-bytestring
     basic-prelude blaze-html blaze-markup bytestring classy-prelude
     clientsession containers countable-inflections cryptohash
-    data-default directory filepath fsnotify hasql
+    data-default directory fast-logger filepath fsnotify hasql
     hasql-dynamic-statements hasql-implicits hasql-pool http-types ihp
-    ihp-hsx fast-logger ihp-migrate ihp-modal ihp-postgres-parser
+    ihp-hsx ihp-migrate ihp-modal ihp-postgres-parser
     ihp-schema-compiler inflections interpolate megaparsec
-    mono-traversable neat-interpolation network network-uri process
-    safe-exceptions split string-conversions text time transformers
-    unagi-chan unix unliftio uri-encode uuid vault wai wai-app-static
-    wai-extra wai-request-params wai-session-clientsession-deferred
-    wai-session-maybe wai-util wai-websockets warp websockets with-utf8
-    wreq
+    mono-traversable neat-interpolation network network-uri pqi-ffi
+    process safe-exceptions split string-conversions text time
+    transformers unagi-chan unix unliftio uri-encode uuid vault wai
+    wai-app-static wai-extra wai-request-params
+    wai-session-clientsession-deferred wai-session-maybe wai-util
+    wai-websockets warp websockets with-utf8 wreq
   ];
   executableHaskellDepends = [
     aeson async attoparsec auto-update base base16-bytestring
     base64-bytestring basic-prelude blaze-html blaze-markup bytestring
     classy-prelude clientsession containers countable-inflections
-    cryptohash data-default directory filepath fsnotify hasql
-    hasql-dynamic-statements hasql-implicits hasql-pool http-types ihp
-    ihp-hsx fast-logger ihp-migrate ihp-postgres-parser ihp-schema-compiler
-    inflections interpolate megaparsec mono-traversable
-    neat-interpolation network network-uri process safe-exceptions
-    split string-conversions text time transformers unagi-chan unix
-    unliftio uri-encode uuid vault wai wai-app-static wai-extra
-    wai-session-clientsession-deferred wai-session-maybe wai-util
-    wai-websockets warp websockets with-utf8 wreq
+    cryptohash data-default directory fast-logger filepath fsnotify
+    hasql hasql-dynamic-statements hasql-implicits hasql-pool
+    http-types ihp ihp-hsx ihp-migrate ihp-postgres-parser
+    ihp-schema-compiler inflections interpolate megaparsec
+    mono-traversable neat-interpolation network network-uri pqi-ffi
+    process safe-exceptions split string-conversions text time
+    transformers unagi-chan unix unliftio uri-encode uuid vault wai
+    wai-app-static wai-extra wai-session-clientsession-deferred
+    wai-session-maybe wai-util wai-websockets warp websockets with-utf8
+    wreq
   ];
   testHaskellDepends = [
     aeson async attoparsec auto-update base base16-bytestring
     basic-prelude blaze-html blaze-markup bytestring classy-prelude
     clientsession containers countable-inflections cryptohash
-    data-default directory filepath fsnotify hasql
+    data-default directory fast-logger filepath fsnotify hasql
     hasql-dynamic-statements hasql-implicits hasql-pool hspec
-    http-types ihp ihp-hsx fast-logger ihp-migrate ihp-modal
-    ihp-postgres-parser ihp-schema-compiler inflections interpolate
-    megaparsec mono-traversable neat-interpolation network network-uri
-    process safe-exceptions split string-conversions temporary text time
-    transformers unagi-chan unix unliftio uri-encode uuid vault wai
-    wai-app-static wai-asset-path wai-extra wai-request-params
+    http-types ihp ihp-hsx ihp-migrate ihp-modal ihp-postgres-parser
+    ihp-schema-compiler inflections interpolate megaparsec
+    mono-traversable neat-interpolation network network-uri pqi-ffi
+    process safe-exceptions split string-conversions temporary text
+    time transformers unagi-chan unix unliftio uri-encode uuid vault
+    wai wai-app-static wai-asset-path wai-extra wai-request-params
     wai-session-clientsession-deferred wai-session-maybe wai-util
     wai-websockets warp websockets with-utf8 wreq
   ];

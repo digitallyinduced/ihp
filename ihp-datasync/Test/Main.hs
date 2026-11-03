@@ -7,6 +7,8 @@ import qualified DataSync.TypedEncoder
 import qualified DataSync.ChangeNotifications
 import qualified DataSync.RLSIntegrationSpec
 import qualified DataSync.DataSyncIntegrationSpec
+import qualified DataSync.LongPollSpec
+import qualified DataSync.DrainSpec
 
 main :: IO ()
 main = hspec do
@@ -15,3 +17,5 @@ main = hspec do
     DataSync.ChangeNotifications.tests
     DataSync.RLSIntegrationSpec.tests
     DataSync.DataSyncIntegrationSpec.tests
+    DataSync.LongPollSpec.tests
+    DataSync.DrainSpec.tests

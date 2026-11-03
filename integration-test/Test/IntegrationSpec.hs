@@ -5,9 +5,8 @@ import IHP.FrameworkConfig
 import IHP.Environment
 import IHP.Test.Mocking
 import IHP.Hspec (withIHPApp)
-import IHP.Job.Queue (fetchNextJob, jobDidSucceed)
+import IHP.Job.Queue (withJobWorker, fetchNextJob, jobDidSucceed)
 import IHP.Job.Types (JobStatus(..))
-import qualified Data.UUID
 import Test.Hspec
 
 import Web.FrontController ()
@@ -112,20 +111,20 @@ tests = around (withIHPApp WebApplication testConfig) do
 
             -- Step 1: fetchNextJob — atomically locks the job and sets status to Running
             let pool = ?modelContext.hasqlPool
-            let workerId = Data.UUID.nil
-            maybeJob <- fetchNextJob @UpdatePostViewsJob pool workerId
+            withJobWorker pool [tableName @UpdatePostViewsJob] $ \workerId -> do
+                maybeJob <- fetchNextJob @UpdatePostViewsJob pool workerId
 
-            case maybeJob of
-                Nothing -> expectationFailure "No job found in queue"
-                Just lockedJob -> do
-                    lockedJob.status `shouldBe` JobStatusRunning
+                case maybeJob of
+                    Nothing -> expectationFailure "No job found in queue"
+                    Just lockedJob -> do
+                        lockedJob.status `shouldBe` JobStatusRunning
 
-                    -- Step 2: perform — execute the job logic
-                    let ?context = (?mocking).frameworkConfig
-                    perform lockedJob
+                        -- Step 2: perform — execute the job logic
+                        let ?context = (?mocking).frameworkConfig
+                        perform lockedJob
 
-                    -- Step 3: jobDidSucceed — marks job as Succeeded in DB
-                    jobDidSucceed pool lockedJob
+                        -- Step 3: jobDidSucceed — marks job as Succeeded in DB
+                        jobDidSucceed pool lockedJob
 
             -- Verify side effect
             updatedPost <- fetch post.id
@@ -134,3 +133,49 @@ tests = around (withIHPApp WebApplication testConfig) do
             -- Verify job status was updated to Succeeded
             completedJob <- fetch job.id
             completedJob.status `shouldBe` JobStatusSucceeded
+
+        it "can create and update records with row level security enabled" $ withContext do
+            unsafeSqlExecDiscardResult "DO $$ BEGIN IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'ihp_authenticated') THEN CREATE ROLE ihp_authenticated NOLOGIN; END IF; END $$" ()
+            unsafeSqlExecDiscardResult "GRANT SELECT, INSERT, UPDATE, DELETE ON notes TO ihp_authenticated" ()
+
+            user <- newRecord @User
+                |> set #email "rls@example.com"
+                |> set #passwordHash "hash"
+                |> createRecord
+
+            let ?modelContext = ?modelContext
+                    { rowLevelSecurity = Just RowLevelSecurityContext
+                        { rlsAuthenticatedRole = "ihp_authenticated"
+                        , rlsUserId = tshow user.id
+                        }
+                    }
+
+            note <- newRecord @Note
+                |> set #body "Created"
+                |> set #userId user.id
+                |> createRecord
+            note.body `shouldBe` "Created"
+
+            updatedNote <- note
+                |> set #body "Updated"
+                |> updateRecord
+            updatedNote.body `shouldBe` "Updated"
+
+            createdNotes <- createMany
+                [ newRecord @Note |> set #body "Many 1" |> set #userId user.id
+                , newRecord @Note |> set #body "Many 2" |> set #userId user.id
+                ]
+            length createdNotes `shouldBe` 2
+
+            newRecord @Note
+                |> set #body "Discarded"
+                |> set #userId user.id
+                |> createRecordDiscardResult
+
+            updatedNote
+                |> set #body "Updated again"
+                |> updateRecordDiscardResult
+
+            notes <- query @Note |> fetch
+            length notes `shouldBe` 4
+            map (.body) notes `shouldContain` ["Updated again"]

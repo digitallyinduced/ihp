@@ -11,6 +11,7 @@ module IHP.TypedSql
     , SqlExecTypedResult
     , DecodeTypedQuery
     , DecodeTypedExec
+    , TypedSqlRow (..)
     , RunTypedExec
     , sqlQueryTyped
     , sqlQueryTypedRows
@@ -34,6 +35,7 @@ import           IHP.ModelSupport                (sqlExecHasql, sqlExecHasqlCoun
 import           IHP.Prelude
 import           GHC.TypeLits                    (ErrorMessage (Text), TypeError)
 
+import           IHP.Hasql.FromRow             (FromRowHasql (..))
 import           IHP.TypedSql.Hasql              (DecodeTypedExec, DecodeTypedQuery (typedQueryResultDecoder),
                                                   sqlExecTypedSession, sqlExecTypedStatement,
                                                   sqlExecTypedWithPool,
@@ -41,8 +43,17 @@ import           IHP.TypedSql.Hasql              (DecodeTypedExec, DecodeTypedQu
                                                   sqlQueryTypedPipelined, sqlQueryTypedSession,
                                                   sqlQueryTypedStatement, sqlQueryTypedWithPool)
 import           IHP.TypedSql.Quoter             (typedSql, typedSqlStar)
+import           IHP.TypedSql.Row                (TypedSqlRow (..))
 import           IHP.TypedSql.Types              (QueryCardinality (..), QueryExecResult (..), SqlExecTypedResult,
                                                   TypedQuery (..), TypedQueryResult)
+
+-- | Decode full-table @SELECT table.*@ results with IHP's 'FromRowHasql'.
+-- Every IHP model has a generated 'FromRowHasql' instance, so IHP models keep
+-- working with typedSql without changes. Standalone users (without @ihp@)
+-- define 'TypedSqlRow' instances directly instead; those take precedence over
+-- this blanket instance.
+instance {-# OVERLAPPABLE #-} FromRowHasql row => TypedSqlRow row where
+    typedSqlRowDecoder = hasqlRowDecoder
 
 -- | Run a typed SELECT query.
 --

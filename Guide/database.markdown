@@ -34,13 +34,13 @@ Once you have created your project, the first step is to define a database schem
 
 In a new project, this file will be empty.
 
-If you are using PostgreSQL 18 or newer, you can set the environment variable `IHP_POSTGRES_VERSION=18` to use the native `uuidv7()` function as the default for new tables and jobs instead of `uuid_generate_v4()`. UUIDv7 provides time-ordered UUIDs that are better for database indexing.
+IHP uses PostgreSQL 18 by default. New tables and jobs use the built-in `uuidv7()` function, which produces time-ordered UUIDs that index better than `uuid_generate_v4()`. Existing `Schema.sql` files that call `uuid_generate_v4()` keep working: IHP still loads the `uuid-ossp` extension. To generate `uuid_generate_v4()` defaults instead, set `IHP_POSTGRES_VERSION=17` and pin the PostgreSQL package back to 17.
 
 To define your database schema add your `CREATE TABLE ...` statements to the `Schema.sql`. For a users table this can look like this:
 
 ```sql
 CREATE TABLE users (
-    id UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL,
+    id UUID DEFAULT uuidv7() PRIMARY KEY NOT NULL,
     firstname TEXT NOT NULL,
     lastname TEXT NOT NULL
 );
@@ -143,6 +143,26 @@ The `id` field type `Id User` is basically just a wrapper around `UUID` for type
 When a SQL field can be `NULL`, the Haskell field type will be contained in `Maybe`.
 
 In the Schema Designer, you can take a look at the generated Haskell code by right-clicking the table and clicking `Show Generated Haskell Code`.
+
+### Skipping Code Generation for a Table
+
+Every generated table costs compile time, and adding a table recompiles all generated modules. A table that your application only reads and writes through SQL, e.g. with [typed queries](typed-sql.html), does not need the generated record type, instances and statements. Mark it with `ihp:no-codegen` in its comment:
+
+```sql
+CREATE TABLE audit_events (
+    id UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL,
+    payload JSONB NOT NULL
+);
+COMMENT ON TABLE audit_events IS 'Written by the audit trigger. ihp:no-codegen';
+```
+
+IHP then only generates the table's `PrimaryKey` and `Default (Id' "audit_events")` instances, which typed queries need for the table's `id` and foreign key columns. They live in their own module, `Generated.ActualTypes.PrimaryKeys.AuditEvent`. Generated code for tables referencing the table imports this module. Other modules that use the table's ids, e.g. through `typedSql`, import it themselves:
+
+```haskell
+import Generated.ActualTypes.PrimaryKeys.AuditEvent ()
+```
+
+Because no other generated module depends on it, adding a table marked with `ihp:no-codegen` recompiles none of the existing generated code.
 
 ## Retrieving Records
 

@@ -6,5 +6,5 @@ mkDerivation {
   libraryHaskellDepends = [ base blaze-html ihp-hsx text vault wai ];
   homepage = "https://ihp.digitallyinduced.com/";
   description = "Page title and meta tags for IHP";
-  license = lib.licenses.mit;
+  license = lib.meta.getLicenseFromSpdxId "MIT";
 }

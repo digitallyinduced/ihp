@@ -373,7 +373,14 @@ ihpFlake:
 
                 schema = pkgs.stdenv.mkDerivation {
                     name = "schema";
-                    src = cfg.projectPath;
+                    # Only the schema: with the whole project as its source,
+                    # this changed with every commit, and with it the build-time
+                    # database that the app builds load from it.
+                    src = ihpFlake.inputs.nix-filter.lib {
+                        root = cfg.projectPath;
+                        include = [ "Application/Schema.sql" ];
+                        name = "${config.ihp.appName}-schema-source";
+                    };
                     phases = [ "unpackPhase" "installPhase" ];
                     installPhase = ''
                         mkdir $out
@@ -420,6 +427,7 @@ ihpFlake:
                 then {
                     tests = pkgs.stdenv.mkDerivation {
                             name = "${config.ihp.appName}-tests";
+                            IHP_RELATION_SUPPORT = if cfg.relationSupport then "1" else "0";
                             src = builtins.path { path = config.ihp.projectPath; name = "source"; };
                             nativeBuildInputs = with pkgs; [ (ghcCompiler.ghcWithPackages (p: cfg.haskellPackages p ++ cfg.devHaskellPackages p ++ [p.ihp-ide p.ihp-schema-compiler])) ]
                                 # typedSql's quasi-quoter boots an ephemeral PostgreSQL at
@@ -427,7 +435,7 @@ ihpFlake:
                                 # below), so the postgres tools must be on PATH whenever the
                                 # app depends on ihp-typed-sql.
                                 ++ lib.optionals buildWithPostgres
-                                    [ postgresql ps ];
+                                    [ postgresql_18 ps ];
                             buildPhase = ''
                                 export IHP_LIB=${ihpLib}
 
@@ -454,11 +462,12 @@ ihpFlake:
                 then {
                     "integration-tests" = pkgs.stdenv.mkDerivation {
                             name = "${config.ihp.appName}-integration-tests";
+                            IHP_RELATION_SUPPORT = if cfg.relationSupport then "1" else "0";
                             src = builtins.path { path = config.ihp.projectPath; name = "source"; };
                             nativeBuildInputs = with pkgs; [
                                 (ghcCompiler.ghcWithPackages (p: cfg.haskellPackages p ++ cfg.devHaskellPackages p ++ [p.ihp-ide p.ihp-schema-compiler]))
                                 gnumake
-                                postgresql
+                                postgresql_18
                             ];
                             buildPhase = ''
                                 export IHP_LIB=${ihpLib}
@@ -561,6 +570,8 @@ ihpFlake:
                 # even when `devenv up` is not currently running.
                 env.IHP_TYPED_SQL_AUTO_DB = "1";
 
+                # Pin the major version. pkgs.postgresql follows the nixpkgs alias.
+                services.postgres.package = lib.mkDefault pkgs.postgresql_18;
                 services.postgres.enable = true;
                 services.postgres.settings = {
                     logging_collector = true;

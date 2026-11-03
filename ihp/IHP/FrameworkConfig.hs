@@ -24,9 +24,7 @@ module IHP.FrameworkConfig
 
 import IHP.Prelude
 import IHP.FrameworkConfig.Types
-import qualified System.Directory.OsPath as Directory
 import IHP.Environment
-import System.OsPath (decodeUtf)
 import qualified Data.Text as Text
 import qualified Network.Wai.Middleware.RequestLogger as RequestLogger
 import qualified Web.Cookie as Cookie
@@ -43,6 +41,7 @@ import Network.Wai (Request)
 import IHP.EnvVar
 import IHP.LoginSupport.Types (currentUserIdVaultKey, lookupAuthVault)
 import qualified Data.UUID as UUID
+import IHP.TypedSql.Metadata (defaultDatabaseUrl)
 
 import qualified Prelude
 import qualified GHC.Stack as Stack
@@ -131,6 +130,11 @@ ihpDefaultConfig logger = do
 
     option WaiParse.defaultParseRequestBodyOptions
 
+    -- Uploads of requests larger than IHP_FILE_UPLOAD_MEMORY_THRESHOLD bytes are written to
+    -- temporary files. When it's not set, uploads are kept in memory
+    fileUploadBackend <- envOrDefault "IHP_FILE_UPLOAD_MEMORY_THRESHOLD" InMemoryFileUploads
+    option fileUploadBackend
+
     option bootstrap
 
     when (environment == Development) do
@@ -152,6 +156,12 @@ ihpDefaultConfig logger = do
 
 instance EnvVarReader AppPort where
     envStringToValue string = AppPort <$> envStringToValue string
+
+-- | Reads @IHP_FILE_UPLOAD_MEMORY_THRESHOLD@, a size in bytes, as 'TempFileUploadsAbove'
+instance EnvVarReader FileUploadBackend where
+    envStringToValue string = case textToInt (cs string) of
+        Just bytes | bytes >= 0 -> Right (TempFileUploadsAbove (fromIntegral bytes))
+        _ -> Left ("Expected a size in bytes, got " <> cs string)
 
 instance EnvVarReader RequestLogger.IPAddrSource where
     envStringToValue "FromHeader" = Right RequestLogger.FromHeader
@@ -187,6 +197,7 @@ buildFrameworkConfig rawLogger appConfig = do
             exceptionTracker <- findOption @ExceptionTracker
             corsResourcePolicy <- findOptionOrNothing @Cors.CorsResourcePolicy
             parseRequestBodyOptions <- findOption @WaiParse.ParseRequestBodyOptions
+            fileUploadBackend <- findOption @FileUploadBackend
             (IdeBaseUrl ideBaseUrl) <- findOption @IdeBaseUrl
             (RLSAuthenticatedRole rlsAuthenticatedRole) <- findOption @RLSAuthenticatedRole
             customMiddleware <- findOption @CustomMiddleware
@@ -218,12 +229,8 @@ data RootApplication = RootApplication deriving (Eq, Show)
 defaultPort :: Int
 defaultPort = 8000
 
-defaultDatabaseUrl :: HasCallStack => IO ByteString
-defaultDatabaseUrl = do
-    currentDirectoryOsPath <- Directory.getCurrentDirectory
-    currentDirectory <- decodeUtf currentDirectoryOsPath
-    let defaultDatabaseUrl = "postgresql:///app?host=" <> cs currentDirectory <> "/build/db"
-    envOrDefault "DATABASE_URL" defaultDatabaseUrl
+-- | The database URL used when @DATABASE_URL@ is not set. Canonical
+-- definition in "IHP.TypedSql.Metadata", re-exported here.
 
 -- Returns 'True' when the application is running in a given environment
 isEnvironment :: (?context :: context, ConfigProvider context) => Environment -> Bool

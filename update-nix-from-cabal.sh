@@ -21,6 +21,22 @@ for cabal_file in */*.cabal; do
   (cd "$dir" && cabal2nix .) > "./$dir/default.nix"
 done
 
+# --- Hasql 2 and adapters ---
+# Sources are locked flake inputs; generated derivations take the source as an
+# argument so evaluation requires neither cabal2nix nor machine-specific paths.
+mkdir -p NixSupport/hasql
+hasql_packages=(
+  hasql hasql-pool hasql-transaction hasql-dynamic-statements
+  hasql-implicits hasql-notifications pqi pqi-native pqi-ffi
+)
+for name in "${hasql_packages[@]}"; do
+  package_source=$(nix eval --raw --impure --expr \
+    "(builtins.getFlake (toString ./.)).inputs.\"${name}-source\".outPath")
+  echo "Generating NixSupport/hasql/${name}.nix from its locked source"
+  cabal2nix --extra-arguments source "$package_source" \
+    | sed 's@^  src = .*;@  src = source;@' > "NixSupport/hasql/${name}.nix"
+done
+
 # --- Third-party Hackage packages ---
 # Pre-generated to avoid IFD (Import From Derivation).
 # Update versions here when upgrading dependencies.
@@ -43,9 +59,8 @@ hackage_packages=(
   "ghc-typelits-natnormalise 0.9.6"
   "ghc-typelits-knownnat 0.8.4"
 )
-# Note: hasql/postgresql-binary/postgresql-types/hasql-mapping and friends
-# are pulled directly from nixpkgs via versioned attributes (hasql_1_10_3
-# etc.) since NixOS/nixpkgs#519795. See NixSupport/overlay.nix.
+# postgresql-binary and the compatible hasql-mapping release continue to
+# resolve from nixpkgs. The Hasql 2 family is generated from locked sources above.
 
 for entry in "${hackage_packages[@]}"; do
   name="${entry%% *}"

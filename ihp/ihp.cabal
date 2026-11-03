@@ -124,13 +124,15 @@ common shared-properties
             , slugger
             , ihp-imagemagick
             , wai-request-params
-            , hasql
-            , hasql-pool
+            , hasql >= 2.0.1 && < 2.1
+            , pqi-ffi >= 1.0 && < 1.1
+            , hasql-pool >= 1.5 && < 1.6
             , hasql-dynamic-statements
             , hasql-implicits
             , hasql-mapping
             , hasql-postgresql-types
             , hasql-transaction
+            , ihp-typed-sql
             , postgresql-types
             , postgresql-types-algebra
             , postgresql-simple-postgresql-types
@@ -254,6 +256,7 @@ library
         , IHP.Job.Queue.Fetch
         , IHP.Job.Queue.Watch
         , IHP.Job.Queue.Result
+        , IHP.Job.Queue.Worker
         , IHP.Job.Queue.StatusInstances
         , IHP.Job.Queue.STM
         , IHP.Job.Runner.MainLoop
@@ -272,6 +275,8 @@ library
         , IHP.Hasql.FromRow
         , IHP.Hasql.Encoders
         , IHP.Hasql.Pool
+        , IHP.TypedSql
+        , IHP.TypedSql.Pagination
         , IHP.PGSimpleCompat
         , IHP.PGVersion
     reexported-modules:
@@ -307,6 +312,13 @@ test-suite tests
     build-depends:
           ihp
         , hspec
+        , bytestring
+        , directory
+        , filepath
+        , ihp-typed-sql
+        , process
+        , text
+        , unix
     other-modules:
         Test.ValidationSupport.ValidateFieldSpec
         Test.NameSupportSpec
@@ -316,6 +328,7 @@ test-suite tests
         Test.Controller.ParamSpec
         Test.Controller.AccessDeniedSpec
         Test.Controller.NotFoundSpec
+        Test.Controller.FileUploadBackendSpec
         Test.ModelSupportSpec
         Test.QueryBuilderSpec
         Test.RouterSupportSpec
@@ -323,6 +336,7 @@ test-suite tests
         Test.FileStorage.ControllerFunctionsSpec
         Test.Controller.CookieSpec
         Test.PGListenerSpec
+        Test.PGVersionSpec
         Test.MockingSpec
         Test.ControllerSupportSpec
         Test.HasqlEncoderSpec
@@ -330,6 +344,8 @@ test-suite tests
         Test.Pagination.ControllerFunctionsSpec
         Test.FetchPipelinedSpec
         Test.JobQueueSpec
+        Test.JobRunnerSpec
+        Test.ScriptSupportSpec
         Test.LoginSupport.AuthVaultSpec
         Test.Router.AppBindingSpec
         Test.Router.CaptureSpec
@@ -340,6 +356,7 @@ test-suite tests
         Test.Router.MultiControllerSpec
         Test.Router.TrieSpec
         Test.Router.WebSocketSpec
+        Test.TypedSqlSpec
         Test.ModelFixtures
         Test.Util
 

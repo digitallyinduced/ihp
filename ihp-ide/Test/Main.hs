@@ -21,6 +21,8 @@ import qualified SchemaCompilerSpec
 import qualified IDE.ToolServer.MiddlewareSpec
 import qualified IDE.Logs.ControllerSpec
 import qualified IDE.DevServerSpec
+import qualified IDE.StatusServerSpec
+import qualified IDE.TelemetrySpec
 import qualified ServerSpec
 
 main :: IO ()
@@ -43,4 +45,6 @@ main = hspec do
     IDE.ToolServer.MiddlewareSpec.tests
     IDE.Logs.ControllerSpec.tests
     IDE.DevServerSpec.tests
+    IDE.StatusServerSpec.tests
+    IDE.TelemetrySpec.tests
     ServerSpec.tests

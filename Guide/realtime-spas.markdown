@@ -225,6 +225,8 @@ We also need to enable the DataSync controllers before we can use the APIs.
     import IHP.DataSync.Controller
     import IHP.DataSync.REST.Types
     import IHP.DataSync.REST.Controller
+    import IHP.DataSync.LongPoll.Types
+    import IHP.DataSync.LongPoll.Controller
     ```
 3. Mount the controller:
     ```haskell
@@ -233,16 +235,18 @@ We also need to enable the DataSync controllers before we can use the APIs.
             [ startPage WelcomeAction
 
             -- DataSync
-            , webSocketApp @DataSyncController -- ADD THIS
-            , parseRoute @ApiController        -- AND ALSO THIS
+            , webSocketApp @DataSyncController           -- ADD THIS
+            , parseRoute @ApiController                  -- AND ALSO THIS
+            , parseRoute @DataSyncLongPollController     -- AND THIS, for networks that block WebSockets
 
             -- Generator Marker
             ]
     ```
 4. Open `Web/Routes.hs`
-5. Add this import:
+5. Add these imports:
     ```haskell
     import IHP.DataSync.REST.Routes
+    import IHP.DataSync.LongPoll.Routes
     ```
 
 #### Loading the JS SDK
@@ -917,6 +921,14 @@ console.log(articles);
 ```
 
 ## Advanced IHP DataSync
+
+### Networks Without WebSockets
+
+Some networks never let a WebSocket through, for example office proxies that only forward completed HTTP responses. For these, DataSync can run over HTTP long polling: the client posts its messages to `/DataSyncLongPoll/:connectionId/send` and fetches the server's messages from `/DataSyncLongPoll/:connectionId/receive`, which waits up to 20 seconds for the next message. Subscriptions, transactions and Row Level Security work the same as over the WebSocket.
+
+The JavaScript client switches to long polling on its own when the first WebSocket of a page cannot open, or does not open within ten seconds. Once a WebSocket has opened, the page keeps reconnecting over WebSockets. When the server answers the long polling request with 404 because `parseRoute @DataSyncLongPollController` is not mounted, the client goes back to retrying the WebSocket.
+
+A long polling connection lives in the memory of the server process that opened it. If you run several app processes behind a load balancer, route all requests of a client to the same process (sticky sessions). A connection closes when no request arrives for 60 seconds; the client then opens a new one and subscribes again.
 
 ### Advanced Policies
 

@@ -33,9 +33,9 @@ class Job job where
     backoffStrategy :: BackoffStrategy
     backoffStrategy = LinearBackoff { delayInSeconds = 30 }
 
-    -- | How long a job can be in 'JobStatusRunning' before it's considered stale
-    -- and recovered. Set to 'Nothing' to disable stale job recovery.
-    --
-    -- Default: 10 minutes
+    -- | Retained for source compatibility. Worker recovery now uses the process
+    -- heartbeat (a two-minute lease), independently of job execution time.
+    -- This setting, including 'Nothing', no longer controls crash recovery.
+    -- Use 'timeoutInMicroseconds' to limit the duration of an individual job.
     staleJobTimeout :: Maybe NominalDiffTime
     staleJobTimeout = Just 600

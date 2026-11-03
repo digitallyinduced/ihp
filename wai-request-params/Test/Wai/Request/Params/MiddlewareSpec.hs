@@ -8,11 +8,18 @@ import Data.ByteString (ByteString)
 import qualified Data.ByteString.Lazy as LBS
 import Network.Wai
 import Network.Wai.Test
+import Network.Wai.Internal (ResponseReceived (..))
 import Network.HTTP.Types
 import qualified Data.Vault.Lazy as Vault
 import qualified Network.Wai.Parse as WaiParse
+import qualified Data.ByteString as BS
+import qualified Data.ByteString.Char8 as Char8
+import Data.IORef
+import Data.Maybe (isJust)
+import Control.Exception (evaluate, try, SomeException)
+import System.Directory (doesFileExist)
 
-import Wai.Request.Params.Middleware (requestBodyMiddleware, RequestBody(..), requestBodyVaultKey)
+import Wai.Request.Params.Middleware (requestBodyMiddleware, requestBodyMiddlewareWith, RequestBody(..), requestBodyVaultKey, readRawRequestBody, readTempFiles, FileUploadBackend (..), tempFilesVaultKey)
 import Wai.Request.Params (allParams)
 
 -- | An app that extracts the parsed RequestBody from the vault and returns info about it
@@ -144,6 +151,156 @@ spec = do
                 let rereadApp = requestBodyMiddleware WaiParse.defaultParseRequestBodyOptions rereadBodyApp
                 response <- runSession (makeRequestWithBody "POST" [(hContentType, "application/x-www-form-urlencoded")] body) rereadApp
                 simpleBody response `shouldBe` body
+
+            it "returns the full body for a raw POST via readRawRequestBody" $ do
+                let body = "raw webhook payload"
+                let readRawApp req respond = do
+                        first <- readRawRequestBody req
+                        second <- readRawRequestBody req
+                        respond $ responseLBS status200 [] (first <> "|" <> second)
+                response <- runSession (makeRequestWithBody "POST" [(hContentType, "application/octet-stream")] body) (requestBodyMiddleware WaiParse.defaultParseRequestBodyOptions readRawApp)
+                simpleBody response `shouldBe` (body <> "|" <> body)
+
+            it "returns the full body for a POST without Content-Type via readRawRequestBody" $ do
+                let body = "{\"name\": \"test\"}"
+                let readRawApp req respond = readRawRequestBody req >>= respond . responseLBS status200 []
+                response <- runSession (makeRequestWithBody "POST" [] body) (requestBodyMiddleware WaiParse.defaultParseRequestBodyOptions readRawApp)
+                simpleBody response `shouldBe` body
+
+            it "returns the full body for JSON via readRawRequestBody" $ do
+                let body = "{\"name\": \"test\"}"
+                let readRawApp req respond = readRawRequestBody req >>= respond . responseLBS status200 []
+                response <- runSession (makeRequestWithBody "POST" [(hContentType, "application/json")] body) (requestBodyMiddleware WaiParse.defaultParseRequestBodyOptions readRawApp)
+                simpleBody response `shouldBe` body
+
+        describe "raw bodies (non-form, non-JSON content types)" $ do
+            it "leaves a 50 MB application/octet-stream body unread so the app can stream it" $ do
+                let chunk = BS.replicate (64 * 1024) 42
+                let chunkCount = 800 -- 800 * 64 KiB = 50 MiB
+                chunksLeft <- newIORef (chunkCount :: Int)
+                let bodyReader = atomicModifyIORef' chunksLeft $ \n -> if n <= 0 then (0, BS.empty) else (n - 1, chunk)
+                let req = setRequestBodyChunks bodyReader defaultRequest
+                        { requestMethod = "POST"
+                        , requestHeaders = [(hContentType, "application/octet-stream")]
+                        }
+                resultRef <- newIORef Nothing
+                let streamingApp req' respond = do
+                        -- Nothing has been read before the app runs
+                        left <- readIORef chunksLeft
+                        let rawPayloadLength = maybe (-1) (LBS.length . rawPayload) (Vault.lookup requestBodyVaultKey (vault req'))
+                        let streamBody total = do
+                                c <- getRequestBodyChunk req'
+                                if BS.null c then pure total else streamBody (total + BS.length c)
+                        total <- streamBody 0
+                        writeIORef resultRef (Just (chunkCount - left, rawPayloadLength, total))
+                        respond $ responseLBS status200 [] ""
+                _ <- requestBodyMiddleware WaiParse.defaultParseRequestBodyOptions streamingApp req (const (pure ResponseReceived))
+                -- No chunk was read by the middleware, rawPayload is empty,
+                -- and the app streamed all 50 MiB itself
+                readIORef resultRef `shouldReturn` Just (0, 0, 50 * 1024 * 1024)
+
+        describe "multipart bodies" $ do
+            let multipartBody = LBS.concat
+                    [ "--BOUNDARY\r\n"
+                    , "Content-Disposition: form-data; name=\"title\"\r\n\r\n"
+                    , "Hello\r\n"
+                    , "--BOUNDARY\r\n"
+                    , "Content-Disposition: form-data; name=\"video\"; filename=\"video.mp4\"\r\n"
+                    , "Content-Type: video/mp4\r\n\r\n"
+                    , "file-content\r\n"
+                    , "--BOUNDARY--\r\n"
+                    ]
+            let multipartHeaders = [(hContentType, "multipart/form-data; boundary=BOUNDARY")]
+
+            it "parses params and files with the in-memory backend, leaving rawPayload empty" $ do
+                let inspectApp req respond = case Vault.lookup requestBodyVaultKey (vault req) of
+                        Just FormBody { params, files, rawPayload } ->
+                            respond $ responseLBS status200 [] (cs (show (params, map (\(name, info) -> (name, WaiParse.fileName info, WaiParse.fileContent info)) files, rawPayload)))
+                        _ -> respond $ responseLBS status200 [] "unexpected body"
+                response <- runSession (makeRequestWithBody "POST" multipartHeaders multipartBody) (requestBodyMiddleware WaiParse.defaultParseRequestBodyOptions inspectApp)
+                cs (simpleBody response) `shouldBe` ("([(\"title\",\"Hello\")],[(\"video\",\"video.mp4\",\"file-content\")],\"\")" :: String)
+
+            it "stores files on disk with the temp file backend and removes them after the request" $ do
+                tempPathRef <- newIORef Nothing
+                let inspectApp req respond = case (Vault.lookup requestBodyVaultKey (vault req), Vault.lookup tempFilesVaultKey (vault req)) of
+                        (Just FormBody { params, files, rawPayload }, Just [(_, tempFile)]) -> do
+                            let path = WaiParse.fileContent tempFile
+                            writeIORef tempPathRef (Just path)
+                            existsDuringRequest <- doesFileExist path
+                            onDisk <- LBS.readFile path
+                            let contents = map (\(name, info) -> (name, WaiParse.fileContent info)) files
+                            respond $ responseLBS status200 [] (cs (show (params, existsDuringRequest, onDisk, contents, rawPayload)))
+                        _ -> respond $ responseLBS status200 [] "unexpected body"
+                response <- runSession (makeRequestWithBody "POST" multipartHeaders multipartBody) (requestBodyMiddlewareWith TempFileUploads WaiParse.defaultParseRequestBodyOptions inspectApp)
+                cs (simpleBody response) `shouldBe` ("([(\"title\",\"Hello\")],True,\"file-content\",[(\"video\",\"file-content\")],\"\")" :: String)
+                Just path <- readIORef tempPathRef
+                doesFileExist path >>= (`shouldBe` False)
+
+            describe "readTempFiles" $ do
+                let readTempFilesApp tempPathRef req respond = do
+                        tempFiles <- readTempFiles req
+                        -- A second call returns the same files
+                        tempFiles' <- readTempFiles req
+                        case tempFiles of
+                            [(name, info)] -> do
+                                let path = WaiParse.fileContent info
+                                writeIORef tempPathRef (Just path)
+                                onDisk <- LBS.readFile path
+                                let samePaths = map (WaiParse.fileContent . snd) tempFiles' == [path]
+                                respond $ responseLBS status200 [] (cs (show (name, WaiParse.fileName info, onDisk, samePaths)))
+                            _ -> respond $ responseLBS status200 [] "unexpected temp files"
+
+                let expectTempFile backend = do
+                        tempPathRef <- newIORef Nothing
+                        response <- runSession (makeRequestWithBody "POST" multipartHeaders multipartBody) (requestBodyMiddlewareWith backend WaiParse.defaultParseRequestBodyOptions (readTempFilesApp tempPathRef))
+                        cs (simpleBody response) `shouldBe` ("(\"video\",\"video.mp4\",\"file-content\",True)" :: String)
+                        Just path <- readIORef tempPathRef
+                        doesFileExist path >>= (`shouldBe` False)
+
+                it "writes files kept in memory to temporary files, removed after the request" $
+                    expectTempFile InMemoryFileUploads
+
+                it "returns the streamed temporary files with TempFileUploads" $
+                    expectTempFile TempFileUploads
+
+                it "returns an empty list for a request that is not multipart" $ do
+                    let app req respond = readTempFiles req >>= respond . responseLBS status200 [] . cs . show . length
+                    response <- runSession (makeRequestWithBody "POST" [(hContentType, "application/json")] "{}") (requestBodyMiddleware WaiParse.defaultParseRequestBodyOptions app)
+                    simpleBody response `shouldBe` "0"
+
+            describe "TempFileUploadsAbove" $ do
+                -- Responds with the file content and whether it was written to a temporary file
+                let backendApp req respond = case Vault.lookup requestBodyVaultKey (vault req) of
+                        Just FormBody { files = [(_, info)] } -> do
+                            let usedTempFile = isJust (Vault.lookup tempFilesVaultKey (vault req))
+                            respond $ responseLBS status200 [] (cs (show (usedTempFile, WaiParse.fileContent info)))
+                        _ -> respond $ responseLBS status200 [] "unexpected body"
+                let multipartWithLength bodyLength = srequest $ SRequest defaultRequest
+                        { requestMethod = "POST"
+                        , requestHeaders = multipartHeaders
+                        , requestBodyLength = bodyLength
+                        } multipartBody
+                let bodyLength = fromIntegral (LBS.length multipartBody)
+                let runWith threshold bodyLength' = runSession (multipartWithLength bodyLength') (requestBodyMiddlewareWith (TempFileUploadsAbove threshold) WaiParse.defaultParseRequestBodyOptions backendApp)
+
+                it "keeps files in memory when the body length is up to the threshold" $ do
+                    response <- runWith bodyLength (KnownLength bodyLength)
+                    cs (simpleBody response) `shouldBe` ("(False,\"file-content\")" :: String)
+
+                it "writes files to temporary files when the body is larger than the threshold" $ do
+                    response <- runWith (bodyLength - 1) (KnownLength bodyLength)
+                    cs (simpleBody response) `shouldBe` ("(True,\"file-content\")" :: String)
+
+                it "writes files to temporary files when the body length is unknown" $ do
+                    response <- runWith 1000000 ChunkedBody
+                    cs (simpleBody response) `shouldBe` ("(True,\"file-content\")" :: String)
+
+            it "applies setMaxRequestFileSize while streaming" $ do
+                let options = WaiParse.setMaxRequestFileSize 4 WaiParse.defaultParseRequestBodyOptions
+                result <- try (runSession (makeRequestWithBody "POST" multipartHeaders multipartBody) (requestBodyMiddlewareWith TempFileUploads options inspectBodyApp) >>= evaluate . simpleBody)
+                case result of
+                    Left (_ :: SomeException) -> pure ()
+                    Right body -> expectationFailure ("expected the upload to be rejected, got: " <> Char8.unpack (LBS.toStrict body))
 
         describe "query string params" $ do
             it "preserves query params on GET requests even though body parsing is skipped" $ do

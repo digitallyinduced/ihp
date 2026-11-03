@@ -1,0 +1,5 @@
+-- Standalone project so the test suite runs without the ihp package:
+-- `cd ihp-typed-sql && cabal test tests`.
+-- The test suite (and library) must not depend on @ihp@, only on hasql
+-- underneath; keep it that way or this stops resolving on its own.
+packages: .

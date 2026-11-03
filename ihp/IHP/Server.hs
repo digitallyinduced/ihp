@@ -39,7 +39,7 @@ import IHP.Modal.Types (modalContainerVaultKey)
 
 import IHP.Controller.NotFound (handleNotFound)
 import IHP.Static (staticRouteShortcut)
-import Wai.Request.Params.Middleware (requestBodyMiddleware)
+import Wai.Request.Params.Middleware (requestBodyMiddlewareWith)
 import Paths_ihp (getDataFileName)
 import IHP.Controller.Layout (viewLayoutMiddleware)
 import qualified Network.Socket as Socket
@@ -166,7 +166,7 @@ initMiddlewareStack frameworkConfig modelContext maybePgListener = do
         . modelContextMiddleware modelContext
         . authMw
         . frameworkConfigMiddleware frameworkConfig
-        . requestBodyMiddleware frameworkConfig.parseRequestBodyOptions
+        . requestBodyMiddlewareWith frameworkConfig.fileUploadBackend frameworkConfig.parseRequestBodyOptions
         . pgListenerMw
         . assetPathMiddleware
 

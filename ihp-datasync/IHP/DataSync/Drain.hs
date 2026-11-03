@@ -1,0 +1,124 @@
+{-# LANGUAGE BlockArguments #-}
+-- | Cooperative message admission and shutdown. A signal may be shared by
+-- several connections. It is one-way: reopening requires a new signal.
+module IHP.DataSync.Drain
+    ( DrainSignal, newDrainSignal, requestDrain, runDrainingWorkers
+    , waitForSubscriptionClose, withJoinedCallback
+    , runPhasedDrainingWorkers, finishTransactionOnDrain
+    ) where
+
+import Prelude
+import Control.Concurrent.Async
+import Control.Concurrent.STM
+import Control.Concurrent.QSem
+import Control.Concurrent.MVar (MVar, takeMVar, readMVar, isEmptyMVar)
+import Control.Exception (mask, onException, throwIO, finally)
+import Control.Monad (filterM, void, when)
+import Data.IORef
+
+-- | Opaque, process-local admission latch.
+newtype DrainSignal = DrainSignal (TVar Bool)
+
+-- | Create an open admission latch.
+newDrainSignal :: IO DrainSignal
+newDrainSignal = DrainSignal <$> newTVarIO False
+
+-- | Close admission. This does not cancel workers or wait for connections.
+requestDrain :: DrainSignal -> IO ()
+requestDrain (DrainSignal closed) = atomically (writeTVar closed True)
+
+-- | Only the idle subscription wait is cancellable; setup and callbacks are
+-- not raced against drain. A subscription starting after the latch closes
+-- therefore still unwinds its normal resource bracket.
+waitForSubscriptionClose :: DrainSignal -> MVar () -> IO ()
+waitForSubscriptionClose (DrainSignal closed) close =
+    void (race (atomically (readTVar closed >>= check)) (takeMVar close))
+
+-- | The cleanup signal must only be requested after finite workers have
+-- finished. Prefer a client close already acknowledged by COMMIT/ROLLBACK.
+finishTransactionOnDrain :: DrainSignal -> MVar () -> IO () -> IO ()
+finishTransactionOnDrain (DrainSignal cleanup) close rollback = do
+    outcome <- race (readMVar close) (atomically (readTVar cleanup >>= check))
+    case outcome of
+        Left () -> pure ()
+        Right () -> isEmptyMVar close >>= \open -> when open rollback
+
+-- | PGListener may already have dispatched a callback when unsubscribed.
+-- Close callback admission and join accepted callbacks before leaving scope.
+-- Late invocations of the supplied wrapper become no-ops.
+withJoinedCallback :: (a -> IO ()) -> ((a -> IO ()) -> IO b) -> IO b
+withJoinedCallback callback use = do
+    state <- newTVarIO (False, 0 :: Int)
+    let wrapped value = mask \restore -> do
+            accepted <- atomically do
+                (closed, count) <- readTVar state
+                if closed then pure False else
+                    writeTVar state (False, count + 1) >> pure True
+            when accepted $
+                restore (callback value) `finally`
+                    atomically (modifyTVar' state (\(closed, count) -> (closed, count - 1)))
+        close = do
+            atomically (modifyTVar' state (\(_, count) -> (True, count)))
+            atomically (readTVar state >>= \(_, count) -> check (count == 0))
+    use wrapped `finally` close
+
+-- | Run a receiving loop with bounded active handlers. On requested drain,
+-- join every accepted handler, including those queued for a concurrency slot.
+-- On receive failure or parent cancellation, cancel and join the handlers.
+--
+-- The receive action must be safe to cancel (normally a socket read); do not
+-- perform business effects there. Handler completion does not cover detached
+-- work. Returning proves joined handlers, not success of effects whose errors
+-- the handler caught. Uncaught handler failures are propagated.
+runDrainingWorkers :: DrainSignal -> Int -> IO a -> (a -> IO ()) -> IO ()
+runDrainingWorkers signal concurrency receive handle =
+    runPhasedDrainingWorkers signal concurrency receive (\_ -> handle) (pure ())
+
+-- | A holder marks its setup ready before waiting for cleanup. That also
+-- releases its concurrency slot, so idle holders cannot starve finite work.
+-- Every other worker becomes ready only after returning. Once all accepted
+-- workers are ready, run the cleanup trigger and then join their full lifetimes.
+runPhasedDrainingWorkers :: DrainSignal -> Int -> IO a -> (IO () -> a -> IO ()) -> IO () -> IO ()
+runPhasedDrainingWorkers (DrainSignal closed) concurrency receive handle afterReady = do
+    when (concurrency < 1) (fail "DataSync: concurrency must be positive")
+    sem <- newQSem concurrency
+    workers <- newIORef []
+    let reap (worker, _) = poll worker >>= \result -> case result of
+            Nothing -> pure True
+            Just (Right ()) -> pure False
+            Just (Left failure) -> throwIO failure
+        join = do
+            accepted <- readIORef workers
+            atomically (mapM_ (readTMVar . snd) accepted)
+            afterReady
+            outcomes <- mapM (waitCatch . fst) accepted
+            mapM_ (either throwIO pure) outcomes
+        cleanup = readIORef workers >>= mapConcurrently_ (cancel . fst)
+        loop = mask \restore -> do
+            open <- atomically (not <$> readTVar closed)
+            if not open then restore join else do
+                next <- restore $ race
+                    (atomically (readTVar closed >>= check))
+                    receive
+                case next of
+                    Left () -> restore join
+                    Right message -> do
+                        -- This STM read is the acceptance linearization point.
+                        -- Masking spans acceptance, spawn and registration.
+                        accepted <- atomically (not <$> readTVar closed)
+                        if not accepted then restore join else do
+                            remaining <- readIORef workers >>= filterM reap
+                            writeIORef workers remaining
+                            ready <- newEmptyTMVarIO
+                            worker <- asyncWithUnmask \unmask -> do
+                                waitQSem sem
+                                let markReady = mask \_ -> do
+                                        first <- atomically (tryPutTMVar ready ())
+                                        when first (signalQSem sem)
+                                unmask (handle markReady message) `finally` markReady
+                            -- Only the parent removes handles, after poll has
+                            -- observed completion. Fast children cannot race
+                            -- registration or disappear before they are joined.
+                            modifyIORef' workers ((worker, ready) :)
+                            restore loop
+    void (loop `onException` cleanup)

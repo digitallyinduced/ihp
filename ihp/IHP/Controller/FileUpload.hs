@@ -14,11 +14,11 @@ module IHP.Controller.FileUpload where
 
 import IHP.Prelude
 
-import Network.Wai.Parse (FileInfo, fileContent)
+import Network.Wai.Parse (FileInfo, fileContent, fileName)
 import Network.Wai (Request)
 import qualified IHP.ModelSupport as ModelSupport
 import qualified Data.ByteString.Lazy as LBS
-import Wai.Request.Params.Middleware (RequestBody (..))
+import Wai.Request.Params.Middleware (RequestBody (..), readTempFiles)
 import IHP.RequestVault () -- HasField "parsedBody" Request RequestBody
 import qualified System.Process as Process
 
@@ -104,6 +104,47 @@ filesByName !name =
                     |> filter (\(filename, _) -> filename == name)
                     |> map snd
             _ -> []
+
+-- | Returns a file upload from the request as a temporary file on disk.
+--
+-- Useful when you need a file path, e.g. to copy the upload with @copyFile@.
+-- The temporary file is removed when the request ends, so move or copy it if you
+-- want to keep it.
+--
+-- Works for every upload. When the upload was already streamed to disk (see the
+-- @IHP_FILE_UPLOAD_MEMORY_THRESHOLD@ env var), this returns its path. Otherwise the upload
+-- is kept in memory, and is written to a temporary file on the first call.
+--
+-- Returns `Nothing` when the file is not found in the request body, or when no file
+-- was selected.
+--
+-- __Example:__
+--
+-- > import System.Directory (copyFile)
+-- >
+-- > action UploadVideoAction = do
+-- >     video <- tempFileOrNothing "video"
+-- >     case video of
+-- >         Just fileInfo -> do
+-- >             let path :: FilePath = fileInfo.fileContent
+-- >             copyFile path "videos/latest.mp4"
+-- >         Nothing -> pure ()
+-- >     redirectTo VideosAction
+tempFileOrNothing :: (?request :: Request) => ByteString -> IO (Maybe (FileInfo FilePath))
+tempFileOrNothing !name = do
+        tempFiles <- readTempFiles ?request
+        case lookup name tempFiles of
+            Just fileInfo | fileInfo.fileName /= "" -> pure (Just fileInfo)
+            _ -> pure Nothing
+
+-- | Like 'tempFileOrNothing' but allows uploading multiple files in the same request
+tempFilesByName :: (?request :: Request) => ByteString -> IO [FileInfo FilePath]
+tempFilesByName !name = do
+        tempFiles <- readTempFiles ?request
+        tempFiles
+            |> filter (\(filename, _) -> filename == name)
+            |> map snd
+            |> pure
 
 -- | Options to be used together with 'uploadImageWithOptions'
 --

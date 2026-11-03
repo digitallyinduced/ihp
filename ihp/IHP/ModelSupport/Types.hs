@@ -54,8 +54,6 @@ import Prelude
 import Data.ByteString (ByteString)
 import Data.Text (Text)
 import qualified Data.Text.Encoding
-import Data.Hashable (Hashable)
-import Control.DeepSeq (NFData)
 import Control.Exception (Exception)
 import Database.PostgreSQL.Simple.Types (Query)
 import qualified Database.PostgreSQL.Simple as PG
@@ -64,9 +62,10 @@ import qualified Hasql.Session as HasqlSession
 import qualified Hasql.Errors as HasqlErrors
 import GHC.TypeLits
 import GHC.Types
-import Data.Data
+import Data.Proxy (Proxy)
 import Data.Dynamic
 import System.Log.FastLogger (FastLogger)
+import IHP.TypedSql.Id (Id' (..), PrimaryKey)
 
 -- | Runner that executes a hasql Session on the current transaction's connection
 newtype TransactionRunner = TransactionRunner
@@ -110,20 +109,6 @@ type family GetModelById id :: Type where
 type family GetTableName model :: Symbol
 type family GetModelByTableName (tableName :: Symbol) :: Type
 
--- | Provides the primary key type for a given table. The instances are usually declared
--- by the generated haskell code in Generated.Types
---
--- __Example:__ Defining the primary key for a users table
---
--- > type instance PrimaryKey "users" = UUID
---
---
--- __Example:__ Defining the primary key for a table with a SERIAL pk
---
--- > type instance PrimaryKey "projects" = Int
---
-type family PrimaryKey (tableName :: Symbol)
-
 type family GetModelName model :: Symbol
 
 type family Include (name :: GHC.Types.Symbol) model
@@ -141,14 +126,6 @@ type family Include' (name :: [GHC.Types.Symbol]) model where
 -- >>> NormalizeModel Post
 -- Post
 type NormalizeModel model = GetModelByTableName (GetTableName model)
-
-newtype Id' table = Id (PrimaryKey table)
-
-deriving instance (Eq (PrimaryKey table)) => Eq (Id' table)
-deriving instance (Ord (PrimaryKey table)) => Ord (Id' table)
-deriving instance (Hashable (PrimaryKey table)) => Hashable (Id' table)
-deriving instance (KnownSymbol table, Data (PrimaryKey table)) => Data (Id' table)
-deriving instance NFData (PrimaryKey table) => NFData (Id' table)
 
 -- | We need to map the model to its table name to prevent infinite recursion in the model data definition
 -- E.g. `type Project = Project' { id :: Id Project }` will not work
