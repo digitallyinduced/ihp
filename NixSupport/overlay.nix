@@ -194,6 +194,17 @@ final: prev: {
                 # cryptonite tests have a flaky failure (1 of 1548)
                 cryptonite = final.haskell.lib.dontCheck super.cryptonite;
 
+                # GHC 9.12.4 panics in lookupIdSubst when optimizing ghcide's
+                # profiling build (Core.Shake). Keep profiling libraries for
+                # HLS plugins and leave normal builds optimized.
+                ghcide = final.haskell.lib.overrideCabal super.ghcide (old: {
+                    postPatch = (old.postPatch or "") + ''
+                        substituteInPlace ghcide.cabal \
+                            --replace-fail $'library\n  import: warnings' \
+                                $'library\n  import: warnings\n  ghc-prof-options: -O0'
+                    '';
+                });
+
                 # The GHC 9.12 RC package set builds HLS 2.14 against Cabal 3.16,
                 # while its ormolu/fourmolu/stylish-haskell plugins still use
                 # Cabal 3.14. These are isolated plugin dependencies, but Cabal's
