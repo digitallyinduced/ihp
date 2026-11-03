@@ -205,6 +205,17 @@ final: prev: {
                     '';
                 });
 
+                # The optimized profiling build of Ide.Logger produces an
+                # invalid unfolding for lspClientLogRecorder (Iface id out of
+                # scope: ww), which breaks downstream hls-test-utils builds.
+                hls-plugin-api = final.haskell.lib.overrideCabal super.hls-plugin-api (old: {
+                    postPatch = (old.postPatch or "") + ''
+                        substituteInPlace hls-plugin-api.cabal \
+                            --replace-fail $'library\n  import: warnings' \
+                                $'library\n  import: warnings\n  ghc-prof-options: -O0'
+                    '';
+                });
+
                 # The GHC 9.12 RC package set builds HLS 2.14 against Cabal 3.16,
                 # while its ormolu/fourmolu/stylish-haskell plugins still use
                 # Cabal 3.14. These are isolated plugin dependencies, but Cabal's
