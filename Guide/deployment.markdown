@@ -559,7 +559,13 @@ nix.settings.trusted-users = [ "deploy" ];
 
 The account only exists on a server once a deployment has created it, so the switch takes two steps per server: deploy once as `root`, then set `User deploy` in `~/.ssh/config` (or in the SSH configuration your CI writes).
 
-Root SSH keeps working until you turn it off with `services.openssh.settings.PermitRootLogin = "no";`. Make sure you have another way into the machine, such as your cloud provider's serial console, before you do.
+Root SSH keeps working until you turn it off. The AWS EC2 image already sets `PermitRootLogin`, so the value needs `lib.mkForce`:
+
+```nix
+services.openssh.settings.PermitRootLogin = lib.mkForce "no";
+```
+
+Make sure you have another way into the machine, such as your cloud provider's serial console, before you do.
 
 ### Backward-incompatible database update
 
