@@ -666,17 +666,17 @@
     "hasql-pool-source": {
       "flake": false,
       "locked": {
-        "lastModified": 1786034574,
-        "narHash": "sha256-StpCiVk9AAELl8XVru3xbF6qlg7iBn9Jv3t1Gxg3ab8=",
+        "lastModified": 1793658974,
+        "narHash": "sha256-+Va+65KNhMgYkTeT+Yhgf4O2/0lMDkLBrSIZDPdmqCo=",
         "owner": "nikita-volkov",
         "repo": "hasql-pool",
-        "rev": "50b49864afc796fd7df6e08706d3a628c656dcf0",
+        "rev": "eba4f4e959176e89bd3b0d45101bd2b4278df745",
         "type": "github"
       },
       "original": {
         "owner": "nikita-volkov",
         "repo": "hasql-pool",
-        "rev": "50b49864afc796fd7df6e08706d3a628c656dcf0",
+        "rev": "eba4f4e959176e89bd3b0d45101bd2b4278df745",
         "type": "github"
       }
     },
