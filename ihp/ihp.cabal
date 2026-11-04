@@ -326,6 +326,7 @@ test-suite tests
         Test.View.CSSFrameworkSpec
         Test.View.FormSpec
         Test.Controller.ParamSpec
+        Test.Controller.RedirectSpec
         Test.Controller.AccessDeniedSpec
         Test.Controller.NotFoundSpec
         Test.Controller.FileUploadBackendSpec

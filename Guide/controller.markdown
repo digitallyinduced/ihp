@@ -389,6 +389,17 @@ action ExampleAction = do
     redirectToPathSeeOther "/blog/wp-login.php"
 ```
 
+The path must start with `/`. Anything a browser could read as another host, like `@evil.example` or `//evil.example`, is refused with an error. This keeps a path taken from user input, such as a `?next=` parameter used after login, from redirecting off-site (an "open redirect").
+
+To fall back instead of failing, check the input with [`isLocalPath`](https://ihp.digitallyinduced.com/api-docs/IHP-Controller-Redirect.html#v:isLocalPath) first. Also use it when the path is rendered into a link or a hidden form field:
+
+```haskell
+action CreateSessionAction = do
+    let next = paramOrDefault @Text "/" "next"
+    -- ... check the credentials ...
+    redirectToPath (if isLocalPath next then next else "/")
+```
+
 ### Redirect to a URL
 
 Use [`redirectToUrl`](https://ihp.digitallyinduced.com/api-docs/IHP-Controller-Redirect.html#v:redirectToUrl) to redirect to some external URL:

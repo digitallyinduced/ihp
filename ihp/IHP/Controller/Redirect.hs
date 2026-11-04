@@ -12,6 +12,7 @@ module IHP.Controller.Redirect
 , redirectToUrlSeeOther
 , redirectBack
 , redirectBackWithFallback
+, isLocalPath
 ) where
 
 import Prelude
@@ -19,7 +20,7 @@ import Data.Text (Text)
 import Data.Maybe (fromMaybe)
 import Data.String.Conversions (cs, convertString)
 import qualified Network.Wai.Util
-import Network.URI (parseURI, uriToString)
+import Network.URI (URI (..), parseURI, parseURIReference, uriToString)
 import IHP.Router.UrlGenerator (HasPath (pathTo))
 import Network.HTTP.Types.Status
 import qualified Network.Wai.Middleware.Approot as Approot
@@ -45,27 +46,42 @@ redirectToSeeOther action = redirectToPathSeeOther (pathTo action)
 
 -- TODO: redirectTo user
 
--- | Redirects to a path (given as a string)
+-- | Redirects to a path (given as a string) on this site
 --
 -- __Example:__
 --
 -- > redirectToPath "/blog/wp-login.php"
 --
--- Use 'redirectTo' if you want to redirect to a controller action.
+-- The path has to start with a @/@ and is appended to the app's base url. A text that
+-- a browser could read as another host, like @\@evil.example@ or @//evil.example@, is
+-- refused with an error, so a path taken from user input (e.g. a @?next=@ parameter)
+-- can never redirect off-site. Check such input with 'isLocalPath' when you want a
+-- fallback instead of an error.
+--
+-- Use 'redirectTo' if you want to redirect to a controller action. Use 'redirectToUrl'
+-- if you want to redirect to another host.
 redirectToPath :: (?request :: Request, ?respond :: Respond) => Text -> IO ResponseReceived
-redirectToPath path = redirectToUrl (convertString baseUrl <> path)
-    where
-        baseUrl = Approot.getApproot ?request
+redirectToPath path = redirectToUrl (localPathToUrl "redirectToPath" path)
 {-# INLINABLE redirectToPath #-}
 
--- | Redirects to a path using HTTP 303 See Other
+-- | Redirects to a path on this site using HTTP 303 See Other
 --
 -- Forces the follow-up request to be a GET (useful after POST/DELETE).
+--
+-- Like 'redirectToPath', this refuses a text that is not a path on this site.
 redirectToPathSeeOther :: (?request :: Request, ?respond :: Respond) => Text -> IO ResponseReceived
-redirectToPathSeeOther path = redirectToUrlSeeOther (convertString baseUrl <> path)
-    where
-        baseUrl = Approot.getApproot ?request
+redirectToPathSeeOther path = redirectToUrlSeeOther (localPathToUrl "redirectToPathSeeOther" path)
 {-# INLINABLE redirectToPathSeeOther #-}
+
+-- | Turns a path on this site into a full url by prefixing the app's base url
+--
+-- Fails with an error naming the calling function when the text is not a path on this
+-- site, see 'isLocalPath'.
+localPathToUrl :: (?request :: Request) => String -> Text -> Text
+localPathToUrl caller path
+    | isLocalPath path = convertString (Approot.getApproot ?request) <> path
+    | otherwise = error (caller <> ": " <> show path <> " is not a path on this site, refusing to redirect there. Check the path with isLocalPath first, or use redirectToUrl to redirect to another host.")
+{-# INLINABLE localPathToUrl #-}
 
 -- | Redirects to a url (given as a string)
 --
@@ -144,3 +160,30 @@ redirectBackWithFallback fallbackPathOrUrl = do
                 Just uri -> redirectToUrl (cs (uriToString id uri ""))           -- Fallback Is URL "https://google.com/..."
                 Nothing -> redirectToPath fallbackPathOrUrl     -- Fallback Is Path "/../"
 {-# INLINABLE redirectBackWithFallback #-}
+
+-- | Returns 'True' when the given text is a path on this site, like @/posts/1?details=on@.
+--
+-- Use this before redirecting to a path that came from the request, e.g. a @?next=@
+-- query parameter after a login. Without the check, a link such as
+-- @/login?next=\@evil.example@ would let a real login send the user to another host
+-- (an "open redirect").
+--
+-- Everything a browser could read as another host or another scheme is refused: absolute
+-- urls (@https://evil.example@), network-path references (@//evil.example@, @/\\evil.example@),
+-- relative paths (@evil.example@, @\@evil.example@, @.evil.example@) and anything that is not a
+-- valid URI, such as a path containing whitespace or control characters.
+--
+-- __Example:__
+--
+-- > action CreateSessionAction = do
+-- >     let next = paramOrDefault @Text "/" "next"
+-- >     -- ... check the credentials ...
+-- >     redirectToPath (if isLocalPath next then next else "/")
+--
+-- 'redirectToPath' and 'redirectToPathSeeOther' call this themselves and fail on a path
+-- that is not local. Use it directly when you need a fallback instead of a failure, or when
+-- the path is rendered into a view (e.g. a hidden @next@ form field).
+isLocalPath :: Text -> Bool
+isLocalPath path = case parseURIReference (cs path) of
+    Just URI { uriScheme = "", uriAuthority = Nothing, uriPath = '/':_ } -> True
+    _ -> False
