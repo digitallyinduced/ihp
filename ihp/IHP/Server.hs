@@ -1,6 +1,6 @@
 {-# LANGUAGE IncoherentInstances #-}
 
-module IHP.Server (run, application, initSessionMiddleware, initMiddlewareStack) where
+module IHP.Server (run, application, initSessionMiddleware, initMiddlewareStack, closeConnectionAfterResponse) where
 import IHP.Prelude
 import qualified Network.Wai.Handler.Warp as Warp
 import qualified Network.Wai.Handler.Warp.Systemd as Systemd
@@ -48,6 +48,8 @@ import qualified Text.Read as Read
 import qualified System.Posix.IO as Posix
 import System.Posix.Types (Fd(..))
 import qualified IHP.ErrorController as ErrorController
+import qualified Network.HTTP.Types.Header as Header
+import qualified Control.Exception.Safe as Exception
 
 run :: FrontController RootApplication => ConfigBuilder -> IO ()
 run configBuilder = do
@@ -175,6 +177,20 @@ application staticApp middleware request respond = do
     frontControllerToWAIApp @RootApplication @AutoRefreshWSApp middleware RootApplication staticApp request respond
 {-# INLINABLE application #-}
 
+-- | Sets @Connection: close@ on every response, so the client opens a new
+-- connection for its next request instead of reusing this one.
+--
+-- Used by the dev server: after a hot reload, a connection that was accepted
+-- by the previous build is still served by that build's thread. See 'runServer'.
+--
+-- A WebSocket upgrade ('responseRaw') is left alone: it has to keep its
+-- connection, and warp handles its headers itself.
+closeConnectionAfterResponse :: Middleware
+closeConnectionAfterResponse app request respond =
+    app request (respond . mapResponseHeaders setClose)
+  where
+    setClose headers = (Header.hConnection, "close") : filter (\(name, _) -> name /= Header.hConnection) headers
+
 runServer :: FrameworkConfig -> Bool -> Application -> IO ()
 runServer config@FrameworkConfig { environment = Env.Development, appPort } useSystemd = \app -> do
     let warpSettings = Warp.defaultSettings
@@ -194,7 +210,26 @@ runServer config@FrameworkConfig { environment = Env.Development, appPort } useS
             -- This preserves the original FD for future app restarts.
             dupFd <- Posix.dup (Fd (fromIntegral (fd :: Int)))
             socket <- Socket.mkSocket (fromIntegral dupFd)
-            Warp.runSettingsSocket warpSettings socket app
+            -- The dev server stops this build by killing its thread and starts the
+            -- next build on the same listening socket. That kill ends the accept
+            -- loop, but not warp's per-connection threads: an idle keep-alive
+            -- connection keeps its thread, and that thread keeps serving THIS
+            -- build's code for every further request on the connection, while
+            -- new connections reach the new build. A browser reuses its
+            -- connections, so it sees the old build for minutes after a reload
+            -- (and some requests old, some new, once it opens a fresh one).
+            -- Warp used to close those threads on shutdown through
+            -- 'stopManager'; since time-manager 0.3 that is a no-op.
+            --
+            -- So in dev mode every response closes its connection. The next
+            -- request then has to open a new one, which the new build accepts.
+            -- WebSocket connections are untouched, see 'closeConnectionAfterResponse'.
+            --
+            -- Closing the dup'd socket when this build ends keeps a long dev
+            -- session from holding one leaked fd per reload. The dev server's
+            -- original fd is not affected.
+            Warp.runSettingsSocket warpSettings socket (closeConnectionAfterResponse app)
+                `Exception.finally` Socket.close socket
         _ ->
             Warp.runSettings warpSettings app
 runServer FrameworkConfig { environment = Env.Production, appPort, exceptionTracker } useSystemd =
