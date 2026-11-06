@@ -11,7 +11,6 @@ import Network.Wai
 import Network.Wai.Internal (ResponseReceived (..))
 import Network.Wai.Test
 import Network.HTTP.Types
-import Data.IORef
 
 tests :: Spec
 tests = describe "IHP.Server.closeConnectionAfterResponse" do
