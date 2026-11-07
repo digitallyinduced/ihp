@@ -10,7 +10,7 @@
             flake = false;
         };
         hasql-pool-source = {
-            url = "github:nikita-volkov/hasql-pool/50b49864afc796fd7df6e08706d3a628c656dcf0";
+            url = "github:nikita-volkov/hasql-pool/eba4f4e959176e89bd3b0d45101bd2b4278df745";
             flake = false;
         };
         hasql-transaction-source = {

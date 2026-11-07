@@ -5,7 +5,7 @@
 }:
 mkDerivation {
   pname = "hasql-pool";
-  version = "1.5.0.1";
+  version = "1.5.1.1";
   src = source;
   libraryHaskellDepends = [
     base bytestring hasql pqi stm text time uuid
