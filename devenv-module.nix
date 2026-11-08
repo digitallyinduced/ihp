@@ -170,8 +170,15 @@ that is defined in flake-module.nix
             # No separate GHC 9.12 checks: `pkgs.ghc912` aliases the default
             # `pkgs.ghc` (GHC 9.12), so they would duplicate the default checks above.
 
-            # GHC 9.14 compatibility checks (build and test all IHP packages)
-            // (lib.optionalAttrs (pkgs.haskell.packages ? ghc914) (let
+            # GHC 9.14 compatibility checks (build and test all IHP packages).
+            # Temporarily disabled (guard forced to `false`): the digitallyinduced
+            # binary cache was retired, so the GHC 9.14 package set is no longer
+            # cached and these checks would rebuild the entire 9.14 closure from
+            # source (multiple hours) on every CI run. IHP ships GHC 9.12.4 by
+            # default, which the checks above already cover; GHC 9.14 remains an
+            # opt-in via `ihp.ghcCompiler = pkgs.ghc914`. Restore the
+            # `pkgs.haskell.packages ? ghc914` guard once a cache serves 9.14.
+            // (lib.optionalAttrs false (let
                 ghc914 = pkgs.ghc914;
                 ihpPackageNames = [
                     "ihp-ide" "ihp-hsx" "ihp-schema-compiler"

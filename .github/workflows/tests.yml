@@ -11,6 +11,8 @@ permissions:
 jobs:
   nix-flake-check:
     runs-on: ARM64
+    # Rebuilding the GHC/HLS closure after a nixpkgs update can exceed six hours.
+    timeout-minutes: 720
     steps:
     - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
       with:

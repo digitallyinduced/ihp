@@ -168,13 +168,19 @@ let
         };
 in
 final: prev: {
-    # nix-prefetch-darcs consumes the top-level darcs attribute directly. Keep it
-    # on the same bounds-relaxed build as the default GHC package set.
-    darcs = final.ghc.darcs;
+    # nix-prefetch-darcs consumes the top-level darcs attribute directly. Use
+    # nixpkgs' own darcs (its default package set) rather than final.ghc.darcs:
+    # the GHC 9.12 set's Cabal 3.14 fails to compile darcs' custom Setup.hs, and
+    # nix-prefetch-darcs only needs the darcs executable, not a library build.
+    darcs = prev.darcs;
 
-    # Default: GHC 9.12 — the pinned nixpkgs `haskellPackages` compiler.
-    # The dontCheck overrides below apply to that default build.
-    ghc = final.haskellPackages.override {
+    # Default: GHC 9.12.4 — pinned explicitly to `haskell.packages.ghc9124`
+    # rather than the nixpkgs default `haskellPackages`. The nixpkgs snapshot
+    # that carries the CVE-2026-98432 kernel fix (linuxPackages >= 6.18.56)
+    # moved its *default* compiler to GHC 9.10.3, while still shipping the 9.12
+    # set IHP targets. Pinning keeps IHP on 9.12.4 regardless of the default.
+    # The dontCheck overrides below apply to that build.
+    ghc = final.haskell.packages.ghc9124.override {
         overrides = final.lib.composeManyExtensions [
             (import ./hasql.nix { inherit inputs; pkgs = final; })
             (ihpOverrides final)
@@ -187,6 +193,28 @@ final: prev: {
 
                 # cryptonite tests have a flaky failure (1 of 1548)
                 cryptonite = final.haskell.lib.dontCheck super.cryptonite;
+
+                # GHC 9.12.4 panics in lookupIdSubst when optimizing ghcide's
+                # profiling build (Core.Shake). Keep profiling libraries for
+                # HLS plugins and leave normal builds optimized.
+                ghcide = final.haskell.lib.overrideCabal super.ghcide (old: {
+                    postPatch = (old.postPatch or "") + ''
+                        substituteInPlace ghcide.cabal \
+                            --replace-fail $'library\n  import: warnings' \
+                                $'library\n  import: warnings\n  ghc-prof-options: -O0'
+                    '';
+                });
+
+                # The optimized profiling build of Ide.Logger produces an
+                # invalid unfolding for lspClientLogRecorder (Iface id out of
+                # scope: ww), which breaks downstream hls-test-utils builds.
+                hls-plugin-api = final.haskell.lib.overrideCabal super.hls-plugin-api (old: {
+                    postPatch = (old.postPatch or "") + ''
+                        substituteInPlace hls-plugin-api.cabal \
+                            --replace-fail $'library\n  import: warnings' \
+                                $'library\n  import: warnings\n  ghc-prof-options: -O0'
+                    '';
+                });
 
                 # The GHC 9.12 RC package set builds HLS 2.14 against Cabal 3.16,
                 # while its ormolu/fourmolu/stylish-haskell plugins still use
@@ -211,10 +239,9 @@ final: prev: {
         ];
     };
 
-    # `ghc912` is an alias of the default `ghc` set: the pinned nixpkgs default
-    # compiler is already GHC 9.12, so a separate set would be an exact duplicate.
-    # The alias keeps `pkgs.ghc912.*` references working; drop it once they migrate
-    # to `pkgs.ghc`.
+    # `ghc912` is an alias of the `ghc` set above, which is pinned to GHC 9.12.4,
+    # so a separate set would be an exact duplicate. The alias keeps `pkgs.ghc912.*`
+    # references working; drop it once they migrate to `pkgs.ghc`.
     ghc912 = final.ghc;
 
     # GHC 9.14 — opt-in for apps using the digitallyinduced binary cache.
@@ -223,12 +250,11 @@ final: prev: {
         if prev.haskell.packages ? ghc914
         then final.haskell.packages.ghc914.override {
             overrides = final.lib.composeManyExtensions [
-                # The RC3 nixpkgs snapshot updated ghc-exactprint to 1.14.1.0,
-                # while its GHC 9.14 configuration still references the removed
-                # 1.14.0.0 attribute. Keep the old name as a compatibility alias
-                # until nixpkgs updates configuration-ghc-9.14.x.nix.
+                # GHC 9.14's configuration references ghc-exactprint_1_14_0_0,
+                # which this nixpkgs snapshot provides natively. Skip its test
+                # suite, consistent with the other dontCheck fixups below.
                 (self: super: {
-                    ghc-exactprint_1_14_0_0 = final.haskell.lib.dontCheck super.ghc-exactprint_1_14_1_0;
+                    ghc-exactprint_1_14_0_0 = final.haskell.lib.dontCheck super.ghc-exactprint_1_14_0_0;
                 })
                 (import ./hasql.nix { inherit inputs; pkgs = final; })
                 (ihpOverrides final)
@@ -239,6 +265,11 @@ final: prev: {
 
                     # relude doctests fail due to changed GHC error messages in 9.14
                     relude = final.haskell.lib.dontCheck super.relude;
+
+                    # The GHC 9.14 config doesn't dontCheck HTTP (the default
+                    # package set does). Its test suite opens TCP sockets, which
+                    # fail in the sandbox ("connect: permission denied").
+                    HTTP = final.haskell.lib.dontCheck super.HTTP;
 
                     # HLS pulls this in; its tests import a hidden containers-0.8 module.
                     enummapset = final.haskell.lib.dontCheck super.enummapset;

@@ -10,6 +10,15 @@ let
                 pqi-conformance = null;
             }));
 in {
+    # nixpkgs' default postgresql-binary regressed to 0.14.2 in newer snapshots,
+    # but hasql 2.0.1.0 requires >=0.15 && <0.16. Use the 0.15.0.1 release that
+    # nixpkgs still ships as a versioned attribute.
+    postgresql-binary = super.postgresql-binary_0_15_0_1;
+
+    # Same regression for text-builder (default rolled back to 1.0.0.4);
+    # postgresql-simple-postgresql-types needs >=1.0.0.5 && <1.1.
+    text-builder = super.text-builder_1_0_0_5;
+
     hasql = package "hasql";
     hasql-pool = package "hasql-pool";
     hasql-transaction = package "hasql-transaction";
@@ -28,5 +37,7 @@ in {
     });
     # This release uses the unchanged 1.10/2.0 codec API, but its old bound
     # excludes Hasql 2. Keep the codecs used by IHP's PostGIS integration.
-    hasql-mapping = haskellLib.doJailbreak super.hasql-mapping;
+    # Newer nixpkgs snapshots also mark this version broken (stale Hasql 2 upper
+    # bound), so clear the flag before relaxing the bound.
+    hasql-mapping = haskellLib.doJailbreak (haskellLib.markUnbroken super.hasql-mapping);
 }
