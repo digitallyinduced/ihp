@@ -1010,6 +1010,23 @@ incomplete data is left in the database when there's an error.
 
 The [`withTransaction`](https://ihp.digitallyinduced.com/api-docs/IHP-ModelSupport.html#v:withTransaction) function will automatically commit after it successfully executed the passed do-block. When any exception is thrown, it will automatically rollback.
 
+A [`withTransaction`](https://ihp.digitallyinduced.com/api-docs/IHP-ModelSupport.html#v:withTransaction) call inside another one joins the outer transaction instead of starting a new one. The inner block runs inside a savepoint: when it throws, only its own changes are rolled back, and the outer block can catch the exception and carry on. When the exception is not caught, the outer transaction is rolled back as usual. The outer block commits everything at the end. This lets a function use `withTransaction` for its own writes, and still be called from inside a larger transaction:
+
+```haskell
+createCompany :: (?modelContext :: ModelContext) => Text -> IO Company
+createCompany name = withTransaction do
+    company <- newRecord @Company |> set #name name |> createRecord
+    newRecord @Team |> set #companyId company.id |> createRecord
+    pure company
+
+action CreateCompanyAction = do
+    withTransaction do
+        company <- createCompany (param @Text "name")  -- Runs inside this transaction
+        currentUser |> set #companyId company.id |> updateRecord
+
+    redirectTo CompaniesAction
+```
+
 It's good practice to keep your transaction blocks focused on database operations only:
 
 ```haskell
