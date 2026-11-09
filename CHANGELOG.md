@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- `redirectToPath` and `redirectToPathSeeOther` now refuse a text that is not a path on this site. Before, `redirectToPath "@evil.example"` sent the browser to `https://app.example.com@evil.example`, which is `evil.example`, so an app that redirected to a `?next=` parameter after login was an open redirect. Use the new `isLocalPath` to check user input and fall back to `/` instead of failing. See [Redirect to a Path](https://ihp.digitallyinduced.com/Guide/controller.html#redirect-to-a-path).
 - The dev server no longer serves the previous build after a hot reload. Warp's idle keep-alive connections kept the thread of the build they were accepted by, so a browser that reused its connection saw the old code for minutes after a change while a fresh connection (or `curl`) saw the new one; a page could mix old and new. In development every response now closes its connection, so the next request is accepted by the current build. WebSocket connections are unaffected. The listening socket a build inherits from the dev server is also closed when that build stops, instead of leaking one file descriptor per reload.
 - The dev server no longer exits when the telemetry request fails (e.g. behind a proxy that refuses it).
 - The dev job worker now reloads when you change a Haskell file. Before, the reload could get lost and the worker had to be restarted by hand. The reload socket moved from `build/.dev-worker.sock` to the runtime directory (`$XDG_RUNTIME_DIR` or the temp dir).

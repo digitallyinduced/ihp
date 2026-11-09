@@ -9,6 +9,7 @@ import qualified Test.HaskellSupportSpec
 import qualified Test.View.CSSFrameworkSpec
 import qualified Test.View.FormSpec
 import qualified Test.Controller.ParamSpec
+import qualified Test.Controller.RedirectSpec
 import qualified Test.Controller.CookieSpec
 import qualified Test.Controller.AccessDeniedSpec
 import qualified Test.Controller.NotFoundSpec
@@ -50,6 +51,7 @@ main = hspec do
     Test.View.CSSFrameworkSpec.tests
     Test.View.FormSpec.tests
     Test.Controller.ParamSpec.tests
+    Test.Controller.RedirectSpec.tests
     Test.Controller.AccessDeniedSpec.tests
     Test.Controller.NotFoundSpec.tests
     Test.Controller.FileUploadBackendSpec.tests
