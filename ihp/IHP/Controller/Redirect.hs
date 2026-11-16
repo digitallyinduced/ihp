@@ -21,6 +21,7 @@ import Data.Maybe (fromMaybe)
 import Data.String.Conversions (cs, convertString)
 import qualified Network.Wai.Util
 import Network.URI (URI (..), parseURI, parseURIReference, uriToString)
+import GHC.Stack (HasCallStack)
 import IHP.Router.UrlGenerator (HasPath (pathTo))
 import Network.HTTP.Types.Status
 import qualified Network.Wai.Middleware.Approot as Approot
@@ -60,8 +61,8 @@ redirectToSeeOther action = redirectToPathSeeOther (pathTo action)
 --
 -- Use 'redirectTo' if you want to redirect to a controller action. Use 'redirectToUrl'
 -- if you want to redirect to another host.
-redirectToPath :: (?request :: Request, ?respond :: Respond) => Text -> IO ResponseReceived
-redirectToPath path = redirectToUrl (localPathToUrl "redirectToPath" path)
+redirectToPath :: (?request :: Request, ?respond :: Respond, HasCallStack) => Text -> IO ResponseReceived
+redirectToPath path = redirectToUrl (localPathToUrl path)
 {-# INLINABLE redirectToPath #-}
 
 -- | Redirects to a path on this site using HTTP 303 See Other
@@ -69,18 +70,18 @@ redirectToPath path = redirectToUrl (localPathToUrl "redirectToPath" path)
 -- Forces the follow-up request to be a GET (useful after POST/DELETE).
 --
 -- Like 'redirectToPath', this refuses a text that is not a path on this site.
-redirectToPathSeeOther :: (?request :: Request, ?respond :: Respond) => Text -> IO ResponseReceived
-redirectToPathSeeOther path = redirectToUrlSeeOther (localPathToUrl "redirectToPathSeeOther" path)
+redirectToPathSeeOther :: (?request :: Request, ?respond :: Respond, HasCallStack) => Text -> IO ResponseReceived
+redirectToPathSeeOther path = redirectToUrlSeeOther (localPathToUrl path)
 {-# INLINABLE redirectToPathSeeOther #-}
 
 -- | Turns a path on this site into a full url by prefixing the app's base url
 --
--- Fails with an error naming the calling function when the text is not a path on this
--- site, see 'isLocalPath'.
-localPathToUrl :: (?request :: Request) => String -> Text -> Text
-localPathToUrl caller path
+-- Fails with an error when the text is not a path on this site, see 'isLocalPath'. The
+-- call stack of that error names the redirect function and the action it was called from.
+localPathToUrl :: (?request :: Request, HasCallStack) => Text -> Text
+localPathToUrl path
     | isLocalPath path = convertString (Approot.getApproot ?request) <> path
-    | otherwise = error (caller <> ": " <> show path <> " is not a path on this site, refusing to redirect there. Check the path with isLocalPath first, or use redirectToUrl to redirect to another host.")
+    | otherwise = error ("Refusing to redirect to " <> show path <> ", which is not a path on this site. Check the path with isLocalPath first, or use redirectToUrl to redirect to another host.")
 {-# INLINABLE localPathToUrl #-}
 
 -- | Redirects to a url (given as a string)
