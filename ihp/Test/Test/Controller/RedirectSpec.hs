@@ -13,7 +13,7 @@ import qualified Network.Wai as Wai
 import qualified Network.Wai.Internal as Wai
 import qualified Network.Wai.Middleware.Approot as Approot
 import qualified Data.Vault.Lazy as Vault
-import Network.HTTP.Types (hLocation)
+import Network.HTTP.Types (Header, hLocation, hReferer)
 
 tests :: Spec
 tests = describe "IHP.Controller.Redirect" do
@@ -59,17 +59,47 @@ tests = describe "IHP.Controller.Redirect" do
         it "refuses a path that would send the browser to another host" do
             redirectLocation (redirectToPathSeeOther "@evil.example") `shouldThrow` anyErrorCall
 
+    describe "redirectBack" do
+        it "redirects to a referer on another host" do
+            location <- redirectLocationWithHeaders [(hReferer, "https://example.com/posts")] redirectBack
+            location `shouldBe` Just "https://example.com/posts"
+
+        it "redirects to a referer that is a path on this site" do
+            location <- redirectLocationWithHeaders [(hReferer, "/posts/1")] redirectBack
+            location `shouldBe` Just "https://app.example.com/posts/1"
+
+        it "redirects to / when the referer is not a path on this site" do
+            location <- redirectLocationWithHeaders [(hReferer, "@evil.example")] redirectBack
+            location `shouldBe` Just "https://app.example.com/"
+
+    describe "redirectBackWithFallback" do
+        it "uses the fallback when the referer is missing" do
+            location <- redirectLocation (redirectBackWithFallback "/posts")
+            location `shouldBe` Just "https://app.example.com/posts"
+
+        it "uses the fallback when the referer is not a path on this site" do
+            location <- redirectLocationWithHeaders [(hReferer, "@evil.example")] (redirectBackWithFallback "/posts")
+            location `shouldBe` Just "https://app.example.com/posts"
+
+        it "redirects to / when neither the referer nor the fallback is a path on this site" do
+            location <- redirectLocationWithHeaders [(hReferer, "@evil.example")] (redirectBackWithFallback "@evil.example")
+            location `shouldBe` Just "https://app.example.com/"
+
 -- | Runs a redirect inside a request whose approot is @https://app.example.com@
 -- and returns the @Location@ header of the response.
 redirectLocation :: ((?request :: Wai.Request, ?respond :: Respond) => IO Wai.ResponseReceived) -> IO (Maybe ByteString)
-redirectLocation redirect = do
+redirectLocation = redirectLocationWithHeaders []
+
+-- | Like 'redirectLocation', but with the given request headers, e.g. a @Referer@.
+redirectLocationWithHeaders :: [Header] -> ((?request :: Wai.Request, ?respond :: Respond) => IO Wai.ResponseReceived) -> IO (Maybe ByteString)
+redirectLocationWithHeaders headers redirect = do
     location <- newIORef Nothing
     responseHeaders <- newIORef []
     let app request respond =
             let ?request = request { Wai.vault = Vault.insert responseHeadersVaultKey responseHeaders request.vault }
                 ?respond = respond
             in redirect
-    _ <- Approot.hardcoded "https://app.example.com" app Wai.defaultRequest \response -> do
+    _ <- Approot.hardcoded "https://app.example.com" app (Wai.defaultRequest { Wai.requestHeaders = headers }) \response -> do
         writeIORef location (lookup hLocation (Wai.responseHeaders response))
         pure Wai.ResponseReceived
     readIORef location

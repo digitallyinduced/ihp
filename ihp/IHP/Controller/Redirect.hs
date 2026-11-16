@@ -119,8 +119,8 @@ redirectToUrlSeeOther url = do
 --
 -- Uses the Referer header to do a redirect to page that got you here.
 --
--- In case the Referer header is not set this function will redirect to @/@. Use 'redirectBackWithFallback' when you want
--- to specify a custom fallback path.
+-- In case the Referer header is not set, or is not a url or a path on this site, this function will redirect to @/@.
+-- Use 'redirectBackWithFallback' when you want to specify a custom fallback path.
 --
 -- __Example:__
 --
@@ -137,6 +137,10 @@ redirectBack = redirectBackWithFallback "/"
 {-# INLINABLE redirectBack #-}
 
 -- | Redirects back to the last page or the given fallback path in case the Referer header is missing
+--
+-- The fallback is also used when the Referer header is neither a url nor a path on this
+-- site, see 'isLocalPath'. When the fallback is not a path on this site either, this
+-- redirects to @/@.
 --
 -- If you don't care about the missing-Referer-header case, use 'redirectBack'.
 --
@@ -155,10 +159,18 @@ redirectBackWithFallback fallbackPathOrUrl = do
     case getHeader "Referer" of
         Just referer -> case parseURI (cs referer) of
                 Just uri -> redirectToUrl (cs (uriToString id uri ""))           -- Referer Is URL "https://google.com/..."
-                Nothing -> redirectToPath (cs referer)          -- Referer Is Path "/../"
+                Nothing -> redirectToLocalPath (cs referer)      -- Referer Is Path "/../"
         Nothing -> case parseURI (cs fallbackPathOrUrl) of
                 Just uri -> redirectToUrl (cs (uriToString id uri ""))           -- Fallback Is URL "https://google.com/..."
-                Nothing -> redirectToPath fallbackPathOrUrl     -- Fallback Is Path "/../"
+                Nothing -> redirectToLocalPath fallbackPathOrUrl -- Fallback Is Path "/../"
+    where
+        -- The Referer header is sent by the client and the fallback can be any text, so
+        -- neither reaches 'redirectToPath' unchecked: something that is not a path on
+        -- this site falls back instead of failing the request.
+        redirectToLocalPath path
+            | isLocalPath path = redirectToPath path
+            | isLocalPath fallbackPathOrUrl = redirectToPath fallbackPathOrUrl
+            | otherwise = redirectToPath "/"
 {-# INLINABLE redirectBackWithFallback #-}
 
 -- | Returns 'True' when the given text is a path on this site, like @/posts/1?details=on@.
