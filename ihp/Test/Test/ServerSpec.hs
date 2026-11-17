@@ -32,9 +32,6 @@ tests = describe "IHP.Server.closeConnectionAfterResponse" do
     it "leaves a raw (WebSocket upgrade) response untouched" do
         -- A raw response keeps its connection open for the upgrade, so it must not
         -- be told to close. 'mapResponseHeaders' skips 'ResponseRaw'; this pins that.
-        -- 'mkStatus' instead of 'status426': http-types only re-exports the
-        -- latter from 'Network.HTTP.Types' since 0.12.5 ("Export everything
-        -- from Network.HTTP.Types"), and the pinned nixpkgs ships 0.12.4.
         let fallback = responseLBS (mkStatus 426 "Upgrade Required") [] "upgrade required"
             rawApp :: Application
             rawApp _ respond = respond (responseRaw (\_ _ -> pure ()) fallback)
