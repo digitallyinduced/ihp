@@ -4,6 +4,25 @@ After updating your project, please consult the segments from your current relea
 
 # Unreleased
 
+## `redirectToPath` only redirects to paths on this site
+
+`redirectToPath` and `redirectToPathSeeOther` now fail with an error unless the given text is a path on this site. Before, the text was appended to the app's base url unchecked, so `redirectToPath "@evil.example"` sent `Location: https://app.example.com@evil.example`, which browsers read as `evil.example`.
+
+Paths your app builds itself, such as `pathTo SomeAction` or `"/posts"`, are unaffected. What needs a change is an action that redirects to a path coming from the request, e.g. a `?next=` parameter after a login: without a check it now responds with a 500 instead of redirecting off-site. Check the input with the new `isLocalPath` and fall back:
+
+```haskell
+action CreateSessionAction = do
+    let next = paramOrDefault @Text "/" "next"
+    -- ... check the credentials ...
+    redirectToPath (if isLocalPath next then next else "/")
+```
+
+Use `isLocalPath` as well when such a path is rendered into a view, e.g. into a hidden `next` form field. It lives in `IHP.Controller.Redirect`, which `IHP.ControllerPrelude` re-exports; in a view, import it explicitly.
+
+`isLocalPath` also refuses `""`, `"?page=2"` and `"#comments"`, which used to be appended to the base url. Redirect to the full path instead, e.g. `redirectToPath (pathTo PostsAction <> "?page=2")`.
+
+`redirectBack` and `redirectBackWithFallback` keep working: a `Referer` header that is neither a url nor a path on this site now uses the fallback path (`/` for `redirectBack`) instead of being appended to the base url.
+
 ## PostgreSQL 18 is now the default
 
 IHP now runs PostgreSQL 18 for the development server, test databases, compile-time database access, and the `appWithPostgres` NixOS module. New tables, jobs, and DataSync triggers use `uuidv7()` instead of `uuid_generate_v4()`.
