@@ -10,14 +10,16 @@ let
                 pqi-conformance = null;
             }));
 in {
-    # nixpkgs' default postgresql-binary regressed to 0.14.2 in newer snapshots,
-    # but hasql 2.0.1.0 requires >=0.15 && <0.16. Use the 0.15.0.1 release that
-    # nixpkgs still ships as a versioned attribute.
-    postgresql-binary = super.postgresql-binary_0_15_0_1;
+    # hasql 2.0.1.0 requires postgresql-binary >=0.15 && <0.16. Snapshots whose
+    # default set regressed to 0.14.2 still ship 0.15.0.1 as a versioned
+    # attribute; newer snapshots (stackage Nightly 2026-09-13 onwards) have
+    # 0.15.0.1 as the default and dropped that attribute, so fall back to it.
+    postgresql-binary = super.postgresql-binary_0_15_0_1 or super.postgresql-binary;
 
-    # Same regression for text-builder (default rolled back to 1.0.0.4);
-    # postgresql-simple-postgresql-types needs >=1.0.0.5 && <1.1.
-    text-builder = super.text-builder_1_0_0_5;
+    # Same for text-builder: postgresql-simple-postgresql-types needs
+    # >=1.0.0.5 && <1.1, which is the default from Nightly 2026-09-13 onwards
+    # and only available as a versioned attribute in older snapshots.
+    text-builder = super.text-builder_1_0_0_5 or super.text-builder;
 
     hasql = package "hasql";
     hasql-pool = package "hasql-pool";
