@@ -41,6 +41,8 @@ module IHP.ModelSupport.Types
 , enhancedSqlErrorMessage
 , HasqlSessionError (..)
 , HasqlError (..)
+, TransactionAbortedError (..)
+, isAbortedTransactionSessionError
   -- * Type Classes
 , CanCreate (..)
 , CanUpdate (..)
@@ -54,7 +56,7 @@ import Prelude
 import Data.ByteString (ByteString)
 import Data.Text (Text)
 import qualified Data.Text.Encoding
-import Control.Exception (Exception)
+import Control.Exception (Exception, SomeException, displayException)
 import Database.PostgreSQL.Simple.Types (Query)
 import qualified Database.PostgreSQL.Simple as PG
 import qualified Hasql.Pool as Hasql
@@ -83,10 +85,48 @@ data HasqlError = HasqlError Hasql.UsageError
 
 instance Exception HasqlError
 
+-- | Thrown by 'IHP.ModelSupport.withTransaction' when its block returns normally although a
+-- SQL statement inside the block had failed.
+--
+-- A failed statement puts the PostgreSQL transaction into an aborted state, in which no
+-- further statement succeeds. Catching the database exception inside the block does not undo
+-- that, so the transaction cannot be committed and all of its changes are rolled back.
+-- 'withTransaction' reports this instead of returning successfully, which would silently throw
+-- the block's writes away.
+--
+-- To recover from a statement that is expected to fail, wrap it in its own
+-- 'IHP.ModelSupport.withTransaction': a nested call runs inside a savepoint, so rolling it back
+-- leaves the enclosing transaction usable.
+data TransactionAbortedError = TransactionAbortedError SomeException
+
+instance Show TransactionAbortedError where
+    show (TransactionAbortedError cause) =
+        "withTransaction: the block returned normally after a SQL statement inside it had failed, "
+        <> "so the transaction was aborted and all of its changes have been rolled back. "
+        <> "Catching a database exception inside withTransaction does not make the transaction "
+        <> "usable again. To recover from a statement that is expected to fail, wrap it in its own "
+        <> "withTransaction, which runs it inside a savepoint. Underlying error: "
+        <> displayException cause
+
+instance Exception TransactionAbortedError
+
+-- | 'True' when the session error is PostgreSQL's @25P02 current transaction is aborted@.
+--
+-- Every statement except the transaction control commands fails with this code once a
+-- statement in the transaction has failed.
+isAbortedTransactionSessionError :: HasqlErrors.SessionError -> Bool
+isAbortedTransactionSessionError = \case
+    HasqlErrors.ScriptSessionError _ (HasqlErrors.ServerError "25P02" _ _ _ _) -> True
+    HasqlErrors.StatementSessionError _ _ _ _ _ (HasqlErrors.ServerStatementError (HasqlErrors.ServerError "25P02" _ _ _ _)) -> True
+    _ -> False
+
 -- | Provides the db connection and some IHP-specific db configuration
 data ModelContext = ModelContext
     { hasqlPool :: Hasql.Pool -- ^ Hasql pool for prepared statement-based queries
     , transactionRunner :: Maybe TransactionRunner -- ^ When set, queries are sent through this runner instead of 'HasqlPool.use' directly
+    -- | Name of the savepoint of the innermost nested 'IHP.ModelSupport.withTransaction'.
+    -- 'Nothing' at the top level of a transaction and outside of one.
+    , transactionSavepoint :: Maybe Text
     , logger :: FastLogger
     , queryLoggingEnabled :: !Bool
     -- | A callback that is called whenever a specific table is accessed using a SELECT query

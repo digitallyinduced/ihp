@@ -358,6 +358,7 @@ test-suite tests
         Test.Router.TrieSpec
         Test.Router.WebSocketSpec
         Test.TypedSqlSpec
+        Test.WithTransactionSpec
         Test.ModelFixtures
         Test.Util
 

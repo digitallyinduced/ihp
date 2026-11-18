@@ -24,9 +24,9 @@ import Data.ByteString (ByteString)
 import Data.Text (Text)
 import qualified Data.Text as Text
 import Data.Int (Int64)
-import Data.IORef (IORef, newIORef, modifyIORef')
-import Control.Exception (bracket, finally, throwIO, SomeException, try, mask)
-import Data.Maybe (fromMaybe, isNothing, isJust)
+import Data.IORef (IORef, newIORef, modifyIORef', atomicModifyIORef')
+import Control.Exception (bracket, finally, throwIO, SomeException, SomeAsyncException (..), toException, fromException, try, mask, catch)
+import Data.Maybe (fromMaybe, isNothing)
 import Data.String (IsString(..))
 import Database.PostgreSQL.Simple.Types (Query(..))
 import Data.Default
@@ -78,12 +78,14 @@ import IHP.Hasql.FromRow (FromRowHasql(..), HasqlDecodeColumn(..))
 import IHP.Hasql.Encoders (ToSnippetParams(..), sqlToSnippet)
 import IHP.Hasql.Pool (usePoolWithRetry)
 import IHP.PGSimpleCompat ()
+import System.IO.Unsafe (unsafePerformIO)
 
 -- | Provides a mock ModelContext to be used when a database connection is not available
 notConnectedModelContext :: FastLogger -> ModelContext
 notConnectedModelContext logger = ModelContext
     { hasqlPool = error "Not connected"
     , transactionRunner = Nothing
+    , transactionSavepoint = Nothing
     , logger = logger
     , queryLoggingEnabled = False
     , trackTableReadCallback = Nothing
@@ -108,6 +110,7 @@ createModelContext databaseUrl logger = do
 
     let trackTableReadCallback = Nothing
     let transactionRunner = Nothing
+    let transactionSavepoint = Nothing
     let rowLevelSecurity = Nothing
     queryLoggingEnabled <- envOrDefault "DEBUG" False
     pure ModelContext { .. }
@@ -585,11 +588,109 @@ sqlQueryScalarOrNothing = unsafeSqlQueryScalarOrNothing
 -- >    company <- company
 -- >        |> set #ownerId user.id
 -- >        |> updateRecord
+--
+-- A 'withTransaction' call inside another one joins the outer transaction instead of
+-- starting a new one. The inner block runs inside a savepoint: when it throws, only its
+-- own changes are rolled back, and the outer block can catch the exception and carry on.
+-- When the exception is not caught, the outer transaction is rolled back as usual. The
+-- outer block commits everything at the end.
+--
+-- When the block catches a failed SQL statement itself and returns normally, the transaction
+-- cannot be committed: PostgreSQL aborts it on the first failed statement. 'withTransaction'
+-- then rolls its work back and throws 'TransactionAbortedError', at both the outer and the
+-- nested level, instead of returning as if the writes had gone through.
+--
+-- Each nested call costs a @SAVEPOINT@ and a @RELEASE SAVEPOINT@ round trip, and PostgreSQL
+-- keeps a subtransaction per savepoint. Past 64 subtransactions in one transaction the
+-- backend's subtransaction cache overflows and visibility checks fall back to the
+-- @pg_subtrans@ SLRU, which slows down the whole cluster. Avoid nesting 'withTransaction'
+-- inside a loop that runs hundreds of iterations; wrap the loop instead.
+--
+-- 'withRowLevelSecurityDisabled' has no effect inside a transaction, nested or not: the
+-- PostgreSQL role is set once for the whole transaction when it begins.
 withTransaction :: (?modelContext :: ModelContext) => ((?modelContext :: ModelContext) => IO a) -> IO a
-withTransaction block
-    | isJust ?modelContext.transactionRunner =
-        error "withTransaction: Nested transactions are not supported. withTransaction was called inside an existing transaction."
-    | otherwise = do
+withTransaction block = case ?modelContext.transactionRunner of
+    Just _ -> withSavepoint block
+    Nothing -> withNewTransaction block
+{-# INLINABLE withTransaction #-}
+
+-- | Runs the block inside a savepoint of the transaction that is already running.
+--
+-- This is what a nested 'withTransaction' does. Throws when there is no transaction to
+-- attach the savepoint to.
+--
+-- Every call uses its own savepoint name. A savepoint left behind by a call that was interrupted
+-- while creating it can then never be the target of an enclosing call's @ROLLBACK TO@.
+withSavepoint :: (?modelContext :: ModelContext) => ((?modelContext :: ModelContext) => IO a) -> IO a
+withSavepoint block = case ?modelContext.transactionRunner of
+    Nothing -> error "withSavepoint: Not in a transaction. Use withTransaction, which starts one when needed."
+    Just (TransactionRunner runner) -> do
+        let ?context = ?modelContext
+        savepoint <- nextSavepointName
+        let rollbackToSavepoint =
+                runner (Hasql.script (cs ("ROLLBACK TO SAVEPOINT " <> savepoint <> "; RELEASE SAVEPOINT " <> savepoint)))
+                    `catch` logCleanupFailure ?context.logger "withTransaction: ROLLBACK TO SAVEPOINT failed"
+        mask \restore -> do
+            -- Created under mask, so no asynchronous exception can arrive between the savepoint
+            -- existing and the handler below being in place. Waiting for the runner's answer is
+            -- still interruptible; a savepoint left behind by that is harmless, since its name is
+            -- unique and the enclosing transaction ends it.
+            runner (Hasql.script (cs ("SAVEPOINT " <> savepoint)))
+            -- The block sees its own savepoint, so that 'rollbackTransaction' inside it rolls
+            -- back to here instead of ending the enclosing transaction.
+            let ?modelContext = ?modelContext { transactionSavepoint = Just savepoint }
+            result <- try @SomeException (restore block)
+            case result of
+                Left exc -> do
+                    rollbackToSavepoint
+                    throwIO exc
+                Right a -> do
+                    released <- try @SomeException (runner (Hasql.script (cs ("RELEASE SAVEPOINT " <> savepoint))))
+                    case released of
+                        Right () -> pure a
+                        Left releaseErr -> do
+                            -- The block caught a failed statement itself and returned normally, so
+                            -- the transaction is aborted. Roll back to the savepoint, which gets
+                            -- the enclosing transaction working again, and report the failure.
+                            rollbackToSavepoint
+                            throwIO (describeAbortedTransaction releaseErr)
+
+-- | Counter behind the savepoint names of nested 'withTransaction' calls.
+--
+-- Names have to be distinct per call, not per nesting level: a savepoint that an interrupted
+-- call left behind must never become the target of an enclosing call's @ROLLBACK TO SAVEPOINT@,
+-- and two threads that share one transaction must not target each other's savepoints.
+savepointCounter :: IORef Int
+savepointCounter = unsafePerformIO (newIORef 0)
+{-# NOINLINE savepointCounter #-}
+
+nextSavepointName :: IO Text
+nextSavepointName = do
+    counter <- atomicModifyIORef' savepointCounter (\counter -> (counter + 1, counter + 1))
+    pure ("ihp_savepoint_" <> Text.pack (show counter))
+
+-- | Reports that a statement cleaning up a transaction failed.
+--
+-- Asynchronous exceptions are rethrown instead of logged: swallowing them would make
+-- 'System.Timeout.timeout' and 'Control.Concurrent.killThread' silently lose their effect.
+logCleanupFailure :: FastLogger -> Text -> SomeException -> IO ()
+logCleanupFailure logger label exc
+    | Just (SomeAsyncException _) <- fromException exc = throwIO exc
+    | otherwise = logger (toLogStr (label <> ": " <> Text.pack (show exc)))
+
+-- | Wraps the error of a failed @COMMIT@ or @RELEASE SAVEPOINT@ in 'TransactionAbortedError'
+-- when PostgreSQL reports the transaction as aborted, which means a statement inside the block
+-- failed and the block caught the exception. Any other error is passed through unchanged.
+describeAbortedTransaction :: SomeException -> SomeException
+describeAbortedTransaction exc
+    | Just (HasqlSessionError sessionError) <- fromException exc
+    , isAbortedTransactionSessionError sessionError
+    = toException (TransactionAbortedError exc)
+    | otherwise = exc
+
+-- | Starts a new transaction on a pool connection and runs the block inside it.
+withNewTransaction :: (?modelContext :: ModelContext) => ((?modelContext :: ModelContext) => IO a) -> IO a
+withNewTransaction block = do
     let pool = ?modelContext.hasqlPool
     requestMVar <- newEmptyMVar
 
@@ -602,7 +703,7 @@ withTransaction block
                 Left err -> throwIO (HasqlSessionError err)
                 Right a -> pure a
 
-    let ?modelContext = ?modelContext { transactionRunner = Just (TransactionRunner runner) }
+    let ?modelContext = ?modelContext { transactionRunner = Just (TransactionRunner runner), transactionSavepoint = Nothing }
 
     let ?context = ?modelContext
     let transactionSession = do
@@ -630,11 +731,21 @@ withTransaction block
                         ?context.logger (toLogStr ("withTransaction: ROLLBACK failed: " <> Text.pack (show rollbackErr))))
                     liftIO (throwIO exc)
                 Right a -> do
-                    Hasql.script "COMMIT"
-                    pure a
+                    -- @SELECT 1@ fails with 25P02 when a statement inside the block failed and the
+                    -- block caught the exception itself. PostgreSQL turns a COMMIT of such an
+                    -- aborted transaction into a silent rollback, so without the probe
+                    -- 'withTransaction' would return as if the block's writes had been committed.
+                    -- Both statements go out in one round trip, so this costs nothing extra.
+                    commitResult <- catchError (Right <$> Hasql.script "SELECT 1; COMMIT") (pure . Left)
+                    case commitResult of
+                        Right () -> pure a
+                        Left commitErr -> do
+                            catchError (Hasql.script "ROLLBACK") (\rollbackErr -> liftIO $
+                                ?context.logger (toLogStr ("withTransaction: ROLLBACK failed: " <> Text.pack (show rollbackErr))))
+                            liftIO (throwIO (describeAbortedTransaction (toException (HasqlSessionError commitErr))))
 
     usePoolWithRetry pool transactionSession
-{-# INLINABLE withTransaction #-}
+{-# INLINABLE withNewTransaction #-}
 
 -- | Executes the given block with the main database role and temporarly sidesteps the row level security policies.
 --
@@ -643,6 +754,10 @@ withTransaction block
 -- we switch to the main role which is allowed to set up database triggers.
 --
 -- SQL queries run from within the passed block are executed in their own transaction.
+--
+-- This has no effect inside 'withTransaction': the PostgreSQL role is set once for the whole
+-- transaction when it begins, and a nested 'withTransaction' joins that transaction. Run the
+-- block outside of the transaction when it needs the main role.
 --
 -- __Example:__
 --
@@ -657,16 +772,26 @@ withRowLevelSecurityDisabled block = do
     let ?modelContext = currentModelContext { rowLevelSecurity = Nothing } in block
 {-# INLINABLE withRowLevelSecurityDisabled #-}
 
+-- | Commits the transaction that is currently running.
+--
+-- Cannot be used inside a nested 'withTransaction': that block only owns a savepoint of the
+-- enclosing transaction, and committing would end the enclosing transaction as well.
 commitTransaction :: (?modelContext :: ModelContext) => IO ()
-commitTransaction = case ?modelContext.transactionRunner of
-    Just (TransactionRunner runner) -> runner (Hasql.script "COMMIT")
-    Nothing -> error "commitTransaction: Not in a transaction"
+commitTransaction = case (?modelContext.transactionRunner, ?modelContext.transactionSavepoint) of
+    (Just (TransactionRunner runner), Nothing) -> runner (Hasql.script "COMMIT")
+    (Just _, Just _) -> error "commitTransaction: Called inside a nested withTransaction, which cannot commit on its own. Only the outermost withTransaction commits; let the inner block return instead."
+    (Nothing, _) -> error "commitTransaction: Not in a transaction"
 {-# INLINABLE commitTransaction #-}
 
+-- | Rolls back the transaction that is currently running.
+--
+-- Inside a nested 'withTransaction' this rolls back to that call's savepoint, so only the work
+-- of the inner block is discarded and the enclosing transaction stays usable.
 rollbackTransaction :: (?modelContext :: ModelContext) => IO ()
-rollbackTransaction = case ?modelContext.transactionRunner of
-    Just (TransactionRunner runner) -> runner (Hasql.script "ROLLBACK")
-    Nothing -> error "rollbackTransaction: Not in a transaction"
+rollbackTransaction = case (?modelContext.transactionRunner, ?modelContext.transactionSavepoint) of
+    (Just (TransactionRunner runner), Nothing) -> runner (Hasql.script "ROLLBACK")
+    (Just (TransactionRunner runner), Just savepoint) -> runner (Hasql.script (cs ("ROLLBACK TO SAVEPOINT " <> savepoint)))
+    (Nothing, _) -> error "rollbackTransaction: Not in a transaction"
 {-# INLINABLE rollbackTransaction #-}
 
 -- | Access meta data for a database table.
