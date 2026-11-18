@@ -1027,6 +1027,63 @@ action CreateCompanyAction = do
     redirectTo CompaniesAction
 ```
 
+### Failed Statements Inside a Transaction
+
+PostgreSQL aborts a transaction as soon as one statement in it fails. No later statement in that
+transaction can succeed, and catching the Haskell exception does not change that. When a
+`withTransaction` block catches a database error and then returns normally, IHP therefore rolls
+the transaction back and throws
+[`TransactionAbortedError`](https://ihp.digitallyinduced.com/api-docs/IHP-ModelSupport.html#t:TransactionAbortedError)
+instead of returning as if the writes had been committed.
+
+To recover from a statement that is expected to fail, put it in its own `withTransaction`. The
+nested call runs inside a savepoint, so rolling that savepoint back leaves the enclosing
+transaction usable:
+
+```haskell
+action InviteUserAction = do
+    withTransaction do
+        invitation <- newRecord @Invitation
+            |> set #email (param @Text "email")
+            |> createRecord
+
+        -- The email may already be on the mailing list, which violates a unique constraint.
+        -- The nested withTransaction keeps that failure inside its own savepoint, so the
+        -- enclosing transaction stays usable either way.
+        alreadySubscribed <- isLeft <$> try @SomeException (withTransaction do
+            newRecord @Subscriber
+                |> set #email invitation.email
+                |> createRecord)
+
+        invitation
+            |> set #alreadySubscribed alreadySubscribed
+            |> updateRecord
+
+    redirectTo InvitationsAction
+```
+
+Without the nested `withTransaction`, the failed insert would abort the whole transaction and
+the `updateRecord` after it would fail too.
+
+Calling [`rollbackTransaction`](https://ihp.digitallyinduced.com/api-docs/IHP-ModelSupport.html#v:rollbackTransaction)
+inside a nested `withTransaction` rolls back to that call's savepoint only.
+[`commitTransaction`](https://ihp.digitallyinduced.com/api-docs/IHP-ModelSupport.html#v:commitTransaction)
+cannot be used there, because only the outermost `withTransaction` can commit.
+
+### Things to Keep in Mind
+
+- Every nested `withTransaction` costs a `SAVEPOINT` and a `RELEASE SAVEPOINT` round trip, and
+  PostgreSQL keeps a subtransaction per savepoint. Past 64 subtransactions in a single
+  transaction the backend's subtransaction cache overflows and visibility checks fall back to the
+  `pg_subtrans` SLRU, which slows down the whole database server. Don't nest `withTransaction`
+  inside a loop with hundreds of iterations — wrap the loop instead.
+- A transaction belongs to a single connection, so don't run queries from several threads inside
+  one `withTransaction` block. The statements of those threads interleave on that connection, and
+  one thread's rollback then discards another thread's work.
+- [`withRowLevelSecurityDisabled`](https://ihp.digitallyinduced.com/api-docs/IHP-ModelSupport.html#v:withRowLevelSecurityDisabled)
+  has no effect inside `withTransaction`: the PostgreSQL role is set once for the whole
+  transaction when it begins. Run such blocks outside of the transaction.
+
 It's good practice to keep your transaction blocks focused on database operations only:
 
 ```haskell

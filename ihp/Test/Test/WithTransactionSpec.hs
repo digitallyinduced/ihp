@@ -30,6 +30,26 @@ tests = describe "withTransaction" do
         result `shouldBe` Left (Exception.ErrorCall "boom")
         itemNames >>= (`shouldBe` [])
 
+    it "rolls back and reports when the block swallowed a failed SQL statement" $ withDB \modelContext -> do
+        let ?modelContext = modelContext
+        result <- Exception.try @TransactionAbortedError $ withTransaction do
+            insertItem "a"
+            (_ :: Either HasqlSessionError ()) <- Exception.try (insertItem "a") -- violates the primary key
+            pure ()
+        -- PostgreSQL turns the COMMIT of an aborted transaction into a silent rollback, so
+        -- without the probe before COMMIT this would return successfully with nothing written
+        case result of
+            Left _ -> pure ()
+            Right () -> expectationFailure "expected withTransaction to report the aborted transaction"
+        itemNames >>= (`shouldBe` [])
+
+    it "rolls back everything when the block calls rollbackTransaction" $ withDB \modelContext -> do
+        let ?modelContext = modelContext
+        withTransaction do
+            insertItem "a"
+            rollbackTransaction
+        itemNames >>= (`shouldBe` [])
+
     describe "nested" do
         it "runs the inner block inside the outer transaction" $ withDB \modelContext -> do
             let ?modelContext = modelContext
@@ -70,7 +90,7 @@ tests = describe "withTransaction" do
             let ?modelContext = modelContext
             withTransaction do
                 insertItem "outer"
-                result <- Exception.try @HasqlSessionError $ withTransaction do
+                result <- Exception.try @TransactionAbortedError $ withTransaction do
                     insertItem "inner"
                     (_ :: Either HasqlSessionError ()) <- Exception.try (insertItem "outer") -- violates the primary key
                     pure ()
@@ -78,6 +98,30 @@ tests = describe "withTransaction" do
                     Left _ -> pure ()
                     Right () -> expectationFailure "expected the inner withTransaction to report the failed statement"
                 -- The transaction is usable again, and the inner work is gone
+                insertItem "after"
+            itemNames >>= (`shouldBe` ["after", "outer"])
+
+        it "rolls back to the inner savepoint when the inner block calls rollbackTransaction" $ withDB \modelContext -> do
+            let ?modelContext = modelContext
+            withTransaction do
+                insertItem "outer"
+                withTransaction do
+                    insertItem "inner"
+                    rollbackTransaction
+                -- Only the inner work is gone, the enclosing transaction is still usable
+                insertItem "after"
+            itemNames >>= (`shouldBe` ["after", "outer"])
+
+        it "refuses commitTransaction in the inner block" $ withDB \modelContext -> do
+            let ?modelContext = modelContext
+            withTransaction do
+                insertItem "outer"
+                (result :: Either Exception.ErrorCall ()) <- Exception.try $ withTransaction do
+                    insertItem "inner"
+                    commitTransaction
+                case result of
+                    Left _ -> pure ()
+                    Right () -> expectationFailure "expected commitTransaction to be refused inside a nested withTransaction"
                 insertItem "after"
             itemNames >>= (`shouldBe` ["after", "outer"])
 
@@ -89,8 +133,7 @@ tests = describe "withTransaction" do
                     insertItem "middle"
                     -- What an inner withTransaction leaves behind when it is interrupted while
                     -- creating its savepoint. The middle rollback must not be redirected to it,
-                    -- which is what happens when every level shares one savepoint name. This
-                    -- is the name the first implementation used for every level.
+                    -- which is what happens when every level shares one savepoint name.
                     unsafeSqlExecDiscardResult "SAVEPOINT ihp_with_transaction" ()
                     Exception.throwIO (Exception.ErrorCall "boom")
                 result `shouldBe` Left (Exception.ErrorCall "boom")
