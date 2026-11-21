@@ -30,7 +30,7 @@ POST       /CreateColumn                                                        
 GET        /EditColumn?tableName&columnId                                            EditColumnAction
 POST|PATCH /UpdateColumn                                                             UpdateColumnAction
 DELETE     /DeleteColumn?tableName&columnId&columnName                               DeleteColumnAction
-GET        /ToggleColumnUnique?tableName&columnId                                    ToggleColumnUniqueAction
+POST       /ToggleColumnUnique?tableName&columnId                                    ToggleColumnUniqueAction
 GET        /NewForeignKey?tableName&columnName                                       NewForeignKeyAction
 POST       /CreateForeignKey                                                         CreateForeignKeyAction
 GET        /EditForeignKey?tableName&columnName&constraintName&referenceTable        EditForeignKeyAction
@@ -75,7 +75,7 @@ GET        /NewRow?tableName                                                    
 GET        /EditRow?tableName&targetPrimaryKey                                       EditRowAction
 POST|PATCH /UpdateRow                                                                UpdateRowAction
 GET        /EditRowValue?tableName&targetName&id                                     EditRowValueAction
-GET        /ToggleBooleanField?tableName&targetName&targetPrimaryKey                 ToggleBooleanFieldAction
+POST       /ToggleBooleanField?tableName&targetName&targetPrimaryKey                 ToggleBooleanFieldAction
 POST|PATCH /UpdateValue                                                              UpdateValueAction
 GET        /ShowForeignKeyHoverCard?tableName&id&columnName                          ShowForeignKeyHoverCardAction
 GET        /AutocompleteForeignKeyColumn?tableName&columnName&term                   AutocompleteForeignKeyColumnAction
