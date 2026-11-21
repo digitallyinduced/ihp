@@ -4,7 +4,9 @@ let
 in
 {
     systemd.services.worker = {
-        enable = true;
+        # Apps without jobs get no RunJobs binary. A package built outside
+        # IHP's builder has no runJobsBinary attribute, so keep the worker there.
+        enable = !(cfg.package ? runJobsBinary) || cfg.package.runJobsBinary != null;
         after = [ "network.target" "app-keygen.service" ];
         wantedBy = [ "multi-user.target" ];
         serviceConfig = {
